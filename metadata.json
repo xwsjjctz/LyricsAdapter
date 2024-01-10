@@ -1,0 +1,22 @@
+{
+    "streams": [
+
+    ],
+    "format": {
+        "filename": "BEYOND - 海阔天空 [mqms2].flac",
+        "nb_streams": 1,
+        "nb_programs": 0,
+        "format_name": "flac",
+        "format_long_name": "raw FLAC",
+        "start_time": "0.000000",
+        "duration": "324.825125",
+        "size": "32845884",
+        "bit_rate": "808949",
+        "probe_score": 100,
+        "tags": {
+            "TITLE": "海阔天空",
+            "ALBUM": "乐与怒",
+            "ARTIST": "BEYOND"
+        }
+    }
+}
