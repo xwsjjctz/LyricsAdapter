@@ -1,0 +1,13 @@
+*.wav
+*.flv
+*.mp4
+*.pth
+*.pt
+*.m4a
+*.zip
+*.flac
+*.lrc
+*.jpeg
+*.pyc
+
+__pycache__/*

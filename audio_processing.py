@@ -1,5 +1,6 @@
 import os
 from mutagen.flac import FLAC
+from ffmpy import FFmpeg
 
 class AudioProcessing():
 
@@ -12,15 +13,22 @@ class AudioProcessing():
 
     def metadata_processing(self):
         temp = f"cover_{self.audio}"
-        os.system(f'''ffmpeg -i "{self.audio}" -i "{self.cover}" \
-                  -map 0:a -map 1 -codec copy \
-                  -metadata:s:v title="Album cover" \
-                  -metadata:s:v comment="Cover (front)" \
-                  -disposition:v attached_pic "{temp}" -v quiet''')
+        ff = FFmpeg(
+            inputs={self.audio: None, 
+                    self.cover: None}, 
+            outputs={temp: [
+                '-map', '0:a', '-map', '1', '-codec', 'copy', 
+                '-metadata:s:v', 'title=Album cover', 
+                '-metadata:s:v', 'comment=Cover (front)', 
+                '-disposition:v', 'attached_pic', 
+                '-v', 'quiet', '-y']})
+        ff.run()
         file = FLAC(temp)
         file["TITLE"] = self.title
         file["ARTIST"] = self.artist
-        file["LYRICS"] = self.lyrics
-        file.save()
+        with open(self.lyrics, 'r') as f:
+            lrc = f.read()
+            file["LYRICS"] = lrc
+            file.save()
         os.remove(self.audio)
         os.rename(temp, self.audio)
