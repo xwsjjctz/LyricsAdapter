@@ -1,6 +1,7 @@
 *.wav
 *.flv
 *.mp4
+*.mp3
 *.pth
 *.pt
 *.m4a
@@ -9,5 +10,6 @@
 *.lrc
 *.jpeg
 *.pyc
+*.mflac
 
 __pycache__/*

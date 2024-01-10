@@ -1,0 +1,5 @@
+;FFMETADATA1
+TITLE=Chance
+ALBUM=Chance
+ARTIST=Aspyer
+encoder=Lavf60.20.100

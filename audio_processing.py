@@ -1,6 +1,6 @@
 import os
-from mutagen.flac import FLAC
-from ffmpy import FFmpeg
+import subprocess
+from mutagen import flac, mp3, ogg
 
 class AudioProcessing():
 
@@ -11,19 +11,23 @@ class AudioProcessing():
         self.lyrics = lyrics
         self.cover = cover
 
+    def audio_unlock(self):
+        pass
+
+    def metadata_view(self):
+        cmd = ['ffprobe', '-i', self.audio, '-hide_banner']
+        ff = subprocess.run(cmd, stdout=subprocess.PIPE)
+
     def metadata_processing(self):
         temp = f"cover_{self.audio}"
-        ff = FFmpeg(
-            inputs={self.audio: None, 
-                    self.cover: None}, 
-            outputs={temp: [
-                '-map', '0:a', '-map', '1', '-codec', 'copy', 
-                '-metadata:s:v', 'title=Album cover', 
-                '-metadata:s:v', 'comment=Cover (front)', 
-                '-disposition:v', 'attached_pic', 
-                '-v', 'quiet', '-y']})
-        ff.run()
-        file = FLAC(temp)
+        cmd = ['ffmpeg', '-i', self.audio, '-i', self.cover, 
+               '-map', '0:a', '-map', '1', '-codec', 'copy', 
+               '-metadata:s:v', 'title=Album cover', 
+               '-metadata:s:v', 'comment=Cover (front)', 
+               '-disposition:v', 'attached_pic', 
+               '-v', 'quiet', '-y', temp]
+        subprocess.run(cmd, stdout=subprocess.PIPE)
+        file = flac.FLAC(temp)
         file["TITLE"] = self.title
         file["ARTIST"] = self.artist
         with open(self.lyrics, 'r') as f:
