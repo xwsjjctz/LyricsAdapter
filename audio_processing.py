@@ -1,6 +1,3 @@
-import os
-import subprocess
-import json
 from mutagen import flac, id3, _vorbis, File
 
 class AudioProcessing():
@@ -61,5 +58,5 @@ class AudioProcessing():
         elif self.audio_format == "audio/flac":
             self.__modify_flac_metadata()
         else:
-            raise "未读取到音频格式或文件输入路径有误"
+            raise "不支持的音频格式或文件输入路径有误"
         
