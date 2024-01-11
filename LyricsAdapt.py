@@ -1,6 +1,6 @@
 from audio_processing import AudioProcessing
 
-music = AudioProcessing("BEYOND - 海阔天空 [mqms2].flac", 
+music = AudioProcessing("azi_阿楚姑娘.mp3", 
                         "叹", 
                         "兰音Reine", 
                         "Mine - Phoebe Ryan.lrc", 

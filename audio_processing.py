@@ -1,7 +1,7 @@
 import os
 import subprocess
 import json
-from mutagen import flac, mp3, ogg
+from mutagen import flac, ogg, id3
 
 class AudioProcessing():
 
@@ -15,10 +15,25 @@ class AudioProcessing():
         self.artist = artist
         self.lyrics = lyrics
         self.cover = cover
+        self.streams, self.format_name, self.tags = self.__metadata_view()
 
-    # 某音乐平台加密格式音频文件逆向部分
-    def audio_unlock(self):
-        pass
+    # 添加对mp3文件元数据修改的支持但未添加当元数据存在是是否修改的判断
+    def __mp3_audio_tags_processing(self):
+        try:
+            audio = id3.ID3(self.audio)
+        except:
+            audio = id3.ID3()
+        with open(self.lyrics, 'r') as f:
+            lyrics = f.read()
+        audio["TIT2"] = id3.TIT2(encoding=3, text=self.title) if audio.get("TIT2") is None else audio["TIT2"]
+        audio["TPE1"] = id3.TPE1(encoding=3, text=self.artist) if audio.get("TPE1") is None else audio['TPE1']
+        existing_covers = audio.getall("APIC")
+        if not existing_covers:
+            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=lyrics))
+            with open(self.cover, "rb") as f:
+                cover_data = f.read()
+            audio["APIC"] = id3.APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=cover_data)
+        audio.save()
 
     # 使用ffprobe获取音频文件的元数据
     # 并将输出重定向到metadata.json
@@ -33,28 +48,10 @@ class AudioProcessing():
         subprocess.run(cmd, shell=True)
         with open('metadata.json', encoding='utf-8') as f:
             meta = json.load(f)
-            streams = meta["streams"]
-            format = meta["format"]["format_name"]
-            tags = meta["format"]["tags"]
-        return streams, format, tags
-    
-    # 获取音频文件的格式 不同的格式需要用到mutagen库中不同的类
-    # 一般只有函数中列举的三种格式 这块使用字典推导式简写 问的AI结果这块跑着报错 只能硬用if判断了
-    # file变量是使用的文件名 正常情况是将元数据修改后直接覆盖到源文件也就是self.audio上
-    # 但是使用ffmpeg将音乐封面嵌入音频文件后必须新建一个文件 为了解耦只能这样了
-    def __get_audio_format(self, file):
-        _, format, _ = self.__metadata_view()
-        if format == "flac":
-            return flac.FLAC(file)
-        if format == "mp3":
-            return mp3.MP3(file)
-        if format == "ogg":
-            return ogg.OggFileType(file)
-        # return {  
-        #     "flac": flac.FLAC(file),
-        #     "mp3": mp3.MP3(file),
-        #     "ogg": ogg.OggFileType(file)
-        # }.get(format)
+        streams = meta["streams"][0] if meta.get("streams") else None
+        format_name = meta["format"]["format_name"] if meta.get("format") else None
+        tags = meta["format"]["tags"] if meta.get("format") else None
+        return streams, format_name, tags
 
     # 使用ffmpeg将音乐封面嵌入音频文件 
     # 这里新建了一个temp变量用于存放输出的音频路径
@@ -68,32 +65,35 @@ class AudioProcessing():
                '-disposition:v', 'attached_pic', 
                '-v', 'quiet', '-y', temp]
         return subprocess.run(cmd, stdout=subprocess.PIPE)
-    
+
     # 这里使用了mutagen库对音频元数据进行编辑
     # tags = {k: v for k, v in (("TITLE", self.title), ("ARTIST", self.artist)) if k not in tags}
     # 这行也是用的字典推导式 若音频文件不存在部分元数据则将输入数据作为元数据进行编辑
-    def __audio_tags_processing(self, file):
-        _, _, tags = self.__metadata_view()
-        getfile = self.__get_audio_format(file)
-        # print(getfile)
-        tags = {k: v for k, v in (("TITLE", self.title), ("ARTIST", self.artist)) if k not in tags}
+    def __flac_audio_tags_processing(self, file):
+        getfile = flac.FLAC(file)
+        tags = {k: v for k, v in (("TITLE", self.title), ("ARTIST", self.artist)) if k not in self.tags}
         if "LYRICS" not in tags:
             with open(self.lyrics, 'r') as f:
                 lrc = f.read()
-                getfile["LYRICS"] = lrc
+            getfile["LYRICS"] = lrc
         return getfile.save()
 
     # 音频文件没有封面则使用__audio_cover_processing()添加封面
     # 添加封面后再修改元数据 传入ffmpeg输出的音频路径
     # 音频存在封面则直接修改音频元数据 传入音频路径
     def metadata_processing(self):
-        streams, _, _ = self.__metadata_view()
-        if streams is None or "codec_name" not in streams:
-            self.__audio_cover_processing()
-            self.__audio_tags_processing(file=temp)
-            os.remove(self.audio)
-            os.rename(temp, self.audio)
+        if self.format_name == "mp3":
+            self.__mp3_audio_tags_processing()
+        elif self.format_name == "flac":
+            if self.streams is None or "codec_name" not in self.streams:
+                self.__audio_cover_processing()
+                self.__flac_audio_tags_processing(file=temp)
+                os.remove(self.audio)
+                os.rename(temp, self.audio)
+            else:
+                self.__flac_audio_tags_processing(file=self.audio)
+        elif self.format_name == "ogg":
+            pass
         else:
-            # print(self.audio)
-            self.__audio_tags_processing(file=self.audio)
+            raise "未读取到音频格式或文件输入路径有误"
         
