@@ -1,0 +1,34 @@
+{
+	"compilerOptions": {
+		"target": "ES2017",
+		"module": "ESNext",
+		"moduleResolution": "node",
+		"sourceMap": true,
+		"outDir": "dist",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"baseUrl": ".",
+        "lib": [
+            "esnext",
+            "dom",
+            "dom.iterable",
+            "scripthost"
+          ],
+		"paths": {
+			"@/*": [
+				"src/*"
+			]
+		}
+	},
+	"include": [
+		"src/**/*"
+	],
+	"exclude": [
+		"node_modules/**/*",
+		"dist/**/*",
+		"build/**/*",
+		"test"
+	]
+}

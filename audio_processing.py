@@ -1,4 +1,4 @@
-from mutagen import flac, id3, _vorbis, File
+from mutagen import flac, id3, File
 
 class AudioProcessing():
 
