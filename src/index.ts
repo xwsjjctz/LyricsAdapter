@@ -1,5 +1,6 @@
-import { DecryptQmcWasm } from '@/qmc_wasm';
+import { DecryptQmcWasm } from './qmc_wasm.js';
 import * as fs from 'fs';
+import * as command from 'commander';
 
 async function readFileAsArrayBuffer(filePath: string): Promise<ArrayBuffer> {
     const buffer = await fs.promises.readFile(filePath);
@@ -8,17 +9,26 @@ async function readFileAsArrayBuffer(filePath: string): Promise<ArrayBuffer> {
 }
 
 async function main() {
-    const musicBlob: ArrayBuffer = await readFileAsArrayBuffer("阿桑 - 一直很安静.mflac");
+    const program = new command.Command();
+    program
+        .usage('[options] <file ...>')
+        .option('-i, --input <type>', 'file path', "dylanf - Canon in D Major (卡农钢琴曲_经典钢琴版).mflac")
+        .option('-e, --ext <type>', 'music ext', "mflac")
+        .option('-o, --output <type>', 'file path', "dylanf - Canon in D Major (卡农钢琴曲_经典钢琴版).flac");
+    program.parse(process.argv);
+    const options = program.opts();
+    // console.log(options.input);
+    // console.log(options.output);
+    // console.log(options.ext);
+    const musicBlob: ArrayBuffer = await readFileAsArrayBuffer(options.input);
     // 在这里使用 musicBlob
-    const ext = "flac";
+    const ext = options.ext;
     const decrypted = (await DecryptQmcWasm(musicBlob, ext)).data;
-    const musicFile = fs.writeFile("decrypted.flac", decrypted, (err) => {
+    const musicFile = fs.writeFile(options.output, decrypted, (err) => {
         if (err) {
             console.error("Error in writeFile:", err);
         }
     });
-}
-
-main().catch((error) => {
+} main().catch((error) => {
     console.error("Error in main:", error);
 });

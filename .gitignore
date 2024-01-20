@@ -12,11 +12,12 @@
 *.jpeg
 *.pyc
 *.mflac
+*.mgg
 
 __pycache__/*
 node_modules
-resource
 dist
+package-lock.json
 
 
 .DS_Store

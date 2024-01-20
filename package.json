@@ -19,7 +19,8 @@
   },
   "homepage": "https://github.com/xwsjjctz/LyricsAdapt#readme",
   "dependencies": {
-    "@xhacker/qmcwasm": "^1.0.0"
+    "@xhacker/qmcwasm": "^1.0.0",
+    "commander": "^11.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.5"
