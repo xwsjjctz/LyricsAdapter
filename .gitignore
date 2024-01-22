@@ -18,6 +18,7 @@ __pycache__/*
 node_modules
 dist
 package-lock.json
+test.py
 
 
 .DS_Store

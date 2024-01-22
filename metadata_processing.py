@@ -1,14 +1,24 @@
+from httpx import stream
 from mutagen import flac, id3, File
+import os
 
 class AudioProcessing():
 
-    def __init__(self, audio, title, artist, lyrics, cover) -> None:
+    def __init__(self, audio=None, title=None, artist=None, lyrics=None, cover=None) -> None:
         self.audio = audio
         self.title = title
         self.artist = artist
         self.lyrics = lyrics
         self.cover = cover
         self.audio_format = self.__get_audio_format()
+
+    def __file_type_check(self, file):
+        if os.path.isfile(file):
+            with open(file, 'r') as f:
+                file_stream = f.read()
+            return file_stream
+        else:
+            return file
 
     def __get_audio_format(self):
         try:
@@ -24,16 +34,12 @@ class AudioProcessing():
             audio = id3.ID3(self.audio)
         except:
             audio = id3.ID3()
-        audio["TIT2"] = id3.TIT2(encoding=3, text=self.title) if audio.get("TIT2") is None else audio["TIT2"]
-        audio["TPE1"] = id3.TPE1(encoding=3, text=self.artist) if audio.get("TPE1") is None else audio['TPE1']
-        if self.lyrics is not None:
-            with open(self.lyrics, 'r') as f:
-                lyrics = f.read()
-            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=lyrics)) if audio.get("TXXX") is None else audio['TXXX']
+        audio["TIT2"] = id3.TIT2(encoding=3, text=self.title) if audio.get("TIT2") is None and self.title is not None else audio["TIT2"]
+        audio["TPE1"] = id3.TPE1(encoding=3, text=self.artist) if audio.get("TPE1") is None and self.artist is not None else audio['TPE1']
+        if self.__file_type_check(self.lyrics) is not None:
+            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=self.__lyrics_type_check())) if audio.get("TXXX") is None else audio['TXXX']
         if not audio.getall("APIC") and self.cover is not None:
-            with open(self.cover, "rb") as f:
-                cover_data = f.read()
-            audio["APIC"] = id3.APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=cover_data)
+            audio["APIC"] = id3.APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=self.__file_type_check(self.cover))
         return audio.save()
 
     def __modify_flac_metadata(self):
@@ -41,17 +47,14 @@ class AudioProcessing():
             audio = flac.FLAC(self.audio)
         except:
             audio = flac.FLAC()
-        audio["TITLE"] = self.title if audio.get("TITLE") is None else audio["TITLE"]
-        audio["ARTIST"] = self.artist if audio.get("ARTIST") is None else audio["ARTIST"]
-        if self.lyrics is not None:
-            with open(self.lyrics, 'r') as f:
-                    lrc = f.read()
-            audio["LYRICS"] = lrc if audio.get("LYRICS") is None else audio["LYRICS"]
+        audio["TITLE"] = self.title if audio.get("TITLE") is None and self.title is not None else audio["TITLE"]
+        audio["ARTIST"] = self.artist if audio.get("ARTIST") is None and self.title is not None else audio["ARTIST"]
+        if self.__file_type_check(self.lyrics) is not None:
+            audio["LYRICS"] = self.__file_type_check(self.lyrics) if audio.get("LYRICS") is None else audio["LYRICS"]
         existing_covers = audio.pictures
         if not existing_covers and self.cover is not None:
             image = flac.Picture()
-            with open(self.cover, "rb") as f:
-                image.data = f.read()
+            image.data = self.__file_type_check(self.cover)
             image.type = 3
             image.mime = u"image/jpeg"
             image.width = 500
