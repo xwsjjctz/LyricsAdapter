@@ -3,3 +3,5 @@
 获取音频元数据部分基于`https://github.com/MCQTSS/MCQTSS_QQMusic/blob/main/Main.py`实现，对应utils目录下的qq_music_api.py文件。
 
 加密音频逆向部分基于`https://github.com/nullptr-0/QmcWasm`项目实现。
+
+本项目仅作学习使用。
