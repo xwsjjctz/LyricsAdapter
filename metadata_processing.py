@@ -1,4 +1,3 @@
-from httpx import stream
 from mutagen import flac, id3, File
 import os
 
@@ -34,10 +33,11 @@ class AudioProcessing():
             audio = id3.ID3(self.audio)
         except:
             audio = id3.ID3()
+            self.__modify_mp3_metadata()
         audio["TIT2"] = id3.TIT2(encoding=3, text=self.title) if audio.get("TIT2") is None and self.title is not None else audio["TIT2"]
         audio["TPE1"] = id3.TPE1(encoding=3, text=self.artist) if audio.get("TPE1") is None and self.artist is not None else audio['TPE1']
         if self.__file_type_check(self.lyrics) is not None:
-            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=self.__lyrics_type_check())) if audio.get("TXXX") is None else audio['TXXX']
+            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=self.__file_type_check())) if audio.get("TXXX") is None else audio['TXXX']
         if not audio.getall("APIC") and self.cover is not None:
             audio["APIC"] = id3.APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=self.__file_type_check(self.cover))
         return audio.save()
@@ -47,6 +47,7 @@ class AudioProcessing():
             audio = flac.FLAC(self.audio)
         except:
             audio = flac.FLAC()
+            self.__modify_flac_metadata()
         audio["TITLE"] = self.title if audio.get("TITLE") is None and self.title is not None else audio["TITLE"]
         audio["ARTIST"] = self.artist if audio.get("ARTIST") is None and self.title is not None else audio["ARTIST"]
         if self.__file_type_check(self.lyrics) is not None:
@@ -70,3 +71,34 @@ class AudioProcessing():
         else:
             raise "不支持的音频格式或文件输入路径有误"
         
+    def __check_flac_metadata(self):
+        try:
+            audio = flac.FLAC(self.audio)
+        except:
+            audio = flac.FLAC()
+            self.__modify_flac_metadata()
+        title_check = audio.get("TITLE")
+        artist_check = audio.get("ARTIST")
+        lyrics_check = audio.get("LYRICS")
+        cover_check = audio.pictures
+        return bool(title_check), bool(artist_check), bool(lyrics_check), bool(cover_check)
+    
+    def __check_mp3_metadata(self):
+        try:
+            audio = id3.ID3(self.audio)
+        except:
+            audio = id3.ID3()
+            self.__modify_mp3_metadata()
+        title_check = audio.get("TIT2")
+        artist_check = audio.get("TPE1")
+        lyrics_check = audio.get("TXXX")
+        cover_check = audio.getall("APIC")
+        return bool(title_check), bool(artist_check), bool(lyrics_check), bool(cover_check)
+    
+    def metadata_check(self):
+        if self.audio_format == "audio/mp3":
+            return self.__check_mp3_metadata()
+        elif self.audio_format == "audio/flac":
+            return self.__check_flac_metadata()
+        else:
+            raise "不支持的音频格式或文件输入路径有误"
