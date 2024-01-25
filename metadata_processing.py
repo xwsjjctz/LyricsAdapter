@@ -12,6 +12,8 @@ class AudioProcessing():
         self.audio_format = self.__get_audio_format()
 
     def __file_type_check(self, file):
+        if file is None:
+            return None
         if os.path.isfile(file):
             with open(file, 'r') as f:
                 file_stream = f.read()
@@ -37,7 +39,7 @@ class AudioProcessing():
         audio["TIT2"] = id3.TIT2(encoding=3, text=self.title) if audio.get("TIT2") is None and self.title is not None else audio["TIT2"]
         audio["TPE1"] = id3.TPE1(encoding=3, text=self.artist) if audio.get("TPE1") is None and self.artist is not None else audio['TPE1']
         if self.__file_type_check(self.lyrics) is not None:
-            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=self.__file_type_check())) if audio.get("TXXX") is None else audio['TXXX']
+            audio.add(id3.TXXX(encoding=3, desc="Lyrics", text=self.__file_type_check(self.lyrics))) if audio.get("TXXX") is None else audio['TXXX']
         if not audio.getall("APIC") and self.cover is not None:
             audio["APIC"] = id3.APIC(encoding=3, mime='image/jpeg', type=3, desc=u'Cover', data=self.__file_type_check(self.cover))
         return audio.save()
@@ -100,5 +102,18 @@ class AudioProcessing():
             return self.__check_mp3_metadata()
         elif self.audio_format == "audio/flac":
             return self.__check_flac_metadata()
+        else:
+            raise "不支持的音频格式或文件输入路径有误"
+        
+    def metadata_delete(self):
+        if self.audio_format == "audio/mp3":
+            audio = id3.ID3(self.audio)
+            audio.delete()
+            return audio.save()
+        elif self.audio_format == "audio/flac":
+            audio = flac.FLAC(self.audio)
+            audio.delete()
+            audio.clear_pictures()
+            return audio.save()
         else:
             raise "不支持的音频格式或文件输入路径有误"
