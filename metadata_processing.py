@@ -111,7 +111,7 @@ class AudioProcessing():
             audio.delete()
             return audio.save()
         elif self.audio_format == "audio/flac":
-            audio = flac.FLAC(self.audio)
+            audio = flac.FLAC(self)
             audio.delete()
             audio.clear_pictures()
             return audio.save()

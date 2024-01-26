@@ -1,0 +1,81 @@
+
+    time: 03:48:38
+    Args: add
+    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\Westlife - Beautiful World.mp3"
+    Search: Westlife   Beautiful World
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: False, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: False
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+            
+    time: 03:48:39
+    Args: add
+    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\Why Don't We - Talk.mp3"
+    Search: Why Don't We   Talk
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: False, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: False
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+            
+    time: 03:48:40
+    Args: add
+    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\XXXTentacion - Jocelyn Flores.mp3"
+    Search: XXXTentacion   Jocelyn Flores
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: False, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: False
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+            
+    time: 03:48:41
+    Args: add
+    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\Zara Larsson - Ain't My Fault (R3hab Remix).mp3"
+    Search: Zara Larsson   Ain't My Fault (R3hab Remix)
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: False, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: False
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+            
