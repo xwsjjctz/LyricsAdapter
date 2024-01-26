@@ -81,6 +81,7 @@ if __name__ == "__main__":
     else:
         meta_check = AudioProcessing(audio=args.audiopath)
         title, artist, lyrics, cover = auto_meta_match(search, args.audiopath)
+        title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
         meta = AudioProcessing(
             audio=args.audiopath,
             title=title, 
@@ -89,7 +90,6 @@ if __name__ == "__main__":
             cover=cover
             )
         meta.metadata_delete() if args.delete else meta.metadata_processing()
-        title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
         info = f'''
     Args: {"delete" if args.delete else "add"}
     Audio: {args.audiopath}
