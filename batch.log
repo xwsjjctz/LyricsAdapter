@@ -1,12 +1,12 @@
 
-    time: 03:48:38
+    time: 12:21:53
     Args: add
-    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\Westlife - Beautiful World.mp3"
-    Search: Westlife   Beautiful World
+    Audio: ".\resource\GJan - Tattoo.flac"
+    Search: GJan   Tattoo
     Metadata Status Input: 
         artist: True, 
         title: True, 
-        lyrics: False, 
+        lyrics: True, 
         cover: True
     Response Status: 
         artist: False, 
@@ -18,15 +18,35 @@
         title: True, 
         lyrics: True, 
         cover: True
-            
-    time: 03:48:39
+                
+    time: 12:21:54
     Args: add
-    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\Why Don't We - Talk.mp3"
-    Search: Why Don't We   Talk
+    Audio: ".\resource\Harry Styles - As It Was.flac"
+    Search: Harry Styles   As It Was
     Metadata Status Input: 
         artist: True, 
         title: True, 
-        lyrics: False, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:54
+    Args: add
+    Audio: ".\resource\Just Kiddin _ Camden Cox - Stay The Night.flac"
+    Search: Just Kiddin _ Camden Cox   Stay The Night
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
         cover: True
     Response Status: 
         artist: False, 
@@ -38,15 +58,55 @@
         title: True, 
         lyrics: True, 
         cover: True
-            
-    time: 03:48:40
+                
+    time: 12:21:55
     Args: add
-    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\XXXTentacion - Jocelyn Flores.mp3"
-    Search: XXXTentacion   Jocelyn Flores
+    Audio: ".\resource\M83 - Midnight City.flac"
+    Search: M83   Midnight City
     Metadata Status Input: 
         artist: True, 
         title: True, 
-        lyrics: False, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:55
+    Args: add
+    Audio: ".\resource\Reynard Silva - The Way I Still Love You.flac"
+    Search: Reynard Silva   The Way I Still Love You
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:56
+    Args: add
+    Audio: ".\resource\Zerky _ Liu - Temple.flac"
+    Search: Zerky _ Liu   Temple
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
         cover: True
     Response Status: 
         artist: False, 
@@ -58,15 +118,155 @@
         title: True, 
         lyrics: True, 
         cover: True
-            
-    time: 03:48:41
+                
+    time: 12:21:57
     Args: add
-    Audio: "D:\myProject\python\LyricsAdapt.\resource\test\Zara Larsson - Ain't My Fault (R3hab Remix).mp3"
-    Search: Zara Larsson   Ain't My Fault (R3hab Remix)
+    Audio: ".\resource\Zyboy忠宇 - 妈妈的话.flac"
+    Search: Zyboy忠宇   妈妈的话
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:57
+    Args: add
+    Audio: ".\resource\后海大鲨鱼 - Bling Bling Bling.flac"
+    Search: 后海大鲨鱼   Bling Bling Bling
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:58
+    Args: add
+    Audio: ".\resource\夏川椎菜 _ HoneyWorks - ワタシノミカタ_EG.flac"
+    Search: 夏川椎菜 _ HoneyWorks   ワタシノミカタ_EG
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:59
+    Args: add
+    Audio: ".\resource\徐佳莹 - 不醉不会 (Live).flac"
+    Search: 徐佳莹   不醉不会 (Live)
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:21:59
+    Args: add
+    Audio: ".\resource\徐良 _ Britneylee小暖 - 和平分手.flac"
+    Search: 徐良 _ Britneylee小暖   和平分手
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:22:00
+    Args: add
+    Audio: ".\resource\林啟得 - 大田後生仔(原唱版).mp3"
+    Search: 林啟得   大田後生仔(原唱版)
     Metadata Status Input: 
         artist: True, 
         title: True, 
         lyrics: False, 
+        cover: False
+    Response Status: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: False
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: False
+                
+    time: 12:22:00
+    Args: add
+    Audio: ".\resource\牛尾憲輔 (agraph) - Night Crusing(夜间巡航) (纯音乐).flac"
+    Search: 牛尾憲輔 (agraph)   Night Crusing(夜间巡航) (纯音乐)
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Response Status: 
+        artist: False, 
+        title: False, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                
+    time: 12:22:01
+    Args: add
+    Audio: ".\resource\葛东琪 - 悬溺.flac"
+    Search: 葛东琪   悬溺
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
         cover: True
     Response Status: 
         artist: False, 
@@ -78,4 +278,24 @@
         title: True, 
         lyrics: True, 
         cover: True
-            
+                
+    time: 12:22:02
+    Args: add
+    Audio: ".\resource\陈翔 - 烟火.mp3"
+    Search: 陈翔   烟火
+    Metadata Status Input: 
+        artist: True, 
+        title: True, 
+        lyrics: False, 
+        cover: True
+    Response Status: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+    Metadata Status Output: 
+        artist: True, 
+        title: True, 
+        lyrics: True, 
+        cover: True
+                

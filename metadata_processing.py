@@ -78,7 +78,7 @@ class AudioProcessing():
             audio = flac.FLAC(self.audio)
         except:
             audio = flac.FLAC()
-            self.__modify_flac_metadata()
+            # self.__modify_flac_metadata()
         title_check = audio.get("TITLE")
         artist_check = audio.get("ARTIST")
         lyrics_check = audio.get("LYRICS")
@@ -90,7 +90,7 @@ class AudioProcessing():
             audio = id3.ID3(self.audio)
         except:
             audio = id3.ID3()
-            self.__modify_mp3_metadata()
+            # self.__modify_mp3_metadata()
         title_check = audio.get("TIT2")
         artist_check = audio.get("TPE1")
         lyrics_check = audio.get("TXXX")

@@ -5,6 +5,7 @@ from get_audio_resource import GetAudioResource
 import os
 import argparse
 import time
+import re
 
 parser = argparse.ArgumentParser()
 parser.add_argument("audiopath", help="path of the audio file or directory", type=str)
@@ -12,6 +13,7 @@ parser.add_argument("-d", "--delete", help="delete metadata from the audio file"
 args = parser.parse_args()
 
 search = os.path.splitext(os.path.basename(args.audiopath))[0].replace('-', '')
+search = re.sub(r'\[.*?\]', '', search)
 with open("cookie.txt", "r") as f:
     cookie = f.read()
 
@@ -37,27 +39,29 @@ def auto_meta_match(search_info, audio):
 if __name__ == "__main__":
     if os.path.isdir(args.audiopath):
         audio = get_all_audio(args.audiopath)
-        with open("batch.log", "a") as f:
+        with open("batch.log", "a", encoding='utf-8') as f:
             f.truncate(0)
         for i in audio:
-            audio_name = os.path.abspath('.') + args.audiopath + i
-            batch_search = os.path.splitext(i)[0].replace('-', ' ')
-            title, artist, lyrics, cover = auto_meta_match(batch_search, audio_name)
-            meta = AudioProcessing(
-                audio=audio_name, 
-                title=title, 
-                artist=artist, 
-                lyrics=lyrics, 
-                cover=cover
-            )
-            meta.metadata_delete() if args.delete else meta.metadata_processing()
-            meta_check = AudioProcessing(audio=audio_name)
-            title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
-            info = f'''
+            try:
+                audio_name = args.audiopath + i
+                batch_search = os.path.splitext(i)[0].replace('-', ' ')
+                filtered_search = re.sub(r'\[.*?\]', '', batch_search)
+                title, artist, lyrics, cover = auto_meta_match(filtered_search, audio_name)
+                meta = AudioProcessing(
+                    audio=audio_name, 
+                    title=title, 
+                    artist=artist, 
+                    lyrics=lyrics, 
+                    cover=cover
+                )
+                meta.metadata_delete() if args.delete else meta.metadata_processing()
+                meta_check = AudioProcessing(audio=audio_name)
+                title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
+                info = f'''
     time: {time.strftime("%H:%M:%S", time.localtime())}
     Args: {"delete" if args.delete else "add"}
     Audio: "{audio_name}"
-    Search: {batch_search}
+    Search: {filtered_search}
     Metadata Status Input: 
         artist: {artist_status}, 
         title: {title_status}, 
@@ -73,11 +77,13 @@ if __name__ == "__main__":
         title: {title_status | bool(title) if not args.delete else False}, 
         lyrics: {lyrics_status | bool(lyrics) if not args.delete else False}, 
         cover: {cover_status | bool(cover) if not args.delete else False}
-            '''
-            print(info)
-            with open("batch.log", "a") as f:
-                f.writelines(info)
-            time.sleep(0.5)
+                '''
+                print(info)
+                with open("batch.log", "a", encoding='utf-8') as f:
+                    f.writelines(info)
+            except Exception as e:
+                pass
+            continue
     else:
         meta_check = AudioProcessing(audio=args.audiopath)
         title, artist, lyrics, cover = auto_meta_match(search, args.audiopath)
