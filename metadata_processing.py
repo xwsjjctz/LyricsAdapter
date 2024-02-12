@@ -71,7 +71,7 @@ class AudioProcessing():
         elif self.audio_format == "audio/flac":
             return self.__modify_flac_metadata()
         else:
-            raise "不支持的音频格式或文件输入路径有误"
+            raise ValueError
         
     def __check_flac_metadata(self):
         try:
@@ -103,7 +103,7 @@ class AudioProcessing():
         elif self.audio_format == "audio/flac":
             return self.__check_flac_metadata()
         else:
-            raise "不支持的音频格式或文件输入路径有误"
+            raise ValueError
         
     def metadata_delete(self):
         if self.audio_format == "audio/mp3":
@@ -116,4 +116,4 @@ class AudioProcessing():
             audio.clear_pictures()
             return audio.save()
         else:
-            raise "不支持的音频格式或文件输入路径有误"
+            raise ValueError

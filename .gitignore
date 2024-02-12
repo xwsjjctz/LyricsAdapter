@@ -14,7 +14,7 @@
 *.mflac
 *.mgg
 *.log
-*.txt
+cookie.txt
 
 __pycache__/*
 node_modules
