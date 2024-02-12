@@ -1,3 +1,5 @@
+// 本文件修改自 https://git.unlock-music.dev/um/web/src/branch/main/src/decrypt/qmc_wasm.ts
+
 import { QmcCrypto } from '@xhacker/qmcwasm/QmcWasmBundle.js';
 import QmcCryptoModule from '@xhacker/qmcwasm/QmcWasmBundle.js';
 import { MergeUint8Array } from './MergeUint8Array.js';

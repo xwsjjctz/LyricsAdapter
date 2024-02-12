@@ -13,6 +13,8 @@
 *.pyc
 *.mflac
 *.mgg
+*.log
+*.txt
 
 __pycache__/*
 node_modules

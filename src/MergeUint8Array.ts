@@ -1,3 +1,5 @@
+// 本文件源自 https://git.unlock-music.dev/um/web/src/branch/main/src/utils/MergeUint8Array.ts
+
 export function MergeUint8Array(array: Uint8Array[]): Uint8Array {
   let length = 0;
   array.forEach((item) => {
