@@ -1,6 +1,6 @@
 from metadata_processing import AudioProcessing
 from decrypt import Decrypt
-from get_audio_resource import GetAudioResource
+from audio_resource import auto_metadata_match, get_audio_file
 
 import os
 import argparse
@@ -8,16 +8,15 @@ import time
 import re
 
 parser = argparse.ArgumentParser()
-parser.add_argument("audiopath", help="path of the audio file or directory", type=str)
-parser.add_argument("-d", "--delete", help="delete metadata from the audio file", action="store_true")
-parser.add_argument("-l", "--lyrics", help="add lyrics file", action="store_true")
+parser.add_argument("audio", help="path of the audiopath, directory or audio name", type=str)
+parser.add_argument("-d", "--delete", help="delete metadata from the audio", action="store_true")
+parser.add_argument("-l", "--lyrics", help="add lyrics", action="store_true")
 parser.add_argument("-r", "--reserve", help="decrypt audio", action="store_true")
+parser.add_argument("-q", "--quality", help="audio quality")
 args = parser.parse_args()
 
-search = os.path.splitext(os.path.basename(args.audiopath))[0].replace('-', '')
+search = os.path.splitext(os.path.basename(args.audio))[0].replace('-', '')
 search = re.sub(r'\[.*?\]', '', search)
-with open("cookie.txt", "r") as f:
-    cookie = f.read()
 
 def get_all_audio(dir):
     lst = []
@@ -36,19 +35,6 @@ def get_all_encrypt_audio(dir):
             return [dir]
         else:
             raise FileNotFoundError
-
-def auto_meta_match(search_info, audio):
-    music = GetAudioResource(cookie, search_info)
-    music_list = music.audio_search()
-    meta_check = AudioProcessing(audio=audio)
-    title, artist, lyrics, cover = meta_check.metadata_check()
-    song_id = music_list[0]['songmid']
-    song_name = music_list[0]['songname'] if not title else None
-    singer = music_list[0]['singer'][0]['name'] if not artist else None
-    audio_lyrics = music.audio_lyrics_get(song_id) if not lyrics else None
-    cover_id = music_list[0]['albummid']
-    audio_cover = music.audio_cover_get(cover_id) if not cover else None
-    return song_name, singer, audio_lyrics, audio_cover
 
 def audio_decrypt(audio):
     if os.path.isdir(audio):
@@ -88,19 +74,19 @@ def audio_decrypt(audio):
             ''')
 
 if __name__ == "__main__":
-    if os.path.isdir(args.audiopath):
+    if os.path.isdir(args.audio):
         if args.reserve:
-            audio_decrypt(args.audiopath)
+            audio_decrypt(args.audio)
         else:
-            audio = get_all_audio(args.audiopath)
+            audio = get_all_audio(args.audio)
             with open("batch.log", "a", encoding='utf-8') as f:
                 f.truncate(0)
             for i in audio:
                 try:
-                    audio_name = args.audiopath + i
+                    audio_name = args.audio + i
                     batch_search = os.path.splitext(i)[0].replace('-', ' ')
                     filtered_search = re.sub(r'\[.*?\]', '', batch_search)
-                    title, artist, lyrics, cover = auto_meta_match(filtered_search, audio_name)
+                    title, artist, lyrics, cover = auto_metadata_match(filtered_search, audio_name)
                     meta = AudioProcessing(
                         audio=audio_name, 
                         title=title, 
@@ -140,13 +126,13 @@ if __name__ == "__main__":
                 continue
     else:
         if args.reserve:
-            audio_decrypt(args.audiopath)
-        else:
-            meta_check = AudioProcessing(audio=args.audiopath)
-            title, artist, lyrics, cover = auto_meta_match(search, args.audiopath)
+            audio_decrypt(args.audio)
+        elif os.path.isfile(args.audio):
+            meta_check = AudioProcessing(audio=args.audio)
+            title, artist, lyrics, cover = auto_metadata_match(search, args.audio)
             title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
             meta = AudioProcessing(
-                audio=args.audiopath,
+                audio=args.audio,
                 title=title, 
                 artist=artist, 
                 lyrics=lyrics, 
@@ -155,7 +141,7 @@ if __name__ == "__main__":
             meta.metadata_delete() if args.delete else meta.metadata_processing()
             info = f'''
         Args: {"delete" if args.delete else "add"}
-        Audio: {args.audiopath}
+        Audio: {args.audio}
         Search: {search}
         Metadata Status Input: 
             artist: {artist_status}, 
@@ -174,3 +160,6 @@ if __name__ == "__main__":
             cover: {cover_status | bool(cover) if not args.delete else False}
             '''
             print(info)
+        else:
+            filename, _ = get_audio_file(args.audio, args.quality)
+            print(f'Download: {filename}')

@@ -8,7 +8,7 @@ import hashlib
 import string
 
 
-class QQ_Music:
+class QQMusicMetadata:
     def __init__(self):
         self._headers = {
             'Accept': '*/*',

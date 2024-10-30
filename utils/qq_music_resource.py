@@ -1,15 +1,8 @@
 import requests
-import time
-import qq_music_api
 
 # 初始化QQ音乐对象
-with open("cookie.txt", "r") as f:
-        cookie = f.read()
-QQM = qq_music_api.QQ_Music()
-cookie_str = cookie
-QQM._cookies = QQM.set_cookie(cookie_str)
 
-class QQMusic:
+class QQMusicResource:
     def __init__(self):
         self.base_url = 'https://u.y.qq.com/cgi-bin/musicu.fcg'
         self.guid = '10000'
@@ -48,7 +41,7 @@ class QQMusic:
 
         file_info = self.file_config[file_type]
         file = f"{file_info['s']}{songmid}{songmid}{file_info['e']}"
-        print(file)
+        # print(file)
 
         req_data = {
             'req_1': {
@@ -72,16 +65,17 @@ class QQMusic:
                 'cv': 0,
             },
         }
-        print(req_data)
+        # print(req_data)
+        # print(self.cookies)
         response = requests.post(self.base_url, json=req_data, cookies=self.cookies, headers=self.headers)
         data = response.json()
-        print(data)
+        # print(data)
 
         purl = data['req_1']['data']['midurlinfo'][0]['purl']
+        # print(purl)
         if purl == '':
             # VIP
-            # return None
-            pass
+            raise '暂无对应质量音频'
 
         url = data['req_1']['data']['sip'][0] + purl
         prefix = purl[:4]
@@ -90,5 +84,8 @@ class QQMusic:
         return {'url': url, 'bitrate': bitrate}
 
 if __name__ == "__main__":
-    music = QQMusic()
-    print(music.get_music_url('001eZJB14ALyBx', 'flac'))
+    music = QQMusicResource()
+    with open("cookie.txt", "r") as f:
+        cookie = f.read()
+    music.set_cookies(cookie)
+    print(music.get_music_url('001eZJB14ALyBx', '320'))
