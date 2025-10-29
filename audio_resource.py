@@ -1,5 +1,6 @@
 import requests
 
+from tqdm import tqdm
 from get_audio_resource import GetAudioResource
 from metadata_processing import AudioProcessing
 
@@ -19,13 +20,25 @@ def auto_metadata_match(search, audio):
     cover = music.audio_cover_get(cover_id) if not cover else None
     return song_name, singer, lyrics, cover
 
-def download_file(url, filename):
+def download_file(url: str, filename: str, chunk_size: int = 8192) -> None:
+    """
+    带进度条的文件下载
+    :param url: 下载链接
+    :param filename: 保存到本地的文件名
+    :param chunk_size: 分块大小，默认 8 KB
+    """
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        with open(filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+
+        # 总长度（字节）
+        total = int(r.headers.get('content-length', 0))
+        # 创建进度条
+        with tqdm(total=total, unit='B', unit_scale=True, desc=filename) as bar:
+            with open(filename, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+                        bar.update(len(chunk))   # 更新进度
 
 def get_audio_file(search, quality):
     music = GetAudioResource(cookie, search)
