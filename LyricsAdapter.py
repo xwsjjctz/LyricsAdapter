@@ -82,22 +82,21 @@ if __name__ == "__main__":
             with open("batch.log", "a", encoding='utf-8') as f:
                 f.truncate(0)
             for i in audio:
-                try:
-                    audio_name = args.audio + i
-                    batch_search = os.path.splitext(i)[0].replace('-', ' ')
-                    filtered_search = re.sub(r'\[.*?\]', '', batch_search)
-                    title, artist, lyrics, cover = auto_metadata_match(filtered_search, audio_name)
-                    meta = AudioProcessing(
-                        audio=audio_name, 
-                        title=title, 
-                        artist=artist, 
-                        lyrics=lyrics, 
-                        cover=cover
-                    )
-                    meta_check = AudioProcessing(audio=audio_name)
-                    title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
-                    meta.metadata_delete() if args.delete else meta.metadata_processing()
-                    info = f'''
+                audio_name = args.audio + i
+                batch_search = os.path.splitext(i)[0].replace('-', ' ')
+                filtered_search = re.sub(r'\[.*?\]', '', batch_search)
+                title, artist, lyrics, cover = auto_metadata_match(filtered_search, audio_name)
+                meta = AudioProcessing(
+                    audio=audio_name, 
+                    title=title, 
+                    artist=artist, 
+                    lyrics=lyrics, 
+                    cover=cover
+                )
+                meta_check = AudioProcessing(audio=audio_name)
+                title_status, artist_status, lyrics_status, cover_status = meta_check.metadata_check()
+                meta.metadata_delete() if args.delete else meta.metadata_processing()
+                info = f'''
     time: {time.strftime("%H:%M:%S", time.localtime())}
     Args: {"delete" if args.delete else "add"}
     Audio: "{audio_name}"
@@ -117,12 +116,10 @@ if __name__ == "__main__":
         title: {title_status | bool(title) if not args.delete else False}, 
         lyrics: {lyrics_status | bool(lyrics) if not args.delete else False}, 
         cover: {cover_status | bool(cover) if not args.delete else False}
-                    '''
-                    print(info)
-                    with open("batch.log", "a", encoding='utf-8') as f:
-                        f.writelines(info)
-                except Exception as e:
-                    pass
+                '''
+                print(info)
+                with open("batch.log", "a", encoding='utf-8') as f:
+                    f.writelines(info)
                 continue
     else:
         if args.reserve:

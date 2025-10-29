@@ -56,3 +56,6 @@ yarn-error.log*
 *.zip
 *.tar.gz
 /sha256sum.txt
+
+/audio
+/flask_backend
