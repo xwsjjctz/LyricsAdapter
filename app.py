@@ -14,3 +14,6 @@ def search_music():
 @app.route('/download', methods=['GET'])
 def download_music():
     pass
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

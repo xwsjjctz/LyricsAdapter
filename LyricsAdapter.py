@@ -22,18 +22,6 @@ def get_all_audio(dir):
         lst.append(i) if os.path.splitext(i)[1] == ".mp3" or os.path.splitext(i)[1] == ".flac" else None
     return lst
 
-def get_all_encrypt_audio(dir):
-    if os.path.isdir(dir):
-        lst = []
-        for i in os.listdir(dir):
-            lst.append(i) if os.path.splitext(i)[1] == ".mgg" or os.path.splitext(i)[1] == ".mflac" else None
-        return lst
-    else:
-        if os.path.isfile(dir):
-            return [dir]
-        else:
-            raise FileNotFoundError
-
 if __name__ == "__main__":
     if os.path.isdir(args.audio):
         audio = get_all_audio(args.audio)
