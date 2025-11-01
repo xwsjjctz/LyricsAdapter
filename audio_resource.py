@@ -1,11 +1,13 @@
 import requests
+import os
 
+from dotenv import load_dotenv
 from tqdm import tqdm
 from get_audio_resource import GetAudioResource
 from metadata_processing import AudioProcessing
 
-with open("cookie.txt", "r") as f:
-    cookie = f.read()
+load_dotenv()
+cookie = os.environ.get('QQ_MUSIC_COOKIE')
 
 def auto_metadata_match(search, audio):
     music = GetAudioResource(cookie, search)

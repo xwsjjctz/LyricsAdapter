@@ -58,3 +58,4 @@ yarn-error.log*
 /sha256sum.txt
 
 /audio
+.env

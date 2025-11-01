@@ -106,11 +106,23 @@ class QQMusicMetadata:
                          "g_tk_new_20200303": 708550273, "g_tk": 708550273},
                 "req_1": {"module": "music.trackInfo.UniformRuleCtrl", "method": "CgiGetTrackInfo",
                           "param": {"ids": [music_id], "types": [0]}}}
-        ret = json.loads(requests.get(url='https://u.y.qq.com/cgi-bin/musicu.fcg?data={}'.format(json.dumps(data)),
-                                      headers=self._headers, cookies=self._cookies).text)
-        if ret['code'] == 500001:  # 如果返回500001代表提交的数据有问题
-            return 'Error'
-        return ret['req_1']['data']['tracks']  # 直接返回QQ音乐服务器返回的结果,和搜索返回的感觉差不多,直接返回tracks数组\
+        try:
+            ret = json.loads(requests.get(url='https://u.y.qq.com/cgi-bin/musicu.fcg?data={}'.format(json.dumps(data)),
+                                          headers=self._headers, cookies=self._cookies).text)
+            
+            if ret['code'] == 500001:  # 如果返回500001代表提交的数据有问题
+                return []
+                
+            # Check if the expected data structure exists
+            if 'req_1' in ret and 'data' in ret['req_1'] and 'tracks' in ret['req_1']['data']:
+                return ret['req_1']['data']['tracks']
+            else:
+                print(f"Unexpected response structure: {ret}")
+                return []
+                
+        except Exception as e:
+            print(f"Error in get_music_info: {e}")
+            return []
 
     def get_album_info(self, album_mid):  # 获取专辑信息
         uin = ''.join(random.sample('1234567890', 10))  # 和音乐的那个一样,uin随机10个数字就行

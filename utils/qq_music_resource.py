@@ -82,10 +82,3 @@ class QQMusicResource:
         bitrate = next((info['bitrate'] for key, info in self.file_config.items() if info['s'] == prefix), '')
 
         return {'url': url, 'bitrate': bitrate}
-
-if __name__ == "__main__":
-    music = QQMusicResource()
-    with open("cookie.txt", "r") as f:
-        cookie = f.read()
-    music.set_cookies(cookie)
-    print(music.get_music_url('001eZJB14ALyBx', '320'))
