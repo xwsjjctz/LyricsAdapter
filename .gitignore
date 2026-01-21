@@ -59,3 +59,13 @@ yarn-error.log*
 
 /audio
 .env
+
+downloads/
+
+.ruff_cache/
+.claude/
+__pycache__/
+.venv/
+FRONTEND.md
+CLAUDE.md
+*jpg

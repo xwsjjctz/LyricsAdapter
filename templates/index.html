@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LyricsAdapter - 音乐搜索与下载</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .search-box {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .search-input {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .search-input input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .search-input input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-input select {
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-input select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
+        }
+
+        .results {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .results-header h2 {
+            color: #333;
+            font-size: 1.5em;
+        }
+
+        .results-count {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .song-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .song-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .song-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .song-cover {
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .song-info {
+            flex: 1;
+        }
+
+        .song-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .song-artist {
+            color: #666;
+            font-size: 0.95em;
+            margin-bottom: 3px;
+        }
+
+        .song-album {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .song-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .search-input {
+                flex-direction: column;
+            }
+
+            .song-item {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .song-actions {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LyricsAdapter</h1>
+            <p>音乐搜索与下载</p>
+        </div>
+
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+
+        <div class="search-box">
+            <div class="search-input">
+                <input type="text" id="searchInput" placeholder="搜索歌曲、艺术家..." />
+                <select id="qualitySelect">
+                    <option value="flac">FLAC无损</option>
+                    <option value="320">MP3 320K</option>
+                    <option value="128">MP3 128K</option>
+                </select>
+                <button class="btn btn-primary" onclick="searchMusic()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    搜索
+                </button>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>搜索中...</p>
+        </div>
+
+        <div class="results" id="results">
+            <div class="results-header">
+                <h2>搜索结果</h2>
+                <span class="results-count" id="resultsCount"></span>
+            </div>
+            <div class="song-list" id="songList"></div>
+        </div>
+    </div>
+
+    <script>
+        // 检测是否通过HTTP服务器访问
+        const PROTOCOL = window.location.protocol;
+        const IS_HTTP = PROTOCOL === 'http:' || PROTOCOL === 'https:';
+        const API_BASE = window.location.origin;
+
+        // 如果不是HTTP协议，显示警告
+        if (!IS_HTTP) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const warning = document.createElement('div');
+                warning.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff6b6b; color: white; padding: 20px; text-align: center; z-index: 10000; font-weight: bold;';
+                warning.innerHTML = `
+                    ⚠️ 请通过HTTP服务器访问此页面！<br>
+                    请运行: <code>python app.py</code>，然后访问: <a href="http://localhost:5001/frontend" style="color: white; text-decoration: underline;">http://localhost:5001/frontend</a>
+                `;
+                document.body.insertBefore(warning, document.body.firstChild);
+
+                // 禁用所有表单和按钮
+                document.querySelectorAll('button, input').forEach(el => {
+                    el.disabled = true;
+                    el.style.opacity = '0.5';
+                });
+            });
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+            setTimeout(() => errorEl.classList.remove('show'), 5000);
+        }
+
+        function showSuccess(message) {
+            const successEl = document.getElementById('success');
+            successEl.textContent = message;
+            successEl.classList.add('show');
+            setTimeout(() => successEl.classList.remove('show'), 5000);
+        }
+
+        async function searchMusic() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                showError('请输入搜索关键词');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+
+            loading.classList.add('show');
+            results.classList.remove('show');
+
+            try {
+                const response = await fetch(`${API_BASE}/search?text=${encodeURIComponent(query)}&limit=20`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                displayResults(data.results);
+            } catch (error) {
+                showError('搜索失败: ' + error.message);
+            } finally {
+                loading.classList.remove('show');
+            }
+        }
+
+        function displayResults(results) {
+            const resultsEl = document.getElementById('results');
+            const songListEl = document.getElementById('songList');
+            const countEl = document.getElementById('resultsCount');
+
+            countEl.textContent = `找到 ${results.length} 首歌曲`;
+            songListEl.innerHTML = '';
+
+            results.forEach(song => {
+                const item = document.createElement('div');
+                item.className = 'song-item';
+                item.innerHTML = `
+                    <div class="song-cover">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="16" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="song-info">
+                        <div class="song-title">${song.title}</div>
+                        <div class="song-artist">${song.artist}</div>
+                        <div class="song-album">${song.album}</div>
+                    </div>
+                    <div class="song-actions">
+                        <button class="btn btn-download" onclick="downloadMusic('${song.mid}', '${song.title}', '${song.artist}', '${song.album_mid}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            下载
+                        </button>
+                    </div>
+                `;
+                songListEl.appendChild(item);
+            });
+
+            resultsEl.classList.add('show');
+        }
+
+        async function downloadMusic(mid, title, artist, albumMid) {
+            const quality = document.getElementById('qualitySelect').value;
+            showSuccess('正在准备下载，请稍候...');
+
+            try {
+                // 构建下载URL，包含完整的歌曲信息
+                let url = `${API_BASE}/download?mid=${mid}&qlt=${quality}`;
+                if (title) url += `&title=${encodeURIComponent(title)}`;
+                if (artist) url += `&artist=${encodeURIComponent(artist)}`;
+                if (albumMid) url += `&album_mid=${albumMid}`;
+
+                // 创建隐藏的a标签触发浏览器下载
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '';  // 让浏览器自动从响应头获取文件名
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                showSuccess('下载已开始，请查看浏览器的下载列表');
+            } catch (error) {
+                showError('下载失败: ' + error.message);
+            }
+        }
+
+        // Enter key search
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchMusic();
+            }
+        });
+    </script>
+</body>
+</html>
