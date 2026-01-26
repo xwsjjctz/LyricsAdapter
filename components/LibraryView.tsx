@@ -8,7 +8,12 @@ interface LibraryViewProps {
   onRemoveTrack: (trackId: string) => void;
 }
 
-const LibraryView: React.FC<LibraryViewProps> = ({ tracks, currentTrackIndex, onTrackSelect, onRemoveTrack }) => {
+const LibraryView: React.FC<LibraryViewProps> = ({
+  tracks,
+  currentTrackIndex,
+  onTrackSelect,
+  onRemoveTrack
+}) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -114,6 +119,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({ tracks, currentTrackIndex, on
                 <div
                   key={track.id}
                   onClick={() => !isEditMode && !isUnavailable && onTrackSelect(idx)}
+                  style={{
+                    animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`
+                  }}
                   className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center ${
                     isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
                   } ${

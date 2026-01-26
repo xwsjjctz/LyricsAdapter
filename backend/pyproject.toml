@@ -5,9 +5,10 @@ description = "Music search, download and metadata processing tool with oxidant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "dotenv>=0.9.9",
     "flask>=3.1.2",
+    "mutagen>=1.47.0",
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
     "tqdm>=4.67.1",
-    "oxidant>=0.1.0",
 ]

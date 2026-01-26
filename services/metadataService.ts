@@ -388,6 +388,9 @@ function parseFLACPicture(buffer: ArrayBuffer): string {
   }
 }
 
+// Export libraryStorage for persistence
+export { libraryStorage } from './libraryStorage';
+
 export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
   // Default values
   const defaultResult: ParsedMetadata = {

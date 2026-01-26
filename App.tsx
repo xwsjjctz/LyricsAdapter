@@ -1,16 +1,13 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Track, ViewMode } from './types';
-import { parseAudioFile } from './services/metadataService';
+import { parseAudioFile, libraryStorage } from './services/metadataService';
 
 // Components
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
-
-// LocalStorage key
-const STORAGE_KEY = 'lyricsadapter_tracks';
 
 // Electron API type
 declare global {
@@ -20,6 +17,13 @@ declare global {
       readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
       checkFileExists: (filePath: string) => Promise<boolean>;
       selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
+      loadLibrary: () => Promise<{ success: boolean; library: any; error?: string }>;
+      saveLibrary: (library: any) => Promise<{ success: boolean; error?: string }>;
+      validateFilePath: (filePath: string) => Promise<boolean>;
+      validateAllPaths: (songs: any[]) => Promise<{ success: boolean; results: any[]; error?: string }>;
+      saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
+      saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
+      deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
     };
   }
 }
@@ -27,39 +31,6 @@ declare global {
 // Check if running in Electron
 const isElectron = () => {
   return window.electron !== undefined;
-};
-
-// Save tracks to localStorage
-const saveTracks = (tracks: Track[]) => {
-  try {
-    const tracksToSave = tracks.map(track => ({
-      id: track.id,
-      title: track.title,
-      artist: track.artist,
-      album: track.album,
-      duration: track.duration,
-      lyrics: track.lyrics,
-      syncedLyrics: track.syncedLyrics,
-      fileName: (track as any).fileName, // Save filename for matching
-      available: track.available // Save availability state
-    }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
-  } catch (error) {
-    console.error('Failed to save tracks:', error);
-  }
-};
-
-// Load tracks from localStorage
-const loadTracks = (): any[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error('Failed to load tracks:', error);
-  }
-  return [];
 };
 
 const App: React.FC = () => {
@@ -73,6 +44,15 @@ const App: React.FC = () => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Callback ref to ensure volume is set when audio element is created
+  const setAudioRef = useCallback((node: HTMLAudioElement | null) => {
+    audioRef.current = node;
+    if (node) {
+      console.log('Audio element created, setting volume to:', volume);
+      node.volume = volume;
+    }
+  }, [volume]);
 
   const currentTrack = currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
 
@@ -116,36 +96,116 @@ const App: React.FC = () => {
     }
   }, [currentTrackIndex, tracks.length]);
 
-  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []) as File[];
+  const handleFileImport = async (e?: React.ChangeEvent<HTMLInputElement>) => {
+    // In Electron, use native file picker dialog to get file paths (for symlink support)
+    if (isElectron()) {
+      try {
+        const result = await window.electron!.selectFiles();
+        if (result.canceled || result.filePaths.length === 0) {
+          return;
+        }
+
+        const filePaths = result.filePaths;
+
+        for (const filePath of filePaths) {
+          const fileName = filePath.split(/[/\\]/).pop() || '';
+
+          // Check if file already exists (by name)
+          const existingIndex = tracks.findIndex(track =>
+            (track as any).fileName === fileName
+          );
+
+          // Create symlink to the original file
+          let savedFilePath = '';
+          try {
+            const saveResult = await window.electron!.saveAudioFile(filePath, fileName);
+            if (saveResult.success && saveResult.filePath) {
+              savedFilePath = saveResult.filePath;
+              console.log(`File saved (${saveResult.method}):`, savedFilePath);
+            }
+          } catch (error) {
+            console.error('Failed to save file to userData:', error);
+          }
+
+          // Read the saved file to create File object and parse metadata
+          if (savedFilePath) {
+            try {
+              const readResult = await window.electron!.readFile(savedFilePath);
+              if (readResult.success) {
+                const fileData = new Uint8Array(readResult.data);
+                const file = new File([fileData], fileName, { type: 'audio/flac' });
+
+                // Parse metadata
+                const metadata = await parseAudioFile(file);
+                const currentTime = new Date().toISOString();
+
+                if (existingIndex !== -1) {
+                  // Update existing track
+                  setTracks(prev => {
+                    const newTracks = [...prev];
+                    newTracks[existingIndex] = {
+                      ...newTracks[existingIndex],
+                      ...metadata,
+                      file: file,
+                      fileName: fileName,
+                      fileSize: file.size,
+                      lastModified: file.lastModified,
+                      filePath: savedFilePath,
+                      available: true
+                    };
+                    return newTracks;
+                  });
+                } else {
+                  // Add new track
+                  const newTrack: Track = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    ...metadata,
+                    file: file,
+                    fileName: fileName,
+                    fileSize: file.size,
+                    lastModified: file.lastModified,
+                    filePath: savedFilePath,
+                    addedAt: currentTime,
+                    available: true
+                  };
+                  setTracks(prev => [...prev, newTrack]);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to read and parse file:', filePath, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to import files:', error);
+      }
+      return;
+    }
+
+    // Web version: use input element (only copies files, no symlinks)
+    const files = Array.from(e?.target.files || []) as File[];
 
     for (const file of files) {
       // Check if file already exists (by name and size)
       const existingIndex = tracks.findIndex(track =>
-        track.file?.name === file.name && track.file?.size === file.size
+        (track as any).fileName === file.name && track.file?.size === file.size
       );
 
       const metadata = await parseAudioFile(file);
+      const currentTime = new Date().toISOString();
 
-      if (existingIndex !== -1) {
-        // Update existing track (re-import scenario)
-        setTracks(prev => {
-          const newTracks = [...prev];
-          newTracks[existingIndex] = {
-            ...newTracks[existingIndex],
-            ...metadata,
-            file: file,
-            fileName: file.name
-          };
-          return newTracks;
-        });
-      } else {
-        // Add new track
+      // Add new track (web version doesn't persist file paths)
+      if (existingIndex === -1) {
         const newTrack: Track = {
           id: Math.random().toString(36).substr(2, 9),
           ...metadata,
           file: file,
-          fileName: file.name
+          fileName: file.name,
+          fileSize: file.size,
+          lastModified: file.lastModified,
+          filePath: '',
+          addedAt: currentTime,
+          available: true
         };
         setTracks(prev => [...prev, newTrack]);
       }
@@ -188,36 +248,198 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (audioRef.current) {
+      console.log('Volume changed to:', volume);
       audioRef.current.volume = volume;
     }
   }, [volume]);
 
-  // Load tracks from localStorage on mount (Electron only)
+  // Load library from disk on mount (Electron only)
   useEffect(() => {
-    if (isElectron()) {
-      const savedTracks = loadTracks();
-      if (savedTracks.length > 0) {
-        console.log('Loading saved tracks:', savedTracks.length);
-        // Load saved tracks metadata with preserved availability
-        setTracks(savedTracks.map((track: any) => ({
-          ...track,
-          audioUrl: '', /* Blob URLs don't persist */
-          coverUrl: '', /* Blob URLs don't persist */
-          available: track.available !== undefined ? track.available : false /* Preserve saved state or default to false */
-        })));
+    const loadLibraryFromDisk = async () => {
+      if (!isElectron()) {
+        console.log('Not running in Electron, skipping library load');
+        return;
       }
-    }
+
+      try {
+        const libraryData = await libraryStorage.loadLibrary();
+        console.log('Library loaded from disk:', libraryData);
+
+        // Restore volume from settings
+        if (libraryData.settings?.volume !== undefined) {
+          console.log('Restoring volume:', libraryData.settings.volume);
+          setVolume(libraryData.settings.volume);
+        }
+
+        if (libraryData.songs && libraryData.songs.length > 0) {
+          // Validate file paths first
+          const validationResults = await libraryStorage.validateAllPaths(libraryData.songs);
+          const missingFiles = validationResults.filter(r => !r.exists);
+
+          if (missingFiles.length > 0) {
+            console.warn(`Found ${missingFiles.length} missing files`);
+          }
+
+          // Progressive loading: load tracks one by one with delay
+          const loadedTracks: Track[] = [];
+          const delayBetweenTracks = 100; // 100ms delay between each track
+
+          for (let i = 0; i < libraryData.songs.length; i++) {
+            const track = libraryData.songs[i];
+            const validationResult = validationResults.find(r => r.id === track.id);
+            const exists = validationResult?.exists ?? false;
+
+            let restoredTrack: Track;
+
+            if (!exists) {
+              // File doesn't exist, mark as unavailable
+              restoredTrack = {
+                ...track,
+                audioUrl: '',
+                coverUrl: '',
+                available: false
+              };
+            } else {
+              // File exists, read it and create blob URLs
+              try {
+                const readResult = await window.electron!.readFile(track.filePath);
+                if (readResult.success) {
+                  const fileData = new Uint8Array(readResult.data);
+                  const file = new File([fileData], track.fileName, { type: 'audio/flac' });
+
+                  // Parse metadata to get cover art
+                  const metadata = await parseAudioFile(file);
+
+                  restoredTrack = {
+                    ...track,
+                    ...metadata,
+                    file: file,
+                    audioUrl: metadata.audioUrl,
+                    coverUrl: metadata.coverUrl,
+                    available: true
+                  };
+                } else {
+                  throw new Error('Failed to read file');
+                }
+              } catch (error) {
+                console.error('Failed to read file:', track.filePath, error);
+                restoredTrack = {
+                  ...track,
+                  audioUrl: '',
+                  coverUrl: '',
+                  available: false
+                };
+              }
+            }
+
+            // Add to tracks array
+            loadedTracks.push(restoredTrack);
+            setTracks([...loadedTracks]);
+
+            // Add delay between tracks (except for the last one)
+            if (i < libraryData.songs.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, delayBetweenTracks));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load library:', error);
+      }
+    };
+
+    loadLibraryFromDisk();
   }, []);
 
-  // Save tracks to localStorage when they change (Electron only)
+  // Auto-save library to disk when tracks change (Electron only, debounced)
   useEffect(() => {
-    if (isElectron() && tracks.length > 0) {
-      saveTracks(tracks);
+    if (isElectron()) {
+      // Prepare library data for saving
+      const libraryData = {
+        songs: tracks.map(track => ({
+          id: track.id,
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          duration: track.duration,
+          lyrics: track.lyrics,
+          syncedLyrics: track.syncedLyrics,
+          filePath: (track as any).filePath || '',
+          fileName: (track as any).fileName || '',
+          fileSize: (track as any).fileSize || 0,
+          lastModified: (track as any).lastModified || 0,
+          addedAt: (track as any).addedAt || new Date().toISOString(),
+          playCount: (track as any).playCount || 0,
+          lastPlayed: (track as any).lastPlayed || null,
+          available: track.available ?? true
+        })),
+        settings: {
+          volume: volume
+        }
+      };
+
+      // Debounced save
+      libraryStorage.saveLibraryDebounced(libraryData);
     }
-  }, [tracks]);
+  }, [tracks, volume]);
+
+  // Save library before app quits
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (isElectron()) {
+        const libraryData = {
+          songs: tracks.map(track => ({
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            album: track.album,
+            duration: track.duration,
+            lyrics: track.lyrics,
+            syncedLyrics: track.syncedLyrics,
+            filePath: (track as any).filePath || '',
+            fileName: (track as any).fileName || '',
+            fileSize: (track as any).fileSize || 0,
+            lastModified: (track as any).lastModified || 0,
+            addedAt: (track as any).addedAt || new Date().toISOString(),
+            playCount: (track as any).playCount || 0,
+            lastPlayed: (track as any).lastPlayed || null,
+            available: track.available ?? true
+          })),
+          settings: {
+            volume: volume
+          }
+        };
+
+        // Immediate save (no debounce) on quit
+        console.log('💾 Saving library before quit...');
+        await libraryStorage.saveLibrary(libraryData);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [tracks, volume]);
 
   // Remove track function
-  const handleRemoveTrack = useCallback((trackId: string) => {
+  const handleRemoveTrack = useCallback(async (trackId: string) => {
+    // In Electron, delete the symlink file first
+    if (isElectron()) {
+      const trackToRemove = tracks.find(t => t.id === trackId);
+      if (trackToRemove && (trackToRemove as any).filePath) {
+        try {
+          const result = await window.electron!.deleteAudioFile((trackToRemove as any).filePath);
+          if (result.success) {
+            console.log(`✅ Symlink deleted for track: ${trackToRemove.title}`);
+          }
+        } catch (error) {
+          console.error('Failed to delete symlink:', error);
+          // Continue with track removal even if symlink deletion fails
+        }
+      }
+    }
+
     setTracks(prev => {
       const newTracks = prev.filter(t => t.id !== trackId);
       // Update current track index if needed
@@ -229,7 +451,7 @@ const App: React.FC = () => {
       }
       return newTracks;
     });
-  }, [currentTrackIndex]);
+  }, [currentTrackIndex, tracks, isElectron]);
 
   // Reload files in Electron
   const handleReloadFiles = useCallback(async () => {
@@ -258,23 +480,33 @@ const App: React.FC = () => {
         if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {
           // File found, reload it
           try {
-            const readResult = await window.electron.readFile(filePath);
-            if (readResult.success) {
-              // Create File object from ArrayBuffer
-              const fileData = new Uint8Array(readResult.data);
-              const file = new File([fileData], fileName, { type: 'audio/flac' });
+            // Create symlink to the original file
+            const saveResult = await window.electron.saveAudioFile(filePath, fileName);
+            if (saveResult.success && saveResult.filePath) {
+              console.log(`File saved (${saveResult.method}):`, saveResult.filePath);
 
-              // Parse metadata
-              const metadata = await parseAudioFile(file);
+              // Read the saved file to create File object
+              const readResult = await window.electron.readFile(saveResult.filePath);
+              if (readResult.success) {
+                const fileData = new Uint8Array(readResult.data);
+                const file = new File([fileData], fileName, { type: 'audio/flac' });
 
-              // Update track
-              updatedTracks[trackIndex] = {
-                ...updatedTracks[trackIndex],
-                ...metadata,
-                file: file,
-                available: true
-              };
-              reloadedCount++;
+                // Parse metadata
+                const metadata = await parseAudioFile(file);
+
+                // Update track with file path
+                updatedTracks[trackIndex] = {
+                  ...updatedTracks[trackIndex],
+                  ...metadata,
+                  file: file,
+                  filePath: saveResult.filePath, // Store the saved file path (symlink)
+                  fileName: fileName,
+                  fileSize: file.size,
+                  lastModified: file.lastModified,
+                  available: true
+                };
+                reloadedCount++;
+              }
             }
           } catch (error) {
             console.error('Failed to reload file:', filePath, error);
@@ -292,7 +524,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
       <Sidebar
-        onImportClick={() => fileInputRef.current?.click()}
+        onImportClick={() => isElectron() ? handleFileImport() : fileInputRef.current?.click()}
         onNavigate={(mode) => { setViewMode(mode); setIsFocusMode(false); }}
         onReloadFiles={handleReloadFiles}
         hasUnavailableTracks={tracks.some(t => t.available === false)}
@@ -302,7 +534,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533]">
         {currentTrack && (
           <audio
-            ref={audioRef}
+            ref={setAudioRef}
             src={currentTrack.audioUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
