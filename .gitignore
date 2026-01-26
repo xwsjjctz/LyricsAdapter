@@ -70,3 +70,6 @@ FRONTEND.md
 CLAUDE.md
 *jpg
 *.whl
+talk.md
+/release
+/dist-electron

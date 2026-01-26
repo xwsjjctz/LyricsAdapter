@@ -1,0 +1,5 @@
+{
+  "name": "LyricsAdapter",
+  "description": "A high-fidelity music player that supports FLAC metadata extraction, including embedded covers and lyrics, featuring a sleek modern glassmorphism UI.",
+  "requestFramePermissions": []
+}

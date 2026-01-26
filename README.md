@@ -1,73 +1,85 @@
 # LyricsAdapter
 
-## 项目介绍：
+一个功能丰富的本地音乐播放器，专注于歌词同步显示和沉浸式播放体验。
 
-本项目是一个添加音频元数据的工具。
+## 功能特性
 
-## 使用：
+- 🎵 **多格式支持**: FLAC, MP3, M4A, WAV
+- 📝 **智能歌词解析**: 自动提取并同步显示 LRC 格式歌词
+- 🖼️ **封面显示**: 自动提取音频文件内嵌的封面图片
+- 🎭 **沉浸式模式**: 全屏显示，歌词滚动同步
+- 🎚️ **完整播放控制**: 播放/暂停、上一曲/下一曲、进度调节、音量控制
+- 📚 **本地播放**: 完全在浏览器中运行，无需后端服务器
 
-使用`pip install -r requirements.txt`安装依赖，在终端中执行`python LyricsAdapter.py -h`查看使用方式。
+## 快速开始
+
+**前提条件**: Node.js
+
+1. 安装依赖:
+   ```bash
+   npm install
+   ```
+
+2. 启动应用:
+   ```bash
+   npm run dev
+   ```
+
+3. 打开浏览器访问: http://localhost:3000
+
+4. 导入音乐文件:
+   - 点击侧边栏的导入按钮
+   - 选择音频文件（支持批量选择）
+
+## 技术栈
+
+- **React 18.2.0** - 用户界面
+- **TypeScript** - 类型安全
+- **Vite** - 构建工具
+- **Tailwind CSS** - 样式框架
+
+## 开发命令
 
 ```bash
-usage: LyricsAdapter.py [-h] [-d] audiopath
-
-positional arguments:
-  audiopath     path of the audio file or directory
-
-optional arguments:
-  -h, --help    show this help message and exit
-  -d, --delete  delete metadata from the audio file
+npm run dev      # 启动开发服务器
+npm run build    # 构建生产版本
+npm run preview  # 预览生产构建
 ```
 
-在命令后添加音频文件的路径会自动对音频文件缺失的元数据进行补充，输入文件夹的话会对文件夹下所有的flac和mp3文件进行批量处理，**添加`-d`参数可将输入的文件包含的所有元数据清空**，慎用。
-
-下面举个例子来展示使用流程：
-
-![添加元数据前](./resource/metadata_show.png)
-
-执行以下命令：
-
-```bash
-python .\LyricsAdapter.py '.\test\于果 - 侧脸.flac'
-```
-
-输出：
-
-```bash
-
-    Args: add
-    Audio: .\test\于果 - 侧脸.flac
-    Search: 于果  侧脸
-    Metadata Status Input:
-        artist: True,           # 输入前文件元数据的状态
-        title: True,
-        lyrics: False,
-        cover: False
-    Response Status:            # 元数据自动获取的状态
-        artist: False,
-        title: False,
-        lyrics: True,
-        cover: True
-    Metadata Status Output:     # 输出后文件元数据的状态
-        artist: True,
-        title: True,
-        lyrics: True,
-        cover: True
+## 项目结构
 
 ```
+lyrics-adapter/
+├── components/          # React 组件
+│   ├── Controls.tsx      # 播放控制
+│   ├── FocusMode.tsx     # 沉浸式模式
+│   ├── LibraryView.tsx   # 歌曲列表
+│   └── Sidebar.tsx       # 侧边栏
+├── services/            # 业务逻辑
+│   └── metadataService.ts # 元数据解析
+├── App.tsx              # 主应用
+├── types.ts             # 类型定义
+└── index.html           # HTML 入口
+```
 
-此时可以重新打开该音频文件：
+## 核心特性
 
-![添加元数据后](./resource/show.png)
+### 元数据解析
+- **FLAC**: VORBIS_COMMENT 和 PICTURE 块完整解析
+- **MP3**: ID3v2 标签解析，支持 synchsafe 整数
+- **歌词**: LRC 格式时间戳解析和同步
 
-文件的封面和歌词已添加完毕。
+### 歌词同步
+- 基于时间戳的精确同步
+- 自动滚动到当前歌词
+- 点击歌词跳转到对应时间
 
-## 声明：
+### 界面设计
+- 玻玻璃拟态效果
+- 响应式布局
+- 平滑动画过渡
+- 沉浸式背景模糊
 
-自动获取元数据使用到了qq音乐的api，这部分基于`https://github.com/MCQTSS/MCQTSS_QQMusic/blob/main/Main.py`项目实现，对应utils目录下的qq_music_api.py文件。
+## 许可证
 
-元数据也可手动添加，AudioProcessing()中封面和歌词可以以图片和文本文件的形式输入，暂时未提供使用命令行参数添加。
-
-代码中未利用功能的部分基于`https://github.com/nullptr-0/QmcWasm`项目实现。
-
-本项目仅学习使用。
+MIT

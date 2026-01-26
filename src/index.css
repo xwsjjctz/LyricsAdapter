@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #2b8cee;
+  --color-background-dark: #101922;
+  --color-background-sidebar: #16212e;
+  --color-background-card: rgba(255, 255, 255, 0.05);
+  --font-family-sans: 'Inter', sans-serif;
+}
