@@ -112,7 +112,7 @@ const Controls: React.FC<ControlsProps> = ({
       </div>
 
       {/* Volume & Extras */}
-      <div className="flex items-center justify-end gap-4 w-1/4">
+      <div className="flex items-center justify-center gap-4 w-32">
         <div className="flex items-center gap-2 group">
           <span className="material-symbols-outlined text-white/40 text-base">volume_down</span>
           <div className="w-16 relative h-4 flex items-center">

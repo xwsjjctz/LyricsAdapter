@@ -72,7 +72,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ tracks, currentTrackIndex, on
               setIsEditMode(!isEditMode);
               if (!isEditMode) setSelectedIds(new Set());
             }}
-            className={`p-2 rounded-lg transition-all ${
+            className={`p-2 rounded-lg transition-all flex items-center justify-center ${
               isEditMode
                 ? 'bg-primary text-white shadow-lg shadow-primary/25'
                 : 'bg-white/10 text-white/60 hover:bg-white/20'

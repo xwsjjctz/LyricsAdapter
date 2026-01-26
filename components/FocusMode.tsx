@@ -22,6 +22,10 @@ const FocusMode: React.FC<FocusModeProps> = ({
   const lyricsRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prevActiveIndexRef = useRef<number>(-1);
+  const playerRef = useRef<HTMLDivElement>(null);
+  const [isPlayerVisible, setIsPlayerVisible] = useState(true);
+  const playerHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progress = track && track.duration > 0 ? (currentTime / track.duration) * 100 : 0;
 
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
@@ -85,15 +89,119 @@ const FocusMode: React.FC<FocusModeProps> = ({
     }, 3000);
   };
 
+  // Handle player mouse enter
+  const handlePlayerMouseEnter = () => {
+    // Clear any pending hide timeout
+    if (playerHideTimeoutRef.current) {
+      clearTimeout(playerHideTimeoutRef.current);
+      playerHideTimeoutRef.current = null;
+    }
+    setIsPlayerVisible(true);
+  };
+
+  // Handle player mouse leave
+  const handlePlayerMouseLeave = () => {
+    // Set timeout to hide player after 1 second
+    playerHideTimeoutRef.current = setTimeout(() => {
+      setIsPlayerVisible(false);
+    }, 1000);
+  };
+
+  // Cleanup player hide timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (playerHideTimeoutRef.current) {
+        clearTimeout(playerHideTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Auto-scroll lyrics to current line (only when not user scrolling)
   useEffect(() => {
-    if (isVisible && lyricsRef.current && activeIndex >= 0 && !isUserScrolling) {
-      const lyricElements = lyricsRef.current.querySelectorAll('p');
-      if (lyricElements[activeIndex]) {
-        lyricElements[activeIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!isVisible || activeIndex < 0 || isUserScrolling) return;
+
+    // Only scroll when activeIndex actually changes
+    if (activeIndex !== prevActiveIndexRef.current) {
+      prevActiveIndexRef.current = activeIndex;
+
+      if (lyricsRef.current) {
+        const lyricElements = lyricsRef.current.querySelectorAll('p');
+        const targetElement = lyricElements[activeIndex] as HTMLElement;
+
+        if (targetElement) {
+          const container = lyricsRef.current;
+          const containerHeight = container.clientHeight;
+          const elementTop = targetElement.offsetTop;
+          const elementHeight = targetElement.clientHeight;
+          const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+          // Calculate time difference between current and next lyric
+          let timeToNextLyric = 2.0; // Default 2 seconds
+          if (track?.syncedLyrics && activeIndex < lyricsLines.length - 1) {
+            const currentLyricTime = lyricsLines[activeIndex].time;
+            const nextLyricTime = lyricsLines[activeIndex + 1].time;
+            timeToNextLyric = Math.max(nextLyricTime - currentLyricTime, 0.3);
+          }
+
+          // Calculate scroll distance
+          const currentScroll = container.scrollTop;
+          const scrollDistance = Math.abs(targetScroll - currentScroll);
+          const isLongDistance = scrollDistance > containerHeight * 0.8;
+
+          // Dynamic duration: faster for quick lyrics or long distances
+          let duration = Math.min(timeToNextLyric * 0.6, 0.8); // Max 800ms
+          if (isLongDistance) {
+            duration = Math.min(duration, 0.4); // Faster for long distances
+          }
+
+          // Animate scroll with custom duration using ease-out timing
+          const startTime = performance.now();
+          const startScroll = container.scrollTop;
+          const scrollChange = targetScroll - startScroll;
+
+          const animateScroll = (currentTime: number) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / (duration * 1000), 1);
+
+            // Ease-out function: 1 - (1 - t)^3
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            container.scrollTop = startScroll + scrollChange * easeOut;
+
+            if (progress < 1) {
+              requestAnimationFrame(animateScroll);
+            }
+          };
+
+          requestAnimationFrame(animateScroll);
+        }
       }
     }
-  }, [currentTime, isVisible, activeIndex, isUserScrolling]);
+  }, [activeIndex, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines]);
+
+  // Reset scroll state when track changes
+  useEffect(() => {
+    prevActiveIndexRef.current = -1;
+    // Scroll to top when track changes
+    if (lyricsRef.current) {
+      lyricsRef.current.scrollTop = 0;
+    }
+  }, [track?.id]);
+
+  // Reset player visibility when focus mode becomes visible
+  useEffect(() => {
+    if (isVisible) {
+      setIsPlayerVisible(true);
+      // Clear any pending hide timeout
+      if (playerHideTimeoutRef.current) {
+        clearTimeout(playerHideTimeoutRef.current);
+        playerHideTimeoutRef.current = null;
+      }
+      // Start hide timer - mouse enter will cancel it if mouse is over player
+      playerHideTimeoutRef.current = setTimeout(() => {
+        setIsPlayerVisible(false);
+      }, 1000);
+    }
+  }, [isVisible]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -113,9 +221,12 @@ const FocusMode: React.FC<FocusModeProps> = ({
 
   return (
     <div className={`fixed inset-0 z-50 transition-all duration-700 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
-      {/* Background Blur */}
-      <div className="immersive-bg" style={{ backgroundImage: `url(${track?.coverUrl})` }} />
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-3xl" />
+      {/* Dynamic Background from Cover Art */}
+      <div className="immersive-bg" style={{
+        backgroundImage: `url(${track?.coverUrl})`,
+        filter: 'blur(80px) saturate(1.5) brightness(0.4)'
+      }} />
+      <div className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm" />
 
       <div className="relative h-full flex flex-col z-10 overflow-hidden">
         {/* Top Header */}
@@ -124,7 +235,7 @@ const FocusMode: React.FC<FocusModeProps> = ({
             onClick={onClose}
             className="flex items-center gap-2 text-white/40 hover:text-white transition-all group"
           >
-            <div className="bg-white/5 p-1.5 rounded-full group-hover:bg-white/10 transition-colors">
+            <div className="bg-white/5 p-1.5 rounded-full group-hover:bg-white/10 transition-colors flex items-center justify-center">
               <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
             </div>
             <span className="text-[9px] font-bold tracking-[0.15em] uppercase">Now Playing</span>
@@ -132,7 +243,7 @@ const FocusMode: React.FC<FocusModeProps> = ({
         </header>
 
         {/* Content Section */}
-        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-hidden mb-24 max-w-5xl mx-auto w-full translate-x-16 lg:translate-x-24">
+        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-hidden mb-24 max-w-5xl mx-auto w-full translate-x-8 lg:translate-x-12">
 
           {/* Cover & Title */}
           <div className="flex-none flex flex-col items-center justify-center w-auto">
@@ -169,8 +280,8 @@ const FocusMode: React.FC<FocusModeProps> = ({
                 return (
                   <p
                     key={idx}
-                    className={`text-xl lg:text-2xl font-bold leading-tight transition-all duration-700 cursor-default ${
-                      isActive ? 'active-lyric' : 'text-white/10 hover:text-white/30'
+                    className={`text-xl lg:text-2xl font-bold leading-tight cursor-default ${
+                      isActive ? 'active-lyric transition-all duration-300' : 'text-white/10 hover:text-white/30 transition-all duration-200'
                     } ${hasTimestamp ? 'cursor-pointer' : ''}`}
                     onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
                   >
@@ -189,7 +300,13 @@ const FocusMode: React.FC<FocusModeProps> = ({
 
         {/* Compact Bottom Player */}
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
-          <div className="glass rounded-2xl p-4 flex flex-col gap-3 shadow-xl border border-white/5 relative z-20">
+          <div
+            ref={playerRef}
+            onMouseEnter={handlePlayerMouseEnter}
+            onMouseLeave={handlePlayerMouseLeave}
+            className="glass rounded-2xl p-4 flex flex-col gap-3 shadow-xl border border-white/5 relative z-20 transition-opacity duration-500"
+            style={{ opacity: isPlayerVisible ? 1 : 0 }}
+          >
             {/* Progress */}
             <div className="w-full flex items-center gap-3">
               <span className="text-[10px] tabular-nums font-bold text-white/30 w-10 text-right">{formatTime(currentTime)}</span>
