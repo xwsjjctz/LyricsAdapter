@@ -54,6 +54,11 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          external: ['@tauri-apps/api/core', '@tauri-apps/api/window', '@tauri-apps/plugin-dialog']
+        }
       }
     };
 });

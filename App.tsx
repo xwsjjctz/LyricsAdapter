@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Track, ViewMode } from './types';
 import { parseAudioFile, libraryStorage } from './services/metadataService';
+import { getDesktopAPI, isDesktop } from './services/desktopAdapter';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -9,7 +10,7 @@ import LibraryView from './components/LibraryView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 
-// Electron API type
+// Electron API type (for backwards compatibility)
 declare global {
   interface Window {
     electron?: {
@@ -28,10 +29,11 @@ declare global {
   }
 }
 
-// Check if running in Electron
+// Check if running in Electron (for backwards compatibility)
 const isElectron = () => {
   return window.electron !== undefined;
 };
+
 
 const App: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -97,10 +99,11 @@ const App: React.FC = () => {
   }, [currentTrackIndex, tracks.length]);
 
   const handleFileImport = async (e?: React.ChangeEvent<HTMLInputElement>) => {
-    // In Electron, use native file picker dialog to get file paths (for symlink support)
-    if (isElectron()) {
+    // In Desktop (Electron/Tauri), use native file picker dialog to get file paths (for symlink support)
+    const desktopAPI = getDesktopAPI();
+    if (desktopAPI) {
       try {
-        const result = await window.electron!.selectFiles();
+        const result = await desktopAPI.selectFiles();
         if (result.canceled || result.filePaths.length === 0) {
           return;
         }
@@ -118,7 +121,7 @@ const App: React.FC = () => {
           // Create symlink to the original file
           let savedFilePath = '';
           try {
-            const saveResult = await window.electron!.saveAudioFile(filePath, fileName);
+            const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
             if (saveResult.success && saveResult.filePath) {
               savedFilePath = saveResult.filePath;
               console.log(`File saved (${saveResult.method}):`, savedFilePath);
@@ -130,7 +133,7 @@ const App: React.FC = () => {
           // Read the saved file to create File object and parse metadata
           if (savedFilePath) {
             try {
-              const readResult = await window.electron!.readFile(savedFilePath);
+              const readResult = await desktopAPI.readFile(savedFilePath);
               if (readResult.success) {
                 const fileData = new Uint8Array(readResult.data);
                 const file = new File([fileData], fileName, { type: 'audio/flac' });
@@ -256,8 +259,9 @@ const App: React.FC = () => {
   // Load library from disk on mount (Electron only)
   useEffect(() => {
     const loadLibraryFromDisk = async () => {
-      if (!isElectron()) {
-        console.log('Not running in Electron, skipping library load');
+      const desktopAPI = getDesktopAPI();
+      if (!desktopAPI) {
+        console.log('Not running in Desktop mode, skipping library load');
         return;
       }
 
@@ -302,7 +306,7 @@ const App: React.FC = () => {
             } else {
               // File exists, read it and create blob URLs
               try {
-                const readResult = await window.electron!.readFile(track.filePath);
+                const readResult = await desktopAPI.readFile(track.filePath);
                 if (readResult.success) {
                   const fileData = new Uint8Array(readResult.data);
                   const file = new File([fileData], track.fileName, { type: 'audio/flac' });
@@ -350,9 +354,9 @@ const App: React.FC = () => {
     loadLibraryFromDisk();
   }, []);
 
-  // Auto-save library to disk when tracks change (Electron only, debounced)
+  // Auto-save library to disk when tracks change (Desktop only, debounced)
   useEffect(() => {
-    if (isElectron()) {
+    if (isDesktop()) {
       // Prepare library data for saving
       const libraryData = {
         songs: tracks.map(track => ({
@@ -385,7 +389,7 @@ const App: React.FC = () => {
   // Save library before app quits
   useEffect(() => {
     const handleBeforeUnload = async () => {
-      if (isElectron()) {
+      if (isDesktop()) {
         const libraryData = {
           songs: tracks.map(track => ({
             id: track.id,
@@ -424,12 +428,13 @@ const App: React.FC = () => {
 
   // Remove track function
   const handleRemoveTrack = useCallback(async (trackId: string) => {
-    // In Electron, delete the symlink file first
-    if (isElectron()) {
+    // In Desktop (Electron/Tauri), delete the symlink file first
+    const desktopAPI = getDesktopAPI();
+    if (desktopAPI) {
       const trackToRemove = tracks.find(t => t.id === trackId);
       if (trackToRemove && (trackToRemove as any).filePath) {
         try {
-          const result = await window.electron!.deleteAudioFile((trackToRemove as any).filePath);
+          const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
           if (result.success) {
             console.log(`✅ Symlink deleted for track: ${trackToRemove.title}`);
           }
@@ -451,14 +456,15 @@ const App: React.FC = () => {
       }
       return newTracks;
     });
-  }, [currentTrackIndex, tracks, isElectron]);
+  }, [currentTrackIndex, tracks, isDesktop]);
 
-  // Reload files in Electron
+  // Reload files in Desktop (Electron/Tauri)
   const handleReloadFiles = useCallback(async () => {
-    if (!window.electron) return;
+    const desktopAPI = getDesktopAPI();
+    if (!desktopAPI) return;
 
     try {
-      const result = await window.electron.selectFiles();
+      const result = await desktopAPI.selectFiles();
       if (result.canceled || result.filePaths.length === 0) {
         return;
       }
@@ -481,12 +487,12 @@ const App: React.FC = () => {
           // File found, reload it
           try {
             // Create symlink to the original file
-            const saveResult = await window.electron.saveAudioFile(filePath, fileName);
+            const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
             if (saveResult.success && saveResult.filePath) {
               console.log(`File saved (${saveResult.method}):`, saveResult.filePath);
 
               // Read the saved file to create File object
-              const readResult = await window.electron.readFile(saveResult.filePath);
+              const readResult = await desktopAPI.readFile(saveResult.filePath);
               if (readResult.success) {
                 const fileData = new Uint8Array(readResult.data);
                 const file = new File([fileData], fileName, { type: 'audio/flac' });
@@ -524,7 +530,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
       <Sidebar
-        onImportClick={() => isElectron() ? handleFileImport() : fileInputRef.current?.click()}
+        onImportClick={() => isDesktop() ? handleFileImport() : fileInputRef.current?.click()}
         onNavigate={(mode) => { setViewMode(mode); setIsFocusMode(false); }}
         onReloadFiles={handleReloadFiles}
         hasUnavailableTracks={tracks.some(t => t.available === false)}
