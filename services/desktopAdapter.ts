@@ -324,7 +324,17 @@ class TauriAdapter implements DesktopAPI {
   }
 
   async getAudioUrl(filePath: string): Promise<string> {
-    return await this.invoke('get_audio_url', { filePath });
+    console.log('[TauriAdapter] Getting audio URL for:', filePath);
+
+    // Call Rust command to get asset URL
+    try {
+      const assetUrl = await this.invoke('get_audio_url', { filePath });
+      console.log('[TauriAdapter] ✓ Got asset URL:', assetUrl);
+      return assetUrl;
+    } catch (error) {
+      console.error('[TauriAdapter] Failed to get audio URL:', error);
+      throw error;
+    }
   }
 }
 

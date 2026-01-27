@@ -6,6 +6,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
 use lofty::file::{TaggedFileExt, AudioFile};
+use http_body_util::Full;
+use hyper::{body::Incoming, Request, Response, body::Bytes, service::service_fn};
+use hyper_util::rt::TokioIo;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LibraryData {
@@ -462,11 +465,11 @@ async fn get_audio_url(file_path: String) -> Result<String, String> {
         return Err("File does not exist".to_string());
     }
 
-    // Return http://localhost/audio/ URL
-    // We'll use Tauri's built-in HTTP server or a custom handler
-    let url = format!("http://localhost/audio/{}", file_path);
-    println!("✅ Audio URL: {}", url);
-    Ok(url)
+    // Use custom HTTP protocol: http://localhost:36521/audio-file?path=/absolute/path
+    let encoded_path = urlencoding::encode(&file_path);
+    let audio_url = format!("http://localhost:36521/audio-file?path={}", encoded_path);
+    println!("✅ Audio HTTP URL: {}", audio_url);
+    Ok(audio_url)
 }
 
 #[tauri::command]
@@ -588,6 +591,13 @@ async fn parse_audio_metadata(file_path: String) -> Result<ParsedMetadataResult,
         album = "Unknown Album".to_string();
     }
 
+    // Parse synced lyrics from LRC format if available
+    let (lyrics, synced_lyrics) = if !lyrics.is_empty() {
+        parse_lrc_lyrics(&lyrics)
+    } else {
+        (lyrics, None)
+    };
+
     println!("✅ [Rust] Parsed: {} - {} - {} ({}s)", title, artist, album, duration);
 
     Ok(ParsedMetadataResult {
@@ -598,12 +608,173 @@ async fn parse_audio_metadata(file_path: String) -> Result<ParsedMetadataResult,
             album,
             duration,
             lyrics,
-            synced_lyrics: None, // TODO: Implement synced lyrics parsing
+            synced_lyrics,
             cover_data,
             cover_mime,
         }),
         error: None,
     })
+}
+
+/// Parse LRC format lyrics with timestamps like [00:12.34]
+/// Returns a tuple of (plain_text_lyrics, synced_lyrics)
+/// where plain_text_lyrics is the lyrics without timestamps
+/// and synced_lyrics is a vector of LyricLine with time in seconds and text
+fn parse_lrc_lyrics(lrc: &str) -> (String, Option<Vec<LyricLine>>) {
+    let mut synced_lyrics = Vec::new();
+    let mut plain_text_lines = Vec::new();
+
+    // LRC timestamp format: [mm:ss.xx] or [mm:ss]
+    let time_regex = regex::Regex::new(r"\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]");
+
+    // If regex compilation fails, return original lyrics
+    let time_regex = match time_regex {
+        Ok(re) => re,
+        Err(_) => return (lrc.to_string(), None),
+    };
+
+    for line in lrc.lines() {
+        let trimmed_line = line.trim();
+        if trimmed_line.is_empty() {
+            continue;
+        }
+
+        // Find all timestamp matches in the line
+        let mut timestamps = Vec::new();
+        for cap in time_regex.captures_iter(trimmed_line) {
+            if let (Some(minutes), Some(seconds)) = (cap.get(1), cap.get(2)) {
+                let mins: u64 = minutes.as_str().parse().unwrap_or(0);
+                let secs: u64 = seconds.as_str().parse().unwrap_or(0);
+                let millis: u64 = cap.get(3)
+                    .and_then(|m| m.as_str().parse().ok())
+                    .map(|m: u64| {
+                        // Pad or truncate to 3 digits
+                        if m < 10 {
+                            m * 100
+                        } else if m < 100 {
+                            m * 10
+                        } else {
+                            m
+                        }
+                    })
+                    .unwrap_or(0);
+
+                let time_in_seconds = mins as f64 * 60.0 + secs as f64 + millis as f64 / 1000.0;
+                timestamps.push(time_in_seconds);
+            }
+        }
+
+        // Extract text without timestamps
+        let text_without_timestamps = time_regex.replace_all(trimmed_line, "").trim().to_string();
+
+        if !timestamps.is_empty() && !text_without_timestamps.is_empty() {
+            // Add synced lyric for each timestamp
+            for time in timestamps {
+                synced_lyrics.push(LyricLine {
+                    time,
+                    text: text_without_timestamps.clone(),
+                });
+            }
+            plain_text_lines.push(text_without_timestamps);
+        } else if !text_without_timestamps.is_empty() {
+            // Line without timestamp, just add to plain text
+            plain_text_lines.push(text_without_timestamps);
+        }
+    }
+
+    // Sort by time
+    synced_lyrics.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+
+    let plain_text = plain_text_lines.join("\n");
+    let synced = if synced_lyrics.is_empty() {
+        None
+    } else {
+        Some(synced_lyrics)
+    };
+
+    (plain_text, synced)
+}
+
+// Custom protocol handler for streaming audio files
+#[derive(Clone)]
+struct AudioProtocolHandler;
+
+impl AudioProtocolHandler {
+    async fn handle_request(&self, req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+        let path = req.uri().path();
+        println!("🎵 [AudioProtocol] Received request for: {}", path);
+
+        // Extract file path from URL: /audio-file?path=/absolute/path/to/file.flac
+        let file_path = path
+            .strip_prefix("/audio-file/")
+            .and_then(|p| Some(p.to_string()))
+            .or_else(|| {
+                // Try query parameter
+                req.uri().query().and_then(|q| {
+                    q.split('&')
+                        .find(|p| p.starts_with("path="))
+                        .and_then(|p| p.strip_prefix("path="))
+                        .and_then(|p| urlencoding::decode(p).ok())
+                        .map(|p| p.to_string())
+                })
+            });
+
+        if let Some(file_path) = file_path {
+            println!("🎵 [AudioProtocol] Serving file: {}", file_path);
+
+            // Check if file exists
+            if !PathBuf::from(&file_path).exists() {
+                println!("❌ [AudioProtocol] File not found: {}", file_path);
+                return Ok(Response::builder()
+                    .status(404)
+                    .body(Full::new(Bytes::from("File not found")))
+                    .unwrap());
+            }
+
+            // Read file
+            match fs::read(&file_path) {
+                Ok(data) => {
+                    println!("✅ [AudioProtocol] Serving {} bytes", data.len());
+
+                    // Detect content type based on extension
+                    let content_type = if file_path.ends_with(".flac") {
+                        "audio/flac"
+                    } else if file_path.ends_with(".mp3") {
+                        "audio/mpeg"
+                    } else if file_path.ends_with(".m4a") {
+                        "audio/mp4"
+                    } else if file_path.ends_with(".wav") {
+                        "audio/wav"
+                    } else {
+                        "audio/flac"
+                    };
+
+                    // Return response with CORS headers
+                    Ok(Response::builder()
+                        .status(200)
+                        .header("Content-Type", content_type)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                        .header("Accept-Ranges", "bytes")
+                        .body(Full::new(Bytes::from(data)))
+                        .unwrap())
+                }
+                Err(e) => {
+                    println!("❌ [AudioProtocol] Failed to read file: {}", e);
+                    Ok(Response::builder()
+                        .status(500)
+                        .body(Full::new(Bytes::from(format!("Failed to read file: {}", e))))
+                        .unwrap())
+                }
+            }
+        } else {
+            println!("❌ [AudioProtocol] Invalid request, no file path found");
+            Ok(Response::builder()
+                .status(400)
+                .body(Full::new(Bytes::from("Invalid request")))
+                .unwrap())
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -619,6 +790,51 @@ pub fn run() {
             }
             // Initialize dialog plugin
             app.handle().plugin(tauri_plugin_dialog::init())?;
+
+            // Start HTTP server for audio streaming using Tauri's async runtime
+            tauri::async_runtime::spawn(async move {
+                // Create a TCP listener
+                let addr: std::net::SocketAddr = "127.0.0.1:36521".parse().unwrap();
+                let listener = match tokio::net::TcpListener::bind(addr).await {
+                    Ok(l) => {
+                        println!("🎵 [AudioServer] Started on http://{}", addr);
+                        l
+                    }
+                    Err(e) => {
+                        eprintln!("❌ [AudioServer] Failed to bind to {}: {}", addr, e);
+                        return;
+                    }
+                };
+
+                // Create handler
+                let handler = AudioProtocolHandler;
+
+                // Serve incoming connections
+                loop {
+                    match listener.accept().await {
+                        Ok((stream, _addr)) => {
+                            let handler_clone = handler.clone();
+                            tokio::spawn(async move {
+                                // Use hyper to serve HTTP
+                                let io = TokioIo::new(stream);
+                                let http = hyper::server::conn::http1::Builder::new();
+                                let serve = http.serve_connection(io, service_fn(move |req| {
+                                    let handler = handler_clone.clone();
+                                    async move { handler.handle_request(req).await }
+                                }));
+
+                                if let Err(e) = serve.await {
+                                    eprintln!("❌ [AudioServer] Error serving connection: {}", e);
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            eprintln!("❌ [AudioServer] Error accepting connection: {}", e);
+                        }
+                    }
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

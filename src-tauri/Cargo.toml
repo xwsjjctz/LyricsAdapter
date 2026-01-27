@@ -27,3 +27,11 @@ tauri-plugin-dialog = "2"
 chrono = "0.4"
 lofty = "0.22"
 base64 = "0.22"
+regex = "1.10"
+tokio = { version = "1", features = ["fs", "io-util", "net"] }
+http = "1.0"
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http-body = "1"
+http-body-util = "0.1"
+urlencoding = "2.1"

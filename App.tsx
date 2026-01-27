@@ -119,7 +119,7 @@ const App: React.FC = () => {
   }, [currentTrackIndex, tracks.length]);
 
   // Helper function to load audio file for a track (lazy loading)
-  // Optimized: Use readFile but show loading state
+  // Uses asset protocol for streaming (no need to load entire file into memory)
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
     const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI || !(track as any).filePath || track.audioUrl) {
@@ -128,23 +128,42 @@ const App: React.FC = () => {
 
     try {
       console.log('[App] Loading audio file for:', track.title);
-      const readResult = await desktopAPI.readFile((track as any).filePath);
 
-      if (readResult.success && readResult.data.byteLength > 0) {
-        const fileData = new Uint8Array(readResult.data);
-        const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
-        const audioUrl = URL.createObjectURL(file);
+      // Check platform
+      const platform = desktopAPI.platform;
 
-        console.log('[App] ✓ Audio loaded, size:', fileData.length);
+      if (platform === 'tauri') {
+        // Use asset protocol for Tauri (streaming)
+        console.log('[App] Using Tauri asset protocol for streaming');
+        const assetUrl = await desktopAPI.getAudioUrl((track as any).filePath);
+
+        console.log('[App] ✓ Audio asset URL ready:', assetUrl);
 
         return {
           ...track,
-          file: file,
-          audioUrl: audioUrl,
+          audioUrl: assetUrl,
         };
       } else {
-        console.error('[App] Failed to load audio file:', readResult.error);
-        return track;
+        // For Electron, use readFile ( Electron handles file:// efficiently)
+        console.log('[App] Using readFile for Electron');
+        const readResult = await desktopAPI.readFile((track as any).filePath);
+
+        if (readResult.success && readResult.data.byteLength > 0) {
+          const fileData = new Uint8Array(readResult.data);
+          const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
+          const audioUrl = URL.createObjectURL(file);
+
+          console.log('[App] ✓ Audio loaded, size:', (fileData.length / 1024 / 1024).toFixed(2), 'MB');
+
+          return {
+            ...track,
+            file: file,
+            audioUrl: audioUrl,
+          };
+        } else {
+          console.error('[App] Failed to load audio file:', readResult.error);
+          return track;
+        }
       }
     } catch (error) {
       console.error('[App] Failed to load audio file:', error);
