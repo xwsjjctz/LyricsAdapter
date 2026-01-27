@@ -14,7 +14,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onImportClick, onNavigate, currentVie
   const isTauri = !!(window as any).__TAURI__;
 
   return (
-    <aside className="w-64 flex flex-col bg-background-sidebar/60 backdrop-blur-md border-r border-white/10 z-20">
+    <aside className="w-64 flex flex-col bg-background-sidebar/60 backdrop-blur-md border-r border-white/10 z-20 pt-8">
       <div className="px-6 flex flex-col gap-6 pt-6">
         <div>
           <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mb-4 px-2">Library</h3>

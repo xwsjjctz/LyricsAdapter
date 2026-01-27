@@ -6,6 +6,7 @@ import { getDesktopAPI, getDesktopAPIAsync, isDesktop } from './services/desktop
 import { metadataCacheService } from './services/metadataCacheService';
 
 // Components
+import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import Controls from './components/Controls';
@@ -26,6 +27,11 @@ declare global {
       saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
       saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
       deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+      // Window control APIs
+      minimizeWindow?: () => void;
+      maximizeWindow?: () => void;
+      closeWindow?: () => void;
+      isMaximized?: () => boolean;
     };
   }
 }
@@ -867,7 +873,9 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
-      <Sidebar
+      <TitleBar />
+      <div className="flex flex-1">
+        <Sidebar
         onImportClick={() => {
           // Check if running in Desktop environment (Electron or Tauri)
           if (isDesktop()) {
@@ -884,7 +892,7 @@ const App: React.FC = () => {
         currentView={viewMode}
       />
 
-      <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533]">
+      <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
         {currentTrack && (
           <audio
             ref={setAudioRef}
@@ -905,7 +913,7 @@ const App: React.FC = () => {
           onChange={handleFileInputChange}
         />
 
-        <div className="flex-1 p-10 overflow-hidden">
+        <div className="flex-1 p-10 overflow-hidden pt-10">
           <LibraryView
             tracks={tracks}
             currentTrackIndex={currentTrackIndex}
@@ -914,7 +922,7 @@ const App: React.FC = () => {
           />
         </div>
 
-        <Controls 
+        <Controls
           track={currentTrack}
           isPlaying={isPlaying}
           currentTime={currentTime}
@@ -943,6 +951,7 @@ const App: React.FC = () => {
         volume={volume}
         onVolumeChange={setVolume}
       />
+      </div>
     </div>
   );
 };

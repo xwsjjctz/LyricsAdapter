@@ -58,12 +58,24 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          // 在非 Tauri 模式下（Electron 和浏览器），为 @tauri-apps 模块提供空实现
+          ...(!isTauri ? {
+            '@tauri-apps/api/window': path.resolve(__dirname, './src-tauri-stubs/window.js'),
+            '@tauri-apps/api/core': path.resolve(__dirname, './src-tauri-stubs/core.js'),
+            '@tauri-apps/plugin-dialog': path.resolve(__dirname, './src-tauri-stubs/dialog.js'),
+          } : {})
         }
       },
       build: {
         rollupOptions: {
-          external: ['@tauri-apps/api/core', '@tauri-apps/api/window', '@tauri-apps/plugin-dialog']
+          // 在 Electron 生产构建时，将 @tauri-apps 模块标记为 external
+          // 在 Tauri 生产构建时，不标记为 external，让 Tauri 运行时处理
+          external: mode === 'production' && !isTauri ? ['@tauri-apps/api/core', '@tauri-apps/api/window', '@tauri-apps/plugin-dialog'] : []
         }
+      },
+      // 在 Tauri 开发模式下，优化构建以避免分析动态 import
+      optimizeDeps: {
+        exclude: isTauri ? ['@tauri-apps/api/window', '@tauri-apps/api/core', '@tauri-apps/plugin-dialog'] : []
       }
     };
 });

@@ -31,12 +31,17 @@ const createWindow = async () => {
   console.log('User Data Directory:', userDataPath);
   console.log('===============================');
 
+  // macOS 使用原生标题栏，Windows/Linux 使用自定义标题栏
+  const isMacOS = process.platform === 'darwin';
+
   win = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
     title: 'LyricsAdapter',
+    frame: !isMacOS, // macOS 保留原生标题栏，其他平台移除
+    titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden', // macOS 使用 hiddenInset 让背景延伸
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: true,
@@ -314,5 +319,35 @@ app.whenReady().then(() => {
       console.error('Failed to delete audio file:', error);
       return { success: false, error: (error as Error).message };
     }
+  });
+
+  // Window control handlers
+  ipcMain.handle('window-minimize', async () => {
+    if (win) {
+      win.minimize();
+    }
+  });
+
+  ipcMain.handle('window-maximize', async () => {
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+    }
+  });
+
+  ipcMain.handle('window-close', async () => {
+    if (win) {
+      win.close();
+    }
+  });
+
+  ipcMain.handle('window-is-maximized', async () => {
+    if (win) {
+      return win.isMaximized();
+    }
+    return false;
   });
 });

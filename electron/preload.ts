@@ -46,5 +46,18 @@ globalThis.electron = {
   // Delete audio file (symlink) from userData directory
   deleteAudioFile: async (filePath: string) => {
     return ipcRenderer.invoke('delete-audio-file', filePath);
+  },
+  // Window control APIs - using IPC
+  minimizeWindow: async () => {
+    return ipcRenderer.invoke('window-minimize');
+  },
+  maximizeWindow: async () => {
+    return ipcRenderer.invoke('window-maximize');
+  },
+  closeWindow: async () => {
+    return ipcRenderer.invoke('window-close');
+  },
+  isMaximized: async () => {
+    return ipcRenderer.invoke('window-is-maximized');
   }
 };
