@@ -47,6 +47,8 @@ const App: React.FC = () => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const shouldAutoPlayRef = useRef<boolean>(false); // Track if we should auto-play after track loads
+  const waitingForCanPlayRef = useRef<boolean>(false); // Track if we're waiting for canplay event
 
   // Callback ref to ensure volume is set when audio element is created
   const setAudioRef = useCallback((node: HTMLAudioElement | null) => {
@@ -112,6 +114,8 @@ const App: React.FC = () => {
 
   const handleTrackEnded = useCallback(() => {
     if (currentTrackIndex < tracks.length - 1) {
+      // Mark that we should auto-play the next track
+      shouldAutoPlayRef.current = true;
       setCurrentTrackIndex(prev => prev + 1);
     } else {
       setIsPlaying(false);
@@ -326,17 +330,25 @@ const App: React.FC = () => {
 
   const skipForward = useCallback(() => {
     if (currentTrackIndex < tracks.length - 1) {
+      // Mark that we should auto-play if currently playing
+      if (isPlaying) {
+        shouldAutoPlayRef.current = true;
+      }
       setCurrentTrackIndex(prev => prev + 1);
     }
-  }, [currentTrackIndex, tracks.length]);
+  }, [currentTrackIndex, tracks.length, isPlaying]);
 
   const skipBackward = useCallback(() => {
     if (currentTrackIndex > 0) {
+      // Mark that we should auto-play if currently playing
+      if (isPlaying) {
+        shouldAutoPlayRef.current = true;
+      }
       setCurrentTrackIndex(prev => prev - 1);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
-  }, [currentTrackIndex]);
+  }, [currentTrackIndex, isPlaying]);
 
   const handleSeek = (time: number) => {
     if (audioRef.current) {
@@ -344,6 +356,23 @@ const App: React.FC = () => {
       setCurrentTime(time);
     }
   };
+
+  // Handle canplay event - when audio is ready to play
+  const handleCanPlay = useCallback(() => {
+    console.log('[App] Audio is ready to play');
+    // If we were waiting for this event to play, play now
+    if (waitingForCanPlayRef.current && audioRef.current) {
+      waitingForCanPlayRef.current = false;
+      console.log('[App] Attempting playback after canplay');
+      audioRef.current.play().then(() => {
+        console.log('[App] ✓ Playback started after canplay');
+        setIsPlaying(true);
+      }).catch((e) => {
+        console.log('[App] Playback failed after canplay:', e);
+        setIsPlaying(false);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (audioRef.current && currentTrack) {
@@ -362,10 +391,28 @@ const App: React.FC = () => {
         });
       }
 
-      if (isPlaying) {
-        audioRef.current.play().catch(() => setIsPlaying(false));
-      } else {
-        audioRef.current.pause();
+      // Reset waiting flag when track changes
+      if (waitingForCanPlayRef.current) {
+        waitingForCanPlayRef.current = false;
+      }
+
+      // Only attempt playback if audioUrl is loaded
+      if (currentTrack.audioUrl) {
+        if (isPlaying || shouldAutoPlayRef.current) {
+          // Clear the auto-play flag
+          shouldAutoPlayRef.current = false;
+
+          audioRef.current.play().then(() => {
+            console.log('[App] ✓ Playback started successfully');
+          }).catch((e) => {
+            console.log('[App] Playback failed, waiting for canplay:', e);
+            // If play fails, wait for canplay event (especially for Tauri asset protocol)
+            waitingForCanPlayRef.current = true;
+            // Don't set isPlaying to false yet - wait for canplay event
+          });
+        } else {
+          audioRef.current.pause();
+        }
       }
     }
   }, [currentTrackIndex, isPlaying, currentTrack, loadAudioFileForTrack]);
@@ -845,6 +892,7 @@ const App: React.FC = () => {
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={handleTrackEnded}
+            onCanPlay={handleCanPlay}
           />
         )}
 

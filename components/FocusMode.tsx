@@ -36,6 +36,10 @@ const FocusMode: React.FC<FocusModeProps> = ({
   // Background images for blending
   const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
+  const [isBackgroundReady, setIsBackgroundReady] = useState(false);
+  const [bgImageOpacity, setBgImageOpacity] = useState(0); // For fade-in effect
+  const [canvasOpacity, setCanvasOpacity] = useState(1); // For breathing effect (1 = opaque, 0.7 = transparent)
+  const [frostedGlassBlur, setFrostedGlassBlur] = useState(0); // For frosted glass blur effect (in pixels)
 
   // Detect if running in Tauri
   const isTauri = useMemo(() => {
@@ -48,27 +52,41 @@ const FocusMode: React.FC<FocusModeProps> = ({
   const progress = track && track.duration > 0 ? (currentTime / track.duration) * 100 : 0;
 
   // Render canvas with color gradient transition
-  const renderCanvas = useCallback((progress: number) => () => {
+  const renderCanvas = useCallback((progress: number, transitioning: boolean, canvasAlpha: number = 1) => () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !bgImage1 || !bgImage2) return;
+    if (!canvas || !ctx) return;
 
     const width = canvas.width = window.innerWidth;
     const height = canvas.height = window.innerHeight;
 
-    // Clear canvas
+    // Clear canvas completely
     ctx.clearRect(0, 0, width, height);
 
-    // Draw first background
-    ctx.globalAlpha = 1 - progress;
-    ctx.drawImage(bgImage1, 0, 0, width, height);
+    if (!bgImage1) return;
 
-    // Draw second background on top with inverted alpha
-    ctx.globalAlpha = progress;
-    ctx.drawImage(bgImage2, 0, 0, width, height);
+    // Apply breathing alpha to all drawing operations
+    ctx.globalAlpha = canvasAlpha;
+
+    // If transitioning and we have both images, blend them
+    if (transitioning && bgImage2) {
+      // Draw first background with fade-in opacity
+      const alpha1 = (1 - progress) * bgImageOpacity * canvasAlpha;
+      ctx.globalAlpha = alpha1;
+      ctx.drawImage(bgImage1, 0, 0, width, height);
+
+      // Draw second background on top with inverted alpha
+      const alpha2 = progress * bgImageOpacity * canvasAlpha;
+      ctx.globalAlpha = alpha2;
+      ctx.drawImage(bgImage2, 0, 0, width, height);
+    } else {
+      // Just draw the first background with fade-in opacity
+      ctx.globalAlpha = bgImageOpacity * canvasAlpha;
+      ctx.drawImage(bgImage1, 0, 0, width, height);
+    }
 
     ctx.globalAlpha = 1.0;
-  }, [bgImage1, bgImage2]);
+  }, [bgImage1, bgImage2, bgImageOpacity]);
 
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
   const lyricsLines = useMemo(() => {
@@ -229,7 +247,7 @@ const FocusMode: React.FC<FocusModeProps> = ({
     }
   }, [track?.id]);
 
-  // Reset player visibility when focus mode becomes visible
+  // Handle canvas opacity animation when focus mode visibility changes
   useEffect(() => {
     if (isVisible) {
       setIsPlayerVisible(true);
@@ -242,6 +260,49 @@ const FocusMode: React.FC<FocusModeProps> = ({
       playerHideTimeoutRef.current = setTimeout(() => {
         setIsPlayerVisible(false);
       }, 1000);
+
+      // Reset frosted glass blur when entering
+      setFrostedGlassBlur(0);
+
+      // Start canvas fade-in animation when entering focus mode
+      setCanvasOpacity(0); // Start transparent
+      const startTime = performance.now();
+      const duration = 800; // 800ms fade-in
+
+      const animateCanvas = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Fade from transparent (0) to opaque (1)
+        setCanvasOpacity(progress);
+
+        if (progress < 1) {
+          requestAnimationFrame(animateCanvas);
+        }
+      };
+
+      requestAnimationFrame(animateCanvas);
+    } else {
+      // Reset frosted glass blur when exiting
+      setFrostedGlassBlur(0);
+
+      // Start canvas fade-out animation when exiting focus mode
+      const startTime = performance.now();
+      const duration = 700; // 700ms fade-out (matches slide-out duration)
+
+      const animateCanvasOut = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Fade from opaque (1) to transparent (0)
+        setCanvasOpacity(1 - progress);
+
+        if (progress < 1) {
+          requestAnimationFrame(animateCanvasOut);
+        }
+      };
+
+      requestAnimationFrame(animateCanvasOut);
     }
   }, [isVisible]);
 
@@ -254,9 +315,13 @@ const FocusMode: React.FC<FocusModeProps> = ({
     };
   }, []);
 
-  // Canvas-based color gradient transition for background switching
+  // Preload background image when track changes (even if not visible yet)
   useEffect(() => {
     if (!track?.id || !track?.coverUrl) return;
+
+    // Reset ready state and opacity when track changes
+    setIsBackgroundReady(false);
+    setBgImageOpacity(0);
 
     // Load new background image
     const img = new Image();
@@ -265,25 +330,69 @@ const FocusMode: React.FC<FocusModeProps> = ({
       // Start transition from current to new background
       const oldBg = bgImage2 || bgImage1;
       if (!oldBg) {
-        // First load, just set as bg1 and show directly
+        // First load, set as bg1 and start fade-in
         setBgImage1(img);
         setBgImage2(null);
         setTransitionProgress(1);
+        // Mark as ready and start fade-in
+        setIsBackgroundReady(true);
+
+        // Start fade-in animation
+        const startTime = performance.now();
+        const duration = 500; // 500ms fade-in
+
+        const animateFade = (currentTime: number) => {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          setBgImageOpacity(progress);
+
+          if (progress < 1) {
+            animationFrameRef.current = requestAnimationFrame(animateFade);
+          } else {
+            if (animationFrameRef.current) {
+              cancelAnimationFrame(animationFrameRef.current);
+              animationFrameRef.current = null;
+            }
+          }
+        };
+
+        animationFrameRef.current = requestAnimationFrame(animateFade);
         return;
       }
 
-      // Start 600ms color gradient transition
+      // Start color gradient transition
       setIsTransitioning(true);
       setTransitionProgress(0);
 
       const startTime = performance.now();
-      const duration = 600; // 600ms transition
+      const duration = 800; // 800ms transition (faster)
 
       const animate = (currentTime: number) => {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
 
         setTransitionProgress(progress);
+
+        // Breathing effect: brightness goes from 1.0 -> 1.45 -> 1.0
+        // Using sine wave for smooth curve
+        const breathingValue = 1 + 0.45 * Math.sin(progress * Math.PI);
+
+        // Frosted glass blur effect: goes from 0px -> 30px -> 0px
+        // Creates frosted glass effect during transition to show underlying library
+        const glassBlurValue = 30 * Math.sin(progress * Math.PI);
+        setFrostedGlassBlur(glassBlurValue);
+        console.log('[FocusMode] Frosted glass blur:', glassBlurValue, 'progress:', progress);
+
+        // Also keep subtle opacity change for layered effect
+        const canvasBreathingValue = 1 - 0.2 * Math.sin(progress * Math.PI);
+        setCanvasOpacity(canvasBreathingValue);
+
+        // Directly update canvas filter for immediate effect
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.style.filter = `blur(80px) saturate(1.5) brightness(${0.4 * breathingValue})`;
+        }
 
         if (progress < 1) {
           animationFrameRef.current = requestAnimationFrame(animate);
@@ -293,6 +402,14 @@ const FocusMode: React.FC<FocusModeProps> = ({
           setBgImage1(img);
           setBgImage2(null);
           setTransitionProgress(1);
+          setCanvasOpacity(1); // Reset to opaque
+          setFrostedGlassBlur(0); // Reset blur
+          console.log('[FocusMode] Transition complete, blur reset to 0');
+
+          // Reset filter to normal
+          if (canvas) {
+            canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.4)`;
+          }
 
           if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
@@ -309,6 +426,9 @@ const FocusMode: React.FC<FocusModeProps> = ({
 
       // Update bg2 to the new image during transition
       setBgImage2(img);
+      // Mark as ready during transition, opacity is already 1
+      setIsBackgroundReady(true);
+      setBgImageOpacity(1);
     };
 
     img.onerror = () => {
@@ -316,20 +436,21 @@ const FocusMode: React.FC<FocusModeProps> = ({
       setBgImage1(img);
       setBgImage2(null);
       setTransitionProgress(1);
+      // Still mark as ready even if load fails
+      setIsBackgroundReady(true);
+      setBgImageOpacity(1);
     };
 
     img.src = track.coverUrl;
   }, [track?.id, track?.coverUrl]);
 
-  // Render canvas when transitioning
+  // Render canvas when transitioning or when background is ready
   useEffect(() => {
-    if (!isTransitioning || !bgImage1 || !bgImage2) return;
-
-    const render = renderCanvas(transitionProgress);
+    const render = renderCanvas(transitionProgress, isTransitioning, canvasOpacity);
     const frame = requestAnimationFrame(render);
 
     return () => cancelAnimationFrame(frame);
-  }, [isTransitioning, transitionProgress, bgImage1, bgImage2, renderCanvas]);
+  }, [isTransitioning, transitionProgress, bgImage1, bgImage2, canvasOpacity, renderCanvas]);
 
   // Handle click on synced lyric line to seek
   const handleLyricClick = (lyricTime: number) => {
@@ -340,27 +461,59 @@ const FocusMode: React.FC<FocusModeProps> = ({
 
   return (
     <div className={`fixed inset-0 z-50 transition-all duration-700 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
-      {/* Canvas-based Color Gradient Background */}
-      {bgImage1 && (
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
-          style={{ filter: 'blur(80px) saturate(1.5) brightness(0.4)' }}
-        />
-      )}
-      {/* Fallback static background during initial load */}
-      {!bgImage1 && (
-        <div
-          className="immersive-bg absolute inset-0"
-          style={{
-            backgroundImage: `url(${track?.coverUrl})`,
-            filter: 'blur(80px) saturate(1.5) brightness(0.4)'
-          }}
-        />
-      )}
-      <div className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm" />
+      {/* Default dark background - also follows canvas opacity */}
+      <div
+        className="absolute inset-0 bg-[#101922]"
+        style={{
+          opacity: canvasOpacity,
+          transition: 'opacity 75ms ease-out',
+          zIndex: 0
+        }}
+      />
 
-      <div className="relative h-full flex flex-col z-10 overflow-hidden">
+      {/* Canvas-based Color Gradient Background */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{
+          filter: 'blur(80px) saturate(1.5) brightness(0.4)',
+          opacity: canvasOpacity,
+          transition: 'opacity 75ms ease-out',
+          zIndex: 1
+        }}
+      />
+
+      {/* Frosted glass overlay - creates frosted glass effect using filter */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'rgba(255, 255, 255, 0.15)',
+          filter: `blur(${frostedGlassBlur / 2}px)`,
+          opacity: frostedGlassBlur > 0.1 ? 1 : 0,
+          transition: 'opacity 75ms ease-out, filter 75ms ease-out',
+          zIndex: 2,
+          pointerEvents: 'none',
+          mixBlendMode: 'overlay'
+        }}
+      />
+
+      {/* Gradient overlay - also follows canvas opacity for breathing effect */}
+      <div
+        className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm"
+        style={{
+          opacity: canvasOpacity,
+          transition: 'opacity 75ms ease-out',
+          zIndex: 3
+        }}
+      />
+
+      {/* Content wrapper with delayed fade-in */}
+      <div
+        className="relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-500"
+        style={{
+          opacity: isVisible && (bgImage1 || isBackgroundReady) ? 1 : 0
+        }}
+      >
         {/* Top Header */}
         <header className="flex items-center justify-start px-6 py-4 shrink-0">
           <button
