@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Track, SyncedLyricLine } from '../types';
 
 interface FocusModeProps {
@@ -26,7 +26,49 @@ const FocusMode: React.FC<FocusModeProps> = ({
   const playerRef = useRef<HTMLDivElement>(null);
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   const playerHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Canvas-based color gradient transition
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [transitionProgress, setTransitionProgress] = useState(0); // 0 to 1
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Background images for blending
+  const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
+  const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
+
+  // Detect if running in Tauri
+  const isTauri = useMemo(() => {
+    return typeof window !== 'undefined' &&
+           ((window as any).__TAURI_INTERNALS__ ||
+            (window as any).__TAURI__ ||
+            navigator.userAgent.includes('Tauri'));
+  }, []);
+
   const progress = track && track.duration > 0 ? (currentTime / track.duration) * 100 : 0;
+
+  // Render canvas with color gradient transition
+  const renderCanvas = useCallback((progress: number) => () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !bgImage1 || !bgImage2) return;
+
+    const width = canvas.width = window.innerWidth;
+    const height = canvas.height = window.innerHeight;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw first background
+    ctx.globalAlpha = 1 - progress;
+    ctx.drawImage(bgImage1, 0, 0, width, height);
+
+    // Draw second background on top with inverted alpha
+    ctx.globalAlpha = progress;
+    ctx.drawImage(bgImage2, 0, 0, width, height);
+
+    ctx.globalAlpha = 1.0;
+  }, [bgImage1, bgImage2]);
 
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
   const lyricsLines = useMemo(() => {
@@ -212,6 +254,83 @@ const FocusMode: React.FC<FocusModeProps> = ({
     };
   }, []);
 
+  // Canvas-based color gradient transition for background switching
+  useEffect(() => {
+    if (!track?.id || !track?.coverUrl) return;
+
+    // Load new background image
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Start transition from current to new background
+      const oldBg = bgImage2 || bgImage1;
+      if (!oldBg) {
+        // First load, just set as bg1 and show directly
+        setBgImage1(img);
+        setBgImage2(null);
+        setTransitionProgress(1);
+        return;
+      }
+
+      // Start 600ms color gradient transition
+      setIsTransitioning(true);
+      setTransitionProgress(0);
+
+      const startTime = performance.now();
+      const duration = 600; // 600ms transition
+
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        setTransitionProgress(progress);
+
+        if (progress < 1) {
+          animationFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          // Transition complete
+          setIsTransitioning(false);
+          setBgImage1(img);
+          setBgImage2(null);
+          setTransitionProgress(1);
+
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+        }
+      };
+
+      // Start animation
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      animationFrameRef.current = requestAnimationFrame(animate);
+
+      // Update bg2 to the new image during transition
+      setBgImage2(img);
+    };
+
+    img.onerror = () => {
+      // If load fails, just set as bg1
+      setBgImage1(img);
+      setBgImage2(null);
+      setTransitionProgress(1);
+    };
+
+    img.src = track.coverUrl;
+  }, [track?.id, track?.coverUrl]);
+
+  // Render canvas when transitioning
+  useEffect(() => {
+    if (!isTransitioning || !bgImage1 || !bgImage2) return;
+
+    const render = renderCanvas(transitionProgress);
+    const frame = requestAnimationFrame(render);
+
+    return () => cancelAnimationFrame(frame);
+  }, [isTransitioning, transitionProgress, bgImage1, bgImage2, renderCanvas]);
+
   // Handle click on synced lyric line to seek
   const handleLyricClick = (lyricTime: number) => {
     if (lyricTime > 0 && onSeek) {
@@ -221,11 +340,24 @@ const FocusMode: React.FC<FocusModeProps> = ({
 
   return (
     <div className={`fixed inset-0 z-50 transition-all duration-700 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
-      {/* Dynamic Background from Cover Art */}
-      <div className="immersive-bg" style={{
-        backgroundImage: `url(${track?.coverUrl})`,
-        filter: 'blur(80px) saturate(1.5) brightness(0.4)'
-      }} />
+      {/* Canvas-based Color Gradient Background */}
+      {bgImage1 && (
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ filter: 'blur(80px) saturate(1.5) brightness(0.4)' }}
+        />
+      )}
+      {/* Fallback static background during initial load */}
+      {!bgImage1 && (
+        <div
+          className="immersive-bg absolute inset-0"
+          style={{
+            backgroundImage: `url(${track?.coverUrl})`,
+            filter: 'blur(80px) saturate(1.5) brightness(0.4)'
+          }}
+        />
+      )}
       <div className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm" />
 
       <div className="relative h-full flex flex-col z-10 overflow-hidden">
