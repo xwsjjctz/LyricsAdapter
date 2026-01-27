@@ -4,7 +4,7 @@
  */
 
 import { Track } from '../types';
-import { getDesktopAPI } from './desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync } from './desktopAdapter';
 
 export interface LibraryData {
   songs: Track[];
@@ -32,7 +32,7 @@ class LibraryStorageService {
    */
   async loadLibrary(): Promise<LibraryData> {
     try {
-      const api = getDesktopAPI();
+      const api = await getDesktopAPIAsync();
       if (!api) {
         console.log('⚠️ Not running in Desktop mode, skipping library load');
         return { songs: [], settings: {} };
@@ -63,7 +63,7 @@ class LibraryStorageService {
    */
   async saveLibrary(library: LibraryData): Promise<boolean> {
     try {
-      const api = getDesktopAPI();
+      const api = await getDesktopAPIAsync();
       if (!api) {
         console.log('⚠️ Not running in Desktop mode, skipping library save');
         return false;
@@ -105,7 +105,7 @@ class LibraryStorageService {
    */
   async validateFilePath(filePath: string): Promise<boolean> {
     try {
-      const api = getDesktopAPI();
+      const api = await getDesktopAPIAsync();
       if (!api) {
         return true; // Web 环境默认返回 true
       }
@@ -122,7 +122,7 @@ class LibraryStorageService {
    */
   async validateAllPaths(songs: Track[]): Promise<ValidationResult[]> {
     try {
-      const api = getDesktopAPI();
+      const api = await getDesktopAPIAsync();
       if (!api) {
         // Web 环境默认返回全部有效
         return songs.map(song => ({ id: song.id, exists: true }));
@@ -147,7 +147,7 @@ class LibraryStorageService {
    */
   async getAppDataPath(): Promise<string | null> {
     try {
-      const api = getDesktopAPI();
+      const api = await getDesktopAPIAsync();
       if (!api) {
         return null;
       }

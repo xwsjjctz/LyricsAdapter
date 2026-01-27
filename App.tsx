@@ -2,7 +2,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Track, ViewMode } from './types';
 import { parseAudioFile, libraryStorage } from './services/metadataService';
-import { getDesktopAPI, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
+import { metadataCacheService } from './services/metadataCacheService';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -56,6 +57,25 @@ const App: React.FC = () => {
     }
   }, [volume]);
 
+  // Initialize Desktop API on mount
+  useEffect(() => {
+    const initDesktopAPI = async () => {
+      console.log('[App] Initializing Desktop API...');
+      try {
+        const api = await getDesktopAPIAsync();
+        if (api) {
+          console.log('[App] ✓ Desktop API initialized, platform:', api.platform);
+        } else {
+          console.log('[App] No Desktop API available (running in browser)');
+        }
+      } catch (error) {
+        console.error('[App] Failed to initialize Desktop API:', error);
+      }
+    };
+
+    initDesktopAPI();
+  }, []);
+
   const currentTrack = currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
 
   const togglePlay = useCallback(() => {
@@ -98,123 +118,190 @@ const App: React.FC = () => {
     }
   }, [currentTrackIndex, tracks.length]);
 
-  const handleFileImport = async (e?: React.ChangeEvent<HTMLInputElement>) => {
-    // In Desktop (Electron/Tauri), use native file picker dialog to get file paths (for symlink support)
-    const desktopAPI = getDesktopAPI();
-    if (desktopAPI) {
-      try {
-        const result = await desktopAPI.selectFiles();
-        if (result.canceled || result.filePaths.length === 0) {
-          return;
-        }
+  // Helper function to load audio file for a track (lazy loading)
+  // Optimized: Use readFile but show loading state
+  const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI || !(track as any).filePath || track.audioUrl) {
+      return track; // Already loaded or no desktop API
+    }
 
-        const filePaths = result.filePaths;
+    try {
+      console.log('[App] Loading audio file for:', track.title);
+      const readResult = await desktopAPI.readFile((track as any).filePath);
 
-        for (const filePath of filePaths) {
-          const fileName = filePath.split(/[/\\]/).pop() || '';
+      if (readResult.success && readResult.data.byteLength > 0) {
+        const fileData = new Uint8Array(readResult.data);
+        const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
+        const audioUrl = URL.createObjectURL(file);
 
-          // Check if file already exists (by name)
-          const existingIndex = tracks.findIndex(track =>
-            (track as any).fileName === fileName
-          );
+        console.log('[App] ✓ Audio loaded, size:', fileData.length);
 
-          // Create symlink to the original file
-          let savedFilePath = '';
-          try {
-            const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
-            if (saveResult.success && saveResult.filePath) {
-              savedFilePath = saveResult.filePath;
-              console.log(`File saved (${saveResult.method}):`, savedFilePath);
-            }
-          } catch (error) {
-            console.error('Failed to save file to userData:', error);
-          }
-
-          // Read the saved file to create File object and parse metadata
-          if (savedFilePath) {
-            try {
-              const readResult = await desktopAPI.readFile(savedFilePath);
-              if (readResult.success) {
-                const fileData = new Uint8Array(readResult.data);
-                const file = new File([fileData], fileName, { type: 'audio/flac' });
-
-                // Parse metadata
-                const metadata = await parseAudioFile(file);
-                const currentTime = new Date().toISOString();
-
-                if (existingIndex !== -1) {
-                  // Update existing track
-                  setTracks(prev => {
-                    const newTracks = [...prev];
-                    newTracks[existingIndex] = {
-                      ...newTracks[existingIndex],
-                      ...metadata,
-                      file: file,
-                      fileName: fileName,
-                      fileSize: file.size,
-                      lastModified: file.lastModified,
-                      filePath: savedFilePath,
-                      available: true
-                    };
-                    return newTracks;
-                  });
-                } else {
-                  // Add new track
-                  const newTrack: Track = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    ...metadata,
-                    file: file,
-                    fileName: fileName,
-                    fileSize: file.size,
-                    lastModified: file.lastModified,
-                    filePath: savedFilePath,
-                    addedAt: currentTime,
-                    available: true
-                  };
-                  setTracks(prev => [...prev, newTrack]);
-                }
-              }
-            } catch (error) {
-              console.error('Failed to read and parse file:', filePath, error);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to import files:', error);
+        return {
+          ...track,
+          file: file,
+          audioUrl: audioUrl,
+        };
+      } else {
+        console.error('[App] Failed to load audio file:', readResult.error);
+        return track;
       }
+    } catch (error) {
+      console.error('[App] Failed to load audio file:', error);
+      return track;
+    }
+  }, []);
+
+  // Desktop import handler (uses native file dialog for both Electron and Tauri)
+  const handleDesktopImport = async () => {
+    console.log('[App] Desktop import triggered');
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI) {
+      console.error('[App] Desktop API not available');
       return;
     }
 
-    // Web version: use input element (only copies files, no symlinks)
-    const files = Array.from(e?.target.files || []) as File[];
+    try {
+      const result = await desktopAPI.selectFiles();
+      if (result.canceled || result.filePaths.length === 0) {
+        return;
+      }
+
+      const filePaths = result.filePaths;
+
+      for (const filePath of filePaths) {
+        const fileName = filePath.split(/[/\\]/).pop() || '';
+        const existingIndex = tracks.findIndex(track =>
+          (track as any).fileName === fileName
+        );
+
+        // Create symlink
+        let savedFilePath = '';
+        const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
+        if (saveResult?.success && saveResult?.filePath) {
+          savedFilePath = saveResult.filePath;
+        }
+
+        if (savedFilePath) {
+          // Parse with Rust
+          const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
+
+          if (parseResult.success && parseResult.metadata) {
+            const metadata = parseResult.metadata;
+            const trackId = existingIndex !== -1 ? tracks[existingIndex].id : Math.random().toString(36).substr(2, 9);
+
+            // Cache metadata
+            metadataCacheService.set(trackId, {
+              title: metadata.title,
+              artist: metadata.artist,
+              album: metadata.album,
+              duration: metadata.duration,
+              lyrics: metadata.lyrics,
+              syncedLyrics: metadata.syncedLyrics,
+              coverData: metadata.coverData,
+              coverMime: metadata.coverMime,
+              fileName: fileName,
+              fileSize: 1,
+              lastModified: Date.now(),
+            });
+            metadataCacheService.save();
+
+            // Create cover URL
+            let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+            if (metadata.coverData && metadata.coverMime) {
+              const byteCharacters = atob(metadata.coverData);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], { type: metadata.coverMime });
+              coverUrl = URL.createObjectURL(blob);
+            }
+
+            if (existingIndex !== -1) {
+              setTracks(prev => {
+                const newTracks = [...prev];
+                newTracks[existingIndex] = {
+                  ...newTracks[existingIndex],
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  duration: metadata.duration,
+                  lyrics: metadata.lyrics,
+                  syncedLyrics: metadata.syncedLyrics,
+                  coverUrl: coverUrl,
+                  fileName: fileName,
+                  filePath: savedFilePath,
+                  available: true
+                };
+                return newTracks;
+              });
+            } else {
+              const newTrack: Track = {
+                id: trackId,
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                duration: metadata.duration,
+                lyrics: metadata.lyrics,
+                syncedLyrics: metadata.syncedLyrics,
+                coverUrl: coverUrl,
+                audioUrl: '',
+                fileName: fileName,
+                filePath: savedFilePath,
+                addedAt: new Date().toISOString(),
+                available: true
+              };
+              setTracks(prev => [...prev, newTrack]);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[App] Failed to import files:', error);
+    }
+  };
+
+  // File input change handler (for Electron and Web)
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
+    console.log('[App] File input changed - platform:', (window as any).electron ? 'Electron' : (window as any).__TAURI__ ? 'Tauri' : 'Web');
+    console.log('[App] Files selected:', files.length);
 
     for (const file of files) {
       // Check if file already exists (by name and size)
       const existingIndex = tracks.findIndex(track =>
-        (track as any).fileName === file.name && track.file?.size === file.size
+        track.file?.name === file.name && track.file?.size === file.size
       );
 
       const metadata = await parseAudioFile(file);
-      const currentTime = new Date().toISOString();
 
-      // Add new track (web version doesn't persist file paths)
-      if (existingIndex === -1) {
+      if (existingIndex !== -1) {
+        // Update existing track
+        setTracks(prev => {
+          const newTracks = [...prev];
+          newTracks[existingIndex] = {
+            ...newTracks[existingIndex],
+            ...metadata,
+            file: file,
+            fileName: file.name
+          };
+          return newTracks;
+        });
+      } else {
+        // Add new track
         const newTrack: Track = {
           id: Math.random().toString(36).substr(2, 9),
           ...metadata,
           file: file,
-          fileName: file.name,
-          fileSize: file.size,
-          lastModified: file.lastModified,
-          filePath: '',
-          addedAt: currentTime,
-          available: true
+          fileName: file.name
         };
         setTracks(prev => [...prev, newTrack]);
       }
     }
 
-    // Reset input value so same file can be imported again if needed
+    // Reset input value
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -241,13 +328,72 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (audioRef.current && currentTrack) {
+      // Load audio file if not loaded yet (lazy loading)
+      if (!currentTrack.audioUrl && (currentTrack as any).filePath) {
+        console.log('[App] Lazy loading audio for:', currentTrack.title);
+        loadAudioFileForTrack(currentTrack).then(updatedTrack => {
+          setTracks(prev => {
+            const newTracks = [...prev];
+            const idx = newTracks.findIndex(t => t.id === updatedTrack.id);
+            if (idx !== -1) {
+              newTracks[idx] = updatedTrack;
+            }
+            return newTracks;
+          });
+        });
+      }
+
       if (isPlaying) {
         audioRef.current.play().catch(() => setIsPlaying(false));
       } else {
         audioRef.current.pause();
       }
     }
-  }, [currentTrackIndex, isPlaying, currentTrack]);
+  }, [currentTrackIndex, isPlaying, currentTrack, loadAudioFileForTrack]);
+
+  // Preload adjacent tracks for instant playback
+  useEffect(() => {
+    const preloadAdjacent = async () => {
+      if (currentTrackIndex < 0 || !isDesktop()) return;
+
+      const desktopAPI = await getDesktopAPIAsync();
+      if (!desktopAPI) return;
+
+      // Preload next track
+      if (currentTrackIndex < tracks.length - 1) {
+        const nextTrack = tracks[currentTrackIndex + 1];
+        if (!nextTrack.audioUrl && (nextTrack as any).filePath) {
+          console.log('[App] Preloading next track:', nextTrack.title);
+          loadAudioFileForTrack(nextTrack).then(updatedTrack => {
+            setTracks(prev => {
+              const newTracks = [...prev];
+              newTracks[currentTrackIndex + 1] = updatedTrack;
+              return newTracks;
+            });
+          });
+        }
+      }
+
+      // Preload previous track
+      if (currentTrackIndex > 0) {
+        const prevTrack = tracks[currentTrackIndex - 1];
+        if (!prevTrack.audioUrl && (prevTrack as any).filePath) {
+          console.log('[App] Preloading previous track:', prevTrack.title);
+          loadAudioFileForTrack(prevTrack).then(updatedTrack => {
+            setTracks(prev => {
+              const newTracks = [...prev];
+              newTracks[currentTrackIndex - 1] = updatedTrack;
+              return newTracks;
+            });
+          });
+        }
+      }
+    };
+
+    // Small delay to not interfere with current track loading
+    const timer = setTimeout(preloadAdjacent, 500);
+    return () => clearTimeout(timer);
+  }, [currentTrackIndex, tracks, isDesktop, loadAudioFileForTrack]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -256,18 +402,23 @@ const App: React.FC = () => {
     }
   }, [volume]);
 
-  // Load library from disk on mount (Electron only)
+  // Load library from disk on mount (Desktop only)
   useEffect(() => {
     const loadLibraryFromDisk = async () => {
-      const desktopAPI = getDesktopAPI();
+      console.log('[App] Loading library from disk...');
+      // Initialize metadata cache first
+      await metadataCacheService.initialize();
+
+      // Wait for Desktop API to be initialized
+      const desktopAPI = await getDesktopAPIAsync();
       if (!desktopAPI) {
-        console.log('Not running in Desktop mode, skipping library load');
+        console.log('[App] Not running in Desktop mode, skipping library load');
         return;
       }
 
       try {
         const libraryData = await libraryStorage.loadLibrary();
-        console.log('Library loaded from disk:', libraryData);
+        console.log('[App] Library loaded from disk:', libraryData);
 
         // Restore volume from settings
         if (libraryData.settings?.volume !== undefined) {
@@ -284,13 +435,13 @@ const App: React.FC = () => {
             console.warn(`Found ${missingFiles.length} missing files`);
           }
 
-          // Progressive loading: load tracks one by one with delay
-          const loadedTracks: Track[] = [];
-          const delayBetweenTracks = 100; // 100ms delay between each track
+          // Progressive loading with immediate UI updates
+          const BATCH_SIZE = 20; // Load 20 songs at a time before UI update
+          let loadedTracks: Track[] = [];
 
           for (let i = 0; i < libraryData.songs.length; i++) {
-            const track = libraryData.songs[i];
-            const validationResult = validationResults.find(r => r.id === track.id);
+            const song = libraryData.songs[i];
+            const validationResult = validationResults.find(r => r.id === song.id);
             const exists = validationResult?.exists ?? false;
 
             let restoredTrack: Track;
@@ -298,51 +449,136 @@ const App: React.FC = () => {
             if (!exists) {
               // File doesn't exist, mark as unavailable
               restoredTrack = {
-                ...track,
+                ...song,
                 audioUrl: '',
                 coverUrl: '',
                 available: false
               };
             } else {
-              // File exists, read it and create blob URLs
-              try {
-                const readResult = await desktopAPI.readFile(track.filePath);
-                if (readResult.success) {
-                  const fileData = new Uint8Array(readResult.data);
-                  const file = new File([fileData], track.fileName, { type: 'audio/flac' });
+              // File exists, try to get metadata from cache first
+              const cached = metadataCacheService.get(song.id);
+              const isValid = cached && metadataCacheService.isValid(
+                song.id,
+                song.fileName,
+                song.fileSize,
+                song.lastModified
+              );
 
-                  // Parse metadata to get cover art
-                  const metadata = await parseAudioFile(file);
+              if (isValid && cached) {
+                // Use cached metadata (fast path!)
+                console.log(`[App] ✓ Using cached metadata for: ${song.title}`);
+                const cachedMetadata = metadataCacheService.cachedToTrack(cached, song.filePath, song.id);
+
+                restoredTrack = {
+                  ...song,
+                  ...cachedMetadata,
+                  file: undefined, // Don't load file yet
+                  audioUrl: '', // Will be loaded on play
+                  coverUrl: cachedMetadata.coverUrl || `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`,
+                  available: true
+                };
+              } else {
+                // No cache or invalid, parse with Rust NOW (fast!)
+                console.log(`[App] No cache for: ${song.title}, parsing with Rust...`);
+                let parsedMetadata = null;
+
+                try {
+                  const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
+                  if (parseResult.success && parseResult.metadata) {
+                    parsedMetadata = parseResult.metadata;
+
+                    // Cache the parsed metadata
+                    metadataCacheService.set(song.id, {
+                      title: parsedMetadata.title,
+                      artist: parsedMetadata.artist,
+                      album: parsedMetadata.album,
+                      duration: parsedMetadata.duration,
+                      lyrics: parsedMetadata.lyrics,
+                      syncedLyrics: parsedMetadata.syncedLyrics,
+                      coverData: parsedMetadata.coverData,
+                      coverMime: parsedMetadata.coverMime,
+                      fileName: song.fileName,
+                      fileSize: 1,
+                      lastModified: Date.now(),
+                    });
+                  }
+                } catch (e) {
+                  console.error('[App] Failed to parse with Rust:', e);
+                }
+
+                if (parsedMetadata) {
+                  // Use parsed metadata
+                  let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
+                  if (parsedMetadata.coverData && parsedMetadata.coverMime) {
+                    const byteCharacters = atob(parsedMetadata.coverData);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                      byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
+                    coverUrl = URL.createObjectURL(blob);
+                  }
 
                   restoredTrack = {
-                    ...track,
-                    ...metadata,
-                    file: file,
-                    audioUrl: metadata.audioUrl,
-                    coverUrl: metadata.coverUrl,
+                    ...song,
+                    title: parsedMetadata.title,
+                    artist: parsedMetadata.artist,
+                    album: parsedMetadata.album,
+                    duration: parsedMetadata.duration,
+                    lyrics: parsedMetadata.lyrics,
+                    syncedLyrics: parsedMetadata.syncedLyrics,
+                    audioUrl: '', // Will be loaded on play
+                    coverUrl: coverUrl,
                     available: true
                   };
                 } else {
-                  throw new Error('Failed to read file');
+                  // Parse failed, use placeholder
+                  restoredTrack = {
+                    ...song,
+                    audioUrl: '', // Will be loaded on play
+                    coverUrl: `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`,
+                    available: true
+                  };
                 }
-              } catch (error) {
-                console.error('Failed to read file:', track.filePath, error);
-                restoredTrack = {
-                  ...track,
-                  audioUrl: '',
-                  coverUrl: '',
-                  available: false
-                };
               }
             }
 
             // Add to tracks array
             loadedTracks.push(restoredTrack);
-            setTracks([...loadedTracks]);
 
-            // Add delay between tracks (except for the last one)
-            if (i < libraryData.songs.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, delayBetweenTracks));
+            // Update UI every BATCH_SIZE songs or at the end
+            if (loadedTracks.length % BATCH_SIZE === 0 || i === libraryData.songs.length - 1) {
+              setTracks([...loadedTracks]);
+              console.log(`[App] ✓ Loaded ${loadedTracks.length}/${libraryData.songs.length} tracks`);
+              // Small delay to let UI render
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+          }
+
+          // Save cache if we updated it
+          await metadataCacheService.save();
+          console.log(`[App] ✓ Finished loading ${loadedTracks.length} tracks`);
+
+          // Preload first 3 songs for instant playback
+          const PRELOAD_COUNT = 3;
+          const tracksToPreload = Math.min(PRELOAD_COUNT, loadedTracks.length);
+
+          for (let i = 0; i < tracksToPreload; i++) {
+            const track = loadedTracks[i];
+            if ((track as any).filePath && !track.audioUrl) {
+              console.log(`[App] Preloading song ${i + 1}/${PRELOAD_COUNT}:`, track.title);
+              // Don't await - let them load in parallel
+              loadAudioFileForTrack(track).then(updatedTrack => {
+                setTracks(prev => {
+                  const newTracks = [...prev];
+                  const idx = newTracks.findIndex(t => t.id === updatedTrack.id);
+                  if (idx !== -1) {
+                    newTracks[idx] = updatedTrack;
+                  }
+                  return newTracks;
+                });
+              });
             }
           }
         }
@@ -433,7 +669,7 @@ const App: React.FC = () => {
   // Remove track function
   const handleRemoveTrack = useCallback(async (trackId: string) => {
     // In Desktop (Electron/Tauri), delete the symlink file first
-    const desktopAPI = getDesktopAPI();
+    const desktopAPI = await getDesktopAPIAsync();
     if (desktopAPI) {
       const trackToRemove = tracks.find(t => t.id === trackId);
       if (trackToRemove && (trackToRemove as any).filePath) {
@@ -464,7 +700,7 @@ const App: React.FC = () => {
 
   // Reload files in Desktop (Electron/Tauri)
   const handleReloadFiles = useCallback(async () => {
-    const desktopAPI = getDesktopAPI();
+    const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI) return;
 
     try {
@@ -488,31 +724,58 @@ const App: React.FC = () => {
         });
 
         if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {
-          // File found, reload it
+          // File found, reload it using Rust
           try {
             // Create symlink to the original file
             const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
             if (saveResult.success && saveResult.filePath) {
               console.log(`File saved (${saveResult.method}):`, saveResult.filePath);
 
-              // Read the saved file to create File object
-              const readResult = await desktopAPI.readFile(saveResult.filePath);
-              if (readResult.success) {
-                const fileData = new Uint8Array(readResult.data);
-                const file = new File([fileData], fileName, { type: 'audio/flac' });
+              // Parse metadata using Rust (FAST!)
+              const parseResult = await desktopAPI.parseAudioMetadata(saveResult.filePath);
+              if (parseResult.success && parseResult.metadata) {
+                const metadata = parseResult.metadata;
 
-                // Parse metadata
-                const metadata = await parseAudioFile(file);
+                // Update cache with Rust metadata
+                metadataCacheService.set(updatedTracks[trackIndex].id, {
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  duration: metadata.duration,
+                  lyrics: metadata.lyrics,
+                  syncedLyrics: metadata.syncedLyrics,
+                  coverData: metadata.coverData,
+                  coverMime: metadata.coverMime,
+                  fileName: fileName,
+                  fileSize: 1,
+                  lastModified: Date.now(),
+                });
 
-                // Update track with file path
+                // Create cover URL from base64 if available
+                let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+                if (metadata.coverData && metadata.coverMime) {
+                  const byteCharacters = atob(metadata.coverData);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], { type: metadata.coverMime });
+                  coverUrl = URL.createObjectURL(blob);
+                }
+
+                // Update track with metadata
                 updatedTracks[trackIndex] = {
                   ...updatedTracks[trackIndex],
-                  ...metadata,
-                  file: file,
-                  filePath: saveResult.filePath, // Store the saved file path (symlink)
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  duration: metadata.duration,
+                  lyrics: metadata.lyrics,
+                  syncedLyrics: metadata.syncedLyrics,
+                  coverUrl: coverUrl,
+                  filePath: saveResult.filePath,
                   fileName: fileName,
-                  fileSize: file.size,
-                  lastModified: file.lastModified,
                   available: true
                 };
                 reloadedCount++;
@@ -526,6 +789,11 @@ const App: React.FC = () => {
 
       setTracks(updatedTracks);
       console.log(`Reloaded ${reloadedCount} files`);
+
+      // Save cache if we updated it
+      if (reloadedCount > 0) {
+        await metadataCacheService.save();
+      }
     } catch (error) {
       console.error('Failed to reload files:', error);
     }
@@ -534,7 +802,16 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
       <Sidebar
-        onImportClick={() => isDesktop() ? handleFileImport() : fileInputRef.current?.click()}
+        onImportClick={() => {
+          // Check if running in Desktop environment (Electron or Tauri)
+          if (isDesktop()) {
+            // Desktop: Use native file dialog
+            handleDesktopImport();
+          } else {
+            // Web: Use file input
+            fileInputRef.current?.click();
+          }
+        }}
         onNavigate={(mode) => { setViewMode(mode); setIsFocusMode(false); }}
         onReloadFiles={handleReloadFiles}
         hasUnavailableTracks={tracks.some(t => t.available === false)}
@@ -552,13 +829,13 @@ const App: React.FC = () => {
           />
         )}
 
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          multiple 
-          accept=".flac,.mp3,.m4a,.wav" 
-          className="hidden" 
-          onChange={handleFileImport}
+        <input
+          type="file"
+          ref={fileInputRef}
+          multiple
+          accept=".flac,.mp3,.m4a,.wav"
+          className="hidden"
+          onChange={handleFileInputChange}
         />
 
         <div className="flex-1 p-10 overflow-hidden">

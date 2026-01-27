@@ -3,6 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 use chrono::Utc;
+use std::collections::HashMap;
+use base64::{Engine as _, engine::general_purpose};
+use lofty::file::{TaggedFileExt, AudioFile};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LibraryData {
@@ -18,22 +21,26 @@ struct Song {
     album: String,
     duration: f64,
     lyrics: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "syncedLyrics", skip_serializing_if = "Option::is_none")]
     synced_lyrics: Option<Vec<LyricLine>>,
+    #[serde(rename = "filePath")]
     file_path: String,
+    #[serde(rename = "fileName")]
     file_name: String,
+    #[serde(rename = "fileSize")]
     file_size: u64,
+    #[serde(rename = "lastModified")]
     last_modified: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "addedAt", skip_serializing_if = "Option::is_none")]
     added_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "playCount", skip_serializing_if = "Option::is_none")]
     play_count: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "lastPlayed", skip_serializing_if = "Option::is_none")]
     last_played: Option<String>,
     available: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct LyricLine {
     time: f64,
     text: String,
@@ -71,7 +78,7 @@ struct FilePathResult {
 #[derive(Debug, Serialize, Deserialize)]
 struct SaveAudioResult {
     success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "filePath", skip_serializing_if = "Option::is_none")]
     file_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     method: Option<String>,
@@ -93,19 +100,83 @@ struct PathValidationResult {
     exists: bool,
 }
 
+// Metadata cache structure - stores parsed metadata to avoid re-parsing
+#[derive(Debug, Serialize, Deserialize)]
+struct MetadataCache {
+    entries: HashMap<String, CachedMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CachedMetadata {
+    title: String,
+    artist: String,
+    album: String,
+    duration: f64,
+    lyrics: String,
+    #[serde(rename = "syncedLyrics", skip_serializing_if = "Option::is_none")]
+    synced_lyrics: Option<Vec<LyricLine>>,
+    #[serde(rename = "coverData", skip_serializing_if = "Option::is_none")]
+    cover_data: Option<String>, // Base64 encoded cover image
+    #[serde(rename = "coverMime", skip_serializing_if = "Option::is_none")]
+    cover_mime: Option<String>,
+    #[serde(rename = "fileName")]
+    file_name: String,
+    #[serde(rename = "fileSize")]
+    file_size: u64,
+    #[serde(rename = "lastModified")]
+    last_modified: u64,
+}
+
 #[tauri::command]
 async fn read_file(file_path: String) -> Result<FilePathResult, String> {
+    println!("📖 Reading file: {}", file_path);
+
+    // Check if file exists and get metadata
+    let metadata = match fs::metadata(&file_path) {
+        Ok(meta) => {
+            println!("✅ File exists, size: {} bytes", meta.len());
+            meta
+        },
+        Err(e) => {
+            println!("❌ Failed to get file metadata: {}", e);
+            return Ok(FilePathResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Failed to get metadata: {}", e)),
+            });
+        }
+    };
+
+    // Check if it's a symlink
+    if metadata.is_symlink() {
+        println!("🔗 File is a symlink");
+        match fs::read_link(&file_path) {
+            Ok(target) => {
+                println!("🎯 Symlink target: {:?}", target);
+            },
+            Err(e) => {
+                println!("❌ Failed to read symlink target: {}", e);
+            }
+        }
+    }
+
     match fs::read(&file_path) {
-        Ok(data) => Ok(FilePathResult {
-            success: true,
-            data,
-            error: None,
-        }),
-        Err(e) => Ok(FilePathResult {
-            success: false,
-            data: vec![],
-            error: Some(e.to_string()),
-        }),
+        Ok(data) => {
+            println!("✅ Successfully read {} bytes", data.len());
+            Ok(FilePathResult {
+                success: true,
+                data,
+                error: None,
+            })
+        },
+        Err(e) => {
+            println!("❌ Failed to read file: {}", e);
+            Ok(FilePathResult {
+                success: false,
+                data: vec![],
+                error: Some(e.to_string()),
+            })
+        },
     }
 }
 
@@ -331,6 +402,210 @@ async fn validate_all_paths(songs: Vec<Song>) -> Result<ValidationResult, String
     })
 }
 
+// Get metadata cache file path
+fn get_metadata_cache_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(app_data_dir.join("metadata_cache.json"))
+}
+
+#[tauri::command]
+async fn load_metadata_cache(app: tauri::AppHandle) -> Result<MetadataCache, String> {
+    let cache_path = get_metadata_cache_path(&app)?;
+
+    if !cache_path.exists() {
+        println!("📭 Metadata cache does not exist, returning empty cache");
+        return Ok(MetadataCache {
+            entries: HashMap::new(),
+        });
+    }
+
+    let content = fs::read_to_string(&cache_path).map_err(|e| {
+        eprintln!("Failed to read metadata cache: {}", e);
+        e.to_string()
+    })?;
+
+    let cache: MetadataCache = serde_json::from_str(&content).map_err(|e| {
+        eprintln!("Failed to parse metadata cache JSON: {}", e);
+        e.to_string()
+    })?;
+
+    println!("✅ Metadata cache loaded with {} entries", cache.entries.len());
+    Ok(cache)
+}
+
+#[tauri::command]
+async fn save_metadata_cache(
+    app: tauri::AppHandle,
+    cache: MetadataCache,
+) -> Result<SaveResult, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&app_data_dir).map_err(|e| e.to_string())?;
+
+    let cache_path = get_metadata_cache_path(&app)?;
+
+    let json = serde_json::to_string_pretty(&cache).map_err(|e| e.to_string())?;
+    fs::write(&cache_path, json).map_err(|e| e.to_string())?;
+
+    println!("✅ Metadata cache saved with {} entries", cache.entries.len());
+    Ok(SaveResult {
+        success: true,
+        error: None,
+    })
+}
+
+#[tauri::command]
+async fn get_audio_url(file_path: String) -> Result<String, String> {
+    println!("🎵 Getting audio URL for: {}", file_path);
+
+    // Check if file exists
+    if !PathBuf::from(&file_path).exists() {
+        return Err("File does not exist".to_string());
+    }
+
+    // Return http://localhost/audio/ URL
+    // We'll use Tauri's built-in HTTP server or a custom handler
+    let url = format!("http://localhost/audio/{}", file_path);
+    println!("✅ Audio URL: {}", url);
+    Ok(url)
+}
+
+#[tauri::command]
+async fn get_metadata_for_song(
+    app: tauri::AppHandle,
+    song_id: String,
+) -> Result<Option<CachedMetadata>, String> {
+    let cache = load_metadata_cache(app).await?;
+    Ok(cache.entries.get(&song_id).cloned())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ParsedMetadataResult {
+    success: bool,
+    metadata: Option<ParsedMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ParsedMetadata {
+    title: String,
+    artist: String,
+    album: String,
+    duration: f64,
+    lyrics: String,
+    #[serde(rename = "syncedLyrics", skip_serializing_if = "Option::is_none")]
+    synced_lyrics: Option<Vec<LyricLine>>,
+    #[serde(rename = "coverData", skip_serializing_if = "Option::is_none")]
+    cover_data: Option<String>, // Base64 encoded
+    #[serde(rename = "coverMime", skip_serializing_if = "Option::is_none")]
+    cover_mime: Option<String>,
+}
+
+#[tauri::command]
+async fn parse_audio_metadata(file_path: String) -> Result<ParsedMetadataResult, String> {
+    println!("🎵 [Rust] Parsing metadata for: {}", file_path);
+
+    // Check if file exists
+    if !PathBuf::from(&file_path).exists() {
+        return Ok(ParsedMetadataResult {
+            success: false,
+            metadata: None,
+            error: Some("File does not exist".to_string()),
+        });
+    }
+
+    // Try to parse the audio file with lofty
+    let tagged_file = match lofty::read_from_path(&file_path) {
+        Ok(file) => file,
+        Err(e) => {
+            println!("❌ [Rust] Failed to read audio file: {}", e);
+            return Ok(ParsedMetadataResult {
+                success: false,
+                metadata: None,
+                error: Some(format!("Failed to read audio file: {}", e)),
+            });
+        }
+    };
+
+    let properties = tagged_file.properties();
+    let duration = properties.duration().as_secs_f64();
+
+    // Extract metadata from tags
+    let mut title = String::new();
+    let mut artist = String::new();
+    let mut album = String::new();
+    let mut lyrics = String::new();
+    let mut cover_data: Option<String> = None;
+    let mut cover_mime: Option<String> = None;
+
+    // Iterate through tags to extract metadata
+    if let Some(tag) = tagged_file.first_tag() {
+        // Extract title, artist, album, lyrics from tag items
+        for item in tag.items() {
+            // Use debug format to get key representation
+            let key_debug = format!("{:?}", item.key());
+
+            if let Some(text) = item.value().text() {
+                let text_str = text.to_string();
+
+                // Match keys by checking debug representation
+                if key_debug.contains("Title") && title.is_empty() {
+                    title = text_str;
+                } else if key_debug.contains("Artist") && artist.is_empty() {
+                    artist = text_str;
+                } else if key_debug.contains("Album") && album.is_empty() {
+                    album = text_str;
+                } else if (key_debug.contains("Lyrics") || key_debug.contains("USLT")) && lyrics.is_empty() {
+                    lyrics = text_str;
+                }
+            }
+        }
+
+        // Extract cover art
+        for picture in tag.pictures() {
+            if let Some(mime) = picture.mime_type() {
+                cover_mime = Some(mime.to_string());
+            }
+            cover_data = Some(general_purpose::STANDARD.encode(picture.data()));
+            break; // Use first cover
+        }
+    }
+
+    // Fallback to filename if no title
+    if title.is_empty() {
+        if let Some(file_name) = PathBuf::from(&file_path).file_stem() {
+            title = file_name.to_string_lossy().to_string();
+        }
+    }
+
+    // Fallback for artist
+    if artist.is_empty() {
+        artist = "Unknown Artist".to_string();
+    }
+
+    // Fallback for album
+    if album.is_empty() {
+        album = "Unknown Album".to_string();
+    }
+
+    println!("✅ [Rust] Parsed: {} - {} - {} ({}s)", title, artist, album, duration);
+
+    Ok(ParsedMetadataResult {
+        success: true,
+        metadata: Some(ParsedMetadata {
+            title,
+            artist,
+            album,
+            duration,
+            lyrics,
+            synced_lyrics: None, // TODO: Implement synced lyrics parsing
+            cover_data,
+            cover_mime,
+        }),
+        error: None,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -357,6 +632,11 @@ pub fn run() {
             save_audio_file_from_buffer,
             delete_audio_file,
             validate_all_paths,
+            load_metadata_cache,
+            save_metadata_cache,
+            get_metadata_for_song,
+            parse_audio_metadata,
+            get_audio_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
