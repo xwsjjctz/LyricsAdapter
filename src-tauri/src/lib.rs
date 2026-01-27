@@ -124,11 +124,19 @@ async fn get_app_data_path(app: tauri::AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 async fn load_library(app: tauri::AppHandle) -> Result<LoadResult, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| {
+        eprintln!("Failed to get app data dir: {}", e);
+        e.to_string()
+    })?;
+
+    println!("📁 App data directory: {:?}", app_data_dir);
 
     let library_path = app_data_dir.join("library.json");
+    println!("📖 Loading library from: {:?}", library_path);
+    println!("📄 File exists: {:?}", library_path.exists());
 
     if !library_path.exists() {
+        println!("⚠️ Library file does not exist, returning empty library");
         return Ok(LoadResult {
             success: true,
             library: LibraryData {
@@ -139,8 +147,19 @@ async fn load_library(app: tauri::AppHandle) -> Result<LoadResult, String> {
         });
     }
 
-    let content = fs::read_to_string(&library_path).map_err(|e| e.to_string())?;
-    let library: LibraryData = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&library_path).map_err(|e| {
+        eprintln!("Failed to read library file: {}", e);
+        e.to_string()
+    })?;
+
+    println!("📄 Library file size: {} bytes", content.len());
+
+    let library: LibraryData = serde_json::from_str(&content).map_err(|e| {
+        eprintln!("Failed to parse library JSON: {}", e);
+        e.to_string()
+    })?;
+
+    println!("✅ Library loaded successfully with {} songs", library.songs.len());
 
     Ok(LoadResult {
         success: true,
@@ -154,15 +173,35 @@ async fn save_library(
     app: tauri::AppHandle,
     library: LibraryData,
 ) -> Result<SaveResult, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| {
+        eprintln!("Failed to get app data dir: {}", e);
+        e.to_string()
+    })?;
+
+    println!("📁 App data directory: {:?}", app_data_dir);
 
     // Ensure directory exists
-    fs::create_dir_all(&app_data_dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&app_data_dir).map_err(|e| {
+        eprintln!("Failed to create directory: {}", e);
+        e.to_string()
+    })?;
 
     let library_path = app_data_dir.join("library.json");
-    let json = serde_json::to_string_pretty(&library).map_err(|e| e.to_string())?;
+    println!("💾 Saving library to: {:?}", library_path);
+    println!("📊 Library has {} songs", library.songs.len());
 
-    fs::write(&library_path, json).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&library).map_err(|e| {
+        eprintln!("Failed to serialize library: {}", e);
+        e.to_string()
+    })?;
+
+    fs::write(&library_path, json).map_err(|e| {
+        eprintln!("Failed to write library file: {}", e);
+        e.to_string()
+    })?;
+
+    println!("✅ Library saved successfully!");
+    println!("📄 File exists after save: {:?}", library_path.exists());
 
     Ok(SaveResult {
         success: true,

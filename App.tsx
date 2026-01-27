@@ -357,6 +357,8 @@ const App: React.FC = () => {
   // Auto-save library to disk when tracks change (Desktop only, debounced)
   useEffect(() => {
     if (isDesktop()) {
+      console.log('🔄 Tracks or volume changed, triggering auto-save...');
+
       // Prepare library data for saving
       const libraryData = {
         songs: tracks.map(track => ({
@@ -380,6 +382,8 @@ const App: React.FC = () => {
           volume: volume
         }
       };
+
+      console.log(`📦 Prepared library data: ${libraryData.songs.length} songs, volume: ${libraryData.settings.volume}`);
 
       // Debounced save
       libraryStorage.saveLibraryDebounced(libraryData);

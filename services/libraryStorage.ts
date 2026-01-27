@@ -1,9 +1,10 @@
 /**
  * 音乐库持久化存储服务
- * 处理与 Electron 主进程的通信，实现数据的读写和验证
+ * 处理与 Electron/Tauri 主进程的通信，实现数据的读写和验证
  */
 
 import { Track } from '../types';
+import { getDesktopAPI } from './desktopAdapter';
 
 export interface LibraryData {
   songs: Track[];
@@ -31,13 +32,14 @@ class LibraryStorageService {
    */
   async loadLibrary(): Promise<LibraryData> {
     try {
-      if (!this.isElectron()) {
-        console.log('⚠️ Not running in Electron, skipping library load');
+      const api = getDesktopAPI();
+      if (!api) {
+        console.log('⚠️ Not running in Desktop mode, skipping library load');
         return { songs: [], settings: {} };
       }
 
       console.log('📂 Loading library from disk...');
-      const result = await (window as any).electron.loadLibrary();
+      const result = await api.loadLibrary();
 
       if (result.success) {
         console.log('✅ Library loaded successfully!');
@@ -61,14 +63,15 @@ class LibraryStorageService {
    */
   async saveLibrary(library: LibraryData): Promise<boolean> {
     try {
-      if (!this.isElectron()) {
-        console.log('⚠️ Not running in Electron, skipping library save');
+      const api = getDesktopAPI();
+      if (!api) {
+        console.log('⚠️ Not running in Desktop mode, skipping library save');
         return false;
       }
 
       console.log('💾 Saving library to disk...');
       console.log(`   - ${library.songs.length} songs`);
-      const result = await (window as any).electron.saveLibrary(library);
+      const result = await api.saveLibrary(library);
 
       if (result.success) {
         console.log('✅ Library saved successfully!');
@@ -102,11 +105,12 @@ class LibraryStorageService {
    */
   async validateFilePath(filePath: string): Promise<boolean> {
     try {
-      if (!this.isElectron()) {
+      const api = getDesktopAPI();
+      if (!api) {
         return true; // Web 环境默认返回 true
       }
 
-      return await (window as any).electron.validateFilePath(filePath);
+      return await api.validateFilePath(filePath);
     } catch (error) {
       console.error('Error validating file path:', error);
       return false;
@@ -118,12 +122,13 @@ class LibraryStorageService {
    */
   async validateAllPaths(songs: Track[]): Promise<ValidationResult[]> {
     try {
-      if (!this.isElectron()) {
+      const api = getDesktopAPI();
+      if (!api) {
         // Web 环境默认返回全部有效
         return songs.map(song => ({ id: song.id, exists: true }));
       }
 
-      const result = await (window as any).electron.validateAllPaths(songs);
+      const result = await api.validateAllPaths(songs);
 
       if (result.success) {
         return result.results;
@@ -142,22 +147,16 @@ class LibraryStorageService {
    */
   async getAppDataPath(): Promise<string | null> {
     try {
-      if (!this.isElectron()) {
+      const api = getDesktopAPI();
+      if (!api) {
         return null;
       }
 
-      return await (window as any).electron.getAppDataPath();
+      return await api.getAppDataPath();
     } catch (error) {
       console.error('Error getting app data path:', error);
       return null;
     }
-  }
-
-  /**
-   * 检查是否在 Electron 环境中运行
-   */
-  private isElectron(): boolean {
-    return !!(window as any).electron;
   }
 }
 

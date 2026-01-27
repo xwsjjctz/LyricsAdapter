@@ -7,6 +7,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+
+    // Check if we should load Electron plugin (not for Tauri)
+    const isTauri = process.env.TAURI === 'true' || process.env.npm_config_user_agent?.includes('tauri');
+
     return {
       base: './',
       server: {
@@ -16,7 +20,8 @@ export default defineConfig(({ mode }) => {
       plugins: [
         react(),
         tailwindcss(),
-        electron([
+        // Only load Electron plugins if not in Tauri mode
+        !isTauri ? electron([
           {
             // Main process file
             entry: 'electron/main.ts',
@@ -44,8 +49,8 @@ export default defineConfig(({ mode }) => {
               }
             }
           }
-        ])
-      ],
+        ]) : null
+      ].filter(Boolean),
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
