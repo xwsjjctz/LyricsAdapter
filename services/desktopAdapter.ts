@@ -91,7 +91,7 @@ class TauriAdapter implements DesktopAPI {
         if (!this.invokeCache) {
           console.log('[TauriAdapter] Trying direct import of @tauri-apps/api/core...');
           try {
-            const tauriCore = await import(IMPORT_TAURI_CORE);
+            const tauriCore = await import(/* @vite-ignore */ IMPORT_TAURI_CORE);
             if (typeof tauriCore.invoke === 'function') {
               this.invokeCache = tauriCore.invoke;
               console.log('[TauriAdapter] ✓ Found invoke via import');
