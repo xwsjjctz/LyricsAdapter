@@ -428,6 +428,22 @@ const FocusMode: React.FC<FocusModeProps> = ({
       )}
       <div className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm" />
 
+      {/* Draggable region for Tauri */}
+      {typeof window !== 'undefined' &&
+       ((window as any).__TAURI_INTERNALS__ ||
+        (window as any).__TAURI__ ||
+        navigator.userAgent.includes('Tauri')) && (
+        <div
+          className="fixed top-0 left-0 right-0 h-12 select-none z-20"
+          data-tauri-drag-region
+          style={{
+            WebkitAppRegion: 'drag',
+            WebkitUserSelect: 'none',
+            userSelect: 'none'
+          } as React.CSSProperties}
+        />
+      )}
+
       <div className="relative h-full flex flex-col z-10 overflow-hidden">
         {/* Top Header */}
         <header className="flex items-center justify-start px-6 py-4 shrink-0 pt-12">
