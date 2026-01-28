@@ -20,9 +20,9 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
-        "hiddenTitle": false,
-        "transparent": false
-      }
+        "hiddenTitle": true,
+        "transparent": false,
+        "titleBarStyle": "Overlay"      }
     ],
     "security": {
       "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob:; media-src 'self' asset: https://asset.localhost blob:; img-src 'self' data: https: blob: asset:;",

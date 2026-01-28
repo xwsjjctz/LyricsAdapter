@@ -18,10 +18,19 @@ const TitleBar: React.FC = () => {
   if (!canControl) {
     return null;
   }
-
-  // Tauri 不支持背景延伸，不显示自定义标题栏
+  // Tauri 在 macOS 上使用系统原生标题栏，隐藏自定义标题栏，且允许拖动窗口
   if (isTauri) {
-    return null;
+    return (
+      <div
+        className="fixed top-0 left-0 right-0 h-8 bg-transparent select-none z-50"
+        data-tauri-drag-region
+        style={{
+          WebkitAppRegion: 'drag',
+          WebkitUserSelect: 'none',
+          userSelect: 'none'
+        } as React.CSSProperties}
+      />
+    );
   }
 
   // macOS Electron 使用系统原生标题栏，显示透明标题栏区域
