@@ -36,8 +36,7 @@ const FocusMode: React.FC<FocusModeProps> = ({
   // Background images for blending
   const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
-  const [canvasOpacity, setCanvasOpacity] = useState(1); // For fade-in/fade-out effect, start at 1 (fully visible)
-  const hasInitializedRef = useRef(false); // Track if we've initialized the entry animation
+  const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
 
   // Detect if running in Tauri
   const isTauri = useMemo(() => {
@@ -53,7 +52,7 @@ const FocusMode: React.FC<FocusModeProps> = ({
   const renderCanvas = useCallback((progress: number) => () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !bgImage1 || !bgImage2) return;
+    if (!canvas || !ctx || !bgImage1) return;
 
     const width = canvas.width = window.innerWidth;
     const height = canvas.height = window.innerHeight;
@@ -61,13 +60,20 @@ const FocusMode: React.FC<FocusModeProps> = ({
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Draw first background
-    ctx.globalAlpha = 1 - progress;
-    ctx.drawImage(bgImage1, 0, 0, width, height);
+    // If we have both backgrounds, do the gradient transition
+    if (bgImage2) {
+      // Draw first background
+      ctx.globalAlpha = 1 - progress;
+      ctx.drawImage(bgImage1, 0, 0, width, height);
 
-    // Draw second background on top with inverted alpha
-    ctx.globalAlpha = progress;
-    ctx.drawImage(bgImage2, 0, 0, width, height);
+      // Draw second background on top with inverted alpha
+      ctx.globalAlpha = progress;
+      ctx.drawImage(bgImage2, 0, 0, width, height);
+    } else {
+      // Only draw first background (no transition)
+      ctx.globalAlpha = 1;
+      ctx.drawImage(bgImage1, 0, 0, width, height);
+    }
 
     ctx.globalAlpha = 1.0;
   }, [bgImage1, bgImage2]);
@@ -231,7 +237,7 @@ const FocusMode: React.FC<FocusModeProps> = ({
     }
   }, [track?.id]);
 
-  // Reset player visibility and handle canvas entry/exit animations when focus mode becomes visible
+  // Reset player visibility when focus mode becomes visible
   useEffect(() => {
     if (isVisible) {
       setIsPlayerVisible(true);
@@ -244,54 +250,6 @@ const FocusMode: React.FC<FocusModeProps> = ({
       playerHideTimeoutRef.current = setTimeout(() => {
         setIsPlayerVisible(false);
       }, 1000);
-
-      // For first entry, fade canvas from 0 to 1 synchronized with slide-up
-      // For subsequent entries, canvas stays at 1 (no fade needed)
-      if (!hasInitializedRef.current) {
-        hasInitializedRef.current = true;
-
-        // Start canvas fade-in animation synchronized with slide-up (700ms)
-        setCanvasOpacity(0); // Start transparent
-        const startTime = performance.now();
-        const duration = 700; // 700ms fade-in (matches slide-up duration)
-
-        const animateCanvas = (currentTime: number) => {
-          const elapsed = currentTime - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-
-          // Fade from transparent (0) to opaque (1)
-          setCanvasOpacity(progress);
-
-          if (progress < 1) {
-            requestAnimationFrame(animateCanvas);
-          }
-        };
-
-        requestAnimationFrame(animateCanvas);
-      }
-      // Note: on subsequent entries, canvasOpacity remains at 1 (fully visible)
-    } else {
-      // Start canvas fade-out animation when exiting focus mode
-      const startTime = performance.now();
-      const duration = 700; // 700ms fade-out (matches slide-down duration)
-
-      const animateCanvasOut = (currentTime: number) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Fade from opaque (1) to transparent (0)
-        setCanvasOpacity(1 - progress);
-
-        if (progress < 1) {
-          requestAnimationFrame(animateCanvasOut);
-        } else {
-          // Reset initialization flag after fade-out completes
-          // so next entry will also fade in smoothly
-          hasInitializedRef.current = false;
-        }
-      };
-
-      requestAnimationFrame(animateCanvasOut);
     }
   }, [isVisible]);
 
@@ -308,6 +266,20 @@ const FocusMode: React.FC<FocusModeProps> = ({
   useEffect(() => {
     if (!track?.id || !track?.coverUrl) return;
 
+    // If bgImage1 just loaded and canvasOpacity < 1, apply initial brightness
+    if (bgImage1 && canvasOpacity < 1) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        // Set initial brightness to 0.3 when fading in
+        canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.3)`;
+      }
+    }
+  }, [bgImage1, canvasOpacity]);
+
+  // Preload background image when track changes (before entering focus mode)
+  useEffect(() => {
+    if (!track?.id || !track?.coverUrl) return;
+
     // Load new background image
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -315,10 +287,40 @@ const FocusMode: React.FC<FocusModeProps> = ({
       // Start transition from current to new background
       const oldBg = bgImage2 || bgImage1;
       if (!oldBg) {
-        // First load, just set as bg1 and show directly
+        // First load, set as bg1
         setBgImage1(img);
         setBgImage2(null);
         setTransitionProgress(1);
+
+        // Apply brightness animation for first load
+        // Only animate if focus mode is visible
+        const canvas = canvasRef.current;
+        if (canvas && isVisible) {
+          // Set initial brightness to 0.3
+          canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.3)`;
+
+          const startTime = performance.now();
+          const duration = 700; // 700ms animation
+
+          const animateFirstLoad = (currentTime: number) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Brightness fade-in: 0.3 -> 0.55
+            const breathingBrightness = 0.3 + 0.25 * progress;
+            canvas.style.filter = `blur(80px) saturate(1.5) brightness(${breathingBrightness})`;
+
+            if (progress < 1) {
+              requestAnimationFrame(animateFirstLoad);
+            }
+            // No need to reset - it ends at brightness(0.55) which matches static state
+          };
+
+          requestAnimationFrame(animateFirstLoad);
+        } else if (canvas) {
+          // If not visible, just set to normal values
+          canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.55)`;
+        }
         return;
       }
 
@@ -387,14 +389,20 @@ const FocusMode: React.FC<FocusModeProps> = ({
     img.src = track.coverUrl;
   }, [track?.id, track?.coverUrl]);
 
-  // Render canvas when transitioning
+  // Render canvas when transitioning or when bgImage1 loads
   useEffect(() => {
-    if (!isTransitioning || !bgImage1 || !bgImage2) return;
+    // Render during transition
+    if (isTransitioning && bgImage1 && bgImage2) {
+      const render = renderCanvas(transitionProgress);
+      const frame = requestAnimationFrame(render);
+      return () => cancelAnimationFrame(frame);
+    }
 
-    const render = renderCanvas(transitionProgress);
-    const frame = requestAnimationFrame(render);
-
-    return () => cancelAnimationFrame(frame);
+    // Also render when bgImage1 loads and we're not transitioning
+    if (!isTransitioning && bgImage1 && !bgImage2) {
+      const render = renderCanvas(1); // Progress = 1 (fully visible)
+      render();
+    }
   }, [isTransitioning, transitionProgress, bgImage1, bgImage2, renderCanvas]);
 
   // Handle click on synced lyric line to seek
@@ -413,20 +421,8 @@ const FocusMode: React.FC<FocusModeProps> = ({
           className="absolute inset-0 w-full h-full"
           style={{
             filter: 'blur(80px) saturate(1.5) brightness(0.55)',
-            opacity: canvasOpacity,
-            transition: 'opacity 700ms ease-in-out'  // Synchronized with slide-up/down
-          }}
-        />
-      )}
-      {/* Fallback static background during initial load */}
-      {!bgImage1 && (
-        <div
-          className="immersive-bg absolute inset-0"
-          style={{
-            backgroundImage: `url(${track?.coverUrl})`,
-            filter: 'blur(80px) saturate(1.5) brightness(0.55)',
-            opacity: canvasOpacity,
-            transition: 'opacity 700ms ease-in-out'  // Synchronized with slide-up/down
+            opacity: 1,
+            transition: 'filter 700ms ease-in-out'
           }}
         />
       )}
