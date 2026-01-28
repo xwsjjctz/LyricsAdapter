@@ -15,6 +15,10 @@ export interface LibrarySettings {
   volume?: number;
   autoScroll?: boolean;
   theme?: string;
+  // 播放状态
+  currentTrackIndex?: number;
+  currentTime?: number;
+  isPlaying?: boolean;
   [key: string]: any;
 }
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Track } from '../types';
 
 interface ControlsProps {
@@ -13,6 +13,8 @@ interface ControlsProps {
   onVolumeChange: (vol: number) => void;
   onToggleFocus: () => void;
   isFocusMode: boolean;
+  forceUpdateCounter?: number; // Force re-render after restore
+  audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
 }
 
 const formatTime = (seconds: number) => {
@@ -24,9 +26,14 @@ const formatTime = (seconds: number) => {
 const Controls: React.FC<ControlsProps> = ({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange,
-  onToggleFocus, isFocusMode
+  onToggleFocus, isFocusMode, forceUpdateCounter, audioRef
 }) => {
-  const progress = track ? (currentTime / track.duration) * 100 : 0;
+// Use audio element's currentTime directly for progress calculation
+  // This ensures we show the actual audio playback position
+  const actualCurrentTime = audioRef?.current ? audioRef.current.currentTime : currentTime;
+  
+  // Calculate progress percentage
+  const progress = track ? (actualCurrentTime / track.duration) * 100 : 0;
 
   return (
     <div className={`h-24 glass border-t border-white/10 px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}>
@@ -96,15 +103,20 @@ const Controls: React.FC<ControlsProps> = ({
 
         {/* Progress Bar */}
         <div className="flex items-center gap-2 flex-1 max-w-md">
-          <span className="text-[10px] tabular-nums text-white/40 w-8 text-right">{formatTime(currentTime)}</span>
-          <div className="flex-1 relative h-4 group flex items-center">
+          <span className="text-[10px] tabular-nums text-white/40 w-8 text-right">{formatTime(actualCurrentTime)}</span>
+          <div className="flex-1 relative h-4 group flex items-center" key={`progress-${currentTime}`}>
             <input
-              type="range" min="0" max={track?.duration || 100} step="0.1" value={currentTime}
+              type="range" min="0" max={track?.duration || 100} step="0.1" value={actualCurrentTime}
               onChange={(e) => onSeek(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-primary" style={{width: `${progress}%`}}></div>
+              <div
+                className="h-full bg-primary"
+                style={{width: `${progress}%`}}
+                data-progress={progress}
+                data-current-time={currentTime}
+              ></div>
             </div>
           </div>
           <span className="text-[10px] tabular-nums text-white/40 w-8">{track ? formatTime(track.duration) : '0:00'}</span>

@@ -50,11 +50,14 @@ const App: React.FC = () => {
   const [volume, setVolume] = useState(0.8);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [forceUpdateCounter, setForceUpdateCounter] = useState(0); // Force re-render after restore
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const shouldAutoPlayRef = useRef<boolean>(false); // Track if we should auto-play after track loads
   const waitingForCanPlayRef = useRef<boolean>(false); // Track if we're waiting for canplay event
+  const restoredTimeRef = useRef<number>(0); // Track the restored playback time
+  const isRestoringTimeRef = useRef<boolean>(false); // Track if we're currently restoring playback time
 
   // Callback ref to ensure volume is set when audio element is created
   const setAudioRef = useCallback((node: HTMLAudioElement | null) => {
@@ -98,6 +101,11 @@ const App: React.FC = () => {
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
+      // Skip updating if we're in the middle of restoring playback time
+      if (isRestoringTimeRef.current) {
+        console.log('[App] TimeUpdate: Skipping update, currently restoring playback time');
+        return;
+      }
       setCurrentTime(audioRef.current.currentTime);
     }
   };
@@ -115,6 +123,22 @@ const App: React.FC = () => {
         }
         return newTracks;
       });
+
+      // For Tauri, wait for canplay event to restore playback time
+      // For Electron/other platforms, try to restore here
+      const desktopAPI = getDesktopAPI();
+      const isTauri = desktopAPI?.platform === 'tauri';
+
+      if (!isTauri && restoredTimeRef.current > 0) {
+        const restoreTime = restoredTimeRef.current;
+        console.log('[App] Restoring playback time (non-Tauri):', restoreTime);
+
+        audioRef.current.currentTime = restoreTime;
+        setCurrentTime(restoreTime);
+        restoredTimeRef.current = 0;
+      } else if (isTauri && restoredTimeRef.current > 0) {
+        console.log('[App] Tauri detected, will restore time in canplay event');
+      }
     }
   };
 
@@ -366,6 +390,84 @@ const App: React.FC = () => {
   // Handle canplay event - when audio is ready to play
   const handleCanPlay = useCallback(() => {
     console.log('[App] Audio is ready to play');
+
+    // Check if we need to restore playback time for Tauri
+    const desktopAPI = getDesktopAPI();
+    const isTauri = desktopAPI?.platform === 'tauri';
+
+    if (isTauri && restoredTimeRef.current > 0 && audioRef.current) {
+      const restoreTime = restoredTimeRef.current;
+      console.log('[App] Tauri: Restoring playback time in canplay:', restoreTime);
+      console.log('[App] Tauri: Current audio currentTime before restore:', audioRef.current.currentTime);
+
+      // Set the restoring flag to prevent timeupdate from interfering
+      isRestoringTimeRef.current = true;
+
+      // Use a promise to ensure the time is set correctly
+      const restorePlaybackTime = async () => {
+        if (!audioRef.current) return;
+
+        try {
+          // Set the time
+          audioRef.current.currentTime = restoreTime;
+
+          // Wait a bit for the browser to process the change
+          await new Promise(resolve => setTimeout(resolve, 10));
+
+          // Verify it was set correctly
+          const actualTime = audioRef.current.currentTime;
+          console.log('[App] Tauri: Audio currentTime after first attempt:', actualTime);
+
+          if (Math.abs(actualTime - restoreTime) > 0.1) {
+            console.log('[App] Tauri: Time not set correctly, retrying...');
+            audioRef.current.currentTime = restoreTime;
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            const retryTime = audioRef.current.currentTime;
+            if (Math.abs(retryTime - restoreTime) > 0.1) {
+              console.warn('[App] Tauri: Failed to restore playback time after retry');
+              console.log('[App] Tauri: Expected:', restoreTime, 'Got:', retryTime);
+            } else {
+              console.log('[App] Tauri: ✓ Playback time restored after retry:', retryTime);
+            }
+          } else {
+            console.log('[App] Tauri: ✓ Playback time restored successfully:', actualTime);
+          }
+
+          // Update state to match immediately
+          console.log('[App] Tauri: Calling setCurrentTime with:', restoreTime);
+          setCurrentTime(restoreTime);
+
+          // Force a re-render to ensure UI updates
+          console.log('[App] Tauri: Forcing re-render with counter increment');
+          setForceUpdateCounter(prev => prev + 1);
+
+          // Force a time update by reading currentTime again
+          setTimeout(() => {
+            if (audioRef.current) {
+              const finalTime = audioRef.current.currentTime;
+              console.log('[App] Tauri: Final verification - currentTime is:', finalTime);
+              if (Math.abs(finalTime - restoreTime) > 0.1) {
+                console.warn('[App] Tauri: Warning - currentTime changed after state update!');
+              }
+            }
+          }, 50);
+        } catch (error) {
+          console.error('[App] Tauri: Error restoring playback time:', error);
+        } finally {
+          // Clear the refs
+          restoredTimeRef.current = 0;
+          // Clear the restoring flag after a short delay to ensure state update is processed
+          setTimeout(() => {
+            isRestoringTimeRef.current = false;
+            console.log('[App] Tauri: ✓ Restoring flag cleared');
+          }, 100);
+        }
+      };
+
+      restorePlaybackTime();
+    }
+
     // If we were waiting for this event to play, play now
     if (waitingForCanPlayRef.current && audioRef.current) {
       waitingForCanPlayRef.current = false;
@@ -402,8 +504,22 @@ const App: React.FC = () => {
         waitingForCanPlayRef.current = false;
       }
 
+      // Check if we need to restore playback time
+      if (restoredTimeRef.current > 0) {
+        console.log('[App] Need to restore playback time:', restoredTimeRef.current);
+      }
+
       // Only attempt playback if audioUrl is loaded
       if (currentTrack.audioUrl) {
+        // For Tauri, we need to wait for canplay event before attempting playback
+        // The restoration will happen in handleCanPlay
+        const desktopAPI = getDesktopAPI();
+        const isTauri = desktopAPI?.platform === 'tauri';
+
+        if (isTauri && restoredTimeRef.current > 0) {
+          console.log('[App] Tauri detected, will restore time in canplay event');
+        }
+
         if (isPlaying || shouldAutoPlayRef.current) {
           // Clear the auto-play flag
           shouldAutoPlayRef.current = false;
@@ -473,6 +589,11 @@ const App: React.FC = () => {
       audioRef.current.volume = volume;
     }
   }, [volume]);
+
+  // Debug: Log when currentTime changes
+  useEffect(() => {
+    console.log('[App] currentTime state changed to:', currentTime);
+  }, [currentTime]);
 
   // Load library from disk on mount (Desktop only)
   useEffect(() => {
@@ -632,6 +753,39 @@ const App: React.FC = () => {
           await metadataCacheService.save();
           console.log(`[App] ✓ Finished loading ${loadedTracks.length} tracks`);
 
+          // Restore playback state from settings
+          console.log('[App] Checking for playback state to restore...');
+          console.log('[App] libraryData.settings:', libraryData.settings);
+          console.log('[App] currentTrackIndex:', libraryData.settings?.currentTrackIndex);
+          console.log('[App] currentTime:', libraryData.settings?.currentTime);
+          console.log('[App] isPlaying:', libraryData.settings?.isPlaying);
+          
+          if (libraryData.settings?.currentTrackIndex !== undefined &&
+              libraryData.settings?.currentTrackIndex >= 0 &&
+              libraryData.settings?.currentTrackIndex < loadedTracks.length) {
+            console.log('[App] ✓ Restoring playback state:');
+            console.log('  - Track index:', libraryData.settings.currentTrackIndex);
+            console.log('  - Current time:', libraryData.settings.currentTime);
+            console.log('  - Is playing:', libraryData.settings.isPlaying);
+
+            // Save restored time to ref (will be restored when audio is ready)
+            if (libraryData.settings.currentTime !== undefined) {
+              const restoredTime = libraryData.settings.currentTime;
+              restoredTimeRef.current = restoredTime;
+              console.log('[App] ✓ Saved restored time to ref:', restoredTime);
+              // Don't setCurrentTime here - will be set when audio is ready
+            }
+
+            // Restore track index
+            setCurrentTrackIndex(libraryData.settings.currentTrackIndex);
+
+            // Always set to paused, do not auto-play
+            setIsPlaying(false);
+            shouldAutoPlayRef.current = false;
+          } else {
+            console.log('[App] No playback state to restore or invalid track index');
+          }
+
           // Preload first 3 songs for instant playback
           const PRELOAD_COUNT = 3;
           const tracksToPreload = Math.min(PRELOAD_COUNT, loadedTracks.length);
@@ -687,11 +841,19 @@ const App: React.FC = () => {
           available: track.available ?? true
         })),
         settings: {
-          volume: volume
+          volume: volume,
+          currentTrackIndex: currentTrackIndex,
+          currentTime: currentTime,
+          isPlaying: isPlaying
         }
       };
 
-      console.log(`📦 Prepared library data: ${libraryData.songs.length} songs, volume: ${libraryData.settings.volume}`);
+      console.log(`📦 Prepared library data: ${libraryData.songs.length} songs`);
+      console.log('📦 Settings:', libraryData.settings);
+      console.log('  - volume:', libraryData.settings.volume);
+      console.log('  - currentTrackIndex:', libraryData.settings.currentTrackIndex);
+      console.log('  - currentTime:', libraryData.settings.currentTime);
+      console.log('  - isPlaying:', libraryData.settings.isPlaying);
 
       // Debounced save
       libraryStorage.saveLibraryDebounced(libraryData);
@@ -721,7 +883,10 @@ const App: React.FC = () => {
             available: track.available ?? true
           })),
           settings: {
-            volume: volume
+            volume: volume,
+            currentTrackIndex: currentTrackIndex,
+            currentTime: currentTime,
+            isPlaying: isPlaying
           }
         };
 
@@ -736,7 +901,7 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [tracks, volume]);
+  }, [tracks, volume, currentTrackIndex, currentTime, isPlaying]);
 
   // Remove track function
   const handleRemoveTrack = useCallback(async (trackId: string) => {
@@ -899,6 +1064,7 @@ const App: React.FC = () => {
             src={currentTrack.audioUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
+            onLoadedData={handleLoadedMetadata}
             onEnded={handleTrackEnded}
             onCanPlay={handleCanPlay}
           />
@@ -934,6 +1100,8 @@ const App: React.FC = () => {
           onVolumeChange={setVolume}
           onToggleFocus={() => setIsFocusMode(!isFocusMode)}
           isFocusMode={isFocusMode}
+          forceUpdateCounter={forceUpdateCounter}
+          audioRef={audioRef}
         />
       </main>
 
@@ -950,6 +1118,7 @@ const App: React.FC = () => {
         onSeek={handleSeek}
         volume={volume}
         onVolumeChange={setVolume}
+        audioRef={audioRef}
       />
       </div>
     </div>

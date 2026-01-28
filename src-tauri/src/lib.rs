@@ -53,6 +53,15 @@ struct LyricLine {
 struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     volume: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "currentTrackIndex")]
+    current_track_index: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "currentTime")]
+    current_time: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "isPlaying")]
+    is_playing: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -215,7 +224,12 @@ async fn load_library(app: tauri::AppHandle) -> Result<LoadResult, String> {
             success: true,
             library: LibraryData {
                 songs: vec![],
-                settings: Settings { volume: None },
+                settings: Settings {
+                    volume: None,
+                    current_track_index: None,
+                    current_time: None,
+                    is_playing: None,
+                },
             },
             error: None,
         });

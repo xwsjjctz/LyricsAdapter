@@ -44,6 +44,7 @@
     "directories": {
       "output": "release"
     },
+    "icon": "app-icon.png",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"

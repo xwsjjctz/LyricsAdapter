@@ -12,12 +12,14 @@ interface FocusModeProps {
   onSkipPrev: () => void;
   onSeek: (time: number) => void;
   volume: number;
-  onVolumeChange: (volume: number) => void;
+  onVolumeChange: (vol: number) => void;
+  onToggleFocus: () => void;
+  audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
 }
 
 const FocusMode: React.FC<FocusModeProps> = ({
   track, isVisible, currentTime, onClose,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleFocus, audioRef
 }) => {
   const lyricsRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -47,6 +49,10 @@ const FocusMode: React.FC<FocusModeProps> = ({
   }, []);
 
   const progress = track && track.duration > 0 ? (currentTime / track.duration) * 100 : 0;
+
+// Use audio element's actual currentTime for progress
+const actualCurrentTime = audioRef?.current ? audioRef.current.currentTime : currentTime;
+const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.duration) * 100 : 0;
 
   // Render canvas with color gradient transition
   const renderCanvas = useCallback((progress: number) => () => {
@@ -537,11 +543,11 @@ const FocusMode: React.FC<FocusModeProps> = ({
               >
                 <div
                   className="absolute top-0 left-0 h-full bg-primary shadow-[0_0_15px_rgba(43,140,238,0.5)] rounded-full transition-all duration-100"
-                  style={{ width: `${progress}%` }}
+                  style={{ width: `${actualProgress}%` }}
                 />
                 <div
                   className="absolute top-1/2 -translate-y-1/2 size-2 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${progress}%`, marginLeft: '-4px' }}
+                  style={{ left: `${actualProgress}%`, marginLeft: '-4px' }}
                 />
               </div>
               <span className="text-[10px] tabular-nums font-bold text-white/30 w-10">{formatTime(track?.duration || 0)}</span>
