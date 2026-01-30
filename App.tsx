@@ -112,6 +112,9 @@ const App: React.FC = () => {
       });
       activeBlobUrlsRef.current.clear();
       console.log('[App] ✓ All blob URLs revoked');
+
+      // Also revoke IndexedDB cached blob URLs
+      metadataCacheService.revokeAllBlobUrls();
     };
   }, []);
 
@@ -344,7 +347,7 @@ const App: React.FC = () => {
 
         const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
 
-        // Cache metadata (NOT including coverData to avoid localStorage quota exceeded)
+        // Cache metadata (now including coverData - IndexedDB has no quota limits!)
         if (metadata) {
           metadataCacheService.set(trackId, {
             title: metadata.title,
@@ -353,7 +356,8 @@ const App: React.FC = () => {
             duration: metadata.duration,
             lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
-            // NOTE: coverData/coverMime NOT cached - will be re-extracted from file when needed
+            coverData: metadata.coverData,  // ✅ Now cached in IndexedDB!
+            coverMime: metadata.coverMime,
             fileName: fileName,
             fileSize: 1,
             lastModified: Date.now(),
@@ -372,6 +376,13 @@ const App: React.FC = () => {
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: metadata.coverMime });
             coverUrl = createTrackedBlobUrl(blob);
+
+            // Save cover to IndexedDB for faster startup
+            try {
+              await metadataCacheService.saveCover(trackId, blob);
+            } catch (error) {
+              console.warn('[App] Failed to save cover to IndexedDB:', error);
+            }
           } catch (error) {
             console.error('[App] Failed to create cover blob:', error);
           }
@@ -971,33 +982,73 @@ const App: React.FC = () => {
                 console.log(`[App] ✓ Using cached metadata for: ${song.title}`);
                 const cachedMetadata = metadataCacheService.cachedToTrack(cached, song.filePath, song.id);
 
-                // NOTE: In Desktop mode, we don't cache coverData to avoid localStorage quota issues
-                // So we need to re-parse the file to get the cover art
-                console.log(`[App] Re-parsing file to extract cover art: ${song.title}`);
+                // Try to load cover from IndexedDB first (NEW - much faster!)
+                let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
+                let coverBlob: Blob | null = null;
 
-                let parsedMetadata = null;
-                try {
-                  const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
-                  if (parseResult.success && parseResult.metadata) {
-                    parsedMetadata = parseResult.metadata;
+                if (cached.coverData && cached.coverMime) {
+                  // We have cover data in cache, try to load from IndexedDB
+                  try {
+                    const indexedDBCoverUrl = await metadataCacheService.loadCover(song.id);
+                    if (indexedDBCoverUrl) {
+                      coverUrl = indexedDBCoverUrl;
+                      console.log(`[App] ✓ Loaded cover from IndexedDB for: ${song.title}`);
+                    } else {
+                      // Not in IndexedDB yet, create blob from cached data
+                      const byteCharacters = atob(cached.coverData);
+                      const byteNumbers = new Array(byteCharacters.length);
+                      for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                      }
+                      const byteArray = new Uint8Array(byteNumbers);
+                      const blob = new Blob([byteArray], { type: cached.coverMime });
+                      coverUrl = createTrackedBlobUrl(blob);
+                      coverBlob = blob;
+
+                      // Save to IndexedDB for next time
+                      try {
+                        await metadataCacheService.saveCover(song.id, blob);
+                      } catch (error) {
+                        console.warn('[App] Failed to save cover to IndexedDB:', error);
+                      }
+                    }
+                  } catch (error) {
+                    console.warn('[App] Failed to load cover from cache, will re-parse:', error);
                   }
-                } catch (e) {
-                  console.error('[App] Failed to parse cover art:', e);
                 }
 
-                // Create cover URL - use parsed cover if available, otherwise use cached text metadata
-                let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
-                if (parsedMetadata?.coverData && parsedMetadata?.coverMime) {
-                  // Use cover from re-parsed file
-                  const byteCharacters = atob(parsedMetadata.coverData);
-                  const byteNumbers = new Array(byteCharacters.length);
-                  for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                // If we still don't have a cover, try re-parsing the file
+                if (!coverBlob && !cached.coverData) {
+                  console.log(`[App] Cover not cached, re-parsing file: ${song.title}`);
+                  let parsedMetadata = null;
+                  try {
+                    const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
+                    if (parseResult.success && parseResult.metadata) {
+                      parsedMetadata = parseResult.metadata;
+                    }
+                  } catch (e) {
+                    console.error('[App] Failed to parse cover art:', e);
                   }
-                  const byteArray = new Uint8Array(byteNumbers);
-                  const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
-                  coverUrl = createTrackedBlobUrl(blob);
-                  console.log(`[App] ✓ Extracted cover art from file: ${song.title}`);
+
+                  if (parsedMetadata?.coverData && parsedMetadata?.coverMime) {
+                    // Use cover from re-parsed file
+                    const byteCharacters = atob(parsedMetadata.coverData);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                      byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
+                    coverUrl = createTrackedBlobUrl(blob);
+                    console.log(`[App] ✓ Extracted cover art from file: ${song.title}`);
+
+                    // Save cover to IndexedDB
+                    try {
+                      await metadataCacheService.saveCover(song.id, blob);
+                    } catch (error) {
+                      console.warn('[App] Failed to save cover to IndexedDB:', error);
+                    }
+                  }
                 }
 
                 restoredTrack = {
@@ -1031,7 +1082,8 @@ const App: React.FC = () => {
                       duration: parsedMetadata.duration,
                       lyrics: parsedMetadata.lyrics,
                       syncedLyrics: parsedMetadata.syncedLyrics,
-                      // NOTE: coverData/coverMime NOT cached - will be re-extracted from file when needed
+                      coverData: parsedMetadata.coverData,  // ✅ Now cached in IndexedDB!
+                      coverMime: parsedMetadata.coverMime,
                       fileName: song.fileName,
                       fileSize: 1,
                       lastModified: Date.now(),
@@ -1053,6 +1105,13 @@ const App: React.FC = () => {
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
                     coverUrl = createTrackedBlobUrl(blob); // Use tracked blob URL
+
+                    // Save cover to IndexedDB
+                    try {
+                      await metadataCacheService.saveCover(song.id, blob);
+                    } catch (error) {
+                      console.warn('[App] Failed to save cover to IndexedDB:', error);
+                    }
                   }
 
                   restoredTrack = {
@@ -1285,6 +1344,14 @@ const App: React.FC = () => {
       }
     }
 
+    // Delete cover from IndexedDB
+    try {
+      await metadataCacheService.deleteCover(trackId);
+      console.log(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
+    } catch (error) {
+      console.warn('Failed to delete cover from IndexedDB:', error);
+    }
+
     // Use functional update to avoid race conditions
     setTracks(prev => {
       const newTracks = prev.filter(t => t.id !== trackId);
@@ -1351,6 +1418,15 @@ const App: React.FC = () => {
             console.error(`Failed to delete file for ${track.title}:`, error);
           }
         }
+      }
+    }
+
+    // Delete covers from IndexedDB for all tracks
+    for (const trackId of trackIds) {
+      try {
+        await metadataCacheService.deleteCover(trackId);
+      } catch (error) {
+        console.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
       }
     }
 
@@ -1439,7 +1515,7 @@ const App: React.FC = () => {
               if (parseResult.success && parseResult.metadata) {
                 const metadata = parseResult.metadata;
 
-                // Update cache with Rust metadata (NOT including coverData to avoid localStorage quota exceeded)
+                // Update cache with Rust metadata (now including coverData - IndexedDB has no quota limits!)
                 metadataCacheService.set(updatedTracks[trackIndex].id, {
                   title: metadata.title,
                   artist: metadata.artist,
@@ -1447,7 +1523,8 @@ const App: React.FC = () => {
                   duration: metadata.duration,
                   lyrics: metadata.lyrics,
                   syncedLyrics: metadata.syncedLyrics,
-                  // NOTE: coverData/coverMime NOT cached - will be re-extracted from file when needed
+                  coverData: metadata.coverData,  // ✅ Now cached in IndexedDB!
+                  coverMime: metadata.coverMime,
                   fileName: fileName,
                   fileSize: 1,
                   lastModified: Date.now(),
@@ -1464,6 +1541,13 @@ const App: React.FC = () => {
                   const byteArray = new Uint8Array(byteNumbers);
                   const blob = new Blob([byteArray], { type: metadata.coverMime });
                   coverUrl = createTrackedBlobUrl(blob);
+
+                  // Save cover to IndexedDB
+                  try {
+                    await metadataCacheService.saveCover(updatedTracks[trackIndex].id, blob);
+                  } catch (error) {
+                    console.warn('[App] Failed to save cover to IndexedDB:', error);
+                  }
                 }
 
                 // Update track with metadata

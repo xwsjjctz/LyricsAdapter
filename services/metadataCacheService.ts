@@ -1,9 +1,11 @@
 /**
  * Metadata Cache Service
- * Manages cached metadata to avoid re-parsing audio files
+ * Manages cached metadata using IndexedDB for better performance and larger storage quota
+ * Now supports cover image caching (previously disabled due to localStorage limits)
  */
 
 import { getDesktopAPIAsync } from './desktopAdapter';
+import { indexedDBStorage } from './indexedDBStorage';
 
 interface CachedMetadata {
   title: string;
@@ -12,8 +14,9 @@ interface CachedMetadata {
   duration: number;
   lyrics: string;
   syncedLyrics?: { time: number; text: string }[];
-  // NOTE: NOT caching coverData/coverMime to avoid localStorage quota exceeded errors
-  // Cover images can be re-extracted from audio files when needed
+  // Now caching cover data in IndexedDB (no quota limits!)
+  coverData?: string; // Base64 encoded
+  coverMime?: string;
   fileName: string;
   fileSize: number;
   lastModified: number;
@@ -22,33 +25,53 @@ interface CachedMetadata {
 class MetadataCacheService {
   private cache: Map<string, CachedMetadata> = new Map();
   private initialized = false;
+  private coverCache: Map<string, string> = new Map(); // songId -> blob URL
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    const desktopAPI = await getDesktopAPIAsync();
-    if (!desktopAPI) {
-      console.log('[MetadataCache] Not in desktop mode, skipping cache load');
-      this.initialized = true;
-      return;
-    }
+    console.log('[MetadataCache] Initializing cache...');
 
+    // Initialize IndexedDB (works in both Web and Desktop)
     try {
-      console.log('[MetadataCache] Loading metadata cache...');
-      const result = await desktopAPI.loadMetadataCache();
-
-      // Convert object to Map
-      this.cache = new Map(
-        Object.entries(result.entries || {})
-      );
-
-      console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} cached entries`);
-      this.initialized = true;
+      await indexedDBStorage.initialize();
+      console.log('[MetadataCache] ✓ IndexedDB initialized');
     } catch (error) {
-      console.error('[MetadataCache] Failed to load cache:', error);
-      this.cache = new Map();
-      this.initialized = true;
+      console.warn('[MetadataCache] ⚠️ IndexedDB initialization failed, falling back to memory-only:', error);
     }
+
+    // Load metadata from Desktop API (Electron/Tauri) for backward compatibility
+    const desktopAPI = await getDesktopAPIAsync();
+    if (desktopAPI) {
+      try {
+        console.log('[MetadataCache] Loading metadata from Desktop API...');
+        const result = await desktopAPI.loadMetadataCache();
+
+        // Convert object to Map
+        this.cache = new Map(
+          Object.entries(result.entries || {})
+        );
+
+        console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from Desktop API`);
+      } catch (error) {
+        console.warn('[MetadataCache] ⚠️ Failed to load from Desktop API (non-critical):', error);
+        this.cache = new Map();
+      }
+    } else {
+      // Web environment: load from IndexedDB
+      try {
+        console.log('[MetadataCache] Loading metadata from IndexedDB...');
+        const entries = await indexedDBStorage.getAllMetadata();
+        this.cache = new Map(Object.entries(entries));
+        console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from IndexedDB`);
+      } catch (error) {
+        console.warn('[MetadataCache] ⚠️ Failed to load from IndexedDB:', error);
+        this.cache = new Map();
+      }
+    }
+
+    this.initialized = true;
+    console.log('[MetadataCache] ✓ Initialization complete');
   }
 
   get(songId: string): CachedMetadata | undefined {
@@ -57,31 +80,112 @@ class MetadataCacheService {
 
   set(songId: string, metadata: CachedMetadata): void {
     this.cache.set(songId, metadata);
+
+    // Persist to IndexedDB asynchronously (don't await)
+    indexedDBStorage.setMetadata(songId, metadata).catch(error => {
+      console.warn(`[MetadataCache] Failed to save metadata for ${songId} to IndexedDB:`, error);
+    });
   }
 
   has(songId: string): boolean {
     return this.cache.has(songId);
   }
 
+  // ========== Cover Image Caching (NEW!) ==========
+
+  /**
+   * Get cover blob URL for a song
+   * Returns cached URL if available, null otherwise
+   */
+  getCoverUrl(songId: string): string | null {
+    return this.coverCache.get(songId) || null;
+  }
+
+  /**
+   * Set cover blob URL for a song (in-memory cache)
+   * The blob itself is stored in IndexedDB, URL is just a reference
+   */
+  setCoverUrl(songId: string, blobUrl: string): void {
+    this.coverCache.set(songId, blobUrl);
+  }
+
+  /**
+   * Load cover from IndexedDB and create blob URL
+   * Returns the blob URL if found, null otherwise
+   */
+  async loadCover(songId: string): Promise<string | null> {
+    try {
+      const coverBlob = await indexedDBStorage.getCover(songId);
+      if (coverBlob) {
+        const blobUrl = URL.createObjectURL(coverBlob);
+        this.coverCache.set(songId, blobUrl);
+        console.log(`[MetadataCache] ✓ Loaded cover for ${songId} from IndexedDB`);
+        return blobUrl;
+      }
+      return null;
+    } catch (error) {
+      console.error(`[MetadataCache] Failed to load cover for ${songId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Save cover blob to IndexedDB
+   */
+  async saveCover(songId: string, coverBlob: Blob): Promise<void> {
+    try {
+      await indexedDBStorage.setCover(songId, coverBlob);
+
+      // Also create and cache the blob URL
+      const existingUrl = this.coverCache.get(songId);
+      if (existingUrl) {
+        URL.revokeObjectURL(existingUrl); // Revoke old URL
+      }
+      const blobUrl = URL.createObjectURL(coverBlob);
+      this.coverCache.set(songId, blobUrl);
+
+      console.log(`[MetadataCache] ✓ Saved cover for ${songId} (${(coverBlob.size / 1024).toFixed(2)} KB)`);
+    } catch (error) {
+      console.error(`[MetadataCache] Failed to save cover for ${songId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete cover from cache and IndexedDB
+   */
+  async deleteCover(songId: string): Promise<void> {
+    // Revoke blob URL
+    const existingUrl = this.coverCache.get(songId);
+    if (existingUrl) {
+      URL.revokeObjectURL(existingUrl);
+      this.coverCache.delete(songId);
+    }
+
+    // Delete from IndexedDB
+    await indexedDBStorage.deleteCover(songId);
+  }
+
   async save(): Promise<void> {
     const desktopAPI = await getDesktopAPIAsync();
-    if (!desktopAPI) return;
-
-    try {
-      // Convert Map to object
-      const entriesObj = Object.fromEntries(this.cache);
-
-      await desktopAPI.saveMetadataCache({ entries: entriesObj });
-      console.log(`[MetadataCache] ✓ Saved ${this.cache.size} entries to disk`);
-    } catch (error) {
-      // Log warning but don't throw - allow app to continue without cache
-      console.warn('[MetadataCache] Failed to save cache (non-critical):', error);
-      console.warn('[MetadataCache] App will continue without cache persistence');
+    if (desktopAPI) {
+      // Desktop environment: save via IPC (backward compatibility)
+      try {
+        const entriesObj = Object.fromEntries(this.cache);
+        await desktopAPI.saveMetadataCache({ entries: entriesObj });
+        console.log(`[MetadataCache] ✓ Saved ${this.cache.size} entries to Desktop storage`);
+      } catch (error) {
+        console.warn('[MetadataCache] Failed to save to Desktop storage (non-critical):', error);
+      }
+    } else {
+      // Web environment: metadata already saved to IndexedDB in set()
+      console.log('[MetadataCache] Metadata auto-saved to IndexedDB');
     }
   }
 
   clear(): void {
     this.cache.clear();
+    this.coverCache.clear();
   }
 
   // Convert cached metadata to track metadata format
@@ -110,6 +214,21 @@ class MetadataCacheService {
 
     // Only check filename, not fileSize (symlinks have different sizes)
     return cached.fileName === fileName;
+  }
+
+  /**
+   * Revoke all cached blob URLs (call before app unmount)
+   */
+  revokeAllBlobUrls(): void {
+    this.coverCache.forEach(blobUrl => {
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+    });
+    this.coverCache.clear();
+    console.log('[MetadataCache] ✓ Revoked all cached blob URLs');
   }
 }
 
