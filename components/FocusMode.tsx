@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track, SyncedLyricLine } from '../types';
 
 interface FocusModeProps {
@@ -17,7 +17,7 @@ interface FocusModeProps {
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
 }
 
-const FocusMode: React.FC<FocusModeProps> = ({
+const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime, onClose,
   isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleFocus, audioRef
 }) => {
@@ -594,6 +594,40 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for React.memo
+  // FocusMode is expensive to render, so we want to minimize re-renders
+
+  // Always re-render when visibility changes
+  if (prevProps.isVisible !== nextProps.isVisible) return false;
+
+  // Re-render when track changes
+  if (prevProps.track !== nextProps.track) return false;
+
+  // Re-render when playback state changes
+  if (prevProps.isPlaying !== nextProps.isPlaying) return false;
+
+  // Re-render when volume changes
+  if (prevProps.volume !== nextProps.volume) return false;
+
+  // Check callbacks
+  if (prevProps.onClose !== nextProps.onClose) return false;
+  if (prevProps.onTogglePlay !== nextProps.onTogglePlay) return false;
+  if (prevProps.onSkipNext !== nextProps.onSkipNext) return false;
+  if (prevProps.onSkipPrev !== nextProps.onSkipPrev) return false;
+  if (prevProps.onSeek !== nextProps.onSeek) return false;
+  if (prevProps.onVolumeChange !== nextProps.onVolumeChange) return false;
+  if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
+
+  // For currentTime, we allow more frequent updates (0.5 second threshold)
+  // This keeps the lyrics scrolling smooth while avoiding excessive re-renders
+  const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);
+  if (timeDiff > 0.5) return false;
+
+  // All props are effectively the same, skip re-render
+  return true;
+});
+
+FocusMode.displayName = 'FocusMode';
 
 export default FocusMode;

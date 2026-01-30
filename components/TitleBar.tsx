@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 
-const TitleBar: React.FC = () => {
+const TitleBar: React.FC = memo(() => {
   const { canControl } = useWindowControls();
 
   // 检测是否在 macOS
@@ -51,6 +51,8 @@ const TitleBar: React.FC = () => {
 
   // Windows/Linux 显示自定义标题栏
   return null;
-};
+});
+
+TitleBar.displayName = 'TitleBar';
 
 export default TitleBar;

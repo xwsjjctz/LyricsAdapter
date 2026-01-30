@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Track } from '../types';
 
 interface ControlsProps {
@@ -17,13 +17,14 @@ interface ControlsProps {
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
 }
 
-const formatTime = (seconds: number) => {
+// Move formatTime outside component to avoid re-creation
+const formatTime = (seconds: number): string => {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const Controls: React.FC<ControlsProps> = ({
+const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange,
   onToggleFocus, isFocusMode, forceUpdateCounter, audioRef
@@ -141,6 +142,44 @@ const Controls: React.FC<ControlsProps> = ({
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for React.memo
+  // Only re-render when critical props actually change
+  // Note: We intentionally allow re-renders when currentTime changes significantly
+  // to update the progress bar, but we could optimize this further if needed
+
+  // Check track identity (reference equality)
+  if (prevProps.track !== nextProps.track) return false;
+
+  // Check playback state
+  if (prevProps.isPlaying !== nextProps.isPlaying) return false;
+
+  // Check volume (changes infrequently)
+  if (prevProps.volume !== nextProps.volume) return false;
+
+  // Check focus mode
+  if (prevProps.isFocusMode !== nextProps.isFocusMode) return false;
+
+  // Check callbacks (reference equality)
+  if (prevProps.onTogglePlay !== nextProps.onTogglePlay) return false;
+  if (prevProps.onSkipNext !== nextProps.onSkipNext) return false;
+  if (prevProps.onSkipPrev !== nextProps.onSkipPrev) return false;
+  if (prevProps.onSeek !== nextProps.onSeek) return false;
+  if (prevProps.onVolumeChange !== nextProps.onVolumeChange) return false;
+  if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
+
+  // Allow re-render when currentTime changes more than 1 second
+  // This prevents excessive re-renders during playback
+  const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);
+  if (timeDiff > 1) return false;
+
+  // Check force update counter
+  if (prevProps.forceUpdateCounter !== nextProps.forceUpdateCounter) return false;
+
+  // All props are effectively the same, skip re-render
+  return true;
+});
+
+Controls.displayName = 'Controls';
 
 export default Controls;

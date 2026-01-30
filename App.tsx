@@ -1647,6 +1647,7 @@ const App: React.FC = () => {
               onRemoveTrack={handleRemoveTrack}
               onRemoveMultipleTracks={handleRemoveMultipleTracks}
               onDropFiles={handleDropFiles}
+              isFocusMode={isFocusMode}
             />
           </div>
 

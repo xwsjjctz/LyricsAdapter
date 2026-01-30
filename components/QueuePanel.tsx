@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Track } from '../types';
 
 interface QueuePanelProps {
@@ -9,7 +9,7 @@ interface QueuePanelProps {
   onTrackSelect: (index: number) => void;
 }
 
-const QueuePanel: React.FC<QueuePanelProps> = ({ tracks, currentTrackIndex, isOpen, onTrackSelect }) => {
+const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex, isOpen, onTrackSelect }) => {
   return (
     <aside className={`w-80 glass border-l border-white/10 flex flex-col h-full z-20 transition-all duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full fixed right-0'}`}>
       <div className="p-6 h-full flex flex-col">
@@ -67,6 +67,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({ tracks, currentTrackIndex, isOp
       </div>
     </aside>
   );
-};
+});
+
+QueuePanel.displayName = 'QueuePanel';
 
 export default QueuePanel;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Track } from '../types';
 
 interface LibraryViewProps {
@@ -8,15 +8,17 @@ interface LibraryViewProps {
   onRemoveTrack: (trackId: string) => void;
   onRemoveMultipleTracks?: (trackIds: string[]) => void; // Batch removal
   onDropFiles?: (files: File[]) => void; // Handle dropped files
+  isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
 }
 
-const LibraryView: React.FC<LibraryViewProps> = ({
+const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
   currentTrackIndex,
   onTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
-  onDropFiles
+  onDropFiles,
+  isFocusMode = false
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -74,10 +76,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
         // Determine scroll direction based on index change
         const isNext = currentTrackIndex > previousTrackIndexRef.current;
-        const blockPosition = isNext ? 'end' : 'start'; // Next: bottom, Previous: top
-        const directionText = isNext ? 'bottom' : 'top';
 
-        console.log(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1} (${directionText})`);
+        // In focus mode, use 'nearest' to avoid aggressive scrolling that pushes the layout up
+        // This provides a smoother, more controlled scroll behavior
+        const blockPosition = isFocusMode ? 'nearest' : (isNext ? 'end' : 'start'); // Focus mode: gentle, Next: bottom, Previous: top
+        const directionText = isFocusMode ? 'gentle' : (isNext ? 'bottom' : 'top');
+
+        console.log(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1} (${directionText}${isFocusMode ? ' (focus mode)' : ''})`);
 
         // Scroll the track into view with smooth animation
         currentTrackElement.scrollIntoView({
@@ -97,16 +102,16 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   }, [currentTrackIndex, tracks.length]);
 
   // Handle drag events
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!isDragging) {
       console.log('[LibraryView] Drag over - enabling dragging state');
       setIsDragging(true);
     }
-  };
+  }, [isDragging]);
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -120,9 +125,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       console.log('[LibraryView] Drag leave - disabling dragging state');
       setIsDragging(false);
     }
-  };
+  }, []);
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     console.log('[LibraryView] Drop event triggered');
@@ -155,9 +160,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
     // Call parent handler with dropped files
     onDropFiles(audioFiles);
-  };
+  }, [onDropFiles]);
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === tracks.length) {
       // Deselect all
       setSelectedIds(new Set());
@@ -165,19 +170,21 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       // Select all
       setSelectedIds(new Set(tracks.map(t => t.id)));
     }
-  };
+  }, [selectedIds.size, tracks.length]);
 
-  const toggleSelectOne = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+      }
+      return newSelected;
+    });
+  }, []);
 
-  const handleRemoveSelected = async () => {
+  const handleRemoveSelected = useCallback(async () => {
     // Convert Set to Array
     const idsToRemove = Array.from(selectedIds);
 
@@ -201,7 +208,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     // Clear selection and exit edit mode
     setSelectedIds(new Set());
     setIsEditMode(false);
-  };
+  }, [selectedIds, onRemoveMultipleTracks, onRemoveTrack]);
 
   return (
     <div
@@ -367,6 +374,19 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function for React.memo
+  // Only re-render if these critical props change
+  return (
+    prevProps.tracks.length === nextProps.tracks.length &&
+    prevProps.currentTrackIndex === nextProps.currentTrackIndex &&
+    prevProps.onTrackSelect === nextProps.onTrackSelect &&
+    prevProps.onRemoveTrack === nextProps.onRemoveTrack &&
+    prevProps.onRemoveMultipleTracks === nextProps.onRemoveMultipleTracks &&
+    prevProps.onDropFiles === nextProps.onDropFiles
+  );
+});
+
+LibraryView.displayName = 'LibraryView';
 
 export default LibraryView;

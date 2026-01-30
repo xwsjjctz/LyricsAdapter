@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ViewMode } from '../types';
 
 interface SidebarProps {
@@ -9,7 +9,7 @@ interface SidebarProps {
   hasUnavailableTracks?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onImportClick, onNavigate, currentView, onReloadFiles, hasUnavailableTracks }) => {
+const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, currentView, onReloadFiles, hasUnavailableTracks }) => {
   // Check if running in Tauri (uses native file dialog)
   const isTauri = !!(window as any).__TAURI__;
 
@@ -58,6 +58,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onImportClick, onNavigate, currentVie
       </div>
     </aside>
   );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 export default Sidebar;

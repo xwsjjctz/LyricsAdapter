@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Track } from '../types';
 
 interface LyricsOverlayProps {
@@ -7,7 +7,7 @@ interface LyricsOverlayProps {
   isVisible: boolean;
 }
 
-const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ track, isVisible }) => {
+const LyricsOverlay: React.FC<LyricsOverlayProps> = memo(({ track, isVisible }) => {
   if (!isVisible) return null;
 
   const lines = track?.lyrics ? track.lyrics.split('\n') : [];
@@ -37,6 +37,8 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ track, isVisible }) => {
       </div>
     </div>
   );
-};
+});
+
+LyricsOverlay.displayName = 'LyricsOverlay';
 
 export default LyricsOverlay;

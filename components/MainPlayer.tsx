@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Track } from '../types';
 
 interface MainPlayerProps {
@@ -9,7 +9,7 @@ interface MainPlayerProps {
   onTogglePlay: () => void;
 }
 
-const MainPlayer: React.FC<MainPlayerProps> = ({ track, isVisible, isPlaying, onTogglePlay }) => {
+const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlaying, onTogglePlay }) => {
   if (!isVisible) return null;
 
   return (
@@ -51,6 +51,8 @@ const MainPlayer: React.FC<MainPlayerProps> = ({ track, isVisible, isPlaying, on
       )}
     </div>
   );
-};
+});
+
+MainPlayer.displayName = 'MainPlayer';
 
 export default MainPlayer;
