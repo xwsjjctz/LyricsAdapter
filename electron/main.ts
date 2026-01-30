@@ -55,19 +55,18 @@ const createWindow = async () => {
   // Set session permissions - only apply CSP in production
   const session = win.webContents.session;
   if (app.isPackaged) {
-    // Production: apply strict CSP
+    // Production: apply CSP that allows the app to function properly
+    // Need to allow:
+    // - 'unsafe-inline' for scripts/styles in index.html (importmap, inline styles)
+    // - blob: for audio blob URLs and metadata parsing
+    // - esm.sh for React CDN imports
+    // - worker-src for Workers
     session.webRequest.onHeadersReceived((details, callback) => {
+      const csp = `default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' blob: data: https: http:; media-src 'self' blob: data:; connect-src 'self' blob: data: ws://localhost:* http://localhost:* https://esm.sh; worker-src 'self' blob:; frame-src 'self' blob:; font-src 'self' blob: data: https://esm.sh;`;
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self' blob: data:;",
-            "script-src 'self' blob:;",
-            "style-src 'self' 'unsafe-inline';",
-            "img-src 'self' blob: data: https:;",
-            "media-src 'self' blob: data:;",
-            "connect-src 'self' ws://localhost:* http://localhost:*;"
-          ]
+          'Content-Security-Policy': [csp]
         }
       });
     });
