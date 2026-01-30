@@ -419,47 +419,10 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
       metadata = parseFLAC(arrayBuffer);
     }
 
-    // Get duration using Audio element
-    const audio = new Audio();
-    let durationLoaded = false;
-    const durationPromise = new Promise<number>((resolve) => {
-      const cleanup = () => {
-        audio.removeEventListener('loadedmetadata', onLoaded);
-        audio.removeEventListener('error', onError);
-      };
-
-      const onLoaded = () => {
-        cleanup();
-        durationLoaded = true;
-        resolve(audio.duration || 0);
-      };
-
-      const onError = () => {
-        cleanup();
-        resolve(0);
-      };
-
-      audio.addEventListener('loadedmetadata', onLoaded);
-      audio.addEventListener('error', onError);
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (!durationLoaded) {
-          cleanup();
-          resolve(0);
-        }
-      }, 5000);
-    });
-
-    audio.src = URL.createObjectURL(file);
-    const duration = await durationPromise;
-
-    // Clean up the temporary URL
-    try {
-      URL.revokeObjectURL(audio.src);
-    } catch (e) {
-      // Ignore errors during cleanup
-    }
+    // ⚡ P0 FIX: Skip Audio element duration fetching in Web environment
+    // This was causing major performance bottlenecks (5 seconds per file!)
+    // Duration will be loaded lazily when the user actually plays the track
+    const duration = 0;
 
     return {
       title: metadata.title || defaultResult.title,

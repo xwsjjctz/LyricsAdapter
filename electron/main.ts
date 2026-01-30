@@ -44,23 +44,35 @@ const createWindow = async () => {
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden', // macOS 使用 hiddenInset 让背景延伸
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
       webSecurity: true,
-      allowRunningInsecureContent: true
+      allowRunningInsecureContent: false,
+      sandbox: true
     },
   });
 
-  // Set session permissions
+  // Set session permissions - only apply CSP in production
   const session = win.webContents.session;
-  session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob: file:; media-src 'self' blob: data: file:; img-src 'self' data: blob: https: file:;"]
-      }
+  if (app.isPackaged) {
+    // Production: apply strict CSP
+    session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self' blob: data:;",
+            "script-src 'self' blob:;",
+            "style-src 'self' 'unsafe-inline';",
+            "img-src 'self' blob: data: https:;",
+            "media-src 'self' blob: data:;",
+            "connect-src 'self' ws://localhost:* http://localhost:*;"
+          ]
+        }
+      });
     });
-  });
+  }
+  // Development: no CSP to allow Vite HMR and inline scripts
 
   // Log to both console and file
   const log = (...args: any[]) => {
@@ -224,9 +236,56 @@ app.whenReady().then(() => {
     }
   });
 
+  // Helper: Sanitize file name to prevent path traversal
+  function sanitizeFileName(fileName: string): string {
+    // Remove path separators and dangerous sequences
+    const sanitized = fileName.replace(/[\/\\]/g, '').replace(/\.\./g, '').replace(/[<>:"|?*]/g, '');
+    if (sanitized !== fileName || sanitized.length === 0) {
+      throw new Error('Invalid file name');
+    }
+    return sanitized;
+  }
+
+  // Helper: Validate source path is within allowed directories
+  function validateSourcePath(sourcePath: string): boolean {
+    try {
+      const resolved = path.resolve(sourcePath);
+      // Get user home directories
+      const homeDirs = [
+        app.getPath('home'),
+        path.join('/Users'),  // macOS
+        path.join('/home'),   // Linux
+      ];
+
+      // Check if path is within a user directory
+      return homeDirs.some(dir => {
+        try {
+          return fs.existsSync(dir) && resolved.startsWith(dir);
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      return false;
+    }
+  }
+
   // Save audio file to userData directory (using hard link if possible)
   ipcMain.handle('save-audio-file', async (event, sourcePath: string, fileName: string) => {
     try {
+      // Validate and sanitize inputs
+      const sanitizedFileName = sanitizeFileName(fileName);
+      if (!validateSourcePath(sourcePath)) {
+        console.error('❌ Invalid source path:', sourcePath);
+        return { success: false, error: 'Invalid source path' };
+      }
+
+      // Verify source file exists and is accessible
+      if (!fs.existsSync(sourcePath)) {
+        console.error('❌ Source file does not exist:', sourcePath);
+        return { success: false, error: 'Source file not found' };
+      }
+
       const userDataPath = app.getPath('userData');
       const audioDir = path.join(userDataPath, 'audio');
 
@@ -237,7 +296,7 @@ app.whenReady().then(() => {
 
       // Generate unique filename to avoid conflicts
       // Use Date.now() + random suffix to ensure uniqueness during parallel processing
-      const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${fileName}`;
+      const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${sanitizedFileName}`;
       const audioFilePath = path.join(audioDir, uniqueFileName);
 
       // Try to create symbolic link (symlink) first (saves disk space)
