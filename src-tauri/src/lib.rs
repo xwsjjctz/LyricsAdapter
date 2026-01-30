@@ -313,7 +313,9 @@ async fn save_audio_file(
     let audio_dir = app_data_dir.join("audio");
     fs::create_dir_all(&audio_dir).map_err(|e| e.to_string())?;
 
-    let unique_name = format!("{}-{}", Utc::now().timestamp_millis(), file_name);
+    // Generate unique filename to avoid conflicts during parallel processing
+    // Use timestamp_nanos for higher precision to reduce collision chance
+    let unique_name = format!("{}-{}", Utc::now().timestamp_nanos(), file_name);
     let audio_path = audio_dir.join(&unique_name);
 
     // Try to create symlink first
@@ -356,7 +358,9 @@ async fn save_audio_file_from_buffer(
     let audio_dir = app_data_dir.join("audio");
     fs::create_dir_all(&audio_dir).map_err(|e| e.to_string())?;
 
-    let unique_name = format!("{}-{}", Utc::now().timestamp_millis(), file_name);
+    // Generate unique filename to avoid conflicts during parallel processing
+    // Use timestamp_nanos for higher precision to reduce collision chance
+    let unique_name = format!("{}-{}", Utc::now().timestamp_nanos(), file_name);
     let audio_path = audio_dir.join(&unique_name);
 
     fs::write(&audio_path, file_data).map_err(|e| e.to_string())?;

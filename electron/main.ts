@@ -236,7 +236,8 @@ app.whenReady().then(() => {
       }
 
       // Generate unique filename to avoid conflicts
-      const uniqueFileName = `${Date.now()}-${fileName}`;
+      // Use Date.now() + random suffix to ensure uniqueness during parallel processing
+      const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${fileName}`;
       const audioFilePath = path.join(audioDir, uniqueFileName);
 
       // Try to create symbolic link (symlink) first (saves disk space)

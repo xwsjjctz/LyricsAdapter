@@ -24,24 +24,42 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    if (!isDragging) {
+      console.log('[LibraryView] Drag over - enabling dragging state');
+      setIsDragging(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+
+    // Only set dragging to false if we're actually leaving the container
+    // (not just hovering over child elements)
+    const currentTarget = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement;
+
+    // Check if the related target is outside the current target
+    if (relatedTarget && !currentTarget.contains(relatedTarget)) {
+      console.log('[LibraryView] Drag leave - disabling dragging state');
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    console.log('[LibraryView] Drop event triggered');
     setIsDragging(false);
 
-    if (!onDropFiles) return;
+    if (!onDropFiles) {
+      console.warn('[LibraryView] No drop handler available');
+      return;
+    }
 
     // Get dropped files
     const droppedFiles = Array.from(e.dataTransfer.files);
+    console.log(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
 
     // Filter for audio files only
     const audioExtensions = ['.flac', '.mp3', '.m4a', '.wav'];
@@ -49,6 +67,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       return audioExtensions.includes(ext);
     });
+
+    console.log(`[LibraryView] Audio files after filtering: ${audioFiles.length}`);
 
     if (audioFiles.length === 0) {
       console.warn('[LibraryView] No audio files dropped');
@@ -114,7 +134,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     >
       {/* 拖放覆盖层 - 拖放时显示 */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary animate-pulse">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
           <div className="text-center">
             <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
             <p className="text-2xl font-bold text-primary mb-2">拖放音频文件到此处</p>

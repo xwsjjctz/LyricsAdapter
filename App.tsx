@@ -274,7 +274,166 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Desktop import handler (uses native file dialog for both Electron and Tauri)
+  // ========== Performance Optimization Helpers ==========
+
+  // Create a Map for O(1) duplicate checking
+  const createTracksMap = useCallback(() => {
+    return new Map(
+      tracks.map(track => {
+        // For Desktop: use fileName, for Web: use file.name
+        const key = (track as any).fileName
+          ? `${(track as any).fileName}`
+          : `${track.file?.name}-${track.file?.size}`;
+        return [key, track];
+      })
+    );
+  }, [tracks]);
+
+  // Process a batch of files in parallel
+  const processDesktopFileBatch = useCallback(async (
+    filePaths: string[],
+    desktopAPI: any,
+    tracksMap: Map<string, Track>
+  ): Promise<Track[]> => {
+    const results = await Promise.all(
+      filePaths.map(async (filePath) => {
+        const fileName = filePath.split(/[/\\]/).pop() || '';
+
+        // O(1) duplicate check
+        const existingTrack = tracksMap.get(fileName);
+
+        // Create symlink
+        let savedFilePath = '';
+        try {
+          const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
+          if (saveResult?.success && saveResult?.filePath) {
+            savedFilePath = saveResult.filePath;
+          }
+        } catch (error) {
+          console.error(`[App] ❌ Failed to save file "${fileName}":`, error);
+          return null;
+        }
+
+        if (!savedFilePath) {
+          console.error(`[App] ❌ saveAudioFile returned empty path for "${fileName}"`);
+          return null;
+        }
+
+        // Parse with Rust
+        let metadata;
+        try {
+          const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
+          if (parseResult.success && parseResult.metadata) {
+            metadata = parseResult.metadata;
+          }
+        } catch (error) {
+          console.error('[App] Failed to parse metadata:', error);
+          // Use default metadata
+        }
+
+        const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
+
+        // Cache metadata
+        if (metadata) {
+          metadataCacheService.set(trackId, {
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
+            duration: metadata.duration,
+            lyrics: metadata.lyrics,
+            syncedLyrics: metadata.syncedLyrics,
+            coverData: metadata.coverData,
+            coverMime: metadata.coverMime,
+            fileName: fileName,
+            fileSize: 1,
+            lastModified: Date.now(),
+          });
+        }
+
+        // Create cover URL
+        let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+        if (metadata?.coverData && metadata?.coverMime) {
+          try {
+            const byteCharacters = atob(metadata.coverData);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: metadata.coverMime });
+            coverUrl = createTrackedBlobUrl(blob);
+          } catch (error) {
+            console.error('[App] Failed to create cover blob:', error);
+          }
+        }
+
+        return {
+          id: trackId,
+          title: metadata?.title || fileName.replace(/\.[^/.]+$/, ""),
+          artist: metadata?.artist || 'Unknown Artist',
+          album: metadata?.album || 'Unknown Album',
+          duration: metadata?.duration || 0,
+          lyrics: metadata?.lyrics || '',
+          syncedLyrics: metadata?.syncedLyrics,
+          coverUrl: coverUrl,
+          audioUrl: '', // Will be loaded on play
+          fileName: fileName,
+          filePath: savedFilePath,
+          addedAt: new Date().toISOString(),
+          available: true
+        } as Track;
+      })
+    );
+
+    // Filter out null results (failed files)
+    return results.filter((track): track is Track => track !== null);
+  }, [createTrackedBlobUrl]);
+
+  // Process a batch of Web files in parallel
+  const processWebFileBatch = useCallback(async (
+    files: File[],
+    tracksMap: Map<string, Track>
+  ): Promise<Track[]> => {
+    const results = await Promise.all(
+      files.map(async (file) => {
+        // O(1) duplicate check
+        const key = `${file.name}-${file.size}`;
+        const existingTrack = tracksMap.get(key);
+
+        // Parse metadata
+        let metadata;
+        try {
+          metadata = await parseAudioFile(file);
+        } catch (error) {
+          console.error('[App] Failed to parse file:', file.name, error);
+          // Use default metadata
+          metadata = {
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            artist: 'Unknown Artist',
+            album: 'Unknown Album',
+            duration: 0,
+            coverUrl: `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
+            lyrics: '',
+            syncedLyrics: undefined,
+            audioUrl: '',
+            file: file
+          };
+        }
+
+        return {
+          id: existingTrack?.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          ...metadata,
+          file: file,
+          fileName: file.name,
+          available: true
+        } as Track;
+      })
+    );
+
+    return results;
+  }, []);
+
+  // ========== End Performance Optimization Helpers ==========
   const handleDesktopImport = async () => {
     console.log('[App] Desktop import triggered');
     const desktopAPI = await getDesktopAPIAsync();
@@ -290,96 +449,93 @@ const App: React.FC = () => {
       }
 
       const filePaths = result.filePaths;
+      console.log(`[App] Processing ${filePaths.length} file(s)...`);
+      console.log(`[App] Current tracks count before import: ${tracks.length}`);
 
-      for (const filePath of filePaths) {
-        const fileName = filePath.split(/[/\\]/).pop() || '';
-        const existingIndex = tracks.findIndex(track =>
-          (track as any).fileName === fileName
-        );
+      // Create Map for O(1) duplicate checking
+      const tracksMap = createTracksMap();
+      console.log(`[App] Created tracksMap with ${tracksMap.size} entries`);
 
-        // Create symlink
-        let savedFilePath = '';
-        const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
-        if (saveResult?.success && saveResult?.filePath) {
-          savedFilePath = saveResult.filePath;
-        }
+      // Process files in batches with parallel processing
+      const BATCH_SIZE = 10;
+      const UI_UPDATE_BATCH = 20;
+      const allNewTracks: Track[] = [];
+      let totalProcessed = 0;
+      let totalFailed = 0;
 
-        if (savedFilePath) {
-          // Parse with Rust
-          const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
+      for (let i = 0; i < filePaths.length; i += BATCH_SIZE) {
+        const batch = filePaths.slice(i, i + BATCH_SIZE);
+        console.log(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(filePaths.length / BATCH_SIZE)} (${batch.length} files)`);
 
-          if (parseResult.success && parseResult.metadata) {
-            const metadata = parseResult.metadata;
-            const trackId = existingIndex !== -1 ? tracks[existingIndex].id : Math.random().toString(36).substr(2, 9);
+        // Process this batch in parallel
+        const batchTracks = await processDesktopFileBatch(batch, desktopAPI, tracksMap);
 
-            // Cache metadata
-            metadataCacheService.set(trackId, {
-              title: metadata.title,
-              artist: metadata.artist,
-              album: metadata.album,
-              duration: metadata.duration,
-              lyrics: metadata.lyrics,
-              syncedLyrics: metadata.syncedLyrics,
-              coverData: metadata.coverData,
-              coverMime: metadata.coverMime,
-              fileName: fileName,
-              fileSize: 1,
-              lastModified: Date.now(),
-            });
-            metadataCacheService.save();
+        // Filter out null (failed) tracks and count
+        const successfulTracks = batchTracks.filter((track): track is Track => track !== null);
+        const failedCount = batch.length - successfulTracks.length;
 
-            // Create cover URL
-            let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
-            if (metadata.coverData && metadata.coverMime) {
-              const byteCharacters = atob(metadata.coverData);
-              const byteNumbers = new Array(byteCharacters.length);
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-              }
-              const byteArray = new Uint8Array(byteNumbers);
-              const blob = new Blob([byteArray], { type: metadata.coverMime });
-              coverUrl = createTrackedBlobUrl(blob);
-            }
+        totalProcessed += batch.length;
+        totalFailed += failedCount;
 
-            if (existingIndex !== -1) {
-              setTracks(prev => {
-                const newTracks = [...prev];
-                newTracks[existingIndex] = {
-                  ...newTracks[existingIndex],
-                  title: metadata.title,
-                  artist: metadata.artist,
-                  album: metadata.album,
-                  duration: metadata.duration,
-                  lyrics: metadata.lyrics,
-                  syncedLyrics: metadata.syncedLyrics,
-                  coverUrl: coverUrl,
-                  fileName: fileName,
-                  filePath: savedFilePath,
-                  available: true
-                };
-                return newTracks;
-              });
-            } else {
-              const newTrack: Track = {
-                id: trackId,
-                title: metadata.title,
-                artist: metadata.artist,
-                album: metadata.album,
-                duration: metadata.duration,
-                lyrics: metadata.lyrics,
-                syncedLyrics: metadata.syncedLyrics,
-                coverUrl: coverUrl,
-                audioUrl: '',
-                fileName: fileName,
-                filePath: savedFilePath,
-                addedAt: new Date().toISOString(),
-                available: true
-              };
-              setTracks(prev => [...prev, newTrack]);
-            }
-          }
+        console.log(`[App] Batch result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
+
+        allNewTracks.push(...successfulTracks);
+
+        // Update UI every UI_UPDATE_BATCH tracks
+        if (allNewTracks.length >= UI_UPDATE_BATCH) {
+          console.log(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
+          console.log(`[App] Current tracks count before update: ${tracks.length}`);
+          setTracks(prev => {
+            const newTracks = [...prev, ...allNewTracks];
+            console.log(`[App] ✏️ Updating tracks: ${prev.length} → ${newTracks.length}`);
+            return newTracks;
+          });
+          allNewTracks.length = 0;
         }
       }
+
+      // Add remaining tracks
+      if (allNewTracks.length > 0) {
+        console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+        setTracks(prev => {
+          const newTracks = [...prev, ...allNewTracks];
+          console.log(`[App] ✏️ Final update: ${prev.length} → ${newTracks.length}`);
+          return newTracks;
+        });
+      }
+
+      // Wait a bit for state to update, then save
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Save cache once at the end
+      console.log('[App] Saving metadata cache...');
+      await metadataCacheService.save();
+
+      // Summary report
+      console.log(`[App] ===== Import Summary =====`);
+      console.log(`[App] Total processed: ${totalProcessed}`);
+      console.log(`[App] Successfully imported: ${totalProcessed - totalFailed}`);
+      console.log(`[App] Failed: ${totalFailed}`);
+
+      if (totalFailed > 0) {
+        console.error(`[App] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
+      } else {
+        console.log(`[App] ✓ All files imported successfully`);
+      }
+
+      // Manually trigger library save after import to ensure all tracks are saved
+      console.log('[App] Manually triggering library save after import...');
+      console.log(`[App] Saving ${tracks.length} tracks to disk...`);
+      await libraryStorage.saveLibrary({
+        songs: tracks,
+        settings: {
+          volume: volume,
+          currentTrackIndex: currentTrackIndex,
+          currentTime: currentTime,
+          isPlaying: isPlaying
+        }
+      });
+      console.log('[App] ✓ Manual library save completed');
     } catch (error) {
       console.error('[App] Failed to import files:', error);
     }
@@ -388,42 +544,36 @@ const App: React.FC = () => {
   // Handle dropped files (for drag & drop import in Web environment)
   const handleDropFiles = async (files: File[]) => {
     console.log('[App] Drop import triggered');
-    console.log('[App] Files dropped:', files.length);
+    console.log(`[App] Processing ${files.length} file(s)...`);
 
-    // Import each dropped file
-    for (const file of files) {
-      // Check if file already exists (by name and size)
-      const existingIndex = tracks.findIndex(track =>
-        track.file?.name === file.name && track.file?.size === file.size
-      );
+    // Create Map for O(1) duplicate checking
+    const tracksMap = createTracksMap();
 
-      const metadata = await parseAudioFile(file);
+    // Process files in batches with parallel processing
+    const BATCH_SIZE = 10;
+    const UI_UPDATE_BATCH = 20;
+    const allNewTracks: Track[] = [];
 
-      if (existingIndex !== -1) {
-        // Update existing track
-        setTracks(prev => {
-          const newTracks = [...prev];
-          newTracks[existingIndex] = {
-            ...newTracks[existingIndex],
-            ...metadata,
-            file: file,
-            fileName: file.name
-          };
-          return newTracks;
-        });
-        console.log('[App] ✓ Updated existing track:', file.name);
-      } else {
-        // Add new track
-        const newTrack: Track = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          ...metadata,
-          file: file,
-          fileName: file.name,
-          available: true
-        };
-        setTracks(prev => [...prev, newTrack]);
-        console.log('[App] ✓ Added new track:', file.name);
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      console.log(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
+
+      // Process this batch in parallel
+      const batchTracks = await processWebFileBatch(batch, tracksMap);
+      allNewTracks.push(...batchTracks);
+
+      // Update UI every UI_UPDATE_BATCH tracks
+      if (allNewTracks.length >= UI_UPDATE_BATCH) {
+        console.log(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
+        setTracks(prev => [...prev, ...allNewTracks]);
+        allNewTracks.length = 0;
       }
+    }
+
+    // Add remaining tracks
+    if (allNewTracks.length > 0) {
+      console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+      setTracks(prev => [...prev, ...allNewTracks]);
     }
 
     console.log('[App] ✓ All files imported successfully');
@@ -433,39 +583,39 @@ const App: React.FC = () => {
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     console.log('[App] File input changed - platform:', (window as any).electron ? 'Electron' : (window as any).__TAURI__ ? 'Tauri' : 'Web');
-    console.log('[App] Files selected:', files.length);
+    console.log(`[App] Processing ${files.length} file(s)...`);
 
-    for (const file of files) {
-      // Check if file already exists (by name and size)
-      const existingIndex = tracks.findIndex(track =>
-        track.file?.name === file.name && track.file?.size === file.size
-      );
+    // Create Map for O(1) duplicate checking
+    const tracksMap = createTracksMap();
 
-      const metadata = await parseAudioFile(file);
+    // Process files in batches with parallel processing
+    const BATCH_SIZE = 10;
+    const UI_UPDATE_BATCH = 20;
+    const allNewTracks: Track[] = [];
 
-      if (existingIndex !== -1) {
-        // Update existing track
-        setTracks(prev => {
-          const newTracks = [...prev];
-          newTracks[existingIndex] = {
-            ...newTracks[existingIndex],
-            ...metadata,
-            file: file,
-            fileName: file.name
-          };
-          return newTracks;
-        });
-      } else {
-        // Add new track
-        const newTrack: Track = {
-          id: Math.random().toString(36).substr(2, 9),
-          ...metadata,
-          file: file,
-          fileName: file.name
-        };
-        setTracks(prev => [...prev, newTrack]);
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      console.log(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
+
+      // Process this batch in parallel
+      const batchTracks = await processWebFileBatch(batch, tracksMap);
+      allNewTracks.push(...batchTracks);
+
+      // Update UI every UI_UPDATE_BATCH tracks
+      if (allNewTracks.length >= UI_UPDATE_BATCH) {
+        console.log(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
+        setTracks(prev => [...prev, ...allNewTracks]);
+        allNewTracks.length = 0;
       }
     }
+
+    // Add remaining tracks
+    if (allNewTracks.length > 0) {
+      console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+      setTracks(prev => [...prev, ...allNewTracks]);
+    }
+
+    console.log('[App] ✓ All files imported successfully');
 
     // Reset input value
     if (fileInputRef.current) fileInputRef.current.value = "";
