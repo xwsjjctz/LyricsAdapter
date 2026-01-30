@@ -4,6 +4,7 @@
 
 // Import parseAudioFile for Electron compatibility
 import { parseAudioFile as parseAudioFileSync } from './metadataService';
+import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 
 export interface DesktopAPI {
   platform: string;
@@ -340,18 +341,21 @@ class TauriAdapter implements DesktopAPI {
 
 class ElectronAdapter implements DesktopAPI {
   platform = 'electron';
-  private metadataCache: Record<string, any> = {};
+  private metadataCache: Record<string, ValidatedMetadata> = {};
 
   constructor(private api: any) {
     // Try to load cache from localStorage (Electron-specific)
     try {
       const savedCache = localStorage.getItem('electron_metadata_cache');
       if (savedCache) {
-        this.metadataCache = JSON.parse(savedCache);
+        const parsed = JSON.parse(savedCache);
+        // Validate all loaded metadata
+        this.metadataCache = validateMetadataMap(parsed);
         console.log('[ElectronAdapter] Loaded cache from localStorage:', Object.keys(this.metadataCache).length, 'entries');
       }
     } catch (e) {
       console.warn('[ElectronAdapter] Failed to load cache from localStorage:', e);
+      this.metadataCache = {};
     }
   }
 

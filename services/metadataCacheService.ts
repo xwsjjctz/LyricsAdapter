@@ -2,24 +2,17 @@
  * Metadata Cache Service
  * Manages cached metadata using IndexedDB for better performance and larger storage quota
  * Now supports cover image caching (previously disabled due to localStorage limits)
+ * Includes data validation for security
  */
 
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { indexedDBStorage } from './indexedDBStorage';
+import { type ValidatedMetadata, validateMetadata } from './dataValidator';
 
-interface CachedMetadata {
-  title: string;
-  artist: string;
-  album: string;
-  duration: number;
-  lyrics: string;
-  syncedLyrics?: { time: number; text: string }[];
+interface CachedMetadata extends ValidatedMetadata {
   // Now caching cover data in IndexedDB (no quota limits!)
   coverData?: string; // Base64 encoded
   coverMime?: string;
-  fileName: string;
-  fileSize: number;
-  lastModified: number;
 }
 
 class MetadataCacheService {
@@ -87,10 +80,17 @@ class MetadataCacheService {
   }
 
   set(songId: string, metadata: CachedMetadata): void {
-    this.cache.set(songId, metadata);
+    // Validate metadata before caching
+    const validated = validateMetadata(metadata);
+    if (!validated) {
+      console.error(`[MetadataCache] Invalid metadata for ${songId}, skipping cache`);
+      return;
+    }
+
+    this.cache.set(songId, validated as CachedMetadata);
 
     // Persist to IndexedDB asynchronously (don't await)
-    indexedDBStorage.setMetadata(songId, metadata).catch(error => {
+    indexedDBStorage.setMetadata(songId, validated).catch(error => {
       console.warn(`[MetadataCache] Failed to save metadata for ${songId} to IndexedDB:`, error);
     });
   }
