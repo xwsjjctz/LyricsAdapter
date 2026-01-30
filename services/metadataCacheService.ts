@@ -83,15 +83,16 @@ class MetadataCacheService {
   }
 
   // Convert cached metadata to track metadata format
-  cachedToTrack(cached: CachedMetadata, filePath: string, songId: string): Partial<{
+  cachedToTrack(cached: CachedMetadata, filePath: string, songId: string): {
     title: string;
     artist: string;
     album: string;
     duration: number;
     lyrics: string;
-    syncedLyrics: { time: number; text: string }[];
-    coverUrl: string;
-  }> {
+    syncedLyrics?: { time: number; text: string }[];
+    coverData?: string; // Base64 cover data - let caller create blob URL
+    coverMime?: string;
+  } {
     const result: any = {
       title: cached.title,
       artist: cached.artist,
@@ -101,20 +102,10 @@ class MetadataCacheService {
       syncedLyrics: cached.syncedLyrics,
     };
 
-    // Convert Base64 cover data to blob URL
+    // Return cover data as-is (base64), caller will create blob URL
     if (cached.coverData && cached.coverMime) {
-      try {
-        const byteCharacters = atob(cached.coverData);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: cached.coverMime });
-        result.coverUrl = URL.createObjectURL(blob);
-      } catch (e) {
-        console.error('[MetadataCache] Failed to decode cover data:', e);
-      }
+      result.coverData = cached.coverData;
+      result.coverMime = cached.coverMime;
     }
 
     return result;

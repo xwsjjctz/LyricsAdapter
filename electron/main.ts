@@ -57,7 +57,7 @@ const createWindow = async () => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob:;"]
+        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https: blob: file:; media-src 'self' blob: data: file:; img-src 'self' data: blob: https: file:;"]
       }
     });
   });

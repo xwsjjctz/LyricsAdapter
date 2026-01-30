@@ -85,6 +85,20 @@ const App: React.FC = () => {
     };
 
     initDesktopAPI();
+
+    // Cleanup: revoke all blob URLs on unmount
+    return () => {
+      console.log('[App] Cleaning up', activeBlobUrlsRef.current.size, 'blob URLs...');
+      activeBlobUrlsRef.current.forEach(blobUrl => {
+        try {
+          URL.revokeObjectURL(blobUrl);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      });
+      activeBlobUrlsRef.current.clear();
+      console.log('[App] ✓ All blob URLs revoked');
+    };
   }, []);
 
   const currentTrack = currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
@@ -152,8 +166,51 @@ const App: React.FC = () => {
     }
   }, [currentTrackIndex, tracks.length]);
 
+  // Track current blob URLs for cleanup
+  const activeBlobUrlsRef = useRef<Set<string>>(new Set());
+  const prevTrackBlobUrlRef = useRef<{ id: string | null; url: string | null }>({ id: null, url: null });
+
+  // Helper function to create and track blob URL
+  const createTrackedBlobUrl = (file: File): string => {
+    const blobUrl = URL.createObjectURL(file);
+    activeBlobUrlsRef.current.add(blobUrl);
+    console.log('[App] Created blob URL:', blobUrl, 'Total active:', activeBlobUrlsRef.current.size);
+    return blobUrl;
+  };
+
+  // Helper function to revoke blob URL
+  const revokeBlobUrl = (blobUrl: string) => {
+    if (blobUrl && blobUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(blobUrl);
+        activeBlobUrlsRef.current.delete(blobUrl);
+        console.log('[App] Revoked blob URL:', blobUrl, 'Remaining:', activeBlobUrlsRef.current.size);
+      } catch (e) {
+        console.warn('[App] Failed to revoke blob URL:', blobUrl, e);
+      }
+    }
+  };
+
+  // Clean up blob URLs that are no longer in tracks (optional, for memory management)
+  const cleanupUnusedBlobUrls = useCallback(() => {
+    const currentUrls = new Set(
+      tracks
+        .filter(t => t.audioUrl && t.audioUrl.startsWith('blob:'))
+        .map(t => t.audioUrl)
+    );
+
+    const toRevoke: string[] = [];
+    activeBlobUrlsRef.current.forEach(url => {
+      if (!currentUrls.has(url)) {
+        toRevoke.push(url);
+      }
+    });
+
+    console.log(`[App] Cleaning up ${toRevoke.length} unused blob URLs...`);
+    toRevoke.forEach(url => revokeBlobUrl(url));
+  }, [tracks]);
+
   // Helper function to load audio file for a track (lazy loading)
-  // Uses asset protocol for streaming (no need to load entire file into memory)
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
     const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI || !(track as any).filePath || track.audioUrl) {
@@ -178,21 +235,21 @@ const App: React.FC = () => {
           audioUrl: assetUrl,
         };
       } else {
-        // For Electron, use readFile ( Electron handles file:// efficiently)
-        console.log('[App] Using readFile for Electron');
+        // For Electron, use readFile with blob URL (with lifecycle management)
+        console.log('[App] Using readFile + Blob URL for Electron');
         const readResult = await desktopAPI.readFile((track as any).filePath);
 
         if (readResult.success && readResult.data.byteLength > 0) {
           const fileData = new Uint8Array(readResult.data);
           const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
-          const audioUrl = URL.createObjectURL(file);
+          const audioUrl = createTrackedBlobUrl(file);
 
           console.log('[App] ✓ Audio loaded, size:', (fileData.length / 1024 / 1024).toFixed(2), 'MB');
 
           return {
             ...track,
-            file: file,
             audioUrl: audioUrl,
+            // Don't store File object - blob URL is enough
           };
         } else {
           console.error('[App] Failed to load audio file:', readResult.error);
@@ -269,7 +326,7 @@ const App: React.FC = () => {
               }
               const byteArray = new Uint8Array(byteNumbers);
               const blob = new Blob([byteArray], { type: metadata.coverMime });
-              coverUrl = URL.createObjectURL(blob);
+              coverUrl = createTrackedBlobUrl(blob);
             }
 
             if (existingIndex !== -1) {
@@ -487,6 +544,12 @@ const App: React.FC = () => {
       // Load audio file if not loaded yet (lazy loading)
       if (!currentTrack.audioUrl && (currentTrack as any).filePath) {
         console.log('[App] Lazy loading audio for:', currentTrack.title);
+
+        // Set flag for auto-play after load completes
+        if (isPlaying) {
+          shouldAutoPlayRef.current = true;
+        }
+
         loadAudioFileForTrack(currentTrack).then(updatedTrack => {
           setTracks(prev => {
             const newTracks = [...prev];
@@ -497,6 +560,7 @@ const App: React.FC = () => {
             return newTracks;
           });
         });
+        return; // Don't continue to playback logic
       }
 
       // Reset waiting flag when track changes
@@ -534,6 +598,12 @@ const App: React.FC = () => {
           });
         } else {
           audioRef.current.pause();
+        }
+      } else {
+        // No audioUrl available, pause if playing
+        if (isPlaying) {
+          audioRef.current.pause();
+          setIsPlaying(false);
         }
       }
     }
@@ -662,12 +732,30 @@ const App: React.FC = () => {
                 console.log(`[App] ✓ Using cached metadata for: ${song.title}`);
                 const cachedMetadata = metadataCacheService.cachedToTrack(cached, song.filePath, song.id);
 
+                // Create tracked blob URL for cover if available
+                let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
+                if (cachedMetadata.coverData && cachedMetadata.coverMime) {
+                  const byteCharacters = atob(cachedMetadata.coverData);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], { type: cachedMetadata.coverMime });
+                  coverUrl = createTrackedBlobUrl(blob);
+                }
+
                 restoredTrack = {
                   ...song,
-                  ...cachedMetadata,
+                  title: cachedMetadata.title,
+                  artist: cachedMetadata.artist,
+                  album: cachedMetadata.album,
+                  duration: cachedMetadata.duration,
+                  lyrics: cachedMetadata.lyrics,
+                  syncedLyrics: cachedMetadata.syncedLyrics,
                   file: undefined, // Don't load file yet
                   audioUrl: '', // Will be loaded on play
-                  coverUrl: cachedMetadata.coverUrl || `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`,
+                  coverUrl: coverUrl,
                   available: true
                 };
               } else {
@@ -710,7 +798,7 @@ const App: React.FC = () => {
                     }
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
-                    coverUrl = URL.createObjectURL(blob);
+                    coverUrl = createTrackedBlobUrl(blob); // Use tracked blob URL
                   }
 
                   restoredTrack = {
@@ -905,10 +993,25 @@ const App: React.FC = () => {
 
   // Remove track function
   const handleRemoveTrack = useCallback(async (trackId: string) => {
+    // Find the track to remove
+    const trackToRemove = tracks.find(t => t.id === trackId);
+
+    // Revoke blob URLs
+    if (trackToRemove) {
+      // Revoke audio blob URL
+      if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
+        revokeBlobUrl(trackToRemove.audioUrl);
+      }
+
+      // Revoke cover blob URL
+      if (trackToRemove.coverUrl && trackToRemove.coverUrl.startsWith('blob:')) {
+        revokeBlobUrl(trackToRemove.coverUrl);
+      }
+    }
+
     // In Desktop (Electron/Tauri), delete the symlink file first
     const desktopAPI = await getDesktopAPIAsync();
     if (desktopAPI) {
-      const trackToRemove = tracks.find(t => t.id === trackId);
       if (trackToRemove && (trackToRemove as any).filePath) {
         try {
           const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
@@ -998,7 +1101,7 @@ const App: React.FC = () => {
                   }
                   const byteArray = new Uint8Array(byteNumbers);
                   const blob = new Blob([byteArray], { type: metadata.coverMime });
-                  coverUrl = URL.createObjectURL(blob);
+                  coverUrl = createTrackedBlobUrl(blob);
                 }
 
                 // Update track with metadata
