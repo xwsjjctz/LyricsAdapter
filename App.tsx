@@ -385,6 +385,50 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle dropped files (for drag & drop import in Web environment)
+  const handleDropFiles = async (files: File[]) => {
+    console.log('[App] Drop import triggered');
+    console.log('[App] Files dropped:', files.length);
+
+    // Import each dropped file
+    for (const file of files) {
+      // Check if file already exists (by name and size)
+      const existingIndex = tracks.findIndex(track =>
+        track.file?.name === file.name && track.file?.size === file.size
+      );
+
+      const metadata = await parseAudioFile(file);
+
+      if (existingIndex !== -1) {
+        // Update existing track
+        setTracks(prev => {
+          const newTracks = [...prev];
+          newTracks[existingIndex] = {
+            ...newTracks[existingIndex],
+            ...metadata,
+            file: file,
+            fileName: file.name
+          };
+          return newTracks;
+        });
+        console.log('[App] ✓ Updated existing track:', file.name);
+      } else {
+        // Add new track
+        const newTrack: Track = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          ...metadata,
+          file: file,
+          fileName: file.name,
+          available: true
+        };
+        setTracks(prev => [...prev, newTrack]);
+        console.log('[App] ✓ Added new track:', file.name);
+      }
+    }
+
+    console.log('[App] ✓ All files imported successfully');
+  };
+
   // File input change handler (for Electron and Web)
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
@@ -1211,6 +1255,7 @@ const App: React.FC = () => {
             currentTrackIndex={currentTrackIndex}
             onTrackSelect={(idx) => { setCurrentTrackIndex(idx); setIsPlaying(true); }}
             onRemoveTrack={handleRemoveTrack}
+            onDropFiles={handleDropFiles}
           />
         </div>
 

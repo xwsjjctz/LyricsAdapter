@@ -6,16 +6,60 @@ interface LibraryViewProps {
   currentTrackIndex: number;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void;
+  onDropFiles?: (files: File[]) => void; // New: Handle dropped files
 }
 
 const LibraryView: React.FC<LibraryViewProps> = ({
   tracks,
   currentTrackIndex,
   onTrackSelect,
-  onRemoveTrack
+  onRemoveTrack,
+  onDropFiles
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDragging, setIsDragging] = useState(false); // New: Drag state
+
+  // Handle drag events
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (!onDropFiles) return;
+
+    // Get dropped files
+    const droppedFiles = Array.from(e.dataTransfer.files);
+
+    // Filter for audio files only
+    const audioExtensions = ['.flac', '.mp3', '.m4a', '.wav'];
+    const audioFiles = droppedFiles.filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      return audioExtensions.includes(ext);
+    });
+
+    if (audioFiles.length === 0) {
+      console.warn('[LibraryView] No audio files dropped');
+      return;
+    }
+
+    console.log(`[LibraryView] Dropped ${audioFiles.length} audio file(s)`);
+
+    // Call parent handler with dropped files
+    onDropFiles(audioFiles);
+  };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === tracks.length) {
@@ -58,7 +102,27 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full flex flex-col h-full">
+    <div
+      className={`max-w-5xl mx-auto w-full flex flex-col h-full relative transition-all duration-300 ${
+        isDragging
+          ? 'bg-primary/5'
+          : ''
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* 拖放覆盖层 - 拖放时显示 */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary animate-pulse">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
+            <p className="text-2xl font-bold text-primary mb-2">拖放音频文件到此处</p>
+            <p className="text-sm text-white/60">支持 FLAC, MP3, M4A, WAV 格式</p>
+          </div>
+        </div>
+      )}
+
       {/* 固定的标题部分 */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
