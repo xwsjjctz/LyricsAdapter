@@ -47,7 +47,7 @@ const App: React.FC = () => {
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(0.8);
+  const [volume, setVolume] = useState(0.5); // Lower default volume
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [forceUpdateCounter, setForceUpdateCounter] = useState(0); // Force re-render after restore
@@ -59,14 +59,26 @@ const App: React.FC = () => {
   const restoredTimeRef = useRef<number>(0); // Track the restored playback time
   const isRestoringTimeRef = useRef<boolean>(false); // Track if we're currently restoring playback time
 
+  // Convert linear volume (0-1) to exponential volume for better human perception
+  // This makes low volumes quieter and high volumes maintain their loudness
+  const linearToExponentialVolume = useCallback((linearVolume: number): number => {
+    // Use square curve: linear^2 gives smoother low-end
+    // This means:
+    // - 50% UI → 25% actual volume
+    // - 70% UI → 49% actual volume
+    // - 100% UI → 100% actual volume
+    return linearVolume * linearVolume;
+  }, []);
+
   // Callback ref to ensure volume is set when audio element is created
   const setAudioRef = useCallback((node: HTMLAudioElement | null) => {
     audioRef.current = node;
     if (node) {
-      console.log('Audio element created, setting volume to:', volume);
-      node.volume = volume;
+      const actualVolume = linearToExponentialVolume(volume);
+      console.log('Audio element created, setting volume to:', volume, '(actual:', actualVolume.toFixed(3), ')');
+      node.volume = actualVolume;
     }
-  }, [volume]);
+  }, [volume, linearToExponentialVolume]);
 
   // Initialize Desktop API on mount
   useEffect(() => {
@@ -417,25 +429,21 @@ const App: React.FC = () => {
 
   const skipForward = useCallback(() => {
     if (currentTrackIndex < tracks.length - 1) {
-      // Mark that we should auto-play if currently playing
-      if (isPlaying) {
-        shouldAutoPlayRef.current = true;
-      }
+      // Always auto-play when changing tracks
+      shouldAutoPlayRef.current = true;
       setCurrentTrackIndex(prev => prev + 1);
     }
-  }, [currentTrackIndex, tracks.length, isPlaying]);
+  }, [currentTrackIndex, tracks.length]);
 
   const skipBackward = useCallback(() => {
     if (currentTrackIndex > 0) {
-      // Mark that we should auto-play if currently playing
-      if (isPlaying) {
-        shouldAutoPlayRef.current = true;
-      }
+      // Always auto-play when changing tracks
+      shouldAutoPlayRef.current = true;
       setCurrentTrackIndex(prev => prev - 1);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
-  }, [currentTrackIndex, isPlaying]);
+  }, [currentTrackIndex]);
 
   const handleSeek = (time: number) => {
     if (audioRef.current) {
@@ -655,10 +663,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (audioRef.current) {
-      console.log('Volume changed to:', volume);
-      audioRef.current.volume = volume;
+      const actualVolume = linearToExponentialVolume(volume);
+      console.log('Volume changed to:', volume, '(actual:', actualVolume.toFixed(3), ')');
+      audioRef.current.volume = actualVolume;
     }
-  }, [volume]);
+  }, [volume, linearToExponentialVolume]);
 
   // Debug: Log when currentTime changes
   useEffect(() => {
