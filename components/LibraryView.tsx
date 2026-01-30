@@ -37,10 +37,22 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     setSelectedIds(newSelected);
   };
 
-  const handleRemoveSelected = () => {
-    selectedIds.forEach(id => {
-      onRemoveTrack(id);
-    });
+  const handleRemoveSelected = async () => {
+    // Convert Set to Array and remove tracks one by one to avoid race conditions
+    const idsToRemove = Array.from(selectedIds);
+
+    console.log(`[LibraryView] Removing ${idsToRemove.length} tracks sequentially...`);
+
+    // Remove tracks sequentially to avoid state update conflicts
+    for (let i = 0; i < idsToRemove.length; i++) {
+      const id = idsToRemove[i];
+      console.log(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
+      await onRemoveTrack(id);
+    }
+
+    console.log('[LibraryView] All tracks removed successfully');
+
+    // Clear selection and exit edit mode
     setSelectedIds(new Set());
     setIsEditMode(false);
   };

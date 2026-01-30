@@ -669,11 +669,6 @@ const App: React.FC = () => {
     }
   }, [volume, linearToExponentialVolume]);
 
-  // Debug: Log when currentTime changes
-  useEffect(() => {
-    console.log('[App] currentTime state changed to:', currentTime);
-  }, [currentTime]);
-
   // Load library from disk on mount (Desktop only)
   useEffect(() => {
     const loadLibraryFromDisk = async () => {
@@ -1034,18 +1029,37 @@ const App: React.FC = () => {
       }
     }
 
+    // Use functional update to avoid race conditions
     setTracks(prev => {
       const newTracks = prev.filter(t => t.id !== trackId);
+
       // Update current track index if needed
-      if (currentTrackIndex >= newTracks.length) {
-        setCurrentTrackIndex(Math.max(0, newTracks.length - 1));
-      } else if (newTracks.length === 0) {
-        setCurrentTrackIndex(-1);
-        setIsPlaying(false);
-      }
+      // Use setTimeout to ensure state updates are batched
+      setTimeout(() => {
+        setCurrentTrackIndex(prevIndex => {
+          // If the removed track was before or at current position, adjust index
+          const removedIndex = prev.findIndex(t => t.id === trackId);
+          if (removedIndex < 0) return prevIndex;
+
+          if (removedIndex <= prevIndex) {
+            // Decrease index by 1, but don't go below 0
+            const newIndex = Math.max(0, prevIndex - 1);
+            // If index is now beyond array bounds, clamp it
+            return newIndex >= newTracks.length ? Math.max(0, newTracks.length - 1) : newIndex;
+          }
+          return prevIndex;
+        });
+
+        // If no tracks left, reset player
+        if (newTracks.length === 0) {
+          setCurrentTrackIndex(-1);
+          setIsPlaying(false);
+        }
+      }, 0);
+
       return newTracks;
     });
-  }, [currentTrackIndex, tracks, isDesktop]);
+  }, [tracks]);
 
   // Reload files in Desktop (Electron/Tauri)
   const handleReloadFiles = useCallback(async () => {
