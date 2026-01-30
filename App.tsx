@@ -11,6 +11,7 @@ import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Electron API type (for backwards compatibility)
 declare global {
@@ -58,6 +59,7 @@ const App: React.FC = () => {
   const waitingForCanPlayRef = useRef<boolean>(false); // Track if we're waiting for canplay event
   const restoredTimeRef = useRef<number>(0); // Track the restored playback time
   const isRestoringTimeRef = useRef<boolean>(false); // Track if we're currently restoring playback time
+  const tracksCountRef = useRef<number>(0); // Track actual tracks count for immediate access after deletion
 
   // Convert linear volume (0-1) to exponential volume for better human perception
   // This makes low volumes quieter and high volumes maintain their loudness
@@ -301,6 +303,11 @@ const App: React.FC = () => {
 
         // O(1) duplicate check
         const existingTrack = tracksMap.get(fileName);
+        if (existingTrack) {
+          console.log(`[App] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
+        } else {
+          console.log(`[App] 🆕 File "${fileName}" is new, creating new track`);
+        }
 
         // Create symlink
         let savedFilePath = '';
@@ -308,6 +315,9 @@ const App: React.FC = () => {
           const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
           if (saveResult?.success && saveResult?.filePath) {
             savedFilePath = saveResult.filePath;
+            console.log(`[App] ✅ File saved: ${fileName} → ${savedFilePath} (${saveResult.method})`);
+          } else {
+            console.warn(`[App] ⚠️ saveAudioFile failed for "${fileName}":`, saveResult);
           }
         } catch (error) {
           console.error(`[App] ❌ Failed to save file "${fileName}":`, error);
@@ -325,6 +335,7 @@ const App: React.FC = () => {
           const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
           if (parseResult.success && parseResult.metadata) {
             metadata = parseResult.metadata;
+            console.log(`[App] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
           }
         } catch (error) {
           console.error('[App] Failed to parse metadata:', error);
@@ -333,7 +344,7 @@ const App: React.FC = () => {
 
         const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
 
-        // Cache metadata
+        // Cache metadata (NOT including coverData to avoid localStorage quota exceeded)
         if (metadata) {
           metadataCacheService.set(trackId, {
             title: metadata.title,
@@ -342,8 +353,7 @@ const App: React.FC = () => {
             duration: metadata.duration,
             lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
-            coverData: metadata.coverData,
-            coverMime: metadata.coverMime,
+            // NOTE: coverData/coverMime NOT cached - will be re-extracted from file when needed
             fileName: fileName,
             fileSize: 1,
             lastModified: Date.now(),
@@ -367,7 +377,7 @@ const App: React.FC = () => {
           }
         }
 
-        return {
+        const track = {
           id: trackId,
           title: metadata?.title || fileName.replace(/\.[^/.]+$/, ""),
           artist: metadata?.artist || 'Unknown Artist',
@@ -382,11 +392,16 @@ const App: React.FC = () => {
           addedAt: new Date().toISOString(),
           available: true
         } as Track;
+
+        console.log(`[App] ✓ Track created: ${track.title} (ID: ${track.id})`);
+        return track;
       })
     );
 
     // Filter out null results (failed files)
-    return results.filter((track): track is Track => track !== null);
+    const filtered = results.filter((track): track is Track => track !== null);
+    console.log(`[App] Batch complete: ${results.length} total, ${filtered.length} successful, ${results.length - filtered.length} failed`);
+    return filtered;
   }, [createTrackedBlobUrl]);
 
   // Process a batch of Web files in parallel
@@ -450,7 +465,8 @@ const App: React.FC = () => {
 
       const filePaths = result.filePaths;
       console.log(`[App] Processing ${filePaths.length} file(s)...`);
-      console.log(`[App] Current tracks count before import: ${tracks.length}`);
+      console.log(`[App] Current tracks count before import (state): ${tracks.length}`);
+      console.log(`[App] Current tracks count before import (ref): ${tracksCountRef.current}`);
 
       // Create Map for O(1) duplicate checking
       const tracksMap = createTracksMap();
@@ -463,9 +479,16 @@ const App: React.FC = () => {
       let totalProcessed = 0;
       let totalFailed = 0;
 
+      console.log(`[App] ===== Starting Import Process =====`);
+      console.log(`[App] Total files to import: ${filePaths.length}`);
+
       for (let i = 0; i < filePaths.length; i += BATCH_SIZE) {
         const batch = filePaths.slice(i, i + BATCH_SIZE);
-        console.log(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(filePaths.length / BATCH_SIZE)} (${batch.length} files)`);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(filePaths.length / BATCH_SIZE);
+
+        console.log(`[App] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
+        console.log(`[App] Files in this batch:`, batch.map(f => f.split(/[/\\]/).pop()));
 
         // Process this batch in parallel
         const batchTracks = await processDesktopFileBatch(batch, desktopAPI, tracksMap);
@@ -477,31 +500,49 @@ const App: React.FC = () => {
         totalProcessed += batch.length;
         totalFailed += failedCount;
 
-        console.log(`[App] Batch result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
+        console.log(`[App] ✅ Batch ${batchNumber} result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
 
         allNewTracks.push(...successfulTracks);
 
         // Update UI every UI_UPDATE_BATCH tracks
         if (allNewTracks.length >= UI_UPDATE_BATCH) {
-          console.log(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
-          console.log(`[App] Current tracks count before update: ${tracks.length}`);
+          console.log(`[App] 🎨 UI update threshold reached (${allNewTracks.length} tracks)`);
+          console.log(`[App] Current tracks count before update (state): ${tracks.length}`);
+          console.log(`[App] Current tracks count before update (ref): ${tracksCountRef.current}`);
+
+          // Capture the current batch size
+          const batchSize = allNewTracks.length;
+
           setTracks(prev => {
             const newTracks = [...prev, ...allNewTracks];
-            console.log(`[App] ✏️ Updating tracks: ${prev.length} → ${newTracks.length}`);
+            console.log(`[App] ✏️ Updating tracks: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
             return newTracks;
           });
-          allNewTracks.length = 0;
+
+          // Update ref immediately
+          tracksCountRef.current = tracksCountRef.current + batchSize;
+          console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
+          console.log(`[App] ✓ UI updated, scheduling batch buffer clear`);
+
+          // CRITICAL: Clear array AFTER setTracks callback executes (use setTimeout)
+          setTimeout(() => {
+            allNewTracks.length = 0;
+            console.log(`[App] ✓ Batch buffer cleared`);
+          }, 0);
         }
       }
 
       // Add remaining tracks
       if (allNewTracks.length > 0) {
         console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+        const finalBatchSize = allNewTracks.length;
         setTracks(prev => {
           const newTracks = [...prev, ...allNewTracks];
-          console.log(`[App] ✏️ Final update: ${prev.length} → ${newTracks.length}`);
+          console.log(`[App] ✏️ Final update: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
           return newTracks;
         });
+        tracksCountRef.current = tracksCountRef.current + finalBatchSize;
+        console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
       }
 
       // Wait a bit for state to update, then save
@@ -930,27 +971,43 @@ const App: React.FC = () => {
                 console.log(`[App] ✓ Using cached metadata for: ${song.title}`);
                 const cachedMetadata = metadataCacheService.cachedToTrack(cached, song.filePath, song.id);
 
-                // Create tracked blob URL for cover if available
+                // NOTE: In Desktop mode, we don't cache coverData to avoid localStorage quota issues
+                // So we need to re-parse the file to get the cover art
+                console.log(`[App] Re-parsing file to extract cover art: ${song.title}`);
+
+                let parsedMetadata = null;
+                try {
+                  const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
+                  if (parseResult.success && parseResult.metadata) {
+                    parsedMetadata = parseResult.metadata;
+                  }
+                } catch (e) {
+                  console.error('[App] Failed to parse cover art:', e);
+                }
+
+                // Create cover URL - use parsed cover if available, otherwise use cached text metadata
                 let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
-                if (cachedMetadata.coverData && cachedMetadata.coverMime) {
-                  const byteCharacters = atob(cachedMetadata.coverData);
+                if (parsedMetadata?.coverData && parsedMetadata?.coverMime) {
+                  // Use cover from re-parsed file
+                  const byteCharacters = atob(parsedMetadata.coverData);
                   const byteNumbers = new Array(byteCharacters.length);
                   for (let i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                   }
                   const byteArray = new Uint8Array(byteNumbers);
-                  const blob = new Blob([byteArray], { type: cachedMetadata.coverMime });
+                  const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
                   coverUrl = createTrackedBlobUrl(blob);
+                  console.log(`[App] ✓ Extracted cover art from file: ${song.title}`);
                 }
 
                 restoredTrack = {
                   ...song,
-                  title: cachedMetadata.title,
-                  artist: cachedMetadata.artist,
-                  album: cachedMetadata.album,
-                  duration: cachedMetadata.duration,
-                  lyrics: cachedMetadata.lyrics,
-                  syncedLyrics: cachedMetadata.syncedLyrics,
+                  title: cachedMetadata.title || parsedMetadata?.title || song.title,
+                  artist: cachedMetadata.artist || parsedMetadata?.artist || song.artist,
+                  album: cachedMetadata.album || parsedMetadata?.album || song.album,
+                  duration: cachedMetadata.duration || parsedMetadata?.duration || song.duration,
+                  lyrics: cachedMetadata.lyrics || parsedMetadata?.lyrics || song.lyrics,
+                  syncedLyrics: cachedMetadata.syncedLyrics || parsedMetadata?.syncedLyrics,
                   file: undefined, // Don't load file yet
                   audioUrl: '', // Will be loaded on play
                   coverUrl: coverUrl,
@@ -966,7 +1023,7 @@ const App: React.FC = () => {
                   if (parseResult.success && parseResult.metadata) {
                     parsedMetadata = parseResult.metadata;
 
-                    // Cache the parsed metadata
+                    // Cache the parsed metadata (NOT including coverData to avoid localStorage quota exceeded)
                     metadataCacheService.set(song.id, {
                       title: parsedMetadata.title,
                       artist: parsedMetadata.artist,
@@ -974,8 +1031,7 @@ const App: React.FC = () => {
                       duration: parsedMetadata.duration,
                       lyrics: parsedMetadata.lyrics,
                       syncedLyrics: parsedMetadata.syncedLyrics,
-                      coverData: parsedMetadata.coverData,
-                      coverMime: parsedMetadata.coverMime,
+                      // NOTE: coverData/coverMime NOT cached - will be re-extracted from file when needed
                       fileName: song.fileName,
                       fileSize: 1,
                       lastModified: Date.now(),
@@ -1102,6 +1158,12 @@ const App: React.FC = () => {
     loadLibraryFromDisk();
   }, []);
 
+  // Sync tracksCountRef with tracks.length (for immediate access after deletion)
+  useEffect(() => {
+    tracksCountRef.current = tracks.length;
+    console.log(`[App] tracksCountRef synced to: ${tracks.length}`);
+  }, [tracks.length]);
+
   // Auto-save library to disk when tracks change (Desktop only, debounced)
   useEffect(() => {
     if (isDesktop()) {
@@ -1227,32 +1289,116 @@ const App: React.FC = () => {
     setTracks(prev => {
       const newTracks = prev.filter(t => t.id !== trackId);
 
-      // Update current track index if needed
-      // Use setTimeout to ensure state updates are batched
-      setTimeout(() => {
-        setCurrentTrackIndex(prevIndex => {
-          // If the removed track was before or at current position, adjust index
-          const removedIndex = prev.findIndex(t => t.id === trackId);
-          if (removedIndex < 0) return prevIndex;
+      // Find the index of the removed track in the previous array
+      const removedIndex = prev.findIndex(t => t.id === trackId);
 
-          if (removedIndex <= prevIndex) {
-            // Decrease index by 1, but don't go below 0
-            const newIndex = Math.max(0, prevIndex - 1);
-            // If index is now beyond array bounds, clamp it
-            return newIndex >= newTracks.length ? Math.max(0, newTracks.length - 1) : newIndex;
-          }
-          return prevIndex;
-        });
-
+      // Update current track index IMMEDIATELY (not in setTimeout) to avoid out-of-bounds during batch deletion
+      setCurrentTrackIndex(prevIndex => {
         // If no tracks left, reset player
         if (newTracks.length === 0) {
-          setCurrentTrackIndex(-1);
+          // Stop playback if no tracks remain
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+          }
           setIsPlaying(false);
+          return -1;
         }
-      }, 0);
+
+        // If removed track wasn't found, keep current index
+        if (removedIndex < 0) return prevIndex;
+
+        // If the removed track was before or at current position, adjust index
+        if (removedIndex <= prevIndex) {
+          // Decrease index by 1, but don't go below 0
+          const newIndex = Math.max(0, prevIndex - 1);
+          // If index is now beyond array bounds, clamp it
+          return newIndex >= newTracks.length ? Math.max(0, newTracks.length - 1) : newIndex;
+        }
+
+        return prevIndex;
+      });
 
       return newTracks;
     });
+  }, [tracks]);
+
+  // Remove multiple tracks at once (batch deletion)
+  const handleRemoveMultipleTracks = useCallback(async (trackIds: string[]) => {
+    console.log(`[App] Batch removing ${trackIds.length} tracks...`);
+
+    // Collect all tracks to remove for cleanup
+    const tracksToRemove = tracks.filter(t => trackIds.includes(t.id));
+
+    // Revoke blob URLs for all tracks
+    for (const track of tracksToRemove) {
+      if (track.audioUrl && track.audioUrl.startsWith('blob:')) {
+        revokeBlobUrl(track.audioUrl);
+      }
+      if (track.coverUrl && track.coverUrl.startsWith('blob:')) {
+        revokeBlobUrl(track.coverUrl);
+      }
+    }
+
+    // Delete audio files in Desktop mode
+    const desktopAPI = await getDesktopAPIAsync();
+    if (desktopAPI) {
+      for (const track of tracksToRemove) {
+        if ((track as any).filePath) {
+          try {
+            await desktopAPI.deleteAudioFile((track as any).filePath);
+          } catch (error) {
+            console.error(`Failed to delete file for ${track.title}:`, error);
+          }
+        }
+      }
+    }
+
+    // Update state ONCE with all tracks removed
+    setTracks(prev => {
+      const newTracks = prev.filter(t => !trackIds.includes(t.id));
+
+      // Update currentTrackIndex based on how many tracks before it were removed
+      setCurrentTrackIndex(prevIndex => {
+        // If no tracks left, reset player
+        if (newTracks.length === 0) {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+          }
+          setIsPlaying(false);
+          return -1;
+        }
+
+        // Count how many tracks before the current position were removed
+        const removedBeforeCurrent = trackIds.filter(id => {
+          const removedIndex = prev.findIndex(t => t.id === id);
+          return removedIndex >= 0 && removedIndex < prevIndex;
+        }).length;
+
+        // Calculate new index
+        let newIndex = prevIndex - removedBeforeCurrent;
+
+        // Clamp to valid range
+        if (newIndex >= newTracks.length) {
+          newIndex = Math.max(0, newTracks.length - 1);
+        }
+        if (newIndex < 0) {
+          newIndex = 0;
+        }
+
+        console.log(`[App] Current track index: ${prevIndex} → ${newIndex} (removed ${removedBeforeCurrent} tracks before current)`);
+        return newIndex;
+      });
+
+      return newTracks;
+    });
+
+    // Update ref immediately for use in subsequent operations
+    tracksCountRef.current = tracks.length - trackIds.length;
+    console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
+
+    console.log(`[App] ✓ Batch removal complete: ${trackIds.length} tracks removed`);
   }, [tracks]);
 
   // Reload files in Desktop (Electron/Tauri)
@@ -1293,7 +1439,7 @@ const App: React.FC = () => {
               if (parseResult.success && parseResult.metadata) {
                 const metadata = parseResult.metadata;
 
-                // Update cache with Rust metadata
+                // Update cache with Rust metadata (NOT including coverData to avoid localStorage quota exceeded)
                 metadataCacheService.set(updatedTracks[trackIndex].id, {
                   title: metadata.title,
                   artist: metadata.artist,
@@ -1301,8 +1447,7 @@ const App: React.FC = () => {
                   duration: metadata.duration,
                   lyrics: metadata.lyrics,
                   syncedLyrics: metadata.syncedLyrics,
-                  coverData: metadata.coverData,
-                  coverMime: metadata.coverMime,
+                  // NOTE: coverData/coverMime NOT cached - will be re-extracted from file when needed
                   fileName: fileName,
                   fileSize: 1,
                   lastModified: Date.now(),
@@ -1357,92 +1502,95 @@ const App: React.FC = () => {
   }, [tracks]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
-      <TitleBar />
-      <div className="flex flex-1">
-        <Sidebar
-        onImportClick={() => {
-          // Check if running in Desktop environment (Electron or Tauri)
-          if (isDesktop()) {
-            // Desktop: Use native file dialog
-            handleDesktopImport();
-          } else {
-            // Web: Use file input
-            fileInputRef.current?.click();
-          }
-        }}
-        onNavigate={(mode) => { setViewMode(mode); setIsFocusMode(false); }}
-        onReloadFiles={handleReloadFiles}
-        hasUnavailableTracks={tracks.some(t => t.available === false)}
-        currentView={viewMode}
-      />
-
-      <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
-        {currentTrack && (
-          <audio
-            ref={setAudioRef}
-            src={currentTrack.audioUrl}
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
-            onLoadedData={handleLoadedMetadata}
-            onEnded={handleTrackEnded}
-            onCanPlay={handleCanPlay}
-          />
-        )}
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          multiple
-          accept=".flac,.mp3,.m4a,.wav"
-          className="hidden"
-          onChange={handleFileInputChange}
+    <ErrorBoundary>
+      <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
+        <TitleBar />
+        <div className="flex flex-1">
+          <Sidebar
+          onImportClick={() => {
+            // Check if running in Desktop environment (Electron or Tauri)
+            if (isDesktop()) {
+              // Desktop: Use native file dialog
+              handleDesktopImport();
+            } else {
+              // Web: Use file input
+              fileInputRef.current?.click();
+            }
+          }}
+          onNavigate={(mode) => { setViewMode(mode); setIsFocusMode(false); }}
+          onReloadFiles={handleReloadFiles}
+          hasUnavailableTracks={tracks.some(t => t.available === false)}
+          currentView={viewMode}
         />
 
-        <div className="flex-1 p-10 overflow-hidden pt-10">
-          <LibraryView
-            tracks={tracks}
-            currentTrackIndex={currentTrackIndex}
-            onTrackSelect={(idx) => { setCurrentTrackIndex(idx); setIsPlaying(true); }}
-            onRemoveTrack={handleRemoveTrack}
-            onDropFiles={handleDropFiles}
-          />
-        </div>
+        <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
+          {currentTrack && (
+            <audio
+              ref={setAudioRef}
+              src={currentTrack.audioUrl}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onLoadedData={handleLoadedMetadata}
+              onEnded={handleTrackEnded}
+              onCanPlay={handleCanPlay}
+            />
+          )}
 
-        <Controls
+          <input
+            type="file"
+            ref={fileInputRef}
+            multiple
+            accept=".flac,.mp3,.m4a,.wav"
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
+
+          <div className="flex-1 p-10 overflow-hidden pt-10">
+            <LibraryView
+              tracks={tracks}
+              currentTrackIndex={currentTrackIndex}
+              onTrackSelect={(idx) => { setCurrentTrackIndex(idx); setIsPlaying(true); }}
+              onRemoveTrack={handleRemoveTrack}
+              onRemoveMultipleTracks={handleRemoveMultipleTracks}
+              onDropFiles={handleDropFiles}
+            />
+          </div>
+
+          <Controls
+            track={currentTrack}
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            volume={volume}
+            onTogglePlay={togglePlay}
+            onSkipNext={skipForward}
+            onSkipPrev={skipBackward}
+            onSeek={handleSeek}
+            onVolumeChange={setVolume}
+            onToggleFocus={() => setIsFocusMode(!isFocusMode)}
+            isFocusMode={isFocusMode}
+            forceUpdateCounter={forceUpdateCounter}
+            audioRef={audioRef}
+          />
+        </main>
+
+        {/* Focus Mode Overlay */}
+        <FocusMode
           track={currentTrack}
-          isPlaying={isPlaying}
+          isVisible={isFocusMode}
           currentTime={currentTime}
-          volume={volume}
+          onClose={() => setIsFocusMode(false)}
+          isPlaying={isPlaying}
           onTogglePlay={togglePlay}
           onSkipNext={skipForward}
           onSkipPrev={skipBackward}
           onSeek={handleSeek}
+          volume={volume}
           onVolumeChange={setVolume}
-          onToggleFocus={() => setIsFocusMode(!isFocusMode)}
-          isFocusMode={isFocusMode}
-          forceUpdateCounter={forceUpdateCounter}
           audioRef={audioRef}
         />
-      </main>
-
-      {/* Focus Mode Overlay */}
-      <FocusMode
-        track={currentTrack}
-        isVisible={isFocusMode}
-        currentTime={currentTime}
-        onClose={() => setIsFocusMode(false)}
-        isPlaying={isPlaying}
-        onTogglePlay={togglePlay}
-        onSkipNext={skipForward}
-        onSkipPrev={skipBackward}
-        onSeek={handleSeek}
-        volume={volume}
-        onVolumeChange={setVolume}
-        audioRef={audioRef}
-      />
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

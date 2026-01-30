@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Track } from '../types';
 
 interface LibraryViewProps {
@@ -6,7 +6,8 @@ interface LibraryViewProps {
   currentTrackIndex: number;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void;
-  onDropFiles?: (files: File[]) => void; // New: Handle dropped files
+  onRemoveMultipleTracks?: (trackIds: string[]) => void; // Batch removal
+  onDropFiles?: (files: File[]) => void; // Handle dropped files
 }
 
 const LibraryView: React.FC<LibraryViewProps> = ({
@@ -14,11 +15,86 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   currentTrackIndex,
   onTrackSelect,
   onRemoveTrack,
+  onRemoveMultipleTracks,
   onDropFiles
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
+
+  // Ref for the scrollable container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const previousTrackIndexRef = useRef<number>(-1); // Track previous track index
+
+  // Auto-scroll to current track when currentTrackIndex changes
+  useEffect(() => {
+    // Skip if index is invalid (e.g., during or after batch deletion)
+    if (currentTrackIndex < 0 || currentTrackIndex >= tracks.length || !scrollContainerRef.current) {
+      return;
+    }
+
+    // Use setTimeout to ensure DOM is fully updated before querying elements
+    const timer = setTimeout(() => {
+      // Double-check bounds after timeout (in case tracks changed during deletion)
+      if (currentTrackIndex < 0 || currentTrackIndex >= tracks.length || !scrollContainerRef.current) {
+        console.log(`[LibraryView] Skip auto-scroll: index ${currentTrackIndex} out of bounds [0, ${tracks.length})`);
+        return;
+      }
+
+      try {
+        // Find the current track element
+        const trackElements = scrollContainerRef.current.querySelectorAll('[data-track-index]');
+
+        // Safety check: ensure we have enough elements
+        if (currentTrackIndex >= trackElements.length) {
+          console.warn(`[LibraryView] Skip auto-scroll: only ${trackElements.length} elements available, need index ${currentTrackIndex}`);
+          return;
+        }
+
+        const currentTrackElement = trackElements[currentTrackIndex] as HTMLElement;
+
+        if (!currentTrackElement) {
+          console.warn(`[LibraryView] Skip auto-scroll: element at index ${currentTrackIndex} is null`);
+          return;
+        }
+
+        // Check if the track is already visible in the viewport
+        const containerRect = scrollContainerRef.current.getBoundingClientRect();
+        const trackRect = currentTrackElement.getBoundingClientRect();
+        const isVisible = (
+          trackRect.top >= containerRect.top &&
+          trackRect.bottom <= containerRect.bottom
+        );
+
+        if (isVisible) {
+          console.log(`[LibraryView] Track ${currentTrackIndex + 1} is already visible, no scroll needed`);
+          previousTrackIndexRef.current = currentTrackIndex;
+          return;
+        }
+
+        // Determine scroll direction based on index change
+        const isNext = currentTrackIndex > previousTrackIndexRef.current;
+        const blockPosition = isNext ? 'end' : 'start'; // Next: bottom, Previous: top
+        const directionText = isNext ? 'bottom' : 'top';
+
+        console.log(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1} (${directionText})`);
+
+        // Scroll the track into view with smooth animation
+        currentTrackElement.scrollIntoView({
+          behavior: 'smooth',
+          block: blockPosition,
+          inline: 'nearest'
+        });
+
+        previousTrackIndexRef.current = currentTrackIndex;
+      } catch (error) {
+        console.error('[LibraryView] Error during auto-scroll:', error);
+        // Don't throw - let the component continue rendering
+      }
+    }, 0); // Execute in next event loop after DOM update
+
+    return () => clearTimeout(timer);
+  }, [currentTrackIndex, tracks.length]);
 
   // Handle drag events
   const handleDragOver = (e: React.DragEvent) => {
@@ -102,19 +178,25 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleRemoveSelected = async () => {
-    // Convert Set to Array and remove tracks one by one to avoid race conditions
+    // Convert Set to Array
     const idsToRemove = Array.from(selectedIds);
 
-    console.log(`[LibraryView] Removing ${idsToRemove.length} tracks sequentially...`);
+    console.log(`[LibraryView] Removing ${idsToRemove.length} tracks...`);
 
-    // Remove tracks sequentially to avoid state update conflicts
-    for (let i = 0; i < idsToRemove.length; i++) {
-      const id = idsToRemove[i];
-      console.log(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
-      await onRemoveTrack(id);
+    // Use batch removal if available (much faster and avoids state inconsistencies)
+    if (onRemoveMultipleTracks) {
+      await onRemoveMultipleTracks(idsToRemove);
+      console.log('[LibraryView] ✓ Batch removal complete');
+    } else {
+      // Fallback to sequential removal
+      console.log('[LibraryView] Using sequential removal (fallback)...');
+      for (let i = 0; i < idsToRemove.length; i++) {
+        const id = idsToRemove[i];
+        console.log(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
+        await onRemoveTrack(id);
+      }
+      console.log('[LibraryView] Sequential removal complete');
     }
-
-    console.log('[LibraryView] All tracks removed successfully');
 
     // Clear selection and exit edit mode
     setSelectedIds(new Set());
@@ -204,7 +286,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       </div>
 
       {/* 可滚动的歌曲列表 */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto no-scrollbar">
         {tracks.length > 0 ? (
           <div className="grid gap-2">
             {tracks.map((track, idx) => {
@@ -214,6 +296,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
               return (
                 <div
                   key={track.id}
+                  data-track-index={idx}  // Add identifier for auto-scroll
                   onClick={() => !isEditMode && !isUnavailable && onTrackSelect(idx)}
                   style={{
                     animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`

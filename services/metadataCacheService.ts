@@ -12,8 +12,8 @@ interface CachedMetadata {
   duration: number;
   lyrics: string;
   syncedLyrics?: { time: number; text: string }[];
-  coverData?: string; // Base64 encoded
-  coverMime?: string;
+  // NOTE: NOT caching coverData/coverMime to avoid localStorage quota exceeded errors
+  // Cover images can be re-extracted from audio files when needed
   fileName: string;
   fileSize: number;
   lastModified: number;
@@ -74,7 +74,9 @@ class MetadataCacheService {
       await desktopAPI.saveMetadataCache({ entries: entriesObj });
       console.log(`[MetadataCache] ✓ Saved ${this.cache.size} entries to disk`);
     } catch (error) {
-      console.error('[MetadataCache] Failed to save cache:', error);
+      // Log warning but don't throw - allow app to continue without cache
+      console.warn('[MetadataCache] Failed to save cache (non-critical):', error);
+      console.warn('[MetadataCache] App will continue without cache persistence');
     }
   }
 
@@ -90,10 +92,8 @@ class MetadataCacheService {
     duration: number;
     lyrics: string;
     syncedLyrics?: { time: number; text: string }[];
-    coverData?: string; // Base64 cover data - let caller create blob URL
-    coverMime?: string;
   } {
-    const result: any = {
+    return {
       title: cached.title,
       artist: cached.artist,
       album: cached.album,
@@ -101,14 +101,6 @@ class MetadataCacheService {
       lyrics: cached.lyrics,
       syncedLyrics: cached.syncedLyrics,
     };
-
-    // Return cover data as-is (base64), caller will create blob URL
-    if (cached.coverData && cached.coverMime) {
-      result.coverData = cached.coverData;
-      result.coverMime = cached.coverMime;
-    }
-
-    return result;
   }
 
   // Check if cached metadata is still valid (file hasn't changed)
