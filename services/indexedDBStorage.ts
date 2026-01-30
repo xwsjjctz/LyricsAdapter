@@ -126,7 +126,10 @@ class IndexedDBStorageService {
    */
   async getAllMetadata(): Promise<Record<string, any>> {
     await this.ensureInitialized();
-    if (!this.db) return {};
+    if (!this.db) {
+      console.error('[IndexedDB] Database not initialized!');
+      return {};
+    }
 
     try {
       const results = await this.db.getAll('metadata');
@@ -137,6 +140,9 @@ class IndexedDBStorageService {
       }
 
       console.log(`[IndexedDB] ✓ Loaded ${Object.keys(entries).length} metadata entries`);
+      if (Object.keys(entries).length > 0) {
+        console.log('[IndexedDB] Sample entries:', Object.keys(entries).slice(0, 3));
+      }
       return entries;
     } catch (error) {
       console.error('[IndexedDB] Failed to get all metadata:', error);
@@ -185,7 +191,8 @@ class IndexedDBStorageService {
     if (!this.db) return;
 
     try {
-      await this.db.put('covers', { key: songId, value: coverBlob });
+      // Use put with separate key and value parameters
+      await this.db.put('covers', coverBlob, songId);
       console.log(`[IndexedDB] ✓ Saved cover for ${songId} (${(coverBlob.size / 1024).toFixed(2)} KB)`);
     } catch (error) {
       console.error(`[IndexedDB] ✗ Failed to save cover for ${songId}:`, error);

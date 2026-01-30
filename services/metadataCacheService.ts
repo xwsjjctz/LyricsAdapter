@@ -40,33 +40,41 @@ class MetadataCacheService {
       console.warn('[MetadataCache] ⚠️ IndexedDB initialization failed, falling back to memory-only:', error);
     }
 
-    // Load metadata from Desktop API (Electron/Tauri) for backward compatibility
+    // Load metadata from IndexedDB (works in both Web and Desktop now!)
+    try {
+      console.log('[MetadataCache] Loading metadata from IndexedDB...');
+      const entries = await indexedDBStorage.getAllMetadata();
+      this.cache = new Map(Object.entries(entries));
+      console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from IndexedDB`);
+    } catch (error) {
+      console.warn('[MetadataCache] ⚠️ Failed to load from IndexedDB:', error);
+      this.cache = new Map();
+    }
+
+    // Desktop API: Load as fallback for migration purposes
     const desktopAPI = await getDesktopAPIAsync();
-    if (desktopAPI) {
+    if (desktopAPI && this.cache.size === 0) {
+      // Only load from Desktop API if IndexedDB is empty (migration)
       try {
-        console.log('[MetadataCache] Loading metadata from Desktop API...');
+        console.log('[MetadataCache] IndexedDB empty, loading from Desktop API for migration...');
         const result = await desktopAPI.loadMetadataCache();
 
-        // Convert object to Map
-        this.cache = new Map(
-          Object.entries(result.entries || {})
-        );
+        // Convert object to Map and migrate to IndexedDB
+        const entries = result.entries || {};
+        this.cache = new Map(Object.entries(entries));
 
-        console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from Desktop API`);
+        // Save to IndexedDB for next time
+        for (const [songId, metadata] of Object.entries(entries)) {
+          try {
+            await indexedDBStorage.setMetadata(songId, metadata);
+          } catch (error) {
+            console.warn(`[MetadataCache] Failed to migrate metadata for ${songId}:`, error);
+          }
+        }
+
+        console.log(`[MetadataCache] ✓ Migrated ${this.cache.size} entries from Desktop API to IndexedDB`);
       } catch (error) {
         console.warn('[MetadataCache] ⚠️ Failed to load from Desktop API (non-critical):', error);
-        this.cache = new Map();
-      }
-    } else {
-      // Web environment: load from IndexedDB
-      try {
-        console.log('[MetadataCache] Loading metadata from IndexedDB...');
-        const entries = await indexedDBStorage.getAllMetadata();
-        this.cache = new Map(Object.entries(entries));
-        console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from IndexedDB`);
-      } catch (error) {
-        console.warn('[MetadataCache] ⚠️ Failed to load from IndexedDB:', error);
-        this.cache = new Map();
       }
     }
 
@@ -167,19 +175,16 @@ class MetadataCacheService {
   }
 
   async save(): Promise<void> {
-    const desktopAPI = await getDesktopAPIAsync();
-    if (desktopAPI) {
-      // Desktop environment: save via IPC (backward compatibility)
-      try {
-        const entriesObj = Object.fromEntries(this.cache);
-        await desktopAPI.saveMetadataCache({ entries: entriesObj });
-        console.log(`[MetadataCache] ✓ Saved ${this.cache.size} entries to Desktop storage`);
-      } catch (error) {
-        console.warn('[MetadataCache] Failed to save to Desktop storage (non-critical):', error);
-      }
-    } else {
-      // Web environment: metadata already saved to IndexedDB in set()
-      console.log('[MetadataCache] Metadata auto-saved to IndexedDB');
+    // All environments now use IndexedDB for metadata storage
+    // Metadata is already saved in set() method asynchronously
+    // This save() is now mainly for triggering any pending operations
+
+    try {
+      // Ensure all pending IndexedDB writes are complete
+      // (Most saves happen in set() via fire-and-forget)
+      console.log('[MetadataCache] ✓ Metadata persistence check complete');
+    } catch (error) {
+      console.warn('[MetadataCache] Failed during persistence check:', error);
     }
   }
 

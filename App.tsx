@@ -932,11 +932,21 @@ const App: React.FC = () => {
       try {
         const libraryData = await libraryStorage.loadLibrary();
         console.log('[App] Library loaded from disk:', libraryData);
+        console.log('[App] ✅ Library data loaded:');
+        console.log(`   - Songs count: ${libraryData.songs?.length || 0}`);
+        console.log(`   - Settings:`, libraryData.settings);
 
         // Restore volume from settings
         if (libraryData.settings?.volume !== undefined) {
           console.log('Restoring volume:', libraryData.settings.volume);
           setVolume(libraryData.settings.volume);
+        }
+
+        if (libraryData.songs && libraryData.songs.length > 0) {
+          console.log(`[App] 📝 Found ${libraryData.songs.length} songs in library, loading...`);
+          console.log('[App] First 3 songs:', libraryData.songs.slice(0, 3).map(s => ({ id: s.id, title: s.title, fileName: s.fileName })));
+        } else {
+          console.warn('[App] ⚠️ No songs found in library data!');
         }
 
         if (libraryData.songs && libraryData.songs.length > 0) {
@@ -985,6 +995,7 @@ const App: React.FC = () => {
                 // Try to load cover from IndexedDB first (NEW - much faster!)
                 let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
                 let coverBlob: Blob | null = null;
+                let parsedMetadata: any = null; // ✅ Move to outer scope
 
                 if (cached.coverData && cached.coverMime) {
                   // We have cover data in cache, try to load from IndexedDB
@@ -1020,7 +1031,6 @@ const App: React.FC = () => {
                 // If we still don't have a cover, try re-parsing the file
                 if (!coverBlob && !cached.coverData) {
                   console.log(`[App] Cover not cached, re-parsing file: ${song.title}`);
-                  let parsedMetadata = null;
                   try {
                     const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
                     if (parseResult.success && parseResult.metadata) {

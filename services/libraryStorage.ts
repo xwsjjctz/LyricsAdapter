@@ -38,26 +38,24 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        console.log('⚠️ Not running in Desktop mode, skipping library load');
+        console.log('[LibraryStorage] ⚠️ Not running in Desktop mode, skipping library load');
         return { songs: [], settings: {} };
       }
 
-      console.log('📂 Loading library from disk...');
+      console.log('[LibraryStorage] 📂 Loading library from disk...');
       const result = await api.loadLibrary();
 
       if (result.success) {
-        console.log('✅ Library loaded successfully!');
-        console.log(`   - ${result.library.songs?.length || 0} songs found`);
-        if (result.library.songs?.length > 0) {
-          console.log('   - First song:', result.library.songs[0].title);
-        }
+        console.log('[LibraryStorage] ✅ Library loaded successfully!');
+        console.log(`[LibraryStorage]    - ${result.library.songs?.length || 0} songs found`);
+        console.log('[LibraryStorage]    - Settings:', result.library.settings);
         return result.library;
       } else {
-        console.error('❌ Failed to load library:', result.error);
+        console.error('[LibraryStorage] ❌ Failed to load library:', result.error);
         return { songs: [], settings: {} };
       }
     } catch (error) {
-      console.error('❌ Error loading library:', error);
+      console.error('[LibraryStorage] ❌ Error loading library:', error);
       return { songs: [], settings: {} };
     }
   }

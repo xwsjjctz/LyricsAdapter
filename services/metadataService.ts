@@ -391,6 +391,45 @@ function parseFLACPicture(buffer: ArrayBuffer): string {
 // Export libraryStorage for persistence
 export { libraryStorage } from './libraryStorage';
 
+/**
+ * Helper function to get audio duration without blocking
+ * Uses a hidden audio element and waits for loadedmetadata event
+ */
+function getAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    const objectUrl = URL.createObjectURL(file);
+
+    // Set a short timeout (2 seconds) to avoid hanging
+    const timeout = setTimeout(() => {
+      audio.removeAttribute('src');
+      audio.load();
+      URL.revokeObjectURL(objectUrl);
+      console.warn('[MetadataService] Duration fetch timeout for:', file.name);
+      resolve(0); // Return 0 if timeout
+    }, 2000);
+
+    audio.addEventListener('loadedmetadata', () => {
+      clearTimeout(timeout);
+      const duration = audio.duration;
+      audio.removeAttribute('src');
+      audio.load();
+      URL.revokeObjectURL(objectUrl);
+      resolve(duration || 0);
+    }, { once: true });
+
+    audio.addEventListener('error', () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(objectUrl);
+      console.warn('[MetadataService] Failed to load audio for duration:', file.name);
+      resolve(0); // Return 0 on error
+    }, { once: true });
+
+    // Start loading
+    audio.src = objectUrl;
+  });
+}
+
 export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
   // Default values
   const defaultResult: ParsedMetadata = {
@@ -419,10 +458,9 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
       metadata = parseFLAC(arrayBuffer);
     }
 
-    // ⚡ P0 FIX: Skip Audio element duration fetching in Web environment
-    // This was causing major performance bottlenecks (5 seconds per file!)
-    // Duration will be loaded lazily when the user actually plays the track
-    const duration = 0;
+    // Get duration in parallel (non-blocking, short timeout)
+    // This is much faster than the old 5-second timeout approach
+    const duration = await getAudioDuration(file);
 
     return {
       title: metadata.title || defaultResult.title,
