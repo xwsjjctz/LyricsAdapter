@@ -37,8 +37,8 @@ const createWindow = async () => {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 1080,
+    minHeight: 720,
     title: 'LyricsAdapter',
     frame: !isMacOS, // macOS 保留原生标题栏，其他平台移除
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden', // macOS 使用 hiddenInset 让背景延伸

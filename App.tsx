@@ -188,8 +188,8 @@ const App: React.FC = () => {
   const prevTrackBlobUrlRef = useRef<{ id: string | null; url: string | null }>({ id: null, url: null });
 
   // Helper function to create and track blob URL
-  const createTrackedBlobUrl = (file: File): string => {
-    const blobUrl = URL.createObjectURL(file);
+  const createTrackedBlobUrl = (blob: Blob | File): string => {
+    const blobUrl = URL.createObjectURL(blob);
     activeBlobUrlsRef.current.add(blobUrl);
     console.log('[App] Created blob URL:', blobUrl, 'Total active:', activeBlobUrlsRef.current.size);
     return blobUrl;
@@ -579,7 +579,10 @@ const App: React.FC = () => {
       console.log('[App] Manually triggering library save after import...');
       console.log(`[App] Saving ${tracks.length} tracks to disk...`);
       await libraryStorage.saveLibrary({
-        songs: tracks,
+        songs: tracks.map(track => ({
+          ...track,
+          audioUrl: track.audioUrl || ''
+        })),
         settings: {
           volume: volume,
           currentTrackIndex: currentTrackIndex,
@@ -1248,6 +1251,7 @@ const App: React.FC = () => {
           duration: track.duration,
           lyrics: track.lyrics,
           syncedLyrics: track.syncedLyrics,
+          audioUrl: track.audioUrl || '',
           filePath: (track as any).filePath || '',
           fileName: (track as any).fileName || '',
           fileSize: (track as any).fileSize || 0,
@@ -1290,6 +1294,7 @@ const App: React.FC = () => {
             duration: track.duration,
             lyrics: track.lyrics,
             syncedLyrics: track.syncedLyrics,
+            audioUrl: track.audioUrl || '',
             filePath: (track as any).filePath || '',
             fileName: (track as any).fileName || '',
             fileSize: (track as any).fileSize || 0,
@@ -1681,6 +1686,7 @@ const App: React.FC = () => {
           onSeek={handleSeek}
           volume={volume}
           onVolumeChange={setVolume}
+          onToggleFocus={() => setIsFocusMode(!isFocusMode)}
           audioRef={audioRef}
         />
         </div>

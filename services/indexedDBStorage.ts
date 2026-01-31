@@ -18,6 +18,7 @@ interface LyricsAdapterDB extends DBSchema {
   metadata: {
     key: string;
     value: {
+      key: string;
       title: string;
       artist: string;
       album: string;
@@ -99,12 +100,15 @@ class IndexedDBStorageService {
 
     try {
       const result = await this.db.get('metadata', validSongId);
-      if (!result?.value) {
+      if (!result) {
         return null;
       }
 
+      // Extract the metadata from the result (exclude the key field)
+      const { key, ...metadata } = result;
+
       // Validate the metadata structure
-      const validated = validateMetadata(result.value);
+      const validated = validateMetadata(metadata);
       if (!validated) {
         console.warn(`[IndexedDB] Invalid metadata structure for ${validSongId}, removing from cache`);
         // Remove invalid entry
@@ -142,7 +146,7 @@ class IndexedDBStorageService {
     }
 
     try {
-      await this.db.put('metadata', { key: validSongId, value: validated });
+      await this.db.put('metadata', { key: validSongId, ...validated });
       console.log(`[IndexedDB] ✓ Saved metadata for ${validSongId}`);
     } catch (error) {
       console.error(`[IndexedDB] ✗ Failed to save metadata for ${validSongId}:`, error);
@@ -189,7 +193,9 @@ class IndexedDBStorageService {
       const rawEntries: Record<string, any> = {};
 
       for (const result of results) {
-        rawEntries[result.key] = result.value;
+        // Extract key and metadata from result
+        const { key, ...metadata } = result;
+        rawEntries[key] = metadata;
       }
 
       // Validate all entries
@@ -246,19 +252,18 @@ class IndexedDBStorageService {
 
     try {
       const result = await this.db.get('covers', validSongId);
-      if (!result?.value) {
+      if (!result) {
         return null;
       }
 
       // Validate the returned blob
-      const blob = result.value;
-      if (!validateBlob(blob, 10 * 1024 * 1024)) {
+      if (!validateBlob(result, 10 * 1024 * 1024)) {
         console.warn(`[IndexedDB] Invalid blob in cache for ${validSongId}, removing`);
         await this.db.delete('covers', validSongId);
         return null;
       }
 
-      return blob;
+      return result;
     } catch (error) {
       console.error(`[IndexedDB] Failed to get cover for ${validSongId}:`, error);
       return null;
@@ -288,7 +293,7 @@ class IndexedDBStorageService {
     }
 
     try {
-      // Use put with separate key and value parameters
+      // Use put with the blob as value and songId as key
       await this.db.put('covers', validated, validSongId);
       console.log(`[IndexedDB] ✓ Saved cover for ${validSongId} (${(validated.size / 1024).toFixed(2)} KB)`);
     } catch (error) {
