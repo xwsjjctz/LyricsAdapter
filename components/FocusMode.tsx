@@ -465,10 +465,10 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
         </header>
 
         {/* Content Section */}
-        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-hidden mb-24 max-w-5xl mx-auto w-full translate-x-8 lg:translate-x-12">
+        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-visible mb-24 max-w-5xl mx-auto w-full translate-x-8 lg:translate-x-12">
 
           {/* Cover & Title */}
-          <div className="flex-none flex flex-col items-center justify-center w-auto">
+          <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
             <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
               <img
                 src={track?.coverUrl}
