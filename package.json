@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
+  "author": "xwsjjctz",
+  "license": "MIT",
+  "description": "一款能解析音频内嵌歌词且挺好看的离线本地音乐播放器",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

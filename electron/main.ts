@@ -7,6 +7,14 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Suppress macOS Electron warnings
+// Disable GPU sandbox on macOS to avoid SetApplicationIsDaemon error
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// Disable quota database warnings
+app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
+// Enable logging for storage but suppress quota errors
+app.commandLine.appendSwitch('log-level', '3');
+
 // The built directory structure
 //
 // ├─┬─┬ dist
