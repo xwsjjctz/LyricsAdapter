@@ -102,6 +102,72 @@ class MetadataCacheService {
   // ========== Cover Image Caching (NEW!) ==========
 
   /**
+   * Compress image blob to reduce storage size
+   * @param blob - Original image blob
+   * @param maxWidth - Maximum width in pixels (default: 800)
+   * @param quality - JPEG quality 0-1 (default: 0.85)
+   * @returns Compressed blob
+   */
+  private async compressImage(blob: Blob, maxWidth: number = 800, quality: number = 0.85): Promise<Blob> {
+    // Skip compression for small images
+    if (blob.size < 500 * 1024) { // Less than 500KB
+      return blob;
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate scale ratio
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        // Draw image on canvas
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress as JPEG
+        canvas.toBlob(
+          (compressed) => {
+            if (compressed) {
+              console.log(`[MetadataCache] Image compressed: ${(blob.size / 1024).toFixed(2)} KB → ${(compressed.size / 1024).toFixed(2)} KB`);
+              resolve(compressed);
+            } else {
+              reject(new Error('Compression failed'));
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image'));
+      };
+
+      img.src = url;
+    });
+  }
+
+  /**
    * Get cover blob URL for a song
    * Returns cached URL if available, null otherwise
    */
@@ -142,17 +208,20 @@ class MetadataCacheService {
    */
   async saveCover(songId: string, coverBlob: Blob): Promise<void> {
     try {
-      await indexedDBStorage.setCover(songId, coverBlob);
+      // Compress image before saving
+      const compressedBlob = await this.compressImage(coverBlob);
+
+      await indexedDBStorage.setCover(songId, compressedBlob);
 
       // Also create and cache the blob URL
       const existingUrl = this.coverCache.get(songId);
       if (existingUrl) {
         URL.revokeObjectURL(existingUrl); // Revoke old URL
       }
-      const blobUrl = URL.createObjectURL(coverBlob);
+      const blobUrl = URL.createObjectURL(compressedBlob);
       this.coverCache.set(songId, blobUrl);
 
-      console.log(`[MetadataCache] ✓ Saved cover for ${songId} (${(coverBlob.size / 1024).toFixed(2)} KB)`);
+      console.log(`[MetadataCache] ✓ Saved cover for ${songId} (${(compressedBlob.size / 1024).toFixed(2)} KB)`);
     } catch (error) {
       console.error(`[MetadataCache] Failed to save cover for ${songId}:`, error);
       throw error;

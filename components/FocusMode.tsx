@@ -24,6 +24,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const lyricsRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollAnimationRef = useRef<number | null>(null);
   const prevActiveIndexRef = useRef<number>(-1);
   const playerRef = useRef<HTMLDivElement>(null);
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
@@ -180,6 +181,12 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
     if (activeIndex !== prevActiveIndexRef.current) {
       prevActiveIndexRef.current = activeIndex;
 
+      // Cancel any ongoing scroll animation
+      if (scrollAnimationRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationRef.current);
+        scrollAnimationRef.current = null;
+      }
+
       if (lyricsRef.current) {
         const lyricElements = lyricsRef.current.querySelectorAll('p');
         const targetElement = lyricElements[activeIndex] as HTMLElement;
@@ -224,11 +231,13 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
             container.scrollTop = startScroll + scrollChange * easeOut;
 
             if (progress < 1) {
-              requestAnimationFrame(animateScroll);
+              scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+            } else {
+              scrollAnimationRef.current = null;
             }
           };
 
-          requestAnimationFrame(animateScroll);
+          scrollAnimationRef.current = requestAnimationFrame(animateScroll);
         }
       }
     }
@@ -264,6 +273,9 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
     return () => {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
+      }
+      if (scrollAnimationRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationRef.current);
       }
     };
   }, []);

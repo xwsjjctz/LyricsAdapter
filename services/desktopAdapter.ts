@@ -24,6 +24,7 @@ export interface DesktopAPI {
   getMetadataForSong: (songId: string) => Promise<any>;
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: any; error?: string }>;
   getAudioUrl: (filePath: string) => Promise<string>;
+  supportsStreaming(): boolean;
 }
 
 // Use a string literal to prevent Vite from analyzing the import
@@ -337,6 +338,10 @@ class TauriAdapter implements DesktopAPI {
       throw error;
     }
   }
+
+  supportsStreaming(): boolean {
+    return true; // Tauri uses HTTP streaming
+  }
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -497,6 +502,10 @@ class ElectronAdapter implements DesktopAPI {
   async getAudioUrl(filePath: string): Promise<string> {
     // Electron should have its own implementation
     return filePath; // Return file path as-is
+  }
+
+  supportsStreaming(): boolean {
+    return false; // Electron uses Blob URL (non-streaming)
   }
 }
 

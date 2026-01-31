@@ -58,8 +58,9 @@ const App: React.FC = () => {
   const shouldAutoPlayRef = useRef<boolean>(false); // Track if we should auto-play after track loads
   const waitingForCanPlayRef = useRef<boolean>(false); // Track if we're waiting for canplay event
   const restoredTimeRef = useRef<number>(0); // Track the restored playback time
-  const isRestoringTimeRef = useRef<boolean>(false); // Track if we're currently restoring playback time
   const tracksCountRef = useRef<number>(0); // Track actual tracks count for immediate access after deletion
+  const prevAudioUrlRef = useRef<string | null>(null); // Track previous audio URL for cleanup
+  const audioUrlReadyRef = useRef<boolean>(false); // Track if audio URL is ready for playback
 
   // Convert linear volume (0-1) to exponential volume for better human perception
   // This makes low volumes quieter and high volumes maintain their loudness
@@ -132,11 +133,6 @@ const App: React.FC = () => {
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      // Skip updating if we're in the middle of restoring playback time
-      if (isRestoringTimeRef.current) {
-        console.log('[App] TimeUpdate: Skipping update, currently restoring playback time');
-        return;
-      }
       setCurrentTime(audioRef.current.currentTime);
     }
   };
@@ -235,16 +231,13 @@ const App: React.FC = () => {
     }
 
     try {
-      console.log('[App] Loading audio file for:', track.title);
+      console.log('[App] Loading audio file for:', track.title, `(${desktopAPI.platform})`);
 
-      // Check platform
-      const platform = desktopAPI.platform;
-
-      if (platform === 'tauri') {
-        // Use asset protocol for Tauri (streaming)
-        console.log('[App] Using Tauri asset protocol for streaming');
+      // Use unified cross-platform audio loading strategy
+      if (desktopAPI.supportsStreaming()) {
+        // For streaming platforms (Tauri), use asset protocol
+        console.log('[App] Using streaming protocol');
         const assetUrl = await desktopAPI.getAudioUrl((track as any).filePath);
-
         console.log('[App] ✓ Audio asset URL ready:', assetUrl);
 
         return {
@@ -252,8 +245,8 @@ const App: React.FC = () => {
           audioUrl: assetUrl,
         };
       } else {
-        // For Electron, use readFile with blob URL (with lifecycle management)
-        console.log('[App] Using readFile + Blob URL for Electron');
+        // For non-streaming platforms (Electron), use readFile with blob URL
+        console.log('[App] Using blob URL protocol');
         const readResult = await desktopAPI.readFile((track as any).filePath);
 
         if (readResult.success && readResult.data.byteLength > 0) {
@@ -712,74 +705,14 @@ const App: React.FC = () => {
     if (isTauri && restoredTimeRef.current > 0 && audioRef.current) {
       const restoreTime = restoredTimeRef.current;
       console.log('[App] Tauri: Restoring playback time in canplay:', restoreTime);
-      console.log('[App] Tauri: Current audio currentTime before restore:', audioRef.current.currentTime);
 
-      // Set the restoring flag to prevent timeupdate from interfering
-      isRestoringTimeRef.current = true;
+      // Simple and direct time restore
+      audioRef.current.currentTime = restoreTime;
+      setCurrentTime(restoreTime);
 
-      // Use a promise to ensure the time is set correctly
-      const restorePlaybackTime = async () => {
-        if (!audioRef.current) return;
-
-        try {
-          // Set the time
-          audioRef.current.currentTime = restoreTime;
-
-          // Wait a bit for the browser to process the change
-          await new Promise(resolve => setTimeout(resolve, 10));
-
-          // Verify it was set correctly
-          const actualTime = audioRef.current.currentTime;
-          console.log('[App] Tauri: Audio currentTime after first attempt:', actualTime);
-
-          if (Math.abs(actualTime - restoreTime) > 0.1) {
-            console.log('[App] Tauri: Time not set correctly, retrying...');
-            audioRef.current.currentTime = restoreTime;
-            await new Promise(resolve => setTimeout(resolve, 10));
-
-            const retryTime = audioRef.current.currentTime;
-            if (Math.abs(retryTime - restoreTime) > 0.1) {
-              console.warn('[App] Tauri: Failed to restore playback time after retry');
-              console.log('[App] Tauri: Expected:', restoreTime, 'Got:', retryTime);
-            } else {
-              console.log('[App] Tauri: ✓ Playback time restored after retry:', retryTime);
-            }
-          } else {
-            console.log('[App] Tauri: ✓ Playback time restored successfully:', actualTime);
-          }
-
-          // Update state to match immediately
-          console.log('[App] Tauri: Calling setCurrentTime with:', restoreTime);
-          setCurrentTime(restoreTime);
-
-          // Force a re-render to ensure UI updates
-          console.log('[App] Tauri: Forcing re-render with counter increment');
-          setForceUpdateCounter(prev => prev + 1);
-
-          // Force a time update by reading currentTime again
-          setTimeout(() => {
-            if (audioRef.current) {
-              const finalTime = audioRef.current.currentTime;
-              console.log('[App] Tauri: Final verification - currentTime is:', finalTime);
-              if (Math.abs(finalTime - restoreTime) > 0.1) {
-                console.warn('[App] Tauri: Warning - currentTime changed after state update!');
-              }
-            }
-          }, 50);
-        } catch (error) {
-          console.error('[App] Tauri: Error restoring playback time:', error);
-        } finally {
-          // Clear the refs
-          restoredTimeRef.current = 0;
-          // Clear the restoring flag after a short delay to ensure state update is processed
-          setTimeout(() => {
-            isRestoringTimeRef.current = false;
-            console.log('[App] Tauri: ✓ Restoring flag cleared');
-          }, 100);
-        }
-      };
-
-      restorePlaybackTime();
+      // Clear the restore time
+      restoredTimeRef.current = 0;
+      console.log('[App] Tauri: ✓ Playback time restored');
     }
 
     // If we were waiting for this event to play, play now
@@ -797,74 +730,122 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (audioRef.current && currentTrack) {
-      // Load audio file if not loaded yet (lazy loading)
-      if (!currentTrack.audioUrl && (currentTrack as any).filePath) {
-        console.log('[App] Lazy loading audio for:', currentTrack.title);
+    if (!audioRef.current || !currentTrack) return;
 
-        // Set flag for auto-play after load completes
-        if (isPlaying) {
-          shouldAutoPlayRef.current = true;
-        }
+    console.log('[App] Track changed:', currentTrack.title, 'index:', currentTrackIndex);
 
-        loadAudioFileForTrack(currentTrack).then(updatedTrack => {
-          setTracks(prev => {
-            const newTracks = [...prev];
-            const idx = newTracks.findIndex(t => t.id === updatedTrack.id);
-            if (idx !== -1) {
-              newTracks[idx] = updatedTrack;
-            }
-            return newTracks;
-          });
+    // Reset audio URL ready flag when track changes
+    audioUrlReadyRef.current = false;
+
+    // Load audio file if not loaded yet (lazy loading)
+    if (!currentTrack.audioUrl && (currentTrack as any).filePath) {
+      console.log('[App] Lazy loading audio for:', currentTrack.title);
+
+      // Set flag for auto-play after load completes
+      if (isPlaying) {
+        shouldAutoPlayRef.current = true;
+      }
+
+      loadAudioFileForTrack(currentTrack).then(updatedTrack => {
+        setTracks(prev => {
+          const newTracks = [...prev];
+          const idx = newTracks.findIndex(t => t.id === updatedTrack.id);
+          if (idx !== -1) {
+            newTracks[idx] = updatedTrack;
+          }
+          return newTracks;
         });
-        return; // Don't continue to playback logic
+      });
+      return; // Don't continue to playback logic
+    }
+
+    // Check if audio URL is valid and ready
+    if (!currentTrack.audioUrl) {
+      console.log('[App] No audio URL available, pausing playback');
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+      return;
+    }
+
+    // Reset waiting flag when track changes
+    if (waitingForCanPlayRef.current) {
+      waitingForCanPlayRef.current = false;
+    }
+
+    // Check if we need to restore playback time
+    if (restoredTimeRef.current > 0) {
+      console.log('[App] Need to restore playback time:', restoredTimeRef.current);
+    }
+
+    // Mark audio URL as ready
+    audioUrlReadyRef.current = true;
+
+    // Only attempt playback if audioUrl is loaded and ready
+    if (currentTrack.audioUrl) {
+      // For Tauri, we need to wait for canplay event before attempting playback
+      // The restoration will happen in handleCanPlay
+      const desktopAPI = getDesktopAPI();
+      const isTauri = desktopAPI?.platform === 'tauri';
+
+      if (isTauri && restoredTimeRef.current > 0) {
+        console.log('[App] Tauri detected, will restore time in canplay event');
       }
 
-      // Reset waiting flag when track changes
-      if (waitingForCanPlayRef.current) {
-        waitingForCanPlayRef.current = false;
-      }
+      if (isPlaying || shouldAutoPlayRef.current) {
+        // Clear the auto-play flag
+        shouldAutoPlayRef.current = false;
 
-      // Check if we need to restore playback time
-      if (restoredTimeRef.current > 0) {
-        console.log('[App] Need to restore playback time:', restoredTimeRef.current);
-      }
-
-      // Only attempt playback if audioUrl is loaded
-      if (currentTrack.audioUrl) {
-        // For Tauri, we need to wait for canplay event before attempting playback
-        // The restoration will happen in handleCanPlay
-        const desktopAPI = getDesktopAPI();
-        const isTauri = desktopAPI?.platform === 'tauri';
-
-        if (isTauri && restoredTimeRef.current > 0) {
-          console.log('[App] Tauri detected, will restore time in canplay event');
-        }
-
-        if (isPlaying || shouldAutoPlayRef.current) {
-          // Clear the auto-play flag
-          shouldAutoPlayRef.current = false;
-
-          audioRef.current.play().then(() => {
-            console.log('[App] ✓ Playback started successfully');
-          }).catch((e) => {
-            console.log('[App] Playback failed, waiting for canplay:', e);
-            // If play fails, wait for canplay event (especially for Tauri asset protocol)
-            waitingForCanPlayRef.current = true;
-            // Don't set isPlaying to false yet - wait for canplay event
-          });
-        } else {
-          audioRef.current.pause();
-        }
+        audioRef.current.play().then(() => {
+          console.log('[App] ✓ Playback started successfully');
+        }).catch((e) => {
+          console.log('[App] Playback failed, waiting for canplay:', e);
+          // If play fails, wait for canplay event (especially for Tauri asset protocol)
+          waitingForCanPlayRef.current = true;
+          // Don't set isPlaying to false yet - wait for canplay event
+        });
       } else {
-        // No audioUrl available, pause if playing
-        if (isPlaying) {
-          audioRef.current.pause();
-          setIsPlaying(false);
-        }
+        audioRef.current.pause();
       }
     }
   }, [currentTrackIndex, isPlaying, currentTrack, loadAudioFileForTrack]);
+
+  // Auto-play when audio URL is loaded (for lazy-loaded tracks)
+  useEffect(() => {
+    if (!audioRef.current || !currentTrack || !currentTrack.audioUrl) return;
+
+    // Only attempt auto-play if the flag is set
+    if (shouldAutoPlayRef.current && audioUrlReadyRef.current) {
+      console.log('[App] Auto-playing after audio URL loaded:', currentTrack.title);
+      shouldAutoPlayRef.current = false;
+
+      audioRef.current.play().then(() => {
+        console.log('[App] ✓ Auto-play started successfully');
+        setIsPlaying(true);
+      }).catch((e) => {
+        console.log('[App] Auto-play failed:', e);
+        waitingForCanPlayRef.current = true;
+      });
+    }
+  }, [currentTrack?.audioUrl, currentTrack]);
+
+  // Clean up previous Blob URL when track changes to prevent memory leak
+  useEffect(() => {
+    if (!currentTrack) return;
+
+    const currentAudioUrl = currentTrack.audioUrl;
+    const previousAudioUrl = prevAudioUrlRef.current;
+
+    // If we have a previous Blob URL that's different from current, revoke it
+    if (previousAudioUrl && previousAudioUrl.startsWith('blob:') && previousAudioUrl !== currentAudioUrl) {
+      console.log('[App] Cleaning up previous blob URL:', previousAudioUrl);
+      revokeBlobUrl(previousAudioUrl);
+    }
+
+    // Update the ref to current audio URL
+    prevAudioUrlRef.current = currentAudioUrl;
+  }, [currentTrack?.audioUrl]);
 
   // Preload adjacent tracks for instant playback
   useEffect(() => {
@@ -874,11 +855,16 @@ const App: React.FC = () => {
       const desktopAPI = await getDesktopAPIAsync();
       if (!desktopAPI) return;
 
+      const MAX_PRELOAD_SIZE = 50 * 1024 * 1024; // 50MB limit for preloading
+
       // Preload next track
       if (currentTrackIndex < tracks.length - 1) {
         const nextTrack = tracks[currentTrackIndex + 1];
-        if (!nextTrack.audioUrl && (nextTrack as any).filePath) {
-          console.log('[App] Preloading next track:', nextTrack.title);
+        const fileSize = (nextTrack as any).fileSize || 0;
+
+        // Skip preloading large files
+        if (!nextTrack.audioUrl && (nextTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
+          console.log('[App] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(nextTrack).then(updatedTrack => {
             setTracks(prev => {
               const newTracks = [...prev];
@@ -886,14 +872,19 @@ const App: React.FC = () => {
               return newTracks;
             });
           });
+        } else if (fileSize > MAX_PRELOAD_SIZE) {
+          console.log('[App] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
         }
       }
 
       // Preload previous track
       if (currentTrackIndex > 0) {
         const prevTrack = tracks[currentTrackIndex - 1];
-        if (!prevTrack.audioUrl && (prevTrack as any).filePath) {
-          console.log('[App] Preloading previous track:', prevTrack.title);
+        const fileSize = (prevTrack as any).fileSize || 0;
+
+        // Skip preloading large files
+        if (!prevTrack.audioUrl && (prevTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
+          console.log('[App] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(prevTrack).then(updatedTrack => {
             setTracks(prev => {
               const newTracks = [...prev];
@@ -901,6 +892,8 @@ const App: React.FC = () => {
               return newTracks;
             });
           });
+        } else if (fileSize > MAX_PRELOAD_SIZE) {
+          console.log('[App] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
         }
       }
     };
@@ -1327,83 +1320,104 @@ const App: React.FC = () => {
 
   // Remove track function
   const handleRemoveTrack = useCallback(async (trackId: string) => {
-    // Find the track to remove
-    const trackToRemove = tracks.find(t => t.id === trackId);
-
-    // Revoke blob URLs
-    if (trackToRemove) {
-      // Revoke audio blob URL
-      if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
-        revokeBlobUrl(trackToRemove.audioUrl);
-      }
-
-      // Revoke cover blob URL
-      if (trackToRemove.coverUrl && trackToRemove.coverUrl.startsWith('blob:')) {
-        revokeBlobUrl(trackToRemove.coverUrl);
-      }
-    }
-
-    // In Desktop (Electron/Tauri), delete the symlink file first
-    const desktopAPI = await getDesktopAPIAsync();
-    if (desktopAPI) {
-      if (trackToRemove && (trackToRemove as any).filePath) {
-        try {
-          const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
-          if (result.success) {
-            console.log(`✅ Symlink deleted for track: ${trackToRemove.title}`);
-          }
-        } catch (error) {
-          console.error('Failed to delete symlink:', error);
-          // Continue with track removal even if symlink deletion fails
-        }
-      }
-    }
-
-    // Delete cover from IndexedDB
-    try {
-      await metadataCacheService.deleteCover(trackId);
-      console.log(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
-    } catch (error) {
-      console.warn('Failed to delete cover from IndexedDB:', error);
-    }
-
-    // Use functional update to avoid race conditions
+    // Use functional update to avoid race conditions and update all states atomically
     setTracks(prev => {
       const newTracks = prev.filter(t => t.id !== trackId);
-
-      // Find the index of the removed track in the previous array
       const removedIndex = prev.findIndex(t => t.id === trackId);
+      const trackToRemove = prev[removedIndex];
 
-      // Update current track index IMMEDIATELY (not in setTimeout) to avoid out-of-bounds during batch deletion
-      setCurrentTrackIndex(prevIndex => {
-        // If no tracks left, reset player
-        if (newTracks.length === 0) {
-          // Stop playback if no tracks remain
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
+      // Calculate new track index BEFORE updating state
+      let newIndex = currentTrackIndex;
+
+      // If no tracks left, reset player
+      if (newTracks.length === 0) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = '';
+        }
+        setIsPlaying(false);
+        setCurrentTrackIndex(-1);
+
+        // Revoke blob URLs for the removed track
+        if (trackToRemove) {
+          if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
+            revokeBlobUrl(trackToRemove.audioUrl);
           }
-          setIsPlaying(false);
-          return -1;
+          if (trackToRemove.coverUrl && trackToRemove.coverUrl.startsWith('blob:')) {
+            revokeBlobUrl(trackToRemove.coverUrl);
+          }
         }
 
-        // If removed track wasn't found, keep current index
-        if (removedIndex < 0) return prevIndex;
+        return newTracks;
+      }
 
-        // If the removed track was before or at current position, adjust index
-        if (removedIndex <= prevIndex) {
-          // Decrease index by 1, but don't go below 0
-          const newIndex = Math.max(0, prevIndex - 1);
-          // If index is now beyond array bounds, clamp it
-          return newIndex >= newTracks.length ? Math.max(0, newTracks.length - 1) : newIndex;
+      // Calculate the new playing index
+      if (removedIndex >= 0) {
+        if (removedIndex < currentTrackIndex) {
+          // Removed track was before current, shift index left
+          newIndex = Math.max(0, currentTrackIndex - 1);
+        } else if (removedIndex === currentTrackIndex) {
+          // Removed current playing track
+          newIndex = Math.min(currentTrackIndex, newTracks.length - 1);
         }
+        // If removed track was after current, keep same index
+      }
 
-        return prevIndex;
-      });
+      // Update track index and handle playback
+      setCurrentTrackIndex(newIndex);
+
+      // If we removed the currently playing track, handle playback state
+      if (removedIndex === currentTrackIndex) {
+        if (newTracks.length > 0) {
+          // Continue playing the new track at the same position if we were playing
+          if (isPlaying) {
+            shouldAutoPlayRef.current = true;
+          }
+        }
+      }
+
+      // Revoke blob URLs for the removed track
+      if (trackToRemove) {
+        if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
+          revokeBlobUrl(trackToRemove.audioUrl);
+        }
+        if (trackToRemove.coverUrl && trackToRemove.coverUrl.startsWith('blob:')) {
+          revokeBlobUrl(trackToRemove.coverUrl);
+        }
+      }
+
+      // Clean up in Desktop (Electron/Tauri)
+      const cleanupDesktopFile = async () => {
+        const desktopAPI = await getDesktopAPIAsync();
+        if (desktopAPI && trackToRemove && (trackToRemove as any).filePath) {
+          try {
+            const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
+            if (result.success) {
+              console.log(`✅ Symlink deleted for track: ${trackToRemove.title}`);
+            }
+          } catch (error) {
+            console.error('Failed to delete symlink:', error);
+          }
+        }
+      };
+
+      // Delete cover from IndexedDB
+      const cleanupCover = async () => {
+        try {
+          await metadataCacheService.deleteCover(trackId);
+          console.log(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
+        } catch (error) {
+          console.warn('Failed to delete cover from IndexedDB:', error);
+        }
+      };
+
+      // Fire and forget cleanup operations
+      cleanupDesktopFile();
+      cleanupCover();
 
       return newTracks;
     });
-  }, [tracks]);
+  }, [currentTrackIndex, isPlaying]);
 
   // Remove multiple tracks at once (batch deletion)
   const handleRemoveMultipleTracks = useCallback(async (trackIds: string[]) => {
@@ -1632,7 +1646,34 @@ const App: React.FC = () => {
               onLoadedData={handleLoadedMetadata}
               onEnded={handleTrackEnded}
               onCanPlay={handleCanPlay}
-            />
+              onError={(e) => {
+                        console.error('[App] Audio error:', e);
+                        const audio = e.target as HTMLAudioElement;
+                        console.error('[App] Audio error code:', audio.error?.code);
+                        console.error('[App] Audio error message:', audio.error?.message);
+                        console.error('[App] Current audio src:', audio.src);
+              
+                        // If audio fails to load, stop playback and reset state
+                        setIsPlaying(false);
+                        waitingForCanPlayRef.current = false;
+                        shouldAutoPlayRef.current = false;
+              
+                        // Don't mark track as unavailable just because of a loading error
+                        // The error might be due to Blob URL being revoked, not because the file is actually unavailable
+                        // Just clear the audioUrl so it can be reloaded on next play
+                        if (currentTrack && audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+                          console.warn('[App] Audio source not supported, clearing audioUrl for reload');
+                          setTracks(prev => {
+                            const newTracks = [...prev];
+                            const idx = newTracks.findIndex(t => t.id === currentTrack.id);
+                            if (idx !== -1) {
+                              // Only clear audioUrl, keep available as true
+                              newTracks[idx] = { ...newTracks[idx], audioUrl: '' };
+                            }
+                            return newTracks;
+                          });
+                        }
+                      }}            />
           )}
 
           <input
