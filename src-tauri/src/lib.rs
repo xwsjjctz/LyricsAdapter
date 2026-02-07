@@ -315,7 +315,7 @@ async fn save_audio_file(
 
     // Generate unique filename to avoid conflicts during parallel processing
     // Use timestamp_nanos for higher precision to reduce collision chance
-    let unique_name = format!("{}-{}", Utc::now().timestamp_nanos(), file_name);
+    let unique_name = format!("{}-{}", Utc::now().timestamp_nanos_opt().unwrap_or(0), file_name);
     let audio_path = audio_dir.join(&unique_name);
 
     // Try to create symlink first
@@ -360,7 +360,7 @@ async fn save_audio_file_from_buffer(
 
     // Generate unique filename to avoid conflicts during parallel processing
     // Use timestamp_nanos for higher precision to reduce collision chance
-    let unique_name = format!("{}-{}", Utc::now().timestamp_nanos(), file_name);
+    let unique_name = format!("{}-{}", Utc::now().timestamp_nanos_opt().unwrap_or(0), file_name);
     let audio_path = audio_dir.join(&unique_name);
 
     fs::write(&audio_path, file_data).map_err(|e| e.to_string())?;

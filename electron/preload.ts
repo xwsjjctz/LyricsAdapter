@@ -61,6 +61,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('delete-audio-file', filePath);
   },
 
+  // Cleanup orphaned audio files (Electron only)
+  cleanupOrphanAudio: async (keepPaths: string[]) => {
+    return ipcRenderer.invoke('cleanup-orphan-audio', keepPaths);
+  },
+
   // Window control APIs - using IPC
   minimizeWindow: async () => {
     return ipcRenderer.invoke('window-minimize');

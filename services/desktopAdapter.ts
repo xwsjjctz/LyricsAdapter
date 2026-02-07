@@ -18,6 +18,7 @@ export interface DesktopAPI {
   saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
   saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
   deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+  cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
   getAppDataPath: () => Promise<string | null>;
   loadMetadataCache: () => Promise<{ entries: Record<string, any> }>;
   saveMetadataCache: (cache: { entries: Record<string, any> }) => Promise<{ success: boolean; error?: string }>;
@@ -301,6 +302,10 @@ class TauriAdapter implements DesktopAPI {
     return await this.invoke('delete_audio_file', { filePath });
   }
 
+  async cleanupOrphanAudio(keepPaths: string[]): Promise<{ success: boolean; removed?: number; error?: string }> {
+    return await this.invoke('cleanup_orphan_audio', { keepPaths });
+  }
+
   async getAppDataPath(): Promise<string | null> {
     try {
       return await this.invoke('get_app_data_path');
@@ -402,6 +407,10 @@ class ElectronAdapter implements DesktopAPI {
 
   async deleteAudioFile(filePath: string): Promise<{ success: boolean; deleted?: boolean; error?: string }> {
     return this.api.deleteAudioFile(filePath);
+  }
+
+  async cleanupOrphanAudio(keepPaths: string[]): Promise<{ success: boolean; removed?: number; error?: string }> {
+    return this.api.cleanupOrphanAudio(keepPaths);
   }
 
   async getAppDataPath(): Promise<string | null> {

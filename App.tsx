@@ -28,6 +28,7 @@ declare global {
       saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
       saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
       deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+      cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
       // Window control APIs
       minimizeWindow?: () => void;
       maximizeWindow?: () => void;
@@ -49,6 +50,7 @@ const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(0.5); // Lower default volume
+  const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [forceUpdateCounter, setForceUpdateCounter] = useState(0); // Force re-render after restore
@@ -58,9 +60,34 @@ const App: React.FC = () => {
   const shouldAutoPlayRef = useRef<boolean>(false); // Track if we should auto-play after track loads
   const waitingForCanPlayRef = useRef<boolean>(false); // Track if we're waiting for canplay event
   const restoredTimeRef = useRef<number>(0); // Track the restored playback time
+  const restoredTrackIdRef = useRef<string | null>(null); // Track which song the restored time applies to
   const tracksCountRef = useRef<number>(0); // Track actual tracks count for immediate access after deletion
   const prevAudioUrlRef = useRef<string | null>(null); // Track previous audio URL for cleanup
   const audioUrlReadyRef = useRef<boolean>(false); // Track if audio URL is ready for playback
+  const persistedTimeRef = useRef<number>(0); // Throttled time for persistence
+  const forcePlayRef = useRef<boolean>(false); // Strong user intent to play after track change
+  const lastNonZeroVolumeRef = useRef<number>(0.5);
+  const cleanupOrphanAudio = useCallback(async (remainingTracks: Track[]) => {
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI || desktopAPI.platform !== 'electron') return;
+    const keepPaths = remainingTracks
+      .map(t => (t as any).filePath)
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
+    try {
+      await desktopAPI.cleanupOrphanAudio(keepPaths);
+    } catch (e) {
+      console.warn('[App] cleanupOrphanAudio failed:', e);
+    }
+  }, []);
+
+  const getRandomIndex = useCallback((exclude: number, length: number) => {
+    if (length <= 1) return exclude;
+    let next = exclude;
+    while (next === exclude) {
+      next = Math.floor(Math.random() * length);
+    }
+    return next;
+  }, []);
 
   // Convert linear volume (0-1) to exponential volume for better human perception
   // This makes low volumes quieter and high volumes maintain their loudness
@@ -124,8 +151,12 @@ const App: React.FC = () => {
   const togglePlay = useCallback(() => {
     if (!audioRef.current || !currentTrack) return;
     if (isPlaying) {
+      shouldAutoPlayRef.current = false;
+      forcePlayRef.current = false;
       audioRef.current.pause();
     } else {
+      shouldAutoPlayRef.current = true;
+      forcePlayRef.current = true;
       audioRef.current.play().catch(e => console.error("Playback failed", e));
     }
     setIsPlaying(!isPlaying);
@@ -157,12 +188,19 @@ const App: React.FC = () => {
       const isTauri = desktopAPI?.platform === 'tauri';
 
       if (!isTauri && restoredTimeRef.current > 0) {
-        const restoreTime = restoredTimeRef.current;
+        // Only restore if this is the same track we saved
+        if (restoredTrackIdRef.current && restoredTrackIdRef.current !== currentTrack.id) {
+          return;
+        }
+
+        const duration = audioRef.current.duration || 0;
+        const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - 0.5)));
         console.log('[App] Restoring playback time (non-Tauri):', restoreTime);
 
         audioRef.current.currentTime = restoreTime;
         setCurrentTime(restoreTime);
         restoredTimeRef.current = 0;
+        restoredTrackIdRef.current = null;
       } else if (isTauri && restoredTimeRef.current > 0) {
         console.log('[App] Tauri detected, will restore time in canplay event');
       }
@@ -170,14 +208,38 @@ const App: React.FC = () => {
   };
 
   const handleTrackEnded = useCallback(() => {
+    if (tracks.length === 0) return;
+
+    if (playbackMode === 'repeat-one') {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        shouldAutoPlayRef.current = true;
+        forcePlayRef.current = true;
+        audioRef.current.play().catch(() => {
+          setIsPlaying(false);
+        });
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    if (playbackMode === 'shuffle') {
+      const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
+      shouldAutoPlayRef.current = true;
+      forcePlayRef.current = true;
+      setCurrentTrackIndex(nextIndex);
+      return;
+    }
+
     if (currentTrackIndex < tracks.length - 1) {
       // Mark that we should auto-play the next track
       shouldAutoPlayRef.current = true;
+      forcePlayRef.current = true;
       setCurrentTrackIndex(prev => prev + 1);
     } else {
       setIsPlaying(false);
     }
-  }, [currentTrackIndex, tracks.length]);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex]);
 
   // Track current blob URLs for cleanup
   const activeBlobUrlsRef = useRef<Set<string>>(new Set());
@@ -480,6 +542,8 @@ const App: React.FC = () => {
       const BATCH_SIZE = 10;
       const UI_UPDATE_BATCH = 20;
       const allNewTracks: Track[] = [];
+      const importedTracksAll: Track[] = [];
+      const baseTracks = tracks;
       let totalProcessed = 0;
       let totalFailed = 0;
 
@@ -507,6 +571,7 @@ const App: React.FC = () => {
         console.log(`[App] ✅ Batch ${batchNumber} result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
 
         allNewTracks.push(...successfulTracks);
+        importedTracksAll.push(...successfulTracks);
 
         // Update UI every UI_UPDATE_BATCH tracks
         if (allNewTracks.length >= UI_UPDATE_BATCH) {
@@ -549,6 +614,11 @@ const App: React.FC = () => {
         console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
       }
 
+      // Ensure final in-memory list is complete (avoid partial save)
+      const finalTracks = [...baseTracks, ...importedTracksAll];
+      setTracks(finalTracks);
+      tracksCountRef.current = finalTracks.length;
+
       // Wait a bit for state to update, then save
       await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -572,15 +642,17 @@ const App: React.FC = () => {
       console.log('[App] Manually triggering library save after import...');
       console.log(`[App] Saving ${tracks.length} tracks to disk...`);
       await libraryStorage.saveLibrary({
-        songs: tracks.map(track => ({
+        songs: finalTracks.map(track => ({
           ...track,
           audioUrl: track.audioUrl || ''
         })),
         settings: {
           volume: volume,
           currentTrackIndex: currentTrackIndex,
-          currentTime: currentTime,
-          isPlaying: isPlaying
+          currentTrackId: currentTrack?.id,
+          currentTime: persistedTimeRef.current || currentTime,
+          isPlaying: isPlaying,
+          playbackMode: playbackMode
         }
       });
       console.log('[App] ✓ Manual library save completed');
@@ -670,28 +742,71 @@ const App: React.FC = () => {
   };
 
   const skipForward = useCallback(() => {
+    if (tracks.length === 0) return;
+    // Always auto-play when changing tracks
+    shouldAutoPlayRef.current = true;
+    forcePlayRef.current = true;
+
+    if (playbackMode === 'shuffle') {
+      const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
+      setCurrentTrackIndex(nextIndex);
+      return;
+    }
+
     if (currentTrackIndex < tracks.length - 1) {
-      // Always auto-play when changing tracks
-      shouldAutoPlayRef.current = true;
       setCurrentTrackIndex(prev => prev + 1);
     }
-  }, [currentTrackIndex, tracks.length]);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex]);
 
   const skipBackward = useCallback(() => {
+    if (tracks.length === 0) return;
+    // Always auto-play when changing tracks
+    shouldAutoPlayRef.current = true;
+    forcePlayRef.current = true;
+
+    if (playbackMode === 'shuffle') {
+      const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
+      setCurrentTrackIndex(nextIndex);
+      return;
+    }
+
     if (currentTrackIndex > 0) {
-      // Always auto-play when changing tracks
-      shouldAutoPlayRef.current = true;
       setCurrentTrackIndex(prev => prev - 1);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
-  }, [currentTrackIndex]);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex]);
 
   const handleSeek = (time: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = time;
       setCurrentTime(time);
     }
+  };
+
+  const handleVolumeChange = (vol: number) => {
+    if (vol > 0) {
+      lastNonZeroVolumeRef.current = vol;
+    }
+    setVolume(vol);
+  };
+
+  const handleToggleMute = () => {
+    if (volume > 0) {
+      lastNonZeroVolumeRef.current = volume;
+      setVolume(0);
+    } else {
+      const restore = lastNonZeroVolumeRef.current || 0.5;
+      setVolume(restore);
+    }
+  };
+
+  const handleTogglePlaybackMode = () => {
+    setPlaybackMode(prev => {
+      if (prev === 'order') return 'shuffle';
+      if (prev === 'shuffle') return 'repeat-one';
+      return 'order';
+    });
   };
 
   // Handle canplay event - when audio is ready to play
@@ -703,7 +818,12 @@ const App: React.FC = () => {
     const isTauri = desktopAPI?.platform === 'tauri';
 
     if (isTauri && restoredTimeRef.current > 0 && audioRef.current) {
-      const restoreTime = restoredTimeRef.current;
+      if (restoredTrackIdRef.current && currentTrack && restoredTrackIdRef.current !== currentTrack.id) {
+        return;
+      }
+
+      const duration = audioRef.current.duration || 0;
+      const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - 0.5)));
       console.log('[App] Tauri: Restoring playback time in canplay:', restoreTime);
 
       // Simple and direct time restore
@@ -712,22 +832,27 @@ const App: React.FC = () => {
 
       // Clear the restore time
       restoredTimeRef.current = 0;
+      restoredTrackIdRef.current = null;
       console.log('[App] Tauri: ✓ Playback time restored');
     }
 
-    // If we were waiting for this event to play, play now
-    if (waitingForCanPlayRef.current && audioRef.current) {
+    // If we were waiting for this event to play (or still have play intent), play now
+    if ((waitingForCanPlayRef.current || shouldAutoPlayRef.current || forcePlayRef.current) && audioRef.current) {
       waitingForCanPlayRef.current = false;
       console.log('[App] Attempting playback after canplay');
       audioRef.current.play().then(() => {
         console.log('[App] ✓ Playback started after canplay');
         setIsPlaying(true);
+        shouldAutoPlayRef.current = false;
+        forcePlayRef.current = false;
       }).catch((e) => {
         console.log('[App] Playback failed after canplay:', e);
         setIsPlaying(false);
+        shouldAutoPlayRef.current = true;
+        forcePlayRef.current = true;
       });
     }
-  }, []);
+  }, [currentTrack]);
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
@@ -793,16 +918,19 @@ const App: React.FC = () => {
         console.log('[App] Tauri detected, will restore time in canplay event');
       }
 
-      if (isPlaying || shouldAutoPlayRef.current) {
-        // Clear the auto-play flag
-        shouldAutoPlayRef.current = false;
-
+      if (isPlaying || shouldAutoPlayRef.current || forcePlayRef.current) {
         audioRef.current.play().then(() => {
           console.log('[App] ✓ Playback started successfully');
+          shouldAutoPlayRef.current = false;
+          forcePlayRef.current = false;
+          setIsPlaying(true);
         }).catch((e) => {
           console.log('[App] Playback failed, waiting for canplay:', e);
           // If play fails, wait for canplay event (especially for Tauri asset protocol)
           waitingForCanPlayRef.current = true;
+          // Keep auto-play intent so canplay can retry
+          shouldAutoPlayRef.current = true;
+          forcePlayRef.current = true;
           // Don't set isPlaying to false yet - wait for canplay event
         });
       } else {
@@ -816,16 +944,18 @@ const App: React.FC = () => {
     if (!audioRef.current || !currentTrack || !currentTrack.audioUrl) return;
 
     // Only attempt auto-play if the flag is set
-    if (shouldAutoPlayRef.current && audioUrlReadyRef.current) {
+    if ((shouldAutoPlayRef.current || forcePlayRef.current) && audioUrlReadyRef.current) {
       console.log('[App] Auto-playing after audio URL loaded:', currentTrack.title);
-      shouldAutoPlayRef.current = false;
-
       audioRef.current.play().then(() => {
         console.log('[App] ✓ Auto-play started successfully');
         setIsPlaying(true);
+        shouldAutoPlayRef.current = false;
+        forcePlayRef.current = false;
       }).catch((e) => {
         console.log('[App] Auto-play failed:', e);
         waitingForCanPlayRef.current = true;
+        shouldAutoPlayRef.current = true;
+        forcePlayRef.current = true;
       });
     }
   }, [currentTrack?.audioUrl, currentTrack]);
@@ -862,8 +992,10 @@ const App: React.FC = () => {
         const nextTrack = tracks[currentTrackIndex + 1];
         const fileSize = (nextTrack as any).fileSize || 0;
 
-        // Skip preloading large files
-        if (!nextTrack.audioUrl && (nextTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
+        // Skip preloading if fileSize is unknown or large
+        if (!fileSize || fileSize <= 0) {
+          console.log('[App] Skipping preload (unknown size):', nextTrack.title);
+        } else if (!nextTrack.audioUrl && (nextTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
           console.log('[App] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(nextTrack).then(updatedTrack => {
             setTracks(prev => {
@@ -882,8 +1014,10 @@ const App: React.FC = () => {
         const prevTrack = tracks[currentTrackIndex - 1];
         const fileSize = (prevTrack as any).fileSize || 0;
 
-        // Skip preloading large files
-        if (!prevTrack.audioUrl && (prevTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
+        // Skip preloading if fileSize is unknown or large
+        if (!fileSize || fileSize <= 0) {
+          console.log('[App] Skipping preload (unknown size):', prevTrack.title);
+        } else if (!prevTrack.audioUrl && (prevTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
           console.log('[App] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(prevTrack).then(updatedTrack => {
             setTracks(prev => {
@@ -936,6 +1070,12 @@ const App: React.FC = () => {
         if (libraryData.settings?.volume !== undefined) {
           console.log('Restoring volume:', libraryData.settings.volume);
           setVolume(libraryData.settings.volume);
+        }
+
+        // Restore playback mode from settings
+        if (libraryData.settings?.playbackMode) {
+          console.log('Restoring playback mode:', libraryData.settings.playbackMode);
+          setPlaybackMode(libraryData.settings.playbackMode);
         }
 
         if (libraryData.songs && libraryData.songs.length > 0) {
@@ -1071,76 +1211,14 @@ const App: React.FC = () => {
                   available: true
                 };
               } else {
-                // No cache or invalid, parse with Rust NOW (fast!)
-                console.log(`[App] No cache for: ${song.title}, parsing with Rust...`);
-                let parsedMetadata = null;
-
-                try {
-                  const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
-                  if (parseResult.success && parseResult.metadata) {
-                    parsedMetadata = parseResult.metadata;
-
-                    // Cache the parsed metadata (NOT including coverData to avoid localStorage quota exceeded)
-                    metadataCacheService.set(song.id, {
-                      title: parsedMetadata.title,
-                      artist: parsedMetadata.artist,
-                      album: parsedMetadata.album,
-                      duration: parsedMetadata.duration,
-                      lyrics: parsedMetadata.lyrics,
-                      syncedLyrics: parsedMetadata.syncedLyrics,
-                      coverData: parsedMetadata.coverData,  // ✅ Now cached in IndexedDB!
-                      coverMime: parsedMetadata.coverMime,
-                      fileName: song.fileName,
-                      fileSize: 1,
-                      lastModified: Date.now(),
-                    });
-                  }
-                } catch (e) {
-                  console.error('[App] Failed to parse with Rust:', e);
-                }
-
-                if (parsedMetadata) {
-                  // Use parsed metadata
-                  let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`;
-                  if (parsedMetadata.coverData && parsedMetadata.coverMime) {
-                    const byteCharacters = atob(parsedMetadata.coverData);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                      byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
-                    coverUrl = createTrackedBlobUrl(blob); // Use tracked blob URL
-
-                    // Save cover to IndexedDB
-                    try {
-                      await metadataCacheService.saveCover(song.id, blob);
-                    } catch (error) {
-                      console.warn('[App] Failed to save cover to IndexedDB:', error);
-                    }
-                  }
-
-                  restoredTrack = {
-                    ...song,
-                    title: parsedMetadata.title,
-                    artist: parsedMetadata.artist,
-                    album: parsedMetadata.album,
-                    duration: parsedMetadata.duration,
-                    lyrics: parsedMetadata.lyrics,
-                    syncedLyrics: parsedMetadata.syncedLyrics,
-                    audioUrl: '', // Will be loaded on play
-                    coverUrl: coverUrl,
-                    available: true
-                  };
-                } else {
-                  // Parse failed, use placeholder
-                  restoredTrack = {
-                    ...song,
-                    audioUrl: '', // Will be loaded on play
-                    coverUrl: `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`,
-                    available: true
-                  };
-                }
+                // No cache or invalid: use stored metadata immediately for fast startup
+                // Defer heavy parsing to later (e.g., on-demand) to avoid blocking load
+                restoredTrack = {
+                  ...song,
+                  audioUrl: '', // Will be loaded on play
+                  coverUrl: song.coverUrl || `https://picsum.photos/seed/${encodeURIComponent(song.fileName)}/1000/1000`,
+                  available: true
+                };
               }
             }
 
@@ -1167,11 +1245,23 @@ const App: React.FC = () => {
           console.log('[App] currentTime:', libraryData.settings?.currentTime);
           console.log('[App] isPlaying:', libraryData.settings?.isPlaying);
           
-          if (libraryData.settings?.currentTrackIndex !== undefined &&
+          const restoredTrackId = libraryData.settings?.currentTrackId;
+          let restoredIndex = -1;
+
+          if (restoredTrackId) {
+            restoredIndex = loadedTracks.findIndex(t => t.id === restoredTrackId);
+          }
+
+          if (restoredIndex < 0 &&
+              libraryData.settings?.currentTrackIndex !== undefined &&
               libraryData.settings?.currentTrackIndex >= 0 &&
               libraryData.settings?.currentTrackIndex < loadedTracks.length) {
+            restoredIndex = libraryData.settings.currentTrackIndex;
+          }
+
+          if (restoredIndex >= 0 && restoredIndex < loadedTracks.length) {
             console.log('[App] ✓ Restoring playback state:');
-            console.log('  - Track index:', libraryData.settings.currentTrackIndex);
+            console.log('  - Track index:', restoredIndex);
             console.log('  - Current time:', libraryData.settings.currentTime);
             console.log('  - Is playing:', libraryData.settings.isPlaying);
 
@@ -1179,12 +1269,13 @@ const App: React.FC = () => {
             if (libraryData.settings.currentTime !== undefined) {
               const restoredTime = libraryData.settings.currentTime;
               restoredTimeRef.current = restoredTime;
+              restoredTrackIdRef.current = loadedTracks[restoredIndex].id;
               console.log('[App] ✓ Saved restored time to ref:', restoredTime);
               // Don't setCurrentTime here - will be set when audio is ready
             }
 
             // Restore track index
-            setCurrentTrackIndex(libraryData.settings.currentTrackIndex);
+            setCurrentTrackIndex(restoredIndex);
 
             // Always set to paused, do not auto-play
             setIsPlaying(false);
@@ -1257,8 +1348,10 @@ const App: React.FC = () => {
         settings: {
           volume: volume,
           currentTrackIndex: currentTrackIndex,
-          currentTime: currentTime,
-          isPlaying: isPlaying
+          currentTrackId: currentTrack?.id,
+          currentTime: persistedTimeRef.current || currentTime,
+          isPlaying: isPlaying,
+          playbackMode: playbackMode
         }
       };
 
@@ -1272,7 +1365,27 @@ const App: React.FC = () => {
       // Debounced save
       libraryStorage.saveLibraryDebounced(libraryData);
     }
-  }, [tracks, volume]);
+  }, [tracks, volume, currentTrackIndex, isPlaying, currentTrack?.id, playbackMode]);
+
+  // Throttle persistence of currentTime to avoid excessive writes
+  useEffect(() => {
+    if (!isDesktop()) return;
+
+    // Reset persisted time when track changes to avoid cross-track leakage
+    persistedTimeRef.current = 0;
+
+    const interval = setInterval(() => {
+      if (!audioRef.current || !currentTrack) return;
+      const nowTime = audioRef.current.currentTime || 0;
+
+      // Only update if time moved meaningfully (>= 5s) to reduce writes
+      if (Math.abs(nowTime - persistedTimeRef.current) >= 5) {
+        persistedTimeRef.current = nowTime;
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [currentTrack?.id]);
 
   // Save library before app quits
   useEffect(() => {
@@ -1297,13 +1410,15 @@ const App: React.FC = () => {
             lastPlayed: (track as any).lastPlayed || null,
             available: track.available ?? true
           })),
-          settings: {
-            volume: volume,
-            currentTrackIndex: currentTrackIndex,
-            currentTime: currentTime,
-            isPlaying: isPlaying
-          }
-        };
+        settings: {
+          volume: volume,
+          currentTrackIndex: currentTrackIndex,
+          currentTrackId: currentTrack?.id,
+          currentTime: persistedTimeRef.current || currentTime,
+          isPlaying: isPlaying,
+          playbackMode: playbackMode
+        }
+      };
 
         // Immediate save (no debounce) on quit
         console.log('💾 Saving library before quit...');
@@ -1316,7 +1431,7 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [tracks, volume, currentTrackIndex, currentTime, isPlaying]);
+  }, [tracks, volume, currentTrackIndex, isPlaying, currentTrack?.id, playbackMode]);
 
   // Remove track function
   const handleRemoveTrack = useCallback(async (trackId: string) => {
@@ -1414,6 +1529,7 @@ const App: React.FC = () => {
       // Fire and forget cleanup operations
       cleanupDesktopFile();
       cleanupCover();
+      cleanupOrphanAudio(newTracks);
 
       return newTracks;
     });
@@ -1496,6 +1612,8 @@ const App: React.FC = () => {
         return newIndex;
       });
 
+      // Cleanup orphaned audio files based on remaining tracks
+      cleanupOrphanAudio(newTracks);
       return newTracks;
     });
 
@@ -1689,7 +1807,13 @@ const App: React.FC = () => {
             <LibraryView
               tracks={tracks}
               currentTrackIndex={currentTrackIndex}
-              onTrackSelect={(idx) => { setCurrentTrackIndex(idx); setIsPlaying(true); }}
+              onTrackSelect={(idx) => {
+                // Explicitly mark user intent to play on selection
+                shouldAutoPlayRef.current = true;
+                forcePlayRef.current = true;
+                setCurrentTrackIndex(idx);
+                setIsPlaying(true);
+              }}
               onRemoveTrack={handleRemoveTrack}
               onRemoveMultipleTracks={handleRemoveMultipleTracks}
               onDropFiles={handleDropFiles}
@@ -1706,7 +1830,10 @@ const App: React.FC = () => {
             onSkipNext={skipForward}
             onSkipPrev={skipBackward}
             onSeek={handleSeek}
-            onVolumeChange={setVolume}
+            onVolumeChange={handleVolumeChange}
+            onToggleMute={handleToggleMute}
+            playbackMode={playbackMode}
+            onTogglePlaybackMode={handleTogglePlaybackMode}
             onToggleFocus={() => setIsFocusMode(!isFocusMode)}
             isFocusMode={isFocusMode}
             forceUpdateCounter={forceUpdateCounter}
@@ -1726,7 +1853,10 @@ const App: React.FC = () => {
           onSkipPrev={skipBackward}
           onSeek={handleSeek}
           volume={volume}
-          onVolumeChange={setVolume}
+          onVolumeChange={handleVolumeChange}
+          onToggleMute={handleToggleMute}
+          playbackMode={playbackMode}
+          onTogglePlaybackMode={handleTogglePlaybackMode}
           onToggleFocus={() => setIsFocusMode(!isFocusMode)}
           audioRef={audioRef}
         />

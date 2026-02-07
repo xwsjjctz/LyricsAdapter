@@ -17,8 +17,10 @@ export interface LibrarySettings {
   theme?: string;
   // 播放状态
   currentTrackIndex?: number;
+  currentTrackId?: string;
   currentTime?: number;
   isPlaying?: boolean;
+  playbackMode?: 'order' | 'shuffle' | 'repeat-one';
   [key: string]: any;
 }
 

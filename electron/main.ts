@@ -388,6 +388,47 @@ app.whenReady().then(() => {
     }
   });
 
+  // Cleanup orphaned audio files in userData/audio (Electron only)
+  ipcMain.handle('cleanup-orphan-audio', async (event, keepPaths: string[]) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const audioDir = path.join(userDataPath, 'audio');
+
+      if (!fs.existsSync(audioDir)) {
+        return { success: true, removed: 0 };
+      }
+
+      const keepSet = new Set(
+        (keepPaths || [])
+          .filter(p => typeof p === 'string' && p.length > 0)
+          .map(p => path.resolve(p))
+      );
+
+      let removed = 0;
+      const entries = fs.readdirSync(audioDir);
+      for (const name of entries) {
+        const fullPath = path.join(audioDir, name);
+        const resolved = path.resolve(fullPath);
+        if (!keepSet.has(resolved)) {
+          try {
+            fs.unlinkSync(resolved);
+            removed++;
+          } catch (e) {
+            console.warn('Failed to remove orphan audio file:', resolved, e);
+          }
+        }
+      }
+
+      if (removed > 0) {
+        console.log(`🧹 Cleaned ${removed} orphan audio file(s)`);
+      }
+      return { success: true, removed };
+    } catch (error) {
+      console.error('Failed to cleanup orphan audio files:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   // Window control handlers
   ipcMain.handle('window-minimize', async () => {
     if (win) {

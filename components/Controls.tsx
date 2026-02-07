@@ -11,6 +11,9 @@ interface ControlsProps {
   onSkipPrev: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (vol: number) => void;
+  onToggleMute: () => void;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   isFocusMode: boolean;
   forceUpdateCounter?: number; // Force re-render after restore
@@ -26,8 +29,8 @@ const formatTime = (seconds: number): string => {
 
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
-  onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange,
-  onToggleFocus, isFocusMode, forceUpdateCounter, audioRef
+  onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
+  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter, audioRef
 }) => {
 // Use audio element's currentTime directly for progress calculation
   // This ensures we show the actual audio playback position
@@ -37,7 +40,7 @@ const Controls: React.FC<ControlsProps> = memo(({
   const progress = track ? (actualCurrentTime / track.duration) * 100 : 0;
 
   return (
-    <div className={`h-24 glass border-t border-white/10 px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}>
+    <div className={`h-24 glass glass-soft border-t border-white/10 px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}>
       {/* Current Track Info - Clickable for Focus Mode */}
       <div className="flex items-center gap-4 w-1/4 min-w-[200px]">
         {track ? (
@@ -103,7 +106,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
 
         {/* Progress Bar */}
-        <div className="flex items-center gap-2 flex-1 max-w-md">
+        <div className="flex items-center gap-3 flex-1 max-w-md">
           <span className="text-[10px] tabular-nums text-white/40 w-8 text-right">{formatTime(actualCurrentTime)}</span>
           <div className="flex-1 relative h-4 group flex items-center" key={`progress-${currentTime}`}>
             <input
@@ -121,13 +124,37 @@ const Controls: React.FC<ControlsProps> = memo(({
             </div>
           </div>
           <span className="text-[10px] tabular-nums text-white/40 w-8">{track ? formatTime(track.duration) : '0:00'}</span>
+          <button
+            onClick={onTogglePlaybackMode}
+            className="text-white/60 hover:text-white transition-colors ml-1 relative top-[3.5px]"
+            title={
+              playbackMode === 'shuffle'
+                ? '随机播放'
+                : playbackMode === 'repeat-one'
+                ? '单曲循环'
+                : '顺序播放'
+            }
+          >
+            <span className="material-symbols-outlined text-lg">
+              {playbackMode === 'shuffle'
+                ? 'shuffle'
+                : playbackMode === 'repeat-one'
+                ? 'repeat_one'
+                : 'repeat'}
+            </span>
+          </button>
         </div>
       </div>
 
       {/* Volume & Extras */}
       <div className="flex items-center justify-center gap-4 w-32">
         <div className="flex items-center gap-2 group">
-          <span className="material-symbols-outlined text-white/40 text-base">volume_down</span>
+          <span
+            className="material-symbols-outlined text-white/60 hover:text-white transition-colors text-base cursor-pointer"
+            onClick={onToggleMute}
+          >
+            {volume === 0 ? 'volume_off' : 'volume_up'}
+          </span>
           <div className="w-16 relative h-4 flex items-center">
             <input
               type="range" min="0" max="1" step="0.01" value={volume}
@@ -166,6 +193,9 @@ const Controls: React.FC<ControlsProps> = memo(({
   if (prevProps.onSkipPrev !== nextProps.onSkipPrev) return false;
   if (prevProps.onSeek !== nextProps.onSeek) return false;
   if (prevProps.onVolumeChange !== nextProps.onVolumeChange) return false;
+  if (prevProps.onToggleMute !== nextProps.onToggleMute) return false;
+  if (prevProps.playbackMode !== nextProps.playbackMode) return false;
+  if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
 
   // Allow re-render when currentTime changes more than 1 second

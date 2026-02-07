@@ -13,13 +13,16 @@ interface FocusModeProps {
   onSeek: (time: number) => void;
   volume: number;
   onVolumeChange: (vol: number) => void;
+  onToggleMute: () => void;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
 }
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime, onClose,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleFocus, audioRef
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef
 }) => {
   const lyricsRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -568,11 +571,19 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
             {/* Controls */}
             <div className="flex items-center justify-between px-4">
               <div className="flex gap-4 text-white/20">
-                <span className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors">shuffle</span>
-                <span className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors">repeat</span>
+                <span
+                  className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors relative -left-[4px]"
+                  onClick={onTogglePlaybackMode}
+                >
+                  {playbackMode === 'shuffle'
+                    ? 'shuffle'
+                    : playbackMode === 'repeat-one'
+                    ? 'repeat_one'
+                    : 'repeat'}
+                </span>
               </div>
 
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6 relative left-[30px]">
                 <button onClick={onSkipPrev} className="text-white/60 hover:text-white transition-all hover:scale-110">
                   <span className="material-symbols-outlined text-2xl">skip_previous</span>
                 </button>
@@ -588,7 +599,12 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
               </div>
 
               <div className="flex justify-end gap-4 text-white/20 items-center">
-                <span className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors">volume_up</span>
+                <span
+                  className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors"
+                  onClick={onToggleMute}
+                >
+                  {volume === 0 ? 'volume_off' : 'volume_up'}
+                </span>
                 <div className="w-16 relative h-4 flex items-center group">
                   <input
                     type="range" min="0" max="1" step="0.01" value={volume}
@@ -629,6 +645,9 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
   if (prevProps.onSkipPrev !== nextProps.onSkipPrev) return false;
   if (prevProps.onSeek !== nextProps.onSeek) return false;
   if (prevProps.onVolumeChange !== nextProps.onVolumeChange) return false;
+  if (prevProps.onToggleMute !== nextProps.onToggleMute) return false;
+  if (prevProps.playbackMode !== nextProps.playbackMode) return false;
+  if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
 
   // For currentTime, we allow more frequent updates (0.5 second threshold)

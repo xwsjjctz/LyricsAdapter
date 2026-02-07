@@ -23,9 +23,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
+  const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
+    top: 0,
+    height: 0,
+    opacity: 0
+  });
+  const [scrollTop, setScrollTop] = useState(0);
 
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const previousTrackIndexRef = useRef<number>(-1); // Track previous track index
 
   // Auto-scroll to current track when currentTrackIndex changes
@@ -100,6 +107,42 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     return () => clearTimeout(timer);
   }, [currentTrackIndex, tracks.length]);
+
+  // Update sliding highlight position when current track changes
+  useEffect(() => {
+    if (isEditMode || currentTrackIndex < 0 || !listRef.current) {
+      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+      return;
+    }
+
+    const updateHighlight = () => {
+      const currentTrackElement = listRef.current?.querySelector(
+        `[data-track-index="${currentTrackIndex}"]`
+      ) as HTMLElement | null;
+
+      if (!currentTrackElement || !listRef.current) {
+        setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+        return;
+      }
+
+      const top = currentTrackElement.offsetTop;
+      const height = currentTrackElement.offsetHeight;
+
+      setHighlightStyle({
+        top,
+        height,
+        opacity: 1
+      });
+    };
+
+    // Use rAF to ensure DOM is ready
+    const raf = requestAnimationFrame(updateHighlight);
+    return () => cancelAnimationFrame(raf);
+  }, [currentTrackIndex, tracks.length, isEditMode]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  }, []);
 
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -293,33 +336,55 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       </div>
 
       {/* 可滚动的歌曲列表 */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto no-scrollbar">
-        {tracks.length > 0 ? (
-          <div className="grid gap-2">
-            {tracks.map((track, idx) => {
-              const isUnavailable = track.available === false;
-              const isSelected = selectedIds.has(track.id);
+      <div
+        className="flex-1 relative min-h-0 overflow-hidden"
+        style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
+      >
+        {/* Sliding highlight overlay (outside scroll clipping) */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className="absolute rounded-xl pointer-events-none transition-[transform,height,opacity] duration-300 ease-out glass-soft shadow-2xl"
+            style={{
+              transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+              height: `${highlightStyle.height}px`,
+              opacity: highlightStyle.opacity,
+              left: 24,
+              right: 24
+            }}
+          />
+        </div>
 
-              return (
-                <div
-                  key={track.id}
-                  data-track-index={idx}  // Add identifier for auto-scroll
-                  onClick={() => !isEditMode && !isUnavailable && onTrackSelect(idx)}
-                  style={{
-                    animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`
-                  }}
-                  className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center ${
-                    isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
-                  } ${
-                    isUnavailable
-                      ? 'opacity-40 bg-white/5'
-                      : isSelected
-                      ? 'bg-red-500/10 border border-red-500/30'
-                      : idx === currentTrackIndex
-                      ? 'bg-primary/20 text-primary'
-                      : 'hover:bg-white/5'
-                  } ${isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
-                >
+        <div
+          ref={scrollContainerRef}
+          className="h-full min-h-0 overflow-y-auto no-scrollbar"
+          onScroll={handleScroll}
+        >
+          {tracks.length > 0 ? (
+            <div ref={listRef} className="grid gap-2 relative">
+              {tracks.map((track, idx) => {
+                const isUnavailable = track.available === false;
+                const isSelected = selectedIds.has(track.id);
+
+                return (
+                  <div
+                    key={track.id}
+                    data-track-index={idx}  // Add identifier for auto-scroll
+                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(idx)}
+                    style={{
+                      animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`
+                    }}
+                    className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 ${
+                      isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
+                    } ${
+                      isUnavailable
+                        ? 'opacity-40 bg-white/5'
+                        : isSelected
+                        ? 'bg-red-500/10 border border-red-500/30'
+                        : idx === currentTrackIndex
+                        ? 'text-primary'
+                        : 'hover:bg-white/5'
+                    } ${isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
+                  >
                   <div className="text-sm font-medium opacity-50">
                     {idx + 1}
                   </div>
@@ -362,15 +427,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   )}
                 </div>
               );
-            })}
-          </div>
-        ) : (
-          <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
-            <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
-            <p className="text-xl font-medium">No tracks imported yet</p>
-            <p className="text-sm">Use the sidebar to import your audio files</p>
-          </div>
-        )}
+              })}
+            </div>
+          ) : (
+            <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
+              <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
+              <p className="text-xl font-medium">No tracks imported yet</p>
+              <p className="text-sm">Use the sidebar to import your audio files</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
