@@ -31,9 +31,19 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('load-library');
   },
 
+  // Load library index from disk
+  loadLibraryIndex: async () => {
+    return ipcRenderer.invoke('load-library-index');
+  },
+
   // Save library to disk
   saveLibrary: async (library: any) => {
     return ipcRenderer.invoke('save-library', library);
+  },
+
+  // Save library index to disk
+  saveLibraryIndex: async (library: any) => {
+    return ipcRenderer.invoke('save-library-index', library);
   },
 
   // Validate single file path
@@ -64,6 +74,16 @@ contextBridge.exposeInMainWorld('electron', {
   // Cleanup orphaned audio files (Electron only)
   cleanupOrphanAudio: async (keepPaths: string[]) => {
     return ipcRenderer.invoke('cleanup-orphan-audio', keepPaths);
+  },
+
+  // Save cover thumbnail to disk
+  saveCoverThumbnail: async (payload: { id: string; data: string; mime: string }) => {
+    return ipcRenderer.invoke('save-cover-thumbnail', payload);
+  },
+
+  // Delete cover thumbnail from disk
+  deleteCoverThumbnail: async (trackId: string) => {
+    return ipcRenderer.invoke('delete-cover-thumbnail', trackId);
   },
 
   // Window control APIs - using IPC

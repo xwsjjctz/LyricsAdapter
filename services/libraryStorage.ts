@@ -11,6 +11,28 @@ export interface LibraryData {
   settings: LibrarySettings;
 }
 
+export interface LibraryIndexSong {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+  coverUrl?: string;
+  filePath?: string;
+  fileName?: string;
+  fileSize?: number;
+  lastModified?: number;
+  addedAt?: string;
+  playCount?: number;
+  lastPlayed?: string | null;
+  available?: boolean;
+}
+
+export interface LibraryIndexData {
+  songs: LibraryIndexSong[];
+  settings: LibrarySettings;
+}
+
 export interface LibrarySettings {
   volume?: number;
   autoScroll?: boolean;
@@ -36,7 +58,7 @@ class LibraryStorageService {
   /**
    * 从磁盘加载音乐库
    */
-  async loadLibrary(): Promise<LibraryData> {
+  async loadLibrary(): Promise<LibraryIndexData> {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
@@ -45,7 +67,7 @@ class LibraryStorageService {
       }
 
       console.log('[LibraryStorage] 📂 Loading library from disk...');
-      const result = await api.loadLibrary();
+      const result = api.loadLibraryIndex ? await api.loadLibraryIndex() : await api.loadLibrary();
 
       if (result.success) {
         console.log('[LibraryStorage] ✅ Library loaded successfully!');
@@ -65,7 +87,7 @@ class LibraryStorageService {
   /**
    * 保存音乐库到磁盘
    */
-  async saveLibrary(library: LibraryData): Promise<boolean> {
+  async saveLibrary(library: LibraryIndexData): Promise<boolean> {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
@@ -75,7 +97,7 @@ class LibraryStorageService {
 
       console.log('💾 Saving library to disk...');
       console.log(`   - ${library.songs.length} songs`);
-      const result = await api.saveLibrary(library);
+      const result = api.saveLibraryIndex ? await api.saveLibraryIndex(library) : await api.saveLibrary(library);
 
       if (result.success) {
         console.log('✅ Library saved successfully!');
@@ -93,7 +115,7 @@ class LibraryStorageService {
   /**
    * 防抖保存：延迟执行保存操作，避免频繁写入
    */
-  saveLibraryDebounced(library: LibraryData): void {
+  saveLibraryDebounced(library: LibraryIndexData): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
     }

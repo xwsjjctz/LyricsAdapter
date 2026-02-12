@@ -1,0 +1,339 @@
+import { useCallback } from 'react';
+import { Track } from '../types';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
+import { metadataCacheService } from '../services/metadataCacheService';
+import { logger } from '../services/logger';
+
+interface UseLibraryActionsOptions {
+  tracks: Track[];
+  setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
+  currentTrackIndex: number;
+  setCurrentTrackIndex: React.Dispatch<React.SetStateAction<number>>;
+  isPlaying: boolean;
+  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+  createTrackedBlobUrl: (blob: Blob | File) => string;
+  revokeBlobUrl: (blobUrl: string) => void;
+  audioRef: React.MutableRefObject<HTMLAudioElement | null>;
+  shouldAutoPlayRef: React.MutableRefObject<boolean>;
+}
+
+export function useLibraryActions({
+  tracks,
+  setTracks,
+  currentTrackIndex,
+  setCurrentTrackIndex,
+  isPlaying,
+  setIsPlaying,
+  createTrackedBlobUrl,
+  revokeBlobUrl,
+  audioRef,
+  shouldAutoPlayRef
+}: UseLibraryActionsOptions) {
+  const cleanupOrphanAudio = useCallback(async (remainingTracks: Track[]) => {
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI || desktopAPI.platform !== 'electron') return;
+    const keepPaths = remainingTracks
+      .map(t => (t as any).filePath)
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
+    try {
+      await desktopAPI.cleanupOrphanAudio(keepPaths);
+    } catch (e) {
+      logger.warn('[LibraryActions] cleanupOrphanAudio failed:', e);
+    }
+  }, []);
+
+  const handleRemoveTrack = useCallback(async (trackId: string) => {
+    setTracks(prev => {
+      const newTracks = prev.filter(t => t.id !== trackId);
+      const removedIndex = prev.findIndex(t => t.id === trackId);
+      const trackToRemove = prev[removedIndex];
+
+      let newIndex = currentTrackIndex;
+
+      if (newTracks.length === 0) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = '';
+        }
+        setIsPlaying(false);
+        setCurrentTrackIndex(-1);
+
+        if (trackToRemove) {
+          if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
+            revokeBlobUrl(trackToRemove.audioUrl);
+          }
+          if (trackToRemove.coverUrl && trackToRemove.coverUrl.startsWith('blob:')) {
+            revokeBlobUrl(trackToRemove.coverUrl);
+          }
+        }
+
+        return newTracks;
+      }
+
+      if (removedIndex >= 0) {
+        if (removedIndex < currentTrackIndex) {
+          newIndex = Math.max(0, currentTrackIndex - 1);
+        } else if (removedIndex === currentTrackIndex) {
+          newIndex = Math.min(currentTrackIndex, newTracks.length - 1);
+        }
+      }
+
+      setCurrentTrackIndex(newIndex);
+
+      if (removedIndex === currentTrackIndex) {
+        if (newTracks.length > 0) {
+          if (isPlaying) {
+            shouldAutoPlayRef.current = true;
+          }
+        }
+      }
+
+      if (trackToRemove) {
+        if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
+          revokeBlobUrl(trackToRemove.audioUrl);
+        }
+        if (trackToRemove.coverUrl && trackToRemove.coverUrl.startsWith('blob:')) {
+          revokeBlobUrl(trackToRemove.coverUrl);
+        }
+      }
+
+      const cleanupDesktopFile = async () => {
+        const desktopAPI = await getDesktopAPIAsync();
+        if (desktopAPI && trackToRemove && (trackToRemove as any).filePath) {
+          try {
+            const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
+            if (result.success) {
+              logger.debug(`✅ Symlink deleted for track: ${trackToRemove.title}`);
+            }
+          } catch (error) {
+            logger.error('Failed to delete symlink:', error);
+          }
+        }
+      };
+
+      const cleanupCover = async () => {
+        try {
+          const desktopAPI = await getDesktopAPIAsync();
+          if (desktopAPI && desktopAPI.deleteCoverThumbnail) {
+            await desktopAPI.deleteCoverThumbnail(trackId);
+            logger.debug(`✅ Cover deleted from disk for track: ${trackToRemove?.title || trackId}`);
+          }
+          await metadataCacheService.deleteCover(trackId);
+          logger.debug(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
+        } catch (error) {
+          logger.warn('Failed to delete cover from IndexedDB:', error);
+        }
+      };
+
+      cleanupDesktopFile();
+      cleanupCover();
+      cleanupOrphanAudio(newTracks);
+
+      return newTracks;
+    });
+  }, [currentTrackIndex, isPlaying, audioRef, revokeBlobUrl, setCurrentTrackIndex, setIsPlaying, setTracks, shouldAutoPlayRef, cleanupOrphanAudio]);
+
+  const handleRemoveMultipleTracks = useCallback(async (trackIds: string[]) => {
+    logger.debug(`[LibraryActions] Batch removing ${trackIds.length} tracks...`);
+
+    const tracksToRemove = tracks.filter(t => trackIds.includes(t.id));
+
+    for (const track of tracksToRemove) {
+      if (track.audioUrl && track.audioUrl.startsWith('blob:')) {
+        revokeBlobUrl(track.audioUrl);
+      }
+      if (track.coverUrl && track.coverUrl.startsWith('blob:')) {
+        revokeBlobUrl(track.coverUrl);
+      }
+    }
+
+    const desktopAPI = await getDesktopAPIAsync();
+    if (desktopAPI) {
+      for (const track of tracksToRemove) {
+        if ((track as any).filePath) {
+          try {
+            await desktopAPI.deleteAudioFile((track as any).filePath);
+          } catch (error) {
+            logger.error(`Failed to delete file for ${track.title}:`, error);
+          }
+        }
+        if (desktopAPI.deleteCoverThumbnail) {
+          try {
+            await desktopAPI.deleteCoverThumbnail(track.id);
+          } catch (error) {
+            logger.warn(`Failed to delete cover thumbnail for ${track.title}:`, error);
+          }
+        }
+      }
+    }
+
+    for (const trackId of trackIds) {
+      try {
+        await metadataCacheService.deleteCover(trackId);
+      } catch (error) {
+        logger.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
+      }
+    }
+
+    setTracks(prev => {
+      const newTracks = prev.filter(t => !trackIds.includes(t.id));
+
+      setCurrentTrackIndex(prevIndex => {
+        if (newTracks.length === 0) {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+          }
+          setIsPlaying(false);
+          return -1;
+        }
+
+        const removedBeforeCurrent = trackIds.filter(id => {
+          const removedIndex = prev.findIndex(t => t.id === id);
+          return removedIndex >= 0 && removedIndex < prevIndex;
+        }).length;
+
+        let newIndex = prevIndex - removedBeforeCurrent;
+
+        if (newIndex >= newTracks.length) {
+          newIndex = Math.max(0, newTracks.length - 1);
+        }
+        if (newIndex < 0) {
+          newIndex = 0;
+        }
+
+        logger.debug(`[LibraryActions] Current track index: ${prevIndex} → ${newIndex} (removed ${removedBeforeCurrent} tracks before current)`);
+        return newIndex;
+      });
+
+      cleanupOrphanAudio(newTracks);
+      return newTracks;
+    });
+
+    logger.debug(`[LibraryActions] ✓ Batch removal complete: ${trackIds.length} tracks removed`);
+  }, [tracks, revokeBlobUrl, cleanupOrphanAudio, audioRef, setCurrentTrackIndex, setIsPlaying, setTracks]);
+
+  const handleReloadFiles = useCallback(async () => {
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI) return;
+
+    try {
+      const result = await desktopAPI.selectFiles();
+      if (result.canceled || result.filePaths.length === 0) {
+        return;
+      }
+
+      const filePaths = result.filePaths;
+      const updatedTracks = [...tracks];
+      let reloadedCount = 0;
+
+      for (const filePath of filePaths) {
+        const fileName = filePath.split(/[/\\]/).pop() || '';
+
+        const trackIndex = updatedTracks.findIndex(t => {
+          const storedFileName = (t as any).fileName;
+          return storedFileName === fileName;
+        });
+
+        if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {
+          try {
+            const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
+            if (saveResult.success && saveResult.filePath) {
+              logger.debug(`File saved (${saveResult.method}):`, saveResult.filePath);
+
+              const parseResult = await desktopAPI.parseAudioMetadata(saveResult.filePath);
+              if (parseResult.success && parseResult.metadata) {
+                const metadata = parseResult.metadata;
+
+                let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+                let coverSavedToDisk = false;
+                if (metadata.coverData && metadata.coverMime) {
+                  if (desktopAPI.saveCoverThumbnail) {
+                    try {
+                      const coverResult = await desktopAPI.saveCoverThumbnail({
+                        id: updatedTracks[trackIndex].id,
+                        data: metadata.coverData,
+                        mime: metadata.coverMime
+                      });
+                      if (coverResult?.success && coverResult.coverUrl) {
+                        coverUrl = coverResult.coverUrl;
+                        coverSavedToDisk = true;
+                      }
+                    } catch (error) {
+                      logger.warn('[LibraryActions] Failed to save cover thumbnail to disk:', error);
+                    }
+                  }
+
+                  if (!coverSavedToDisk) {
+                    const byteCharacters = atob(metadata.coverData);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                      byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: metadata.coverMime });
+                    coverUrl = createTrackedBlobUrl(blob);
+
+                    try {
+                      await metadataCacheService.saveCover(updatedTracks[trackIndex].id, blob);
+                    } catch (error) {
+                      logger.warn('[LibraryActions] Failed to save cover to IndexedDB:', error);
+                    }
+                  }
+                }
+
+                metadataCacheService.set(updatedTracks[trackIndex].id, {
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  duration: metadata.duration,
+                  lyrics: metadata.lyrics,
+                  syncedLyrics: metadata.syncedLyrics,
+                  coverData: coverSavedToDisk ? undefined : metadata.coverData,
+                  coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
+                  fileName: fileName,
+                  fileSize: metadata.fileSize || 0,
+                  lastModified: Date.now(),
+                });
+
+                updatedTracks[trackIndex] = {
+                  ...updatedTracks[trackIndex],
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  duration: metadata.duration,
+                  lyrics: metadata.lyrics,
+                  syncedLyrics: metadata.syncedLyrics,
+                  coverUrl: coverUrl,
+                  filePath: saveResult.filePath,
+                  fileName: fileName,
+                  fileSize: metadata.fileSize || updatedTracks[trackIndex].fileSize,
+                  lastModified: Date.now(),
+                  available: true
+                };
+                reloadedCount++;
+              }
+            }
+          } catch (error) {
+            logger.error('Failed to reload file:', filePath, error);
+          }
+        }
+      }
+
+      setTracks(updatedTracks);
+      logger.debug(`Reloaded ${reloadedCount} files`);
+
+      if (reloadedCount > 0) {
+        await metadataCacheService.save();
+      }
+    } catch (error) {
+      logger.error('Failed to reload files:', error);
+    }
+  }, [tracks, createTrackedBlobUrl, setTracks]);
+
+  return {
+    handleRemoveTrack,
+    handleRemoveMultipleTracks,
+    handleReloadFiles
+  };
+}

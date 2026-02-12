@@ -13,12 +13,16 @@ export interface DesktopAPI {
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
   loadLibrary: () => Promise<{ success: boolean; library: any; error?: string }>;
   saveLibrary: (library: any) => Promise<{ success: boolean; error?: string }>;
+  loadLibraryIndex?: () => Promise<{ success: boolean; library: any; error?: string }>;
+  saveLibraryIndex?: (library: any) => Promise<{ success: boolean; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
   validateAllPaths: (songs: any[]) => Promise<{ success: boolean; results: any[]; error?: string }>;
   saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
   saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
   deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
   cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
+  saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
+  deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
   getAppDataPath: () => Promise<string | null>;
   loadMetadataCache: () => Promise<{ entries: Record<string, any> }>;
   saveMetadataCache: (cache: { entries: Record<string, any> }) => Promise<{ success: boolean; error?: string }>;
@@ -66,6 +70,20 @@ class ElectronAdapter implements DesktopAPI {
     return this.api.saveLibrary(library);
   }
 
+  async loadLibraryIndex(): Promise<{ success: boolean; library: any; error?: string }> {
+    if (typeof this.api.loadLibraryIndex === 'function') {
+      return this.api.loadLibraryIndex();
+    }
+    return this.api.loadLibrary();
+  }
+
+  async saveLibraryIndex(library: any): Promise<{ success: boolean; error?: string }> {
+    if (typeof this.api.saveLibraryIndex === 'function') {
+      return this.api.saveLibraryIndex(library);
+    }
+    return this.api.saveLibrary(library);
+  }
+
   async validateFilePath(filePath: string): Promise<boolean> {
     return this.api.validateFilePath(filePath);
   }
@@ -88,6 +106,20 @@ class ElectronAdapter implements DesktopAPI {
 
   async cleanupOrphanAudio(keepPaths: string[]): Promise<{ success: boolean; removed?: number; error?: string }> {
     return this.api.cleanupOrphanAudio(keepPaths);
+  }
+
+  async saveCoverThumbnail(payload: { id: string; data: string; mime: string }): Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }> {
+    if (typeof this.api.saveCoverThumbnail === 'function') {
+      return this.api.saveCoverThumbnail(payload);
+    }
+    return { success: false, error: 'saveCoverThumbnail not available' };
+  }
+
+  async deleteCoverThumbnail(trackId: string): Promise<{ success: boolean; deleted?: boolean; error?: string }> {
+    if (typeof this.api.deleteCoverThumbnail === 'function') {
+      return this.api.deleteCoverThumbnail(trackId);
+    }
+    return { success: false, error: 'deleteCoverThumbnail not available' };
   }
 
   async getAppDataPath(): Promise<string | null> {
@@ -174,6 +206,7 @@ class ElectronAdapter implements DesktopAPI {
             syncedLyrics: metadata.syncedLyrics,
             coverData: coverData,
             coverMime: coverMime,
+            fileSize: fileData.length,
           }
         };
       }

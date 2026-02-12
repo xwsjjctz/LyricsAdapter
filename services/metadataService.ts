@@ -10,6 +10,101 @@ export interface ParsedMetadata {
   file: File;
 }
 
+interface WorkerMetadataResult {
+  title?: string;
+  artist?: string;
+  album?: string;
+  lyrics?: string;
+  syncedLyrics?: { time: number; text: string }[];
+  coverData?: ArrayBuffer;
+  coverMime?: string;
+}
+
+let metadataWorker: Worker | null = null;
+let metadataWorkerSeq = 0;
+const metadataWorkerPending = new Map<number, { resolve: (value: WorkerMetadataResult | null) => void; reject: (reason: unknown) => void }>();
+const metadataWorkerCache = new Map<string, WorkerMetadataResult>();
+const metadataWorkerInFlight = new Map<string, Promise<WorkerMetadataResult | null>>();
+const METADATA_CACHE_LIMIT = 50;
+
+function getWorkerCacheKey(file: File): string {
+  return `${file.name}|${file.size}|${file.lastModified}`;
+}
+
+function setWorkerCache(key: string, value: WorkerMetadataResult) {
+  if (metadataWorkerCache.has(key)) {
+    metadataWorkerCache.delete(key);
+  }
+  metadataWorkerCache.set(key, value);
+  while (metadataWorkerCache.size > METADATA_CACHE_LIMIT) {
+    const oldestKey = metadataWorkerCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    metadataWorkerCache.delete(oldestKey);
+  }
+}
+
+function getMetadataWorker(): Worker | null {
+  if (typeof Worker === 'undefined') return null;
+  if (!metadataWorker) {
+    metadataWorker = new Worker(new URL('./workers/metadataWorker.ts', import.meta.url), { type: 'module' });
+    metadataWorker.onmessage = (event: MessageEvent<{ id: number; result?: WorkerMetadataResult; error?: string }>) => {
+      const { id, result, error } = event.data;
+      const pending = metadataWorkerPending.get(id);
+      if (!pending) return;
+      metadataWorkerPending.delete(id);
+      if (error) {
+        pending.reject(new Error(error));
+      } else {
+        pending.resolve(result || null);
+      }
+    };
+    metadataWorker.onerror = (event) => {
+      for (const [, pending] of metadataWorkerPending) {
+        pending.reject(event);
+      }
+      metadataWorkerPending.clear();
+      metadataWorker = null;
+    };
+  }
+  return metadataWorker;
+}
+
+async function parseMetadataInWorker(file: File): Promise<WorkerMetadataResult | null> {
+  const worker = getMetadataWorker();
+  if (!worker) return null;
+
+  const cacheKey = getWorkerCacheKey(file);
+  const cached = metadataWorkerCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const inFlight = metadataWorkerInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const promise = (async () => {
+    const buffer = await file.arrayBuffer();
+    return new Promise<WorkerMetadataResult | null>((resolve, reject) => {
+      const id = ++metadataWorkerSeq;
+      metadataWorkerPending.set(id, { resolve, reject });
+      worker.postMessage({ id, fileName: file.name, buffer }, [buffer]);
+    });
+  })();
+
+  metadataWorkerInFlight.set(cacheKey, promise);
+
+  return promise.then((result) => {
+    if (result) {
+      setWorkerCache(cacheKey, result);
+    }
+    return result;
+  }).finally(() => {
+    metadataWorkerInFlight.delete(cacheKey);
+  });
+}
+
 // Helper function to read string from DataView
 function getStringFromView(view: DataView, offset: number, length: number): string {
   let str = '';
@@ -431,6 +526,7 @@ function getAudioDuration(file: File): Promise<number> {
 }
 
 export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
+  const audioUrl = URL.createObjectURL(file);
   // Default values
   const defaultResult: ParsedMetadata = {
     title: file.name.replace(/\.[^/.]+$/, ""),
@@ -439,23 +535,52 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
     duration: 0,
     coverUrl: `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
     lyrics: '',
-    audioUrl: URL.createObjectURL(file),
+    audioUrl,
     file
   };
 
   try {
-    // Read file as ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
     let metadata: Partial<ParsedMetadata> = {};
+    let coverUrl = defaultResult.coverUrl;
+    let workerParsed = false;
 
-    // Parse based on file extension
-    const lowerName = file.name.toLowerCase();
-    if (lowerName.endsWith('.mp3')) {
-      metadata = parseID3v2(arrayBuffer);
-    } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
-      metadata = parseMP4(arrayBuffer);
-    } else if (lowerName.endsWith('.flac')) {
-      metadata = parseFLAC(arrayBuffer);
+    // Try parsing in Web Worker first
+    try {
+      const workerResult = await parseMetadataInWorker(file);
+      if (workerResult) {
+        workerParsed = true;
+        metadata = {
+          title: workerResult.title,
+          artist: workerResult.artist,
+          album: workerResult.album,
+          lyrics: workerResult.lyrics || '',
+          syncedLyrics: workerResult.syncedLyrics
+        };
+
+        if (workerResult.coverData) {
+          const blob = new Blob([workerResult.coverData], { type: workerResult.coverMime || 'image/jpeg' });
+          coverUrl = URL.createObjectURL(blob);
+        }
+      }
+    } catch (error) {
+      console.warn('[MetadataService] Worker parse failed, falling back to main thread:', error);
+    }
+
+    // Fallback to main thread parsing if worker was unavailable
+    if (!workerParsed) {
+      const arrayBuffer = await file.arrayBuffer();
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.endsWith('.mp3')) {
+        metadata = parseID3v2(arrayBuffer);
+      } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
+        metadata = parseMP4(arrayBuffer);
+      } else if (lowerName.endsWith('.flac')) {
+        metadata = parseFLAC(arrayBuffer);
+      }
+
+      if (metadata.coverUrl) {
+        coverUrl = metadata.coverUrl;
+      }
     }
 
     // Get duration in parallel (non-blocking, short timeout)
@@ -467,10 +592,10 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
       artist: metadata.artist || defaultResult.artist,
       album: metadata.album || defaultResult.album,
       duration: duration || 0,
-      coverUrl: metadata.coverUrl || defaultResult.coverUrl,
+      coverUrl,
       lyrics: metadata.lyrics || '',
       syncedLyrics: metadata.syncedLyrics,
-      audioUrl: URL.createObjectURL(file),
+      audioUrl,
       file
     };
   } catch (error) {
