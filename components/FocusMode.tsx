@@ -44,14 +44,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
 
-  // Detect if running in Tauri
-  const isTauri = useMemo(() => {
-    return typeof window !== 'undefined' &&
-           ((window as any).__TAURI_INTERNALS__ ||
-            (window as any).__TAURI__ ||
-            navigator.userAgent.includes('Tauri'));
-  }, []);
-
   const progress = track && track.duration > 0 ? (currentTime / track.duration) * 100 : 0;
 
 // Use audio element's actual currentTime for progress
@@ -448,22 +440,6 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
         />
       )}
       <div className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm" />
-
-      {/* Draggable region for Tauri */}
-      {typeof window !== 'undefined' &&
-       ((window as any).__TAURI_INTERNALS__ ||
-        (window as any).__TAURI__ ||
-        navigator.userAgent.includes('Tauri')) && (
-        <div
-          className="fixed top-0 left-0 right-0 h-12 select-none z-20"
-          data-tauri-drag-region
-          style={{
-            WebkitAppRegion: 'drag',
-            WebkitUserSelect: 'none',
-            userSelect: 'none'
-          } as React.CSSProperties}
-        />
-      )}
 
       <div className="relative h-full flex flex-col z-10 overflow-hidden">
         {/* Top Header */}

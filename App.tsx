@@ -2,8 +2,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Track, ViewMode } from './types';
 import { parseAudioFile, libraryStorage } from './services/metadataService';
-import { getDesktopAPI, getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
+import { logger } from './services/logger';
+import { buildLibraryData } from './services/librarySerializer';
 
 // Components
 import TitleBar from './components/TitleBar';
@@ -76,7 +78,7 @@ const App: React.FC = () => {
     try {
       await desktopAPI.cleanupOrphanAudio(keepPaths);
     } catch (e) {
-      console.warn('[App] cleanupOrphanAudio failed:', e);
+      logger.warn('[App] cleanupOrphanAudio failed:', e);
     }
   }, []);
 
@@ -105,7 +107,7 @@ const App: React.FC = () => {
     audioRef.current = node;
     if (node) {
       const actualVolume = linearToExponentialVolume(volume);
-      console.log('Audio element created, setting volume to:', volume, '(actual:', actualVolume.toFixed(3), ')');
+      logger.debug('Audio element created, setting volume to:', volume, '(actual:', actualVolume.toFixed(3), ')');
       node.volume = actualVolume;
     }
   }, [volume, linearToExponentialVolume]);
@@ -113,16 +115,16 @@ const App: React.FC = () => {
   // Initialize Desktop API on mount
   useEffect(() => {
     const initDesktopAPI = async () => {
-      console.log('[App] Initializing Desktop API...');
+      logger.debug('[App] Initializing Desktop API...');
       try {
         const api = await getDesktopAPIAsync();
         if (api) {
-          console.log('[App] ✓ Desktop API initialized, platform:', api.platform);
+          logger.debug('[App] ✓ Desktop API initialized, platform:', api.platform);
         } else {
-          console.log('[App] No Desktop API available (running in browser)');
+          logger.debug('[App] No Desktop API available (running in browser)');
         }
       } catch (error) {
-        console.error('[App] Failed to initialize Desktop API:', error);
+        logger.error('[App] Failed to initialize Desktop API:', error);
       }
     };
 
@@ -130,7 +132,7 @@ const App: React.FC = () => {
 
     // Cleanup: revoke all blob URLs on unmount
     return () => {
-      console.log('[App] Cleaning up', activeBlobUrlsRef.current.size, 'blob URLs...');
+      logger.debug('[App] Cleaning up', activeBlobUrlsRef.current.size, 'blob URLs...');
       activeBlobUrlsRef.current.forEach(blobUrl => {
         try {
           URL.revokeObjectURL(blobUrl);
@@ -139,7 +141,7 @@ const App: React.FC = () => {
         }
       });
       activeBlobUrlsRef.current.clear();
-      console.log('[App] ✓ All blob URLs revoked');
+      logger.debug('[App] ✓ All blob URLs revoked');
 
       // Also revoke IndexedDB cached blob URLs
       metadataCacheService.revokeAllBlobUrls();
@@ -157,7 +159,7 @@ const App: React.FC = () => {
     } else {
       shouldAutoPlayRef.current = true;
       forcePlayRef.current = true;
-      audioRef.current.play().catch(e => console.error("Playback failed", e));
+      audioRef.current.play().catch(e => logger.error("Playback failed", e));
     }
     setIsPlaying(!isPlaying);
   }, [isPlaying, currentTrack]);
@@ -182,12 +184,8 @@ const App: React.FC = () => {
         return newTracks;
       });
 
-      // For Tauri, wait for canplay event to restore playback time
-      // For Electron/other platforms, try to restore here
-      const desktopAPI = getDesktopAPI();
-      const isTauri = desktopAPI?.platform === 'tauri';
-
-      if (!isTauri && restoredTimeRef.current > 0) {
+      // Restore playback time once metadata is ready
+      if (restoredTimeRef.current > 0) {
         // Only restore if this is the same track we saved
         if (restoredTrackIdRef.current && restoredTrackIdRef.current !== currentTrack.id) {
           return;
@@ -195,14 +193,12 @@ const App: React.FC = () => {
 
         const duration = audioRef.current.duration || 0;
         const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - 0.5)));
-        console.log('[App] Restoring playback time (non-Tauri):', restoreTime);
+        logger.debug('[App] Restoring playback time:', restoreTime);
 
         audioRef.current.currentTime = restoreTime;
         setCurrentTime(restoreTime);
         restoredTimeRef.current = 0;
         restoredTrackIdRef.current = null;
-      } else if (isTauri && restoredTimeRef.current > 0) {
-        console.log('[App] Tauri detected, will restore time in canplay event');
       }
     }
   };
@@ -249,7 +245,7 @@ const App: React.FC = () => {
   const createTrackedBlobUrl = (blob: Blob | File): string => {
     const blobUrl = URL.createObjectURL(blob);
     activeBlobUrlsRef.current.add(blobUrl);
-    console.log('[App] Created blob URL:', blobUrl, 'Total active:', activeBlobUrlsRef.current.size);
+    logger.debug('[App] Created blob URL:', blobUrl, 'Total active:', activeBlobUrlsRef.current.size);
     return blobUrl;
   };
 
@@ -259,9 +255,9 @@ const App: React.FC = () => {
       try {
         URL.revokeObjectURL(blobUrl);
         activeBlobUrlsRef.current.delete(blobUrl);
-        console.log('[App] Revoked blob URL:', blobUrl, 'Remaining:', activeBlobUrlsRef.current.size);
+        logger.debug('[App] Revoked blob URL:', blobUrl, 'Remaining:', activeBlobUrlsRef.current.size);
       } catch (e) {
-        console.warn('[App] Failed to revoke blob URL:', blobUrl, e);
+        logger.warn('[App] Failed to revoke blob URL:', blobUrl, e);
       }
     }
   };
@@ -281,7 +277,7 @@ const App: React.FC = () => {
       }
     });
 
-    console.log(`[App] Cleaning up ${toRevoke.length} unused blob URLs...`);
+    logger.debug(`[App] Cleaning up ${toRevoke.length} unused blob URLs...`);
     toRevoke.forEach(url => revokeBlobUrl(url));
   }, [tracks]);
 
@@ -293,43 +289,30 @@ const App: React.FC = () => {
     }
 
     try {
-      console.log('[App] Loading audio file for:', track.title, `(${desktopAPI.platform})`);
+      logger.debug('[App] Loading audio file for:', track.title, `(${desktopAPI.platform})`);
 
-      // Use unified cross-platform audio loading strategy
-      if (desktopAPI.supportsStreaming()) {
-        // For streaming platforms (Tauri), use asset protocol
-        console.log('[App] Using streaming protocol');
-        const assetUrl = await desktopAPI.getAudioUrl((track as any).filePath);
-        console.log('[App] ✓ Audio asset URL ready:', assetUrl);
+      // Electron: use readFile with blob URL
+      logger.debug('[App] Using blob URL protocol');
+      const readResult = await desktopAPI.readFile((track as any).filePath);
+
+      if (readResult.success && readResult.data.byteLength > 0) {
+        const fileData = new Uint8Array(readResult.data);
+        const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
+        const audioUrl = createTrackedBlobUrl(file);
+
+        logger.debug('[App] ✓ Audio loaded, size:', (fileData.length / 1024 / 1024).toFixed(2), 'MB');
 
         return {
           ...track,
-          audioUrl: assetUrl,
+          audioUrl: audioUrl,
+          // Don't store File object - blob URL is enough
         };
       } else {
-        // For non-streaming platforms (Electron), use readFile with blob URL
-        console.log('[App] Using blob URL protocol');
-        const readResult = await desktopAPI.readFile((track as any).filePath);
-
-        if (readResult.success && readResult.data.byteLength > 0) {
-          const fileData = new Uint8Array(readResult.data);
-          const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
-          const audioUrl = createTrackedBlobUrl(file);
-
-          console.log('[App] ✓ Audio loaded, size:', (fileData.length / 1024 / 1024).toFixed(2), 'MB');
-
-          return {
-            ...track,
-            audioUrl: audioUrl,
-            // Don't store File object - blob URL is enough
-          };
-        } else {
-          console.error('[App] Failed to load audio file:', readResult.error);
-          return track;
-        }
+        logger.error('[App] Failed to load audio file:', readResult.error);
+        return track;
       }
     } catch (error) {
-      console.error('[App] Failed to load audio file:', error);
+      logger.error('[App] Failed to load audio file:', error);
       return track;
     }
   }, []);
@@ -362,9 +345,9 @@ const App: React.FC = () => {
         // O(1) duplicate check
         const existingTrack = tracksMap.get(fileName);
         if (existingTrack) {
-          console.log(`[App] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
+          logger.debug(`[App] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
         } else {
-          console.log(`[App] 🆕 File "${fileName}" is new, creating new track`);
+          logger.debug(`[App] 🆕 File "${fileName}" is new, creating new track`);
         }
 
         // Create symlink
@@ -373,17 +356,17 @@ const App: React.FC = () => {
           const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
           if (saveResult?.success && saveResult?.filePath) {
             savedFilePath = saveResult.filePath;
-            console.log(`[App] ✅ File saved: ${fileName} → ${savedFilePath} (${saveResult.method})`);
+            logger.debug(`[App] ✅ File saved: ${fileName} → ${savedFilePath} (${saveResult.method})`);
           } else {
-            console.warn(`[App] ⚠️ saveAudioFile failed for "${fileName}":`, saveResult);
+            logger.warn(`[App] ⚠️ saveAudioFile failed for "${fileName}":`, saveResult);
           }
         } catch (error) {
-          console.error(`[App] ❌ Failed to save file "${fileName}":`, error);
+          logger.error(`[App] ❌ Failed to save file "${fileName}":`, error);
           return null;
         }
 
         if (!savedFilePath) {
-          console.error(`[App] ❌ saveAudioFile returned empty path for "${fileName}"`);
+          logger.error(`[App] ❌ saveAudioFile returned empty path for "${fileName}"`);
           return null;
         }
 
@@ -393,10 +376,10 @@ const App: React.FC = () => {
           const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
           if (parseResult.success && parseResult.metadata) {
             metadata = parseResult.metadata;
-            console.log(`[App] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
+            logger.debug(`[App] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
           }
         } catch (error) {
-          console.error('[App] Failed to parse metadata:', error);
+          logger.error('[App] Failed to parse metadata:', error);
           // Use default metadata
         }
 
@@ -436,10 +419,10 @@ const App: React.FC = () => {
             try {
               await metadataCacheService.saveCover(trackId, blob);
             } catch (error) {
-              console.warn('[App] Failed to save cover to IndexedDB:', error);
+              logger.warn('[App] Failed to save cover to IndexedDB:', error);
             }
           } catch (error) {
-            console.error('[App] Failed to create cover blob:', error);
+            logger.error('[App] Failed to create cover blob:', error);
           }
         }
 
@@ -459,14 +442,14 @@ const App: React.FC = () => {
           available: true
         } as Track;
 
-        console.log(`[App] ✓ Track created: ${track.title} (ID: ${track.id})`);
+        logger.debug(`[App] ✓ Track created: ${track.title} (ID: ${track.id})`);
         return track;
       })
     );
 
     // Filter out null results (failed files)
     const filtered = results.filter((track): track is Track => track !== null);
-    console.log(`[App] Batch complete: ${results.length} total, ${filtered.length} successful, ${results.length - filtered.length} failed`);
+    logger.debug(`[App] Batch complete: ${results.length} total, ${filtered.length} successful, ${results.length - filtered.length} failed`);
     return filtered;
   }, [createTrackedBlobUrl]);
 
@@ -486,7 +469,7 @@ const App: React.FC = () => {
         try {
           metadata = await parseAudioFile(file);
         } catch (error) {
-          console.error('[App] Failed to parse file:', file.name, error);
+          logger.error('[App] Failed to parse file:', file.name, error);
           // Use default metadata
           metadata = {
             title: file.name.replace(/\.[^/.]+$/, ""),
@@ -516,10 +499,10 @@ const App: React.FC = () => {
 
   // ========== End Performance Optimization Helpers ==========
   const handleDesktopImport = async () => {
-    console.log('[App] Desktop import triggered');
+    logger.debug('[App] Desktop import triggered');
     const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI) {
-      console.error('[App] Desktop API not available');
+      logger.error('[App] Desktop API not available');
       return;
     }
 
@@ -530,13 +513,13 @@ const App: React.FC = () => {
       }
 
       const filePaths = result.filePaths;
-      console.log(`[App] Processing ${filePaths.length} file(s)...`);
-      console.log(`[App] Current tracks count before import (state): ${tracks.length}`);
-      console.log(`[App] Current tracks count before import (ref): ${tracksCountRef.current}`);
+      logger.debug(`[App] Processing ${filePaths.length} file(s)...`);
+      logger.debug(`[App] Current tracks count before import (state): ${tracks.length}`);
+      logger.debug(`[App] Current tracks count before import (ref): ${tracksCountRef.current}`);
 
       // Create Map for O(1) duplicate checking
       const tracksMap = createTracksMap();
-      console.log(`[App] Created tracksMap with ${tracksMap.size} entries`);
+      logger.debug(`[App] Created tracksMap with ${tracksMap.size} entries`);
 
       // Process files in batches with parallel processing
       const BATCH_SIZE = 10;
@@ -547,16 +530,16 @@ const App: React.FC = () => {
       let totalProcessed = 0;
       let totalFailed = 0;
 
-      console.log(`[App] ===== Starting Import Process =====`);
-      console.log(`[App] Total files to import: ${filePaths.length}`);
+      logger.debug(`[App] ===== Starting Import Process =====`);
+      logger.debug(`[App] Total files to import: ${filePaths.length}`);
 
       for (let i = 0; i < filePaths.length; i += BATCH_SIZE) {
         const batch = filePaths.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(filePaths.length / BATCH_SIZE);
 
-        console.log(`[App] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
-        console.log(`[App] Files in this batch:`, batch.map(f => f.split(/[/\\]/).pop()));
+        logger.debug(`[App] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
+        logger.debug(`[App] Files in this batch:`, batch.map(f => f.split(/[/\\]/).pop()));
 
         // Process this batch in parallel
         const batchTracks = await processDesktopFileBatch(batch, desktopAPI, tracksMap);
@@ -568,50 +551,50 @@ const App: React.FC = () => {
         totalProcessed += batch.length;
         totalFailed += failedCount;
 
-        console.log(`[App] ✅ Batch ${batchNumber} result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
+        logger.debug(`[App] ✅ Batch ${batchNumber} result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
 
         allNewTracks.push(...successfulTracks);
         importedTracksAll.push(...successfulTracks);
 
         // Update UI every UI_UPDATE_BATCH tracks
         if (allNewTracks.length >= UI_UPDATE_BATCH) {
-          console.log(`[App] 🎨 UI update threshold reached (${allNewTracks.length} tracks)`);
-          console.log(`[App] Current tracks count before update (state): ${tracks.length}`);
-          console.log(`[App] Current tracks count before update (ref): ${tracksCountRef.current}`);
+          logger.debug(`[App] 🎨 UI update threshold reached (${allNewTracks.length} tracks)`);
+          logger.debug(`[App] Current tracks count before update (state): ${tracks.length}`);
+          logger.debug(`[App] Current tracks count before update (ref): ${tracksCountRef.current}`);
 
           // Capture the current batch size
           const batchSize = allNewTracks.length;
 
           setTracks(prev => {
             const newTracks = [...prev, ...allNewTracks];
-            console.log(`[App] ✏️ Updating tracks: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
+            logger.debug(`[App] ✏️ Updating tracks: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
             return newTracks;
           });
 
           // Update ref immediately
           tracksCountRef.current = tracksCountRef.current + batchSize;
-          console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
-          console.log(`[App] ✓ UI updated, scheduling batch buffer clear`);
+          logger.debug(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
+          logger.debug(`[App] ✓ UI updated, scheduling batch buffer clear`);
 
           // CRITICAL: Clear array AFTER setTracks callback executes (use setTimeout)
           setTimeout(() => {
             allNewTracks.length = 0;
-            console.log(`[App] ✓ Batch buffer cleared`);
+            logger.debug(`[App] ✓ Batch buffer cleared`);
           }, 0);
         }
       }
 
       // Add remaining tracks
       if (allNewTracks.length > 0) {
-        console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+        logger.debug(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
         const finalBatchSize = allNewTracks.length;
         setTracks(prev => {
           const newTracks = [...prev, ...allNewTracks];
-          console.log(`[App] ✏️ Final update: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
+          logger.debug(`[App] ✏️ Final update: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
           return newTracks;
         });
         tracksCountRef.current = tracksCountRef.current + finalBatchSize;
-        console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
+        logger.debug(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
       }
 
       // Ensure final in-memory list is complete (avoid partial save)
@@ -623,24 +606,24 @@ const App: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Save cache once at the end
-      console.log('[App] Saving metadata cache...');
+      logger.debug('[App] Saving metadata cache...');
       await metadataCacheService.save();
 
       // Summary report
-      console.log(`[App] ===== Import Summary =====`);
-      console.log(`[App] Total processed: ${totalProcessed}`);
-      console.log(`[App] Successfully imported: ${totalProcessed - totalFailed}`);
-      console.log(`[App] Failed: ${totalFailed}`);
+      logger.debug(`[App] ===== Import Summary =====`);
+      logger.debug(`[App] Total processed: ${totalProcessed}`);
+      logger.debug(`[App] Successfully imported: ${totalProcessed - totalFailed}`);
+      logger.debug(`[App] Failed: ${totalFailed}`);
 
       if (totalFailed > 0) {
-        console.error(`[App] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
+        logger.error(`[App] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
       } else {
-        console.log(`[App] ✓ All files imported successfully`);
+        logger.debug(`[App] ✓ All files imported successfully`);
       }
 
       // Manually trigger library save after import to ensure all tracks are saved
-      console.log('[App] Manually triggering library save after import...');
-      console.log(`[App] Saving ${tracks.length} tracks to disk...`);
+      logger.debug('[App] Manually triggering library save after import...');
+      logger.debug(`[App] Saving ${tracks.length} tracks to disk...`);
       await libraryStorage.saveLibrary({
         songs: finalTracks.map(track => ({
           ...track,
@@ -655,16 +638,16 @@ const App: React.FC = () => {
           playbackMode: playbackMode
         }
       });
-      console.log('[App] ✓ Manual library save completed');
+      logger.debug('[App] ✓ Manual library save completed');
     } catch (error) {
-      console.error('[App] Failed to import files:', error);
+      logger.error('[App] Failed to import files:', error);
     }
   };
 
   // Handle dropped files (for drag & drop import in Web environment)
   const handleDropFiles = async (files: File[]) => {
-    console.log('[App] Drop import triggered');
-    console.log(`[App] Processing ${files.length} file(s)...`);
+    logger.debug('[App] Drop import triggered');
+    logger.debug(`[App] Processing ${files.length} file(s)...`);
 
     // Create Map for O(1) duplicate checking
     const tracksMap = createTracksMap();
@@ -676,7 +659,7 @@ const App: React.FC = () => {
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
-      console.log(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
+      logger.debug(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
 
       // Process this batch in parallel
       const batchTracks = await processWebFileBatch(batch, tracksMap);
@@ -684,7 +667,7 @@ const App: React.FC = () => {
 
       // Update UI every UI_UPDATE_BATCH tracks
       if (allNewTracks.length >= UI_UPDATE_BATCH) {
-        console.log(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
+        logger.debug(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
         setTracks(prev => [...prev, ...allNewTracks]);
         allNewTracks.length = 0;
       }
@@ -692,18 +675,18 @@ const App: React.FC = () => {
 
     // Add remaining tracks
     if (allNewTracks.length > 0) {
-      console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+      logger.debug(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
       setTracks(prev => [...prev, ...allNewTracks]);
     }
 
-    console.log('[App] ✓ All files imported successfully');
+    logger.debug('[App] ✓ All files imported successfully');
   };
 
   // File input change handler (for Electron and Web)
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
-    console.log('[App] File input changed - platform:', (window as any).electron ? 'Electron' : (window as any).__TAURI__ ? 'Tauri' : 'Web');
-    console.log(`[App] Processing ${files.length} file(s)...`);
+    logger.debug('[App] File input changed - platform:', (window as any).electron ? 'Electron' : 'Web');
+    logger.debug(`[App] Processing ${files.length} file(s)...`);
 
     // Create Map for O(1) duplicate checking
     const tracksMap = createTracksMap();
@@ -715,7 +698,7 @@ const App: React.FC = () => {
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
-      console.log(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
+      logger.debug(`[App] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
 
       // Process this batch in parallel
       const batchTracks = await processWebFileBatch(batch, tracksMap);
@@ -723,7 +706,7 @@ const App: React.FC = () => {
 
       // Update UI every UI_UPDATE_BATCH tracks
       if (allNewTracks.length >= UI_UPDATE_BATCH) {
-        console.log(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
+        logger.debug(`[App] Updating UI with ${allNewTracks.length} new track(s)...`);
         setTracks(prev => [...prev, ...allNewTracks]);
         allNewTracks.length = 0;
       }
@@ -731,11 +714,11 @@ const App: React.FC = () => {
 
     // Add remaining tracks
     if (allNewTracks.length > 0) {
-      console.log(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
+      logger.debug(`[App] Final UI update with ${allNewTracks.length} track(s)...`);
       setTracks(prev => [...prev, ...allNewTracks]);
     }
 
-    console.log('[App] ✓ All files imported successfully');
+    logger.debug('[App] ✓ All files imported successfully');
 
     // Reset input value
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -811,20 +794,17 @@ const App: React.FC = () => {
 
   // Handle canplay event - when audio is ready to play
   const handleCanPlay = useCallback(() => {
-    console.log('[App] Audio is ready to play');
+    logger.debug('[App] Audio is ready to play');
 
-    // Check if we need to restore playback time for Tauri
-    const desktopAPI = getDesktopAPI();
-    const isTauri = desktopAPI?.platform === 'tauri';
-
-    if (isTauri && restoredTimeRef.current > 0 && audioRef.current) {
+    // Restore playback time after canplay if needed
+    if (restoredTimeRef.current > 0 && audioRef.current) {
       if (restoredTrackIdRef.current && currentTrack && restoredTrackIdRef.current !== currentTrack.id) {
         return;
       }
 
       const duration = audioRef.current.duration || 0;
       const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - 0.5)));
-      console.log('[App] Tauri: Restoring playback time in canplay:', restoreTime);
+      logger.debug('[App] Restoring playback time in canplay:', restoreTime);
 
       // Simple and direct time restore
       audioRef.current.currentTime = restoreTime;
@@ -833,20 +813,20 @@ const App: React.FC = () => {
       // Clear the restore time
       restoredTimeRef.current = 0;
       restoredTrackIdRef.current = null;
-      console.log('[App] Tauri: ✓ Playback time restored');
+      logger.debug('[App] ✓ Playback time restored');
     }
 
     // If we were waiting for this event to play (or still have play intent), play now
     if ((waitingForCanPlayRef.current || shouldAutoPlayRef.current || forcePlayRef.current) && audioRef.current) {
       waitingForCanPlayRef.current = false;
-      console.log('[App] Attempting playback after canplay');
+      logger.debug('[App] Attempting playback after canplay');
       audioRef.current.play().then(() => {
-        console.log('[App] ✓ Playback started after canplay');
+        logger.debug('[App] ✓ Playback started after canplay');
         setIsPlaying(true);
         shouldAutoPlayRef.current = false;
         forcePlayRef.current = false;
       }).catch((e) => {
-        console.log('[App] Playback failed after canplay:', e);
+        logger.debug('[App] Playback failed after canplay:', e);
         setIsPlaying(false);
         shouldAutoPlayRef.current = true;
         forcePlayRef.current = true;
@@ -857,14 +837,14 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
-    console.log('[App] Track changed:', currentTrack.title, 'index:', currentTrackIndex);
+    logger.debug('[App] Track changed:', currentTrack.title, 'index:', currentTrackIndex);
 
     // Reset audio URL ready flag when track changes
     audioUrlReadyRef.current = false;
 
     // Load audio file if not loaded yet (lazy loading)
     if (!currentTrack.audioUrl && (currentTrack as any).filePath) {
-      console.log('[App] Lazy loading audio for:', currentTrack.title);
+      logger.debug('[App] Lazy loading audio for:', currentTrack.title);
 
       // Set flag for auto-play after load completes
       if (isPlaying) {
@@ -886,7 +866,7 @@ const App: React.FC = () => {
 
     // Check if audio URL is valid and ready
     if (!currentTrack.audioUrl) {
-      console.log('[App] No audio URL available, pausing playback');
+      logger.debug('[App] No audio URL available, pausing playback');
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
@@ -901,7 +881,7 @@ const App: React.FC = () => {
 
     // Check if we need to restore playback time
     if (restoredTimeRef.current > 0) {
-      console.log('[App] Need to restore playback time:', restoredTimeRef.current);
+      logger.debug('[App] Need to restore playback time:', restoredTimeRef.current);
     }
 
     // Mark audio URL as ready
@@ -909,24 +889,15 @@ const App: React.FC = () => {
 
     // Only attempt playback if audioUrl is loaded and ready
     if (currentTrack.audioUrl) {
-      // For Tauri, we need to wait for canplay event before attempting playback
-      // The restoration will happen in handleCanPlay
-      const desktopAPI = getDesktopAPI();
-      const isTauri = desktopAPI?.platform === 'tauri';
-
-      if (isTauri && restoredTimeRef.current > 0) {
-        console.log('[App] Tauri detected, will restore time in canplay event');
-      }
-
       if (isPlaying || shouldAutoPlayRef.current || forcePlayRef.current) {
         audioRef.current.play().then(() => {
-          console.log('[App] ✓ Playback started successfully');
+          logger.debug('[App] ✓ Playback started successfully');
           shouldAutoPlayRef.current = false;
           forcePlayRef.current = false;
           setIsPlaying(true);
         }).catch((e) => {
-          console.log('[App] Playback failed, waiting for canplay:', e);
-          // If play fails, wait for canplay event (especially for Tauri asset protocol)
+          logger.debug('[App] Playback failed, waiting for canplay:', e);
+          // If play fails, wait for canplay event
           waitingForCanPlayRef.current = true;
           // Keep auto-play intent so canplay can retry
           shouldAutoPlayRef.current = true;
@@ -945,14 +916,14 @@ const App: React.FC = () => {
 
     // Only attempt auto-play if the flag is set
     if ((shouldAutoPlayRef.current || forcePlayRef.current) && audioUrlReadyRef.current) {
-      console.log('[App] Auto-playing after audio URL loaded:', currentTrack.title);
+      logger.debug('[App] Auto-playing after audio URL loaded:', currentTrack.title);
       audioRef.current.play().then(() => {
-        console.log('[App] ✓ Auto-play started successfully');
+        logger.debug('[App] ✓ Auto-play started successfully');
         setIsPlaying(true);
         shouldAutoPlayRef.current = false;
         forcePlayRef.current = false;
       }).catch((e) => {
-        console.log('[App] Auto-play failed:', e);
+        logger.debug('[App] Auto-play failed:', e);
         waitingForCanPlayRef.current = true;
         shouldAutoPlayRef.current = true;
         forcePlayRef.current = true;
@@ -969,7 +940,7 @@ const App: React.FC = () => {
 
     // If we have a previous Blob URL that's different from current, revoke it
     if (previousAudioUrl && previousAudioUrl.startsWith('blob:') && previousAudioUrl !== currentAudioUrl) {
-      console.log('[App] Cleaning up previous blob URL:', previousAudioUrl);
+      logger.debug('[App] Cleaning up previous blob URL:', previousAudioUrl);
       revokeBlobUrl(previousAudioUrl);
     }
 
@@ -994,9 +965,9 @@ const App: React.FC = () => {
 
         // Skip preloading if fileSize is unknown or large
         if (!fileSize || fileSize <= 0) {
-          console.log('[App] Skipping preload (unknown size):', nextTrack.title);
+          logger.debug('[App] Skipping preload (unknown size):', nextTrack.title);
         } else if (!nextTrack.audioUrl && (nextTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
-          console.log('[App] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+          logger.debug('[App] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(nextTrack).then(updatedTrack => {
             setTracks(prev => {
               const newTracks = [...prev];
@@ -1005,7 +976,7 @@ const App: React.FC = () => {
             });
           });
         } else if (fileSize > MAX_PRELOAD_SIZE) {
-          console.log('[App] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
+          logger.debug('[App] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
         }
       }
 
@@ -1016,9 +987,9 @@ const App: React.FC = () => {
 
         // Skip preloading if fileSize is unknown or large
         if (!fileSize || fileSize <= 0) {
-          console.log('[App] Skipping preload (unknown size):', prevTrack.title);
+          logger.debug('[App] Skipping preload (unknown size):', prevTrack.title);
         } else if (!prevTrack.audioUrl && (prevTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
-          console.log('[App] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+          logger.debug('[App] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(prevTrack).then(updatedTrack => {
             setTracks(prev => {
               const newTracks = [...prev];
@@ -1027,7 +998,7 @@ const App: React.FC = () => {
             });
           });
         } else if (fileSize > MAX_PRELOAD_SIZE) {
-          console.log('[App] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
+          logger.debug('[App] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
         }
       }
     };
@@ -1040,7 +1011,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (audioRef.current) {
       const actualVolume = linearToExponentialVolume(volume);
-      console.log('Volume changed to:', volume, '(actual:', actualVolume.toFixed(3), ')');
+      logger.debug('Volume changed to:', volume, '(actual:', actualVolume.toFixed(3), ')');
       audioRef.current.volume = actualVolume;
     }
   }, [volume, linearToExponentialVolume]);
@@ -1048,41 +1019,41 @@ const App: React.FC = () => {
   // Load library from disk on mount (Desktop only)
   useEffect(() => {
     const loadLibraryFromDisk = async () => {
-      console.log('[App] Loading library from disk...');
+      logger.debug('[App] Loading library from disk...');
       // Initialize metadata cache first
       await metadataCacheService.initialize();
 
       // Wait for Desktop API to be initialized
       const desktopAPI = await getDesktopAPIAsync();
       if (!desktopAPI) {
-        console.log('[App] Not running in Desktop mode, skipping library load');
+        logger.debug('[App] Not running in Desktop mode, skipping library load');
         return;
       }
 
       try {
         const libraryData = await libraryStorage.loadLibrary();
-        console.log('[App] Library loaded from disk:', libraryData);
-        console.log('[App] ✅ Library data loaded:');
-        console.log(`   - Songs count: ${libraryData.songs?.length || 0}`);
-        console.log(`   - Settings:`, libraryData.settings);
+        logger.debug('[App] Library loaded from disk:', libraryData);
+        logger.debug('[App] ✅ Library data loaded:');
+        logger.debug(`   - Songs count: ${libraryData.songs?.length || 0}`);
+        logger.debug(`   - Settings:`, libraryData.settings);
 
         // Restore volume from settings
         if (libraryData.settings?.volume !== undefined) {
-          console.log('Restoring volume:', libraryData.settings.volume);
+          logger.debug('Restoring volume:', libraryData.settings.volume);
           setVolume(libraryData.settings.volume);
         }
 
         // Restore playback mode from settings
         if (libraryData.settings?.playbackMode) {
-          console.log('Restoring playback mode:', libraryData.settings.playbackMode);
+          logger.debug('Restoring playback mode:', libraryData.settings.playbackMode);
           setPlaybackMode(libraryData.settings.playbackMode);
         }
 
         if (libraryData.songs && libraryData.songs.length > 0) {
-          console.log(`[App] 📝 Found ${libraryData.songs.length} songs in library, loading...`);
-          console.log('[App] First 3 songs:', libraryData.songs.slice(0, 3).map(s => ({ id: s.id, title: s.title, fileName: s.fileName })));
+          logger.debug(`[App] 📝 Found ${libraryData.songs.length} songs in library, loading...`);
+          logger.debug('[App] First 3 songs:', libraryData.songs.slice(0, 3).map(s => ({ id: s.id, title: s.title, fileName: s.fileName })));
         } else {
-          console.warn('[App] ⚠️ No songs found in library data!');
+          logger.warn('[App] ⚠️ No songs found in library data!');
         }
 
         if (libraryData.songs && libraryData.songs.length > 0) {
@@ -1091,7 +1062,7 @@ const App: React.FC = () => {
           const missingFiles = validationResults.filter(r => !r.exists);
 
           if (missingFiles.length > 0) {
-            console.warn(`Found ${missingFiles.length} missing files`);
+            logger.warn(`Found ${missingFiles.length} missing files`);
           }
 
           // Progressive loading with immediate UI updates
@@ -1125,7 +1096,7 @@ const App: React.FC = () => {
 
               if (isValid && cached) {
                 // Use cached metadata (fast path!)
-                console.log(`[App] ✓ Using cached metadata for: ${song.title}`);
+                logger.debug(`[App] ✓ Using cached metadata for: ${song.title}`);
                 const cachedMetadata = metadataCacheService.cachedToTrack(cached, song.filePath, song.id);
 
                 // Try to load cover from IndexedDB first (NEW - much faster!)
@@ -1139,7 +1110,7 @@ const App: React.FC = () => {
                     const indexedDBCoverUrl = await metadataCacheService.loadCover(song.id);
                     if (indexedDBCoverUrl) {
                       coverUrl = indexedDBCoverUrl;
-                      console.log(`[App] ✓ Loaded cover from IndexedDB for: ${song.title}`);
+                      logger.debug(`[App] ✓ Loaded cover from IndexedDB for: ${song.title}`);
                     } else {
                       // Not in IndexedDB yet, create blob from cached data
                       const byteCharacters = atob(cached.coverData);
@@ -1156,24 +1127,24 @@ const App: React.FC = () => {
                       try {
                         await metadataCacheService.saveCover(song.id, blob);
                       } catch (error) {
-                        console.warn('[App] Failed to save cover to IndexedDB:', error);
+                        logger.warn('[App] Failed to save cover to IndexedDB:', error);
                       }
                     }
                   } catch (error) {
-                    console.warn('[App] Failed to load cover from cache, will re-parse:', error);
+                    logger.warn('[App] Failed to load cover from cache, will re-parse:', error);
                   }
                 }
 
                 // If we still don't have a cover, try re-parsing the file
                 if (!coverBlob && !cached.coverData) {
-                  console.log(`[App] Cover not cached, re-parsing file: ${song.title}`);
+                  logger.debug(`[App] Cover not cached, re-parsing file: ${song.title}`);
                   try {
                     const parseResult = await desktopAPI.parseAudioMetadata(song.filePath);
                     if (parseResult.success && parseResult.metadata) {
                       parsedMetadata = parseResult.metadata;
                     }
                   } catch (e) {
-                    console.error('[App] Failed to parse cover art:', e);
+                    logger.error('[App] Failed to parse cover art:', e);
                   }
 
                   if (parsedMetadata?.coverData && parsedMetadata?.coverMime) {
@@ -1186,13 +1157,13 @@ const App: React.FC = () => {
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: parsedMetadata.coverMime });
                     coverUrl = createTrackedBlobUrl(blob);
-                    console.log(`[App] ✓ Extracted cover art from file: ${song.title}`);
+                    logger.debug(`[App] ✓ Extracted cover art from file: ${song.title}`);
 
                     // Save cover to IndexedDB
                     try {
                       await metadataCacheService.saveCover(song.id, blob);
                     } catch (error) {
-                      console.warn('[App] Failed to save cover to IndexedDB:', error);
+                      logger.warn('[App] Failed to save cover to IndexedDB:', error);
                     }
                   }
                 }
@@ -1228,7 +1199,7 @@ const App: React.FC = () => {
             // Update UI every BATCH_SIZE songs or at the end
             if (loadedTracks.length % BATCH_SIZE === 0 || i === libraryData.songs.length - 1) {
               setTracks([...loadedTracks]);
-              console.log(`[App] ✓ Loaded ${loadedTracks.length}/${libraryData.songs.length} tracks`);
+              logger.debug(`[App] ✓ Loaded ${loadedTracks.length}/${libraryData.songs.length} tracks`);
               // Small delay to let UI render
               await new Promise(resolve => setTimeout(resolve, 10));
             }
@@ -1236,14 +1207,14 @@ const App: React.FC = () => {
 
           // Save cache if we updated it
           await metadataCacheService.save();
-          console.log(`[App] ✓ Finished loading ${loadedTracks.length} tracks`);
+          logger.debug(`[App] ✓ Finished loading ${loadedTracks.length} tracks`);
 
           // Restore playback state from settings
-          console.log('[App] Checking for playback state to restore...');
-          console.log('[App] libraryData.settings:', libraryData.settings);
-          console.log('[App] currentTrackIndex:', libraryData.settings?.currentTrackIndex);
-          console.log('[App] currentTime:', libraryData.settings?.currentTime);
-          console.log('[App] isPlaying:', libraryData.settings?.isPlaying);
+          logger.debug('[App] Checking for playback state to restore...');
+          logger.debug('[App] libraryData.settings:', libraryData.settings);
+          logger.debug('[App] currentTrackIndex:', libraryData.settings?.currentTrackIndex);
+          logger.debug('[App] currentTime:', libraryData.settings?.currentTime);
+          logger.debug('[App] isPlaying:', libraryData.settings?.isPlaying);
           
           const restoredTrackId = libraryData.settings?.currentTrackId;
           let restoredIndex = -1;
@@ -1260,17 +1231,17 @@ const App: React.FC = () => {
           }
 
           if (restoredIndex >= 0 && restoredIndex < loadedTracks.length) {
-            console.log('[App] ✓ Restoring playback state:');
-            console.log('  - Track index:', restoredIndex);
-            console.log('  - Current time:', libraryData.settings.currentTime);
-            console.log('  - Is playing:', libraryData.settings.isPlaying);
+            logger.debug('[App] ✓ Restoring playback state:');
+            logger.debug('  - Track index:', restoredIndex);
+            logger.debug('  - Current time:', libraryData.settings.currentTime);
+            logger.debug('  - Is playing:', libraryData.settings.isPlaying);
 
             // Save restored time to ref (will be restored when audio is ready)
             if (libraryData.settings.currentTime !== undefined) {
               const restoredTime = libraryData.settings.currentTime;
               restoredTimeRef.current = restoredTime;
               restoredTrackIdRef.current = loadedTracks[restoredIndex].id;
-              console.log('[App] ✓ Saved restored time to ref:', restoredTime);
+              logger.debug('[App] ✓ Saved restored time to ref:', restoredTime);
               // Don't setCurrentTime here - will be set when audio is ready
             }
 
@@ -1281,7 +1252,7 @@ const App: React.FC = () => {
             setIsPlaying(false);
             shouldAutoPlayRef.current = false;
           } else {
-            console.log('[App] No playback state to restore or invalid track index');
+            logger.debug('[App] No playback state to restore or invalid track index');
           }
 
           // Preload first 3 songs for instant playback
@@ -1291,7 +1262,7 @@ const App: React.FC = () => {
           for (let i = 0; i < tracksToPreload; i++) {
             const track = loadedTracks[i];
             if ((track as any).filePath && !track.audioUrl) {
-              console.log(`[App] Preloading song ${i + 1}/${PRELOAD_COUNT}:`, track.title);
+              logger.debug(`[App] Preloading song ${i + 1}/${PRELOAD_COUNT}:`, track.title);
               // Don't await - let them load in parallel
               loadAudioFileForTrack(track).then(updatedTrack => {
                 setTracks(prev => {
@@ -1307,7 +1278,7 @@ const App: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error('Failed to load library:', error);
+        logger.error('Failed to load library:', error);
       }
     };
 
@@ -1317,50 +1288,29 @@ const App: React.FC = () => {
   // Sync tracksCountRef with tracks.length (for immediate access after deletion)
   useEffect(() => {
     tracksCountRef.current = tracks.length;
-    console.log(`[App] tracksCountRef synced to: ${tracks.length}`);
+    logger.debug(`[App] tracksCountRef synced to: ${tracks.length}`);
   }, [tracks.length]);
 
   // Auto-save library to disk when tracks change (Desktop only, debounced)
   useEffect(() => {
     if (isDesktop()) {
-      console.log('🔄 Tracks or volume changed, triggering auto-save...');
+      logger.debug('🔄 Tracks or volume changed, triggering auto-save...');
 
-      // Prepare library data for saving
-      const libraryData = {
-        songs: tracks.map(track => ({
-          id: track.id,
-          title: track.title,
-          artist: track.artist,
-          album: track.album,
-          duration: track.duration,
-          lyrics: track.lyrics,
-          syncedLyrics: track.syncedLyrics,
-          audioUrl: track.audioUrl || '',
-          filePath: (track as any).filePath || '',
-          fileName: (track as any).fileName || '',
-          fileSize: (track as any).fileSize || 0,
-          lastModified: (track as any).lastModified || 0,
-          addedAt: (track as any).addedAt || new Date().toISOString(),
-          playCount: (track as any).playCount || 0,
-          lastPlayed: (track as any).lastPlayed || null,
-          available: track.available ?? true
-        })),
-        settings: {
-          volume: volume,
-          currentTrackIndex: currentTrackIndex,
-          currentTrackId: currentTrack?.id,
-          currentTime: persistedTimeRef.current || currentTime,
-          isPlaying: isPlaying,
-          playbackMode: playbackMode
-        }
-      };
+      const libraryData = buildLibraryData(tracks, {
+        volume: volume,
+        currentTrackIndex: currentTrackIndex,
+        currentTrackId: currentTrack?.id,
+        currentTime: persistedTimeRef.current || currentTime,
+        isPlaying: isPlaying,
+        playbackMode: playbackMode
+      });
 
-      console.log(`📦 Prepared library data: ${libraryData.songs.length} songs`);
-      console.log('📦 Settings:', libraryData.settings);
-      console.log('  - volume:', libraryData.settings.volume);
-      console.log('  - currentTrackIndex:', libraryData.settings.currentTrackIndex);
-      console.log('  - currentTime:', libraryData.settings.currentTime);
-      console.log('  - isPlaying:', libraryData.settings.isPlaying);
+      logger.debug(`📦 Prepared library data: ${libraryData.songs.length} songs`);
+      logger.debug('📦 Settings:', libraryData.settings);
+      logger.debug('  - volume:', libraryData.settings.volume);
+      logger.debug('  - currentTrackIndex:', libraryData.settings.currentTrackIndex);
+      logger.debug('  - currentTime:', libraryData.settings.currentTime);
+      logger.debug('  - isPlaying:', libraryData.settings.isPlaying);
 
       // Debounced save
       libraryStorage.saveLibraryDebounced(libraryData);
@@ -1391,37 +1341,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleBeforeUnload = async () => {
       if (isDesktop()) {
-        const libraryData = {
-          songs: tracks.map(track => ({
-            id: track.id,
-            title: track.title,
-            artist: track.artist,
-            album: track.album,
-            duration: track.duration,
-            lyrics: track.lyrics,
-            syncedLyrics: track.syncedLyrics,
-            audioUrl: track.audioUrl || '',
-            filePath: (track as any).filePath || '',
-            fileName: (track as any).fileName || '',
-            fileSize: (track as any).fileSize || 0,
-            lastModified: (track as any).lastModified || 0,
-            addedAt: (track as any).addedAt || new Date().toISOString(),
-            playCount: (track as any).playCount || 0,
-            lastPlayed: (track as any).lastPlayed || null,
-            available: track.available ?? true
-          })),
-        settings: {
+        const libraryData = buildLibraryData(tracks, {
           volume: volume,
           currentTrackIndex: currentTrackIndex,
           currentTrackId: currentTrack?.id,
           currentTime: persistedTimeRef.current || currentTime,
           isPlaying: isPlaying,
           playbackMode: playbackMode
-        }
-      };
+        });
 
         // Immediate save (no debounce) on quit
-        console.log('💾 Saving library before quit...');
+        logger.debug('💾 Saving library before quit...');
         await libraryStorage.saveLibrary(libraryData);
       }
     };
@@ -1501,17 +1431,17 @@ const App: React.FC = () => {
         }
       }
 
-      // Clean up in Desktop (Electron/Tauri)
+      // Clean up in Desktop (Electron)
       const cleanupDesktopFile = async () => {
         const desktopAPI = await getDesktopAPIAsync();
         if (desktopAPI && trackToRemove && (trackToRemove as any).filePath) {
           try {
             const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
             if (result.success) {
-              console.log(`✅ Symlink deleted for track: ${trackToRemove.title}`);
+              logger.debug(`✅ Symlink deleted for track: ${trackToRemove.title}`);
             }
           } catch (error) {
-            console.error('Failed to delete symlink:', error);
+            logger.error('Failed to delete symlink:', error);
           }
         }
       };
@@ -1520,9 +1450,9 @@ const App: React.FC = () => {
       const cleanupCover = async () => {
         try {
           await metadataCacheService.deleteCover(trackId);
-          console.log(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
+          logger.debug(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
         } catch (error) {
-          console.warn('Failed to delete cover from IndexedDB:', error);
+          logger.warn('Failed to delete cover from IndexedDB:', error);
         }
       };
 
@@ -1537,7 +1467,7 @@ const App: React.FC = () => {
 
   // Remove multiple tracks at once (batch deletion)
   const handleRemoveMultipleTracks = useCallback(async (trackIds: string[]) => {
-    console.log(`[App] Batch removing ${trackIds.length} tracks...`);
+    logger.debug(`[App] Batch removing ${trackIds.length} tracks...`);
 
     // Collect all tracks to remove for cleanup
     const tracksToRemove = tracks.filter(t => trackIds.includes(t.id));
@@ -1560,7 +1490,7 @@ const App: React.FC = () => {
           try {
             await desktopAPI.deleteAudioFile((track as any).filePath);
           } catch (error) {
-            console.error(`Failed to delete file for ${track.title}:`, error);
+            logger.error(`Failed to delete file for ${track.title}:`, error);
           }
         }
       }
@@ -1571,7 +1501,7 @@ const App: React.FC = () => {
       try {
         await metadataCacheService.deleteCover(trackId);
       } catch (error) {
-        console.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
+        logger.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
       }
     }
 
@@ -1608,7 +1538,7 @@ const App: React.FC = () => {
           newIndex = 0;
         }
 
-        console.log(`[App] Current track index: ${prevIndex} → ${newIndex} (removed ${removedBeforeCurrent} tracks before current)`);
+        logger.debug(`[App] Current track index: ${prevIndex} → ${newIndex} (removed ${removedBeforeCurrent} tracks before current)`);
         return newIndex;
       });
 
@@ -1619,12 +1549,12 @@ const App: React.FC = () => {
 
     // Update ref immediately for use in subsequent operations
     tracksCountRef.current = tracks.length - trackIds.length;
-    console.log(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
+    logger.debug(`[App] tracksCountRef updated to: ${tracksCountRef.current}`);
 
-    console.log(`[App] ✓ Batch removal complete: ${trackIds.length} tracks removed`);
+    logger.debug(`[App] ✓ Batch removal complete: ${trackIds.length} tracks removed`);
   }, [tracks]);
 
-  // Reload files in Desktop (Electron/Tauri)
+  // Reload files in Desktop (Electron)
   const handleReloadFiles = useCallback(async () => {
     const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI) return;
@@ -1655,7 +1585,7 @@ const App: React.FC = () => {
             // Create symlink to the original file
             const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
             if (saveResult.success && saveResult.filePath) {
-              console.log(`File saved (${saveResult.method}):`, saveResult.filePath);
+              logger.debug(`File saved (${saveResult.method}):`, saveResult.filePath);
 
               // Parse metadata using Rust (FAST!)
               const parseResult = await desktopAPI.parseAudioMetadata(saveResult.filePath);
@@ -1693,7 +1623,7 @@ const App: React.FC = () => {
                   try {
                     await metadataCacheService.saveCover(updatedTracks[trackIndex].id, blob);
                   } catch (error) {
-                    console.warn('[App] Failed to save cover to IndexedDB:', error);
+                    logger.warn('[App] Failed to save cover to IndexedDB:', error);
                   }
                 }
 
@@ -1715,20 +1645,20 @@ const App: React.FC = () => {
               }
             }
           } catch (error) {
-            console.error('Failed to reload file:', filePath, error);
+            logger.error('Failed to reload file:', filePath, error);
           }
         }
       }
 
       setTracks(updatedTracks);
-      console.log(`Reloaded ${reloadedCount} files`);
+      logger.debug(`Reloaded ${reloadedCount} files`);
 
       // Save cache if we updated it
       if (reloadedCount > 0) {
         await metadataCacheService.save();
       }
     } catch (error) {
-      console.error('Failed to reload files:', error);
+      logger.error('Failed to reload files:', error);
     }
   }, [tracks]);
 
@@ -1739,7 +1669,7 @@ const App: React.FC = () => {
         <div className="flex flex-1">
           <Sidebar
           onImportClick={() => {
-            // Check if running in Desktop environment (Electron or Tauri)
+            // Check if running in Desktop environment (Electron)
             if (isDesktop()) {
               // Desktop: Use native file dialog
               handleDesktopImport();
@@ -1765,11 +1695,11 @@ const App: React.FC = () => {
               onEnded={handleTrackEnded}
               onCanPlay={handleCanPlay}
               onError={(e) => {
-                        console.error('[App] Audio error:', e);
+                        logger.error('[App] Audio error:', e);
                         const audio = e.target as HTMLAudioElement;
-                        console.error('[App] Audio error code:', audio.error?.code);
-                        console.error('[App] Audio error message:', audio.error?.message);
-                        console.error('[App] Current audio src:', audio.src);
+                        logger.error('[App] Audio error code:', audio.error?.code);
+                        logger.error('[App] Audio error message:', audio.error?.message);
+                        logger.error('[App] Current audio src:', audio.src);
               
                         // If audio fails to load, stop playback and reset state
                         setIsPlaying(false);
@@ -1780,7 +1710,7 @@ const App: React.FC = () => {
                         // The error might be due to Blob URL being revoked, not because the file is actually unavailable
                         // Just clear the audioUrl so it can be reloaded on next play
                         if (currentTrack && audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
-                          console.warn('[App] Audio source not supported, clearing audioUrl for reload');
+                          logger.warn('[App] Audio source not supported, clearing audioUrl for reload');
                           setTracks(prev => {
                             const newTracks = [...prev];
                             const idx = newTracks.findIndex(t => t.id === currentTrack.id);

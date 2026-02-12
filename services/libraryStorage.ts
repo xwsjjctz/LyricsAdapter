@@ -1,10 +1,10 @@
 /**
  * 音乐库持久化存储服务
- * 处理与 Electron/Tauri 主进程的通信，实现数据的读写和验证
+ * 处理与 Electron 主进程的通信，实现数据的读写和验证
  */
 
 import { Track } from '../types';
-import { getDesktopAPI, getDesktopAPIAsync } from './desktopAdapter';
+import { getDesktopAPIAsync } from './desktopAdapter';
 
 export interface LibraryData {
   songs: Track[];

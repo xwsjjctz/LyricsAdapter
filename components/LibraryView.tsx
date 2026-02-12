@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Track } from '../types';
+import { logger } from '../services/logger';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -29,88 +30,116 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [rowHeight, setRowHeight] = useState(0);
+  const [rowGap, setRowGap] = useState(8);
 
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const previousTrackIndexRef = useRef<number>(-1); // Track previous track index
+  const overscan = 6;
+
+  const baseRowHeight = rowHeight || 64;
+  const rowStride = baseRowHeight + rowGap;
+  const totalHeight = tracks.length > 0
+    ? (tracks.length - 1) * rowStride + baseRowHeight
+    : 0;
+  const shouldVirtualize = tracks.length > 200 && viewportHeight > 0;
+  const startIndex = shouldVirtualize
+    ? Math.max(0, Math.floor(scrollTop / rowStride) - overscan)
+    : 0;
+  const endIndex = shouldVirtualize
+    ? Math.min(tracks.length, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
+    : tracks.length;
+  const visibleTracks = shouldVirtualize ? tracks.slice(startIndex, endIndex) : tracks;
+  const visibleCount = visibleTracks.length;
+  const paddingTop = shouldVirtualize ? startIndex * rowStride : 0;
+  const visibleHeight = visibleCount > 0
+    ? (visibleCount - 1) * rowStride + baseRowHeight
+    : 0;
+  const paddingBottom = shouldVirtualize
+    ? Math.max(0, totalHeight - paddingTop - visibleHeight)
+    : 0;
+
+  const rowMeasureRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const nextHeight = node.getBoundingClientRect().height;
+    if (nextHeight > 0 && nextHeight !== rowHeight) {
+      setRowHeight(nextHeight);
+    }
+  }, [rowHeight]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const update = () => {
+      setViewportHeight(container.clientHeight || 0);
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const style = window.getComputedStyle(list);
+    const gapValue = parseFloat(style.rowGap || style.gap || '0');
+    if (!Number.isNaN(gapValue) && gapValue !== rowGap) {
+      setRowGap(gapValue);
+    }
+  }, [isEditMode, rowGap, tracks.length]);
+
+  useEffect(() => {
+    setRowHeight(0);
+  }, [isEditMode]);
 
   // Auto-scroll to current track when currentTrackIndex changes
   useEffect(() => {
-    // Skip if index is invalid (e.g., during or after batch deletion)
     if (currentTrackIndex < 0 || currentTrackIndex >= tracks.length || !scrollContainerRef.current) {
       return;
     }
 
-    // Use setTimeout to ensure DOM is fully updated before querying elements
+    const container = scrollContainerRef.current;
     const timer = setTimeout(() => {
-      // Double-check bounds after timeout (in case tracks changed during deletion)
-      if (currentTrackIndex < 0 || currentTrackIndex >= tracks.length || !scrollContainerRef.current) {
-        console.log(`[LibraryView] Skip auto-scroll: index ${currentTrackIndex} out of bounds [0, ${tracks.length})`);
+      const viewTop = container.scrollTop;
+      const viewBottom = viewTop + container.clientHeight;
+      const itemTop = currentTrackIndex * rowStride;
+      const itemBottom = itemTop + baseRowHeight;
+
+      if (itemTop >= viewTop && itemBottom <= viewBottom) {
+        logger.debug(`[LibraryView] Track ${currentTrackIndex + 1} is already visible, no scroll needed`);
+        previousTrackIndexRef.current = currentTrackIndex;
         return;
       }
 
-      try {
-        // Find the current track element
-        const trackElements = scrollContainerRef.current.querySelectorAll('[data-track-index]');
+      const isNext = currentTrackIndex > previousTrackIndexRef.current;
+      let targetTop: number;
 
-        // Safety check: ensure we have enough elements
-        if (currentTrackIndex >= trackElements.length) {
-          console.warn(`[LibraryView] Skip auto-scroll: only ${trackElements.length} elements available, need index ${currentTrackIndex}`);
-          return;
-        }
-
-        const currentTrackElement = trackElements[currentTrackIndex] as HTMLElement;
-
-        if (!currentTrackElement) {
-          console.warn(`[LibraryView] Skip auto-scroll: element at index ${currentTrackIndex} is null`);
-          return;
-        }
-
-        // Check if the track is already visible in the viewport
-        const containerRect = scrollContainerRef.current.getBoundingClientRect();
-        const trackRect = currentTrackElement.getBoundingClientRect();
-        const isVisible = (
-          trackRect.top >= containerRect.top &&
-          trackRect.bottom <= containerRect.bottom
-        );
-
-        if (isVisible) {
-          console.log(`[LibraryView] Track ${currentTrackIndex + 1} is already visible, no scroll needed`);
-          previousTrackIndexRef.current = currentTrackIndex;
-          return;
-        }
-
-        // Determine scroll direction based on index change
-        const isNext = currentTrackIndex > previousTrackIndexRef.current;
-
-        // In focus mode, use 'nearest' to avoid aggressive scrolling that pushes the layout up
-        // This provides a smoother, more controlled scroll behavior
-        const blockPosition = isFocusMode ? 'nearest' : (isNext ? 'end' : 'start'); // Focus mode: gentle, Next: bottom, Previous: top
-        const directionText = isFocusMode ? 'gentle' : (isNext ? 'bottom' : 'top');
-
-        console.log(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1} (${directionText}${isFocusMode ? ' (focus mode)' : ''})`);
-
-        // Scroll the track into view with smooth animation
-        currentTrackElement.scrollIntoView({
-          behavior: 'smooth',
-          block: blockPosition,
-          inline: 'nearest'
-        });
-
-        previousTrackIndexRef.current = currentTrackIndex;
-      } catch (error) {
-        console.error('[LibraryView] Error during auto-scroll:', error);
-        // Don't throw - let the component continue rendering
+      if (isFocusMode) {
+        targetTop = itemTop < viewTop ? itemTop : itemBottom - container.clientHeight;
+      } else {
+        targetTop = isNext ? itemBottom - container.clientHeight : itemTop;
       }
-    }, 0); // Execute in next event loop after DOM update
+
+      const maxTop = Math.max(0, totalHeight - container.clientHeight);
+      const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+
+      logger.debug(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1}`);
+      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
+      previousTrackIndexRef.current = currentTrackIndex;
+    }, 0);
 
     return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks.length]);
+  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, isFocusMode]);
 
   // Update sliding highlight position when current track changes
   useEffect(() => {
-    if (isEditMode || currentTrackIndex < 0 || !listRef.current) {
+    if (isEditMode || currentTrackIndex < 0 || tracks.length === 0) {
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
       return;
     }
@@ -120,25 +149,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         `[data-track-index="${currentTrackIndex}"]`
       ) as HTMLElement | null;
 
-      if (!currentTrackElement || !listRef.current) {
-        setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+      if (currentTrackElement) {
+        setHighlightStyle({
+          top: currentTrackElement.offsetTop,
+          height: currentTrackElement.offsetHeight,
+          opacity: 1
+        });
         return;
       }
 
-      const top = currentTrackElement.offsetTop;
-      const height = currentTrackElement.offsetHeight;
-
       setHighlightStyle({
-        top,
-        height,
+        top: currentTrackIndex * rowStride,
+        height: baseRowHeight,
         opacity: 1
       });
     };
 
-    // Use rAF to ensure DOM is ready
     const raf = requestAnimationFrame(updateHighlight);
     return () => cancelAnimationFrame(raf);
-  }, [currentTrackIndex, tracks.length, isEditMode]);
+  }, [currentTrackIndex, tracks.length, isEditMode, rowStride, baseRowHeight]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
@@ -149,7 +178,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     e.preventDefault();
     e.stopPropagation();
     if (!isDragging) {
-      console.log('[LibraryView] Drag over - enabling dragging state');
+      logger.debug('[LibraryView] Drag over - enabling dragging state');
       setIsDragging(true);
     }
   }, [isDragging]);
@@ -165,7 +194,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     // Check if the related target is outside the current target
     if (relatedTarget && !currentTarget.contains(relatedTarget)) {
-      console.log('[LibraryView] Drag leave - disabling dragging state');
+      logger.debug('[LibraryView] Drag leave - disabling dragging state');
       setIsDragging(false);
     }
   }, []);
@@ -173,17 +202,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('[LibraryView] Drop event triggered');
+    logger.debug('[LibraryView] Drop event triggered');
     setIsDragging(false);
 
     if (!onDropFiles) {
-      console.warn('[LibraryView] No drop handler available');
+      logger.warn('[LibraryView] No drop handler available');
       return;
     }
 
     // Get dropped files
     const droppedFiles = Array.from(e.dataTransfer.files);
-    console.log(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
+    logger.debug(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
 
     // Filter for audio files only
     const audioExtensions = ['.flac', '.mp3', '.m4a', '.wav'];
@@ -192,14 +221,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       return audioExtensions.includes(ext);
     });
 
-    console.log(`[LibraryView] Audio files after filtering: ${audioFiles.length}`);
+    logger.debug(`[LibraryView] Audio files after filtering: ${audioFiles.length}`);
 
     if (audioFiles.length === 0) {
-      console.warn('[LibraryView] No audio files dropped');
+      logger.warn('[LibraryView] No audio files dropped');
       return;
     }
 
-    console.log(`[LibraryView] Dropped ${audioFiles.length} audio file(s)`);
+    logger.debug(`[LibraryView] Dropped ${audioFiles.length} audio file(s)`);
 
     // Call parent handler with dropped files
     onDropFiles(audioFiles);
@@ -231,21 +260,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     // Convert Set to Array
     const idsToRemove = Array.from(selectedIds);
 
-    console.log(`[LibraryView] Removing ${idsToRemove.length} tracks...`);
+    logger.debug(`[LibraryView] Removing ${idsToRemove.length} tracks...`);
 
     // Use batch removal if available (much faster and avoids state inconsistencies)
     if (onRemoveMultipleTracks) {
       await onRemoveMultipleTracks(idsToRemove);
-      console.log('[LibraryView] ✓ Batch removal complete');
+      logger.debug('[LibraryView] ✓ Batch removal complete');
     } else {
       // Fallback to sequential removal
-      console.log('[LibraryView] Using sequential removal (fallback)...');
+      logger.debug('[LibraryView] Using sequential removal (fallback)...');
       for (let i = 0; i < idsToRemove.length; i++) {
         const id = idsToRemove[i];
-        console.log(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
+        logger.debug(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
         await onRemoveTrack(id);
       }
-      console.log('[LibraryView] Sequential removal complete');
+      logger.debug('[LibraryView] Sequential removal complete');
     }
 
     // Clear selection and exit edit mode
@@ -360,19 +389,24 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           onScroll={handleScroll}
         >
           {tracks.length > 0 ? (
-            <div ref={listRef} className="grid gap-2 relative">
-              {tracks.map((track, idx) => {
+            <div
+              ref={listRef}
+              className="grid gap-2 relative"
+              style={{ paddingTop, paddingBottom }}
+            >
+              {visibleTracks.map((track, idx) => {
+                const actualIndex = startIndex + idx;
                 const isUnavailable = track.available === false;
                 const isSelected = selectedIds.has(track.id);
+                const shouldAnimate = !shouldVirtualize;
 
                 return (
                   <div
                     key={track.id}
-                    data-track-index={idx}  // Add identifier for auto-scroll
-                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(idx)}
-                    style={{
-                      animation: `fadeInUp 0.3s ease-out ${idx * 0.03}s both`
-                    }}
+                    ref={idx === 0 ? rowMeasureRef : undefined}
+                    data-track-index={actualIndex}  // Add identifier for auto-scroll
+                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(actualIndex)}
+                    style={shouldAnimate ? { animation: `fadeInUp 0.3s ease-out ${actualIndex * 0.03}s both` } : undefined}
                     className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 ${
                       isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
                     } ${
@@ -380,13 +414,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         ? 'opacity-40 bg-white/5'
                         : isSelected
                         ? 'bg-red-500/10 border border-red-500/30'
-                        : idx === currentTrackIndex
+                        : actualIndex === currentTrackIndex
                         ? 'text-primary'
                         : 'hover:bg-white/5'
                     } ${isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
                   >
                   <div className="text-sm font-medium opacity-50">
-                    {idx + 1}
+                    {actualIndex + 1}
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
                     <img
@@ -444,12 +478,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Custom comparison function for React.memo
   // Only re-render if these critical props change
   return (
-    prevProps.tracks.length === nextProps.tracks.length &&
+    prevProps.tracks === nextProps.tracks &&
     prevProps.currentTrackIndex === nextProps.currentTrackIndex &&
     prevProps.onTrackSelect === nextProps.onTrackSelect &&
     prevProps.onRemoveTrack === nextProps.onRemoveTrack &&
     prevProps.onRemoveMultipleTracks === nextProps.onRemoveMultipleTracks &&
-    prevProps.onDropFiles === nextProps.onDropFiles
+    prevProps.onDropFiles === nextProps.onDropFiles &&
+    prevProps.isFocusMode === nextProps.isFocusMode
   );
 });
 

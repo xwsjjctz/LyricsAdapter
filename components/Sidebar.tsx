@@ -10,9 +10,6 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, currentView, onReloadFiles, hasUnavailableTracks }) => {
-  // Check if running in Tauri (uses native file dialog)
-  const isTauri = !!(window as any).__TAURI__;
-
   return (
     <aside className="w-64 flex flex-col bg-background-sidebar/60 backdrop-blur-md border-r border-white/10 z-20 pt-8">
       <div className="px-6 flex flex-col gap-6 pt-6">
@@ -36,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
               className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/60 hover:bg-primary/10 hover:text-primary transition-all mt-4 border border-dashed border-white/20 group"
             >
               <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
-              <span className="text-sm font-semibold">{isTauri ? 'Import Files' : 'Import Files'}</span>
+              <span className="text-sm font-semibold">Import Files</span>
             </button>
 
             {hasUnavailableTracks && onReloadFiles && (

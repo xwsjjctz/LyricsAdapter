@@ -83,6 +83,7 @@ npm run preview  # 预览生产构建
 | **Vite** | 下一代前端构建工具，快速热更新 |
 | **Tailwind CSS** | 实用优先的 CSS 框架 |
 | **music-metadata-browser** | 浏览器端音频元数据解析库 |
+| **Electron** | 可选桌面端打包运行 |
 
 ## 📁 项目结构
 
@@ -94,7 +95,9 @@ LyricsAdapter/
 │   ├── LibraryView.tsx      # 曲库视图（歌曲列表、编辑模式）
 │   └── Sidebar.tsx          # 侧边栏导航
 ├── services/                # 业务逻辑
-│   └── metadataService.ts   # 音频元数据解析服务
+│   ├── metadataService.ts   # 音频元数据解析服务
+│   ├── logger.ts            # 日志封装（生产环境降噪）
+│   └── librarySerializer.ts # 保存数据结构生成
 ├── App.tsx                  # 主应用组件
 ├── types.ts                 # TypeScript 类型定义
 ├── index.html               # HTML 入口文件
@@ -148,7 +151,7 @@ LyricsAdapter/
 - [ ] 添加播放列表功能
 - [ ] 支持歌词搜索
 - [ ] 添加均衡器
-- [ ] 支持桌面端应用（Electron）
+- [ ] 完善桌面端体验（安装包/自动更新）
 - [ ] 添加主题切换功能
 - [ ] 支持歌词翻译显示
 
