@@ -71,7 +71,7 @@ const createWindow = async () => {
     // - esm.sh for React CDN imports
     // - worker-src for Workers
     session.webRequest.onHeadersReceived((details, callback) => {
-      const csp = `default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' blob: data: https: http: file:; media-src 'self' blob: data: file:; connect-src 'self' blob: data: ws://localhost:* http://localhost:* https://esm.sh; worker-src 'self' blob:; frame-src 'self' blob:; font-src 'self' blob: data: https://esm.sh;`;
+      const csp = `default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' blob: data: https: http: file: cover:; media-src 'self' blob: data: file:; connect-src 'self' blob: data: ws://localhost:* http://localhost:* https://esm.sh; worker-src 'self' blob:; frame-src 'self' blob:; font-src 'self' blob: data: https://esm.sh;`;
       callback({
         responseHeaders: {
           ...details.responseHeaders,
