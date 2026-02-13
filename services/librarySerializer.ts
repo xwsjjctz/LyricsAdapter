@@ -47,6 +47,8 @@ export function buildLibraryIndexData(tracks: Track[], settings: LibrarySettings
         artist: track.artist,
         album: track.album,
         duration: track.duration,
+        lyrics: track.lyrics,
+        syncedLyrics: track.syncedLyrics,
         coverUrl,
         filePath: (track as any).filePath || '',
         fileName: (track as any).fileName || '',

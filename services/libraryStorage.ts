@@ -4,7 +4,8 @@
  */
 
 import { Track } from '../types';
-import { getDesktopAPIAsync } from './desktopAdapter';
+import { getDesktopAPIAsync, isDesktop } from './desktopAdapter';
+import { indexedDBStorage } from './indexedDBStorage';
 
 export interface LibraryData {
   songs: Track[];
@@ -17,6 +18,8 @@ export interface LibraryIndexSong {
   artist: string;
   album: string;
   duration: number;
+  lyrics?: string;
+  syncedLyrics?: { time: number; text: string }[];
   coverUrl?: string;
   filePath?: string;
   fileName?: string;
@@ -73,6 +76,34 @@ class LibraryStorageService {
         console.log('[LibraryStorage] ✅ Library loaded successfully!');
         console.log(`[LibraryStorage]    - ${result.library.songs?.length || 0} songs found`);
         console.log('[LibraryStorage]    - Settings:', result.library.settings);
+
+        // Check if any songs are missing lyrics, try to supplement from IndexedDB
+        const songsNeedLyrics = result.library.songs?.some(s => !s.lyrics || !s.syncedLyrics);
+        if (songsNeedLyrics && isDesktop()) {
+          console.log('[LibraryStorage] Some songs missing lyrics, checking IndexedDB...');
+          try {
+            const idbLibrary = await indexedDBStorage.loadLibrary();
+            if (idbLibrary && idbLibrary.songs && idbLibrary.songs.length > 0) {
+              // Merge lyrics from IndexedDB
+              const idbMap = new Map(idbLibrary.songs.map(s => [s.id, s]));
+              result.library.songs = result.library.songs.map(song => {
+                const idbSong = idbMap.get(song.id);
+                if (idbSong && (song.lyrics !== idbSong.lyrics || song.syncedLyrics !== idbSong.syncedLyrics)) {
+                  console.log(`[LibraryStorage] ✅ Supplementing lyrics for: ${song.title}`);
+                  return {
+                    ...song,
+                    lyrics: song.lyrics || idbSong.lyrics || '',
+                    syncedLyrics: song.syncedLyrics || idbSong.syncedLyrics
+                  };
+                }
+                return song;
+              });
+            }
+          } catch (err) {
+            console.warn('[LibraryStorage] Failed to check IndexedDB for lyrics:', err);
+          }
+        }
+
         return result.library;
       } else {
         console.error('[LibraryStorage] ❌ Failed to load library:', result.error);

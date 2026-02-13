@@ -34,6 +34,13 @@ interface LyricsAdapterDB extends DBSchema {
     key: string;
     value: Blob;
   };
+  library: {
+    key: string;
+    value: {
+      songs: any[];
+      settings: any;
+    };
+  };
 }
 
 class IndexedDBStorageService {
@@ -48,8 +55,8 @@ class IndexedDBStorageService {
 
     try {
       console.log('[IndexedDB] Opening database...');
-      this.db = await openDB<LyricsAdapterDB>('LyricsAdapter', 1, {
-        upgrade(db) {
+      this.db = await openDB<LyricsAdapterDB>('LyricsAdapter', 2, {
+        upgrade(db, oldVersion, newVersion, transaction) {
           // Create metadata store
           if (!db.objectStoreNames.contains('metadata')) {
             const metadataStore = db.createObjectStore('metadata', { keyPath: 'key' });
@@ -60,6 +67,12 @@ class IndexedDBStorageService {
           if (!db.objectStoreNames.contains('covers')) {
             const coversStore = db.createObjectStore('covers');
             console.log('[IndexedDB] Created covers store');
+          }
+
+          // Create library store for browser mode persistence
+          if (!db.objectStoreNames.contains('library')) {
+            const libraryStore = db.createObjectStore('library', { keyPath: 'key' });
+            console.log('[IndexedDB] Created library store');
           }
         },
       });
@@ -337,6 +350,43 @@ class IndexedDBStorageService {
       console.log('[IndexedDB] ✓ Cleared all covers');
     } catch (error) {
       console.error('[IndexedDB] Failed to clear covers:', error);
+    }
+  }
+
+  // ========== Library Operations ==========
+
+  /**
+   * Load library from IndexedDB (for browser mode)
+   */
+  async loadLibrary(): Promise<{ songs: any[]; settings: any } | null> {
+    await this.ensureInitialized();
+    if (!this.db) return null;
+
+    try {
+      const result = await this.db.get('library', 'main') as unknown as { key: string; value: { songs: any[]; settings: any } } | undefined;
+      if (result && result.value) {
+        console.log('[IndexedDB] ✓ Loaded library from IndexedDB');
+        return result.value;
+      }
+      return null;
+    } catch (error) {
+      console.error('[IndexedDB] Failed to load library:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save library to IndexedDB (for browser mode)
+   */
+  async saveLibrary(library: { songs: any[]; settings: any }): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      await this.db.put('library', { key: 'main', value: library } as any);
+      console.log('[IndexedDB] ✓ Saved library to IndexedDB');
+    } catch (error) {
+      console.error('[IndexedDB] Failed to save library:', error);
     }
   }
 

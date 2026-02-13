@@ -129,22 +129,20 @@ export function validateMetadata(data: unknown): ValidatedMetadata | null {
 
   const obj = data as Record<string, unknown>;
 
-  // Validate required fields
-  const title = sanitizeString(obj.title, MAX_TITLE_LENGTH);
-  const artist = sanitizeString(obj.artist, MAX_ARTIST_LENGTH);
-  const album = sanitizeString(obj.album, MAX_ALBUM_LENGTH);
+  // Validate required fields - use fallback if missing
+  let title = sanitizeString(obj.title, MAX_TITLE_LENGTH);
+  let artist = sanitizeString(obj.artist, MAX_ARTIST_LENGTH);
+  let album = sanitizeString(obj.album, MAX_ALBUM_LENGTH);
   const lyrics = sanitizeString(obj.lyrics || '', MAX_LYRICS_LENGTH, true);
-  const fileName = sanitizeString(obj.fileName, MAX_FILENAME_LENGTH);
+  let fileName = sanitizeString(obj.fileName, MAX_FILENAME_LENGTH);
 
-  // Check required fields are present
+  // Use fallback values if missing (instead of rejecting)
   if (!title) {
-    console.warn('[DataValidator] Invalid metadata: missing or invalid title');
-    return null;
+    title = fileName?.replace(/\.[^/.]+$/, '') || 'Unknown Title';
   }
 
   if (!fileName) {
-    console.warn('[DataValidator] Invalid metadata: missing fileName');
-    return null;
+    fileName = 'unknown file';
   }
 
   // Validate numeric fields
