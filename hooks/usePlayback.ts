@@ -137,12 +137,13 @@ export function usePlayback({
       return;
     }
 
+    // Loop back to first track when reaching the end
+    shouldAutoPlayRef.current = true;
+    forcePlayRef.current = true;
     if (currentTrackIndex < tracks.length - 1) {
-      shouldAutoPlayRef.current = true;
-      forcePlayRef.current = true;
       setCurrentTrackIndex(prev => prev + 1);
     } else {
-      setIsPlaying(false);
+      setCurrentTrackIndex(0);
     }
   }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
 
@@ -189,8 +190,11 @@ export function usePlayback({
       return;
     }
 
+    // Loop back to first track when reaching the end
     if (currentTrackIndex < tracks.length - 1) {
       setCurrentTrackIndex(prev => prev + 1);
+    } else {
+      setCurrentTrackIndex(0);
     }
   }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
 
@@ -205,10 +209,11 @@ export function usePlayback({
       return;
     }
 
+    // Loop to last track when at the beginning
     if (currentTrackIndex > 0) {
       setCurrentTrackIndex(prev => prev - 1);
-    } else if (audioRef.current) {
-      audioRef.current.currentTime = 0;
+    } else {
+      setCurrentTrackIndex(tracks.length - 1);
     }
   }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
 
