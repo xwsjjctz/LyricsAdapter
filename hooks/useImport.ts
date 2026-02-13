@@ -382,6 +382,25 @@ export function useImport({
       const tracksMap = createTracksMap();
       logger.debug(`[Import] Created tracksMap with ${tracksMap.size} entries`);
 
+      // Filter out already imported files
+      const newFilePaths = filePaths.filter(filePath => {
+        const fileName = filePath.split(/[/\\]/).pop() || '';
+        if (tracksMap.has(fileName)) {
+          logger.debug(`[Import] ⏭️ Skipping already imported file: ${fileName}`);
+          return false;
+        }
+        return true;
+      });
+
+      if (newFilePaths.length === 0) {
+        logger.debug('[Import] All files already imported, skipping');
+        return;
+      }
+
+      if (newFilePaths.length < filePaths.length) {
+        logger.debug(`[Import] 📝 Skipped ${filePaths.length - newFilePaths.length} duplicate files`);
+      }
+
       const BATCH_SIZE = 10;
       const UI_UPDATE_BATCH = 20;
       const allNewTracks: Track[] = [];
@@ -391,12 +410,12 @@ export function useImport({
       let totalFailed = 0;
 
       logger.debug(`[Import] ===== Starting Import Process =====`);
-      logger.debug(`[Import] Total files to import: ${filePaths.length}`);
+      logger.debug(`[Import] Total files to import: ${newFilePaths.length}`);
 
-      for (let i = 0; i < filePaths.length; i += BATCH_SIZE) {
-        const batch = filePaths.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < newFilePaths.length; i += BATCH_SIZE) {
+        const batch = newFilePaths.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(filePaths.length / BATCH_SIZE);
+        const totalBatches = Math.ceil(newFilePaths.length / BATCH_SIZE);
 
         logger.debug(`[Import] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
         logger.debug(`[Import] Files in this batch:`, batch.map(f => f.split(/[/\\]/).pop()));
@@ -520,6 +539,25 @@ export function useImport({
       logger.debug(`[Import] Processing ${files.length} file(s) in Electron mode (buffer)...`);
 
       const tracksMap = createTracksMap();
+
+      // Filter out already imported files
+      const newFiles = files.filter(file => {
+        if (tracksMap.has(file.name)) {
+          logger.debug(`[Import] ⏭️ Skipping already imported file: ${file.name}`);
+          return false;
+        }
+        return true;
+      });
+
+      if (newFiles.length === 0) {
+        logger.debug('[Import] All files already imported, skipping');
+        return;
+      }
+
+      if (newFiles.length < files.length) {
+        logger.debug(`[Import] 📝 Skipped ${files.length - newFiles.length} duplicate files`);
+      }
+
       const BATCH_SIZE = 10;
       const UI_UPDATE_BATCH = 20;
       const allNewTracks: Track[] = [];
@@ -528,10 +566,10 @@ export function useImport({
       let totalProcessed = 0;
       let totalFailed = 0;
 
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < newFiles.length; i += BATCH_SIZE) {
+        const batch = newFiles.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(files.length / BATCH_SIZE);
+        const totalBatches = Math.ceil(newFiles.length / BATCH_SIZE);
 
         logger.debug(`[Import] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
 
@@ -639,13 +677,31 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
+    // Filter out already imported files
+    const newFiles = files.filter(file => {
+      if (tracksMap.has(file.name)) {
+        logger.debug(`[Import] ⏭️ Skipping already imported file: ${file.name}`);
+        return false;
+      }
+      return true;
+    });
+
+    if (newFiles.length === 0) {
+      logger.debug('[Import] All files already imported, skipping');
+      return;
+    }
+
+    if (newFiles.length < files.length) {
+      logger.debug(`[Import] 📝 Skipped ${files.length - newFiles.length} duplicate files`);
+    }
+
     const BATCH_SIZE = 10;
     const UI_UPDATE_BATCH = 20;
     const allNewTracks: Track[] = [];
 
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      logger.debug(`[Import] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
+    for (let i = 0; i < newFiles.length; i += BATCH_SIZE) {
+      const batch = newFiles.slice(i, i + BATCH_SIZE);
+      logger.debug(`[Import] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(newFiles.length / BATCH_SIZE)} (${batch.length} files)`);
 
       const batchTracks = await processWebFileBatch(batch, tracksMap);
       allNewTracks.push(...batchTracks);

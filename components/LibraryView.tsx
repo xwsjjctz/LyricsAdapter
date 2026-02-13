@@ -130,7 +130,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
 
       logger.debug(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1}`);
-      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
+      container.scrollTo({ top: clampedTop, behavior: 'auto' });
       previousTrackIndexRef.current = currentTrackIndex;
     }, 0);
 
@@ -372,13 +372,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         {/* Sliding highlight overlay (outside scroll clipping) */}
         <div className="absolute inset-0 pointer-events-none">
           <div
-            className="absolute rounded-xl pointer-events-none transition-[transform,height,opacity] duration-300 ease-out glass-soft shadow-2xl"
+            className="absolute rounded-xl pointer-events-none transition-[transform,height,opacity] duration-150 ease-out glass-soft shadow-xl border border-white/10"
             style={{
               transform: `translateY(${highlightStyle.top - scrollTop}px)`,
               height: `${highlightStyle.height}px`,
               opacity: highlightStyle.opacity,
               left: 24,
-              right: 24
+              right: 24,
+              backgroundColor: 'rgba(59, 130, 246, 0.15)'
             }}
           />
         </div>

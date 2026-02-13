@@ -44,9 +44,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
 
-  // Use RAF to get more accurate currentTime, but with throttling to reduce frequency
+  // Use RAF to get more accurate currentTime, with higher frequency for better sync
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
   const lastUpdateRef = useRef(0);
+  const lastTimeRef = useRef(0); // Track last time value to avoid unnecessary updates
 
   useEffect(() => {
     if (!isVisible || !audioRef?.current) {
@@ -56,11 +57,16 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     let animationId: number;
 
     const updateTime = (timestamp: number) => {
-      // Throttle to ~30fps (33ms) to reduce activeIndex changes
-      if (timestamp - lastUpdateRef.current > 33) {
+      // Throttle to ~60fps (16ms) for more accurate sync
+      if (timestamp - lastUpdateRef.current > 16) {
         lastUpdateRef.current = timestamp;
         if (audioRef.current) {
-          setRealtimeCurrentTime(audioRef.current.currentTime);
+          const newTime = audioRef.current.currentTime;
+          // Only update state if time actually changed
+          if (newTime !== lastTimeRef.current) {
+            lastTimeRef.current = newTime;
+            setRealtimeCurrentTime(newTime);
+          }
         }
       }
       animationId = requestAnimationFrame(updateTime);
@@ -72,6 +78,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
+      lastTimeRef.current = 0;
     };
   }, [isVisible, audioRef]);
 
@@ -169,6 +176,42 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     // Set new timeout to resume auto-scroll after 3 seconds
     scrollTimeoutRef.current = setTimeout(() => {
       setIsUserScrolling(false);
+
+      // Force scroll to current active index when re-enabling auto-scroll
+      // This handles the case where lyrics don't change for a long time (instrumental)
+      if (lyricsRef.current && activeIndex >= 0) {
+        const lyricElements = lyricsRef.current.querySelectorAll('p');
+        const targetElement = lyricElements[activeIndex] as HTMLElement;
+
+        if (targetElement) {
+          const container = lyricsRef.current;
+          const containerHeight = container.clientHeight;
+          const elementTop = targetElement.offsetTop;
+          const elementHeight = targetElement.clientHeight;
+          const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+          // Animate scroll with ease-out timing
+          const startScroll = container.scrollTop;
+          const scrollDistance = targetScroll - startScroll;
+          const duration = 0.3;
+          const startTime = performance.now();
+
+          const animateScroll = (currentTime: number) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / (duration * 1000), 1);
+
+            // Ease-out function
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            container.scrollTop = startScroll + scrollDistance * easeOut;
+
+            if (progress < 1) {
+              requestAnimationFrame(animateScroll);
+            }
+          };
+
+          requestAnimationFrame(animateScroll);
+        }
+      }
     }, 3000);
   };
 
