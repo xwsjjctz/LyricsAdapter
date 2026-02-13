@@ -4,6 +4,7 @@ import { parseAudioFile, libraryStorage } from '../services/metadataService';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
+import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 
 interface UseImportOptions {
@@ -574,8 +575,8 @@ export function useImport({
       logger.debug('[Import] ✓ Drop import with persistence completed');
 
     } else {
-      // Web mode: fallback to web processing (no persistence)
-      logger.warn('[Import] Web mode drop import - no persistence support');
+      // Web mode: fallback to web processing (with persistence)
+      logger.warn('[Import] Web mode drop import - with persistence');
       const tracksMap = createTracksMap();
 
       const BATCH_SIZE = 10;
@@ -600,6 +601,19 @@ export function useImport({
         logger.debug(`[Import] Final UI update with ${allNewTracks.length} track(s)...`);
         setTracks(prev => [...prev, ...allNewTracks]);
       }
+
+      // Save to IndexedDB in browser mode
+      const finalTracks = [...tracks, ...allNewTracks];
+      const libraryData = buildLibraryIndexData(finalTracks, {
+        volume: volume,
+        currentTrackIndex: currentTrackIndex,
+        currentTrackId: currentTrack?.id,
+        currentTime: persistedTimeRef.current || currentTime,
+        isPlaying: isPlaying,
+        playbackMode: playbackMode
+      });
+      await indexedDBStorage.saveLibrary(libraryData);
+      logger.debug('[Import] ✓ Library saved to IndexedDB');
 
       logger.debug('[Import] ✓ All files imported successfully');
     }
@@ -650,8 +664,23 @@ export function useImport({
 
     logger.debug('[Import] ✓ All files imported successfully');
 
+    // Save to IndexedDB in browser mode
+    if (!isDesktop()) {
+      const finalTracks = [...tracks, ...allNewTracks];
+      const libraryData = buildLibraryIndexData(finalTracks, {
+        volume: volume,
+        currentTrackIndex: currentTrackIndex,
+        currentTrackId: currentTrack?.id,
+        currentTime: persistedTimeRef.current || currentTime,
+        isPlaying: isPlaying,
+        playbackMode: playbackMode
+      });
+      await indexedDBStorage.saveLibrary(libraryData);
+      logger.debug('[Import] ✓ Library saved to IndexedDB');
+    }
+
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [createTracksMap, processWebFileBatch, setTracks]);
+  }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode, volume, persistedTimeRef]);
 
   return {
     fileInputRef,

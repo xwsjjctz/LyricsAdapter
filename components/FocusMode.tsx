@@ -44,17 +44,48 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
 
-  const progress = track && track.duration > 0 ? (currentTime / track.duration) * 100 : 0;
+  // Use RAF to get more accurate currentTime, but with throttling to reduce frequency
+  const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
+  const lastUpdateRef = useRef(0);
 
-// Use audio element's actual currentTime for progress
-const actualCurrentTime = audioRef?.current ? audioRef.current.currentTime : currentTime;
-const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.duration) * 100 : 0;
+  useEffect(() => {
+    if (!isVisible || !audioRef?.current) {
+      return;
+    }
+
+    let animationId: number;
+
+    const updateTime = (timestamp: number) => {
+      // Throttle to ~30fps (33ms) to reduce activeIndex changes
+      if (timestamp - lastUpdateRef.current > 33) {
+        lastUpdateRef.current = timestamp;
+        if (audioRef.current) {
+          setRealtimeCurrentTime(audioRef.current.currentTime);
+        }
+      }
+      animationId = requestAnimationFrame(updateTime);
+    };
+
+    animationId = requestAnimationFrame(updateTime);
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [isVisible, audioRef]);
+
+  // Use realtime currentTime for more accurate lyrics sync
+  const activeCurrentTime = isVisible && audioRef?.current ? realtimeCurrentTime : currentTime;
+
+  const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
 
   // Render canvas with color gradient transition
   const renderCanvas = useCallback((progress: number) => () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !bgImage1) return;
+    // Check if image is loaded and not in broken state
+    if (!canvas || !ctx || !bgImage1 || !bgImage1.complete || bgImage1.naturalWidth === 0) return;
 
     const width = canvas.width = window.innerWidth;
     const height = canvas.height = window.innerHeight;
@@ -63,7 +94,7 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
     ctx.clearRect(0, 0, width, height);
 
     // If we have both backgrounds, do the gradient transition
-    if (bgImage2) {
+    if (bgImage2 && bgImage2.complete && bgImage2.naturalWidth > 0) {
       // Draw first background
       ctx.globalAlpha = 1 - progress;
       ctx.drawImage(bgImage1, 0, 0, width, height);
@@ -104,7 +135,7 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
     // If we have synced lyrics, find the line based on current time
     if (track.syncedLyrics && track.syncedLyrics.length > 0) {
       for (let i = lyricsLines.length - 1; i >= 0; i--) {
-        if (currentTime >= lyricsLines[i].time) {
+        if (activeCurrentTime >= lyricsLines[i].time) {
           return i;
         }
       }
@@ -113,10 +144,10 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
 
     // Fall back to percentage-based for plain text lyrics
     if (track.duration > 0) {
-      return Math.floor((currentTime / track.duration) * lyricsLines.length);
+      return Math.floor((activeCurrentTime / track.duration) * lyricsLines.length);
     }
     return 0;
-  }, [currentTime, lyricsLines, track]);
+  }, [activeCurrentTime, lyricsLines, track]);
 
   // Helper to format time
   const formatTime = (seconds: number) => {
@@ -172,7 +203,7 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
   useEffect(() => {
     if (!isVisible || activeIndex < 0 || isUserScrolling) return;
 
-    // Only scroll when activeIndex actually changes
+    // Only scroll when activeIndex actually changes - immediately without debounce
     if (activeIndex !== prevActiveIndexRef.current) {
       prevActiveIndexRef.current = activeIndex;
 
@@ -296,6 +327,9 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
     // Load new background image
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    img.onerror = () => {
+      console.warn('[FocusMode] Failed to load cover image, skipping background');
+    };
     img.onload = () => {
       // Start transition from current to new background
       const oldBg = bgImage2 || bgImage1;
@@ -522,7 +556,7 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
           >
             {/* Progress */}
             <div className="w-full flex items-center gap-3">
-              <span className="text-[10px] tabular-nums font-bold text-white/30 w-10 text-right">{formatTime(currentTime)}</span>
+              <span className="text-[10px] tabular-nums font-bold text-white/30 w-10 text-right">{formatTime(activeCurrentTime)}</span>
               <div
                 className="flex-1 relative h-1 bg-white/10 rounded-full cursor-pointer group"
                 onClick={(e) => {
@@ -534,11 +568,11 @@ const actualProgress = track && track.duration > 0 ? (actualCurrentTime / track.
               >
                 <div
                   className="absolute top-0 left-0 h-full bg-primary shadow-[0_0_15px_rgba(43,140,238,0.5)] rounded-full transition-all duration-100"
-                  style={{ width: `${actualProgress}%` }}
+                  style={{ width: `${progress}%` }}
                 />
                 <div
                   className="absolute top-1/2 -translate-y-1/2 size-2 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${actualProgress}%`, marginLeft: '-4px' }}
+                  style={{ left: `${progress}%`, marginLeft: '-4px' }}
                 />
               </div>
               <span className="text-[10px] tabular-nums font-bold text-white/30 w-10">{formatTime(track?.duration || 0)}</span>
