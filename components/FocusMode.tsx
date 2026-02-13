@@ -54,6 +54,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       return;
     }
 
+    // Reset time ref when track changes to ensure sync
+    lastTimeRef.current = 0;
+
     let animationId: number;
 
     const updateTime = (timestamp: number) => {
@@ -80,7 +83,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       }
       lastTimeRef.current = 0;
     };
-  }, [isVisible, audioRef]);
+  }, [isVisible, audioRef, track?.id]);
 
   // Use realtime currentTime for more accurate lyrics sync
   const activeCurrentTime = isVisible && audioRef?.current ? realtimeCurrentTime : currentTime;
@@ -315,10 +318,15 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   // Reset scroll state when track changes
   useEffect(() => {
     prevActiveIndexRef.current = -1;
-    // Scroll to top when track changes
-    if (lyricsRef.current) {
-      lyricsRef.current.scrollTop = 0;
-    }
+    lastTimeRef.current = 0; // Reset time ref to force fresh start
+    setRealtimeCurrentTime(0); // Reset current time to start
+
+    // Scroll to top when track changes - use setTimeout to ensure it runs after render
+    setTimeout(() => {
+      if (lyricsRef.current) {
+        lyricsRef.current.scrollTop = 0;
+      }
+    }, 0);
   }, [track?.id]);
 
   // Reset player visibility when focus mode becomes visible
