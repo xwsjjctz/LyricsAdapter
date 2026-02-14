@@ -40,7 +40,9 @@ const createWindow = async () => {
   console.log('User Data Directory:', userDataPath);
   console.log('===============================');
 
-  // macOS 使用原生标题栏，Windows/Linux 使用自定义标题栏
+  // 所有平台都使用无边框窗口，通过 React 组件渲染自定义标题栏
+  // macOS: hiddenInset 保留原生红黄绿按钮在左侧
+  // Windows/Linux: 完全自定义标题栏和窗口控制按钮
   const isMacOS = process.platform === 'darwin';
 
   win = new BrowserWindow({
@@ -49,7 +51,7 @@ const createWindow = async () => {
     minWidth: 1080,
     minHeight: 720,
     title: 'LyricsAdapter',
-    frame: !isMacOS, // macOS 保留原生标题栏，其他平台移除
+    frame: false, // 所有平台都使用无边框窗口，自定义标题栏
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden', // macOS 使用 hiddenInset 让背景延伸
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
