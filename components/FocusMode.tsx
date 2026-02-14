@@ -25,7 +25,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef
 }) => {
   const lyricsRef = useRef<HTMLDivElement>(null);
+  const lyricListRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [lyricOffsetY, setLyricOffsetY] = useState(0);
+  const [manualOffsetY, setManualOffsetY] = useState(0);
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAnimationRef = useRef<number | null>(null);
   const prevActiveIndexRef = useRef<number>(-1);
@@ -167,55 +173,66 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Handle user scroll interaction
-  const handleUserScroll = () => {
+  // Handle wheel scroll - manual scrolling with momentum
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
     setIsUserScrolling(true);
+
+    // Update manual offset based on wheel delta
+    setManualOffsetY(prev => prev - e.deltaY);
 
     // Clear existing timeout
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
 
-    // Set new timeout to resume auto-scroll after 3 seconds
+    // Resume auto-positioning after 3 seconds of inactivity
     scrollTimeoutRef.current = setTimeout(() => {
       setIsUserScrolling(false);
-
-      // Force scroll to current active index when re-enabling auto-scroll
-      // This handles the case where lyrics don't change for a long time (instrumental)
-      if (lyricsRef.current && activeIndex >= 0) {
-        const lyricElements = lyricsRef.current.querySelectorAll('p');
-        const targetElement = lyricElements[activeIndex] as HTMLElement;
-
-        if (targetElement) {
-          const container = lyricsRef.current;
-          const containerHeight = container.clientHeight;
-          const elementTop = targetElement.offsetTop;
-          const elementHeight = targetElement.clientHeight;
-          const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-          // Animate scroll with ease-out timing
-          const startScroll = container.scrollTop;
-          const scrollDistance = targetScroll - startScroll;
-          const duration = 0.3;
-          const startTime = performance.now();
-
-          const animateScroll = (currentTime: number) => {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / (duration * 1000), 1);
-
-            // Ease-out function
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-            container.scrollTop = startScroll + scrollDistance * easeOut;
-
-            if (progress < 1) {
-              requestAnimationFrame(animateScroll);
-            }
-          };
-
-          requestAnimationFrame(animateScroll);
-        }
-      }
+      setManualOffsetY(0); // Reset manual offset when resuming auto-scroll
     }, 3000);
+  };
+
+  // Handle mouse drag start
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDraggingRef.current = true;
+    dragStartYRef.current = e.clientY;
+    dragStartOffsetRef.current = manualOffsetY;
+    setIsUserScrolling(true);
+
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+  };
+
+  // Handle mouse drag move
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    const deltaY = e.clientY - dragStartYRef.current;
+    setManualOffsetY(dragStartOffsetRef.current + deltaY);
+  };
+
+  // Handle mouse drag end
+  const handleMouseUp = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+
+    // Resume auto-positioning after 3 seconds
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsUserScrolling(false);
+      setManualOffsetY(0);
+    }, 3000);
+  };
+
+  // Handle mouse leave during drag
+  const handleMouseLeave = () => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsUserScrolling(false);
+        setManualOffsetY(0);
+      }, 3000);
+    }
   };
 
   // Handle player mouse enter
@@ -242,91 +259,186 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       if (playerHideTimeoutRef.current) {
         clearTimeout(playerHideTimeoutRef.current);
       }
+      if (lyricAnimationRef.current !== null) {
+        cancelAnimationFrame(lyricAnimationRef.current);
+        lyricAnimationRef.current = null;
+      }
     };
   }, []);
 
-  // Auto-scroll lyrics to current line (only when not user scrolling)
+  // Hardware-accelerated lyric positioning using CSS transform with bezier easing
+  // Natural, non-linear animation curves for smooth, organic scrolling
+  const autoOffsetRef = useRef(0);
+  const currentOffsetRef = useRef(0);
+  const lyricAnimationRef = useRef<number | null>(null);
+  const preScrolledIndexRef = useRef<number>(-1);
+  
+  // Pre-scroll offset: start scrolling 0.1s before next lyric
+  const PRE_SCROLL_TIME = 0.1;
+  
+  // Cubic bezier curve: ease-out-cubic with slight overshoot for natural feel
+  const bezierEaseOut = (t: number): number => {
+    return 1 - Math.pow(1 - t, 3) * (1 - t * 0.3);
+  };
+  
+  // More pronounced curve for long distances - ease-out-expo variant
+  const bezierEaseOutLong = (t: number): number => {
+    return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+  };
+  
+  // Calculate auto position with pre-scroll logic
+  // Trigger scroll 0.4s before the next lyric starts
   useEffect(() => {
-    if (!isVisible || activeIndex < 0 || isUserScrolling) return;
+    if (!isVisible || activeIndex < 0 || !lyricListRef.current || isUserScrolling) return;
 
-    // Only scroll when activeIndex actually changes - immediately without debounce
-    if (activeIndex !== prevActiveIndexRef.current) {
-      prevActiveIndexRef.current = activeIndex;
+    const container = lyricsRef.current;
+    const lyricList = lyricListRef.current;
+    if (!container || !track?.syncedLyrics) return;
 
-      // Cancel any ongoing scroll animation
-      if (scrollAnimationRef.current !== null) {
-        cancelAnimationFrame(scrollAnimationRef.current);
-        scrollAnimationRef.current = null;
-      }
-
-      if (lyricsRef.current) {
-        const lyricElements = lyricsRef.current.querySelectorAll('p');
-        const targetElement = lyricElements[activeIndex] as HTMLElement;
-
-        if (targetElement) {
-          const container = lyricsRef.current;
-          const containerHeight = container.clientHeight;
-          const elementTop = targetElement.offsetTop;
-          const elementHeight = targetElement.clientHeight;
-          const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-          // Calculate time difference between current and next lyric
-          let timeToNextLyric = 2.0; // Default 2 seconds
-          if (track?.syncedLyrics && activeIndex < lyricsLines.length - 1) {
-            const currentLyricTime = lyricsLines[activeIndex].time;
-            const nextLyricTime = lyricsLines[activeIndex + 1].time;
-            timeToNextLyric = Math.max(nextLyricTime - currentLyricTime, 0.3);
-          }
-
-          // Calculate scroll distance
-          const currentScroll = container.scrollTop;
-          const scrollDistance = Math.abs(targetScroll - currentScroll);
-          const isLongDistance = scrollDistance > containerHeight * 0.8;
-
-          // Dynamic duration: faster for quick lyrics or long distances
-          let duration = Math.min(timeToNextLyric * 0.6, 0.8); // Max 800ms
-          if (isLongDistance) {
-            duration = Math.min(duration, 0.4); // Faster for long distances
-          }
-
-          // Animate scroll with custom duration using ease-out timing
-          const startTime = performance.now();
-          const startScroll = container.scrollTop;
-          const scrollChange = targetScroll - startScroll;
-
-          const animateScroll = (currentTime: number) => {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / (duration * 1000), 1);
-
-            // Ease-out function: 1 - (1 - t)^3
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-            container.scrollTop = startScroll + scrollChange * easeOut;
-
-            if (progress < 1) {
-              scrollAnimationRef.current = requestAnimationFrame(animateScroll);
-            } else {
-              scrollAnimationRef.current = null;
-            }
-          };
-
-          scrollAnimationRef.current = requestAnimationFrame(animateScroll);
-        }
+    const containerHeight = container.clientHeight;
+    const lineElements = Array.from(lyricList.children) as HTMLElement[];
+    
+    // Find the NEXT lyric index to pre-scroll to
+    // Look for lyrics that will start within PRE_SCROLL_TIME window
+    let targetIndex = -1;
+    for (let i = 0; i < lyricsLines.length; i++) {
+      const lyricTime = lyricsLines[i].time;
+      // Trigger scroll when current time is 0.4s before this lyric
+      if (activeCurrentTime >= lyricTime - PRE_SCROLL_TIME && 
+          activeCurrentTime < lyricTime + 0.1) {
+        targetIndex = i;
+        break;
       }
     }
-  }, [activeIndex, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines]);
+    
+    // Fallback to activeIndex if no pre-scroll target found
+    if (targetIndex === -1) {
+      targetIndex = activeIndex;
+    }
+    
+    // Skip if already scrolled to this index
+    if (targetIndex === preScrolledIndexRef.current) return;
+    preScrolledIndexRef.current = targetIndex;
+    
+    if (!lineElements[targetIndex]) return;
+
+    // Calculate cumulative offset to the target line
+    const GAP = 28;
+    let offsetToTarget = 0;
+    for (let i = 0; i < targetIndex; i++) {
+      offsetToTarget += lineElements[i].offsetHeight + GAP;
+    }
+
+    const targetLineHeight = lineElements[targetIndex].offsetHeight;
+    const autoOffsetY = containerHeight * 0.1 - offsetToTarget - targetLineHeight / 2;
+    
+    autoOffsetRef.current = autoOffsetY;
+
+    // Cancel any ongoing animation
+    if (lyricAnimationRef.current !== null) {
+      cancelAnimationFrame(lyricAnimationRef.current);
+      lyricAnimationRef.current = null;
+    }
+
+    // Animate with longer, slower duration for more visible motion
+    const startY = currentOffsetRef.current;
+    const targetY = autoOffsetY;
+    const distance = targetY - startY;
+    const startTime = performance.now();
+    
+    // Longer duration: 500ms for short, up to 900ms for long moves
+    const absDistance = Math.abs(distance);
+    const isLongDistance = absDistance > containerHeight * 0.3;
+    const duration = isLongDistance ? 900 : Math.min(500 + absDistance * 0.4, 750);
+    
+    const easeFn = isLongDistance ? bezierEaseOutLong : bezierEaseOut;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const rawProgress = Math.min(elapsed / duration, 1);
+      
+      const easedProgress = easeFn(rawProgress);
+      const newY = startY + distance * easedProgress;
+      
+      currentOffsetRef.current = newY;
+      setLyricOffsetY(newY);
+
+      if (rawProgress < 1) {
+        lyricAnimationRef.current = requestAnimationFrame(animate);
+      } else {
+        currentOffsetRef.current = targetY;
+        setLyricOffsetY(targetY);
+        lyricAnimationRef.current = null;
+      }
+    };
+
+    lyricAnimationRef.current = requestAnimationFrame(animate);
+  }, [activeCurrentTime, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines, activeIndex]);
+
+  // Manual scroll mode: directly apply offset without auto-position
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    if (isUserScrolling) {
+      // Cancel any animation during manual scroll
+      if (lyricAnimationRef.current !== null) {
+        cancelAnimationFrame(lyricAnimationRef.current);
+        lyricAnimationRef.current = null;
+      }
+      
+      const combinedY = autoOffsetRef.current + manualOffsetY;
+      currentOffsetRef.current = combinedY;
+      setLyricOffsetY(combinedY);
+    } else {
+      // User scrolling ended - smoothly return to auto position with easing
+      if (Math.abs(manualOffsetY) > 0.5) {
+        const startY = currentOffsetRef.current;
+        const targetY = autoOffsetRef.current;
+        const distance = targetY - startY;
+        const startTime = performance.now();
+        const duration = 600;
+
+        const animateReturn = (currentTime: number) => {
+          const elapsed = currentTime - startTime;
+          const rawProgress = Math.min(elapsed / duration, 1);
+          const easedProgress = bezierEaseOut(rawProgress);
+          
+          const newY = startY + distance * easedProgress;
+          currentOffsetRef.current = newY;
+          setLyricOffsetY(newY);
+
+          if (rawProgress < 1) {
+            lyricAnimationRef.current = requestAnimationFrame(animateReturn);
+          } else {
+            currentOffsetRef.current = targetY;
+            setLyricOffsetY(targetY);
+            lyricAnimationRef.current = null;
+          }
+        };
+        
+        if (lyricAnimationRef.current !== null) {
+          cancelAnimationFrame(lyricAnimationRef.current);
+        }
+        lyricAnimationRef.current = requestAnimationFrame(animateReturn);
+      }
+    }
+  }, [manualOffsetY, isUserScrolling, isVisible]);
 
   // Reset scroll state when track changes
   useEffect(() => {
     prevActiveIndexRef.current = -1;
-    lastTimeRef.current = 0; // Reset time ref to force fresh start
-    setRealtimeCurrentTime(0); // Reset current time to start
-
-    // Scroll to top when track changes - use setTimeout to ensure it runs after render
-    setTimeout(() => {
-      if (lyricsRef.current) {
-        lyricsRef.current.scrollTop = 0;
-      }
-    }, 0);
+    preScrolledIndexRef.current = -1;
+    lastTimeRef.current = 0;
+    setRealtimeCurrentTime(0);
+    setLyricOffsetY(0);
+    setManualOffsetY(0);
+    autoOffsetRef.current = 0;
+    currentOffsetRef.current = 0;
+    
+    if (lyricAnimationRef.current !== null) {
+      cancelAnimationFrame(lyricAnimationRef.current);
+      lyricAnimationRef.current = null;
+    }
   }, [track?.id]);
 
   // Reset player visibility when focus mode becomes visible
@@ -565,34 +677,49 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             </div>
           </div>
 
-          {/* Lyrics */}
+          {/* Lyrics - Hardware accelerated with CSS transform */}
           <div
-            className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-y-auto no-scrollbar mask-fade flex flex-col gap-5 lg:gap-7 py-36 px-8"
+            className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
             ref={lyricsRef}
-            onScroll={handleUserScroll}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
           >
-            {lyricsLines.length > 0 ? (
-              lyricsLines.map((lyric, idx) => {
-                const isActive = idx === activeIndex;
-                const hasTimestamp = track?.syncedLyrics && lyric.time > 0;
-                return (
-                  <p
-                    key={idx}
-                    className={`text-xl lg:text-2xl font-bold leading-tight cursor-default ${
-                      isActive ? 'active-lyric transition-all duration-300' : 'text-white/10 hover:text-white/30 transition-all duration-200'
-                    } ${hasTimestamp ? 'cursor-pointer' : ''}`}
-                    onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
-                  >
-                    {lyric.text}
-                  </p>
-                );
-              })
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-white/10 gap-3">
-                <span className="material-symbols-outlined text-4xl">lyrics</span>
-                <p className="italic text-base">No lyrics found in metadata</p>
-              </div>
-            )}
+            <div
+              ref={lyricListRef}
+              className="flex flex-col gap-5 lg:gap-7 py-36 will-change-transform"
+              style={{
+                transform: `translateY(${lyricOffsetY}px)`,
+              }}
+            >
+              {lyricsLines.length > 0 ? (
+                lyricsLines.map((lyric, idx) => {
+                  const isActive = idx === activeIndex;
+                  const hasTimestamp = track?.syncedLyrics && lyric.time > 0;
+                  return (
+                    <p
+                      key={idx}
+                      className={`text-xl lg:text-2xl font-black leading-tight cursor-default ${
+                        isActive 
+                          ? 'active-lyric text-white/95 drop-shadow-[0_0_8px_rgba(255,255,255,0.45)] transition-all duration-300' 
+                          : 'text-white/25 hover:text-white/55 transition-all duration-200'
+                      } ${hasTimestamp ? 'cursor-pointer' : ''}`}
+                      onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
+                    >
+                      {lyric.text}
+                    </p>
+                  );
+                })
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-white/10 gap-3">
+                  <span className="material-symbols-outlined text-4xl">lyrics</span>
+                  <p className="italic text-base">No lyrics found in metadata</p>
+                </div>
+              )}
+            </div>
           </div>
         </main>
 
