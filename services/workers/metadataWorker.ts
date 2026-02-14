@@ -119,6 +119,9 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
     const matches = [...trimmedLine.matchAll(timeRegex)];
     const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
 
+    // Skip placeholder lines like "//"
+    if (textWithoutTimestamps === '//') continue;
+
     if (matches.length > 0 && textWithoutTimestamps) {
       for (const match of matches) {
         const minutes = parseInt(match[1], 10);

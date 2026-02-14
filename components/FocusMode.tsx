@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track, SyncedLyricLine } from '../types';
 
+// Decode HTML entities in lyrics text
+function decodeHtmlEntities(text: string): string {
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
 interface FocusModeProps {
   track: Track | null;
   isVisible: boolean;
@@ -134,7 +141,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     }
     // Fall back to plain text lyrics
     if (track?.lyrics) {
-      const plainLines = track.lyrics.split(/\r?\n/).filter(line => line.trim().length > 0);
+      const plainLines = track.lyrics.split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line.length > 0 && line !== '//');
       // Convert to synced lyrics format with even distribution
       return plainLines.map((text, idx) => ({
         time: 0, // No timing info for plain lyrics
@@ -173,25 +182,79 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Handle wheel scroll - manual scrolling with momentum
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    setIsUserScrolling(true);
+  // Calculate scroll boundaries for lyrics
+  const getScrollBounds = useCallback(() => {
+    const container = lyricsRef.current;
+    const lyricList = lyricListRef.current;
+    if (!container || !lyricList) return { min: -Infinity, max: Infinity };
+    
+    const containerHeight = container.clientHeight;
+    const lineElements = Array.from(lyricList.children) as HTMLElement[];
+    if (lineElements.length === 0) return { min: -Infinity, max: Infinity };
 
-    // Update manual offset based on wheel delta
-    setManualOffsetY(prev => prev - e.deltaY);
-
-    // Clear existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
+    const GAP = 28;
+    
+    // Calculate total content height
+    let totalContentHeight = 0;
+    for (let i = 0; i < lineElements.length; i++) {
+      totalContentHeight += lineElements[i].offsetHeight;
+      if (i < lineElements.length - 1) {
+        totalContentHeight += GAP;
+      }
     }
 
-    // Resume auto-positioning after 3 seconds of inactivity
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsUserScrolling(false);
-      setManualOffsetY(0); // Reset manual offset when resuming auto-scroll
-    }, 3000);
-  };
+    // First line should stay visible - restrict downward scroll
+    // Keep first line within upper half of container (around 8% from top)
+    const firstLineHeight = lineElements[0].offsetHeight;
+    const minOffset = containerHeight * 0.02 - totalContentHeight + firstLineHeight / 2;
+    
+    // Restrict upward scroll - keep first line from scrolling too far up
+    // Limit to 20% from top so first line stays visible when scrolling down
+    const lastLineHeight = lineElements[lineElements.length - 1].offsetHeight;
+    const maxOffset = containerHeight * 0.2 - lastLineHeight / 2;
+
+    return { min: minOffset, max: maxOffset };
+  }, []);
+
+  // Handle wheel scroll - manual scrolling with momentum
+  // Using native event listener with passive: false to allow preventDefault
+  const handleWheelRef = useRef<(e: WheelEvent) => void>();
+  
+  useEffect(() => {
+    const lyricsEl = lyricsRef.current;
+    if (!lyricsEl) return;
+
+    handleWheelRef.current = (e: WheelEvent) => {
+      e.preventDefault();
+      setIsUserScrolling(true);
+
+      const bounds = getScrollBounds();
+      
+      // Update manual offset based on wheel delta with bounds
+      setManualOffsetY(prev => {
+        const newValue = prev - e.deltaY;
+        // Clamp to bounds relative to auto offset
+        const minManual = bounds.min - autoOffsetRef.current;
+        const maxManual = bounds.max - autoOffsetRef.current;
+        return Math.max(minManual, Math.min(maxManual, newValue));
+      });
+
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Resume auto-positioning after 3 seconds of inactivity
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsUserScrolling(false);
+        setManualOffsetY(0); // Reset manual offset when resuming auto-scroll
+      }, 3000);
+    };
+
+    const handler = (e: WheelEvent) => handleWheelRef.current?.(e);
+    lyricsEl.addEventListener('wheel', handler, { passive: false });
+    return () => lyricsEl.removeEventListener('wheel', handler);
+  }, [getScrollBounds]);
 
   // Handle mouse drag start
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -209,7 +272,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingRef.current) return;
     const deltaY = e.clientY - dragStartYRef.current;
-    setManualOffsetY(dragStartOffsetRef.current + deltaY);
+    const newOffset = dragStartOffsetRef.current + deltaY;
+    
+    // Apply scroll bounds
+    const bounds = getScrollBounds();
+    const minManual = bounds.min - autoOffsetRef.current;
+    const maxManual = bounds.max - autoOffsetRef.current;
+    setManualOffsetY(Math.max(minManual, Math.min(maxManual, newOffset)));
   };
 
   // Handle mouse drag end
@@ -653,7 +722,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         </header>
 
         {/* Content Section */}
-        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-visible mb-24 max-w-5xl mx-auto w-full translate-x-8 lg:translate-x-12">
+        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-visible mb-24 max-w-5xl mx-auto w-full translate-x-6 lg:translate-x-6">
 
           {/* Cover & Title */}
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
@@ -677,11 +746,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             </div>
           </div>
 
-          {/* Lyrics - Hardware accelerated with CSS transform */}
+          {/* Lyrics */}
           <div
             className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
             ref={lyricsRef}
-            onWheel={handleWheel}
+
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -690,7 +759,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           >
             <div
               ref={lyricListRef}
-              className="flex flex-col gap-5 lg:gap-7 py-36 will-change-transform"
+              className="flex flex-col gap-5 lg:gap-7 py-36 px-8 will-change-transform"
               style={{
                 transform: `translateY(${lyricOffsetY}px)`,
               }}
@@ -702,14 +771,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                   return (
                     <p
                       key={idx}
-                      className={`text-xl lg:text-2xl font-black leading-tight cursor-default ${
+                      className={`text-xl lg:text-2xl font-bold leading-tight cursor-default ${
                         isActive 
-                          ? 'active-lyric text-white/95 drop-shadow-[0_0_8px_rgba(255,255,255,0.45)] transition-all duration-300' 
-                          : 'text-white/25 hover:text-white/55 transition-all duration-200'
+                          ? 'active-lyric transition-all duration-300' 
+                          : 'text-white/10 hover:text-white/30 transition-all duration-200'
                       } ${hasTimestamp ? 'cursor-pointer' : ''}`}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
                     >
-                      {lyric.text}
+                      {decodeHtmlEntities(lyric.text)}
                     </p>
                   );
                 })

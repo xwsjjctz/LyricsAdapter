@@ -410,6 +410,9 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: { time:
     const matches = [...trimmedLine.matchAll(timeRegex)];
     const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
 
+    // Skip placeholder lines like "//"
+    if (textWithoutTimestamps === '//') continue;
+
     if (matches.length > 0 && textWithoutTimestamps) {
       // Parse each timestamp and add to synced lyrics
       for (const match of matches) {

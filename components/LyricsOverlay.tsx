@@ -2,6 +2,13 @@
 import React, { memo } from 'react';
 import { Track } from '../types';
 
+// Decode HTML entities in lyrics text
+function decodeHtmlEntities(text: string): string {
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
 interface LyricsOverlayProps {
   track: Track | null;
   isVisible: boolean;
@@ -10,7 +17,9 @@ interface LyricsOverlayProps {
 const LyricsOverlay: React.FC<LyricsOverlayProps> = memo(({ track, isVisible }) => {
   if (!isVisible) return null;
 
-  const lines = track?.lyrics ? track.lyrics.split('\n') : [];
+  const lines = track?.lyrics 
+    ? track.lyrics.split('\n').filter(line => line.trim() !== '' && line.trim() !== '//')
+    : [];
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-start py-20 px-10 overflow-y-auto custom-scrollbar transition-all duration-700 animate-in fade-in zoom-in-95">

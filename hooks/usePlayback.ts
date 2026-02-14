@@ -502,8 +502,14 @@ export function usePlayback({
   }, [volume, linearToExponentialVolume]);
 
   const handleAudioError = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
-    logger.error('[Playback] Audio error:', e);
     const audio = e.target as HTMLAudioElement;
+    
+    // Ignore empty src errors (no track selected or initial load)
+    if (!audio.src || audio.src === window.location.href) {
+      return;
+    }
+
+    logger.error('[Playback] Audio error:', e);
     logger.error('[Playback] Audio error code:', audio.error?.code);
     logger.error('[Playback] Audio error message:', audio.error?.message);
     logger.error('[Playback] Current audio src:', audio.src);
