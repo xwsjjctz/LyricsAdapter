@@ -130,7 +130,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
 
       logger.debug(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1}`);
-      container.scrollTo({ top: clampedTop, behavior: 'auto' });
+      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
       previousTrackIndexRef.current = currentTrackIndex;
     }, 0);
 

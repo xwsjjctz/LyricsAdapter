@@ -106,7 +106,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
 
         {/* Progress Bar */}
-        <div className="flex items-center gap-3 flex-1 max-w-md">
+        <div className="flex items-center gap-3 flex-1">
           <span className="text-[10px] tabular-nums text-white/40 w-8 text-right">{formatTime(actualCurrentTime)}</span>
           <div className="flex-1 relative h-4 group flex items-center" key={`progress-${currentTime}`}>
             <input
@@ -124,30 +124,30 @@ const Controls: React.FC<ControlsProps> = memo(({
             </div>
           </div>
           <span className="text-[10px] tabular-nums text-white/40 w-8">{track ? formatTime(track.duration) : '0:00'}</span>
-          <button
-            onClick={onTogglePlaybackMode}
-            className="text-white/60 hover:text-white transition-colors ml-1 relative top-[3.5px]"
-            title={
-              playbackMode === 'shuffle'
-                ? '随机播放'
-                : playbackMode === 'repeat-one'
-                ? '单曲循环'
-                : '顺序播放'
-            }
-          >
-            <span className="material-symbols-outlined text-lg">
-              {playbackMode === 'shuffle'
-                ? 'shuffle'
-                : playbackMode === 'repeat-one'
-                ? 'repeat_one'
-                : 'repeat'}
-            </span>
-          </button>
         </div>
       </div>
 
-      {/* Volume & Extras */}
-      <div className="flex items-center justify-center gap-4 w-32">
+      {/* Volume & Playback Mode */}
+      <div className="flex items-center justify-center gap-4 w-36">
+        <button
+          onClick={onTogglePlaybackMode}
+          className="text-white/60 hover:text-white transition-colors relative top-[3.5px]"
+          title={
+            playbackMode === 'shuffle'
+              ? '随机播放'
+              : playbackMode === 'repeat-one'
+              ? '单曲循环'
+              : '顺序播放'
+          }
+        >
+          <span className="material-symbols-outlined text-lg">
+            {playbackMode === 'shuffle'
+              ? 'shuffle'
+              : playbackMode === 'repeat-one'
+              ? 'repeat_one'
+              : 'repeat'}
+          </span>
+        </button>
         <div className="flex items-center gap-2 group">
           <span
             className="material-symbols-outlined text-white/60 hover:text-white transition-colors text-base cursor-pointer"
