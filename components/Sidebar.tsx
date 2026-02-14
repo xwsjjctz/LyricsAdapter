@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
       </div>
 
       <div className="mt-auto p-8 opacity-20">
-        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-center">Local Hi-Fi Player</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-center">Lyrics Adapter</p>
       </div>
     </aside>
   );
