@@ -29,17 +29,11 @@ export function useLibraryActions({
   audioRef,
   shouldAutoPlayRef
 }: UseLibraryActionsOptions) {
-  const cleanupOrphanAudio = useCallback(async (remainingTracks: Track[]) => {
-    const desktopAPI = await getDesktopAPIAsync();
-    if (!desktopAPI || desktopAPI.platform !== 'electron') return;
-    const keepPaths = remainingTracks
-      .map(t => (t as any).filePath)
-      .filter((p): p is string => typeof p === 'string' && p.length > 0);
-    try {
-      await desktopAPI.cleanupOrphanAudio(keepPaths);
-    } catch (e) {
-      logger.warn('[LibraryActions] cleanupOrphanAudio failed:', e);
-    }
+  // Note: cleanupOrphanAudio is no longer needed since we only store paths
+  // Files are not copied to app directory anymore
+  const cleanupOrphanAudio = useCallback(async (_remainingTracks: Track[]) => {
+    // No-op: we don't manage physical files anymore
+    logger.debug('[LibraryActions] cleanupOrphanAudio: skipped (path-only mode)');
   }, []);
 
   const handleRemoveTrack = useCallback(async (trackId: string) => {
@@ -97,19 +91,8 @@ export function useLibraryActions({
         }
       }
 
-      const cleanupDesktopFile = async () => {
-        const desktopAPI = await getDesktopAPIAsync();
-        if (desktopAPI && trackToRemove && (trackToRemove as any).filePath) {
-          try {
-            const result = await desktopAPI.deleteAudioFile((trackToRemove as any).filePath);
-            if (result.success) {
-              logger.debug(`✅ Symlink deleted for track: ${trackToRemove.title}`);
-            }
-          } catch (error) {
-            logger.error('Failed to delete symlink:', error);
-          }
-        }
-      };
+      // Note: We no longer delete physical files since we only store paths
+      // The file belongs to the user, not the app
 
       const cleanupCover = async () => {
         try {
@@ -125,7 +108,6 @@ export function useLibraryActions({
         }
       };
 
-      cleanupDesktopFile();
       cleanupCover();
       cleanupOrphanAudio(newTracks);
 
@@ -147,16 +129,11 @@ export function useLibraryActions({
       }
     }
 
+    // Note: We no longer delete physical files since we only store paths
+    // Only delete cover thumbnails (which are managed by the app)
     const desktopAPI = await getDesktopAPIAsync();
     if (desktopAPI) {
       for (const track of tracksToRemove) {
-        if ((track as any).filePath) {
-          try {
-            await desktopAPI.deleteAudioFile((track as any).filePath);
-          } catch (error) {
-            logger.error(`Failed to delete file for ${track.title}:`, error);
-          }
-        }
         if (desktopAPI.deleteCoverThumbnail) {
           try {
             await desktopAPI.deleteCoverThumbnail(track.id);
@@ -237,82 +214,78 @@ export function useLibraryActions({
 
         if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {
           try {
-            const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
-            if (saveResult.success && saveResult.filePath) {
-              logger.debug(`File saved (${saveResult.method}):`, saveResult.filePath);
+            // Parse metadata directly from the selected file path
+            const parseResult = await desktopAPI.parseAudioMetadata(filePath);
+            if (parseResult.success && parseResult.metadata) {
+              const metadata = parseResult.metadata;
 
-              const parseResult = await desktopAPI.parseAudioMetadata(saveResult.filePath);
-              if (parseResult.success && parseResult.metadata) {
-                const metadata = parseResult.metadata;
-
-                let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
-                let coverSavedToDisk = false;
-                if (metadata.coverData && metadata.coverMime) {
-                  if (desktopAPI.saveCoverThumbnail) {
-                    try {
-                      const coverResult = await desktopAPI.saveCoverThumbnail({
-                        id: updatedTracks[trackIndex].id,
-                        data: metadata.coverData,
-                        mime: metadata.coverMime
-                      });
-                      if (coverResult?.success && coverResult.coverUrl) {
-                        coverUrl = coverResult.coverUrl;
-                        coverSavedToDisk = true;
-                      }
-                    } catch (error) {
-                      logger.warn('[LibraryActions] Failed to save cover thumbnail to disk:', error);
+              let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+              let coverSavedToDisk = false;
+              if (metadata.coverData && metadata.coverMime) {
+                if (desktopAPI.saveCoverThumbnail) {
+                  try {
+                    const coverResult = await desktopAPI.saveCoverThumbnail({
+                      id: updatedTracks[trackIndex].id,
+                      data: metadata.coverData,
+                      mime: metadata.coverMime
+                    });
+                    if (coverResult?.success && coverResult.coverUrl) {
+                      coverUrl = coverResult.coverUrl;
+                      coverSavedToDisk = true;
                     }
-                  }
-
-                  if (!coverSavedToDisk) {
-                    const byteCharacters = atob(metadata.coverData);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                      byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: metadata.coverMime });
-                    coverUrl = createTrackedBlobUrl(blob);
-
-                    try {
-                      await metadataCacheService.saveCover(updatedTracks[trackIndex].id, blob);
-                    } catch (error) {
-                      logger.warn('[LibraryActions] Failed to save cover to IndexedDB:', error);
-                    }
+                  } catch (error) {
+                    logger.warn('[LibraryActions] Failed to save cover thumbnail to disk:', error);
                   }
                 }
 
-                metadataCacheService.set(updatedTracks[trackIndex].id, {
-                  title: metadata.title,
-                  artist: metadata.artist,
-                  album: metadata.album,
-                  duration: metadata.duration,
-                  lyrics: metadata.lyrics,
-                  syncedLyrics: metadata.syncedLyrics,
-                  coverData: coverSavedToDisk ? undefined : metadata.coverData,
-                  coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
-                  fileName: fileName,
-                  fileSize: metadata.fileSize || 0,
-                  lastModified: Date.now(),
-                });
+                if (!coverSavedToDisk) {
+                  const byteCharacters = atob(metadata.coverData);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], { type: metadata.coverMime });
+                  coverUrl = createTrackedBlobUrl(blob);
 
-                updatedTracks[trackIndex] = {
-                  ...updatedTracks[trackIndex],
-                  title: metadata.title,
-                  artist: metadata.artist,
-                  album: metadata.album,
-                  duration: metadata.duration,
-                  lyrics: metadata.lyrics,
-                  syncedLyrics: metadata.syncedLyrics,
-                  coverUrl: coverUrl,
-                  filePath: saveResult.filePath,
-                  fileName: fileName,
-                  fileSize: metadata.fileSize || updatedTracks[trackIndex].fileSize,
-                  lastModified: Date.now(),
-                  available: true
-                };
-                reloadedCount++;
+                  try {
+                    await metadataCacheService.saveCover(updatedTracks[trackIndex].id, blob);
+                  } catch (error) {
+                    logger.warn('[LibraryActions] Failed to save cover to IndexedDB:', error);
+                  }
+                }
               }
+
+              metadataCacheService.set(updatedTracks[trackIndex].id, {
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                duration: metadata.duration,
+                lyrics: metadata.lyrics,
+                syncedLyrics: metadata.syncedLyrics,
+                coverData: coverSavedToDisk ? undefined : metadata.coverData,
+                coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
+                fileName: fileName,
+                fileSize: metadata.fileSize || 0,
+                lastModified: Date.now(),
+              });
+
+              updatedTracks[trackIndex] = {
+                ...updatedTracks[trackIndex],
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                duration: metadata.duration,
+                lyrics: metadata.lyrics,
+                syncedLyrics: metadata.syncedLyrics,
+                coverUrl: coverUrl,
+                filePath: filePath,  // Store the original path directly
+                fileName: fileName,
+                fileSize: metadata.fileSize || updatedTracks[trackIndex].fileSize,
+                lastModified: Date.now(),
+                available: true
+              };
+              reloadedCount++;
             }
           } catch (error) {
             logger.error('Failed to reload file:', filePath, error);

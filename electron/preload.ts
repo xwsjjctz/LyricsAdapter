@@ -1,5 +1,5 @@
 // Secure preload script using contextBridge
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -101,5 +101,10 @@ contextBridge.exposeInMainWorld('electron', {
 
   isMaximized: async () => {
     return ipcRenderer.invoke('window-is-maximized');
+  },
+
+  // Get real file path from File object (for drag-and-drop)
+  getPathForFile: (file: File) => {
+    return webUtils.getPathForFile(file);
   }
 });

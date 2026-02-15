@@ -14,6 +14,7 @@
     "electron:dev": "vite --mode development",
     "electron:build": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder",
     "electron:build:win": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --x64",
+    "electron:build:win:arm64": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --arm64",
     "electron:build:mac": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --mac",
     "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux"
   },

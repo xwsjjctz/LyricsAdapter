@@ -8,7 +8,8 @@ interface LibraryViewProps {
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void;
   onRemoveMultipleTracks?: (trackIds: string[]) => void; // Batch removal
-  onDropFiles?: (files: File[]) => void; // Handle dropped files
+  onDropFiles?: (files: File[]) => void; // Handle dropped files (Web mode or fallback)
+  onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void; // Handle dropped file paths (Electron mode)
   isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
 }
 
@@ -19,6 +20,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onRemoveTrack,
   onRemoveMultipleTracks,
   onDropFiles,
+  onDropFilePaths,
   isFocusMode = false
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -205,11 +207,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     logger.debug('[LibraryView] Drop event triggered');
     setIsDragging(false);
 
-    if (!onDropFiles) {
-      logger.warn('[LibraryView] No drop handler available');
-      return;
-    }
-
     // Get dropped files
     const droppedFiles = Array.from(e.dataTransfer.files);
     logger.debug(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
@@ -228,11 +225,33 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       return;
     }
 
-    logger.debug(`[LibraryView] Dropped ${audioFiles.length} audio file(s)`);
+    // Check if we're in Electron mode and can get file paths
+    const electron = (window as any).electron;
+    if (electron?.getPathForFile && onDropFilePaths) {
+      // Electron mode: get real file paths
+      logger.debug('[LibraryView] Electron mode: getting file paths from dropped files');
+      try {
+        const filePaths = audioFiles.map(file => ({
+          path: electron.getPathForFile(file),
+          name: file.name
+        }));
+        logger.debug(`[LibraryView] Got ${filePaths.length} file paths`);
+        onDropFilePaths(filePaths);
+        return;
+      } catch (error) {
+        logger.error('[LibraryView] Failed to get file paths:', error);
+        // Fall through to File mode
+      }
+    }
 
-    // Call parent handler with dropped files
-    onDropFiles(audioFiles);
-  }, [onDropFiles]);
+    // Web mode or fallback: use File objects
+    if (onDropFiles) {
+      logger.debug(`[LibraryView] Web mode: passing ${audioFiles.length} File objects`);
+      onDropFiles(audioFiles);
+    } else {
+      logger.warn('[LibraryView] No drop handler available');
+    }
+  }, [onDropFiles, onDropFilePaths]);
 
   const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === tracks.length) {

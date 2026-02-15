@@ -37,6 +37,7 @@ declare global {
       cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
       saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
       deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+      getPathForFile?: (file: File) => string;
       // Window control APIs
       minimizeWindow?: () => void;
       maximizeWindow?: () => void;
@@ -98,6 +99,7 @@ const App: React.FC = () => {
     fileInputRef,
     handleDesktopImport,
     handleDropFiles,
+    handleDropFilePaths,
     handleFileInputChange
   } = useImport({
     tracks,
@@ -228,6 +230,7 @@ const App: React.FC = () => {
               onRemoveTrack={handleRemoveTrack}
               onRemoveMultipleTracks={handleRemoveMultipleTracks}
               onDropFiles={handleDropFiles}
+              onDropFilePaths={handleDropFilePaths}
               isFocusMode={isFocusMode}
             />
           </div>
