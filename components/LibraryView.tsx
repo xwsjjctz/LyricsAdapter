@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 
@@ -26,6 +26,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
+  const [searchQuery, setSearchQuery] = useState(''); // Search query
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -36,6 +37,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
 
+  // Filter tracks based on search query
+  const filteredTracks = useMemo(() => {
+    if (!searchQuery.trim()) return tracks;
+    const query = searchQuery.toLowerCase();
+    return tracks.filter(track =>
+      track.title.toLowerCase().includes(query) ||
+      track.artist.toLowerCase().includes(query) ||
+      track.album.toLowerCase().includes(query)
+    );
+  }, [tracks, searchQuery]);
+
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -44,17 +56,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const baseRowHeight = rowHeight || 64;
   const rowStride = baseRowHeight + rowGap;
-  const totalHeight = tracks.length > 0
-    ? (tracks.length - 1) * rowStride + baseRowHeight
+  const totalHeight = filteredTracks.length > 0
+    ? (filteredTracks.length - 1) * rowStride + baseRowHeight
     : 0;
-  const shouldVirtualize = tracks.length > 200 && viewportHeight > 0;
+  const shouldVirtualize = filteredTracks.length > 200 && viewportHeight > 0;
   const startIndex = shouldVirtualize
     ? Math.max(0, Math.floor(scrollTop / rowStride) - overscan)
     : 0;
   const endIndex = shouldVirtualize
-    ? Math.min(tracks.length, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
-    : tracks.length;
-  const visibleTracks = shouldVirtualize ? tracks.slice(startIndex, endIndex) : tracks;
+    ? Math.min(filteredTracks.length, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
+    : filteredTracks.length;
+  const visibleTracks = shouldVirtualize ? filteredTracks.slice(startIndex, endIndex) : filteredTracks;
   const visibleCount = visibleTracks.length;
   const paddingTop = shouldVirtualize ? startIndex * rowStride : 0;
   const visibleHeight = visibleCount > 0
@@ -195,7 +207,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const relatedTarget = e.relatedTarget as HTMLElement;
 
     // Check if the related target is outside the current target
-    if (relatedTarget && !currentTarget.contains(relatedTarget)) {
+    // relatedTarget is null when dragging leaves the window (e.g., to desktop)
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
       logger.debug('[LibraryView] Drag leave - disabling dragging state');
       setIsDragging(false);
     }
@@ -254,14 +267,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [onDropFiles, onDropFilePaths]);
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === tracks.length) {
+    // Use filtered tracks for selection when searching
+    const targetTracks = searchQuery ? filteredTracks : tracks;
+    
+    if (selectedIds.size === targetTracks.length) {
       // Deselect all
       setSelectedIds(new Set());
     } else {
-      // Select all
-      setSelectedIds(new Set(tracks.map(t => t.id)));
+      // Select all (filtered tracks or all tracks)
+      setSelectedIds(new Set(targetTracks.map(t => t.id)));
     }
-  }, [selectedIds.size, tracks.length]);
+  }, [selectedIds.size, tracks, filteredTracks, searchQuery]);
 
   const toggleSelectOne = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -327,7 +343,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-extrabold mb-2">Library</h1>
-          <p className="text-white/40">{tracks.length} Tracks in your collection</p>
+          <p className="text-white/40">
+            {filteredTracks.length} Tracks in your collection
+            {searchQuery && filteredTracks.length !== tracks.length && ` (of ${tracks.length})`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {isEditMode && (
@@ -365,20 +384,26 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
       </div>
 
-      {/* 固定的表头 */}
-      <div className="flex-shrink-0">
-        <div className={`grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 ${
-          isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
-        }`}>
-          <span>#</span>
-          <span>Title</span>
-          <span>Album</span>
-          <span className="text-right">Time</span>
-          {isEditMode && (
-            <>
-              <span></span>
-              <span className="text-center">选择</span>
-            </>
+      {/* 搜索框 */}
+      <div className="flex-shrink-0 mb-3">
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-lg">
+            search
+          </span>
+          <input
+            type="text"
+            placeholder="Search by title, artist, or album..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
           )}
         </div>
       </div>
@@ -408,25 +433,27 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           className="h-full min-h-0 overflow-y-auto no-scrollbar"
           onScroll={handleScroll}
         >
-          {tracks.length > 0 ? (
+          {filteredTracks.length > 0 ? (
             <div
               ref={listRef}
               className="grid gap-2 relative"
               style={{ paddingTop, paddingBottom }}
             >
               {visibleTracks.map((track, idx) => {
-                const actualIndex = startIndex + idx;
+                const filteredIndex = startIndex + idx;
+                const originalIndex = tracks.findIndex(t => t.id === track.id);
                 const isUnavailable = track.available === false;
                 const isSelected = selectedIds.has(track.id);
+                const isCurrentTrack = originalIndex === currentTrackIndex;
                 const shouldAnimate = !shouldVirtualize;
 
                 return (
                   <div
                     key={track.id}
                     ref={idx === 0 ? rowMeasureRef : undefined}
-                    data-track-index={actualIndex}  // Add identifier for auto-scroll
-                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(actualIndex)}
-                    style={shouldAnimate ? { animation: `fadeInUp 0.3s ease-out ${actualIndex * 0.03}s both` } : undefined}
+                    data-track-index={originalIndex}  // Use original index for auto-scroll
+                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
+                    style={shouldAnimate ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` } : undefined}
                     className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 ${
                       isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
                     } ${
@@ -434,13 +461,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         ? 'opacity-40 bg-white/5'
                         : isSelected
                         ? 'bg-red-500/10 border border-red-500/30'
-                        : actualIndex === currentTrackIndex
+                        : isCurrentTrack
                         ? 'text-primary'
                         : 'hover:bg-white/5'
                     } ${isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
                   >
                   <div className="text-sm font-medium opacity-50">
-                    {actualIndex + 1}
+                    {filteredIndex + 1}
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
                     <img
@@ -466,9 +493,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           e.stopPropagation();
                           onRemoveTrack(track.id);
                         }}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg p-1 transition-all"
+                        className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
                       >
-                        <span className="material-symbols-outlined">delete</span>
+                        <span className="material-symbols-outlined text-lg">delete</span>
                       </button>
                       <input
                         type="checkbox"
@@ -482,6 +509,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 </div>
               );
               })}
+            </div>
+          ) : searchQuery ? (
+            <div className="py-20 text-center opacity-40">
+              <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
+              <p className="text-xl font-medium">No matching tracks</p>
+              <p className="text-sm mt-2">Try adjusting your search query</p>
             </div>
           ) : (
             <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
@@ -504,6 +537,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     prevProps.onRemoveTrack === nextProps.onRemoveTrack &&
     prevProps.onRemoveMultipleTracks === nextProps.onRemoveMultipleTracks &&
     prevProps.onDropFiles === nextProps.onDropFiles &&
+    prevProps.onDropFilePaths === nextProps.onDropFilePaths &&
     prevProps.isFocusMode === nextProps.isFocusMode
   );
 });
