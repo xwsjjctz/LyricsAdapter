@@ -11,6 +11,8 @@ interface LibraryViewProps {
   onDropFiles?: (files: File[]) => void; // Handle dropped files (Web mode or fallback)
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void; // Handle dropped file paths (Electron mode)
   isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
+  searchQuery?: string; // Search query from parent
+  onSearchChange?: (query: string) => void; // Callback to update search query
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -21,12 +23,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onRemoveMultipleTracks,
   onDropFiles,
   onDropFilePaths,
-  isFocusMode = false
+  isFocusMode = false,
+  searchQuery: externalSearchQuery,
+  onSearchChange
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
-  const [searchQuery, setSearchQuery] = useState(''); // Search query
+  
+  // Use external search query if provided, otherwise use internal state
+  const isControlled = externalSearchQuery !== undefined;
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
+  const searchQuery = isControlled ? externalSearchQuery : internalSearchQuery;
+  const setSearchQuery = isControlled && onSearchChange ? onSearchChange : setInternalSearchQuery;
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -384,30 +393,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
       </div>
 
-      {/* 搜索框 */}
-      <div className="flex-shrink-0 mb-3">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-lg">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search by title, artist, or album..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
-            >
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* 可滚动的歌曲列表 */}
       <div
         className="flex-1 relative min-h-0 overflow-hidden"
@@ -538,7 +523,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     prevProps.onRemoveMultipleTracks === nextProps.onRemoveMultipleTracks &&
     prevProps.onDropFiles === nextProps.onDropFiles &&
     prevProps.onDropFilePaths === nextProps.onDropFilePaths &&
-    prevProps.isFocusMode === nextProps.isFocusMode
+    prevProps.isFocusMode === nextProps.isFocusMode &&
+    prevProps.searchQuery === nextProps.searchQuery
   );
 });
 

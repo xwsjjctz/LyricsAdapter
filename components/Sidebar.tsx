@@ -7,9 +7,11 @@ interface SidebarProps {
   currentView: ViewMode;
   onReloadFiles?: () => void;
   hasUnavailableTracks?: boolean;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, currentView, onReloadFiles, hasUnavailableTracks }) => {
+const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, currentView, onReloadFiles, hasUnavailableTracks, searchQuery = '', onSearchChange }) => {
   return (
     <aside className="w-64 flex flex-col bg-background-sidebar/60 backdrop-blur-md border-r border-white/10 z-20 pt-8">
       <div className="px-6 flex flex-col gap-6 pt-6">
@@ -35,6 +37,32 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
               <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
               <span className="text-sm font-semibold">Import Files</span>
             </button>
+
+            {/* 搜索框 */}
+            {onSearchChange && (
+              <div className="mt-4">
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-white/40 text-lg">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search tracks..."
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-9 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => onSearchChange('')}
+                      className="absolute right-3 top-5/9 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {hasUnavailableTracks && onReloadFiles && (
               <button

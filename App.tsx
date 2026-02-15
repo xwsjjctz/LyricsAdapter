@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [forceUpdateCounter] = useState(0); // Force re-render after restore
+  const [searchQuery, setSearchQuery] = useState(''); // Search query for library
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
 
@@ -197,6 +198,8 @@ const App: React.FC = () => {
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={tracks.some(t => t.available === false)}
           currentView={viewMode}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
         />
 
         <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
@@ -232,6 +235,8 @@ const App: React.FC = () => {
               onDropFiles={handleDropFiles}
               onDropFilePaths={handleDropFilePaths}
               isFocusMode={isFocusMode}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
             />
           </div>
 
