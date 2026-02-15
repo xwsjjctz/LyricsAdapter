@@ -60,7 +60,7 @@ const TitleBar: React.FC = memo(() => {
   if (isWindows) {
     return (
       <div
-        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-50 flex items-center"
+        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[100] flex items-center"
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',

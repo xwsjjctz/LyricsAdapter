@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 
@@ -8,8 +8,14 @@ interface LibraryViewProps {
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void;
   onRemoveMultipleTracks?: (trackIds: string[]) => void; // Batch removal
-  onDropFiles?: (files: File[]) => void; // Handle dropped files
+  onDropFiles?: (files: File[]) => void; // Handle dropped files (Web mode or fallback)
+  onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void; // Handle dropped file paths (Electron mode)
   isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
+  searchQuery?: string; // Search query from parent
+  onSearchChange?: (query: string) => void; // Callback to update search query
+  savedScrollPosition?: number; // Saved scroll position from parent
+  onScrollPositionChange?: (position: number) => void; // Callback to save scroll position
+  isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -19,11 +25,23 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onRemoveTrack,
   onRemoveMultipleTracks,
   onDropFiles,
-  isFocusMode = false
+  onDropFilePaths,
+  isFocusMode = false,
+  searchQuery: externalSearchQuery,
+  onSearchChange,
+  savedScrollPosition = 0,
+  onScrollPositionChange,
+  isFirstLoad = false
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
+  
+  // Use external search query if provided, otherwise use internal state
+  const isControlled = externalSearchQuery !== undefined;
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
+  const searchQuery = isControlled ? externalSearchQuery : internalSearchQuery;
+  const setSearchQuery = isControlled && onSearchChange ? onSearchChange : setInternalSearchQuery;
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -34,6 +52,28 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
 
+  // Track if animation has already played for current tracks
+  const hasAnimatedRef = useRef(false);
+  const previousTracksRef = useRef<Track[]>([]);
+  const isInitialMountRef = useRef(true);
+
+  // Filter tracks based on search query
+  const filteredTracks = useMemo(() => {
+    if (!searchQuery.trim()) return tracks;
+    const query = searchQuery.toLowerCase();
+    return tracks.filter(track =>
+      track.title.toLowerCase().includes(query) ||
+      track.artist.toLowerCase().includes(query) ||
+      track.album.toLowerCase().includes(query)
+    );
+  }, [tracks, searchQuery]);
+
+  // Check if tracks actually changed (by comparing IDs)
+  const didTracksChange = useCallback((prevTracks: Track[], newTracks: Track[]) => {
+    if (prevTracks.length !== newTracks.length) return true;
+    return prevTracks.some((track, index) => track.id !== newTracks[index]?.id);
+  }, []);
+
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -42,17 +82,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const baseRowHeight = rowHeight || 64;
   const rowStride = baseRowHeight + rowGap;
-  const totalHeight = tracks.length > 0
-    ? (tracks.length - 1) * rowStride + baseRowHeight
+  const totalHeight = filteredTracks.length > 0
+    ? (filteredTracks.length - 1) * rowStride + baseRowHeight
     : 0;
-  const shouldVirtualize = tracks.length > 200 && viewportHeight > 0;
+  const shouldVirtualize = filteredTracks.length > 200 && viewportHeight > 0;
   const startIndex = shouldVirtualize
     ? Math.max(0, Math.floor(scrollTop / rowStride) - overscan)
     : 0;
   const endIndex = shouldVirtualize
-    ? Math.min(tracks.length, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
-    : tracks.length;
-  const visibleTracks = shouldVirtualize ? tracks.slice(startIndex, endIndex) : tracks;
+    ? Math.min(filteredTracks.length, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
+    : filteredTracks.length;
+  const visibleTracks = shouldVirtualize ? filteredTracks.slice(startIndex, endIndex) : filteredTracks;
   const visibleCount = visibleTracks.length;
   const paddingTop = shouldVirtualize ? startIndex * rowStride : 0;
   const visibleHeight = visibleCount > 0
@@ -62,6 +102,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     ? Math.max(0, totalHeight - paddingTop - visibleHeight)
     : 0;
 
+  // Animation is disabled for better performance
+  const shouldShowAnimation = false;
+
   const rowMeasureRef = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
     const nextHeight = node.getBoundingClientRect().height;
@@ -70,6 +113,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
   }, [rowHeight]);
 
+  // Initialize viewport size
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -83,6 +127,50 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     ro.observe(container);
     return () => ro.disconnect();
   }, []);
+
+  // Handle scroll position restoration and scroll to playing track on first load
+  useEffect(() => {
+    if (!isInitialMountRef.current) return;
+    
+    // Defer to after render when row height is known
+    const timer = setTimeout(() => {
+      if (!scrollContainerRef.current) return;
+      
+      if (isFirstLoad && currentTrackIndex >= 0 && currentTrackIndex < tracks.length) {
+        // First app load: scroll to the currently playing track
+        const container = scrollContainerRef.current;
+        const itemTop = currentTrackIndex * rowStride;
+        const itemBottom = itemTop + baseRowHeight;
+        const targetTop = itemBottom - container.clientHeight / 2; // Center the track
+        const maxTop = Math.max(0, totalHeight - container.clientHeight);
+        const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+        
+        container.scrollTop = clampedTop;
+        setScrollTop(clampedTop);
+        logger.debug(`[LibraryView] First load - scrolled to playing track ${currentTrackIndex + 1} at position ${clampedTop}`);
+      } else if (savedScrollPosition > 0) {
+        // From other view: restore saved scroll position
+        scrollContainerRef.current.scrollTop = savedScrollPosition;
+        setScrollTop(savedScrollPosition);
+        logger.debug(`[LibraryView] Returned from other view - restored scroll position: ${savedScrollPosition}`);
+      }
+      
+      isInitialMountRef.current = false;
+    }, 50); // Small delay to ensure row height is calculated
+
+    return () => clearTimeout(timer);
+  }, [isFirstLoad, currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, savedScrollPosition]);
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollContainerRef.current) {
+        const finalScrollPosition = scrollContainerRef.current.scrollTop;
+        onScrollPositionChange?.(finalScrollPosition);
+        logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition}`);
+      }
+    };
+  }, [onScrollPositionChange]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -98,44 +186,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setRowHeight(0);
   }, [isEditMode]);
 
-  // Auto-scroll to current track when currentTrackIndex changes
-  useEffect(() => {
-    if (currentTrackIndex < 0 || currentTrackIndex >= tracks.length || !scrollContainerRef.current) {
-      return;
-    }
-
-    const container = scrollContainerRef.current;
-    const timer = setTimeout(() => {
-      const viewTop = container.scrollTop;
-      const viewBottom = viewTop + container.clientHeight;
-      const itemTop = currentTrackIndex * rowStride;
-      const itemBottom = itemTop + baseRowHeight;
-
-      if (itemTop >= viewTop && itemBottom <= viewBottom) {
-        logger.debug(`[LibraryView] Track ${currentTrackIndex + 1} is already visible, no scroll needed`);
-        previousTrackIndexRef.current = currentTrackIndex;
-        return;
-      }
-
-      const isNext = currentTrackIndex > previousTrackIndexRef.current;
-      let targetTop: number;
-
-      if (isFocusMode) {
-        targetTop = itemTop < viewTop ? itemTop : itemBottom - container.clientHeight;
-      } else {
-        targetTop = isNext ? itemBottom - container.clientHeight : itemTop;
-      }
-
-      const maxTop = Math.max(0, totalHeight - container.clientHeight);
-      const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
-
-      logger.debug(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1}`);
-      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
-      previousTrackIndexRef.current = currentTrackIndex;
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, isFocusMode]);
+  // Note: Auto-scroll to current track has been removed.
+  // The list now stays at the last scroll position when switching between views.
 
   // Update sliding highlight position when current track changes
   useEffect(() => {
@@ -170,8 +222,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [currentTrackIndex, tracks.length, isEditMode, rowStride, baseRowHeight]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-  }, []);
+    const newScrollTop = e.currentTarget.scrollTop;
+    setScrollTop(newScrollTop);
+    // Notify parent of scroll position change
+    onScrollPositionChange?.(newScrollTop);
+  }, [onScrollPositionChange]);
 
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -193,7 +248,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const relatedTarget = e.relatedTarget as HTMLElement;
 
     // Check if the related target is outside the current target
-    if (relatedTarget && !currentTarget.contains(relatedTarget)) {
+    // relatedTarget is null when dragging leaves the window (e.g., to desktop)
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
       logger.debug('[LibraryView] Drag leave - disabling dragging state');
       setIsDragging(false);
     }
@@ -204,11 +260,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     e.stopPropagation();
     logger.debug('[LibraryView] Drop event triggered');
     setIsDragging(false);
-
-    if (!onDropFiles) {
-      logger.warn('[LibraryView] No drop handler available');
-      return;
-    }
 
     // Get dropped files
     const droppedFiles = Array.from(e.dataTransfer.files);
@@ -228,21 +279,46 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       return;
     }
 
-    logger.debug(`[LibraryView] Dropped ${audioFiles.length} audio file(s)`);
+    // Check if we're in Electron mode and can get file paths
+    const electron = (window as any).electron;
+    if (electron?.getPathForFile && onDropFilePaths) {
+      // Electron mode: get real file paths
+      logger.debug('[LibraryView] Electron mode: getting file paths from dropped files');
+      try {
+        const filePaths = audioFiles.map(file => ({
+          path: electron.getPathForFile(file),
+          name: file.name
+        }));
+        logger.debug(`[LibraryView] Got ${filePaths.length} file paths`);
+        onDropFilePaths(filePaths);
+        return;
+      } catch (error) {
+        logger.error('[LibraryView] Failed to get file paths:', error);
+        // Fall through to File mode
+      }
+    }
 
-    // Call parent handler with dropped files
-    onDropFiles(audioFiles);
-  }, [onDropFiles]);
+    // Web mode or fallback: use File objects
+    if (onDropFiles) {
+      logger.debug(`[LibraryView] Web mode: passing ${audioFiles.length} File objects`);
+      onDropFiles(audioFiles);
+    } else {
+      logger.warn('[LibraryView] No drop handler available');
+    }
+  }, [onDropFiles, onDropFilePaths]);
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === tracks.length) {
+    // Use filtered tracks for selection when searching
+    const targetTracks = searchQuery ? filteredTracks : tracks;
+    
+    if (selectedIds.size === targetTracks.length) {
       // Deselect all
       setSelectedIds(new Set());
     } else {
-      // Select all
-      setSelectedIds(new Set(tracks.map(t => t.id)));
+      // Select all (filtered tracks or all tracks)
+      setSelectedIds(new Set(targetTracks.map(t => t.id)));
     }
-  }, [selectedIds.size, tracks.length]);
+  }, [selectedIds.size, tracks, filteredTracks, searchQuery]);
 
   const toggleSelectOne = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -308,7 +384,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-extrabold mb-2">Library</h1>
-          <p className="text-white/40">{tracks.length} Tracks in your collection</p>
+          <p className="text-white/40">
+            {filteredTracks.length} Tracks in your collection
+            {searchQuery && filteredTracks.length !== tracks.length && ` (of ${tracks.length})`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {isEditMode && (
@@ -317,14 +396,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 onClick={toggleSelectAll}
                 className="px-3 py-2 rounded-lg text-sm text-white/60 hover:bg-white/10 transition-all"
               >
-                {selectedIds.size === tracks.length ? '取消全选' : '全选'}
+                {selectedIds.size === tracks.length ? 'Cancel' : 'Select All'}
               </button>
               {selectedIds.size > 0 && (
                 <button
                   onClick={handleRemoveSelected}
                   className="px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
                 >
-                  删除选中 ({selectedIds.size})
+                  Delete Selected ({selectedIds.size})
                 </button>
               )}
             </>
@@ -334,35 +413,24 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               setIsEditMode(!isEditMode);
               if (!isEditMode) setSelectedIds(new Set());
             }}
-            className={`p-2 rounded-lg transition-all flex items-center justify-center ${
+            className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center ${
               isEditMode
                 ? 'bg-primary text-white shadow-lg shadow-primary/25'
-                : 'bg-white/10 text-white/60 hover:bg-white/20'
+                : 'bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary'
             }`}
-            title={isEditMode ? '完成' : '编辑'}
+            title={isEditMode ? 'Completed' : 'Edit Mode'}
           >
             <span className="material-symbols-outlined">{isEditMode ? 'check' : 'edit'}</span>
           </button>
         </div>
       </div>
 
-      {/* 固定的表头 */}
       <div className="flex-shrink-0">
-        <div className={`grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 ${
-          isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
-        }`}>
-          <span>#</span>
-          <span>Title</span>
-          <span>Album</span>
-          <span className="text-right">Time</span>
-          {isEditMode && (
-            <>
-              <span></span>
-              <span className="text-center">选择</span>
-            </>
-          )}
+        <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_100px]">
+        <span>#</span><span>Title</span><span>Album</span><span className="text-right">Time</span>
         </div>
       </div>
+      
 
       {/* 可滚动的歌曲列表 */}
       <div
@@ -389,25 +457,30 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           className="h-full min-h-0 overflow-y-auto no-scrollbar"
           onScroll={handleScroll}
         >
-          {tracks.length > 0 ? (
+          {filteredTracks.length > 0 ? (
             <div
               ref={listRef}
               className="grid gap-2 relative"
               style={{ paddingTop, paddingBottom }}
             >
               {visibleTracks.map((track, idx) => {
-                const actualIndex = startIndex + idx;
+                const filteredIndex = startIndex + idx;
+                const originalIndex = tracks.findIndex(t => t.id === track.id);
                 const isUnavailable = track.available === false;
                 const isSelected = selectedIds.has(track.id);
-                const shouldAnimate = !shouldVirtualize;
+                const isCurrentTrack = originalIndex === currentTrackIndex;
+                // Only apply animation when shouldShowAnimation is true
+                const animationStyle = shouldShowAnimation 
+                  ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` } 
+                  : undefined;
 
                 return (
                   <div
                     key={track.id}
                     ref={idx === 0 ? rowMeasureRef : undefined}
-                    data-track-index={actualIndex}  // Add identifier for auto-scroll
-                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(actualIndex)}
-                    style={shouldAnimate ? { animation: `fadeInUp 0.3s ease-out ${actualIndex * 0.03}s both` } : undefined}
+                    data-track-index={originalIndex}  // Use original index for auto-scroll
+                    onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
+                    style={animationStyle}
                     className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 ${
                       isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
                     } ${
@@ -415,13 +488,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         ? 'opacity-40 bg-white/5'
                         : isSelected
                         ? 'bg-red-500/10 border border-red-500/30'
-                        : actualIndex === currentTrackIndex
+                        : isCurrentTrack
                         ? 'text-primary'
                         : 'hover:bg-white/5'
                     } ${isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
                   >
                   <div className="text-sm font-medium opacity-50">
-                    {actualIndex + 1}
+                    {filteredIndex + 1}
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
                     <img
@@ -447,9 +520,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           e.stopPropagation();
                           onRemoveTrack(track.id);
                         }}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg p-1 transition-all"
+                        className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
                       >
-                        <span className="material-symbols-outlined">delete</span>
+                        <span className="material-symbols-outlined text-lg">delete</span>
                       </button>
                       <input
                         type="checkbox"
@@ -463,6 +536,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 </div>
               );
               })}
+            </div>
+          ) : searchQuery ? (
+            <div className="py-20 text-center opacity-40">
+              <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
+              <p className="text-xl font-medium">No matching tracks</p>
+              <p className="text-sm mt-2">Try adjusting your search query</p>
             </div>
           ) : (
             <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
@@ -485,7 +564,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     prevProps.onRemoveTrack === nextProps.onRemoveTrack &&
     prevProps.onRemoveMultipleTracks === nextProps.onRemoveMultipleTracks &&
     prevProps.onDropFiles === nextProps.onDropFiles &&
-    prevProps.isFocusMode === nextProps.isFocusMode
+    prevProps.onDropFilePaths === nextProps.onDropFilePaths &&
+    prevProps.isFocusMode === nextProps.isFocusMode &&
+    prevProps.searchQuery === nextProps.searchQuery &&
+    prevProps.savedScrollPosition === nextProps.savedScrollPosition &&
+    prevProps.isFirstLoad === nextProps.isFirstLoad
   );
 });
 

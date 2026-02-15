@@ -28,6 +28,7 @@ export interface DesktopAPI {
   saveMetadataCache: (cache: { entries: Record<string, any> }) => Promise<{ success: boolean; error?: string }>;
   getMetadataForSong: (songId: string) => Promise<any>;
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: any; error?: string }>;
+  getPathForFile?: (file: File) => string;
 }
 
 class ElectronAdapter implements DesktopAPI {

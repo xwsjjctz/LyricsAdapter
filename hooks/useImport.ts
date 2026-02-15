@@ -51,15 +51,14 @@ export function useImport({
     );
   }, [tracks]);
 
-  const processDesktopFileBatch = useCallback(async (
-    filePaths: string[],
+  // Process file paths directly (new path-based import - no file copying)
+  const processDesktopFilePathBatch = useCallback(async (
+    filePaths: { path: string; name: string }[],
     desktopAPI: any,
     tracksMap: Map<string, Track>
   ): Promise<Track[]> => {
     const results = await Promise.all(
-      filePaths.map(async (filePath) => {
-        const fileName = filePath.split(/[/\\]/).pop() || '';
-
+      filePaths.map(async ({ path: filePath, name: fileName }) => {
         const existingTrack = tracksMap.get(fileName);
         if (existingTrack) {
           logger.debug(`[Import] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
@@ -67,28 +66,9 @@ export function useImport({
           logger.debug(`[Import] 🆕 File "${fileName}" is new, creating new track`);
         }
 
-        let savedFilePath = '';
-        try {
-          const saveResult = await desktopAPI.saveAudioFile(filePath, fileName);
-          if (saveResult?.success && saveResult?.filePath) {
-            savedFilePath = saveResult.filePath;
-            logger.debug(`[Import] ✅ File saved: ${fileName} → ${savedFilePath} (${saveResult.method})`);
-          } else {
-            logger.warn(`[Import] ⚠️ saveAudioFile failed for "${fileName}":`, saveResult);
-          }
-        } catch (error) {
-          logger.error(`[Import] ❌ Failed to save file "${fileName}":`, error);
-          return null;
-        }
-
-        if (!savedFilePath) {
-          logger.error(`[Import] ❌ saveAudioFile returned empty path for "${fileName}"`);
-          return null;
-        }
-
         let metadata;
         try {
-          const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
+          const parseResult = await desktopAPI.parseAudioMetadata(filePath);
           if (parseResult.success && parseResult.metadata) {
             metadata = parseResult.metadata;
             logger.debug(`[Import] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
@@ -167,7 +147,7 @@ export function useImport({
           coverUrl: coverUrl,
           audioUrl: '',
           fileName: fileName,
-          filePath: savedFilePath,
+          filePath: filePath,
           fileSize: metadata?.fileSize || 0,
           lastModified: Date.now(),
           addedAt: new Date().toISOString(),
@@ -183,6 +163,20 @@ export function useImport({
     logger.debug(`[Import] Batch complete: ${results.length} total, ${filtered.length} successful, ${results.length - filtered.length} failed`);
     return filtered;
   }, [createTrackedBlobUrl]);
+
+  // Legacy: Process files from paths via dialog (kept for compatibility, now uses direct paths too)
+  const processDesktopFileBatch = useCallback(async (
+    filePaths: string[],
+    desktopAPI: any,
+    tracksMap: Map<string, Track>
+  ): Promise<Track[]> => {
+    // Convert to the new format and use the path-based processor
+    const pathObjects = filePaths.map(path => ({
+      path,
+      name: path.split(/[/\\]/).pop() || ''
+    }));
+    return processDesktopFilePathBatch(pathObjects, desktopAPI, tracksMap);
+  }, [processDesktopFilePathBatch]);
 
   // Process files from buffer (for drag-and-drop in Electron)
   const processDesktopFileBatchFromBuffer = useCallback(async (
@@ -517,147 +511,163 @@ export function useImport({
     persistedTimeRef
   ]);
 
+  // Handle dropped file paths (Electron mode with getPathForFile)
+  const handleDropFilePaths = useCallback(async (filePaths: { path: string; name: string }[]) => {
+    logger.debug('[Import] Drop file paths triggered');
+    logger.debug(`[Import] Processing ${filePaths.length} file path(s)...`);
+
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI) {
+      logger.error('[Import] Desktop API not available');
+      return;
+    }
+
+    const tracksMap = createTracksMap();
+
+    // Filter out already imported files
+    const newFilePaths = filePaths.filter(({ name }) => {
+      if (tracksMap.has(name)) {
+        logger.debug(`[Import] ⏭️ Skipping already imported file: ${name}`);
+        return false;
+      }
+      return true;
+    });
+
+    if (newFilePaths.length === 0) {
+      logger.debug('[Import] All files already imported, skipping');
+      return;
+    }
+
+    if (newFilePaths.length < filePaths.length) {
+      logger.debug(`[Import] 📝 Skipped ${filePaths.length - newFilePaths.length} duplicate files`);
+    }
+
+    const BATCH_SIZE = 10;
+    const UI_UPDATE_BATCH = 20;
+    const allNewTracks: Track[] = [];
+    const importedTracksAll: Track[] = [];
+    const baseTracks = tracks;
+    let totalProcessed = 0;
+    let totalFailed = 0;
+
+    logger.debug(`[Import] ===== Starting Path-based Import =====`);
+    logger.debug(`[Import] Total files to import: ${newFilePaths.length}`);
+
+    for (let i = 0; i < newFilePaths.length; i += BATCH_SIZE) {
+      const batch = newFilePaths.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(newFilePaths.length / BATCH_SIZE);
+
+      logger.debug(`[Import] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
+
+      const batchTracks = await processDesktopFilePathBatch(batch, desktopAPI, tracksMap);
+      const successfulTracks = batchTracks.filter((track): track is Track => track !== null);
+      const failedCount = batch.length - successfulTracks.length;
+
+      totalProcessed += batch.length;
+      totalFailed += failedCount;
+
+      allNewTracks.push(...successfulTracks);
+      importedTracksAll.push(...successfulTracks);
+
+      if (allNewTracks.length >= UI_UPDATE_BATCH) {
+        const batchSize = allNewTracks.length;
+        setTracks(prev => [...prev, ...allNewTracks]);
+        allNewTracks.length = 0;
+        tracksCountRef.current = tracksCountRef.current + batchSize;
+      }
+    }
+
+    if (allNewTracks.length > 0) {
+      setTracks(prev => [...prev, ...allNewTracks]);
+      tracksCountRef.current = tracksCountRef.current + allNewTracks.length;
+    }
+
+    const finalTracks = [...baseTracks, ...importedTracksAll];
+    setTracks(finalTracks);
+
+    // Save metadata cache and library
+    await metadataCacheService.save();
+
+    logger.debug('[Import] Saving library after drop import...');
+    const libraryData = buildLibraryIndexData(finalTracks, {
+      volume: volume,
+      currentTrackIndex: currentTrackIndex,
+      currentTrackId: currentTrack?.id,
+      currentTime: persistedTimeRef.current || currentTime,
+      isPlaying: isPlaying,
+      playbackMode: playbackMode
+    });
+    await libraryStorage.saveLibrary(libraryData);
+    logger.debug('[Import] ✓ Drop import with persistence completed');
+
+    logger.debug(`[Import] ===== Import Summary =====`);
+    logger.debug(`[Import] Total processed: ${totalProcessed}`);
+    logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
+    logger.debug(`[Import] Failed: ${totalFailed}`);
+  }, [
+    createTracksMap,
+    processDesktopFilePathBatch,
+    setTracks,
+    tracks,
+    currentTrackIndex,
+    currentTrack,
+    currentTime,
+    isPlaying,
+    playbackMode,
+    volume,
+    persistedTimeRef
+  ]);
+
+  // Handle dropped File objects (Web mode or Electron fallback)
   const handleDropFiles = useCallback(async (files: File[]) => {
-    logger.debug('[Import] Drop import triggered');
+    logger.debug('[Import] Drop files triggered (File objects)');
     logger.debug(`[Import] Processing ${files.length} file(s)...`);
     logger.debug(`[Import] Platform: ${isDesktop() ? 'Electron' : 'Web'}`);
 
-    // Check if running in Electron
-    if (isDesktop()) {
-      // Electron mode: use buffer processing for drag-and-drop
-      const desktopAPI = await getDesktopAPIAsync();
-      if (!desktopAPI) {
-        logger.error('[Import] Desktop API not available');
-        return;
-      }
+    // Web mode: use File object processing
+    logger.warn('[Import] Web mode drop import - with persistence');
+    const tracksMap = createTracksMap();
 
-      if (!desktopAPI.saveAudioFileFromBuffer) {
-        logger.error('[Import] saveAudioFileFromBuffer not available');
-        return;
-      }
+    const BATCH_SIZE = 10;
+    const UI_UPDATE_BATCH = 20;
+    const allNewTracks: Track[] = [];
 
-      logger.debug(`[Import] Processing ${files.length} file(s) in Electron mode (buffer)...`);
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      logger.debug(`[Import] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
 
-      const tracksMap = createTracksMap();
+      const batchTracks = await processWebFileBatch(batch, tracksMap);
+      allNewTracks.push(...batchTracks);
 
-      // Filter out already imported files
-      const newFiles = files.filter(file => {
-        if (tracksMap.has(file.name)) {
-          logger.debug(`[Import] ⏭️ Skipping already imported file: ${file.name}`);
-          return false;
-        }
-        return true;
-      });
-
-      if (newFiles.length === 0) {
-        logger.debug('[Import] All files already imported, skipping');
-        return;
-      }
-
-      if (newFiles.length < files.length) {
-        logger.debug(`[Import] 📝 Skipped ${files.length - newFiles.length} duplicate files`);
-      }
-
-      const BATCH_SIZE = 10;
-      const UI_UPDATE_BATCH = 20;
-      const allNewTracks: Track[] = [];
-      const importedTracksAll: Track[] = [];
-      const baseTracks = tracks;
-      let totalProcessed = 0;
-      let totalFailed = 0;
-
-      for (let i = 0; i < newFiles.length; i += BATCH_SIZE) {
-        const batch = newFiles.slice(i, i + BATCH_SIZE);
-        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(newFiles.length / BATCH_SIZE);
-
-        logger.debug(`[Import] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
-
-        const batchTracks = await processDesktopFileBatchFromBuffer(batch, desktopAPI, tracksMap);
-        const successfulTracks = batchTracks.filter((track): track is Track => track !== null);
-        const failedCount = batch.length - successfulTracks.length;
-
-        totalProcessed += batch.length;
-        totalFailed += failedCount;
-
-        allNewTracks.push(...successfulTracks);
-        importedTracksAll.push(...successfulTracks);
-
-        if (allNewTracks.length >= UI_UPDATE_BATCH) {
-          const batchSize = allNewTracks.length;
-          setTracks(prev => [...prev, ...allNewTracks]);
-          allNewTracks.length = 0;
-        }
-      }
-
-      if (allNewTracks.length > 0) {
+      if (allNewTracks.length >= UI_UPDATE_BATCH) {
+        logger.debug(`[Import] Updating UI with ${allNewTracks.length} new track(s)...`);
         setTracks(prev => [...prev, ...allNewTracks]);
+        allNewTracks.length = 0;
       }
-
-      const finalTracks = [...baseTracks, ...importedTracksAll];
-      setTracks(finalTracks);
-
-      // Save metadata cache and library
-      await metadataCacheService.save();
-
-      logger.debug('[Import] Saving library after drop import...');
-      const libraryData = buildLibraryIndexData(finalTracks, {
-        volume: volume,
-        currentTrackIndex: currentTrackIndex,
-        currentTrackId: currentTrack?.id,
-        currentTime: persistedTimeRef.current || currentTime,
-        isPlaying: isPlaying,
-        playbackMode: playbackMode
-      });
-      await libraryStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Drop import with persistence completed');
-
-    } else {
-      // Web mode: fallback to web processing (with persistence)
-      logger.warn('[Import] Web mode drop import - with persistence');
-      const tracksMap = createTracksMap();
-
-      const BATCH_SIZE = 10;
-      const UI_UPDATE_BATCH = 20;
-      const allNewTracks: Track[] = [];
-
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
-        logger.debug(`[Import] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
-
-        const batchTracks = await processWebFileBatch(batch, tracksMap);
-        allNewTracks.push(...batchTracks);
-
-        if (allNewTracks.length >= UI_UPDATE_BATCH) {
-          logger.debug(`[Import] Updating UI with ${allNewTracks.length} new track(s)...`);
-          setTracks(prev => [...prev, ...allNewTracks]);
-          allNewTracks.length = 0;
-        }
-      }
-
-      if (allNewTracks.length > 0) {
-        logger.debug(`[Import] Final UI update with ${allNewTracks.length} track(s)...`);
-        setTracks(prev => [...prev, ...allNewTracks]);
-      }
-
-      // Save to IndexedDB in browser mode
-      const finalTracks = [...tracks, ...allNewTracks];
-      const libraryData = buildLibraryIndexData(finalTracks, {
-        volume: volume,
-        currentTrackIndex: currentTrackIndex,
-        currentTrackId: currentTrack?.id,
-        currentTime: persistedTimeRef.current || currentTime,
-        isPlaying: isPlaying,
-        playbackMode: playbackMode
-      });
-      await indexedDBStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to IndexedDB');
-
-      logger.debug('[Import] ✓ All files imported successfully');
     }
+
+    if (allNewTracks.length > 0) {
+      logger.debug(`[Import] Final UI update with ${allNewTracks.length} track(s)...`);
+      setTracks(prev => [...prev, ...allNewTracks]);
+    }
+
+    // Save to IndexedDB in browser mode
+    const finalTracks = [...tracks, ...allNewTracks];
+    const libraryData = buildLibraryIndexData(finalTracks, {
+      volume: volume,
+      currentTrackIndex: currentTrackIndex,
+      currentTrackId: currentTrack?.id,
+      currentTime: persistedTimeRef.current || currentTime,
+      isPlaying: isPlaying,
+      playbackMode: playbackMode
+    });
+    await indexedDBStorage.saveLibrary(libraryData);
+    logger.debug('[Import] ✓ Library saved to IndexedDB');
+
+    logger.debug('[Import] ✓ All files imported successfully');
   }, [
     createTracksMap,
-    processDesktopFileBatchFromBuffer,
     processWebFileBatch,
     setTracks,
     tracks,
@@ -742,6 +752,7 @@ export function useImport({
     fileInputRef,
     handleDesktopImport,
     handleDropFiles,
+    handleDropFilePaths,
     handleFileInputChange
   };
 }

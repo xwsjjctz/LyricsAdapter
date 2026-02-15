@@ -173,6 +173,11 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
         const field = comment.substring(0, equalPos).toUpperCase();
         const value = comment.substring(equalPos + 1);
 
+        // Debug logging for ALBUM field
+        if (field === 'ALBUM') {
+          console.log('[Worker] Found ALBUM:', value);
+        }
+
         switch (field) {
           case 'TITLE':
             result.title = value;
@@ -194,8 +199,11 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
         }
       }
     }
-  } catch {
-    // Ignore parse errors
+
+    // Log final result
+    console.log('[Worker] Parsed metadata:', { title: result.title, artist: result.artist, album: result.album });
+  } catch (e) {
+    console.error('[Worker] Vorbis comment parse error:', e);
   }
 
   return result;
