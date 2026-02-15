@@ -393,10 +393,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
       </div>
 
+      <div className="flex-shrink-0">
+        <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_100px]">
+        <span>#</span><span>Title</span><span>Album</span><span className="text-right">Time</span>
+        </div>
+      </div>
+      
+
       {/* 可滚动的歌曲列表 */}
       <div
         className="flex-1 relative min-h-0 overflow-hidden"
-        style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24, marginTop: 24 }}
+        style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
       >
         {/* Sliding highlight overlay (outside scroll clipping) */}
         <div className="absolute inset-0 pointer-events-none">
