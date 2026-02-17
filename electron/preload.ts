@@ -4,6 +4,15 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electron', {
+  // Listen for download progress updates
+  onDownloadProgress: (callback: (data: { downloaded: number; total: number; progress: number }) => void) => {
+    ipcRenderer.on('download-progress', (event, data) => callback(data));
+  },
+  
+  // Remove download progress listener
+  offDownloadProgress: (callback: (data: { downloaded: number; total: number; progress: number }) => void) => {
+    ipcRenderer.removeListener('download-progress', callback);
+  },
   platform: process.platform,
 
   // Read file from path
@@ -106,5 +115,46 @@ contextBridge.exposeInMainWorld('electron', {
   // Get real file path from File object (for drag-and-drop)
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file);
+  },
+
+  // Download audio file from URL with cookies (for QQ Music download)
+  downloadAudioFile: async (url: string, cookieString: string) => {
+    return ipcRenderer.invoke('download-audio-file', url, cookieString);
+  },
+
+  // Get music URL from QQ Music API (via main process)
+  getQQMusicUrl: async (requestData: any, cookieString: string) => {
+    return ipcRenderer.invoke('get-qq-music-url', requestData, cookieString);
+  },
+
+  // Get lyrics from QQ Music API (via main process, avoids CORS)
+  getQQMusicLyrics: async (songmid: string, cookieString: string) => {
+    return ipcRenderer.invoke('get-qq-music-lyrics', songmid, cookieString);
+  },
+
+  // Select download folder
+  selectDownloadFolder: async () => {
+    return ipcRenderer.invoke('select-download-folder');
+  },
+
+  // Download and save audio file directly to path (non-blocking)
+  downloadAndSave: async (url: string, cookieString: string, filePath: string) => {
+    return ipcRenderer.invoke('download-and-save', url, cookieString, filePath);
+  },
+
+  // Save file to specified path
+  saveFileToPath: async (dirPath: string, fileName: string, fileData: ArrayBuffer) => {
+    return ipcRenderer.invoke('save-file-to-path', dirPath, fileName, fileData);
+  },
+
+  // Write metadata to audio file
+  writeAudioMetadata: async (filePath: string, metadata: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    lyrics?: string;
+    coverUrl?: string;
+  }) => {
+    return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
   }
 });

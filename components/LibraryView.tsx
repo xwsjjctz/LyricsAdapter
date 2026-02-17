@@ -364,14 +364,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 onClick={toggleSelectAll}
                 className="px-3 py-2 rounded-lg text-sm text-white/60 hover:bg-white/10 transition-all"
               >
-                {selectedIds.size === tracks.length ? '取消全选' : '全选'}
+                {selectedIds.size === tracks.length ? 'Cancel' : 'Select All'}
               </button>
               {selectedIds.size > 0 && (
                 <button
                   onClick={handleRemoveSelected}
                   className="px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
                 >
-                  删除选中 ({selectedIds.size})
+                  Delete Selected ({selectedIds.size})
                 </button>
               )}
             </>
@@ -381,12 +381,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               setIsEditMode(!isEditMode);
               if (!isEditMode) setSelectedIds(new Set());
             }}
-            className={`p-2 rounded-lg transition-all flex items-center justify-center ${
+            className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center ${
               isEditMode
                 ? 'bg-primary text-white shadow-lg shadow-primary/25'
-                : 'bg-white/10 text-white/60 hover:bg-white/20'
+                : 'bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary'
             }`}
-            title={isEditMode ? '完成' : '编辑'}
+            title={isEditMode ? 'Completed' : 'Edit Mode'}
           >
             <span className="material-symbols-outlined">{isEditMode ? 'check' : 'edit'}</span>
           </button>

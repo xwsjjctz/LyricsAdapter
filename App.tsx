@@ -13,6 +13,7 @@ import { useLibraryActions } from './hooks/useLibraryActions';
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
+import BrowseView from './components/BrowseView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -226,18 +227,25 @@ const App: React.FC = () => {
           />
 
           <div className="flex-1 p-10 overflow-hidden pt-10">
-            <LibraryView
-              tracks={tracks}
-              currentTrackIndex={currentTrackIndex}
-              onTrackSelect={selectTrack}
-              onRemoveTrack={handleRemoveTrack}
-              onRemoveMultipleTracks={handleRemoveMultipleTracks}
-              onDropFiles={handleDropFiles}
-              onDropFilePaths={handleDropFilePaths}
-              isFocusMode={isFocusMode}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
+            {viewMode === ViewMode.BROWSE ? (
+              <BrowseView
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+              />
+            ) : (
+              <LibraryView
+                tracks={tracks}
+                currentTrackIndex={currentTrackIndex}
+                onTrackSelect={selectTrack}
+                onRemoveTrack={handleRemoveTrack}
+                onRemoveMultipleTracks={handleRemoveMultipleTracks}
+                onDropFiles={handleDropFiles}
+                onDropFilePaths={handleDropFilePaths}
+                isFocusMode={isFocusMode}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+              />
+            )}
           </div>
 
           <Controls
