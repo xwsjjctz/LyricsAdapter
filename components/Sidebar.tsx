@@ -82,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
             {onSearchChange && (
               <div className="mt-4">
                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-lg">
+                  <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-white/40 text-lg">
                     search
                   </span>
                   {isBrowseView ? (
@@ -93,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
                       value={browseInputValue}
                       onChange={(e) => setBrowseInputValue(e.target.value)}
                       onKeyDown={handleBrowseKeyDown}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
                     />
                   ) : (
                     // Library view: Real-time search
@@ -102,13 +102,13 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
                       placeholder="Search tracks..."
                       value={searchQuery}
                       onChange={(e) => handleLibrarySearch(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
                     />
                   )}
                   {searchQuery && (
                     <button
                       onClick={isBrowseView ? handleBrowseClear : () => onSearchChange?.('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                      className="absolute right-3 top-5/9 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">close</span>
                     </button>

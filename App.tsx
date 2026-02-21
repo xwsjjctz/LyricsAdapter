@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
+import { libraryStorage } from './services/libraryStorage';
+import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { useBlobUrls } from './hooks/useBlobUrls';
 import { usePlayback } from './hooks/usePlayback';
@@ -55,6 +57,8 @@ const App: React.FC = () => {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [forceUpdateCounter] = useState(0); // Force re-render after restore
   const [searchQuery, setSearchQuery] = useState(''); // Search query for library
+  const [libraryScrollPosition, setLibraryScrollPosition] = useState(0); // Save LibraryView scroll position
+  const isFirstLibraryLoadRef = useRef(true); // Track if LibraryView is loading for the first time
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
 
@@ -149,6 +153,38 @@ const App: React.FC = () => {
     persistedTimeRef
   });
 
+  // Handle download completion from BrowseView
+  const handleDownloadComplete = useCallback(async (track: Track) => {
+    logger.debug('[App] Download complete, adding track to library:', track.title);
+    
+    // Check if track already exists (by filePath)
+    const existingTrack = tracks.find(t => t.filePath === track.filePath);
+    if (existingTrack) {
+      logger.debug('[App] Track already exists in library, skipping:', track.title);
+      return;
+    }
+
+    // Add track to library
+    const newTracks = [...tracks, track];
+    setTracks(newTracks);
+    logger.debug('[App] Track added to library:', track.title);
+
+    // Save metadata cache
+    await metadataCacheService.save();
+
+    // Save library to disk
+    const libraryData = buildLibraryIndexData(newTracks, {
+      volume: volume,
+      currentTrackIndex: currentTrackIndex,
+      currentTrackId: currentTrack?.id,
+      currentTime: persistedTimeRef.current || currentTime,
+      isPlaying: isPlaying,
+      playbackMode: playbackMode
+    });
+    await libraryStorage.saveLibrary(libraryData);
+    logger.debug('[App] Library saved after download');
+  }, [tracks, setTracks, volume, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode, persistedTimeRef]);
+
   useEffect(() => {
     const initDesktopAPI = async () => {
       logger.debug('[App] Initializing Desktop API...');
@@ -195,7 +231,14 @@ const App: React.FC = () => {
               fileInputRef.current?.click();
             }
           }}
-          onNavigate={(mode) => { setViewMode(mode); setIsFocusMode(false); }}
+          onNavigate={(mode) => { 
+            setViewMode(mode); 
+            setIsFocusMode(false); 
+            // When leaving Library view, mark first load as done
+            if (viewMode !== ViewMode.BROWSE && mode === ViewMode.BROWSE) {
+              isFirstLibraryLoadRef.current = false;
+            }
+          }}
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={tracks.some(t => t.available === false)}
           currentView={viewMode}
@@ -231,6 +274,7 @@ const App: React.FC = () => {
               <BrowseView
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
+                onDownloadComplete={handleDownloadComplete}
               />
             ) : (
               <LibraryView
@@ -244,6 +288,9 @@ const App: React.FC = () => {
                 isFocusMode={isFocusMode}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
+                savedScrollPosition={libraryScrollPosition}
+                onScrollPositionChange={setLibraryScrollPosition}
+                isFirstLoad={isFirstLibraryLoadRef.current}
               />
             )}
           </div>

@@ -913,6 +913,68 @@ app.whenReady().then(() => {
     }
   }
 
+  // Get metaflac binary path for current platform
+  function getMetaflacPath(): string {
+    const platform = process.platform;
+    const arch = process.arch;
+
+    // In development, try to use system metaflac first
+    if (!app.isPackaged) {
+      // Check if metaflac is available in system PATH
+      try {
+        const { execSync } = require('child_process');
+        execSync('which metaflac', { encoding: 'utf-8', stdio: 'pipe' });
+        console.log('[Main] Using system metaflac in development');
+        return 'metaflac';
+      } catch (e) {
+        console.warn('[Main] System metaflac not found, will try bundled binary');
+        // In development, use project binaries directory
+        let binaryPath: string;
+        if (platform === 'darwin') {
+          // macOS
+          if (arch === 'arm64') {
+            binaryPath = path.join(__dirname, '../binaries/darwin-arm64/metaflac');
+          } else {
+            binaryPath = path.join(__dirname, '../binaries/darwin-x64/metaflac');
+          }
+        } else if (platform === 'win32') {
+          // Windows
+          binaryPath = path.join(__dirname, '../binaries/win32-x64/metaflac.exe');
+        } else if (platform === 'linux') {
+          // Linux
+          binaryPath = path.join(__dirname, '../binaries/linux-x64/metaflac');
+        } else {
+          throw new Error(`Unsupported platform: ${platform}-${arch}`);
+        }
+        console.log('[Main] Using bundled metaflac in development:', binaryPath);
+        return binaryPath;
+      }
+    }
+
+    // In production, use bundled binary from app resources
+    let binaryPath: string;
+
+    if (platform === 'darwin') {
+      // macOS
+      if (arch === 'arm64') {
+        binaryPath = path.join(process.resourcesPath, 'binaries', 'darwin-arm64', 'metaflac');
+      } else {
+        binaryPath = path.join(process.resourcesPath, 'binaries', 'darwin-x64', 'metaflac');
+      }
+    } else if (platform === 'win32') {
+      // Windows
+      binaryPath = path.join(process.resourcesPath, 'binaries', 'win32-x64', 'metaflac.exe');
+    } else if (platform === 'linux') {
+      // Linux
+      binaryPath = path.join(process.resourcesPath, 'binaries', 'linux-x64', 'metaflac');
+    } else {
+      throw new Error(`Unsupported platform: ${platform}-${arch}`);
+    }
+
+    console.log('[Main] Using bundled metaflac:', binaryPath);
+    return binaryPath;
+  }
+
   // Write FLAC metadata using metaflac command line tool
   async function writeFlacMetadataWithMetaflac(
     filePath: string,
@@ -920,6 +982,20 @@ app.whenReady().then(() => {
   ): Promise<boolean> {
     const { execSync } = await import('child_process');
     const logFile = path.join(app.getPath('userData'), 'flac-metadata.log');
+
+    // Get metaflac binary path
+    const metaflacBinary = getMetaflacPath();
+
+    // Common exec options with UTF-8 environment
+    const execOptions = {
+      encoding: 'utf-8' as const,
+      stdio: 'pipe' as const,
+      env: {
+        ...process.env,
+        LANG: 'en_US.UTF-8',
+        LC_ALL: 'en_US.UTF-8'
+      }
+    };
 
     const log = (message: string) => {
       const timestamp = new Date().toISOString();
@@ -948,28 +1024,43 @@ app.whenReady().then(() => {
       // Step 1: Remove existing tags and picture (major operations)
       log(`[METAFLAC] Removing existing metadata`);
       try {
-        execSync(`metaflac --remove-all-tags "${filePath}"`, { encoding: 'utf-8', stdio: 'pipe' });
-        execSync(`metaflac --remove --block-type=PICTURE "${filePath}"`, { encoding: 'utf-8', stdio: 'pipe' });
+        execSync(`"${metaflacBinary}" --remove-all-tags "${filePath}"`, execOptions);
+        execSync(`"${metaflacBinary}" --remove --block-type=PICTURE "${filePath}"`, execOptions);
       } catch (e: any) {
         log(`[METAFLAC] Warning during removal: ${e.message}`);
         // Continue even if removal fails
       }
 
-      // Step 2: Add new tags (shorthand operations - must be separate)
-      const tags: string[] = [];
-      if (metadata.title) tags.push(`TITLE=${metadata.title}`);
-      if (metadata.artist) tags.push(`ARTIST=${metadata.artist}`);
-      if (metadata.album) tags.push(`ALBUM=${metadata.album}`);
+      // Step 2: Add new tags using separate temp files for each tag to avoid encoding issues
+      const tags: { field: string; value: string }[] = [];
+      if (metadata.title) tags.push({ field: 'TITLE', value: metadata.title });
+      if (metadata.artist) tags.push({ field: 'ARTIST', value: metadata.artist });
+      if (metadata.album && metadata.album.trim()) tags.push({ field: 'ALBUM', value: metadata.album });
 
       if (tags.length > 0) {
+        log(`[METAFLAC] Writing ${tags.length} tags: ${tags.map(t => t.field).join(', ')}`);
+        log(`[METAFLAC] Metadata: ${JSON.stringify(metadata)}`);
+
         for (const tag of tags) {
           try {
-            execSync(`metaflac --set-tag="${tag}" "${filePath}"`, { encoding: 'utf-8', stdio: 'pipe' });
-            log(`[METAFLAC] ✓ Set tag: ${tag}`);
+            // Create a temp file for each tag value
+            const tagFile = filePath + `.${tag.field}.txt`;
+            fs.writeFileSync(tagFile, tag.value, 'utf-8');
+
+            // Use --set-tag-from-file to avoid shell encoding issues
+            execSync(`"${metaflacBinary}" --set-tag-from-file="${tag.field}=${tagFile}" "${filePath}"`, execOptions);
+            log(`[METAFLAC] ✓ Set ${tag.field}=${tag.value.substring(0, 30)}${tag.value.length > 30 ? '...' : ''}`);
+
+            // Clean up temp file
+            fs.unlinkSync(tagFile);
           } catch (e: any) {
-            log(`[METAFLAC] Warning: Failed to set tag ${tag}: ${e.message}`);
+            log(`[METAFLAC] Warning: Failed to set ${tag.field}: ${e.message}`);
+            // Continue with other tags even if one fails
           }
         }
+        log(`[METAFLAC] ✓ All tags written`);
+      } else {
+        log(`[METAFLAC] No tags to write, metadata was: ${JSON.stringify(metadata)}`);
       }
 
       // Step 3: Add lyrics separately
@@ -980,10 +1071,7 @@ app.whenReady().then(() => {
           fs.writeFileSync(lyricsFile, metadata.lyrics, 'utf-8');
 
           // Import lyrics from file
-          execSync(`metaflac --set-tag-from-file="LYRICS=${lyricsFile}" "${filePath}"`, {
-            encoding: 'utf-8',
-            stdio: 'pipe'
-          });
+          execSync(`"${metaflacBinary}" --set-tag-from-file="LYRICS=${lyricsFile}" "${filePath}"`, execOptions);
 
           // Clean up temp file
           fs.unlinkSync(lyricsFile);
@@ -1006,10 +1094,7 @@ app.whenReady().then(() => {
             fs.writeFileSync(coverFile, coverBuffer);
             log(`[METAFLAC] Cover downloaded (${coverBuffer.length} bytes)`);
 
-            execSync(`metaflac --import-picture-from="${coverFile}" "${filePath}"`, {
-              encoding: 'utf-8',
-              stdio: 'pipe'
-            });
+            execSync(`"${metaflacBinary}" --import-picture-from="${coverFile}" "${filePath}"`, execOptions);
             log(`[METAFLAC] ✓ Cover written`);
 
             // Clean up temp cover file

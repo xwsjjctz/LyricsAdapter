@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { QQMusicSong, qqMusicApi } from '../services/qqMusicApi';
 import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
+import { libraryStorage } from '../services/libraryStorage';
+import { metadataCacheService } from '../services/metadataCacheService';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import SettingsDialog from './SettingsDialog';
+import { Track } from '../types';
 
 interface BrowseViewProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onDownloadComplete?: (track: Track) => void;
 }
 
 interface DownloadProgress {
@@ -17,13 +22,37 @@ interface DownloadProgress {
   };
 }
 
-const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) => {
+type QualityOption = {
+  value: '128' | '320' | 'flac';
+  label: string;
+};
+
+const qualityOptions: QualityOption[] = [
+  { value: '128', label: '128kbps' },
+  { value: '320', label: '320kbps' },
+  { value: 'flac', label: 'FLAC' },
+];
+
+const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, onDownloadComplete }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [hasSearched, setHasSearched] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Check cookie on mount
   useEffect(() => {
@@ -54,7 +83,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
 
   const loadRecommendations = async () => {
     if (!cookieManager.hasCookie()) {
-      setError('请先设置QQ音乐Cookie');
+      setError('请先设置访问凭证');
       setShowSettingsDialog(true);
       return;
     }
@@ -68,7 +97,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
       console.log('[BrowseView] Got songs:', songs.length);
       
       if (!songs || songs.length === 0) {
-        setError('未获取到推荐歌曲，请检查Cookie是否有效');
+        setError('未获取到推荐歌曲，请检查访问凭证是否有效');
       } else {
         setSongs(songs);
         setHasSearched(false);
@@ -78,11 +107,11 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
       logger.error('[BrowseView] Failed to load recommendations:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-        setError('浏览器安全限制：无法直接访问QQ音乐API。请在桌面端使用此功能。');
+        setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
       } else if (errorMsg.includes('Cookie')) {
         setShowSettingsDialog(true);
       } else {
-        setError(errorMsg || '加载推荐音乐失败，请检查网络连接或Cookie有效性');
+        setError(errorMsg || '加载推荐音乐失败，请检查网络连接或访问凭证有效性');
       }
     } finally {
       setIsLoading(false);
@@ -111,9 +140,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
       logger.error('[BrowseView] Search failed:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-        setError('浏览器安全限制：无法直接访问QQ音乐API。请在桌面端使用此功能。');
+        setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
       } else if (errorMsg.includes('Cookie')) {
-        setError('Cookie已过期，请重新设置');
+        setError('访问凭证已过期，请重新设置');
         setShowSettingsDialog(true);
       } else {
         setError(errorMsg || '搜索失败，请稍后重试');
@@ -131,10 +160,115 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
     }
   };
 
+  const createTrackFromDownloadedFile = async (
+    filePath: string,
+    fileName: string,
+    song: QQMusicSong,
+    lyrics?: string
+  ): Promise<Track | null> => {
+    try {
+      const desktopAPI = await getDesktopAPIAsync();
+      if (!desktopAPI) {
+        logger.error('[BrowseView] Desktop API not available');
+        return null;
+      }
+
+      // Parse metadata from the downloaded file
+      let metadata;
+      try {
+        const parseResult = await desktopAPI.parseAudioMetadata(filePath);
+        if (parseResult.success && parseResult.metadata) {
+          metadata = parseResult.metadata;
+        }
+      } catch (error) {
+        logger.error('[BrowseView] Failed to parse metadata:', error);
+      }
+
+      const trackId = Math.random().toString(36).substr(2, 9);
+      const singer = song.singer?.[0]?.name || 'Unknown';
+
+      // Build cover URL from albummid
+      const coverUrl = song.albummid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
+        : `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+
+      // Save cover thumbnail if possible
+      let finalCoverUrl = coverUrl;
+      if (song.albummid && desktopAPI.saveCoverThumbnail) {
+        try {
+          // Fetch cover image and convert to base64
+          const coverResponse = await fetch(coverUrl);
+          if (coverResponse.ok) {
+            const coverBlob = await coverResponse.blob();
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve) => {
+              reader.onloadend = () => {
+                const base64 = reader.result as string;
+                resolve(base64.split(',')[1]);
+              };
+            });
+            reader.readAsDataURL(coverBlob);
+            const base64Data = await base64Promise;
+            
+            const coverResult = await desktopAPI.saveCoverThumbnail({
+              id: trackId,
+              data: base64Data,
+              mime: 'image/jpeg'
+            });
+            if (coverResult?.success && coverResult.coverUrl) {
+              finalCoverUrl = coverResult.coverUrl;
+            }
+          }
+        } catch (error) {
+          logger.warn('[BrowseView] Failed to save cover thumbnail:', error);
+        }
+      }
+
+      // Cache metadata
+      metadataCacheService.set(trackId, {
+        title: song.songname,
+        artist: singer,
+        album: song.albumname || '',
+        duration: metadata?.duration || song.interval || 0,
+        lyrics: lyrics || '',
+        syncedLyrics: metadata?.syncedLyrics,
+        fileName: fileName,
+        fileSize: metadata?.fileSize || 0,
+        lastModified: Date.now(),
+      });
+
+      const track: Track = {
+        id: trackId,
+        title: song.songname,
+        artist: singer,
+        album: song.albumname || 'Unknown Album',
+        duration: metadata?.duration || song.interval || 0,
+        lyrics: lyrics || '',
+        syncedLyrics: metadata?.syncedLyrics,
+        coverUrl: finalCoverUrl,
+        audioUrl: '',
+        fileName: fileName,
+        filePath: filePath,
+        fileSize: metadata?.fileSize || 0,
+        lastModified: Date.now(),
+        addedAt: new Date().toISOString(),
+        available: true
+      };
+
+      return track;
+    } catch (error) {
+      logger.error('[BrowseView] Failed to create track:', error);
+      return null;
+    }
+  };
+
   const handleDownload = async (song: QQMusicSong, quality: 'm4a' | '128' | '320' | 'flac' = '128') => {
     // Prevent re-download if already downloading or completed
     const currentStatus = downloadProgress[song.songmid]?.status;
     if (currentStatus === 'downloading' || currentStatus === 'completed') return;
+
+    // Close dropdown
+    setOpenDropdownId(null);
 
     // Check if in Electron environment
     const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
@@ -168,6 +302,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
       const fileName = `${singer} - ${song.songname}.${ext}`;
 
       let savedFilePath: string | undefined;
+      let lyrics: string | undefined;
 
       if (isElectron && (window as any).electron?.downloadAndSave && downloadPath) {
         // Use new download-and-save method (non-blocking)
@@ -192,6 +327,20 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
           [song.songmid]: { progress: 100, status: 'downloading' }
         }));
 
+        // Fetch lyrics via Electron main process (avoids CORS)
+        try {
+          console.log('[BrowseView] Fetching lyrics for:', song.songmid);
+          const lyricsResult = await (window as any).electron.getQQMusicLyrics(song.songmid, rawCookie);
+          if (lyricsResult && lyricsResult.success && lyricsResult.lyrics) {
+            lyrics = lyricsResult.lyrics;
+            console.log('[BrowseView] Lyrics fetched, length:', lyrics.length);
+          } else {
+            console.warn('[BrowseView] Failed to fetch lyrics:', lyricsResult?.error);
+          }
+        } catch (e) {
+          console.warn('[BrowseView] Failed to fetch lyrics:', e);
+        }
+
         // Write metadata to the saved file
         if (savedFilePath && (window as any).electron?.writeAudioMetadata) {
           console.log('[BrowseView] Writing metadata...');
@@ -203,22 +352,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
           const coverUrl = song.albummid 
             ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
             : undefined;
-
-          // Fetch lyrics via Electron main process (avoids CORS)
-          let lyrics: string | undefined;
-          try {
-            console.log('[BrowseView] Fetching lyrics for:', song.songmid);
-            const rawCookie = cookieManager.getCookie();
-            const lyricsResult = await (window as any).electron.getQQMusicLyrics(song.songmid, rawCookie);
-            if (lyricsResult && lyricsResult.success && lyricsResult.lyrics) {
-              lyrics = lyricsResult.lyrics;
-              console.log('[BrowseView] Lyrics fetched, length:', lyrics.length);
-            } else {
-              console.warn('[BrowseView] Failed to fetch lyrics:', lyricsResult?.error);
-            }
-          } catch (e) {
-            console.warn('[BrowseView] Failed to fetch lyrics:', e);
-          }
 
           const metadataResult = await (window as any).electron.writeAudioMetadata(
             savedFilePath,
@@ -235,6 +368,16 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
             console.log('[BrowseView] Metadata written successfully');
           } else {
             console.error('[BrowseView] Metadata write failed:', metadataResult.error);
+          }
+        }
+
+        // Create track and add to library
+        if (savedFilePath && onDownloadComplete) {
+          console.log('[BrowseView] Creating track from downloaded file...');
+          const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
+          if (track) {
+            onDownloadComplete(track);
+            console.log('[BrowseView] Track added to library:', track.title);
           }
         }
       } else {
@@ -274,7 +417,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
       const errorMsg = err.message || '';
       // If it's a cookie error, show settings dialog
       if (errorMsg.includes('Cookie') || errorMsg.includes('cookie')) {
-        setError('Cookie已过期，请重新设置');
+        setError('访问凭证已过期，请重新设置');
         setShowSettingsDialog(true);
       }
       
@@ -296,6 +439,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
         });
       }, 5000);
     }
+  };
+
+  const toggleDropdown = (songmid: string) => {
+    setOpenDropdownId(openDropdownId === songmid ? null : songmid);
   };
 
   const formatDuration = (seconds?: number): string => {
@@ -361,7 +508,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
                 <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                   <p className="text-xs text-yellow-400/80">
                     <span className="material-symbols-outlined text-sm align-text-bottom mr-1">lightbulb</span>
-                    提示：浏览功能需要在Electron桌面端使用，因为浏览器存在CORS跨域限制。
+                    提示：浏览功能需要在桌面端使用，因为浏览器存在跨域限制。
                   </p>
                   <p className="text-xs text-yellow-400/60 mt-2">
                     构建桌面版：npm run electron:build
@@ -376,7 +523,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
               <span className="material-symbols-outlined text-6xl mb-4 block">music_off</span>
               <p className="text-xl font-medium">暂无音乐</p>
               <p className="text-sm mt-2 mb-4">
-                {hasSearched ? '尝试其他搜索关键词' : '请设置Cookie以获取推荐'}
+                {hasSearched ? '尝试其他搜索关键词' : '请设置访问凭证以获取推荐'}
               </p>
               <button
                 onClick={() => loadRecommendations()}
@@ -403,6 +550,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
                 const progress = downloadProgress[song.songmid];
                 const isDownloading = progress?.status === 'downloading';
                 const isCompleted = progress?.status === 'completed';
+                const isDropdownOpen = openDropdownId === song.songmid;
 
                 return (
                   <div
@@ -431,7 +579,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
                     <div className="text-sm opacity-50 text-right tabular-nums">
                       {formatDuration(song.interval)}
                     </div>
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end" ref={isDropdownOpen ? dropdownRef : undefined}>
                       {isDownloading ? (
                         <div className="flex items-center gap-2">
                           <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -448,22 +596,39 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange }) 
                           完成
                         </span>
                       ) : (
-                        <>
+                        <div className="relative">
                           <button
-                            onClick={() => handleDownload(song, '128')}
-                            title="下载 128kbps"
+                            onClick={() => toggleDropdown(song.songmid)}
+                            title="下载"
                             className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                           >
                             <span className="material-symbols-outlined text-base">download</span>
                           </button>
-                          <button
-                            onClick={() => handleDownload(song, 'flac')}
-                            title="下载 FLAC"
-                            className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                          >
-                            <span className="material-symbols-outlined text-base">audio_file</span>
-                          </button>
-                        </>
+                          
+                          {/* Dropdown Menu */}
+                          {isDropdownOpen && (
+                            <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] bg-[#1a2533] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                              {qualityOptions.map((option) => (
+                                <button
+                                  key={option.value}
+                                  onClick={() => handleDownload(song, option.value)}
+                                  className="w-full px-3 py-2 text-left text-xs text-white/70 hover:bg-primary/20 hover:text-primary transition-all flex items-center justify-between"
+                                >
+                                  <span>{option.label}</span>
+                                  {option.value === '128' && (
+                                    <span className="text-[10px] text-white/30">标准</span>
+                                  )}
+                                  {option.value === '320' && (
+                                    <span className="text-[10px] text-white/30">高品质</span>
+                                  )}
+                                  {option.value === 'flac' && (
+                                    <span className="text-[10px] text-primary/60">无损</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

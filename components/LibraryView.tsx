@@ -13,6 +13,9 @@ interface LibraryViewProps {
   isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
   searchQuery?: string; // Search query from parent
   onSearchChange?: (query: string) => void; // Callback to update search query
+  savedScrollPosition?: number; // Saved scroll position from parent
+  onScrollPositionChange?: (position: number) => void; // Callback to save scroll position
+  isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -25,7 +28,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onDropFilePaths,
   isFocusMode = false,
   searchQuery: externalSearchQuery,
-  onSearchChange
+  onSearchChange,
+  savedScrollPosition = 0,
+  onScrollPositionChange,
+  isFirstLoad = false
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -46,6 +52,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
 
+  // Track if animation has already played for current tracks
+  const hasAnimatedRef = useRef(false);
+  const previousTracksRef = useRef<Track[]>([]);
+  const isInitialMountRef = useRef(true);
+
   // Filter tracks based on search query
   const filteredTracks = useMemo(() => {
     if (!searchQuery.trim()) return tracks;
@@ -56,6 +67,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       track.album.toLowerCase().includes(query)
     );
   }, [tracks, searchQuery]);
+
+  // Check if tracks actually changed (by comparing IDs)
+  const didTracksChange = useCallback((prevTracks: Track[], newTracks: Track[]) => {
+    if (prevTracks.length !== newTracks.length) return true;
+    return prevTracks.some((track, index) => track.id !== newTracks[index]?.id);
+  }, []);
 
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +102,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     ? Math.max(0, totalHeight - paddingTop - visibleHeight)
     : 0;
 
+  // Animation is disabled for better performance
+  const shouldShowAnimation = false;
+
   const rowMeasureRef = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
     const nextHeight = node.getBoundingClientRect().height;
@@ -93,6 +113,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
   }, [rowHeight]);
 
+  // Initialize viewport size
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -106,6 +127,50 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     ro.observe(container);
     return () => ro.disconnect();
   }, []);
+
+  // Handle scroll position restoration and scroll to playing track on first load
+  useEffect(() => {
+    if (!isInitialMountRef.current) return;
+    
+    // Defer to after render when row height is known
+    const timer = setTimeout(() => {
+      if (!scrollContainerRef.current) return;
+      
+      if (isFirstLoad && currentTrackIndex >= 0 && currentTrackIndex < tracks.length) {
+        // First app load: scroll to the currently playing track
+        const container = scrollContainerRef.current;
+        const itemTop = currentTrackIndex * rowStride;
+        const itemBottom = itemTop + baseRowHeight;
+        const targetTop = itemBottom - container.clientHeight / 2; // Center the track
+        const maxTop = Math.max(0, totalHeight - container.clientHeight);
+        const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+        
+        container.scrollTop = clampedTop;
+        setScrollTop(clampedTop);
+        logger.debug(`[LibraryView] First load - scrolled to playing track ${currentTrackIndex + 1} at position ${clampedTop}`);
+      } else if (savedScrollPosition > 0) {
+        // From other view: restore saved scroll position
+        scrollContainerRef.current.scrollTop = savedScrollPosition;
+        setScrollTop(savedScrollPosition);
+        logger.debug(`[LibraryView] Returned from other view - restored scroll position: ${savedScrollPosition}`);
+      }
+      
+      isInitialMountRef.current = false;
+    }, 50); // Small delay to ensure row height is calculated
+
+    return () => clearTimeout(timer);
+  }, [isFirstLoad, currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, savedScrollPosition]);
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollContainerRef.current) {
+        const finalScrollPosition = scrollContainerRef.current.scrollTop;
+        onScrollPositionChange?.(finalScrollPosition);
+        logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition}`);
+      }
+    };
+  }, [onScrollPositionChange]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -121,44 +186,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setRowHeight(0);
   }, [isEditMode]);
 
-  // Auto-scroll to current track when currentTrackIndex changes
-  useEffect(() => {
-    if (currentTrackIndex < 0 || currentTrackIndex >= tracks.length || !scrollContainerRef.current) {
-      return;
-    }
-
-    const container = scrollContainerRef.current;
-    const timer = setTimeout(() => {
-      const viewTop = container.scrollTop;
-      const viewBottom = viewTop + container.clientHeight;
-      const itemTop = currentTrackIndex * rowStride;
-      const itemBottom = itemTop + baseRowHeight;
-
-      if (itemTop >= viewTop && itemBottom <= viewBottom) {
-        logger.debug(`[LibraryView] Track ${currentTrackIndex + 1} is already visible, no scroll needed`);
-        previousTrackIndexRef.current = currentTrackIndex;
-        return;
-      }
-
-      const isNext = currentTrackIndex > previousTrackIndexRef.current;
-      let targetTop: number;
-
-      if (isFocusMode) {
-        targetTop = itemTop < viewTop ? itemTop : itemBottom - container.clientHeight;
-      } else {
-        targetTop = isNext ? itemBottom - container.clientHeight : itemTop;
-      }
-
-      const maxTop = Math.max(0, totalHeight - container.clientHeight);
-      const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
-
-      logger.debug(`[LibraryView] Auto-scrolling to track ${currentTrackIndex + 1}`);
-      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
-      previousTrackIndexRef.current = currentTrackIndex;
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, isFocusMode]);
+  // Note: Auto-scroll to current track has been removed.
+  // The list now stays at the last scroll position when switching between views.
 
   // Update sliding highlight position when current track changes
   useEffect(() => {
@@ -193,8 +222,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [currentTrackIndex, tracks.length, isEditMode, rowStride, baseRowHeight]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-  }, []);
+    const newScrollTop = e.currentTarget.scrollTop;
+    setScrollTop(newScrollTop);
+    // Notify parent of scroll position change
+    onScrollPositionChange?.(newScrollTop);
+  }, [onScrollPositionChange]);
 
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -437,7 +469,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 const isUnavailable = track.available === false;
                 const isSelected = selectedIds.has(track.id);
                 const isCurrentTrack = originalIndex === currentTrackIndex;
-                const shouldAnimate = !shouldVirtualize;
+                // Only apply animation when shouldShowAnimation is true
+                const animationStyle = shouldShowAnimation 
+                  ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` } 
+                  : undefined;
 
                 return (
                   <div
@@ -445,7 +480,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     ref={idx === 0 ? rowMeasureRef : undefined}
                     data-track-index={originalIndex}  // Use original index for auto-scroll
                     onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
-                    style={shouldAnimate ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` } : undefined}
+                    style={animationStyle}
                     className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 ${
                       isEditMode ? 'grid-cols-[48px_1fr_1fr_100px_48px_48px]' : 'grid-cols-[48px_1fr_1fr_100px]'
                     } ${
@@ -531,7 +566,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     prevProps.onDropFiles === nextProps.onDropFiles &&
     prevProps.onDropFilePaths === nextProps.onDropFilePaths &&
     prevProps.isFocusMode === nextProps.isFocusMode &&
-    prevProps.searchQuery === nextProps.searchQuery
+    prevProps.searchQuery === nextProps.searchQuery &&
+    prevProps.savedScrollPosition === nextProps.savedScrollPosition &&
+    prevProps.isFirstLoad === nextProps.isFirstLoad
   );
 });
 

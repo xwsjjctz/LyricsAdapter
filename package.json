@@ -61,6 +61,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "binaries",
+        "to": "binaries",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asar": true,

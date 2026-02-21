@@ -64,7 +64,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-[#1a2533] border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">设置QQ音乐Cookie</h2>
+          <h2 className="text-xl font-bold text-white">设置访问凭证</h2>
           <button
             onClick={handleClose}
             className="text-white/40 hover:text-white transition-colors"
@@ -75,7 +75,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
         </div>
 
         <p className="text-white/60 text-sm mb-4">
-          为了使用浏览功能，需要提供QQ音乐的Cookie。Cookie每24小时需要重新验证一次。
+          为了使用浏览功能，需要提供访问凭证。凭证每24小时需要重新验证一次。
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -86,7 +86,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
             <textarea
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
-              placeholder="粘贴你的QQ音乐Cookie..."
+              placeholder="粘贴你的访问凭证..."
               className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all resize-none"
               disabled={isValidating}
             />
@@ -121,7 +121,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
               浏览器环境限制：
             </p>
             <p className="text-xs text-yellow-400/60 mt-1 ml-5">
-              由于浏览器CORS安全限制，浏览功能<strong>只能在Electron桌面端</strong>使用。浏览器端即使设置了Cookie也无法访问QQ音乐API。
+              由于浏览器跨域安全限制，浏览功能<strong>只能在桌面端</strong>使用。
             </p>
             <p className="text-xs text-yellow-400/40 mt-1 ml-5">
               构建桌面版：npm run electron:build

@@ -91,7 +91,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
             <textarea
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
-              placeholder="Paste QQ Music cookie..."
+              placeholder="Paste cookie..."
               className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all resize-none"
               disabled={isValidating}
             />

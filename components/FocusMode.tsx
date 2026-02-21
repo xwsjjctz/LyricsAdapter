@@ -717,7 +717,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             <div className="bg-white/5 p-1.5 rounded-full group-hover:bg-white/10 transition-colors flex items-center justify-center">
               <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
             </div>
-            <span className="text-[9px] font-bold tracking-[0.15em] uppercase">Now Playing</span>
+            {/* <span className="text-[9px] font-bold tracking-[0.15em] uppercase">Now Playing</span> */}
           </button>
         </header>
 
