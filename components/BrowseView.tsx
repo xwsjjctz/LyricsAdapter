@@ -10,8 +10,8 @@ import SettingsDialog from './SettingsDialog';
 import { Track } from '../types';
 
 interface BrowseViewProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+  inputValue?: string; // Search input value from parent (shared between views)
+  searchTrigger?: number; // Trigger to execute search
   onDownloadComplete?: (track: Track) => void;
 }
 
@@ -33,15 +33,17 @@ const qualityOptions: QualityOption[] = [
   { value: 'flac', label: 'FLAC' },
 ];
 
-const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, onDownloadComplete }) => {
+const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [hasSearched, setHasSearched] = useState(false);
+  const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const previousTrigger = useRef(searchTrigger);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -71,17 +73,57 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     checkCookie();
   }, []);
 
-  // Handle external search query changes
+  // Execute search when trigger changes (from Enter key in Sidebar)
   useEffect(() => {
-    if (searchQuery) {
-      handleSearch(searchQuery);
-    } else if (hasSearched) {
-      // Clear search and go back to recommendations
-      loadRecommendations();
-    }
-  }, [searchQuery]);
+    if (searchTrigger !== previousTrigger.current) {
+      previousTrigger.current = searchTrigger;
+      setExecutedSearchQuery(inputValue);
+      
+      if (inputValue) {
+        // Execute search directly
+        const doSearch = async () => {
+          if (!inputValue.trim()) {
+            loadRecommendations();
+            return;
+          }
 
-  const loadRecommendations = async () => {
+          if (!cookieManager.hasCookie()) {
+            setShowSettingsDialog(true);
+            return;
+          }
+
+          setIsLoading(true);
+          setError(null);
+          setHasSearched(true);
+
+          try {
+            const results = await qqMusicApi.searchMusic(inputValue, 30);
+            setSongs(results);
+          } catch (err: any) {
+            logger.error('[BrowseView] Search failed:', err);
+            const errorMsg = err.message || '';
+            if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
+              setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
+            } else if (errorMsg.includes('Cookie')) {
+              setError('访问凭证已过期，请重新设置');
+              setShowSettingsDialog(true);
+            } else {
+              setError(errorMsg || '搜索失败，请稍后重试');
+            }
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        doSearch();
+      } else if (hasSearched) {
+        // Clear search and go back to recommendations
+        loadRecommendations();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTrigger, inputValue]);
+
+  const loadRecommendations = useCallback(async () => {
     if (!cookieManager.hasCookie()) {
       setError('请先设置访问凭证');
       setShowSettingsDialog(true);
@@ -116,7 +158,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -150,7 +192,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadRecommendations]);
 
   const handleSettingsDialogClose = () => {
     setShowSettingsDialog(false);
@@ -460,7 +502,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
           <h1 className="text-4xl font-extrabold mb-2">Browse</h1>
           <p className="text-white/40">
             {hasSearched 
-              ? `Search results for "${searchQuery}"` 
+              ? `Search results for "${executedSearchQuery}"` 
               : 'Recommended'}
           </p>
         </div>

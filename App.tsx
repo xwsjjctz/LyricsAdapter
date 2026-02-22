@@ -56,7 +56,8 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [forceUpdateCounter] = useState(0); // Force re-render after restore
-  const [searchQuery, setSearchQuery] = useState(''); // Search query for library
+  const [searchInputValue, setSearchInputValue] = useState(''); // Global search input value (shared between views)
+  const [searchTrigger, setSearchTrigger] = useState(0); // Trigger to execute search
   const [libraryScrollPosition, setLibraryScrollPosition] = useState(0); // Save LibraryView scroll position
   const isFirstLibraryLoadRef = useRef(true); // Track if LibraryView is loading for the first time
 
@@ -242,8 +243,10 @@ const App: React.FC = () => {
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={tracks.some(t => t.available === false)}
           currentView={viewMode}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchInputValue={searchInputValue}
+          onSearchInputChange={setSearchInputValue}
+          onSearchExecute={() => setSearchTrigger(prev => prev + 1)}
+          viewMode={viewMode}
         />
 
         <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
@@ -272,8 +275,8 @@ const App: React.FC = () => {
           <div className="flex-1 p-10 overflow-hidden pt-10">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                inputValue={searchInputValue}
+                searchTrigger={searchTrigger}
                 onDownloadComplete={handleDownloadComplete}
               />
             ) : (
@@ -286,8 +289,8 @@ const App: React.FC = () => {
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleDropFilePaths}
                 isFocusMode={isFocusMode}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                inputValue={searchInputValue}
+                searchTrigger={searchTrigger}
                 savedScrollPosition={libraryScrollPosition}
                 onScrollPositionChange={setLibraryScrollPosition}
                 isFirstLoad={isFirstLibraryLoadRef.current}

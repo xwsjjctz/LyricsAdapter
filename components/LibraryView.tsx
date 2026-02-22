@@ -11,8 +11,8 @@ interface LibraryViewProps {
   onDropFiles?: (files: File[]) => void; // Handle dropped files (Web mode or fallback)
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void; // Handle dropped file paths (Electron mode)
   isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
-  searchQuery?: string; // Search query from parent
-  onSearchChange?: (query: string) => void; // Callback to update search query
+  inputValue?: string; // Search input value from parent (shared between views)
+  searchTrigger?: number; // Trigger to execute search
   savedScrollPosition?: number; // Saved scroll position from parent
   onScrollPositionChange?: (position: number) => void; // Callback to save scroll position
   isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
@@ -27,8 +27,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onDropFiles,
   onDropFilePaths,
   isFocusMode = false,
-  searchQuery: externalSearchQuery,
-  onSearchChange,
+  inputValue: externalInputValue = '',
+  searchTrigger = 0,
   savedScrollPosition = 0,
   onScrollPositionChange,
   isFirstLoad = false
@@ -36,12 +36,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
-  
-  // Use external search query if provided, otherwise use internal state
-  const isControlled = externalSearchQuery !== undefined;
-  const [internalSearchQuery, setInternalSearchQuery] = useState('');
-  const searchQuery = isControlled ? externalSearchQuery : internalSearchQuery;
-  const setSearchQuery = isControlled && onSearchChange ? onSearchChange : setInternalSearchQuery;
+  const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -51,22 +46,32 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
+  const [showLocateButton, setShowLocateButton] = useState(false);
+  const previousTrigger = useRef(searchTrigger);
+
+  // Execute search when trigger changes (from Enter key in Sidebar)
+  useEffect(() => {
+    if (searchTrigger !== previousTrigger.current) {
+      previousTrigger.current = searchTrigger;
+      setExecutedSearchQuery(externalInputValue);
+    }
+  }, [searchTrigger, externalInputValue]);
 
   // Track if animation has already played for current tracks
   const hasAnimatedRef = useRef(false);
   const previousTracksRef = useRef<Track[]>([]);
   const isInitialMountRef = useRef(true);
 
-  // Filter tracks based on search query
+  // Filter tracks based on executed search query
   const filteredTracks = useMemo(() => {
-    if (!searchQuery.trim()) return tracks;
-    const query = searchQuery.toLowerCase();
+    if (!executedSearchQuery.trim()) return tracks;
+    const query = executedSearchQuery.toLowerCase();
     return tracks.filter(track =>
       track.title.toLowerCase().includes(query) ||
       track.artist.toLowerCase().includes(query) ||
       track.album.toLowerCase().includes(query)
     );
-  }, [tracks, searchQuery]);
+  }, [tracks, executedSearchQuery]);
 
   // Check if tracks actually changed (by comparing IDs)
   const didTracksChange = useCallback((prevTracks: Track[], newTracks: Track[]) => {
@@ -221,12 +226,47 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return () => cancelAnimationFrame(raf);
   }, [currentTrackIndex, tracks.length, isEditMode, rowStride, baseRowHeight]);
 
+  // Get the index of current track in filtered list
+  const currentTrackInFilteredIndex = useMemo(() => {
+    if (currentTrackIndex < 0) return -1;
+    const currentTrackId = tracks[currentTrackIndex]?.id;
+    return filteredTracks.findIndex(t => t.id === currentTrackId);
+  }, [currentTrackIndex, tracks, filteredTracks]);
+
+  // Check if current track is visible in viewport
+  const isCurrentTrackVisible = useCallback(() => {
+    if (currentTrackInFilteredIndex < 0 || !scrollContainerRef.current) return false;
+    const container = scrollContainerRef.current;
+    const itemTop = currentTrackInFilteredIndex * rowStride;
+    const itemBottom = itemTop + baseRowHeight;
+    const viewportTop = scrollTop;
+    const viewportBottom = scrollTop + container.clientHeight;
+    return itemBottom >= viewportTop && itemTop <= viewportBottom;
+  }, [currentTrackInFilteredIndex, rowStride, baseRowHeight, scrollTop]);
+
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const newScrollTop = e.currentTarget.scrollTop;
     setScrollTop(newScrollTop);
     // Notify parent of scroll position change
     onScrollPositionChange?.(newScrollTop);
-  }, [onScrollPositionChange]);
+    
+    // Check if current playing track is visible (only if it's in filtered results)
+    if (currentTrackInFilteredIndex >= 0 && filteredTracks.length > 0) {
+      const container = scrollContainerRef.current;
+      if (container) {
+        const itemTop = currentTrackInFilteredIndex * rowStride;
+        const itemBottom = itemTop + baseRowHeight;
+        const viewportTop = newScrollTop;
+        const viewportBottom = newScrollTop + container.clientHeight;
+        
+        // Show locate button if current track is out of viewport
+        const isVisible = itemBottom >= viewportTop && itemTop <= viewportBottom;
+        setShowLocateButton(!isVisible);
+      }
+    } else {
+      setShowLocateButton(false);
+    }
+  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, rowStride, baseRowHeight]);
 
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -309,7 +349,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const toggleSelectAll = useCallback(() => {
     // Use filtered tracks for selection when searching
-    const targetTracks = searchQuery ? filteredTracks : tracks;
+    const targetTracks = executedSearchQuery ? filteredTracks : tracks;
     
     if (selectedIds.size === targetTracks.length) {
       // Deselect all
@@ -318,7 +358,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       // Select all (filtered tracks or all tracks)
       setSelectedIds(new Set(targetTracks.map(t => t.id)));
     }
-  }, [selectedIds.size, tracks, filteredTracks, searchQuery]);
+  }, [selectedIds.size, tracks, filteredTracks, executedSearchQuery]);
 
   const toggleSelectOne = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -358,6 +398,32 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setIsEditMode(false);
   }, [selectedIds, onRemoveMultipleTracks, onRemoveTrack]);
 
+  // Handle locate to current playing track
+  const handleLocateToCurrentTrack = useCallback(() => {
+    if (currentTrackInFilteredIndex < 0 || !scrollContainerRef.current) return;
+    
+    const container = scrollContainerRef.current;
+    const itemTop = currentTrackInFilteredIndex * rowStride;
+    const itemBottom = itemTop + baseRowHeight;
+    const targetTop = itemBottom - container.clientHeight / 2; // Center the track
+    const maxTop = Math.max(0, totalHeight - container.clientHeight);
+    const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+    
+    container.scrollTo({
+      top: clampedTop,
+      behavior: 'smooth'
+    });
+    setShowLocateButton(false);
+    logger.debug(`[LibraryView] Located to current track ${currentTrackIndex + 1} (filtered index: ${currentTrackInFilteredIndex})`);
+  }, [currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight]);
+
+  // Hide locate button when current track becomes visible (e.g., after clicking a new track to play)
+  useEffect(() => {
+    if (showLocateButton && isCurrentTrackVisible()) {
+      setShowLocateButton(false);
+    }
+  }, [currentTrackIndex, showLocateButton, isCurrentTrackVisible]);
+
   return (
     <div
       className={`max-w-5xl mx-auto w-full flex flex-col h-full relative transition-all duration-300 ${
@@ -386,7 +452,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <h1 className="text-4xl font-extrabold mb-2">Library</h1>
           <p className="text-white/40">
             {filteredTracks.length} Tracks in your collection
-            {searchQuery && filteredTracks.length !== tracks.length && ` (of ${tracks.length})`}
+            {executedSearchQuery && filteredTracks.length !== tracks.length && ` (of ${tracks.length})`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -427,7 +493,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       <div className="flex-shrink-0">
         <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_100px]">
-        <span>#</span><span>Title</span><span>Album</span><span className="text-right">Time</span>
+        <span>#</span><span>Title</span><span className="pl-8">Album</span><span className="text-right">Time</span>
         </div>
       </div>
       
@@ -509,7 +575,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       <p className="text-xs opacity-50 truncate">{track.artist}</p>
                     </div>
                   </div>
-                  <div className="text-sm opacity-50 truncate">{track.album}</div>
+                  <div className="text-sm opacity-50 truncate pl-8">{track.album}</div>
                   <div className="text-sm opacity-50 text-right tabular-nums">
                     {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
                   </div>
@@ -537,7 +603,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               );
               })}
             </div>
-          ) : searchQuery ? (
+          ) : executedSearchQuery ? (
             <div className="py-20 text-center opacity-40">
               <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
               <p className="text-xl font-medium">No matching tracks</p>
@@ -552,6 +618,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           )}
         </div>
       </div>
+
+      {/* Floating locate button - shows when current track is out of viewport */}
+      {showLocateButton && currentTrackInFilteredIndex >= 0 && (
+        <button
+          onClick={handleLocateToCurrentTrack}
+          className="absolute bottom-6 right-28 w-9 h-9 rounded-lg bg-white/10 text-white/60 shadow-md flex items-center justify-center hover:bg-white/20 hover:text-white transition-all z-20 animate-fadeIn"
+          title="定位到当前播放"
+        >
+          <span className="material-symbols-outlined text-lg">my_location</span>
+        </button>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
@@ -566,7 +643,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     prevProps.onDropFiles === nextProps.onDropFiles &&
     prevProps.onDropFilePaths === nextProps.onDropFilePaths &&
     prevProps.isFocusMode === nextProps.isFocusMode &&
-    prevProps.searchQuery === nextProps.searchQuery &&
+    prevProps.inputValue === nextProps.inputValue &&
+    prevProps.searchTrigger === nextProps.searchTrigger &&
     prevProps.savedScrollPosition === nextProps.savedScrollPosition &&
     prevProps.isFirstLoad === nextProps.isFirstLoad
   );
