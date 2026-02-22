@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track, SyncedLyricLine } from '../types';
+import { logger } from '../services/logger';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -560,7 +561,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onerror = () => {
-      console.warn('[FocusMode] Failed to load cover image, skipping background');
+      logger.warn('[FocusMode] Failed to load cover image, skipping background');
     };
     img.onload = () => {
       // Start transition from current to new background

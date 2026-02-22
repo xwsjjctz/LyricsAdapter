@@ -140,8 +140,8 @@ export function useLibraryLoad({
     }
 
     const scheduleIdle = (task: () => void) => {
-      if (typeof (window as any).requestIdleCallback === 'function') {
-        return (window as any).requestIdleCallback(task, { timeout: 2000 });
+      if (window.requestIdleCallback) {
+        return window.requestIdleCallback(task, { timeout: 2000 });
       }
       return window.setTimeout(task, 800);
     };

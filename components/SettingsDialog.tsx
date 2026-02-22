@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
+import { getDesktopAPI } from '../services/desktopAdapter';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -112,8 +113,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               />
               <button
                 onClick={async () => {
-                  if ((window as any).electron?.selectDownloadFolder) {
-                    const result = await (window as any).electron.selectDownloadFolder();
+                  const desktopAPI = getDesktopAPI();
+                  if (desktopAPI?.selectDownloadFolder) {
+                    const result = await desktopAPI.selectDownloadFolder();
                     if (result.success && result.path) {
                       setDownloadPath(result.path);
                     }

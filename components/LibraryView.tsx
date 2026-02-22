@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
+import { getDesktopAPI } from '../services/desktopAdapter';
 import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
@@ -321,13 +322,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
 
     // Check if we're in Electron mode and can get file paths
-    const electron = (window as any).electron;
-    if (electron?.getPathForFile && onDropFilePaths) {
+    const desktopAPI = getDesktopAPI();
+    if (desktopAPI?.getPathForFile && onDropFilePaths) {
       // Electron mode: get real file paths
       logger.debug('[LibraryView] Electron mode: getting file paths from dropped files');
       try {
         const filePaths = audioFiles.map(file => ({
-          path: electron.getPathForFile(file),
+          path: desktopAPI.getPathForFile!(file),
           name: file.name
         }));
         logger.debug(`[LibraryView] Got ${filePaths.length} file paths`);

@@ -211,8 +211,7 @@ export function useLibraryActions({
         const fileName = filePath.split(/[/\\]/).pop() || '';
 
         const trackIndex = updatedTracks.findIndex(t => {
-          const storedFileName = (t as any).fileName;
-          return storedFileName === fileName;
+          return t.fileName === fileName;
         });
 
         if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {

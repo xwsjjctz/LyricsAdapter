@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
-import { getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { coverArtService } from './services/coverArtService';
 import { libraryStorage } from './services/libraryStorage';
@@ -21,32 +21,17 @@ import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Electron API type (for backwards compatibility)
+// Declare global Window interface for browser APIs
 declare global {
   interface Window {
-    electron?: {
-      platform: string;
-      readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
-      checkFileExists: (filePath: string) => Promise<boolean>;
-      selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
-      loadLibrary: () => Promise<{ success: boolean; library: any; error?: string }>;
-      saveLibrary: (library: any) => Promise<{ success: boolean; error?: string }>;
-      loadLibraryIndex?: () => Promise<{ success: boolean; library: any; error?: string }>;
-      saveLibraryIndex?: (library: any) => Promise<{ success: boolean; error?: string }>;
-      validateFilePath: (filePath: string) => Promise<boolean>;
-      validateAllPaths: (songs: any[]) => Promise<{ success: boolean; results: any[]; error?: string }>;
-      saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-      saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-      deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
-      cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
-      saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
-      deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
-      getPathForFile?: (file: File) => string;
-      // Window control APIs
-      minimizeWindow?: () => void;
-      maximizeWindow?: () => void;
-      closeWindow?: () => void;
-      isMaximized?: () => boolean;
+    __DEV__?: boolean;
+  }
+
+  interface ImportMeta {
+    env?: {
+      DEV?: boolean;
+      MODE?: string;
+      PROD?: boolean;
     };
   }
 }

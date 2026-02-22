@@ -5,7 +5,7 @@ import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { getDesktopAPIAsync } from '../services/desktopAdapter';
+import { getDesktopAPI } from '../services/desktopAdapter';
 import SettingsDialog from './SettingsDialog';
 import { Track } from '../types';
 
@@ -134,9 +134,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     setError(null);
     
     try {
-      console.log('[BrowseView] Loading recommendations...');
+      logger.debug('[BrowseView] Loading recommendations...');
       const songs = await qqMusicApi.getRecommendedSongs();
-      console.log('[BrowseView] Got songs:', songs.length);
+      logger.debug('[BrowseView] Got songs:', songs.length);
       
       if (!songs || songs.length === 0) {
         setError('未获取到推荐歌曲，请检查访问凭证是否有效');
@@ -145,7 +145,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         setHasSearched(false);
       }
     } catch (err: any) {
-      console.error('[BrowseView] Failed to load recommendations:', err);
+      logger.error('[BrowseView] Failed to load recommendations:', err);
       logger.error('[BrowseView] Failed to load recommendations:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
@@ -312,8 +312,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     // Close dropdown
     setOpenDropdownId(null);
 
-    // Check if in Electron environment
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
+    // Get desktop API
+    const desktopAPI = getDesktopAPI();
+    const isElectron = desktopAPI !== null;
 
     // Get download path from settings
     const downloadPath = settingsManager.getDownloadPath();
@@ -331,14 +332,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     }));
 
     try {
-      console.log('[BrowseView] Starting download for:', song.songname, 'quality:', quality);
+      logger.debug('[BrowseView] Starting download for:', song.songname, 'quality:', quality);
       const singer = song.singer?.[0]?.name || 'Unknown';
 
       // Get download URL first
       const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
-      console.log('[BrowseView] Got download URL:', url);
+      logger.debug('[BrowseView] Got download URL:', url);
 
-      console.log('[BrowseView] Download path:', downloadPath);
+      logger.debug('[BrowseView] Download path:', downloadPath);
 
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = `${singer} - ${song.songname}.${ext}`;
@@ -346,22 +347,22 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       let savedFilePath: string | undefined;
       let lyrics: string | undefined;
 
-      if (isElectron && (window as any).electron?.downloadAndSave && downloadPath) {
+      if (isElectron && desktopAPI?.downloadAndSave && downloadPath) {
         // Use new download-and-save method (non-blocking)
         // Ensure downloadPath ends with path separator
         const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
         const fullPath = downloadPath + separator + fileName;
-        console.log('[BrowseView] Downloading directly to:', fullPath);
+        logger.debug('[BrowseView] Downloading directly to:', fullPath);
 
         const rawCookie = cookieManager.getCookie();
-        const result = await (window as any).electron.downloadAndSave(url, rawCookie, fullPath);
+        const result = await desktopAPI!.downloadAndSave!(url, rawCookie, fullPath);
 
         if (!result.success) {
           throw new Error(`下载失败: ${result.error}`);
         }
 
         savedFilePath = result.filePath;
-        console.log('[BrowseView] File downloaded successfully to:', savedFilePath);
+        logger.debug('[BrowseView] File downloaded successfully to:', savedFilePath);
 
         // Update progress to 100%
         setDownloadProgress(prev => ({
@@ -371,21 +372,21 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
         // Fetch lyrics via Electron main process (avoids CORS)
         try {
-          console.log('[BrowseView] Fetching lyrics for:', song.songmid);
-          const lyricsResult = await (window as any).electron.getQQMusicLyrics(song.songmid, rawCookie);
+          logger.debug('[BrowseView] Fetching lyrics for:', song.songmid);
+          const lyricsResult = await desktopAPI!.getQQMusicLyrics!(song.songmid, rawCookie);
           if (lyricsResult && lyricsResult.success && lyricsResult.lyrics) {
             lyrics = lyricsResult.lyrics;
-            console.log('[BrowseView] Lyrics fetched, length:', lyrics.length);
+            logger.debug('[BrowseView] Lyrics fetched, length:', lyrics.length);
           } else {
-            console.warn('[BrowseView] Failed to fetch lyrics:', lyricsResult?.error);
+            logger.warn('[BrowseView] Failed to fetch lyrics:', lyricsResult?.error);
           }
         } catch (e) {
-          console.warn('[BrowseView] Failed to fetch lyrics:', e);
+          logger.warn('[BrowseView] Failed to fetch lyrics:', e);
         }
 
         // Write metadata to the saved file
-        if (savedFilePath && (window as any).electron?.writeAudioMetadata) {
-          console.log('[BrowseView] Writing metadata...');
+        if (savedFilePath && desktopAPI?.writeAudioMetadata) {
+          logger.debug('[BrowseView] Writing metadata...');
           
           // Get album name from song data
           const albumName = song.albumname || '';
@@ -395,7 +396,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
             : undefined;
 
-          const metadataResult = await (window as any).electron.writeAudioMetadata(
+          const metadataResult = await desktopAPI!.writeAudioMetadata!(
             savedFilePath,
             {
               title: song.songname,
@@ -407,19 +408,19 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           );
           
           if (metadataResult.success) {
-            console.log('[BrowseView] Metadata written successfully');
+            logger.debug('[BrowseView] Metadata written successfully');
           } else {
-            console.error('[BrowseView] Metadata write failed:', metadataResult.error);
+            logger.error('[BrowseView] Metadata write failed:', metadataResult.error);
           }
         }
 
         // Create track and add to library
         if (savedFilePath && onDownloadComplete) {
-          console.log('[BrowseView] Creating track from downloaded file...');
+          logger.debug('[BrowseView] Creating track from downloaded file...');
           const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
           if (track) {
             onDownloadComplete(track);
-            console.log('[BrowseView] Track added to library:', track.title);
+            logger.debug('[BrowseView] Track added to library:', track.title);
           }
         }
       } else {
@@ -435,7 +436,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
         } catch (e) {
-          console.error('[BrowseView] Browser download failed:', e);
+          logger.error('[BrowseView] Browser download failed:', e);
         }
       }
 
@@ -454,7 +455,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       }, 3000);
     } catch (err: any) {
       logger.error('[BrowseView] Download failed:', err);
-      console.error('[BrowseView] Download error:', err);
+      logger.error('[BrowseView] Download error:', err);
       
       const errorMsg = err.message || '';
       // If it's a cookie error, show settings dialog

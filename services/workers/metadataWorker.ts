@@ -24,7 +24,12 @@ interface WorkerResponse {
   error?: string;
 }
 
-const ctx: DedicatedWorkerGlobalScope = self as any;
+// Type for DedicatedWorkerGlobalScope
+interface DedicatedWorkerGlobalScope extends WorkerGlobalScope {
+  importScripts: (scripts: string[]) => void;
+}
+
+const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
 
 function getStringFromView(view: DataView, offset: number, length: number): string {
   let str = '';
@@ -173,11 +178,6 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
         const field = comment.substring(0, equalPos).toUpperCase();
         const value = comment.substring(equalPos + 1);
 
-        // Debug logging for ALBUM field
-        if (field === 'ALBUM') {
-          console.log('[Worker] Found ALBUM:', value);
-        }
-
         switch (field) {
           case 'TITLE':
             result.title = value;
@@ -199,11 +199,8 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
         }
       }
     }
-
-    // Log final result
-    console.log('[Worker] Parsed metadata:', { title: result.title, artist: result.artist, album: result.album });
   } catch (e) {
-    console.error('[Worker] Vorbis comment parse error:', e);
+    // Silently handle parse errors
   }
 
   return result;

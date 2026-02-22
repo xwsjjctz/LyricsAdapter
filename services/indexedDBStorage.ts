@@ -13,6 +13,10 @@ import {
   validateBlob,
   type ValidatedMetadata
 } from './dataValidator';
+import { logger } from './logger';
+import { STORAGE } from '../constants/config';
+import { Track } from '../types';
+import type { LibraryData, LibrarySettings } from './libraryStorage';
 
 interface LyricsAdapterDB extends DBSchema {
   metadata: {
@@ -36,10 +40,7 @@ interface LyricsAdapterDB extends DBSchema {
   };
   library: {
     key: string;
-    value: {
-      songs: any[];
-      settings: any;
-    };
+    value: LibraryData;
   };
 }
 
@@ -54,33 +55,33 @@ class IndexedDBStorageService {
     if (this.initialized) return;
 
     try {
-      console.log('[IndexedDB] Opening database...');
-      this.db = await openDB<LyricsAdapterDB>('LyricsAdapter', 2, {
+      logger.debug('[IndexedDB] Opening database...');
+      this.db = await openDB<LyricsAdapterDB>(STORAGE.DB_NAME, STORAGE.DB_VERSION, {
         upgrade(db, oldVersion, newVersion, transaction) {
           // Create metadata store
           if (!db.objectStoreNames.contains('metadata')) {
             const metadataStore = db.createObjectStore('metadata', { keyPath: 'key' });
-            console.log('[IndexedDB] Created metadata store');
+            logger.debug('[IndexedDB] Created metadata store');
           }
 
           // Create covers store for Blob storage
           if (!db.objectStoreNames.contains('covers')) {
             const coversStore = db.createObjectStore('covers');
-            console.log('[IndexedDB] Created covers store');
+            logger.debug('[IndexedDB] Created covers store');
           }
 
           // Create library store for browser mode persistence
           if (!db.objectStoreNames.contains('library')) {
             const libraryStore = db.createObjectStore('library', { keyPath: 'key' });
-            console.log('[IndexedDB] Created library store');
+            logger.debug('[IndexedDB] Created library store');
           }
         },
       });
 
       this.initialized = true;
-      console.log('[IndexedDB] ✓ Database opened successfully');
+      logger.debug('[IndexedDB] ✓ Database opened successfully');
     } catch (error) {
-      console.error('[IndexedDB] ✗ Failed to open database:', error);
+      logger.error('[IndexedDB] ✗ Failed to open database:', error);
       throw error;
     }
   }
@@ -107,7 +108,7 @@ class IndexedDBStorageService {
     // Validate songId
     const validSongId = validateSongId(songId);
     if (!validSongId) {
-      console.warn(`[IndexedDB] Invalid songId: ${songId}`);
+      logger.warn(`[IndexedDB] Invalid songId: ${songId}`);
       return null;
     }
 
@@ -123,7 +124,7 @@ class IndexedDBStorageService {
       // Validate the metadata structure
       const validated = validateMetadata(metadata);
       if (!validated) {
-        console.warn(`[IndexedDB] Invalid metadata structure for ${validSongId}, removing from cache`);
+        logger.warn(`[IndexedDB] Invalid metadata structure for ${validSongId}, removing from cache`);
         // Remove invalid entry
         await this.db.delete('metadata', validSongId);
         return null;
@@ -131,7 +132,7 @@ class IndexedDBStorageService {
 
       return validated;
     } catch (error) {
-      console.error(`[IndexedDB] Failed to get metadata for ${validSongId}:`, error);
+      logger.error(`[IndexedDB] Failed to get metadata for ${validSongId}:`, error);
       return null;
     }
   }
@@ -147,22 +148,22 @@ class IndexedDBStorageService {
     // Validate songId
     const validSongId = validateSongId(songId);
     if (!validSongId) {
-      console.error(`[IndexedDB] Invalid songId: ${songId}`);
+      logger.error(`[IndexedDB] Invalid songId: ${songId}`);
       throw new Error('Invalid songId');
     }
 
     // Validate metadata structure
     const validated = validateMetadata(metadata);
     if (!validated) {
-      console.error(`[IndexedDB] Invalid metadata structure for ${validSongId}`);
+      logger.error(`[IndexedDB] Invalid metadata structure for ${validSongId}`);
       throw new Error('Invalid metadata structure');
     }
 
     try {
       await this.db.put('metadata', { key: validSongId, ...validated });
-      console.log(`[IndexedDB] ✓ Saved metadata for ${validSongId}`);
+      logger.debug(`[IndexedDB] ✓ Saved metadata for ${validSongId}`);
     } catch (error) {
-      console.error(`[IndexedDB] ✗ Failed to save metadata for ${validSongId}:`, error);
+      logger.error(`[IndexedDB] ✗ Failed to save metadata for ${validSongId}:`, error);
       throw error;
     }
   }
@@ -178,15 +179,15 @@ class IndexedDBStorageService {
     // Validate songId
     const validSongId = validateSongId(songId);
     if (!validSongId) {
-      console.warn(`[IndexedDB] Invalid songId for deletion: ${songId}`);
+      logger.warn(`[IndexedDB] Invalid songId for deletion: ${songId}`);
       return;
     }
 
     try {
       await this.db.delete('metadata', validSongId);
-      console.log(`[IndexedDB] ✓ Deleted metadata for ${validSongId}`);
+      logger.debug(`[IndexedDB] ✓ Deleted metadata for ${validSongId}`);
     } catch (error) {
-      console.error(`[IndexedDB] ✗ Failed to delete metadata for ${validSongId}:`, error);
+      logger.error(`[IndexedDB] ✗ Failed to delete metadata for ${validSongId}:`, error);
     }
   }
 
@@ -197,7 +198,7 @@ class IndexedDBStorageService {
   async getAllMetadata(): Promise<Record<string, ValidatedMetadata>> {
     await this.ensureInitialized();
     if (!this.db) {
-      console.error('[IndexedDB] Database not initialized!');
+      logger.error('[IndexedDB] Database not initialized!');
       return {};
     }
 
@@ -217,16 +218,16 @@ class IndexedDBStorageService {
       // If some entries were invalid, log a warning
       const filteredCount = Object.keys(rawEntries).length - Object.keys(validatedEntries).length;
       if (filteredCount > 0) {
-        console.warn(`[IndexedDB] Filtered out ${filteredCount} invalid metadata entries`);
+        logger.warn(`[IndexedDB] Filtered out ${filteredCount} invalid metadata entries`);
       }
 
-      console.log(`[IndexedDB] ✓ Loaded ${Object.keys(validatedEntries).length} valid metadata entries`);
+      logger.debug(`[IndexedDB] ✓ Loaded ${Object.keys(validatedEntries).length} valid metadata entries`);
       if (Object.keys(validatedEntries).length > 0) {
-        console.log('[IndexedDB] Sample entries:', Object.keys(validatedEntries).slice(0, 3));
+        logger.debug('[IndexedDB] Sample entries:', Object.keys(validatedEntries).slice(0, 3));
       }
       return validatedEntries;
     } catch (error) {
-      console.error('[IndexedDB] Failed to get all metadata:', error);
+      logger.error('[IndexedDB] Failed to get all metadata:', error);
       return {};
     }
   }
@@ -240,9 +241,9 @@ class IndexedDBStorageService {
 
     try {
       await this.db.clear('metadata');
-      console.log('[IndexedDB] ✓ Cleared all metadata');
+      logger.debug('[IndexedDB] ✓ Cleared all metadata');
     } catch (error) {
-      console.error('[IndexedDB] Failed to clear metadata:', error);
+      logger.error('[IndexedDB] Failed to clear metadata:', error);
     }
   }
 
@@ -259,7 +260,7 @@ class IndexedDBStorageService {
     // Validate songId
     const validSongId = validateSongId(songId);
     if (!validSongId) {
-      console.warn(`[IndexedDB] Invalid songId: ${songId}`);
+      logger.warn(`[IndexedDB] Invalid songId: ${songId}`);
       return null;
     }
 
@@ -270,15 +271,15 @@ class IndexedDBStorageService {
       }
 
       // Validate the returned blob
-      if (!validateBlob(result, 10 * 1024 * 1024)) {
-        console.warn(`[IndexedDB] Invalid blob in cache for ${validSongId}, removing`);
+      if (!validateBlob(result, STORAGE.MAX_COVER_SIZE_BYTES)) {
+        logger.warn(`[IndexedDB] Invalid blob in cache for ${validSongId}, removing`);
         await this.db.delete('covers', validSongId);
         return null;
       }
 
       return result;
     } catch (error) {
-      console.error(`[IndexedDB] Failed to get cover for ${validSongId}:`, error);
+      logger.error(`[IndexedDB] Failed to get cover for ${validSongId}:`, error);
       return null;
     }
   }
@@ -294,23 +295,23 @@ class IndexedDBStorageService {
     // Validate songId
     const validSongId = validateSongId(songId);
     if (!validSongId) {
-      console.error(`[IndexedDB] Invalid songId: ${songId}`);
+      logger.error(`[IndexedDB] Invalid songId: ${songId}`);
       throw new Error('Invalid songId');
     }
 
-    // Validate Blob (max 10MB for cover images)
-    const validated = validateBlob(coverBlob, 10 * 1024 * 1024);
+    // Validate Blob (max size from config)
+    const validated = validateBlob(coverBlob, STORAGE.MAX_COVER_SIZE_BYTES);
     if (!validated) {
-      console.error(`[IndexedDB] Invalid cover blob for ${validSongId}`);
+      logger.error(`[IndexedDB] Invalid cover blob for ${validSongId}`);
       throw new Error('Invalid cover blob');
     }
 
     try {
       // Use put with the blob as value and songId as key
       await this.db.put('covers', validated, validSongId);
-      console.log(`[IndexedDB] ✓ Saved cover for ${validSongId} (${(validated.size / 1024).toFixed(2)} KB)`);
+      logger.debug(`[IndexedDB] ✓ Saved cover for ${validSongId} (${(validated.size / 1024).toFixed(2)} KB)`);
     } catch (error) {
-      console.error(`[IndexedDB] ✗ Failed to save cover for ${validSongId}:`, error);
+      logger.error(`[IndexedDB] ✗ Failed to save cover for ${validSongId}:`, error);
       throw error;
     }
   }
@@ -326,15 +327,15 @@ class IndexedDBStorageService {
     // Validate songId
     const validSongId = validateSongId(songId);
     if (!validSongId) {
-      console.warn(`[IndexedDB] Invalid songId for deletion: ${songId}`);
+      logger.warn(`[IndexedDB] Invalid songId for deletion: ${songId}`);
       return;
     }
 
     try {
       await this.db.delete('covers', validSongId);
-      console.log(`[IndexedDB] ✓ Deleted cover for ${validSongId}`);
+      logger.debug(`[IndexedDB] ✓ Deleted cover for ${validSongId}`);
     } catch (error) {
-      console.error(`[IndexedDB] ✗ Failed to delete cover for ${validSongId}:`, error);
+      logger.error(`[IndexedDB] ✗ Failed to delete cover for ${validSongId}:`, error);
     }
   }
 
@@ -347,9 +348,9 @@ class IndexedDBStorageService {
 
     try {
       await this.db.clear('covers');
-      console.log('[IndexedDB] ✓ Cleared all covers');
+      logger.debug('[IndexedDB] ✓ Cleared all covers');
     } catch (error) {
-      console.error('[IndexedDB] Failed to clear covers:', error);
+      logger.error('[IndexedDB] Failed to clear covers:', error);
     }
   }
 
@@ -358,19 +359,19 @@ class IndexedDBStorageService {
   /**
    * Load library from IndexedDB (for browser mode)
    */
-  async loadLibrary(): Promise<{ songs: any[]; settings: any } | null> {
+  async loadLibrary(): Promise<LibraryData | null> {
     await this.ensureInitialized();
     if (!this.db) return null;
 
     try {
-      const result = await this.db.get('library', 'main') as unknown as { key: string; value: { songs: any[]; settings: any } } | undefined;
-      if (result && result.value) {
-        console.log('[IndexedDB] ✓ Loaded library from IndexedDB');
-        return result.value;
+      const result = await this.db.get('library', 'main');
+      if (result) {
+        logger.debug('[IndexedDB] ✓ Loaded library from IndexedDB');
+        return result;
       }
       return null;
     } catch (error) {
-      console.error('[IndexedDB] Failed to load library:', error);
+      logger.error('[IndexedDB] Failed to load library:', error);
       return null;
     }
   }
@@ -378,15 +379,16 @@ class IndexedDBStorageService {
   /**
    * Save library to IndexedDB (for browser mode)
    */
-  async saveLibrary(library: { songs: any[]; settings: any }): Promise<void> {
+  async saveLibrary(library: LibraryData): Promise<void> {
     await this.ensureInitialized();
     if (!this.db) return;
 
     try {
-      await this.db.put('library', { key: 'main', value: library } as any);
-      console.log('[IndexedDB] ✓ Saved library to IndexedDB');
+      const libraryEntry: LibraryData & { key: string } = { ...library, key: 'main' };
+      await this.db.put('library', libraryEntry);
+      logger.debug('[IndexedDB] ✓ Saved library to IndexedDB');
     } catch (error) {
-      console.error('[IndexedDB] Failed to save library:', error);
+      logger.error('[IndexedDB] Failed to save library:', error);
     }
   }
 
@@ -404,7 +406,7 @@ class IndexedDBStorageService {
           quota: estimate.quota || 0,
         };
       } catch (error) {
-        console.error('[IndexedDB] Failed to get storage estimate:', error);
+        logger.error('[IndexedDB] Failed to get storage estimate:', error);
       }
     }
     return null;
@@ -420,9 +422,9 @@ class IndexedDBStorageService {
     try {
       await this.db.clear('metadata');
       await this.db.clear('covers');
-      console.log('[IndexedDB] ✓ Cleared all data');
+      logger.debug('[IndexedDB] ✓ Cleared all data');
     } catch (error) {
-      console.error('[IndexedDB] Failed to clear all data:', error);
+      logger.error('[IndexedDB] Failed to clear all data:', error);
     }
   }
 
@@ -434,7 +436,7 @@ class IndexedDBStorageService {
       this.db.close();
       this.db = null;
       this.initialized = false;
-      console.log('[IndexedDB] Database closed');
+      logger.debug('[IndexedDB] Database closed');
     }
   }
 }

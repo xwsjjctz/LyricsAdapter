@@ -6,6 +6,7 @@
 import { Track } from '../types';
 import { getDesktopAPIAsync, isDesktop } from './desktopAdapter';
 import { indexedDBStorage } from './indexedDBStorage';
+import { logger } from './logger';
 
 export interface LibraryData {
   songs: Track[];
@@ -65,22 +66,22 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        console.log('[LibraryStorage] ⚠️ Not running in Desktop mode, skipping library load');
+        logger.debug('[LibraryStorage] ⚠️ Not running in Desktop mode, skipping library load');
         return { songs: [], settings: {} };
       }
 
-      console.log('[LibraryStorage] 📂 Loading library from disk...');
+      logger.debug('[LibraryStorage] 📂 Loading library from disk...');
       const result = api.loadLibraryIndex ? await api.loadLibraryIndex() : await api.loadLibrary();
 
       if (result.success) {
-        console.log('[LibraryStorage] ✅ Library loaded successfully!');
-        console.log(`[LibraryStorage]    - ${result.library.songs?.length || 0} songs found`);
-        console.log('[LibraryStorage]    - Settings:', result.library.settings);
+        logger.debug('[LibraryStorage] ✅ Library loaded successfully!');
+        logger.debug(`[LibraryStorage]    - ${result.library.songs?.length || 0} songs found`);
+        logger.debug('[LibraryStorage]    - Settings:', result.library.settings);
 
         // Check if any songs are missing lyrics, try to supplement from IndexedDB
         const songsNeedLyrics = result.library.songs?.some(s => !s.lyrics || !s.syncedLyrics);
         if (songsNeedLyrics && isDesktop()) {
-          console.log('[LibraryStorage] Some songs missing lyrics, checking IndexedDB...');
+          logger.debug('[LibraryStorage] Some songs missing lyrics, checking IndexedDB...');
           try {
             const idbLibrary = await indexedDBStorage.loadLibrary();
             if (idbLibrary && idbLibrary.songs && idbLibrary.songs.length > 0) {
@@ -89,7 +90,7 @@ class LibraryStorageService {
               result.library.songs = result.library.songs.map(song => {
                 const idbSong = idbMap.get(song.id);
                 if (idbSong && (song.lyrics !== idbSong.lyrics || song.syncedLyrics !== idbSong.syncedLyrics)) {
-                  console.log(`[LibraryStorage] ✅ Supplementing lyrics for: ${song.title}`);
+                  logger.debug(`[LibraryStorage] ✅ Supplementing lyrics for: ${song.title}`);
                   return {
                     ...song,
                     lyrics: song.lyrics || idbSong.lyrics || '',
@@ -100,17 +101,17 @@ class LibraryStorageService {
               });
             }
           } catch (err) {
-            console.warn('[LibraryStorage] Failed to check IndexedDB for lyrics:', err);
+            logger.warn('[LibraryStorage] Failed to check IndexedDB for lyrics:', err);
           }
         }
 
         return result.library;
       } else {
-        console.error('[LibraryStorage] ❌ Failed to load library:', result.error);
+        logger.error('[LibraryStorage] ❌ Failed to load library:', result.error);
         return { songs: [], settings: {} };
       }
     } catch (error) {
-      console.error('[LibraryStorage] ❌ Error loading library:', error);
+      logger.error('[LibraryStorage] ❌ Error loading library:', error);
       return { songs: [], settings: {} };
     }
   }
@@ -122,23 +123,23 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        console.log('⚠️ Not running in Desktop mode, skipping library save');
+        logger.debug('⚠️ Not running in Desktop mode, skipping library save');
         return false;
       }
 
-      console.log('💾 Saving library to disk...');
-      console.log(`   - ${library.songs.length} songs`);
+      logger.debug('💾 Saving library to disk...');
+      logger.debug(`   - ${library.songs.length} songs`);
       const result = api.saveLibraryIndex ? await api.saveLibraryIndex(library) : await api.saveLibrary(library);
 
       if (result.success) {
-        console.log('✅ Library saved successfully!');
+        logger.debug('✅ Library saved successfully!');
         return true;
       } else {
-        console.error('❌ Failed to save library:', result.error);
+        logger.error('❌ Failed to save library:', result.error);
         return false;
       }
     } catch (error) {
-      console.error('❌ Error saving library:', error);
+      logger.error('❌ Error saving library:', error);
       return false;
     }
   }
@@ -169,7 +170,7 @@ class LibraryStorageService {
 
       return await api.validateFilePath(filePath);
     } catch (error) {
-      console.error('Error validating file path:', error);
+      logger.error('Error validating file path:', error);
       return false;
     }
   }
@@ -190,11 +191,11 @@ class LibraryStorageService {
       if (result.success) {
         return result.results;
       } else {
-        console.error('Failed to validate paths:', result.error);
+        logger.error('Failed to validate paths:', result.error);
         return songs.map(song => ({ id: song.id, exists: true }));
       }
     } catch (error) {
-      console.error('Error validating paths:', error);
+      logger.error('Error validating paths:', error);
       return songs.map(song => ({ id: song.id, exists: true }));
     }
   }
@@ -211,7 +212,7 @@ class LibraryStorageService {
 
       return await api.getAppDataPath();
     } catch (error) {
-      console.error('Error getting app data path:', error);
+      logger.error('Error getting app data path:', error);
       return null;
     }
   }

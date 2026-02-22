@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { isDesktop } from './desktopAdapter';
 
 const COOKIE_STORAGE_KEY = 'qq_music_cookie';
 const COOKIE_CHECK_TIME_KEY = 'qq_music_cookie_last_check';
@@ -97,8 +98,8 @@ class CookieManager {
     }
 
     // Check if running in Electron
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
-    
+    const isElectron = isDesktop();
+
     if (!isElectron) {
       // Browser environment: Skip network validation due to CORS
       // Just do basic format check
