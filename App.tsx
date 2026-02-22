@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
+import { coverArtService } from './services/coverArtService';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
@@ -216,6 +217,7 @@ const App: React.FC = () => {
       logger.debug('[App] ✓ All blob URLs revoked');
 
       metadataCacheService.revokeAllBlobUrls();
+      coverArtService.revokeAllBlobUrls();
     };
   }, [activeBlobUrlsRef]);
 

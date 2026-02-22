@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
+import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -563,8 +564,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     {filteredIndex + 1}
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={track.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23222"/></svg>'}
+                    <TrackCover
+                      trackId={track.id}
+                      filePath={track.filePath}
+                      fallbackUrl={track.coverUrl}
                       className="size-10 rounded-lg object-cover"
                     />
                     <div className="min-w-0 flex-1">

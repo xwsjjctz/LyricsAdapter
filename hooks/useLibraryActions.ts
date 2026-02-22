@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Track } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
+import { coverArtService } from '../services/coverArtService';
 import { logger } from '../services/logger';
 
 interface UseLibraryActionsOptions {
@@ -102,6 +103,7 @@ export function useLibraryActions({
             logger.debug(`✅ Cover deleted from disk for track: ${trackToRemove?.title || trackId}`);
           }
           await metadataCacheService.deleteCover(trackId);
+          await coverArtService.deleteCover(trackId);
           logger.debug(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
         } catch (error) {
           logger.warn('Failed to delete cover from IndexedDB:', error);
@@ -147,6 +149,7 @@ export function useLibraryActions({
     for (const trackId of trackIds) {
       try {
         await metadataCacheService.deleteCover(trackId);
+        await coverArtService.deleteCover(trackId);
       } catch (error) {
         logger.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
       }
