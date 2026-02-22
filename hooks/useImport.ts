@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Track } from '../types';
 import { parseAudioFile, libraryStorage } from '../services/metadataService';
-import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
+import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
 import { indexedDBStorage } from '../services/indexedDBStorage';
@@ -43,8 +43,8 @@ export function useImport({
   const createTracksMap = useCallback(() => {
     return new Map(
       tracks.map(track => {
-        const key = (track as any).fileName
-          ? `${(track as any).fileName}`
+        const key = track.fileName
+          ? track.fileName
           : `${track.file?.name}-${track.file?.size}`;
         return [key, track];
       })
@@ -54,7 +54,7 @@ export function useImport({
   // Process file paths directly (new path-based import - no file copying)
   const processDesktopFilePathBatch = useCallback(async (
     filePaths: { path: string; name: string }[],
-    desktopAPI: any,
+    desktopAPI: DesktopAPI,
     tracksMap: Map<string, Track>
   ): Promise<Track[]> => {
     const results = await Promise.all(
@@ -682,7 +682,7 @@ export function useImport({
 
   const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
-    logger.debug('[Import] File input changed - platform:', (window as any).electron ? 'Electron' : 'Web');
+    logger.debug('[Import] File input changed - platform:', isDesktop() ? 'Electron' : 'Web');
     logger.debug(`[Import] Processing ${files.length} file(s)...`);
 
     const tracksMap = createTracksMap();

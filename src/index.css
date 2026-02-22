@@ -7,3 +7,19 @@
   --color-background-card: rgba(255, 255, 255, 0.05);
   --font-family-sans: 'Inter', sans-serif;
 }
+
+/* Fade in animation for floating locate button */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}

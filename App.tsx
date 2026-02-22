@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
-import { getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
+import { coverArtService } from './services/coverArtService';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
@@ -20,32 +21,17 @@ import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Electron API type (for backwards compatibility)
+// Declare global Window interface for browser APIs
 declare global {
   interface Window {
-    electron?: {
-      platform: string;
-      readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
-      checkFileExists: (filePath: string) => Promise<boolean>;
-      selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
-      loadLibrary: () => Promise<{ success: boolean; library: any; error?: string }>;
-      saveLibrary: (library: any) => Promise<{ success: boolean; error?: string }>;
-      loadLibraryIndex?: () => Promise<{ success: boolean; library: any; error?: string }>;
-      saveLibraryIndex?: (library: any) => Promise<{ success: boolean; error?: string }>;
-      validateFilePath: (filePath: string) => Promise<boolean>;
-      validateAllPaths: (songs: any[]) => Promise<{ success: boolean; results: any[]; error?: string }>;
-      saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-      saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-      deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
-      cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
-      saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
-      deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
-      getPathForFile?: (file: File) => string;
-      // Window control APIs
-      minimizeWindow?: () => void;
-      maximizeWindow?: () => void;
-      closeWindow?: () => void;
-      isMaximized?: () => boolean;
+    __DEV__?: boolean;
+  }
+
+  interface ImportMeta {
+    env?: {
+      DEV?: boolean;
+      MODE?: string;
+      PROD?: boolean;
     };
   }
 }
@@ -56,11 +42,16 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [forceUpdateCounter] = useState(0); // Force re-render after restore
-  const [searchQuery, setSearchQuery] = useState(''); // Search query for library
+  const [searchInputValue, setSearchInputValue] = useState(''); // Global search input value (shared between views)
+  const [searchTrigger, setSearchTrigger] = useState(0); // Trigger to execute search
   const [libraryScrollPosition, setLibraryScrollPosition] = useState(0); // Save LibraryView scroll position
+  const [autoLocateToken, setAutoLocateToken] = useState(0); // Increment only when track is switched by playback actions
   const isFirstLibraryLoadRef = useRef(true); // Track if LibraryView is loading for the first time
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
+  const handleTrackSwitch = useCallback(() => {
+    setAutoLocateToken(prev => prev + 1);
+  }, []);
 
   const playback = usePlayback({
     tracks,
@@ -68,7 +59,8 @@ const App: React.FC = () => {
     currentTrackIndex,
     setCurrentTrackIndex,
     createTrackedBlobUrl,
-    revokeBlobUrl
+    revokeBlobUrl,
+    onTrackSwitch: handleTrackSwitch
   });
 
   const {
@@ -215,6 +207,7 @@ const App: React.FC = () => {
       logger.debug('[App] ✓ All blob URLs revoked');
 
       metadataCacheService.revokeAllBlobUrls();
+      coverArtService.revokeAllBlobUrls();
     };
   }, [activeBlobUrlsRef]);
 
@@ -242,8 +235,10 @@ const App: React.FC = () => {
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={tracks.some(t => t.available === false)}
           currentView={viewMode}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchInputValue={searchInputValue}
+          onSearchInputChange={setSearchInputValue}
+          onSearchExecute={() => setSearchTrigger(prev => prev + 1)}
+          viewMode={viewMode}
         />
 
         <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
@@ -272,8 +267,8 @@ const App: React.FC = () => {
           <div className="flex-1 p-10 overflow-hidden pt-10">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                inputValue={searchInputValue}
+                searchTrigger={searchTrigger}
                 onDownloadComplete={handleDownloadComplete}
               />
             ) : (
@@ -286,11 +281,12 @@ const App: React.FC = () => {
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleDropFilePaths}
                 isFocusMode={isFocusMode}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                inputValue={searchInputValue}
+                searchTrigger={searchTrigger}
                 savedScrollPosition={libraryScrollPosition}
                 onScrollPositionChange={setLibraryScrollPosition}
                 isFirstLoad={isFirstLibraryLoadRef.current}
+                autoLocateToken={autoLocateToken}
               />
             )}
           </div>

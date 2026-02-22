@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { DesktopAPI } from '../services/desktopAdapter';
 
 interface WindowControls {
   minimize: () => void;
@@ -14,34 +15,35 @@ export const useWindowControls = (): WindowControls => {
 
   useEffect(() => {
     // 检测是否在桌面环境
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
-
+    const isElectron = typeof window !== 'undefined' && !!(window as Window & { electron?: DesktopAPI }).electron;
     setCanControl(isElectron);
 
     // 如果是 Electron，获取窗口状态
-    if (isElectron && (window as any).electron?.isMaximized) {
-      (window as any).electron.isMaximized().then(setIsMaximized).catch(() => {});
+    if (isElectron && (window as Window & { electron?: DesktopAPI }).electron?.isMaximized) {
+      const result = (window as Window & { electron?: DesktopAPI }).electron!.isMaximized!();
+      // isMaximized 返回的是 Promise<boolean>
+      (result as Promise<boolean>).then(setIsMaximized).catch(() => {});
     }
   }, []);
 
   const minimize = useCallback(() => {
-    if ((window as any).electron?.minimizeWindow) {
-      (window as any).electron.minimizeWindow();
+    if ((window as Window & { electron?: DesktopAPI }).electron?.minimizeWindow) {
+      (window as Window & { electron?: DesktopAPI }).electron!.minimizeWindow!();
     }
   }, []);
 
   const maximize = useCallback(async () => {
-    if ((window as any).electron?.maximizeWindow) {
-      await (window as any).electron.maximizeWindow();
+    if ((window as Window & { electron?: DesktopAPI }).electron?.maximizeWindow) {
+      await (window as Window & { electron?: DesktopAPI }).electron!.maximizeWindow!();
       // 更新状态
-      const newState = await (window as any).electron.isMaximized();
+      const newState = await (window as Window & { electron?: DesktopAPI }).electron!.isMaximized!();
       setIsMaximized(newState);
     }
   }, []);
 
   const close = useCallback(() => {
-    if ((window as any).electron?.closeWindow) {
-      (window as any).electron.closeWindow();
+    if ((window as Window & { electron?: DesktopAPI }).electron?.closeWindow) {
+      (window as Window & { electron?: DesktopAPI }).electron!.closeWindow!();
     }
   }, []);
 

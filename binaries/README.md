@@ -1,90 +1,44 @@
-# Metaflac Binaries
+# FLAC Tool Binaries
 
-This directory contains the `metaflac` command-line tool binaries for different platforms. These binaries are required for writing FLAC metadata with smart padding support.
+This directory can contain optional command-line binaries used by Electron main process:
+
+- `ffmpeg`: preferred path for FLAC metadata writing (cross-platform remux)
+- `metaflac`: fallback path when ffmpeg is not available
 
 ## Directory Structure
 
-```
+```text
 binaries/
 ├── darwin-arm64/    # macOS Apple Silicon (M1/M2/M3)
+│   ├── ffmpeg
 │   └── metaflac
 ├── darwin-x64/      # macOS Intel
+│   ├── ffmpeg
 │   └── metaflac
 ├── win32-x64/       # Windows 64-bit
+│   ├── ffmpeg.exe
 │   └── metaflac.exe
 └── linux-x64/       # Linux 64-bit
+    ├── ffmpeg
     └── metaflac
 ```
 
-## How to Obtain Metaflac Binaries
+## Runtime Resolution Order
 
-### macOS
+The app resolves binaries in this order:
 
-#### Option 1: Using Homebrew (Recommended)
-```bash
-# Install FLAC package (includes metaflac)
-brew install flac
+1. Bundled binary under `binaries/<platform>/`
+2. System binary from `PATH`
 
-# Copy the binary to the project
-# For Apple Silicon (M1/M2/M3):
-cp /opt/homebrew/bin/metaflac binaries/darwin-arm64/metaflac
+For FLAC metadata writes, runtime tries:
 
-# For Intel Macs:
-cp /usr/local/bin/metaflac binaries/darwin-x64/metaflac
-
-# Make it executable
-chmod +x binaries/darwin-arm64/metaflac
-chmod +x binaries/darwin-x64/metaflac
-```
-
-#### Option 2: Build from Source
-Download from https://github.com/xiph/flac/releases
-
-### Windows
-
-1. Download the FLAC Windows binary from: https://github.com/xiph/flac/releases
-2. Extract the zip file
-3. Copy `metaflac.exe` to `binaries/win32-x64/metaflac.exe`
-
-### Linux
-
-#### Debian/Ubuntu
-```bash
-sudo apt-get install flac
-cp /usr/bin/metaflac binaries/linux-x64/metaflac
-chmod +x binaries/linux-x64/metaflac
-```
-
-#### Fedora/RHEL
-```bash
-sudo dnf install flac
-cp /usr/bin/metaflac binaries/linux-x64/metaflac
-chmod +x binaries/linux-x64/metaflac
-```
-
-#### Arch Linux
-```bash
-sudo pacman -S flac
-cp /usr/bin/metaflac binaries/linux-x64/metaflac
-chmod +x binaries/linux-x64/metaflac
-```
+1. `ffmpeg` remux (primary)
+2. `metaflac` (fallback)
 
 ## Development Mode
 
-In development mode (`npm run electron:dev`), the app will try to use the system `metaflac` if available. This means you can develop without copying the binaries, as long as `metaflac` is installed on your system and in your PATH.
+In development (`npm run electron:dev`), you can rely on system binaries from `PATH`.
 
 ## Production Builds
 
-For production builds, the bundled binaries in this directory will be used. Make sure all platform binaries are present before building:
-```bash
-npm run electron:build
-```
-
-## Why Metaflac?
-
-We use `metaflac` instead of pure JavaScript libraries because:
-1. **Smart Padding**: Metaflac intelligently handles padding in FLAC files, which is crucial for non-standard FLAC files (like those from QQ Music)
-2. **Reliability**: The official FLAC tools are battle-tested and handle edge cases properly
-3. **File Integrity**: Properly preserves FLAC file structure and metadata
-
-Future work may include implementing smart padding in pure JavaScript to remove this dependency.
+For packaged apps, ship platform binaries via `extraResources` so users do not need to install tools manually.

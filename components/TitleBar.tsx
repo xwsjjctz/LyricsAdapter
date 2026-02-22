@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
+import { getDesktopAPI } from '../services/desktopAdapter';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -31,7 +32,8 @@ const TitleBar: React.FC = memo(() => {
   const { canControl, minimize, maximize, close, isMaximized } = useWindowControls();
 
   // 检测平台
-  const platform = typeof window !== 'undefined' ? (window as any).electron?.platform : '';
+  const desktopAPI = getDesktopAPI();
+  const platform = desktopAPI?.platform || '';
   const isMacOS = platform === 'darwin';
   const isWindows = platform === 'win32';
 

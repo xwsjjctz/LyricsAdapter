@@ -10,8 +10,8 @@ import SettingsDialog from './SettingsDialog';
 import { Track } from '../types';
 
 interface BrowseViewProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+  inputValue?: string; // Search input value from parent (shared between views)
+  searchTrigger?: number; // Trigger to execute search
   onDownloadComplete?: (track: Track) => void;
 }
 
@@ -33,15 +33,60 @@ const qualityOptions: QualityOption[] = [
   { value: 'flac', label: 'FLAC' },
 ];
 
-const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, onDownloadComplete }) => {
+function sanitizeDownloadFileName(input: string): string {
+  const sanitized = input
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return sanitized || 'Unknown Track';
+}
+
+function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] } {
+  const lines = lrc.split(/\r?\n/);
+  const syncedLyrics: { time: number; text: string }[] = [];
+  const plainTextLines: string[] = [];
+  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+
+    const matches = [...trimmedLine.matchAll(timeRegex)];
+    const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
+    if (!textWithoutTimestamps || textWithoutTimestamps === '//') continue;
+
+    if (matches.length > 0) {
+      for (const match of matches) {
+        const minutes = parseInt(match[1], 10);
+        const seconds = parseInt(match[2], 10);
+        const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
+        syncedLyrics.push({
+          time: minutes * 60 + seconds + milliseconds / 1000,
+          text: textWithoutTimestamps
+        });
+      }
+    }
+    plainTextLines.push(textWithoutTimestamps);
+  }
+
+  syncedLyrics.sort((a, b) => a.time - b.time);
+  return {
+    plainText: plainTextLines.join('\n'),
+    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined
+  };
+}
+
+const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [hasSearched, setHasSearched] = useState(false);
+  const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const previousTrigger = useRef(searchTrigger);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -71,17 +116,57 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     checkCookie();
   }, []);
 
-  // Handle external search query changes
+  // Execute search when trigger changes (from Enter key in Sidebar)
   useEffect(() => {
-    if (searchQuery) {
-      handleSearch(searchQuery);
-    } else if (hasSearched) {
-      // Clear search and go back to recommendations
-      loadRecommendations();
-    }
-  }, [searchQuery]);
+    if (searchTrigger !== previousTrigger.current) {
+      previousTrigger.current = searchTrigger;
+      setExecutedSearchQuery(inputValue);
+      
+      if (inputValue) {
+        // Execute search directly
+        const doSearch = async () => {
+          if (!inputValue.trim()) {
+            loadRecommendations();
+            return;
+          }
 
-  const loadRecommendations = async () => {
+          if (!cookieManager.hasCookie()) {
+            setShowSettingsDialog(true);
+            return;
+          }
+
+          setIsLoading(true);
+          setError(null);
+          setHasSearched(true);
+
+          try {
+            const results = await qqMusicApi.searchMusic(inputValue, 30);
+            setSongs(results);
+          } catch (err: any) {
+            logger.error('[BrowseView] Search failed:', err);
+            const errorMsg = err.message || '';
+            if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
+              setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
+            } else if (errorMsg.includes('Cookie')) {
+              setError('访问凭证已过期，请重新设置');
+              setShowSettingsDialog(true);
+            } else {
+              setError(errorMsg || '搜索失败，请稍后重试');
+            }
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        doSearch();
+      } else if (hasSearched) {
+        // Clear search and go back to recommendations
+        loadRecommendations();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTrigger, inputValue]);
+
+  const loadRecommendations = useCallback(async () => {
     if (!cookieManager.hasCookie()) {
       setError('请先设置访问凭证');
       setShowSettingsDialog(true);
@@ -92,9 +177,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     setError(null);
     
     try {
-      console.log('[BrowseView] Loading recommendations...');
+      logger.debug('[BrowseView] Loading recommendations...');
       const songs = await qqMusicApi.getRecommendedSongs();
-      console.log('[BrowseView] Got songs:', songs.length);
+      logger.debug('[BrowseView] Got songs:', songs.length);
       
       if (!songs || songs.length === 0) {
         setError('未获取到推荐歌曲，请检查访问凭证是否有效');
@@ -103,7 +188,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
         setHasSearched(false);
       }
     } catch (err: any) {
-      console.error('[BrowseView] Failed to load recommendations:', err);
+      logger.error('[BrowseView] Failed to load recommendations:', err);
       logger.error('[BrowseView] Failed to load recommendations:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
@@ -116,7 +201,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -150,7 +235,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadRecommendations]);
 
   const handleSettingsDialogClose = () => {
     setShowSettingsDialog(false);
@@ -183,6 +268,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
       } catch (error) {
         logger.error('[BrowseView] Failed to parse metadata:', error);
       }
+
+      const parsedLyrics = lyrics ? parseLRCLyrics(lyrics) : null;
+      const finalLyrics = parsedLyrics?.plainText || metadata?.lyrics || lyrics || '';
+      const finalSyncedLyrics = parsedLyrics?.syncedLyrics || metadata?.syncedLyrics;
 
       const trackId = Math.random().toString(36).substr(2, 9);
       const singer = song.singer?.[0]?.name || 'Unknown';
@@ -230,8 +319,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
         artist: singer,
         album: song.albumname || '',
         duration: metadata?.duration || song.interval || 0,
-        lyrics: lyrics || '',
-        syncedLyrics: metadata?.syncedLyrics,
+        lyrics: finalLyrics,
+        syncedLyrics: finalSyncedLyrics,
         fileName: fileName,
         fileSize: metadata?.fileSize || 0,
         lastModified: Date.now(),
@@ -243,8 +332,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
         artist: singer,
         album: song.albumname || 'Unknown Album',
         duration: metadata?.duration || song.interval || 0,
-        lyrics: lyrics || '',
-        syncedLyrics: metadata?.syncedLyrics,
+        lyrics: finalLyrics,
+        syncedLyrics: finalSyncedLyrics,
         coverUrl: finalCoverUrl,
         audioUrl: '',
         fileName: fileName,
@@ -270,14 +359,11 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     // Close dropdown
     setOpenDropdownId(null);
 
-    // Check if in Electron environment
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
-
     // Get download path from settings
     const downloadPath = settingsManager.getDownloadPath();
 
     // Check if download path is set
-    if (isElectron && !downloadPath) {
+    if (!downloadPath) {
       setError('请先在设置中选择下载目录');
       setShowSettingsDialog(true);
       return;
@@ -289,111 +375,101 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
     }));
 
     try {
-      console.log('[BrowseView] Starting download for:', song.songname, 'quality:', quality);
+      logger.debug('[BrowseView] Starting download for:', song.songname, 'quality:', quality);
       const singer = song.singer?.[0]?.name || 'Unknown';
 
       // Get download URL first
       const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
-      console.log('[BrowseView] Got download URL:', url);
+      logger.debug('[BrowseView] Got download URL:', url);
 
-      console.log('[BrowseView] Download path:', downloadPath);
+      logger.debug('[BrowseView] Download path:', downloadPath);
 
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const fileName = `${singer} - ${song.songname}.${ext}`;
+      const safeSinger = sanitizeDownloadFileName(singer);
+      const safeSongName = sanitizeDownloadFileName(song.songname);
+      const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
 
       let savedFilePath: string | undefined;
       let lyrics: string | undefined;
 
-      if (isElectron && (window as any).electron?.downloadAndSave && downloadPath) {
-        // Use new download-and-save method (non-blocking)
-        // Ensure downloadPath ends with path separator
-        const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
-        const fullPath = downloadPath + separator + fileName;
-        console.log('[BrowseView] Downloading directly to:', fullPath);
+      // Use Electron to download - ensure downloadPath ends with path separator
+      const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
+      const fullPath = downloadPath + separator + fileName;
+      logger.debug('[BrowseView] Downloading directly to:', fullPath);
 
-        const rawCookie = cookieManager.getCookie();
-        const result = await (window as any).electron.downloadAndSave(url, rawCookie, fullPath);
+      const rawCookie = cookieManager.getCookie();
+      const coverUrl = song.albummid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
+        : song.coverUrl;
 
-        if (!result.success) {
-          throw new Error(`下载失败: ${result.error}`);
+      const lyricsPromise = (async (): Promise<string | undefined> => {
+        try {
+          if (window.electron?.getQQMusicLyrics) {
+            const lyricResult = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
+            if (lyricResult?.success && lyricResult.lyrics) {
+              return lyricResult.lyrics;
+            }
+          }
+        } catch (error) {
+          logger.warn('[BrowseView] Failed to get lyrics via main process:', error);
         }
 
-        savedFilePath = result.filePath;
-        console.log('[BrowseView] File downloaded successfully to:', savedFilePath);
+        try {
+          return (await qqMusicApi.getLyrics(song.songmid)) || undefined;
+        } catch (error) {
+          logger.warn('[BrowseView] Failed to get lyrics via renderer API:', error);
+          return undefined;
+        }
+      })();
+
+      // Download and save via Electron main process
+      try {
+        const downloadResult = await window.electron!.downloadAndSave(url, rawCookie, fullPath);
+
+        if (!downloadResult.success) {
+          throw new Error(`下载失败: ${downloadResult.error}`);
+        }
+
+        savedFilePath = downloadResult.filePath;
+        logger.debug('[BrowseView] File saved successfully to:', savedFilePath);
 
         // Update progress to 100%
         setDownloadProgress(prev => ({
           ...prev,
           [song.songmid]: { progress: 100, status: 'downloading' }
         }));
+      } catch (error) {
+        logger.error('[BrowseView] Download failed:', error);
+        throw error;
+      }
 
-        // Fetch lyrics via Electron main process (avoids CORS)
+      lyrics = await lyricsPromise;
+
+      if (savedFilePath && window.electron?.writeAudioMetadata) {
         try {
-          console.log('[BrowseView] Fetching lyrics for:', song.songmid);
-          const lyricsResult = await (window as any).electron.getQQMusicLyrics(song.songmid, rawCookie);
-          if (lyricsResult && lyricsResult.success && lyricsResult.lyrics) {
-            lyrics = lyricsResult.lyrics;
-            console.log('[BrowseView] Lyrics fetched, length:', lyrics.length);
-          } else {
-            console.warn('[BrowseView] Failed to fetch lyrics:', lyricsResult?.error);
-          }
-        } catch (e) {
-          console.warn('[BrowseView] Failed to fetch lyrics:', e);
-        }
+          const metadataResult = await window.electron.writeAudioMetadata(savedFilePath, {
+            title: song.songname,
+            artist: singer,
+            album: song.albumname || '',
+            lyrics,
+            coverUrl
+          });
 
-        // Write metadata to the saved file
-        if (savedFilePath && (window as any).electron?.writeAudioMetadata) {
-          console.log('[BrowseView] Writing metadata...');
-          
-          // Get album name from song data
-          const albumName = song.albumname || '';
-          
-          // Build cover URL from albummid
-          const coverUrl = song.albummid 
-            ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
-            : undefined;
-
-          const metadataResult = await (window as any).electron.writeAudioMetadata(
-            savedFilePath,
-            {
-              title: song.songname,
-              artist: singer,
-              album: albumName,
-              coverUrl: coverUrl,
-              lyrics: lyrics,
-            }
-          );
-          
-          if (metadataResult.success) {
-            console.log('[BrowseView] Metadata written successfully');
-          } else {
-            console.error('[BrowseView] Metadata write failed:', metadataResult.error);
+          if (!metadataResult?.success) {
+            logger.warn('[BrowseView] Metadata write failed:', metadataResult?.error);
           }
+        } catch (error) {
+          logger.warn('[BrowseView] Metadata write error:', error);
         }
+      }
 
-        // Create track and add to library
-        if (savedFilePath && onDownloadComplete) {
-          console.log('[BrowseView] Creating track from downloaded file...');
-          const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
-          if (track) {
-            onDownloadComplete(track);
-            console.log('[BrowseView] Track added to library:', track.title);
-          }
-        }
-      } else {
-        // Browser fallback - download via blob
-        try {
-          const blob = await qqMusicApi.downloadAudio(song.songmid, song.songname, singer, quality);
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        } catch (e) {
-          console.error('[BrowseView] Browser download failed:', e);
+      // Create track and add to library
+      if (savedFilePath && onDownloadComplete) {
+        logger.debug('[BrowseView] Creating track from downloaded file...');
+        const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
+        if (track) {
+          onDownloadComplete(track);
+          logger.debug('[BrowseView] Track added to library:', track.title);
         }
       }
 
@@ -412,7 +488,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
       }, 3000);
     } catch (err: any) {
       logger.error('[BrowseView] Download failed:', err);
-      console.error('[BrowseView] Download error:', err);
+      logger.error('[BrowseView] Download error:', err);
       
       const errorMsg = err.message || '';
       // If it's a cookie error, show settings dialog
@@ -460,7 +536,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ searchQuery, onSearchChange, on
           <h1 className="text-4xl font-extrabold mb-2">Browse</h1>
           <p className="text-white/40">
             {hasSearched 
-              ? `Search results for "${searchQuery}"` 
+              ? `Search results for "${executedSearchQuery}"` 
               : 'Recommended'}
           </p>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track, SyncedLyricLine } from '../types';
+import { logger } from '../services/logger';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -558,9 +559,22 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
     // Load new background image
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Note: Don't set crossOrigin for all images as some servers don't support CORS
+    // Only set it for known CORS-enabled sources
+    const corsEnabledHosts = ['localhost', '127.0.0.1'];
+    try {
+      const url = new URL(track.coverUrl);
+      if (corsEnabledHosts.some(host => url.hostname.includes(host))) {
+        img.crossOrigin = 'anonymous';
+      }
+    } catch {
+      // URL is relative or blob URL, no need to set crossOrigin
+    }
     img.onerror = () => {
-      console.warn('[FocusMode] Failed to load cover image, skipping background');
+      logger.warn('[FocusMode] Failed to load cover image, skipping background');
+      // Don't set bgImage when loading fails - keep previous background or clear it
+      setBgImage2(null);
+      setIsTransitioning(false);
     };
     img.onload = () => {
       // Start transition from current to new background
@@ -659,10 +673,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     };
 
     img.onerror = () => {
-      // If load fails, just set as bg1
-      setBgImage1(img);
+      // If load fails, don't change background - keep previous one
+      logger.warn('[FocusMode] Failed to load cover image for transition');
       setBgImage2(null);
-      setTransitionProgress(1);
+      setIsTransitioning(false);
     };
 
     img.src = track.coverUrl;

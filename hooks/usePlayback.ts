@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
+import { PRELOAD, PLAYBACK, UI } from '../constants/config';
 
 interface UsePlaybackOptions {
   tracks: Track[];
@@ -11,6 +12,7 @@ interface UsePlaybackOptions {
   setCurrentTrackIndex: React.Dispatch<React.SetStateAction<number>>;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
+  onTrackSwitch?: () => void;
 }
 
 export function usePlayback({
@@ -19,11 +21,12 @@ export function usePlayback({
   currentTrackIndex,
   setCurrentTrackIndex,
   createTrackedBlobUrl,
-  revokeBlobUrl
+  revokeBlobUrl,
+  onTrackSwitch
 }: UsePlaybackOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState<number>(UI.DEFAULT_VOLUME);
   const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -62,6 +65,12 @@ export function usePlayback({
       node.volume = actualVolume;
     }
   }, [volume, linearToExponentialVolume]);
+
+  const switchToTrackIndex = useCallback((nextIndex: number) => {
+    if (nextIndex === currentTrackIndex) return;
+    onTrackSwitch?.();
+    setCurrentTrackIndex(nextIndex);
+  }, [currentTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current || !currentTrack) return;
@@ -102,7 +111,7 @@ export function usePlayback({
         }
 
         const duration = audioRef.current.duration || 0;
-        const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - 0.5)));
+        const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - PLAYBACK.MAX_RESTORE_OFFSET)));
         logger.debug('[Playback] Restoring playback time:', restoreTime);
 
         audioRef.current.currentTime = restoreTime;
@@ -133,34 +142,32 @@ export function usePlayback({
       const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
       shouldAutoPlayRef.current = true;
       forcePlayRef.current = true;
-      setCurrentTrackIndex(nextIndex);
+      switchToTrackIndex(nextIndex);
       return;
     }
 
     // Loop back to first track when reaching the end
     shouldAutoPlayRef.current = true;
     forcePlayRef.current = true;
-    if (currentTrackIndex < tracks.length - 1) {
-      setCurrentTrackIndex(prev => prev + 1);
-    } else {
-      setCurrentTrackIndex(0);
-    }
-  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
+    const nextIndex = currentTrackIndex < tracks.length - 1 ? currentTrackIndex + 1 : 0;
+    switchToTrackIndex(nextIndex);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, switchToTrackIndex]);
 
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
     const desktopAPI = await getDesktopAPIAsync();
-    if (!desktopAPI || !(track as any).filePath || track.audioUrl) {
+    if (!desktopAPI || !track.filePath || track.audioUrl) {
       return track;
     }
 
     try {
       logger.debug('[Playback] Loading audio file for:', track.title, `(${desktopAPI.platform})`);
       logger.debug('[Playback] Using blob URL protocol');
-      const readResult = await desktopAPI.readFile((track as any).filePath);
+      const readResult = await desktopAPI.readFile(track.filePath);
 
       if (readResult.success && readResult.data.byteLength > 0) {
         const fileData = new Uint8Array(readResult.data);
-        const file = new File([fileData], (track as any).fileName, { type: 'audio/flac' });
+        const fileName = track.fileName || 'audio.flac';
+        const file = new File([fileData], fileName, { type: 'audio/flac' });
         const audioUrl = createTrackedBlobUrl(file);
 
         logger.debug('[Playback] ✓ Audio loaded, size:', (fileData.length / 1024 / 1024).toFixed(2), 'MB');
@@ -186,17 +193,14 @@ export function usePlayback({
 
     if (playbackMode === 'shuffle') {
       const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
-      setCurrentTrackIndex(nextIndex);
+      switchToTrackIndex(nextIndex);
       return;
     }
 
     // Loop back to first track when reaching the end
-    if (currentTrackIndex < tracks.length - 1) {
-      setCurrentTrackIndex(prev => prev + 1);
-    } else {
-      setCurrentTrackIndex(0);
-    }
-  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
+    const nextIndex = currentTrackIndex < tracks.length - 1 ? currentTrackIndex + 1 : 0;
+    switchToTrackIndex(nextIndex);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, switchToTrackIndex]);
 
   const skipBackward = useCallback(() => {
     if (tracks.length === 0) return;
@@ -205,17 +209,14 @@ export function usePlayback({
 
     if (playbackMode === 'shuffle') {
       const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
-      setCurrentTrackIndex(nextIndex);
+      switchToTrackIndex(nextIndex);
       return;
     }
 
     // Loop to last track when at the beginning
-    if (currentTrackIndex > 0) {
-      setCurrentTrackIndex(prev => prev - 1);
-    } else {
-      setCurrentTrackIndex(tracks.length - 1);
-    }
-  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
+    const nextIndex = currentTrackIndex > 0 ? currentTrackIndex - 1 : tracks.length - 1;
+    switchToTrackIndex(nextIndex);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, switchToTrackIndex]);
 
   const handleSeek = useCallback((time: number) => {
     if (audioRef.current) {
@@ -236,7 +237,7 @@ export function usePlayback({
       lastNonZeroVolumeRef.current = volume;
       setVolume(0);
     } else {
-      const restore = lastNonZeroVolumeRef.current || 0.5;
+      const restore = lastNonZeroVolumeRef.current || UI.DEFAULT_VOLUME;
       setVolume(restore);
     }
   }, [volume]);
@@ -258,7 +259,7 @@ export function usePlayback({
       }
 
       const duration = audioRef.current.duration || 0;
-      const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - 0.5)));
+      const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - PLAYBACK.MAX_RESTORE_OFFSET)));
       logger.debug('[Playback] Restoring playback time in canplay:', restoreTime);
 
       audioRef.current.currentTime = restoreTime;
@@ -293,7 +294,7 @@ export function usePlayback({
 
     audioUrlReadyRef.current = false;
 
-    if (!currentTrack.audioUrl && (currentTrack as any).filePath) {
+    if (!currentTrack.audioUrl && currentTrack.filePath) {
       logger.debug('[Playback] Lazy loading audio for:', currentTrack.title);
 
       if (isPlaying) {
@@ -382,8 +383,8 @@ export function usePlayback({
     let cancelled = false;
 
     const scheduleIdle = (task: () => void) => {
-      if (typeof (window as any).requestIdleCallback === 'function') {
-        return (window as any).requestIdleCallback(task, { timeout: 2000 });
+      if (typeof window.requestIdleCallback === 'function') {
+        return window.requestIdleCallback(task, { timeout: 2000 });
       }
       return window.setTimeout(task, 600);
     };
@@ -446,15 +447,14 @@ export function usePlayback({
       const desktopAPI = await getDesktopAPIAsync();
       if (!desktopAPI) return;
 
-      const MAX_PRELOAD_SIZE = 50 * 1024 * 1024;
-
+      // Preload next track
       if (currentTrackIndex < tracks.length - 1) {
         const nextTrack = tracks[currentTrackIndex + 1];
-        const fileSize = (nextTrack as any).fileSize || 0;
+        const fileSize = nextTrack.fileSize || 0;
 
         if (!fileSize || fileSize <= 0) {
           logger.debug('[Playback] Skipping preload (unknown size):', nextTrack.title);
-        } else if (!nextTrack.audioUrl && (nextTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
+        } else if (!nextTrack.audioUrl && nextTrack.filePath && fileSize <= PRELOAD.MAX_SIZE_BYTES) {
           logger.debug('[Playback] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(nextTrack).then(updatedTrack => {
             setTracks(prev => {
@@ -463,18 +463,19 @@ export function usePlayback({
               return newTracks;
             });
           });
-        } else if (fileSize > MAX_PRELOAD_SIZE) {
-          logger.debug('[Playback] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
+        } else if (fileSize > PRELOAD.MAX_SIZE_BYTES) {
+          logger.debug('[Playback] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > ${PRELOAD.MAX_SIZE_BYTES / 1024 / 1024} MB)`);
         }
       }
 
+      // Preload previous track
       if (currentTrackIndex > 0) {
         const prevTrack = tracks[currentTrackIndex - 1];
-        const fileSize = (prevTrack as any).fileSize || 0;
+        const fileSize = prevTrack.fileSize || 0;
 
         if (!fileSize || fileSize <= 0) {
           logger.debug('[Playback] Skipping preload (unknown size):', prevTrack.title);
-        } else if (!prevTrack.audioUrl && (prevTrack as any).filePath && fileSize <= MAX_PRELOAD_SIZE) {
+        } else if (!prevTrack.audioUrl && prevTrack.filePath && fileSize <= PRELOAD.MAX_SIZE_BYTES) {
           logger.debug('[Playback] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
           loadAudioFileForTrack(prevTrack).then(updatedTrack => {
             setTracks(prev => {
@@ -483,13 +484,13 @@ export function usePlayback({
               return newTracks;
             });
           });
-        } else if (fileSize > MAX_PRELOAD_SIZE) {
-          logger.debug('[Playback] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > 50 MB)`);
+        } else if (fileSize > PRELOAD.MAX_SIZE_BYTES) {
+          logger.debug('[Playback] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > ${PRELOAD.MAX_SIZE_BYTES / 1024 / 1024} MB)`);
         }
       }
     };
 
-    const timer = setTimeout(preloadAdjacent, 500);
+    const timer = setTimeout(preloadAdjacent, PRELOAD.DELAY_MS);
     return () => clearTimeout(timer);
   }, [currentTrackIndex, tracks, loadAudioFileForTrack, setTracks]);
 
@@ -534,9 +535,9 @@ export function usePlayback({
   const selectTrack = useCallback((idx: number) => {
     shouldAutoPlayRef.current = true;
     forcePlayRef.current = true;
-    setCurrentTrackIndex(idx);
+    switchToTrackIndex(idx);
     setIsPlaying(true);
-  }, [setCurrentTrackIndex]);
+  }, [switchToTrackIndex]);
 
   return {
     audioRef,

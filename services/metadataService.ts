@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 export interface ParsedMetadata {
   title: string;
   artist: string;
@@ -143,7 +145,7 @@ function decodeTextFrame(buffer: ArrayBuffer): string {
       text = new TextDecoder('utf-16').decode(data);
     }
   } catch (e) {
-    console.error('Error decoding text frame:', e);
+    logger.error('Error decoding text frame:', e);
   }
 
   // Remove null characters, BOM, and trim
@@ -195,7 +197,7 @@ function decodePictureFrame(buffer: ArrayBuffer): string {
     const blob = new Blob([imageData], { type: mimeType || 'image/jpeg' });
     return URL.createObjectURL(blob);
   } catch (e) {
-    console.error('Error in decodePictureFrame:', e);
+    logger.error('Error in decodePictureFrame:', e);
     return '';
   }
 }
@@ -360,6 +362,7 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
       if (equalPos > 0) {
         const field = comment.substring(0, equalPos).toUpperCase();
         const value = comment.substring(equalPos + 1);
+        const hasLrcTimestamp = /\[\d{2}:\d{2}(?:\.\d{1,3})?\]/.test(value);
 
         // Map common Vorbis comment fields to our metadata
         switch (field) {
@@ -374,10 +377,23 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
             break;
           case 'LYRICS':
           case 'UNSYNCEDLYRICS':
-            // Parse LRC format lyrics
+          case 'LYRIC':
+          case 'SYNCEDLYRICS':
+          case 'SYNCHRONIZEDLYRICS': {
             const parsedLyrics = parseLRCLyrics(value);
             result.lyrics = parsedLyrics.plainText;
             result.syncedLyrics = parsedLyrics.syncedLyrics;
+            break;
+          }
+          case 'COMMENT':
+          case 'DESCRIPTION':
+            // ffmpeg may place lyrics in COMMENT/DESCRIPTION on some platforms.
+            // Only treat them as lyrics when they clearly look like LRC.
+            if (!result.lyrics && hasLrcTimestamp) {
+              const parsedLyrics = parseLRCLyrics(value);
+              result.lyrics = parsedLyrics.plainText;
+              result.syncedLyrics = parsedLyrics.syncedLyrics;
+            }
             break;
           case 'TRACKNUMBER':
           case 'TRACK':
@@ -387,7 +403,7 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
       }
     }
   } catch (e) {
-    console.error('Error parsing VORBIS_COMMENT:', e);
+    logger.error('Error parsing VORBIS_COMMENT:', e);
   }
 
   return result;
@@ -481,7 +497,7 @@ function parseFLACPicture(buffer: ArrayBuffer): string {
     const blob = new Blob([pictureData], { type: mimeType || 'image/jpeg' });
     return URL.createObjectURL(blob);
   } catch (e) {
-    console.error('Error parsing FLAC picture:', e);
+    logger.error('Error parsing FLAC picture:', e);
     return '';
   }
 }
@@ -503,7 +519,7 @@ function getAudioDuration(file: File): Promise<number> {
       audio.removeAttribute('src');
       audio.load();
       URL.revokeObjectURL(objectUrl);
-      console.warn('[MetadataService] Duration fetch timeout for:', file.name);
+      logger.warn('[MetadataService] Duration fetch timeout for:', file.name);
       resolve(0); // Return 0 if timeout
     }, 2000);
 
@@ -519,7 +535,7 @@ function getAudioDuration(file: File): Promise<number> {
     audio.addEventListener('error', () => {
       clearTimeout(timeout);
       URL.revokeObjectURL(objectUrl);
-      console.warn('[MetadataService] Failed to load audio for duration:', file.name);
+      logger.warn('[MetadataService] Failed to load audio for duration:', file.name);
       resolve(0); // Return 0 on error
     }, { once: true });
 
@@ -566,7 +582,7 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
         }
       }
     } catch (error) {
-      console.warn('[MetadataService] Worker parse failed, falling back to main thread:', error);
+      logger.warn('[MetadataService] Worker parse failed, falling back to main thread:', error);
     }
 
     // Fallback to main thread parsing if worker was unavailable
@@ -602,7 +618,7 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
       file
     };
   } catch (error) {
-    console.error("Metadata parsing error:", file.name, error);
+    logger.error("Metadata parsing error:", file.name, error);
     return defaultResult;
   }
 }

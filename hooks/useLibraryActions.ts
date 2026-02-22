@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Track } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
+import { coverArtService } from '../services/coverArtService';
 import { logger } from '../services/logger';
 
 interface UseLibraryActionsOptions {
@@ -102,6 +103,7 @@ export function useLibraryActions({
             logger.debug(`✅ Cover deleted from disk for track: ${trackToRemove?.title || trackId}`);
           }
           await metadataCacheService.deleteCover(trackId);
+          await coverArtService.deleteCover(trackId);
           logger.debug(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
         } catch (error) {
           logger.warn('Failed to delete cover from IndexedDB:', error);
@@ -147,6 +149,7 @@ export function useLibraryActions({
     for (const trackId of trackIds) {
       try {
         await metadataCacheService.deleteCover(trackId);
+        await coverArtService.deleteCover(trackId);
       } catch (error) {
         logger.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
       }
@@ -208,8 +211,7 @@ export function useLibraryActions({
         const fileName = filePath.split(/[/\\]/).pop() || '';
 
         const trackIndex = updatedTracks.findIndex(t => {
-          const storedFileName = (t as any).fileName;
-          return storedFileName === fileName;
+          return t.fileName === fileName;
         });
 
         if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {
@@ -217,9 +219,19 @@ export function useLibraryActions({
             // Parse metadata directly from the selected file path
             const parseResult = await desktopAPI.parseAudioMetadata(filePath);
             if (parseResult.success && parseResult.metadata) {
-              const metadata = parseResult.metadata;
+              const metadata = parseResult.metadata as {
+                title?: string;
+                artist?: string;
+                album?: string;
+                duration?: number;
+                lyrics?: string;
+                syncedLyrics?: { time: number; text: string }[];
+                coverData?: string;
+                coverMime?: string;
+                fileSize?: number;
+              };
 
-              let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+              let coverUrl = '';
               let coverSavedToDisk = false;
               if (metadata.coverData && metadata.coverMime) {
                 if (desktopAPI.saveCoverThumbnail) {

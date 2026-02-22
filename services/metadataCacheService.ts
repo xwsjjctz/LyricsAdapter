@@ -8,6 +8,7 @@
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { indexedDBStorage } from './indexedDBStorage';
 import { type ValidatedMetadata, validateMetadata } from './dataValidator';
+import { logger } from './logger';
 
 interface CachedMetadata extends ValidatedMetadata {
   // Now caching cover data in IndexedDB (no quota limits!)
@@ -23,24 +24,24 @@ class MetadataCacheService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    console.log('[MetadataCache] Initializing cache...');
+    logger.debug('[MetadataCache] Initializing cache...');
 
     // Initialize IndexedDB (works in both Web and Desktop)
     try {
       await indexedDBStorage.initialize();
-      console.log('[MetadataCache] ✓ IndexedDB initialized');
+      logger.debug('[MetadataCache] ✓ IndexedDB initialized');
     } catch (error) {
-      console.warn('[MetadataCache] ⚠️ IndexedDB initialization failed, falling back to memory-only:', error);
+      logger.warn('[MetadataCache] ⚠️ IndexedDB initialization failed, falling back to memory-only:', error);
     }
 
     // Load metadata from IndexedDB (works in both Web and Desktop now!)
     try {
-      console.log('[MetadataCache] Loading metadata from IndexedDB...');
+      logger.debug('[MetadataCache] Loading metadata from IndexedDB...');
       const entries = await indexedDBStorage.getAllMetadata();
       this.cache = new Map(Object.entries(entries));
-      console.log(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from IndexedDB`);
+      logger.debug(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from IndexedDB`);
     } catch (error) {
-      console.warn('[MetadataCache] ⚠️ Failed to load from IndexedDB:', error);
+      logger.warn('[MetadataCache] ⚠️ Failed to load from IndexedDB:', error);
       this.cache = new Map();
     }
 
@@ -49,30 +50,30 @@ class MetadataCacheService {
     if (desktopAPI && this.cache.size === 0) {
       // Only load from Desktop API if IndexedDB is empty (migration)
       try {
-        console.log('[MetadataCache] IndexedDB empty, loading from Desktop API for migration...');
+        logger.debug('[MetadataCache] IndexedDB empty, loading from Desktop API for migration...');
         const result = await desktopAPI.loadMetadataCache();
 
         // Convert object to Map and migrate to IndexedDB
         const entries = result.entries || {};
-        this.cache = new Map(Object.entries(entries));
+        this.cache = new Map(Object.entries(entries) as [string, CachedMetadata][]);
 
         // Save to IndexedDB for next time
         for (const [songId, metadata] of Object.entries(entries)) {
           try {
             await indexedDBStorage.setMetadata(songId, metadata);
           } catch (error) {
-            console.warn(`[MetadataCache] Failed to migrate metadata for ${songId}:`, error);
+            logger.warn(`[MetadataCache] Failed to migrate metadata for ${songId}:`, error);
           }
         }
 
-        console.log(`[MetadataCache] ✓ Migrated ${this.cache.size} entries from Desktop API to IndexedDB`);
+        logger.debug(`[MetadataCache] ✓ Migrated ${this.cache.size} entries from Desktop API to IndexedDB`);
       } catch (error) {
-        console.warn('[MetadataCache] ⚠️ Failed to load from Desktop API (non-critical):', error);
+        logger.warn('[MetadataCache] ⚠️ Failed to load from Desktop API (non-critical):', error);
       }
     }
 
     this.initialized = true;
-    console.log('[MetadataCache] ✓ Initialization complete');
+    logger.debug('[MetadataCache] ✓ Initialization complete');
   }
 
   get(songId: string): CachedMetadata | undefined {
@@ -83,7 +84,7 @@ class MetadataCacheService {
     // Validate metadata before caching
     const validated = validateMetadata(metadata);
     if (!validated) {
-      console.error(`[MetadataCache] Invalid metadata for ${songId}, skipping cache`);
+      logger.error(`[MetadataCache] Invalid metadata for ${songId}, skipping cache`);
       return;
     }
 
@@ -91,7 +92,7 @@ class MetadataCacheService {
 
     // Persist to IndexedDB asynchronously (don't await)
     indexedDBStorage.setMetadata(songId, validated).catch(error => {
-      console.warn(`[MetadataCache] Failed to save metadata for ${songId} to IndexedDB:`, error);
+      logger.warn(`[MetadataCache] Failed to save metadata for ${songId} to IndexedDB:`, error);
     });
   }
 
@@ -147,7 +148,7 @@ class MetadataCacheService {
         canvas.toBlob(
           (compressed) => {
             if (compressed) {
-              console.log(`[MetadataCache] Image compressed: ${(blob.size / 1024).toFixed(2)} KB → ${(compressed.size / 1024).toFixed(2)} KB`);
+              logger.debug(`[MetadataCache] Image compressed: ${(blob.size / 1024).toFixed(2)} KB → ${(compressed.size / 1024).toFixed(2)} KB`);
               resolve(compressed);
             } else {
               reject(new Error('Compression failed'));
@@ -193,12 +194,12 @@ class MetadataCacheService {
       if (coverBlob) {
         const blobUrl = URL.createObjectURL(coverBlob);
         this.coverCache.set(songId, blobUrl);
-        console.log(`[MetadataCache] ✓ Loaded cover for ${songId} from IndexedDB`);
+        logger.debug(`[MetadataCache] ✓ Loaded cover for ${songId} from IndexedDB`);
         return blobUrl;
       }
       return null;
     } catch (error) {
-      console.error(`[MetadataCache] Failed to load cover for ${songId}:`, error);
+      logger.error(`[MetadataCache] Failed to load cover for ${songId}:`, error);
       return null;
     }
   }
@@ -221,9 +222,9 @@ class MetadataCacheService {
       const blobUrl = URL.createObjectURL(compressedBlob);
       this.coverCache.set(songId, blobUrl);
 
-      console.log(`[MetadataCache] ✓ Saved cover for ${songId} (${(compressedBlob.size / 1024).toFixed(2)} KB)`);
+      logger.debug(`[MetadataCache] ✓ Saved cover for ${songId} (${(compressedBlob.size / 1024).toFixed(2)} KB)`);
     } catch (error) {
-      console.error(`[MetadataCache] Failed to save cover for ${songId}:`, error);
+      logger.error(`[MetadataCache] Failed to save cover for ${songId}:`, error);
       throw error;
     }
   }
@@ -251,9 +252,9 @@ class MetadataCacheService {
     try {
       // Ensure all pending IndexedDB writes are complete
       // (Most saves happen in set() via fire-and-forget)
-      console.log('[MetadataCache] ✓ Metadata persistence check complete');
+      logger.debug('[MetadataCache] ✓ Metadata persistence check complete');
     } catch (error) {
-      console.warn('[MetadataCache] Failed during persistence check:', error);
+      logger.warn('[MetadataCache] Failed during persistence check:', error);
     }
   }
 
@@ -302,7 +303,7 @@ class MetadataCacheService {
       }
     });
     this.coverCache.clear();
-    console.log('[MetadataCache] ✓ Revoked all cached blob URLs');
+    logger.debug('[MetadataCache] ✓ Revoked all cached blob URLs');
   }
 }
 

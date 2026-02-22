@@ -7,38 +7,53 @@ interface SidebarProps {
   currentView: ViewMode;
   onReloadFiles?: () => void;
   hasUnavailableTracks?: boolean;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
+  searchInputValue?: string;
+  onSearchInputChange?: (value: string) => void;
+  onSearchExecute?: () => void;
+  viewMode: ViewMode;
 }
 
-const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, currentView, onReloadFiles, hasUnavailableTracks, searchQuery = '', onSearchChange }) => {
+const Sidebar: React.FC<SidebarProps> = memo(({ 
+  onImportClick, 
+  onNavigate, 
+  currentView, 
+  onReloadFiles, 
+  hasUnavailableTracks, 
+  searchInputValue = '', 
+  onSearchInputChange,
+  onSearchExecute,
+  viewMode
+}) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isBrowseView = currentView === ViewMode.BROWSE;
   
-  // Local state for Browse view input (to handle Enter key search)
-  const [browseInputValue, setBrowseInputValue] = useState(searchQuery);
+  // Local state for input (synced with global searchInputValue)
+  const [inputValue, setInputValue] = useState(searchInputValue);
   
-  // Sync local state with external searchQuery when it changes externally
+  // Sync local state with global searchInputValue when it changes from outside
   useEffect(() => {
-    setBrowseInputValue(searchQuery);
-  }, [searchQuery]);
+    setInputValue(searchInputValue);
+  }, [searchInputValue]);
 
-  // Handle real-time search for Library view
-  const handleLibrarySearch = (value: string) => {
-    onSearchChange?.(value);
+  // Handle input change - update global state and local state
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    onSearchInputChange?.(newValue);
   };
 
-  // Handle Enter key search for Browse view
-  const handleBrowseKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Handle Enter key to execute search
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      onSearchChange?.(browseInputValue);
+      onSearchExecute?.();
     }
   };
 
-  // Handle clear for Browse view
-  const handleBrowseClear = () => {
-    setBrowseInputValue('');
-    onSearchChange?.('');
+  // Handle clear - clear both local and global state
+  const handleClear = () => {
+    setInputValue('');
+    onSearchInputChange?.('');
+    onSearchExecute?.();
   };
 
   return (
@@ -79,35 +94,23 @@ const Sidebar: React.FC<SidebarProps> = memo(({ onImportClick, onNavigate, curre
             </button>
 
             {/* 搜索框 */}
-            {onSearchChange && (
+            {onSearchInputChange && onSearchExecute && (
               <div className="mt-4">
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-white/40 text-lg">
                     search
                   </span>
-                  {isBrowseView ? (
-                    // Browse view: Enter key to search
-                    <input
-                      type="text"
-                      placeholder="Search online(Enter)"
-                      value={browseInputValue}
-                      onChange={(e) => setBrowseInputValue(e.target.value)}
-                      onKeyDown={handleBrowseKeyDown}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
-                    />
-                  ) : (
-                    // Library view: Real-time search
-                    <input
-                      type="text"
-                      placeholder="Search tracks..."
-                      value={searchQuery}
-                      onChange={(e) => handleLibrarySearch(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
-                    />
-                  )}
-                  {searchQuery && (
+                  <input
+                    type="text"
+                    placeholder={isBrowseView ? 'Search online (Enter)' : 'Search tracks (Enter)'}
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+                  />
+                  {inputValue && (
                     <button
-                      onClick={isBrowseView ? handleBrowseClear : () => onSearchChange?.('')}
+                      onClick={handleClear}
                       className="absolute right-3 top-5/9 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">close</span>

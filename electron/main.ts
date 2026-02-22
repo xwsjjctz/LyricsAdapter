@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { PassThrough } from 'stream';
 import NodeID3 from 'node-id3';
 import flacMetadata from 'flac-metadata';
+import { logger } from './logger';
 
 // Create __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -39,10 +40,10 @@ let win: BrowserWindow | null;
 const createWindow = async () => {
   // Log user data directory on startup
   const userDataPath = app.getPath('userData');
-  console.log('=== LYRICS ADAPTER STARTUP ===');
-  console.log('Platform:', process.platform);
-  console.log('User Data Directory:', userDataPath);
-  console.log('===============================');
+  logger.info('=== LYRICS ADAPTER STARTUP ===');
+  logger.info('Platform:', process.platform);
+  logger.info('User Data Directory:', userDataPath);
+  logger.info('===============================');
 
   // 所有平台都使用无边框窗口，通过 React 组件渲染自定义标题栏
   // macOS: hiddenInset 保留原生红黄绿按钮在左侧
@@ -117,9 +118,9 @@ const createWindow = async () => {
 
   // Log to both console and file
   const log = (...args: any[]) => {
-    console.log(...args);
+    logger.info(...args);
     if (win) {
-      win.webContents.executeJavaScript(`console.log(${args.map(a => JSON.stringify(a)).join(', ')})`);
+      win.webContents.executeJavaScript(`logger.info(${args.map(a => JSON.stringify(a)).join(', ')})`);
     }
   };
 
@@ -138,7 +139,7 @@ const createWindow = async () => {
 
     win.webContents.on('did-finish-load', () => {
       log('Page loaded successfully');
-      win?.webContents.executeJavaScript('console.log("React render check:", document.getElementById("root"))');
+      win?.webContents.executeJavaScript('logger.info("React render check:", document.getElementById("root"))');
     });
 
     win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -243,7 +244,7 @@ app.whenReady().then(() => {
         data: data.buffer
       };
     } catch (error) {
-      console.error('Failed to read file:', error);
+      logger.error('Failed to read file:', error);
       return {
         success: false,
         error: (error as Error).message
@@ -288,7 +289,7 @@ app.whenReady().then(() => {
         return { success: true, library: { songs: [], settings: {} } };
       }
     } catch (error) {
-      console.error('Failed to load library:', error);
+      logger.error('Failed to load library:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -337,7 +338,7 @@ app.whenReady().then(() => {
 
       return { success: true, library: { songs: [], settings: {} } };
     } catch (error) {
-      console.error('Failed to load library index:', error);
+      logger.error('Failed to load library index:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -348,25 +349,25 @@ app.whenReady().then(() => {
       const userDataPath = app.getPath('userData');
       const libraryPath = path.join(userDataPath, 'library.json');
 
-      console.log('=== SAVE LIBRARY DEBUG ===');
-      console.log('User data path:', userDataPath);
-      console.log('Library path:', libraryPath);
-      console.log('Library data:', JSON.stringify(library).substring(0, 200) + '...');
+      logger.info('=== SAVE LIBRARY DEBUG ===');
+      logger.info('User data path:', userDataPath);
+      logger.info('Library path:', libraryPath);
+      logger.info('Library data:', JSON.stringify(library).substring(0, 200) + '...');
 
       // Ensure directory exists
       if (!fs.existsSync(userDataPath)) {
-        console.log('Creating directory:', userDataPath);
+        logger.info('Creating directory:', userDataPath);
         fs.mkdirSync(userDataPath, { recursive: true });
       }
 
       // Write library to file
       fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2), 'utf-8');
 
-      console.log('Library saved successfully!');
-      console.log('File exists after save:', fs.existsSync(libraryPath));
+      logger.info('Library saved successfully!');
+      logger.info('File exists after save:', fs.existsSync(libraryPath));
       return { success: true };
     } catch (error) {
-      console.error('Failed to save library:', error);
+      logger.error('Failed to save library:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -384,7 +385,7 @@ app.whenReady().then(() => {
       fs.writeFileSync(indexPath, JSON.stringify(library, null, 2), 'utf-8');
       return { success: true };
     } catch (error) {
-      console.error('Failed to save library index:', error);
+      logger.error('Failed to save library index:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -455,13 +456,13 @@ app.whenReady().then(() => {
       // Validate and sanitize inputs
       const sanitizedFileName = sanitizeFileName(fileName);
       if (!validateSourcePath(sourcePath)) {
-        console.error('❌ Invalid source path:', sourcePath);
+        logger.error('❌ Invalid source path:', sourcePath);
         return { success: false, error: 'Invalid source path' };
       }
 
       // Verify source file exists and is accessible
       if (!fs.existsSync(sourcePath)) {
-        console.error('❌ Source file does not exist:', sourcePath);
+        logger.error('❌ Source file does not exist:', sourcePath);
         return { success: false, error: 'Source file not found' };
       }
 
@@ -481,17 +482,17 @@ app.whenReady().then(() => {
       // Try to create symbolic link (symlink) first (saves disk space)
       try {
         fs.symlinkSync(sourcePath, audioFilePath);
-        console.log('✅ Symlink created:', audioFilePath, '→', sourcePath);
+        logger.info('✅ Symlink created:', audioFilePath, '→', sourcePath);
         return { success: true, filePath: audioFilePath, method: 'symlink' };
       } catch (linkError) {
         // Symlink failed, fall back to copy
-        console.warn('⚠️ Symlink failed, copying file instead:', (linkError as Error).message);
+        logger.warn('⚠️ Symlink failed, copying file instead:', (linkError as Error).message);
         fs.copyFileSync(sourcePath, audioFilePath);
-        console.log('✅ File copied:', audioFilePath);
+        logger.info('✅ File copied:', audioFilePath);
         return { success: true, filePath: audioFilePath, method: 'copy' };
       }
     } catch (error) {
-      console.error('Failed to save audio file:', error);
+      logger.error('Failed to save audio file:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -515,10 +516,10 @@ app.whenReady().then(() => {
       const buffer = Buffer.from(fileData);
       fs.writeFileSync(audioFilePath, buffer);
 
-      console.log('✅ File saved from buffer:', audioFilePath);
+      logger.info('✅ File saved from buffer:', audioFilePath);
       return { success: true, filePath: audioFilePath, method: 'copy' };
     } catch (error) {
-      console.error('Failed to save audio file from buffer:', error);
+      logger.error('Failed to save audio file from buffer:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -547,7 +548,7 @@ app.whenReady().then(() => {
       const coverUrl = `cover://${safeId}.${ext}`;
       return { success: true, filePath: coverPath, coverUrl };
     } catch (error) {
-      console.error('Failed to save cover thumbnail:', error);
+      logger.error('Failed to save cover thumbnail:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -575,7 +576,7 @@ app.whenReady().then(() => {
 
       return { success: true, deleted };
     } catch (error) {
-      console.error('Failed to delete cover thumbnail:', error);
+      logger.error('Failed to delete cover thumbnail:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -589,7 +590,7 @@ app.whenReady().then(() => {
       }));
       return { success: true, results };
     } catch (error) {
-      console.error('Failed to validate paths:', error);
+      logger.error('Failed to validate paths:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -603,16 +604,16 @@ app.whenReady().then(() => {
 
       // Check if file exists before deleting
       if (!fs.existsSync(filePath)) {
-        console.warn('⚠️ File does not exist, skipping deletion:', filePath);
+        logger.warn('⚠️ File does not exist, skipping deletion:', filePath);
         return { success: true, deleted: false };
       }
 
       // Delete the file/symlink
       fs.unlinkSync(filePath);
-      console.log('✅ File/symlink deleted:', filePath);
+      logger.info('✅ File/symlink deleted:', filePath);
       return { success: true, deleted: true };
     } catch (error) {
-      console.error('Failed to delete audio file:', error);
+      logger.error('Failed to delete audio file:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -643,17 +644,17 @@ app.whenReady().then(() => {
             fs.unlinkSync(resolved);
             removed++;
           } catch (e) {
-            console.warn('Failed to remove orphan audio file:', resolved, e);
+            logger.warn('Failed to remove orphan audio file:', resolved, e);
           }
         }
       }
 
       if (removed > 0) {
-        console.log(`🧹 Cleaned ${removed} orphan audio file(s)`);
+        logger.info(`🧹 Cleaned ${removed} orphan audio file(s)`);
       }
       return { success: true, removed };
     } catch (error) {
-      console.error('Failed to cleanup orphan audio files:', error);
+      logger.error('Failed to cleanup orphan audio files:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -693,7 +694,7 @@ app.whenReady().then(() => {
     try {
       // Expand ~ to home directory
       const expandedPath = expandHomeDir(filePath);
-      console.log('[Main] Starting download to:', expandedPath);
+      logger.info('[Main] Starting download to:', expandedPath);
 
       const response = await fetch(url, {
         headers: {
@@ -747,10 +748,10 @@ app.whenReady().then(() => {
       writer.end();
       await new Promise<void>(resolve => writer.on('finish', resolve));
 
-      console.log('[Main] Download completed, size:', downloaded, 'bytes');
+      logger.info('[Main] Download completed, size:', downloaded, 'bytes');
       return { success: true, filePath: expandedPath, size: downloaded };
     } catch (error) {
-      console.error('[Main] Download failed:', error);
+      logger.error('[Main] Download failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -758,7 +759,7 @@ app.whenReady().then(() => {
   // Download audio file from URL with cookies (streaming to avoid blocking)
   ipcMain.handle('download-audio-file', async (event, url: string, cookieString: string) => {
     try {
-      console.log('[Main] Starting streaming download from:', url.substring(0, 100) + '...');
+      logger.info('[Main] Starting streaming download from:', url.substring(0, 100) + '...');
       
       // Use native fetch with streaming
       const response = await fetch(url, {
@@ -816,14 +817,14 @@ app.whenReady().then(() => {
         position += chunk.length;
       }
       
-      console.log('[Main] Download completed, size:', downloaded, 'bytes');
+      logger.info('[Main] Download completed, size:', downloaded, 'bytes');
       
       return { 
         success: true, 
-        data: Array.from(allChunks)
+        data: allChunks.buffer
       };
     } catch (error) {
-      console.error('[Main] Download failed:', error);
+      logger.error('[Main] Download failed:', error);
       return { 
         success: false, 
         error: (error as Error).message 
@@ -844,7 +845,7 @@ app.whenReady().then(() => {
       }
       return { success: false, canceled: true };
     } catch (error) {
-      console.error('[Main] Select folder failed:', error);
+      logger.error('[Main] Select folder failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -865,22 +866,22 @@ app.whenReady().then(() => {
       
       // Join directory and filename using platform-specific separator
       const fullPath = path.join(expandedDir, fileName);
-      console.log('[Main] Saving file to:', fullPath);
+      logger.info('[Main] Saving file to:', fullPath);
       
       // Ensure directory exists
       if (!fs.existsSync(expandedDir)) {
         fs.mkdirSync(expandedDir, { recursive: true });
-        console.log('[Main] Created directory:', expandedDir);
+        logger.info('[Main] Created directory:', expandedDir);
       }
       
       // Write file
       const buffer = Buffer.from(fileData);
       fs.writeFileSync(fullPath, buffer);
       
-      console.log('[Main] File saved successfully, size:', buffer.length);
+      logger.info('[Main] File saved successfully, size:', buffer.length);
       return { success: true, filePath: fullPath };
     } catch (error) {
-      console.error('[Main] Save file failed:', error);
+      logger.error('[Main] Save file failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -908,71 +909,233 @@ app.whenReady().then(() => {
 
       return 'unknown';
     } catch (e) {
-      console.error('[Main] Failed to detect file format:', e);
+      logger.error('[Main] Failed to detect file format:', e);
       return 'error';
     }
   }
 
-  // Get metaflac binary path for current platform
-  function getMetaflacPath(): string {
+  function isCommandAvailable(command: string, versionArg: string): boolean {
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync(command, [versionArg], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  function getBundledBinaryPath(tool: 'metaflac' | 'ffmpeg'): string {
     const platform = process.platform;
     const arch = process.arch;
-
-    // In development, try to use system metaflac first
-    if (!app.isPackaged) {
-      // Check if metaflac is available in system PATH
-      try {
-        const { execSync } = require('child_process');
-        execSync('which metaflac', { encoding: 'utf-8', stdio: 'pipe' });
-        console.log('[Main] Using system metaflac in development');
-        return 'metaflac';
-      } catch (e) {
-        console.warn('[Main] System metaflac not found, will try bundled binary');
-        // In development, use project binaries directory
-        let binaryPath: string;
-        if (platform === 'darwin') {
-          // macOS
-          if (arch === 'arm64') {
-            binaryPath = path.join(__dirname, '../binaries/darwin-arm64/metaflac');
-          } else {
-            binaryPath = path.join(__dirname, '../binaries/darwin-x64/metaflac');
-          }
-        } else if (platform === 'win32') {
-          // Windows
-          binaryPath = path.join(__dirname, '../binaries/win32-x64/metaflac.exe');
-        } else if (platform === 'linux') {
-          // Linux
-          binaryPath = path.join(__dirname, '../binaries/linux-x64/metaflac');
-        } else {
-          throw new Error(`Unsupported platform: ${platform}-${arch}`);
-        }
-        console.log('[Main] Using bundled metaflac in development:', binaryPath);
-        return binaryPath;
-      }
-    }
-
-    // In production, use bundled binary from app resources
-    let binaryPath: string;
+    const fileName = platform === 'win32' ? `${tool}.exe` : tool;
 
     if (platform === 'darwin') {
-      // macOS
       if (arch === 'arm64') {
-        binaryPath = path.join(process.resourcesPath, 'binaries', 'darwin-arm64', 'metaflac');
-      } else {
-        binaryPath = path.join(process.resourcesPath, 'binaries', 'darwin-x64', 'metaflac');
+        return app.isPackaged
+          ? path.join(process.resourcesPath, 'binaries', 'darwin-arm64', fileName)
+          : path.join(__dirname, '../binaries/darwin-arm64', fileName);
       }
-    } else if (platform === 'win32') {
-      // Windows
-      binaryPath = path.join(process.resourcesPath, 'binaries', 'win32-x64', 'metaflac.exe');
-    } else if (platform === 'linux') {
-      // Linux
-      binaryPath = path.join(process.resourcesPath, 'binaries', 'linux-x64', 'metaflac');
-    } else {
-      throw new Error(`Unsupported platform: ${platform}-${arch}`);
+      return app.isPackaged
+        ? path.join(process.resourcesPath, 'binaries', 'darwin-x64', fileName)
+        : path.join(__dirname, '../binaries/darwin-x64', fileName);
     }
 
-    console.log('[Main] Using bundled metaflac:', binaryPath);
-    return binaryPath;
+    if (platform === 'win32') {
+      return app.isPackaged
+        ? path.join(process.resourcesPath, 'binaries', 'win32-x64', fileName)
+        : path.join(__dirname, '../binaries/win32-x64', fileName);
+    }
+
+    if (platform === 'linux') {
+      return app.isPackaged
+        ? path.join(process.resourcesPath, 'binaries', 'linux-x64', fileName)
+        : path.join(__dirname, '../binaries/linux-x64', fileName);
+    }
+
+    throw new Error(`Unsupported platform: ${platform}-${arch}`);
+  }
+
+  // Get metaflac binary path for current platform
+  function getMetaflacPath(): string {
+    const bundledPath = getBundledBinaryPath('metaflac');
+
+    if (fs.existsSync(bundledPath)) {
+      logger.info('[Main] Using bundled metaflac:', bundledPath);
+      return bundledPath;
+    }
+
+    if (isCommandAvailable('metaflac', '--version')) {
+      logger.info('[Main] Using system metaflac from PATH');
+      return 'metaflac';
+    }
+
+    throw new Error('metaflac binary not found (bundled or system PATH)');
+  }
+
+  // Get ffmpeg binary path for current platform
+  function getFfmpegPath(): string {
+    const bundledPath = getBundledBinaryPath('ffmpeg');
+
+    if (fs.existsSync(bundledPath)) {
+      logger.info('[Main] Using bundled ffmpeg:', bundledPath);
+      return bundledPath;
+    }
+
+    if (isCommandAvailable('ffmpeg', '-version')) {
+      logger.info('[Main] Using system ffmpeg from PATH');
+      return 'ffmpeg';
+    }
+
+    throw new Error('ffmpeg binary not found (bundled or system PATH)');
+  }
+
+  function escapeFfmetadataValue(value: string): string {
+    const normalized = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const escapedLines = normalized
+      .split('\n')
+      .map(line => line
+        .replace(/\\/g, '\\\\')
+        .replace(/=/g, '\\=')
+        .replace(/;/g, '\\;')
+        .replace(/#/g, '\\#'));
+
+    // ffmetadata multiline value: escape the newline with trailing backslash
+    return escapedLines.join('\\\n');
+  }
+
+  function buildFfmetadataContent(metadata: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    lyrics?: string;
+  }): string {
+    const lines = [';FFMETADATA1'];
+    if (metadata.title) lines.push(`TITLE=${escapeFfmetadataValue(metadata.title)}`);
+    if (metadata.artist) lines.push(`ARTIST=${escapeFfmetadataValue(metadata.artist)}`);
+    if (metadata.album) lines.push(`ALBUM=${escapeFfmetadataValue(metadata.album)}`);
+    if (metadata.lyrics) {
+      const escapedLyrics = escapeFfmetadataValue(metadata.lyrics);
+      lines.push(`LYRICS=${escapedLyrics}`);
+      lines.push(`UNSYNCEDLYRICS=${escapedLyrics}`);
+      lines.push(`LYRIC=${escapedLyrics}`);
+    }
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  async function runCommand(command: string, args: string[]): Promise<void> {
+    const { spawn } = await import('child_process');
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, args, {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+      child.stderr.on('data', chunk => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', reject);
+      child.on('close', code => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        const trimmed = stderr.trim();
+        reject(new Error(trimmed || `${command} exited with code ${code}`));
+      });
+    });
+  }
+
+  async function writeFlacMetadataWithFfmpeg(
+    filePath: string,
+    metadata: { title?: string; artist?: string; album?: string; lyrics?: string },
+    coverBuffer?: Buffer
+  ): Promise<boolean> {
+    const ffmpegBinary = getFfmpegPath();
+    const backupPath = `${filePath}.ffmpeg.backup`;
+    const metadataPath = `${filePath}.ffmetadata.txt`;
+    const coverPath = `${filePath}.cover.ffmpeg.jpg`;
+    const outputPath = `${filePath}.ffmpeg.tmp.flac`;
+
+    try {
+      logger.info('[FFMPEG] Starting FLAC remux metadata write for:', filePath);
+      fs.copyFileSync(filePath, backupPath);
+      fs.writeFileSync(metadataPath, buildFfmetadataContent(metadata), 'utf-8');
+      if (coverBuffer && coverBuffer.length > 0) {
+        fs.writeFileSync(coverPath, coverBuffer);
+      }
+
+      const hasCover = !!(coverBuffer && coverBuffer.length > 0);
+      const metadataInputIndex = hasCover ? '2' : '1';
+      const args = [
+        '-y',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-i',
+        filePath,
+      ];
+
+      if (hasCover) {
+        args.push('-i', coverPath);
+      }
+
+      args.push(
+        '-f',
+        'ffmetadata',
+        '-i',
+        metadataPath,
+        '-map',
+        '0:a:0'
+      );
+
+      if (hasCover) {
+        args.push('-map', '1:v:0');
+      }
+
+      args.push(
+        '-map_metadata',
+        '-1',
+        '-map_metadata',
+        metadataInputIndex,
+        '-c:a',
+        'copy'
+      );
+
+      if (hasCover) {
+        args.push('-c:v', 'copy', '-disposition:v:0', 'attached_pic');
+      }
+
+      args.push(outputPath);
+
+      await runCommand(ffmpegBinary, args);
+
+      const outputStats = fs.statSync(outputPath);
+      if (!outputStats.size) {
+        throw new Error('ffmpeg produced empty output file');
+      }
+
+      fs.copyFileSync(outputPath, filePath);
+      fs.unlinkSync(backupPath);
+      logger.info('[FFMPEG] ✓ FLAC metadata remux completed');
+      return true;
+    } catch (error) {
+      logger.error('[FFMPEG] FLAC metadata remux failed:', error);
+      if (fs.existsSync(backupPath)) {
+        fs.copyFileSync(backupPath, filePath);
+      }
+      throw error;
+    } finally {
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+      if (fs.existsSync(metadataPath)) fs.unlinkSync(metadataPath);
+      if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath);
+      if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
+    }
   }
 
   // Write FLAC metadata using metaflac command line tool
@@ -1000,7 +1163,7 @@ app.whenReady().then(() => {
     const log = (message: string) => {
       const timestamp = new Date().toISOString();
       const logLine = `[${timestamp}] ${message}\n`;
-      console.log(message);
+      logger.info(message);
       try {
         fs.appendFileSync(logFile, logLine);
       } catch (e) {
@@ -1086,7 +1249,12 @@ app.whenReady().then(() => {
       if (metadata.coverUrl) {
         try {
           log(`[METAFLAC] Downloading cover from: ${metadata.coverUrl}`);
-          const response = await fetch(metadata.coverUrl);
+          const response = await fetch(metadata.coverUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Referer': 'https://y.qq.com/',
+            },
+          });
           if (response.ok) {
             const arrayBuffer = await response.arrayBuffer();
             const coverBuffer = Buffer.from(arrayBuffer);
@@ -1156,23 +1324,23 @@ app.whenReady().then(() => {
     try {
       // Expand ~ to home directory
       const expandedPath = expandHomeDir(filePath);
-      console.log('[Main] Writing metadata to:', expandedPath);
-      console.log('[Main] Metadata:', metadata);
+      logger.info('[Main] Writing metadata to:', expandedPath);
+      logger.info('[Main] Metadata:', metadata);
 
       // Check if file exists
       if (!fs.existsSync(expandedPath)) {
-        console.error('[Main] File does not exist:', expandedPath);
+        logger.error('[Main] File does not exist:', expandedPath);
         return { success: false, error: '文件不存在' };
       }
 
       // Get file stats
       const stats = fs.statSync(expandedPath);
-      console.log('[Main] File size:', stats.size, 'bytes');
+      logger.info('[Main] File size:', stats.size, 'bytes');
 
       // Detect actual file format from magic bytes
       const ext = path.extname(expandedPath).toLowerCase();
       const actualFormat = detectFileFormat(expandedPath);
-      console.log('[Main] File extension:', ext, '| Detected format:', actualFormat);
+      logger.info('[Main] File extension:', ext, '| Detected format:', actualFormat);
 
       if (actualFormat === 'error') {
         return { success: false, error: '无法检测文件格式' };
@@ -1182,15 +1350,20 @@ app.whenReady().then(() => {
       let coverBuffer: Buffer | undefined;
       if (metadata.coverUrl) {
         try {
-          console.log('[Main] Downloading cover from:', metadata.coverUrl);
-          const response = await fetch(metadata.coverUrl);
+          logger.info('[Main] Downloading cover from:', metadata.coverUrl);
+          const response = await fetch(metadata.coverUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Referer': 'https://y.qq.com/',
+            },
+          });
           if (response.ok) {
             const arrayBuffer = await response.arrayBuffer();
             coverBuffer = Buffer.from(arrayBuffer);
-            console.log('[Main] Cover downloaded, size:', coverBuffer.length);
+            logger.info('[Main] Cover downloaded, size:', coverBuffer.length);
           }
         } catch (e) {
-          console.error('[Main] Failed to download cover:', e);
+          logger.error('[Main] Failed to download cover:', e);
         }
       }
 
@@ -1215,22 +1388,32 @@ app.whenReady().then(() => {
 
         const result = NodeID3.write(tags, expandedPath);
         success = !!result;
-        console.log('[Main] MP3 metadata write result:', success);
+        logger.info('[Main] MP3 metadata write result:', success);
 
       } else if (actualFormat === 'flac') {
-        // Using metaflac command line tool instead of manual implementation
-        console.log('[Main] FLAC metadata write using metaflac');
-        success = await writeFlacMetadataWithMetaflac(expandedPath, metadata);
-        console.log('[Main] FLAC metadata write result:', success);
+        // Prefer ffmpeg remux for cross-platform consistency, fallback to metaflac
+        logger.info('[Main] FLAC metadata write using ffmpeg remux');
+        try {
+          success = await writeFlacMetadataWithFfmpeg(expandedPath, {
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
+            lyrics: metadata.lyrics,
+          }, coverBuffer);
+        } catch (ffmpegError) {
+          logger.warn('[Main] FFmpeg FLAC metadata write failed, fallback to metaflac:', ffmpegError);
+          success = await writeFlacMetadataWithMetaflac(expandedPath, metadata);
+        }
+        logger.info('[Main] FLAC metadata write result:', success);
 
       } else {
-        console.warn('[Main] Unsupported file format for metadata:', actualFormat);
+        logger.warn('[Main] Unsupported file format for metadata:', actualFormat);
         return { success: false, error: `不支持的文件格式: ${actualFormat} (扩展名: ${ext})` };
       }
 
       return { success };
     } catch (error) {
-      console.error('[Main] Write metadata failed:', error);
+      logger.error('[Main] Write metadata failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -1247,7 +1430,7 @@ app.whenReady().then(() => {
     const log = (message: string) => {
       const timestamp = new Date().toISOString();
       const logLine = `[${timestamp}] ${message}\n`;
-      console.log(message);
+      logger.info(message);
       try {
         fs.appendFileSync(logFile, logLine);
       } catch (e) {
@@ -1491,7 +1674,7 @@ app.whenReady().then(() => {
   // Get QQ Music URL via main process (ensures cookies are properly sent)
   ipcMain.handle('get-qq-music-url', async (event, requestData: any, cookieString: string) => {
     try {
-      console.log('[Main] Getting QQ Music URL...');
+      logger.info('[Main] Getting QQ Music URL...');
       
       const response = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
         method: 'POST',
@@ -1512,11 +1695,11 @@ app.whenReady().then(() => {
       }
 
       const data = await response.json();
-      console.log('[Main] Got QQ Music URL response, code:', data.code);
+      logger.info('[Main] Got QQ Music URL response, code:', data.code);
       
       return { success: true, data };
     } catch (error) {
-      console.error('[Main] Get QQ Music URL failed:', error);
+      logger.error('[Main] Get QQ Music URL failed:', error);
       return {
         success: false,
         error: (error as Error).message
@@ -1527,7 +1710,7 @@ app.whenReady().then(() => {
   // Get lyrics via main process (avoids CORS issues)
   ipcMain.handle('get-qq-music-lyrics', async (event, songmid: string, cookieString: string) => {
     try {
-      console.log('[Main] Getting lyrics for:', songmid);
+      logger.info('[Main] Getting lyrics for:', songmid);
 
       const response = await fetch(
         `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
@@ -1549,7 +1732,7 @@ app.whenReady().then(() => {
       const result = await response.json();
 
       if (result.code !== 0) {
-        console.warn('[Main] Lyrics API returned error code:', result.code);
+        logger.warn('[Main] Lyrics API returned error code:', result.code);
         return { success: false, error: `API error code: ${result.code}` };
       }
 
@@ -1560,11 +1743,11 @@ app.whenReady().then(() => {
       }
 
       const lyrics = Buffer.from(lyricBase64, 'base64').toString('utf-8');
-      console.log('[Main] Lyrics fetched, length:', lyrics.length);
+      logger.info('[Main] Lyrics fetched, length:', lyrics.length);
 
       return { success: true, lyrics };
     } catch (error) {
-      console.error('[Main] Get lyrics failed:', error);
+      logger.error('[Main] Get lyrics failed:', error);
       return {
         success: false,
         error: (error as Error).message

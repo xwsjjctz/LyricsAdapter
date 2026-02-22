@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { indexedDBStorage } from './indexedDBStorage';
 
 const COOKIE_STORAGE_KEY = 'qq_music_cookie';
 const COOKIE_CHECK_TIME_KEY = 'qq_music_cookie_last_check';
@@ -12,21 +13,26 @@ export interface CookieStatus {
 class CookieManager {
   private cookie: string = '';
   private lastCheckTime: number = 0;
+  private initialized: boolean = false;
 
   constructor() {
     this.loadFromStorage();
   }
 
-  private loadFromStorage(): void {
+  private async loadFromStorage(): Promise<void> {
     try {
-      const storedCookie = localStorage.getItem(COOKIE_STORAGE_KEY);
-      const storedCheckTime = localStorage.getItem(COOKIE_CHECK_TIME_KEY);
-      
+      // Initialize IndexedDB first
+      await indexedDBStorage.initialize();
+      this.initialized = true;
+
+      const storedCookie = await indexedDBStorage.getSetting(COOKIE_STORAGE_KEY);
+      const storedCheckTime = await indexedDBStorage.getSetting(COOKIE_CHECK_TIME_KEY);
+
       if (storedCookie) {
         this.cookie = storedCookie;
         logger.debug('[CookieManager] Cookie loaded from storage');
       }
-      
+
       if (storedCheckTime) {
         this.lastCheckTime = parseInt(storedCheckTime, 10);
       }
@@ -35,19 +41,19 @@ class CookieManager {
     }
   }
 
-  private saveToStorage(): void {
+  private async saveToStorage(): Promise<void> {
     try {
-      localStorage.setItem(COOKIE_STORAGE_KEY, this.cookie);
-      localStorage.setItem(COOKIE_CHECK_TIME_KEY, this.lastCheckTime.toString());
+      await indexedDBStorage.setSetting(COOKIE_STORAGE_KEY, this.cookie);
+      await indexedDBStorage.setSetting(COOKIE_CHECK_TIME_KEY, this.lastCheckTime.toString());
     } catch (error) {
       logger.error('[CookieManager] Failed to save to storage:', error);
     }
   }
 
-  setCookie(cookie: string): void {
+  async setCookie(cookie: string): Promise<void> {
     this.cookie = cookie;
     this.lastCheckTime = Date.now();
-    this.saveToStorage();
+    await this.saveToStorage();
     logger.debug('[CookieManager] Cookie saved');
   }
 
@@ -58,7 +64,7 @@ class CookieManager {
   parseCookie(): Record<string, string> {
     const cookies: Record<string, string> = {};
     if (!this.cookie) return cookies;
-    
+
     const pairs = this.cookie.split('; ');
     for (const pair of pairs) {
       const [key, ...valueParts] = pair.split('=');
@@ -69,12 +75,12 @@ class CookieManager {
     return cookies;
   }
 
-  clearCookie(): void {
+  async clearCookie(): Promise<void> {
     this.cookie = '';
     this.lastCheckTime = 0;
     try {
-      localStorage.removeItem(COOKIE_STORAGE_KEY);
-      localStorage.removeItem(COOKIE_CHECK_TIME_KEY);
+      await indexedDBStorage.deleteSetting(COOKIE_STORAGE_KEY);
+      await indexedDBStorage.deleteSetting(COOKIE_CHECK_TIME_KEY);
     } catch (error) {
       logger.error('[CookieManager] Failed to clear storage:', error);
     }
@@ -86,30 +92,14 @@ class CookieManager {
     return timeSinceLastCheck >= COOKIE_CHECK_INTERVAL;
   }
 
-  updateCheckTime(): void {
+  async updateCheckTime(): Promise<void> {
     this.lastCheckTime = Date.now();
-    this.saveToStorage();
+    await this.saveToStorage();
   }
 
   async validateCookie(): Promise<CookieStatus> {
     if (!this.cookie) {
       return { valid: false, message: 'Cookie not set' };
-    }
-
-    // Check if running in Electron
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
-    
-    if (!isElectron) {
-      // Browser environment: Skip network validation due to CORS
-      // Just do basic format check
-      const hasRequiredFields = this.checkRequiredCookieFields();
-      if (!hasRequiredFields) {
-        return { valid: false, message: 'Cookie格式不正确，缺少必要字段（如 uin, qm_keyst 等）' };
-      }
-      
-      this.updateCheckTime();
-      logger.debug('[CookieManager] Browser mode: Cookie format check passed');
-      return { valid: true };
     }
 
     // Electron environment: Can make network requests
@@ -153,13 +143,13 @@ class CookieManager {
       }
 
       const data = await testResponse.json();
-      
+
       // Check if API returns error code indicating invalid cookie
       if (data.code === 500001) {
         return { valid: false, message: 'Cookie expired or invalid' };
       }
 
-      this.updateCheckTime();
+      await this.updateCheckTime();
       return { valid: true };
     } catch (error) {
       logger.error('[CookieManager] Cookie validation failed:', error);

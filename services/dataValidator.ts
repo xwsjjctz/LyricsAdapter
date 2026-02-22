@@ -4,6 +4,8 @@
  * Prevents injection attacks and data corruption
  */
 
+import { logger } from './logger';
+
 // ========== Type Definitions ==========
 
 export interface ValidatedMetadata {
@@ -99,13 +101,14 @@ function sanitizeSyncedLyrics(input: unknown): { time: number; text: string }[] 
       continue;
     }
 
+    const obj = item as Record<string, unknown>;
     const time = sanitizeNumber(
-      (item as any).time,
+      obj.time,
       0,
       MAX_DURATION,
       0
     );
-    const text = sanitizeString((item as any).text, MAX_STRING_LENGTH, true);
+    const text = sanitizeString(obj.text, MAX_STRING_LENGTH, true);
 
     if (text) {
       sanitized.push({ time, text });
@@ -123,7 +126,7 @@ function sanitizeSyncedLyrics(input: unknown): { time: number; text: string }[] 
  */
 export function validateMetadata(data: unknown): ValidatedMetadata | null {
   if (!data || typeof data !== 'object') {
-    console.warn('[DataValidator] Invalid metadata: not an object');
+    logger.warn('[DataValidator] Invalid metadata: not an object');
     return null;
   }
 
@@ -175,7 +178,7 @@ export function validateMetadataMap(data: Record<string, unknown>): Record<strin
   for (const [key, value] of Object.entries(data)) {
     // Validate songId
     if (typeof key !== 'string' || key.length === 0 || key.length > 1000) {
-      console.warn(`[DataValidator] Invalid songId: ${key}`);
+      logger.warn(`[DataValidator] Invalid songId: ${key}`);
       continue;
     }
 
@@ -183,7 +186,7 @@ export function validateMetadataMap(data: Record<string, unknown>): Record<strin
     if (validated) {
       result[key] = validated;
     } else {
-      console.warn(`[DataValidator] Skipping invalid metadata for song: ${key}`);
+      logger.warn(`[DataValidator] Skipping invalid metadata for song: ${key}`);
     }
   }
 
@@ -232,13 +235,13 @@ export function validateBlob(data: unknown, maxSize: number = 10 * 1024 * 1024):
 
   // Check size
   if (blob.size > maxSize) {
-    console.warn(`[DataValidator] Blob too large: ${blob.size} bytes`);
+    logger.warn(`[DataValidator] Blob too large: ${blob.size} bytes`);
     return null;
   }
 
   // Check size is non-negative
   if (blob.size < 0) {
-    console.warn('[DataValidator] Invalid blob size');
+    logger.warn('[DataValidator] Invalid blob size');
     return null;
   }
 
