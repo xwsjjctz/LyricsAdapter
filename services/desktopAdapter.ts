@@ -44,19 +44,8 @@ class ElectronAdapter implements DesktopAPI {
   private metadataCache: Record<string, ValidatedMetadata> = {};
 
   constructor(private api: DesktopAPI) {
-    // Try to load cache from localStorage (Electron-specific)
-    try {
-      const savedCache = localStorage.getItem('electron_metadata_cache');
-      if (savedCache) {
-        const parsed = JSON.parse(savedCache);
-        // Validate all loaded metadata
-        this.metadataCache = validateMetadataMap(parsed);
-        logger.debug('[ElectronAdapter] Loaded cache from localStorage:', Object.keys(this.metadataCache).length, 'entries');
-      }
-    } catch (e) {
-      logger.warn('[ElectronAdapter] Failed to load cache from localStorage:', e);
-      this.metadataCache = {};
-    }
+    // Initialize with empty cache, will be loaded from IndexedDB if needed
+    this.metadataCache = {};
   }
 
   async readFile(filePath: string): Promise<{ success: boolean; data: ArrayBuffer; error?: string }> {
@@ -141,18 +130,9 @@ class ElectronAdapter implements DesktopAPI {
   }
 
   async saveMetadataCache(cache: { entries: Record<string, unknown> }): Promise<{ success: boolean; error?: string }> {
-    // Update local cache
+    // Update local cache only (persistence is handled by metadataCacheService via IndexedDB)
     this.metadataCache = validateMetadataMap(cache.entries);
-
-    // Persist to localStorage
-    try {
-      localStorage.setItem('electron_metadata_cache', JSON.stringify(cache.entries));
-      logger.debug('[ElectronAdapter] Saved cache to localStorage:', Object.keys(cache.entries).length, 'entries');
-      return { success: true };
-    } catch (e) {
-      logger.error('[ElectronAdapter] Failed to save cache to localStorage:', e);
-      return { success: false, error: String(e) };
-    }
+    return { success: true };
   }
 
   async getMetadataForSong(songId: string): Promise<unknown> {

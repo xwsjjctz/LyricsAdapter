@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { indexedDBStorage } from './indexedDBStorage';
 
 const DOWNLOAD_PATH_KEY = 'download_path';
 
@@ -9,9 +10,12 @@ class SettingsManager {
     this.loadFromStorage();
   }
 
-  private loadFromStorage(): void {
+  private async loadFromStorage(): Promise<void> {
     try {
-      const storedPath = localStorage.getItem(DOWNLOAD_PATH_KEY);
+      // Initialize IndexedDB first
+      await indexedDBStorage.initialize();
+
+      const storedPath = await indexedDBStorage.getSetting(DOWNLOAD_PATH_KEY);
       if (storedPath) {
         this.downloadPath = storedPath;
         logger.debug('[SettingsManager] Download path loaded from storage:', storedPath);
@@ -21,17 +25,17 @@ class SettingsManager {
     }
   }
 
-  private saveToStorage(): void {
+  private async saveToStorage(): Promise<void> {
     try {
-      localStorage.setItem(DOWNLOAD_PATH_KEY, this.downloadPath);
+      await indexedDBStorage.setSetting(DOWNLOAD_PATH_KEY, this.downloadPath);
     } catch (error) {
       logger.error('[SettingsManager] Failed to save to storage:', error);
     }
   }
 
-  setDownloadPath(path: string): void {
+  async setDownloadPath(path: string): Promise<void> {
     this.downloadPath = path;
-    this.saveToStorage();
+    await this.saveToStorage();
     logger.debug('[SettingsManager] Download path saved:', path);
   }
 
@@ -45,7 +49,7 @@ class SettingsManager {
 
   // Get the default download path based on platform
   getDefaultDownloadPath(): string {
-    // In browser/Electron, we can't easily get the Downloads folder
+    // In Electron, we can't easily get the Downloads folder
     // So we'll return an empty string and let the user select
     return '';
   }

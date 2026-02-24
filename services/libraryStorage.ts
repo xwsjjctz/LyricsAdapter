@@ -4,8 +4,7 @@
  */
 
 import { Track } from '../types';
-import { getDesktopAPIAsync, isDesktop } from './desktopAdapter';
-import { indexedDBStorage } from './indexedDBStorage';
+import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
 
 export interface LibraryData {
@@ -66,52 +65,23 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        logger.debug('[LibraryStorage] ⚠️ Not running in Desktop mode, skipping library load');
+        logger.warn('[LibraryStorage] Desktop API not available');
         return { songs: [], settings: {} };
       }
 
-      logger.debug('[LibraryStorage] 📂 Loading library from disk...');
+      logger.debug('[LibraryStorage] Loading library from disk...');
       const result = api.loadLibraryIndex ? await api.loadLibraryIndex() : await api.loadLibrary();
 
       if (result.success) {
-        logger.debug('[LibraryStorage] ✅ Library loaded successfully!');
-        logger.debug(`[LibraryStorage]    - ${result.library.songs?.length || 0} songs found`);
-        logger.debug('[LibraryStorage]    - Settings:', result.library.settings);
-
-        // Check if any songs are missing lyrics, try to supplement from IndexedDB
-        const songsNeedLyrics = result.library.songs?.some(s => !s.lyrics || !s.syncedLyrics);
-        if (songsNeedLyrics && isDesktop()) {
-          logger.debug('[LibraryStorage] Some songs missing lyrics, checking IndexedDB...');
-          try {
-            const idbLibrary = await indexedDBStorage.loadLibrary();
-            if (idbLibrary && idbLibrary.songs && idbLibrary.songs.length > 0) {
-              // Merge lyrics from IndexedDB
-              const idbMap = new Map(idbLibrary.songs.map(s => [s.id, s]));
-              result.library.songs = result.library.songs.map(song => {
-                const idbSong = idbMap.get(song.id);
-                if (idbSong && (song.lyrics !== idbSong.lyrics || song.syncedLyrics !== idbSong.syncedLyrics)) {
-                  logger.debug(`[LibraryStorage] ✅ Supplementing lyrics for: ${song.title}`);
-                  return {
-                    ...song,
-                    lyrics: song.lyrics || idbSong.lyrics || '',
-                    syncedLyrics: song.syncedLyrics || idbSong.syncedLyrics
-                  };
-                }
-                return song;
-              });
-            }
-          } catch (err) {
-            logger.warn('[LibraryStorage] Failed to check IndexedDB for lyrics:', err);
-          }
-        }
-
-        return result.library;
+        const library = result.library as LibraryIndexData;
+        logger.debug('[LibraryStorage] Library loaded successfully, songs:', library.songs?.length || 0);
+        return library;
       } else {
-        logger.error('[LibraryStorage] ❌ Failed to load library:', result.error);
+        logger.error('[LibraryStorage] Failed to load library:', result.error);
         return { songs: [], settings: {} };
       }
     } catch (error) {
-      logger.error('[LibraryStorage] ❌ Error loading library:', error);
+      logger.error('[LibraryStorage] Error loading library:', error);
       return { songs: [], settings: {} };
     }
   }
@@ -123,23 +93,22 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        logger.debug('⚠️ Not running in Desktop mode, skipping library save');
+        logger.warn('[LibraryStorage] Desktop API not available');
         return false;
       }
 
-      logger.debug('💾 Saving library to disk...');
-      logger.debug(`   - ${library.songs.length} songs`);
+      logger.debug('[LibraryStorage] Saving library to disk, songs:', library.songs.length);
       const result = api.saveLibraryIndex ? await api.saveLibraryIndex(library) : await api.saveLibrary(library);
 
       if (result.success) {
-        logger.debug('✅ Library saved successfully!');
+        logger.debug('[LibraryStorage] Library saved successfully');
         return true;
       } else {
-        logger.error('❌ Failed to save library:', result.error);
+        logger.error('[LibraryStorage] Failed to save library:', result.error);
         return false;
       }
     } catch (error) {
-      logger.error('❌ Error saving library:', error);
+      logger.error('[LibraryStorage] Error saving library:', error);
       return false;
     }
   }
@@ -165,12 +134,12 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        return true; // Web 环境默认返回 true
+        return false;
       }
 
       return await api.validateFilePath(filePath);
     } catch (error) {
-      logger.error('Error validating file path:', error);
+      logger.error('[LibraryStorage] Error validating file path:', error);
       return false;
     }
   }
@@ -182,21 +151,20 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        // Web 环境默认返回全部有效
-        return songs.map(song => ({ id: song.id, exists: true }));
+        return songs.map(song => ({ id: song.id, exists: false }));
       }
 
       const result = await api.validateAllPaths(songs);
 
       if (result.success) {
-        return result.results;
+        return result.results as ValidationResult[];
       } else {
-        logger.error('Failed to validate paths:', result.error);
-        return songs.map(song => ({ id: song.id, exists: true }));
+        logger.error('[LibraryStorage] Failed to validate paths:', result.error);
+        return songs.map(song => ({ id: song.id, exists: false }));
       }
     } catch (error) {
-      logger.error('Error validating paths:', error);
-      return songs.map(song => ({ id: song.id, exists: true }));
+      logger.error('[LibraryStorage] Error validating paths:', error);
+      return songs.map(song => ({ id: song.id, exists: false }));
     }
   }
 
@@ -212,7 +180,7 @@ class LibraryStorageService {
 
       return await api.getAppDataPath();
     } catch (error) {
-      logger.error('Error getting app data path:', error);
+      logger.error('[LibraryStorage] Error getting app data path:', error);
       return null;
     }
   }

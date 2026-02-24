@@ -55,7 +55,7 @@ class MetadataCacheService {
 
         // Convert object to Map and migrate to IndexedDB
         const entries = result.entries || {};
-        this.cache = new Map(Object.entries(entries));
+        this.cache = new Map(Object.entries(entries) as [string, CachedMetadata][]);
 
         // Save to IndexedDB for next time
         for (const [songId, metadata] of Object.entries(entries)) {

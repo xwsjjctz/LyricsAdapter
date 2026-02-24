@@ -5,7 +5,7 @@ import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { getDesktopAPI } from '../services/desktopAdapter';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import SettingsDialog from './SettingsDialog';
 import { Track } from '../types';
 
@@ -312,15 +312,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     // Close dropdown
     setOpenDropdownId(null);
 
-    // Get desktop API
-    const desktopAPI = getDesktopAPI();
-    const isElectron = desktopAPI !== null;
+    // Get desktop API (always available in Electron-only build)
+    const desktopAPI = await getDesktopAPIAsync();
 
     // Get download path from settings
     const downloadPath = settingsManager.getDownloadPath();
 
     // Check if download path is set
-    if (isElectron && !downloadPath) {
+    if (!downloadPath) {
       setError('请先在设置中选择下载目录');
       setShowSettingsDialog(true);
       return;
@@ -347,21 +346,22 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       let savedFilePath: string | undefined;
       let lyrics: string | undefined;
 
-      if (isElectron && desktopAPI?.downloadAndSave && downloadPath) {
-        // Use new download-and-save method (non-blocking)
-        // Ensure downloadPath ends with path separator
-        const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
-        const fullPath = downloadPath + separator + fileName;
-        logger.debug('[BrowseView] Downloading directly to:', fullPath);
+      // Use Electron to download - ensure downloadPath ends with path separator
+      const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
+      const fullPath = downloadPath + separator + fileName;
+      logger.debug('[BrowseView] Downloading directly to:', fullPath);
 
-        const rawCookie = cookieManager.getCookie();
-        const result = await desktopAPI!.downloadAndSave!(url, rawCookie, fullPath);
+      const rawCookie = cookieManager.getCookie();
+
+      // Download and save via Electron main process
+      try {
+        const result = await window.electron!.downloadAudioFile(url, rawCookie);
 
         if (!result.success) {
           throw new Error(`下载失败: ${result.error}`);
         }
 
-        savedFilePath = result.filePath;
+        savedFilePath = fullPath;
         logger.debug('[BrowseView] File downloaded successfully to:', savedFilePath);
 
         // Update progress to 100%
@@ -369,74 +369,18 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           ...prev,
           [song.songmid]: { progress: 100, status: 'downloading' }
         }));
+      } catch (error) {
+        logger.error('[BrowseView] Download failed:', error);
+        throw error;
+      }
 
-        // Fetch lyrics via Electron main process (avoids CORS)
-        try {
-          logger.debug('[BrowseView] Fetching lyrics for:', song.songmid);
-          const lyricsResult = await desktopAPI!.getQQMusicLyrics!(song.songmid, rawCookie);
-          if (lyricsResult && lyricsResult.success && lyricsResult.lyrics) {
-            lyrics = lyricsResult.lyrics;
-            logger.debug('[BrowseView] Lyrics fetched, length:', lyrics.length);
-          } else {
-            logger.warn('[BrowseView] Failed to fetch lyrics:', lyricsResult?.error);
-          }
-        } catch (e) {
-          logger.warn('[BrowseView] Failed to fetch lyrics:', e);
-        }
-
-        // Write metadata to the saved file
-        if (savedFilePath && desktopAPI?.writeAudioMetadata) {
-          logger.debug('[BrowseView] Writing metadata...');
-          
-          // Get album name from song data
-          const albumName = song.albumname || '';
-          
-          // Build cover URL from albummid
-          const coverUrl = song.albummid 
-            ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
-            : undefined;
-
-          const metadataResult = await desktopAPI!.writeAudioMetadata!(
-            savedFilePath,
-            {
-              title: song.songname,
-              artist: singer,
-              album: albumName,
-              coverUrl: coverUrl,
-              lyrics: lyrics,
-            }
-          );
-          
-          if (metadataResult.success) {
-            logger.debug('[BrowseView] Metadata written successfully');
-          } else {
-            logger.error('[BrowseView] Metadata write failed:', metadataResult.error);
-          }
-        }
-
-        // Create track and add to library
-        if (savedFilePath && onDownloadComplete) {
-          logger.debug('[BrowseView] Creating track from downloaded file...');
-          const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
-          if (track) {
-            onDownloadComplete(track);
-            logger.debug('[BrowseView] Track added to library:', track.title);
-          }
-        }
-      } else {
-        // Browser fallback - download via blob
-        try {
-          const blob = await qqMusicApi.downloadAudio(song.songmid, song.songname, singer, quality);
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        } catch (e) {
-          logger.error('[BrowseView] Browser download failed:', e);
+      // Create track and add to library
+      if (savedFilePath && onDownloadComplete) {
+        logger.debug('[BrowseView] Creating track from downloaded file...');
+        const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
+        if (track) {
+          onDownloadComplete(track);
+          logger.debug('[BrowseView] Track added to library:', track.title);
         }
       }
 

@@ -24,7 +24,7 @@ export function usePlayback({
 }: UsePlaybackOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(UI.DEFAULT_VOLUME);
+  const [volume, setVolume] = useState<number>(UI.DEFAULT_VOLUME);
   const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);

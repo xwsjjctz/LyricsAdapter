@@ -1,6 +1,5 @@
 import { logger } from './logger';
 import { cookieManager } from './cookieManager';
-import { isDesktop } from './desktopAdapter';
 
 export interface QQMusicSong {
   songmid: string;
@@ -52,20 +51,10 @@ class QQMusicAPI {
     'Referer': 'https://y.qq.com/',
   };
 
-  private isElectron(): boolean {
-    return isDesktop();
-  }
-
   private handleFetchError(error: Error | unknown, context: string): never {
     logger.error(`[QQMusicAPI] ${context} failed:`, error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      if (!this.isElectron()) {
-        throw new Error('浏览器CORS限制：无法直接访问QQ音乐API，请使用Electron版本');
-      }
-    }
 
     if (errorMessage.includes('Cookie')) {
       throw error;
@@ -288,49 +277,20 @@ class QQMusicAPI {
       logger.debug('[QQMusicAPI] Getting music URL for:', songmid, 'quality:', quality);
       logger.debug('[QQMusicAPI] Request file:', file);
 
-      // Check if we're in Electron environment with IPC support
-      const isElectron = this.isElectron();
-      let result: unknown;
+      // Use Electron main process to get URL (ensures cookies are properly sent)
+      logger.debug('[QQMusicAPI] Using Electron main process for getMusicUrl');
 
-      if (isElectron && window.electron?.getQQMusicUrl) {
-        // Use Electron main process to get URL (ensures cookies are properly sent)
-        logger.debug('[QQMusicAPI] Using Electron main process for getMusicUrl');
+      const rawCookie = cookieManager.getCookie();
+      logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
 
-        const rawCookie = cookieManager.getCookie();
-        logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
+      const ipcResult = await window.electron!.getQQMusicUrl(reqData, rawCookie) as { success: boolean; error?: string; data?: unknown };
 
-        const ipcResult = await window.electron.getQQMusicUrl(reqData, rawCookie) as { success: boolean; error?: string; data?: unknown };
-
-        if (!ipcResult.success) {
-          throw new Error(ipcResult.error || 'Failed to get music URL');
-        }
-
-        result = ipcResult.data;
-        logger.debug('[QQMusicAPI] Got response from main process, code:', (result as { code?: number })?.code);
-      } else {
-        // Fallback to fetch in browser environment
-        logger.debug('[QQMusicAPI] Using fetch for getMusicUrl (browser mode)');
-
-        const headers = {
-          ...this.getCookieHeaders(),
-          'Content-Type': 'application/json',
-        };
-        logger.debug('[QQMusicAPI] Headers:', headers);
-        logger.debug('[QQMusicAPI] Request body:', JSON.stringify(reqData));
-
-        const response = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify(reqData),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error: ${response.status}`);
-        }
-
-        result = await response.json();
+      if (!ipcResult.success) {
+        throw new Error(ipcResult.error || 'Failed to get music URL');
       }
 
+      const result = ipcResult.data;
+      logger.debug('[QQMusicAPI] Got response from main process, code:', (result as { code?: number })?.code);
       logger.debug('[QQMusicAPI] Music URL response:', result);
 
       const purl = (result as { req_1?: { data?: { midurlinfo?: [{ purl?: string; code?: number | string; }]; sip?: string[]; }; }; }).req_1?.data?.midurlinfo?.[0]?.purl;
@@ -518,105 +478,49 @@ class QQMusicAPI {
     const { url, bitrate } = await this.getMusicUrl(songmid, quality);
     logger.debug('[QQMusicAPI] Got download URL:', url, 'bitrate:', bitrate);
 
-    // Check if we're in Electron environment
-    const isElectron = this.isElectron();
-
-    if (isElectron && window.electron?.downloadAudioFile) {
-      // Use Electron main process to download (ensures cookies are properly sent)
-      logger.debug('[QQMusicAPI] Using Electron main process for download');
-
-      try {
-        const rawCookie = cookieManager.getCookie();
-        logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
-
-        // Set up progress listener if available
-        let progressListener: ((data: { loaded: number; total: number }) => void) | null = null;
-        if (onProgress && window.electron?.onDownloadProgress) {
-          progressListener = (data: { loaded: number; total: number }) => {
-            onProgress(data.loaded, data.total);
-          };
-          window.electron.onDownloadProgress(progressListener);
-        }
-
-        let result;
-        try {
-          result = await window.electron.downloadAudioFile(url, rawCookie);
-        } finally {
-          // Clean up progress listener
-          if (progressListener && window.electron?.offDownloadProgress) {
-            window.electron.offDownloadProgress(progressListener);
-          }
-        }
-
-        if (!result.success) {
-          throw new Error(result.error || 'Download failed');
-        }
-
-        // Convert array back to Uint8Array
-        const data = new Uint8Array(result.data);
-        logger.debug('[QQMusicAPI] Download completed via Electron, size:', data.byteLength);
-
-        // Final progress update
-        if (onProgress) {
-          onProgress(data.byteLength, data.byteLength);
-        }
-
-        return new Blob([data]);
-      } catch (error: unknown) {
-        logger.error('[QQMusicAPI] Electron download failed:', error);
-        throw error;
-      }
-    }
-
-    // Fallback to fetch in browser environment
-    logger.debug('[QQMusicAPI] Using fetch for download (browser mode)');
+    // Use Electron main process to download (ensures cookies are properly sent)
+    logger.debug('[QQMusicAPI] Using Electron main process for download');
 
     try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': this.baseHeaders['User-Agent'],
-          'Referer': 'https://y.qq.com/',
-        },
-      });
-      logger.debug('[QQMusicAPI] Download response status:', response.status);
+      const rawCookie = cookieManager.getCookie();
+      logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
 
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`);
+      // Set up progress listener if available
+      let progressListener: ((data: { loaded: number; total: number }) => void) | null = null;
+      if (onProgress && window.electron?.onDownloadProgress) {
+        progressListener = (data: { loaded: number; total: number }) => {
+          onProgress(data.loaded, data.total);
+        };
+        window.electron.onDownloadProgress(progressListener);
       }
 
-      const total = parseInt(response.headers.get('content-length') || '0');
-      const reader = response.body?.getReader();
-      
-      if (!reader) {
-        throw new Error('ReadableStream not supported');
-      }
-
-      const chunks: Uint8Array[] = [];
-      let downloaded = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        chunks.push(value);
-        downloaded += value.length;
-        
-        if (onProgress && total > 0) {
-          onProgress(downloaded, total);
+      let result;
+      try {
+        result = await window.electron!.downloadAudioFile(url, rawCookie);
+      } finally {
+        // Clean up progress listener
+        if (progressListener && window.electron?.offDownloadProgress) {
+          window.electron.offDownloadProgress(progressListener);
         }
       }
 
-      // Combine chunks
-      const allChunks = new Uint8Array(downloaded);
-      let position = 0;
-      for (const chunk of chunks) {
-        allChunks.set(chunk, position);
-        position += chunk.length;
+      if (!result.success) {
+        throw new Error(result.error || 'Download failed');
       }
 
-      return new Blob([allChunks]);
+      // Convert array back to Uint8Array
+      const data = new Uint8Array(result.data);
+      logger.debug('[QQMusicAPI] Download completed via Electron, size:', data.byteLength);
+
+      // Final progress update
+      if (onProgress) {
+        onProgress(data.byteLength, data.byteLength);
+      }
+
+      return new Blob([data]);
     } catch (error: unknown) {
-      this.handleFetchError(error, '下载音频');
+      logger.error('[QQMusicAPI] Electron download failed:', error);
+      throw error;
     }
   }
 

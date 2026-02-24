@@ -16,7 +16,7 @@ import {
 import { logger } from './logger';
 import { STORAGE } from '../constants/config';
 import { Track } from '../types';
-import type { LibraryData, LibrarySettings } from './libraryStorage';
+import type { LibraryData, LibraryIndexData, LibrarySettings } from './libraryStorage';
 
 interface LyricsAdapterDB extends DBSchema {
   metadata: {
@@ -40,7 +40,11 @@ interface LyricsAdapterDB extends DBSchema {
   };
   library: {
     key: string;
-    value: LibraryData;
+    value: LibraryData | LibraryIndexData;
+  };
+  settings: {
+    key: string;
+    value: string;
   };
 }
 
@@ -74,6 +78,12 @@ class IndexedDBStorageService {
           if (!db.objectStoreNames.contains('library')) {
             const libraryStore = db.createObjectStore('library', { keyPath: 'key' });
             logger.debug('[IndexedDB] Created library store');
+          }
+
+          // Create settings store for app settings
+          if (!db.objectStoreNames.contains('settings')) {
+            const settingsStore = db.createObjectStore('settings');
+            logger.debug('[IndexedDB] Created settings store');
           }
         },
       });
@@ -359,7 +369,7 @@ class IndexedDBStorageService {
   /**
    * Load library from IndexedDB (for browser mode)
    */
-  async loadLibrary(): Promise<LibraryData | null> {
+  async loadLibrary(): Promise<LibraryData | LibraryIndexData | null> {
     await this.ensureInitialized();
     if (!this.db) return null;
 
@@ -367,7 +377,7 @@ class IndexedDBStorageService {
       const result = await this.db.get('library', 'main');
       if (result) {
         logger.debug('[IndexedDB] ✓ Loaded library from IndexedDB');
-        return result;
+        return result as LibraryData | LibraryIndexData;
       }
       return null;
     } catch (error) {
@@ -379,12 +389,13 @@ class IndexedDBStorageService {
   /**
    * Save library to IndexedDB (for browser mode)
    */
-  async saveLibrary(library: LibraryData): Promise<void> {
+  async saveLibrary(library: LibraryData | LibraryIndexData): Promise<void> {
     await this.ensureInitialized();
     if (!this.db) return;
 
     try {
-      const libraryEntry: LibraryData & { key: string } = { ...library, key: 'main' };
+      // Store with key for retrieval - use unknown to avoid type conflicts
+      const libraryEntry = { ...library, key: 'main' } as unknown as LibraryData | LibraryIndexData;
       await this.db.put('library', libraryEntry);
       logger.debug('[IndexedDB] ✓ Saved library to IndexedDB');
     } catch (error) {
@@ -425,6 +436,54 @@ class IndexedDBStorageService {
       logger.debug('[IndexedDB] ✓ Cleared all data');
     } catch (error) {
       logger.error('[IndexedDB] Failed to clear all data:', error);
+    }
+  }
+
+  // ========== Settings Operations ==========
+
+  /**
+   * Get a setting value by key
+   */
+  async getSetting(key: string): Promise<string | null> {
+    await this.ensureInitialized();
+    if (!this.db) return null;
+
+    try {
+      const result = await this.db.get('settings', key);
+      return result ?? null;
+    } catch (error) {
+      logger.error(`[IndexedDB] Failed to get setting ${key}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Set a setting value
+   */
+  async setSetting(key: string, value: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      await this.db.put('settings', value, key);
+      logger.debug(`[IndexedDB] ✓ Saved setting: ${key}`);
+    } catch (error) {
+      logger.error(`[IndexedDB] Failed to save setting ${key}:`, error);
+    }
+  }
+
+  /**
+   * Delete a setting
+   */
+  async deleteSetting(key: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      await this.db.delete('settings', key);
+      logger.debug(`[IndexedDB] ✓ Deleted setting: ${key}`);
+    } catch (error) {
+      logger.error(`[IndexedDB] Failed to delete setting ${key}:`, error);
     }
   }
 

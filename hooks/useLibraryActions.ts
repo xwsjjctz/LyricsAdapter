@@ -219,9 +219,19 @@ export function useLibraryActions({
             // Parse metadata directly from the selected file path
             const parseResult = await desktopAPI.parseAudioMetadata(filePath);
             if (parseResult.success && parseResult.metadata) {
-              const metadata = parseResult.metadata;
+              const metadata = parseResult.metadata as {
+                title?: string;
+                artist?: string;
+                album?: string;
+                duration?: number;
+                lyrics?: string;
+                syncedLyrics?: { time: number; text: string }[];
+                coverData?: string;
+                coverMime?: string;
+                fileSize?: number;
+              };
 
-              let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+              let coverUrl = '';
               let coverSavedToDisk = false;
               if (metadata.coverData && metadata.coverMime) {
                 if (desktopAPI.saveCoverThumbnail) {

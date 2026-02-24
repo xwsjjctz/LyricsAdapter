@@ -24,12 +24,9 @@ interface WorkerResponse {
   error?: string;
 }
 
-// Type for DedicatedWorkerGlobalScope
-interface DedicatedWorkerGlobalScope extends WorkerGlobalScope {
-  importScripts: (scripts: string[]) => void;
-}
-
-const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
+// Worker context type - using any to avoid TypeScript conflicts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ctx: any = self;
 
 function getStringFromView(view: DataView, offset: number, length: number): string {
   let str = '';

@@ -11,17 +11,19 @@ interface WindowControls {
 
 export const useWindowControls = (): WindowControls => {
   const [isMaximized, setIsMaximized] = useState(false);
-  const [canControl, setCanControl] = useState(false);
+  const canControl = true; // Always true in Electron-only build
 
   useEffect(() => {
-    // 检测是否在桌面环境
-    const isElectron = typeof window !== 'undefined' && !!(window as Window & { electron?: DesktopAPI }).electron;
-
-    setCanControl(isElectron);
-
-    // 如果是 Electron，获取窗口状态
-    if (isElectron && (window as Window & { electron?: DesktopAPI }).electron?.isMaximized) {
-      (window as Window & { electron?: DesktopAPI }).electron!.isMaximized!().then(setIsMaximized).catch(() => {});
+    // Get window state in Electron
+    const electron = (window as Window & { electron?: DesktopAPI }).electron;
+    if (electron?.isMaximized) {
+      const result = electron.isMaximized();
+      // Handle both sync and async results
+      if (typeof result === 'boolean') {
+        setIsMaximized(result);
+      } else {
+        (result as Promise<boolean>).then(setIsMaximized).catch(() => {});
+      }
     }
   }, []);
 
