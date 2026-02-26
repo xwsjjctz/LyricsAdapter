@@ -914,66 +914,219 @@ app.whenReady().then(() => {
     }
   }
 
-  // Get metaflac binary path for current platform
-  function getMetaflacPath(): string {
+  function isCommandAvailable(command: string, versionArg: string): boolean {
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync(command, [versionArg], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  function getBundledBinaryPath(tool: 'metaflac' | 'ffmpeg'): string {
     const platform = process.platform;
     const arch = process.arch;
-
-    // In development, try to use system metaflac first
-    if (!app.isPackaged) {
-      // Check if metaflac is available in system PATH
-      try {
-        const { execSync } = require('child_process');
-        execSync('which metaflac', { encoding: 'utf-8', stdio: 'pipe' });
-        logger.info('[Main] Using system metaflac in development');
-        return 'metaflac';
-      } catch (e) {
-        logger.warn('[Main] System metaflac not found, will try bundled binary');
-        // In development, use project binaries directory
-        let binaryPath: string;
-        if (platform === 'darwin') {
-          // macOS
-          if (arch === 'arm64') {
-            binaryPath = path.join(__dirname, '../binaries/darwin-arm64/metaflac');
-          } else {
-            binaryPath = path.join(__dirname, '../binaries/darwin-x64/metaflac');
-          }
-        } else if (platform === 'win32') {
-          // Windows
-          binaryPath = path.join(__dirname, '../binaries/win32-x64/metaflac.exe');
-        } else if (platform === 'linux') {
-          // Linux
-          binaryPath = path.join(__dirname, '../binaries/linux-x64/metaflac');
-        } else {
-          throw new Error(`Unsupported platform: ${platform}-${arch}`);
-        }
-        logger.info('[Main] Using bundled metaflac in development:', binaryPath);
-        return binaryPath;
-      }
-    }
-
-    // In production, use bundled binary from app resources
-    let binaryPath: string;
+    const fileName = platform === 'win32' ? `${tool}.exe` : tool;
 
     if (platform === 'darwin') {
-      // macOS
       if (arch === 'arm64') {
-        binaryPath = path.join(process.resourcesPath, 'binaries', 'darwin-arm64', 'metaflac');
-      } else {
-        binaryPath = path.join(process.resourcesPath, 'binaries', 'darwin-x64', 'metaflac');
+        return app.isPackaged
+          ? path.join(process.resourcesPath, 'binaries', 'darwin-arm64', fileName)
+          : path.join(__dirname, '../binaries/darwin-arm64', fileName);
       }
-    } else if (platform === 'win32') {
-      // Windows
-      binaryPath = path.join(process.resourcesPath, 'binaries', 'win32-x64', 'metaflac.exe');
-    } else if (platform === 'linux') {
-      // Linux
-      binaryPath = path.join(process.resourcesPath, 'binaries', 'linux-x64', 'metaflac');
-    } else {
-      throw new Error(`Unsupported platform: ${platform}-${arch}`);
+      return app.isPackaged
+        ? path.join(process.resourcesPath, 'binaries', 'darwin-x64', fileName)
+        : path.join(__dirname, '../binaries/darwin-x64', fileName);
     }
 
-    logger.info('[Main] Using bundled metaflac:', binaryPath);
-    return binaryPath;
+    if (platform === 'win32') {
+      return app.isPackaged
+        ? path.join(process.resourcesPath, 'binaries', 'win32-x64', fileName)
+        : path.join(__dirname, '../binaries/win32-x64', fileName);
+    }
+
+    if (platform === 'linux') {
+      return app.isPackaged
+        ? path.join(process.resourcesPath, 'binaries', 'linux-x64', fileName)
+        : path.join(__dirname, '../binaries/linux-x64', fileName);
+    }
+
+    throw new Error(`Unsupported platform: ${platform}-${arch}`);
+  }
+
+  // Get metaflac binary path for current platform
+  function getMetaflacPath(): string {
+    const bundledPath = getBundledBinaryPath('metaflac');
+
+    if (fs.existsSync(bundledPath)) {
+      logger.info('[Main] Using bundled metaflac:', bundledPath);
+      return bundledPath;
+    }
+
+    if (isCommandAvailable('metaflac', '--version')) {
+      logger.info('[Main] Using system metaflac from PATH');
+      return 'metaflac';
+    }
+
+    throw new Error('metaflac binary not found (bundled or system PATH)');
+  }
+
+  // Get ffmpeg binary path for current platform
+  function getFfmpegPath(): string {
+    const bundledPath = getBundledBinaryPath('ffmpeg');
+
+    if (fs.existsSync(bundledPath)) {
+      logger.info('[Main] Using bundled ffmpeg:', bundledPath);
+      return bundledPath;
+    }
+
+    if (isCommandAvailable('ffmpeg', '-version')) {
+      logger.info('[Main] Using system ffmpeg from PATH');
+      return 'ffmpeg';
+    }
+
+    throw new Error('ffmpeg binary not found (bundled or system PATH)');
+  }
+
+  function escapeFfmetadataValue(value: string): string {
+    return value
+      .replace(/\\/g, '\\\\')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '')
+      .replace(/=/g, '\\=')
+      .replace(/;/g, '\\;')
+      .replace(/#/g, '\\#');
+  }
+
+  function buildFfmetadataContent(metadata: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    lyrics?: string;
+  }): string {
+    const lines = [';FFMETADATA1'];
+    if (metadata.title) lines.push(`TITLE=${escapeFfmetadataValue(metadata.title)}`);
+    if (metadata.artist) lines.push(`ARTIST=${escapeFfmetadataValue(metadata.artist)}`);
+    if (metadata.album) lines.push(`ALBUM=${escapeFfmetadataValue(metadata.album)}`);
+    if (metadata.lyrics) lines.push(`LYRICS=${escapeFfmetadataValue(metadata.lyrics)}`);
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  async function runCommand(command: string, args: string[]): Promise<void> {
+    const { spawn } = await import('child_process');
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, args, {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+      child.stderr.on('data', chunk => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', reject);
+      child.on('close', code => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        const trimmed = stderr.trim();
+        reject(new Error(trimmed || `${command} exited with code ${code}`));
+      });
+    });
+  }
+
+  async function writeFlacMetadataWithFfmpeg(
+    filePath: string,
+    metadata: { title?: string; artist?: string; album?: string; lyrics?: string },
+    coverBuffer?: Buffer
+  ): Promise<boolean> {
+    const ffmpegBinary = getFfmpegPath();
+    const backupPath = `${filePath}.ffmpeg.backup`;
+    const metadataPath = `${filePath}.ffmetadata.txt`;
+    const coverPath = `${filePath}.cover.ffmpeg.jpg`;
+    const outputPath = `${filePath}.ffmpeg.tmp.flac`;
+
+    try {
+      logger.info('[FFMPEG] Starting FLAC remux metadata write for:', filePath);
+      fs.copyFileSync(filePath, backupPath);
+      fs.writeFileSync(metadataPath, buildFfmetadataContent(metadata), 'utf-8');
+      if (coverBuffer && coverBuffer.length > 0) {
+        fs.writeFileSync(coverPath, coverBuffer);
+      }
+
+      const hasCover = !!(coverBuffer && coverBuffer.length > 0);
+      const metadataInputIndex = hasCover ? '2' : '1';
+      const args = [
+        '-y',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-i',
+        filePath,
+      ];
+
+      if (hasCover) {
+        args.push('-i', coverPath);
+      }
+
+      args.push(
+        '-f',
+        'ffmetadata',
+        '-i',
+        metadataPath,
+        '-map',
+        '0:a:0'
+      );
+
+      if (hasCover) {
+        args.push('-map', '1:v:0');
+      }
+
+      args.push(
+        '-map_metadata',
+        '-1',
+        '-map_metadata',
+        metadataInputIndex,
+        '-c:a',
+        'copy'
+      );
+
+      if (hasCover) {
+        args.push('-c:v', 'copy', '-disposition:v:0', 'attached_pic');
+      }
+
+      args.push(outputPath);
+
+      await runCommand(ffmpegBinary, args);
+
+      const outputStats = fs.statSync(outputPath);
+      if (!outputStats.size) {
+        throw new Error('ffmpeg produced empty output file');
+      }
+
+      fs.copyFileSync(outputPath, filePath);
+      fs.unlinkSync(backupPath);
+      logger.info('[FFMPEG] ✓ FLAC metadata remux completed');
+      return true;
+    } catch (error) {
+      logger.error('[FFMPEG] FLAC metadata remux failed:', error);
+      if (fs.existsSync(backupPath)) {
+        fs.copyFileSync(backupPath, filePath);
+      }
+      throw error;
+    } finally {
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+      if (fs.existsSync(metadataPath)) fs.unlinkSync(metadataPath);
+      if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath);
+      if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
+    }
   }
 
   // Write FLAC metadata using metaflac command line tool
@@ -1229,9 +1382,19 @@ app.whenReady().then(() => {
         logger.info('[Main] MP3 metadata write result:', success);
 
       } else if (actualFormat === 'flac') {
-        // Using metaflac command line tool instead of manual implementation
-        logger.info('[Main] FLAC metadata write using metaflac');
-        success = await writeFlacMetadataWithMetaflac(expandedPath, metadata);
+        // Prefer ffmpeg remux for cross-platform consistency, fallback to metaflac
+        logger.info('[Main] FLAC metadata write using ffmpeg remux');
+        try {
+          success = await writeFlacMetadataWithFfmpeg(expandedPath, {
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
+            lyrics: metadata.lyrics,
+          }, coverBuffer);
+        } catch (ffmpegError) {
+          logger.warn('[Main] FFmpeg FLAC metadata write failed, fallback to metaflac:', ffmpegError);
+          success = await writeFlacMetadataWithMetaflac(expandedPath, metadata);
+        }
         logger.info('[Main] FLAC metadata write result:', success);
 
       } else {
