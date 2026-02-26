@@ -821,7 +821,7 @@ app.whenReady().then(() => {
       
       return { 
         success: true, 
-        data: Array.from(allChunks)
+        data: allChunks.buffer
       };
     } catch (error) {
       logger.error('[Main] Download failed:', error);
@@ -1087,7 +1087,12 @@ app.whenReady().then(() => {
       if (metadata.coverUrl) {
         try {
           log(`[METAFLAC] Downloading cover from: ${metadata.coverUrl}`);
-          const response = await fetch(metadata.coverUrl);
+          const response = await fetch(metadata.coverUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Referer': 'https://y.qq.com/',
+            },
+          });
           if (response.ok) {
             const arrayBuffer = await response.arrayBuffer();
             const coverBuffer = Buffer.from(arrayBuffer);
@@ -1184,7 +1189,12 @@ app.whenReady().then(() => {
       if (metadata.coverUrl) {
         try {
           logger.info('[Main] Downloading cover from:', metadata.coverUrl);
-          const response = await fetch(metadata.coverUrl);
+          const response = await fetch(metadata.coverUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Referer': 'https://y.qq.com/',
+            },
+          });
           if (response.ok) {
             const arrayBuffer = await response.arrayBuffer();
             coverBuffer = Buffer.from(arrayBuffer);

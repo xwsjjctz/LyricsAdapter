@@ -1,17 +1,28 @@
 // Secure preload script using contextBridge
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const downloadProgressListenerMap = new Map();
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electron', {
   // Listen for download progress updates
   onDownloadProgress: (callback: (data: { downloaded: number; total: number; progress: number }) => void) => {
-    ipcRenderer.on('download-progress', (event, data) => callback(data));
+    const existing = downloadProgressListenerMap.get(callback);
+    if (existing) {
+      ipcRenderer.removeListener('download-progress', existing);
+    }
+    const wrapped = (_event: unknown, data: { downloaded: number; total: number; progress: number }) => callback(data);
+    downloadProgressListenerMap.set(callback, wrapped);
+    ipcRenderer.on('download-progress', wrapped);
   },
   
   // Remove download progress listener
   offDownloadProgress: (callback: (data: { downloaded: number; total: number; progress: number }) => void) => {
-    ipcRenderer.removeListener('download-progress', callback);
+    const wrapped = downloadProgressListenerMap.get(callback);
+    if (wrapped) {
+      ipcRenderer.removeListener('download-progress', wrapped);
+      downloadProgressListenerMap.delete(callback);
+    }
   },
   platform: process.platform,
 

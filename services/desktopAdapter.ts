@@ -207,6 +207,13 @@ class ElectronAdapter implements DesktopAPI {
     }
   }
 
+  async selectDownloadFolder(): Promise<{ success: boolean; path?: string; error?: string }> {
+    if (typeof this.api.selectDownloadFolder === 'function') {
+      return this.api.selectDownloadFolder();
+    }
+    return { success: false, error: 'selectDownloadFolder not available' };
+  }
+
 }
 
 let desktopAPI: DesktopAPI | null = null;

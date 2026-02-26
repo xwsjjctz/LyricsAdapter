@@ -33,6 +33,14 @@ const qualityOptions: QualityOption[] = [
   { value: 'flac', label: 'FLAC' },
 ];
 
+function sanitizeDownloadFileName(input: string): string {
+  const sanitized = input
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return sanitized || 'Unknown Track';
+}
+
 const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -312,9 +320,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     // Close dropdown
     setOpenDropdownId(null);
 
-    // Get desktop API (always available in Electron-only build)
-    const desktopAPI = await getDesktopAPIAsync();
-
     // Get download path from settings
     const downloadPath = settingsManager.getDownloadPath();
 
@@ -341,7 +346,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       logger.debug('[BrowseView] Download path:', downloadPath);
 
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const fileName = `${singer} - ${song.songname}.${ext}`;
+      const safeSinger = sanitizeDownloadFileName(singer);
+      const safeSongName = sanitizeDownloadFileName(song.songname);
+      const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
 
       let savedFilePath: string | undefined;
       let lyrics: string | undefined;
@@ -352,17 +359,40 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       logger.debug('[BrowseView] Downloading directly to:', fullPath);
 
       const rawCookie = cookieManager.getCookie();
+      const coverUrl = song.albummid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
+        : song.coverUrl;
+
+      const lyricsPromise = (async (): Promise<string | undefined> => {
+        try {
+          if (window.electron?.getQQMusicLyrics) {
+            const lyricResult = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
+            if (lyricResult?.success && lyricResult.lyrics) {
+              return lyricResult.lyrics;
+            }
+          }
+        } catch (error) {
+          logger.warn('[BrowseView] Failed to get lyrics via main process:', error);
+        }
+
+        try {
+          return (await qqMusicApi.getLyrics(song.songmid)) || undefined;
+        } catch (error) {
+          logger.warn('[BrowseView] Failed to get lyrics via renderer API:', error);
+          return undefined;
+        }
+      })();
 
       // Download and save via Electron main process
       try {
-        const result = await window.electron!.downloadAudioFile(url, rawCookie);
+        const downloadResult = await window.electron!.downloadAndSave(url, rawCookie, fullPath);
 
-        if (!result.success) {
-          throw new Error(`下载失败: ${result.error}`);
+        if (!downloadResult.success) {
+          throw new Error(`下载失败: ${downloadResult.error}`);
         }
 
-        savedFilePath = fullPath;
-        logger.debug('[BrowseView] File downloaded successfully to:', savedFilePath);
+        savedFilePath = downloadResult.filePath;
+        logger.debug('[BrowseView] File saved successfully to:', savedFilePath);
 
         // Update progress to 100%
         setDownloadProgress(prev => ({
@@ -372,6 +402,26 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       } catch (error) {
         logger.error('[BrowseView] Download failed:', error);
         throw error;
+      }
+
+      lyrics = await lyricsPromise;
+
+      if (savedFilePath && window.electron?.writeAudioMetadata) {
+        try {
+          const metadataResult = await window.electron.writeAudioMetadata(savedFilePath, {
+            title: song.songname,
+            artist: singer,
+            album: song.albumname || '',
+            lyrics,
+            coverUrl
+          });
+
+          if (!metadataResult?.success) {
+            logger.warn('[BrowseView] Metadata write failed:', metadataResult?.error);
+          }
+        } catch (error) {
+          logger.warn('[BrowseView] Metadata write error:', error);
+        }
       }
 
       // Create track and add to library

@@ -24,9 +24,16 @@ export interface QQMusicUrlResult {
 // Extended Electron API for QQ Music-specific operations
 interface QQMusicElectronAPI {
   getQQMusicUrl?: (reqData: Record<string, unknown>, cookie: string) => Promise<unknown>;
-  downloadAudioFile?: (url: string, cookie: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
-  onDownloadProgress?: (callback: (progress: { loaded: number; total: number }) => void) => void;
-  offDownloadProgress?: (callback: (progress: { loaded: number; total: number }) => void) => void;
+  getQQMusicLyrics?: (songmid: string, cookie: string) => Promise<{ success: boolean; lyrics?: string; error?: string }>;
+  downloadAudioFile?: (url: string, cookie: string) => Promise<{ success: boolean; data?: number[] | ArrayBuffer; error?: string }>;
+  downloadAndSave?: (url: string, cookie: string, filePath: string) => Promise<{ success: boolean; filePath?: string; size?: number; error?: string }>;
+  saveFileToPath?: (dirPath: string, fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  writeAudioMetadata?: (
+    filePath: string,
+    metadata: { title?: string; artist?: string; album?: string; lyrics?: string; coverUrl?: string }
+  ) => Promise<{ success: boolean; error?: string }>;
+  onDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
+  offDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
 }
 
 declare global {
@@ -486,10 +493,10 @@ class QQMusicAPI {
       logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
 
       // Set up progress listener if available
-      let progressListener: ((data: { loaded: number; total: number }) => void) | null = null;
+      let progressListener: ((data: { downloaded: number; total: number; progress: number }) => void) | null = null;
       if (onProgress && window.electron?.onDownloadProgress) {
-        progressListener = (data: { loaded: number; total: number }) => {
-          onProgress(data.loaded, data.total);
+        progressListener = (data: { downloaded: number; total: number; progress: number }) => {
+          onProgress(data.downloaded, data.total);
         };
         window.electron.onDownloadProgress(progressListener);
       }
@@ -508,8 +515,12 @@ class QQMusicAPI {
         throw new Error(result.error || 'Download failed');
       }
 
-      // Convert array back to Uint8Array
-      const data = new Uint8Array(result.data);
+      // Convert returned data back to Uint8Array
+      const rawData = result.data;
+      if (!rawData) {
+        throw new Error('Empty download data');
+      }
+      const data = rawData instanceof ArrayBuffer ? new Uint8Array(rawData) : new Uint8Array(rawData);
       logger.debug('[QQMusicAPI] Download completed via Electron, size:', data.byteLength);
 
       // Final progress update
