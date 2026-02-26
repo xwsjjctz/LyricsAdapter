@@ -45,9 +45,13 @@ const App: React.FC = () => {
   const [searchInputValue, setSearchInputValue] = useState(''); // Global search input value (shared between views)
   const [searchTrigger, setSearchTrigger] = useState(0); // Trigger to execute search
   const [libraryScrollPosition, setLibraryScrollPosition] = useState(0); // Save LibraryView scroll position
+  const [autoLocateToken, setAutoLocateToken] = useState(0); // Increment only when track is switched by playback actions
   const isFirstLibraryLoadRef = useRef(true); // Track if LibraryView is loading for the first time
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
+  const handleTrackSwitch = useCallback(() => {
+    setAutoLocateToken(prev => prev + 1);
+  }, []);
 
   const playback = usePlayback({
     tracks,
@@ -55,7 +59,8 @@ const App: React.FC = () => {
     currentTrackIndex,
     setCurrentTrackIndex,
     createTrackedBlobUrl,
-    revokeBlobUrl
+    revokeBlobUrl,
+    onTrackSwitch: handleTrackSwitch
   });
 
   const {
@@ -281,6 +286,7 @@ const App: React.FC = () => {
                 savedScrollPosition={libraryScrollPosition}
                 onScrollPositionChange={setLibraryScrollPosition}
                 isFirstLoad={isFirstLibraryLoadRef.current}
+                autoLocateToken={autoLocateToken}
               />
             )}
           </div>

@@ -18,6 +18,7 @@ interface LibraryViewProps {
   savedScrollPosition?: number; // Saved scroll position from parent
   onScrollPositionChange?: (position: number) => void; // Callback to save scroll position
   isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
+  autoLocateToken?: number; // Trigger auto-locate only when track switch action occurs
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -33,7 +34,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   searchTrigger = 0,
   savedScrollPosition = 0,
   onScrollPositionChange,
-  isFirstLoad = false
+  isFirstLoad = false,
+  autoLocateToken = 0
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -85,6 +87,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const previousTrackIndexRef = useRef<number>(-1); // Track previous track index
+  const lastHandledAutoLocateTokenRef = useRef<number>(autoLocateToken);
   const overscan = 6;
 
   const baseRowHeight = rowHeight || 64;
@@ -193,8 +196,58 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setRowHeight(0);
   }, [isEditMode]);
 
-  // Note: Auto-scroll to current track has been removed.
-  // The list now stays at the last scroll position when switching between views.
+  // Get the index of current track in filtered list
+  const currentTrackInFilteredIndex = useMemo(() => {
+    if (currentTrackIndex < 0) return -1;
+    const currentTrackId = tracks[currentTrackIndex]?.id;
+    return filteredTracks.findIndex(t => t.id === currentTrackId);
+  }, [currentTrackIndex, tracks, filteredTracks]);
+
+  // Auto-locate only when a track-switch action occurs.
+  useEffect(() => {
+    if (lastHandledAutoLocateTokenRef.current === autoLocateToken) {
+      return;
+    }
+    lastHandledAutoLocateTokenRef.current = autoLocateToken;
+
+    if (currentTrackInFilteredIndex < 0 || !scrollContainerRef.current) {
+      return;
+    }
+
+    const container = scrollContainerRef.current;
+    const timer = setTimeout(() => {
+      const viewTop = container.scrollTop;
+      const viewBottom = viewTop + container.clientHeight;
+      const itemTop = currentTrackInFilteredIndex * rowStride;
+      const itemBottom = itemTop + baseRowHeight;
+
+      if (itemTop >= viewTop && itemBottom <= viewBottom) {
+        logger.debug(`[LibraryView] Track ${currentTrackInFilteredIndex + 1} is already visible, no auto-locate needed`);
+        previousTrackIndexRef.current = currentTrackInFilteredIndex;
+        setShowLocateButton(false);
+        return;
+      }
+
+      const isNext = previousTrackIndexRef.current < 0 || currentTrackInFilteredIndex > previousTrackIndexRef.current;
+      let targetTop: number;
+
+      if (isFocusMode) {
+        targetTop = itemTop < viewTop ? itemTop : itemBottom - container.clientHeight;
+      } else {
+        targetTop = isNext ? itemBottom - container.clientHeight : itemTop;
+      }
+
+      const maxTop = Math.max(0, totalHeight - container.clientHeight);
+      const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+
+      logger.debug(`[LibraryView] Auto-locating to track ${currentTrackInFilteredIndex + 1}`);
+      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
+      previousTrackIndexRef.current = currentTrackInFilteredIndex;
+      setShowLocateButton(false);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode]);
 
   // Update sliding highlight position when current track changes
   useEffect(() => {
@@ -227,13 +280,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const raf = requestAnimationFrame(updateHighlight);
     return () => cancelAnimationFrame(raf);
   }, [currentTrackIndex, tracks.length, isEditMode, rowStride, baseRowHeight]);
-
-  // Get the index of current track in filtered list
-  const currentTrackInFilteredIndex = useMemo(() => {
-    if (currentTrackIndex < 0) return -1;
-    const currentTrackId = tracks[currentTrackIndex]?.id;
-    return filteredTracks.findIndex(t => t.id === currentTrackId);
-  }, [currentTrackIndex, tracks, filteredTracks]);
 
   // Check if current track is visible in viewport
   const isCurrentTrackVisible = useCallback(() => {
@@ -650,7 +696,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     prevProps.inputValue === nextProps.inputValue &&
     prevProps.searchTrigger === nextProps.searchTrigger &&
     prevProps.savedScrollPosition === nextProps.savedScrollPosition &&
-    prevProps.isFirstLoad === nextProps.isFirstLoad
+    prevProps.isFirstLoad === nextProps.isFirstLoad &&
+    prevProps.autoLocateToken === nextProps.autoLocateToken
   );
 });
 

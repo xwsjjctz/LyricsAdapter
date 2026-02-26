@@ -12,6 +12,7 @@ interface UsePlaybackOptions {
   setCurrentTrackIndex: React.Dispatch<React.SetStateAction<number>>;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
+  onTrackSwitch?: () => void;
 }
 
 export function usePlayback({
@@ -20,7 +21,8 @@ export function usePlayback({
   currentTrackIndex,
   setCurrentTrackIndex,
   createTrackedBlobUrl,
-  revokeBlobUrl
+  revokeBlobUrl,
+  onTrackSwitch
 }: UsePlaybackOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -63,6 +65,12 @@ export function usePlayback({
       node.volume = actualVolume;
     }
   }, [volume, linearToExponentialVolume]);
+
+  const switchToTrackIndex = useCallback((nextIndex: number) => {
+    if (nextIndex === currentTrackIndex) return;
+    onTrackSwitch?.();
+    setCurrentTrackIndex(nextIndex);
+  }, [currentTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current || !currentTrack) return;
@@ -134,19 +142,16 @@ export function usePlayback({
       const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
       shouldAutoPlayRef.current = true;
       forcePlayRef.current = true;
-      setCurrentTrackIndex(nextIndex);
+      switchToTrackIndex(nextIndex);
       return;
     }
 
     // Loop back to first track when reaching the end
     shouldAutoPlayRef.current = true;
     forcePlayRef.current = true;
-    if (currentTrackIndex < tracks.length - 1) {
-      setCurrentTrackIndex(prev => prev + 1);
-    } else {
-      setCurrentTrackIndex(0);
-    }
-  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
+    const nextIndex = currentTrackIndex < tracks.length - 1 ? currentTrackIndex + 1 : 0;
+    switchToTrackIndex(nextIndex);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, switchToTrackIndex]);
 
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
     const desktopAPI = await getDesktopAPIAsync();
@@ -188,17 +193,14 @@ export function usePlayback({
 
     if (playbackMode === 'shuffle') {
       const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
-      setCurrentTrackIndex(nextIndex);
+      switchToTrackIndex(nextIndex);
       return;
     }
 
     // Loop back to first track when reaching the end
-    if (currentTrackIndex < tracks.length - 1) {
-      setCurrentTrackIndex(prev => prev + 1);
-    } else {
-      setCurrentTrackIndex(0);
-    }
-  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
+    const nextIndex = currentTrackIndex < tracks.length - 1 ? currentTrackIndex + 1 : 0;
+    switchToTrackIndex(nextIndex);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, switchToTrackIndex]);
 
   const skipBackward = useCallback(() => {
     if (tracks.length === 0) return;
@@ -207,17 +209,14 @@ export function usePlayback({
 
     if (playbackMode === 'shuffle') {
       const nextIndex = getRandomIndex(currentTrackIndex, tracks.length);
-      setCurrentTrackIndex(nextIndex);
+      switchToTrackIndex(nextIndex);
       return;
     }
 
     // Loop to last track when at the beginning
-    if (currentTrackIndex > 0) {
-      setCurrentTrackIndex(prev => prev - 1);
-    } else {
-      setCurrentTrackIndex(tracks.length - 1);
-    }
-  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, setCurrentTrackIndex]);
+    const nextIndex = currentTrackIndex > 0 ? currentTrackIndex - 1 : tracks.length - 1;
+    switchToTrackIndex(nextIndex);
+  }, [currentTrackIndex, tracks.length, playbackMode, getRandomIndex, switchToTrackIndex]);
 
   const handleSeek = useCallback((time: number) => {
     if (audioRef.current) {
@@ -536,9 +535,9 @@ export function usePlayback({
   const selectTrack = useCallback((idx: number) => {
     shouldAutoPlayRef.current = true;
     forcePlayRef.current = true;
-    setCurrentTrackIndex(idx);
+    switchToTrackIndex(idx);
     setIsPlaying(true);
-  }, [setCurrentTrackIndex]);
+  }, [switchToTrackIndex]);
 
   return {
     audioRef,
