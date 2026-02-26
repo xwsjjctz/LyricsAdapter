@@ -41,6 +41,41 @@ function sanitizeDownloadFileName(input: string): string {
   return sanitized || 'Unknown Track';
 }
 
+function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] } {
+  const lines = lrc.split(/\r?\n/);
+  const syncedLyrics: { time: number; text: string }[] = [];
+  const plainTextLines: string[] = [];
+  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+
+    const matches = [...trimmedLine.matchAll(timeRegex)];
+    const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
+    if (!textWithoutTimestamps || textWithoutTimestamps === '//') continue;
+
+    if (matches.length > 0) {
+      for (const match of matches) {
+        const minutes = parseInt(match[1], 10);
+        const seconds = parseInt(match[2], 10);
+        const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
+        syncedLyrics.push({
+          time: minutes * 60 + seconds + milliseconds / 1000,
+          text: textWithoutTimestamps
+        });
+      }
+    }
+    plainTextLines.push(textWithoutTimestamps);
+  }
+
+  syncedLyrics.sort((a, b) => a.time - b.time);
+  return {
+    plainText: plainTextLines.join('\n'),
+    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined
+  };
+}
+
 const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -234,6 +269,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         logger.error('[BrowseView] Failed to parse metadata:', error);
       }
 
+      const parsedLyrics = lyrics ? parseLRCLyrics(lyrics) : null;
+      const finalLyrics = parsedLyrics?.plainText || metadata?.lyrics || lyrics || '';
+      const finalSyncedLyrics = parsedLyrics?.syncedLyrics || metadata?.syncedLyrics;
+
       const trackId = Math.random().toString(36).substr(2, 9);
       const singer = song.singer?.[0]?.name || 'Unknown';
 
@@ -280,8 +319,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         artist: singer,
         album: song.albumname || '',
         duration: metadata?.duration || song.interval || 0,
-        lyrics: lyrics || '',
-        syncedLyrics: metadata?.syncedLyrics,
+        lyrics: finalLyrics,
+        syncedLyrics: finalSyncedLyrics,
         fileName: fileName,
         fileSize: metadata?.fileSize || 0,
         lastModified: Date.now(),
@@ -293,8 +332,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         artist: singer,
         album: song.albumname || 'Unknown Album',
         duration: metadata?.duration || song.interval || 0,
-        lyrics: lyrics || '',
-        syncedLyrics: metadata?.syncedLyrics,
+        lyrics: finalLyrics,
+        syncedLyrics: finalSyncedLyrics,
         coverUrl: finalCoverUrl,
         audioUrl: '',
         fileName: fileName,

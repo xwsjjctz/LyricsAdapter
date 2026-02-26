@@ -993,13 +993,17 @@ app.whenReady().then(() => {
   }
 
   function escapeFfmetadataValue(value: string): string {
-    return value
-      .replace(/\\/g, '\\\\')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '')
-      .replace(/=/g, '\\=')
-      .replace(/;/g, '\\;')
-      .replace(/#/g, '\\#');
+    const normalized = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const escapedLines = normalized
+      .split('\n')
+      .map(line => line
+        .replace(/\\/g, '\\\\')
+        .replace(/=/g, '\\=')
+        .replace(/;/g, '\\;')
+        .replace(/#/g, '\\#'));
+
+    // ffmetadata multiline value: escape the newline with trailing backslash
+    return escapedLines.join('\\\n');
   }
 
   function buildFfmetadataContent(metadata: {
@@ -1012,7 +1016,12 @@ app.whenReady().then(() => {
     if (metadata.title) lines.push(`TITLE=${escapeFfmetadataValue(metadata.title)}`);
     if (metadata.artist) lines.push(`ARTIST=${escapeFfmetadataValue(metadata.artist)}`);
     if (metadata.album) lines.push(`ALBUM=${escapeFfmetadataValue(metadata.album)}`);
-    if (metadata.lyrics) lines.push(`LYRICS=${escapeFfmetadataValue(metadata.lyrics)}`);
+    if (metadata.lyrics) {
+      const escapedLyrics = escapeFfmetadataValue(metadata.lyrics);
+      lines.push(`LYRICS=${escapedLyrics}`);
+      lines.push(`UNSYNCEDLYRICS=${escapedLyrics}`);
+      lines.push(`LYRIC=${escapedLyrics}`);
+    }
     lines.push('');
     return lines.join('\n');
   }

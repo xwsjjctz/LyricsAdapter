@@ -362,6 +362,7 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
       if (equalPos > 0) {
         const field = comment.substring(0, equalPos).toUpperCase();
         const value = comment.substring(equalPos + 1);
+        const hasLrcTimestamp = /\[\d{2}:\d{2}(?:\.\d{1,3})?\]/.test(value);
 
         // Map common Vorbis comment fields to our metadata
         switch (field) {
@@ -376,10 +377,23 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
             break;
           case 'LYRICS':
           case 'UNSYNCEDLYRICS':
-            // Parse LRC format lyrics
+          case 'LYRIC':
+          case 'SYNCEDLYRICS':
+          case 'SYNCHRONIZEDLYRICS': {
             const parsedLyrics = parseLRCLyrics(value);
             result.lyrics = parsedLyrics.plainText;
             result.syncedLyrics = parsedLyrics.syncedLyrics;
+            break;
+          }
+          case 'COMMENT':
+          case 'DESCRIPTION':
+            // ffmpeg may place lyrics in COMMENT/DESCRIPTION on some platforms.
+            // Only treat them as lyrics when they clearly look like LRC.
+            if (!result.lyrics && hasLrcTimestamp) {
+              const parsedLyrics = parseLRCLyrics(value);
+              result.lyrics = parsedLyrics.plainText;
+              result.syncedLyrics = parsedLyrics.syncedLyrics;
+            }
             break;
           case 'TRACKNUMBER':
           case 'TRACK':
