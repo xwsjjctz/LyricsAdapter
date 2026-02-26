@@ -40,8 +40,12 @@ export interface DesktopAPI {
 }
 
 class ElectronAdapter implements DesktopAPI {
-  platform = 'electron';
   private metadataCache: Record<string, ValidatedMetadata> = {};
+
+  // Return actual OS platform from underlying API
+  get platform(): string {
+    return this.api.platform;
+  }
 
   constructor(private api: DesktopAPI) {
     // Initialize with empty cache, will be loaded from IndexedDB if needed
@@ -212,6 +216,38 @@ class ElectronAdapter implements DesktopAPI {
       return this.api.selectDownloadFolder();
     }
     return { success: false, error: 'selectDownloadFolder not available' };
+  }
+
+  // Window control methods
+  minimizeWindow(): void {
+    if (typeof this.api.minimizeWindow === 'function') {
+      this.api.minimizeWindow();
+    }
+  }
+
+  maximizeWindow(): void {
+    if (typeof this.api.maximizeWindow === 'function') {
+      this.api.maximizeWindow();
+    }
+  }
+
+  closeWindow(): void {
+    if (typeof this.api.closeWindow === 'function') {
+      this.api.closeWindow();
+    }
+  }
+
+  isMaximized(): boolean {
+    if (typeof this.api.isMaximized === 'function') {
+      const result = this.api.isMaximized();
+      // Handle both sync and async results
+      if (typeof result === 'boolean') {
+        return result;
+      }
+      // For async, return false initially (state will be updated via effect)
+      return false;
+    }
+    return false;
   }
 
 }
