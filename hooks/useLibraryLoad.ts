@@ -124,12 +124,16 @@ export function useLibraryLoad({
     });
 
     // Validate paths in Desktop mode
-    if (loadedTracks.length > 0) {
-      libraryStorage.validateAllPaths(loadedTracks).then(results => {
+    // Only validate tracks that have a filePath (skip tracks imported via File objects)
+    const tracksToValidate = loadedTracks.filter(t => t.filePath);
+    if (tracksToValidate.length > 0) {
+      libraryStorage.validateAllPaths(tracksToValidate).then(results => {
         const map = new Map(results.map(r => [r.id, r.exists]));
         setTracks(prev => {
           let changed = false;
           const next = prev.map(track => {
+            // Skip tracks without filePath - keep their available status
+            if (!track.filePath) return track;
             const exists = map.get(track.id);
             if (exists === undefined || track.available === exists) return track;
             changed = true;

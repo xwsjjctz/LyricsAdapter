@@ -274,7 +274,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       const finalSyncedLyrics = parsedLyrics?.syncedLyrics || metadata?.syncedLyrics;
 
       const trackId = Math.random().toString(36).substr(2, 9);
-      const singer = song.singer?.[0]?.name || 'Unknown';
+      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
 
       // Build cover URL from albummid
       const coverUrl = song.albummid
@@ -376,7 +376,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
     try {
       logger.debug('[BrowseView] Starting download for:', song.songname, 'quality:', quality);
-      const singer = song.singer?.[0]?.name || 'Unknown';
+      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
+      // For filename, use & to separate multiple artists (cleaner for filesystem)
+      const singerForFileName = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
 
       // Get download URL first
       const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
@@ -385,7 +387,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       logger.debug('[BrowseView] Download path:', downloadPath);
 
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const safeSinger = sanitizeDownloadFileName(singer);
+      const safeSinger = sanitizeDownloadFileName(singerForFileName);
       const safeSongName = sanitizeDownloadFileName(song.songname);
       const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
 

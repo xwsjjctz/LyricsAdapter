@@ -150,8 +150,18 @@ class ElectronAdapter implements DesktopAPI {
       const readResult = await this.api.readFile(filePath);
       if (readResult.success && readResult.data) {
         const fileData = new Uint8Array(readResult.data);
-        const fileName = filePath.split(/[/\\]/).pop() || 'audio.flac';
-        const file = new File([fileData], fileName, { type: 'audio/flac' });
+        const fileName = filePath.split(/[/\\]/).pop() || 'audio.mp3';
+        
+        // Determine MIME type based on file extension
+        const lowerName = fileName.toLowerCase();
+        let mimeType = 'audio/mpeg'; // default to MP3
+        if (lowerName.endsWith('.flac')) {
+          mimeType = 'audio/flac';
+        } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
+          mimeType = 'audio/mp4';
+        }
+        
+        const file = new File([fileData], fileName, { type: mimeType });
 
         // Parse metadata using JS parser
         const metadata = await parseAudioFileSync(file);
@@ -248,6 +258,13 @@ class ElectronAdapter implements DesktopAPI {
       return false;
     }
     return false;
+  }
+
+  getPathForFile(file: File): string {
+    if (typeof this.api.getPathForFile === 'function') {
+      return this.api.getPathForFile(file);
+    }
+    throw new Error('getPathForFile not available');
   }
 
 }
