@@ -369,6 +369,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     // Check if we're in Electron mode and can get file paths
     const desktopAPI = getDesktopAPI();
+    logger.debug('[LibraryView] Drop check - desktopAPI:', !!desktopAPI, 'getPathForFile:', !!desktopAPI?.getPathForFile, 'onDropFilePaths:', !!onDropFilePaths);
+    
     if (desktopAPI?.getPathForFile && onDropFilePaths) {
       // Electron mode: get real file paths
       logger.debug('[LibraryView] Electron mode: getting file paths from dropped files');

@@ -583,7 +583,15 @@ export function useImport({
       tracksCountRef.current = tracksCountRef.current + allNewTracks.length;
     }
 
-    const finalTracks = [...baseTracks, ...importedTracksAll];
+    // Deduplicate tracks by id (in case some files were already in the library)
+    const trackMap = new Map<string, Track>();
+    for (const track of baseTracks) {
+      trackMap.set(track.id, track);
+    }
+    for (const track of importedTracksAll) {
+      trackMap.set(track.id, track);
+    }
+    const finalTracks = Array.from(trackMap.values());
     setTracks(finalTracks);
 
     // Save metadata cache and library
@@ -632,6 +640,8 @@ export function useImport({
     const BATCH_SIZE = 10;
     const UI_UPDATE_BATCH = 20;
     const allNewTracks: Track[] = [];
+    const importedTracksAll: Track[] = [];
+    const baseTracks = tracks;
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
@@ -639,6 +649,7 @@ export function useImport({
 
       const batchTracks = await processWebFileBatch(batch, tracksMap);
       allNewTracks.push(...batchTracks);
+      importedTracksAll.push(...batchTracks);
 
       if (allNewTracks.length >= UI_UPDATE_BATCH) {
         logger.debug(`[Import] Updating UI with ${allNewTracks.length} new track(s)...`);
@@ -652,8 +663,18 @@ export function useImport({
       setTracks(prev => [...prev, ...allNewTracks]);
     }
 
-    // Save to IndexedDB in browser mode
-    const finalTracks = [...tracks, ...allNewTracks];
+    // Deduplicate tracks by id (in case some files were already in the library)
+    const trackMap = new Map<string, Track>();
+    for (const track of baseTracks) {
+      trackMap.set(track.id, track);
+    }
+    for (const track of importedTracksAll) {
+      trackMap.set(track.id, track);
+    }
+    const finalTracks = Array.from(trackMap.values());
+    setTracks(finalTracks);
+    
+    // Save library - use disk storage in Electron, IndexedDB in web
     const libraryData = buildLibraryIndexData(finalTracks, {
       volume: volume,
       currentTrackIndex: currentTrackIndex,
@@ -662,8 +683,14 @@ export function useImport({
       isPlaying: isPlaying,
       playbackMode: playbackMode
     });
-    await indexedDBStorage.saveLibrary(libraryData);
-    logger.debug('[Import] ✓ Library saved to IndexedDB');
+    
+    if (isDesktop()) {
+      await libraryStorage.saveLibrary(libraryData);
+      logger.debug('[Import] ✓ Library saved to disk');
+    } else {
+      await indexedDBStorage.saveLibrary(libraryData);
+      logger.debug('[Import] ✓ Library saved to IndexedDB');
+    }
 
     logger.debug('[Import] ✓ All files imported successfully');
   }, [

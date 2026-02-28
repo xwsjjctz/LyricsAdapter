@@ -71,6 +71,59 @@ function decodeTextFrame(buffer: ArrayBuffer): string {
     .trim();
 }
 
+// Parse USLT (Unsynchronized Lyrics) frame
+// Structure: <text encoding> $xx <language> $xx xx xx <content descriptor> <text>
+function parseUSLTFrame(buffer: ArrayBuffer): string {
+  const view = new DataView(buffer);
+  let offset = 0;
+
+  try {
+    // 1 byte: text encoding
+    const encoding = view.getUint8(offset);
+    offset += 1;
+
+    // 3 bytes: language (e.g., "eng")
+    offset += 3;
+
+    // Skip content descriptor (null terminated string)
+    while (offset < buffer.byteLength) {
+      if (encoding === 0 || encoding === 3) {
+        // ISO-8859-1 or UTF-8 (1 byte per char)
+        if (view.getUint8(offset) === 0) {
+          offset += 1;
+          break;
+        }
+        offset += 1;
+      } else {
+        // UTF-16 (2 bytes per char)
+        if (view.getUint16(offset, false) === 0) {
+          offset += 2;
+          break;
+        }
+        offset += 2;
+      }
+    }
+
+    // The rest is the lyrics text
+    const textData = buffer.slice(offset);
+    
+    let text = '';
+    if (encoding === 0 || encoding === 3) {
+      text = new TextDecoder(encoding === 3 ? 'utf-8' : 'iso-8859-1').decode(textData);
+    } else if (encoding === 1 || encoding === 2) {
+      text = new TextDecoder('utf-16').decode(textData);
+    }
+
+    return text
+      .replace(/\0/g, '')
+      .replace(/\uFEFF/g, '')
+      .replace(/\uFFFF/g, '')
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
 function decodePictureFrame(buffer: ArrayBuffer): { mime?: string; data?: ArrayBuffer } {
   const view = new DataView(buffer);
   let offset = 0;
@@ -88,16 +141,23 @@ function decodePictureFrame(buffer: ArrayBuffer): { mime?: string; data?: ArrayB
 
     offset += 1; // picture type
 
+    // Skip description (null terminated string with encoding)
     while (offset < buffer.byteLength) {
-      if (view.getUint8(offset) === 0 && view.getUint8(offset + 1) === 0) {
-        offset += 2;
-        break;
-      }
-      if (view.getUint8(offset) === 0 && encoding === 0) {
+      if (encoding === 0 || encoding === 3) {
+        // ISO-8859-1 or UTF-8
+        if (view.getUint8(offset) === 0) {
+          offset += 1;
+          break;
+        }
         offset += 1;
-        break;
+      } else {
+        // UTF-16
+        if (view.getUint16(offset, false) === 0) {
+          offset += 2;
+          break;
+        }
+        offset += 2;
       }
-      offset++;
     }
 
     const imageData = buffer.slice(offset);
@@ -112,7 +172,8 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
   const syncedLyrics: SyncedLyricLine[] = [];
   const plainTextLines: string[] = [];
 
-  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+  // LRC timestamp format: [mm:ss.xx], [mm:ss], or [hh:mm:ss]
+  const timeRegex = /\[(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{2,3}))?\]/g;
 
   for (const line of lines) {
     const trimmedLine = line.trim();
@@ -128,9 +189,22 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
       for (const match of matches) {
         const minutes = parseInt(match[1], 10);
         const seconds = parseInt(match[2], 10);
-        const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
+        // match[3] is seconds in [hh:mm:ss] format, match[4] is milliseconds
+        const hoursOrSeconds = match[3];
+        const milliseconds = match[4] ? parseInt(match[4].padEnd(3, '0'), 10) : 0;
 
-        const timeInSeconds = minutes * 60 + seconds + milliseconds / 1000;
+        let timeInSeconds: number;
+        if (hoursOrSeconds) {
+          // [hh:mm:ss] format: match[1]=hours, match[2]=minutes, match[3]=seconds
+          const hours = minutes;
+          const mins = seconds;
+          const secs = parseInt(hoursOrSeconds, 10);
+          timeInSeconds = hours * 3600 + mins * 60 + secs;
+        } else {
+          // [mm:ss.xx] or [mm:ss] format
+          timeInSeconds = minutes * 60 + seconds + milliseconds / 1000;
+        }
+
         syncedLyrics.push({
           time: timeInSeconds,
           text: textWithoutTimestamps
@@ -174,6 +248,7 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
       if (equalPos > 0) {
         const field = comment.substring(0, equalPos).toUpperCase();
         const value = comment.substring(equalPos + 1);
+        const hasLrcTimestamp = /\[\d{2}:\d{2}(?:\.\d{1,3})?\]/.test(value);
 
         switch (field) {
           case 'TITLE':
@@ -187,9 +262,23 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
             break;
           case 'LYRICS':
           case 'UNSYNCEDLYRICS':
+          case 'LYRIC':
+          case 'SYNCEDLYRICS':
+          case 'SYNCHRONIZEDLYRICS': {
             const parsedLyrics = parseLRCLyrics(value);
             result.lyrics = parsedLyrics.plainText;
             result.syncedLyrics = parsedLyrics.syncedLyrics.length > 0 ? parsedLyrics.syncedLyrics : undefined;
+            break;
+          }
+          case 'COMMENT':
+          case 'DESCRIPTION':
+            // ffmpeg may place lyrics in COMMENT/DESCRIPTION on some platforms.
+            // Only treat them as lyrics when they clearly look like LRC.
+            if (!result.lyrics && hasLrcTimestamp) {
+              const parsedLyrics = parseLRCLyrics(value);
+              result.lyrics = parsedLyrics.plainText;
+              result.syncedLyrics = parsedLyrics.syncedLyrics.length > 0 ? parsedLyrics.syncedLyrics : undefined;
+            }
             break;
           default:
             break;
@@ -243,10 +332,25 @@ function parseID3v2(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
     return result;
   }
 
+  const majorVersion = view.getUint8(3);
+  const flags = view.getUint8(5);
   const size = decodeSynchsafe(view.getUint32(6));
 
+  // Check for extended header (ID3v2.3 and ID3v2.4)
   let offset = 10;
+  if (flags & 0x40) {
+    // Extended header present, skip it
+    const extSize = majorVersion === 4 
+      ? decodeSynchsafe(view.getUint32(offset))
+      : view.getUint32(offset);
+    offset += extSize + 4;
+  }
+
   const end = Math.min(size + 10, buffer.byteLength);
+  
+  // ID3v2.3 uses non-synchsafe frame sizes, ID3v2.4 uses synchsafe
+  const isV23 = majorVersion === 3;
+  const isV24 = majorVersion === 4;
 
   while (offset < end) {
     const frameId = getStringFromView(view, offset, 4);
@@ -254,8 +358,11 @@ function parseID3v2(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
       break;
     }
 
-    const frameSize = decodeSynchsafe(view.getUint32(offset + 4));
-    if (frameSize === 0 || offset + 10 + frameSize > end) {
+    // Frame size encoding differs between ID3v2.3 and ID3v2.4
+    const rawFrameSize = view.getUint32(offset + 4);
+    const frameSize = isV23 ? rawFrameSize : decodeSynchsafe(rawFrameSize);
+    
+    if (frameSize === 0 || frameSize > buffer.byteLength || offset + 10 + frameSize > end) {
       break;
     }
 
@@ -279,9 +386,19 @@ function parseID3v2(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
         }
       }
     } else if (frameId === 'USLT') {
-      const text = decodeTextFrame(frameData.slice(1));
+      // Unsynchronized lyrics - parse with LRC parser to extract timestamps if present
+      const text = parseUSLTFrame(frameData);
       if (text) {
-        result.lyrics = text;
+        const parsedLyrics = parseLRCLyrics(text);
+        result.lyrics = parsedLyrics.plainText;
+        result.syncedLyrics = parsedLyrics.syncedLyrics.length > 0 ? parsedLyrics.syncedLyrics : undefined;
+      }
+    } else if (frameId === 'SYLT') {
+      // Synchronized lyrics (SYLT frame)
+      const syncedLyrics = parseSYLTFrame(frameData);
+      if (syncedLyrics.length > 0) {
+        result.syncedLyrics = syncedLyrics;
+        result.lyrics = syncedLyrics.map(l => l.text).join('\n');
       }
     } else if (frameId === 'APIC') {
       const picture = decodePictureFrame(frameData);
@@ -295,6 +412,99 @@ function parseID3v2(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
   }
 
   return result;
+}
+
+// Parse SYLT (Synchronized Lyrics/Text) frame
+function parseSYLTFrame(buffer: ArrayBuffer): SyncedLyricLine[] {
+  const view = new DataView(buffer);
+  const syncedLyrics: SyncedLyricLine[] = [];
+
+  try {
+    let offset = 0;
+    const encoding = view.getUint8(offset);
+    offset += 1;
+
+    // Language (3 bytes)
+    offset += 3;
+
+    // Time stamp format (1 byte)
+    const timeStampFormat = view.getUint8(offset);
+    offset += 1;
+
+    // Content type (1 byte)
+    offset += 1;
+
+    // Content descriptor (null terminated string)
+    while (offset < buffer.byteLength) {
+      if (encoding === 0 || encoding === 3) {
+        if (view.getUint8(offset) === 0) {
+          offset += 1;
+          break;
+        }
+      } else {
+        if (view.getUint16(offset, false) === 0) {
+          offset += 2;
+          break;
+        }
+      }
+      offset += (encoding === 0 || encoding === 3) ? 1 : 2;
+    }
+
+    // Parse synchronized text entries
+    while (offset < buffer.byteLength - 4) {
+      // Read text until null terminator
+      let text = '';
+      while (offset < buffer.byteLength) {
+        if (encoding === 0 || encoding === 3) {
+          const byte = view.getUint8(offset);
+          if (byte === 0) {
+            offset += 1;
+            break;
+          }
+          text += String.fromCharCode(byte);
+          offset += 1;
+        } else {
+          const char = view.getUint16(offset, false);
+          if (char === 0) {
+            offset += 2;
+            break;
+          }
+          text += String.fromCharCode(char);
+          offset += 2;
+        }
+      }
+
+      // Read time stamp (4 bytes)
+      if (offset + 4 <= buffer.byteLength) {
+        const timeStamp = view.getUint32(offset, false);
+        offset += 4;
+
+        // Convert time stamp to seconds based on format
+        let timeInSeconds: number;
+        if (timeStampFormat === 1) {
+          // MPEG frames
+          timeInSeconds = timeStamp / 1000; // Approximate
+        } else if (timeStampFormat === 2) {
+          // Milliseconds
+          timeInSeconds = timeStamp / 1000;
+        } else {
+          // Default to milliseconds
+          timeInSeconds = timeStamp / 1000;
+        }
+
+        if (text.trim()) {
+          syncedLyrics.push({
+            time: timeInSeconds,
+            text: text.trim()
+          });
+        }
+      }
+    }
+
+    return syncedLyrics;
+  } catch {
+    return [];
+  }
 }
 
 function parseMP4(_buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
