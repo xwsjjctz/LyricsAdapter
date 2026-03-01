@@ -1,5 +1,6 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { Track } from '../types';
+import { i18n } from '../services/i18n';
 
 interface ControlsProps {
   track: Track | null;
@@ -32,6 +33,16 @@ const Controls: React.FC<ControlsProps> = memo(({
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
   playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter, audioRef
 }) => {
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
 // Use audio element's currentTime directly for progress calculation
   // This ensures we show the actual audio playback position
   const actualCurrentTime = audioRef?.current ? audioRef.current.currentTime : currentTime;
@@ -82,7 +93,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             </div>
           </div>
         ) : (
-          <div className="text-sm text-white/20 italic">No track selected</div>
+          <div className="text-sm text-white/20 italic">{i18n.t('controls.noTrackSelected')}</div>
         )}
       </div>
 
@@ -134,10 +145,10 @@ const Controls: React.FC<ControlsProps> = memo(({
           className="text-white/60 hover:text-white transition-colors relative top-[3.5px]"
           title={
             playbackMode === 'shuffle'
-              ? '随机播放'
+              ? i18n.t('controls.shuffleMode')
               : playbackMode === 'repeat-one'
-              ? '单曲循环'
-              : '顺序播放'
+              ? i18n.t('controls.repeatOneMode')
+              : i18n.t('controls.repeatAllMode')
           }
         >
           <span className="material-symbols-outlined text-lg">

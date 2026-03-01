@@ -167,5 +167,15 @@ contextBridge.exposeInMainWorld('electron', {
     coverUrl?: string;
   }) => {
     return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
+  },
+
+  // Shortcut events - listen for shortcuts from main process
+  onShortcut: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => {
+    const wrapped = (_event: unknown, data: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => callback(data);
+    ipcRenderer.on('shortcut-triggered', wrapped);
+    // Return cleanup function
+    return () => {
+      ipcRenderer.removeListener('shortcut-triggered', wrapped);
+    };
   }
 });

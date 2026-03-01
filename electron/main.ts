@@ -160,6 +160,43 @@ const createWindow = async () => {
     // win.webContents.openDevTools();
   }
 
+  // Handle keyboard shortcuts - local shortcuts (only when window is focused)
+  win.webContents.on('before-input-event', (event, input) => {
+    // Skip if this is a modifier key alone
+    if (['Shift', 'Control', 'Alt', 'Meta'].includes(input.key)) {
+      return;
+    }
+    
+    // Build the accelerator string
+    let accelerator = '';
+    if (input.control) accelerator += 'Ctrl+';
+    if (input.meta) accelerator += 'Cmd+';
+    if (input.alt) accelerator += 'Alt+';
+    if (input.shift) accelerator += 'Shift+';
+    
+    // Map key names for accelerator format
+    let key = input.key;
+    if (key === ' ') key = 'Space';
+    if (key === 'ArrowLeft') key = 'Left';
+    if (key === 'ArrowRight') key = 'Right';
+    if (key === 'ArrowUp') key = 'Up';
+    if (key === 'ArrowDown') key = 'Down';
+    
+    accelerator += key;
+    
+    // Send the shortcut to renderer for processing
+    // This allows the renderer to handle the shortcut logic
+    win?.webContents.send('shortcut-triggered', {
+      accelerator,
+      key: input.key,
+      code: input.code,
+      control: input.control,
+      meta: input.meta,
+      alt: input.alt,
+      shift: input.shift
+    });
+  });
+
   win.on('closed', () => {
     win = null;
   });

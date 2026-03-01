@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from '
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
+import { i18n } from '../services/i18n';
 import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
@@ -41,6 +42,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state
   const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -60,6 +63,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       setExecutedSearchQuery(externalInputValue);
     }
   }, [searchTrigger, externalInputValue]);
+
+  // Subscribe to language changes
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
 
   // Track if animation has already played for current tracks
   const hasAnimatedRef = useRef(false);
@@ -490,8 +501,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
           <div className="text-center">
             <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
-            <p className="text-2xl font-bold text-primary mb-2">拖放音频文件到此处</p>
-            <p className="text-sm text-white/60">支持 FLAC, MP3, M4A, WAV 格式</p>
+            <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
+            <p className="text-sm text-white/60">{i18n.t('library.supportFormats')}</p>
           </div>
         </div>
       )}
@@ -499,10 +510,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 固定的标题部分 */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-extrabold mb-2">Library</h1>
+          <h1 className="text-4xl font-extrabold mb-2">{i18n.t('library.title')}</h1>
           <p className="text-white/40">
-            {filteredTracks.length} Tracks in your collection
-            {executedSearchQuery && filteredTracks.length !== tracks.length && ` (of ${tracks.length})`}
+            {filteredTracks.length} {i18n.t('library.trackCount')}
+            {executedSearchQuery && filteredTracks.length !== tracks.length && ` (${i18n.t('library.of')} ${tracks.length})`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -512,14 +523,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 onClick={toggleSelectAll}
                 className="px-3 py-2 rounded-lg text-sm text-white/60 hover:bg-white/10 transition-all"
               >
-                {selectedIds.size === tracks.length ? 'Cancel' : 'Select All'}
+                {selectedIds.size === tracks.length ? i18n.t('library.cancel') : i18n.t('library.selectAll')}
               </button>
               {selectedIds.size > 0 && (
                 <button
                   onClick={handleRemoveSelected}
                   className="px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
                 >
-                  Delete Selected ({selectedIds.size})
+                  {i18n.t('library.deleteSelected')} ({selectedIds.size})
                 </button>
               )}
             </>
@@ -534,7 +545,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 ? 'bg-primary text-white shadow-lg shadow-primary/25'
                 : 'bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary'
             }`}
-            title={isEditMode ? 'Completed' : 'Edit Mode'}
+            title={isEditMode ? i18n.t('library.completed') : i18n.t('library.editMode')}
           >
             <span className="material-symbols-outlined">{isEditMode ? 'check' : 'edit'}</span>
           </button>
@@ -543,7 +554,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       <div className="flex-shrink-0">
         <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_100px]">
-        <span>#</span><span>Title</span><span className="pl-8">Album</span><span className="text-right">Time</span>
+        <span>#</span><span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span><span className="text-right">{i18n.t('library.timeCol')}</span>
         </div>
       </div>
       
@@ -622,7 +633,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">
                         {track.title}
-                        {isUnavailable && <span className="text-xs text-yellow-400 ml-2">(需要重新导入)</span>}
+                        {isUnavailable && <span className="text-xs text-yellow-400 ml-2">{i18n.t('library.needReimport')}</span>}
                       </p>
                       <p className="text-xs opacity-50 truncate">{track.artist}</p>
                     </div>
@@ -658,14 +669,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           ) : executedSearchQuery ? (
             <div className="py-20 text-center opacity-40">
               <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
-              <p className="text-xl font-medium">No matching tracks</p>
-              <p className="text-sm mt-2">Try adjusting your search query</p>
+              <p className="text-xl font-medium">{i18n.t('library.noMatchingTracks')}</p>
+              <p className="text-sm mt-2">{i18n.t('library.tryAdjustingSearch')}</p>
             </div>
           ) : (
             <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
               <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
-              <p className="text-xl font-medium">No tracks imported yet</p>
-              <p className="text-sm">Use the sidebar to import your audio files</p>
+              <p className="text-xl font-medium">{i18n.t('library.noTracksImported')}</p>
+              <p className="text-sm">{i18n.t('library.useSidebarToImport')}</p>
             </div>
           )}
         </div>
@@ -676,30 +687,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <button
           onClick={handleLocateToCurrentTrack}
           className="absolute bottom-6 right-28 w-9 h-9 rounded-lg bg-white/10 text-white/60 shadow-md flex items-center justify-center hover:bg-white/20 hover:text-white transition-all z-20 animate-fadeIn"
-          title="定位到当前播放"
+          title={i18n.t('library.locateToCurrent')}
         >
           <span className="material-symbols-outlined text-lg">my_location</span>
         </button>
       )}
     </div>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison function for React.memo
-  // Only re-render if these critical props change
-  return (
-    prevProps.tracks === nextProps.tracks &&
-    prevProps.currentTrackIndex === nextProps.currentTrackIndex &&
-    prevProps.onTrackSelect === nextProps.onTrackSelect &&
-    prevProps.onRemoveTrack === nextProps.onRemoveTrack &&
-    prevProps.onRemoveMultipleTracks === nextProps.onRemoveMultipleTracks &&
-    prevProps.onDropFiles === nextProps.onDropFiles &&
-    prevProps.onDropFilePaths === nextProps.onDropFilePaths &&
-    prevProps.isFocusMode === nextProps.isFocusMode &&
-    prevProps.inputValue === nextProps.inputValue &&
-    prevProps.searchTrigger === nextProps.searchTrigger &&
-    prevProps.savedScrollPosition === nextProps.savedScrollPosition &&
-    prevProps.isFirstLoad === nextProps.isFirstLoad &&
-    prevProps.autoLocateToken === nextProps.autoLocateToken
   );
 });
 

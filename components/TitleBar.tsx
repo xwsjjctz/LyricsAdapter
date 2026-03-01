@@ -1,6 +1,7 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
+import { i18n } from '../services/i18n';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -30,6 +31,16 @@ const CloseIcon = () => (
 
 const TitleBar: React.FC = memo(() => {
   const { canControl, minimize, maximize, close, isMaximized } = useWindowControls();
+
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
 
   // 检测平台
   const desktopAPI = getDesktopAPI();
@@ -80,21 +91,21 @@ const TitleBar: React.FC = memo(() => {
           <button
             onClick={minimize}
             className="w-[46px] h-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label="最小化"
+            aria-label={i18n.t('titleBar.minimize')}
           >
             <MinimizeIcon />
           </button>
           <button
             onClick={maximize}
             className="w-[46px] h-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label={isMaximized ? "还原" : "最大化"}
+            aria-label={isMaximized ? i18n.t('titleBar.restore') : i18n.t('titleBar.maximize')}
           >
             {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
           </button>
           <button
             onClick={close}
             className="w-[46px] h-full flex items-center justify-center text-white/70 hover:text-white hover:bg-[#c42b1c] transition-colors"
-            aria-label="关闭"
+            aria-label={i18n.t('titleBar.close')}
           >
             <CloseIcon />
           </button>

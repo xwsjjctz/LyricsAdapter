@@ -3,6 +3,7 @@ import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
+import { i18n } from '../services/i18n';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -15,6 +16,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [isValidating, setIsValidating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -23,6 +26,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
       setMessage(null);
     }
   }, [isOpen]);
+
+  // Subscribe to language changes
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
 
   const showMessage = (msg: string, type: 'success' | 'error') => {
     setMessage(msg);
@@ -43,7 +54,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
         cookieManager.setCookie(cookie.trim());
         const status = await cookieManager.validateCookie();
         if (!status.valid) {
-          showMessage('Cookie invalid', 'error');
+          showMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
           cookieManager.clearCookie();
           setIsValidating(false);
           return;
@@ -53,9 +64,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
       // Save download path
       settingsManager.setDownloadPath(downloadPath.trim());
 
-      showMessage('Saved', 'success');
+      showMessage(i18n.t('settingsDialog.saved'), 'success');
     } catch (err) {
-      showMessage('Save failed', 'error');
+      showMessage(i18n.t('settingsDialog.saveFailed'), 'error');
       logger.error('[SettingsDialog] Save failed:', err);
     } finally {
       setIsValidating(false);
@@ -74,7 +85,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-[#1a2533] border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">Settings</h2>
+          <h2 className="text-xl font-bold text-white">{i18n.t('settingsDialog.title')}</h2>
           <button
             onClick={handleClose}
             className="text-white/40 hover:text-white transition-colors"
@@ -87,12 +98,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-white/80 mb-2">
-              Cookie
+              {i18n.t('settingsDialog.cookie')}
             </label>
             <textarea
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
-              placeholder="Paste cookie..."
+              placeholder={i18n.t('settingsDialog.pasteCookie')}
               className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all resize-none"
               disabled={isValidating}
             />
@@ -100,14 +111,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
           <div>
             <label className="block text-sm font-medium text-white/80 mb-2">
-              Save Path
+              {i18n.t('settingsDialog.savePath')}
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={downloadPath}
                 onChange={(e) => setDownloadPath(e.target.value)}
-                placeholder="Download folder path..."
+                placeholder={i18n.t('settingsDialog.downloadFolderPath')}
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
                 disabled={isValidating}
               />
@@ -123,13 +134,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 }}
                 disabled={isValidating}
                 className="px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all disabled:opacity-50 flex items-center gap-2"
-                title="选择文件夹"
+                title={i18n.t('settingsDialog.savePath')}
               >
                 <span className="material-symbols-outlined text-base">folder_open</span>
               </button>
             </div>
             <p className="mt-1.5 text-xs text-white/40">
-              提示：路径中的 ~ 会自动展开为 home 目录（如 ~/Music → /Users/xxx/Music）
+              {i18n.t('settingsDialog.tip')}
             </p>
           </div>
 
@@ -154,7 +165,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               disabled={isValidating}
               className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-white/70 hover:bg-white/10 transition-all disabled:opacity-50"
             >
-              Close
+              {i18n.t('settingsDialog.close')}
             </button>
             <button
               onClick={handleSave}
@@ -164,10 +175,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               {isValidating ? (
                 <>
                   <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                  Saving...
+                  {i18n.t('settingsDialog.saving')}
                 </>
               ) : (
-                'Save'
+                i18n.t('settingsDialog.save')
               )}
             </button>
           </div>

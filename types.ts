@@ -30,5 +30,7 @@ export interface SyncedLyricLine {
 export enum ViewMode {
   PLAYER = 'player',
   LYRICS = 'lyrics',
-  BROWSE = 'browse'
+  BROWSE = 'browse',
+  SETTINGS = 'settings',
+  THEME = 'theme'
 }
