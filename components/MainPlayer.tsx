@@ -1,6 +1,7 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
+import { i18n } from '../services/i18n';
 
 interface MainPlayerProps {
   track: Track | null;
@@ -10,6 +11,16 @@ interface MainPlayerProps {
 }
 
 const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlaying, onTogglePlay }) => {
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
   if (!isVisible) return null;
 
   return (
@@ -46,7 +57,7 @@ const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlayin
       ) : (
         <div className="text-center opacity-40">
           <span className="material-symbols-outlined text-8xl mb-6 block">music_note</span>
-          <p className="text-xl font-medium tracking-wide">Import tracks to start listening</p>
+          <p className="text-xl font-medium tracking-wide">{i18n.t('mainPlayer.importTracks')}</p>
         </div>
       )}
     </div>

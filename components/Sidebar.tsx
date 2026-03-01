@@ -1,5 +1,6 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewMode } from '../types';
+import { i18n } from '../services/i18n';
 
 interface SidebarProps {
   onImportClick: () => void;
@@ -13,7 +14,7 @@ interface SidebarProps {
   viewMode: ViewMode;
 }
 
-const Sidebar: React.FC<SidebarProps> = memo(({ 
+const Sidebar: React.FC<SidebarProps> = ({ 
   onImportClick, 
   onNavigate, 
   currentView, 
@@ -29,11 +30,21 @@ const Sidebar: React.FC<SidebarProps> = memo(({
   
   // Local state for input (synced with global searchInputValue)
   const [inputValue, setInputValue] = useState(searchInputValue);
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
   
   // Sync local state with global searchInputValue when it changes from outside
   useEffect(() => {
     setInputValue(searchInputValue);
   }, [searchInputValue]);
+
+  // Subscribe to language changes
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
 
   // Handle input change - update global state and local state
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,7 +81,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({
               }`}
             >
               <span className={`material-symbols-outlined text-xl ${isLibraryView ? 'fill-1' : ''}`}>library_music</span>
-              <span className="text-sm font-semibold">Library</span>
+              <span className="text-sm font-semibold">{i18n.t('sidebar.library')}</span>
             </button>
 
             <button
@@ -82,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({
               }`}
             >
               <span className={`material-symbols-outlined text-xl ${isBrowseView ? 'fill-1' : ''}`}>explore</span>
-              <span className="text-sm font-semibold">Browse</span>
+              <span className="text-sm font-semibold">{i18n.t('sidebar.browse')}</span>
             </button>
 
             <button
@@ -90,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({
               className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/60 hover:bg-primary/10 hover:text-primary transition-all mt-4 border border-dashed border-white/20 group"
             >
               <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
-              <span className="text-sm font-semibold">Import Files</span>
+              <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
             </button>
 
             {/* 搜索框 */}
@@ -102,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({
                   </span>
                   <input
                     type="text"
-                    placeholder={isBrowseView ? 'Search online (Enter)' : 'Search tracks (Enter)'}
+                    placeholder={isBrowseView ? i18n.t('sidebar.searchOnline') : i18n.t('sidebar.searchTracks')}
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
@@ -120,6 +131,33 @@ const Sidebar: React.FC<SidebarProps> = memo(({
               </div>
             )}
 
+            {/* 设置和皮肤按钮 */}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onNavigate(ViewMode.SETTINGS)}
+                className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-all ${
+                  currentView === ViewMode.SETTINGS
+                    ? 'bg-primary/20 text-primary shadow-[0_0_20px_rgba(43,140,238,0.15)]'
+                    : 'bg-white/5 text-white/60 hover:bg-white/[0.08] hover:text-white'
+                }`}
+                title={i18n.t('sidebar.settings')}
+              >
+                <span className={`material-symbols-outlined text-[22px] ${currentView === ViewMode.SETTINGS ? 'fill-1' : ''}`}>settings</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate(ViewMode.THEME)}
+                className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-all ${
+                  currentView === ViewMode.THEME
+                    ? 'bg-primary/20 text-primary shadow-[0_0_20px_rgba(43,140,238,0.15)]'
+                    : 'bg-white/5 text-white/60 hover:bg-white/[0.08] hover:text-white'
+                }`}
+                title={i18n.t('sidebar.theme')}
+              >
+                <span className={`material-symbols-outlined text-[22px] ${currentView === ViewMode.THEME ? 'fill-1' : ''}`}>checkroom</span>
+              </button>
+            </div>
+
             {hasUnavailableTracks && onReloadFiles && (
               <button
                 onClick={onReloadFiles}
@@ -127,7 +165,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({
                 title="Reload unavailable tracks"
               >
                 <span className="material-symbols-outlined group-hover:scale-110 transition-transform">refresh</span>
-                <span className="text-sm font-semibold">Reload Files</span>
+                <span className="text-sm font-semibold">{i18n.t('sidebar.reloadFiles')}</span>
               </button>
             )}
           </nav>
@@ -139,8 +177,6 @@ const Sidebar: React.FC<SidebarProps> = memo(({
       </div>
     </aside>
   );
-});
-
-Sidebar.displayName = 'Sidebar';
+};
 
 export default Sidebar;

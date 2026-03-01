@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track, SyncedLyricLine } from '../types';
 import { logger } from '../services/logger';
+import { i18n } from '../services/i18n';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -32,6 +33,16 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime, onClose,
   isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef
 }) => {
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
   const lyricsRef = useRef<HTMLDivElement>(null);
   const lyricListRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);

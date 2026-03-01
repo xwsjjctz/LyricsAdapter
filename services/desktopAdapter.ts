@@ -34,9 +34,11 @@ export interface DesktopAPI {
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
   closeWindow?: () => void;
-  isMaximized?: () => boolean;
+  isMaximized?: () => Promise<boolean>;
   // Settings APIs
   selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  // Shortcut API
+  onShortcut?: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => (() => void) | void;
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -247,15 +249,9 @@ class ElectronAdapter implements DesktopAPI {
     }
   }
 
-  isMaximized(): boolean {
+  async isMaximized(): Promise<boolean> {
     if (typeof this.api.isMaximized === 'function') {
-      const result = this.api.isMaximized();
-      // Handle both sync and async results
-      if (typeof result === 'boolean') {
-        return result;
-      }
-      // For async, return false initially (state will be updated via effect)
-      return false;
+      return this.api.isMaximized();
     }
     return false;
   }

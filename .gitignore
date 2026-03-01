@@ -84,5 +84,5 @@ problems.md
 /binaries/linux-x64/*
 /binaries/win32-x64/*
 
-/reserve/*
 /reserve
+/reserve/*

@@ -1,6 +1,7 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
+import { i18n } from '../services/i18n';
 
 interface QueuePanelProps {
   tracks: Track[];
@@ -10,11 +11,21 @@ interface QueuePanelProps {
 }
 
 const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex, isOpen, onTrackSelect }) => {
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <aside className={`w-80 glass border-l border-white/10 flex flex-col h-full z-20 transition-all duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full fixed right-0'}`}>
       <div className="p-6 h-full flex flex-col">
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          Up Next
+          {i18n.t('queue.upNext')}
           <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full font-medium text-white/40">{tracks.length}</span>
         </h2>
         
@@ -54,14 +65,14 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
           ) : (
             <div className="flex-1 flex items-center justify-center flex-col opacity-20 text-center px-4">
               <span className="material-symbols-outlined text-4xl mb-4">playlist_add</span>
-              <p className="text-sm">Queue is empty. Import files to see them here.</p>
+              <p className="text-sm">{i18n.t('queue.emptyHint')}</p>
             </div>
           )}
         </div>
 
         <div className="mt-6 pt-6 border-t border-white/10">
           <button className="w-full py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-colors text-sm font-semibold tracking-wide">
-            View Full Queue
+            {i18n.t('queue.viewFullQueue')}
           </button>
         </div>
       </div>

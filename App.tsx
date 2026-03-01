@@ -11,12 +11,15 @@ import { usePlayback } from './hooks/usePlayback';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useImport } from './hooks/useImport';
 import { useLibraryActions } from './hooks/useLibraryActions';
+import { useShortcuts } from './hooks/useShortcuts';
 
 // Components
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import BrowseView from './components/BrowseView';
+import SettingsView from './components/SettingsView';
+import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -177,6 +180,31 @@ const App: React.FC = () => {
     logger.debug('[App] Library saved after download');
   }, [tracks, setTracks, volume, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode, persistedTimeRef]);
 
+  // Initialize keyboard shortcuts
+  useShortcuts({
+    viewMode,
+    isFocusMode,
+    isPlaying,
+    setIsFocusMode,
+    setViewMode,
+    togglePlay,
+    skipForward,
+    skipBackward,
+    handleSeek,
+    volume,
+    setVolume,
+    handleToggleMute,
+    onImportClick: () => {
+      if (isDesktop()) {
+        handleDesktopImport();
+      } else {
+        fileInputRef.current?.click();
+      }
+    },
+    currentTime,
+    duration: currentTrack?.duration || 0
+  });
+
   useEffect(() => {
     const initDesktopAPI = async () => {
       logger.debug('[App] Initializing Desktop API...');
@@ -271,6 +299,10 @@ const App: React.FC = () => {
                 searchTrigger={searchTrigger}
                 onDownloadComplete={handleDownloadComplete}
               />
+            ) : viewMode === ViewMode.SETTINGS ? (
+              <SettingsView />
+            ) : viewMode === ViewMode.THEME ? (
+              <ThemeView />
             ) : (
               <LibraryView
                 tracks={tracks}

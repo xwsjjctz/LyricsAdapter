@@ -1,6 +1,7 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
+import { i18n } from '../services/i18n';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -15,6 +16,16 @@ interface LyricsOverlayProps {
 }
 
 const LyricsOverlay: React.FC<LyricsOverlayProps> = memo(({ track, isVisible }) => {
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
   if (!isVisible) return null;
 
   const lines = track?.lyrics 
@@ -39,7 +50,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = memo(({ track, isVisible }) 
           <div className="flex flex-col items-center justify-center min-h-[50vh] opacity-20 text-center">
             <span className="material-symbols-outlined text-8xl mb-6">lyrics</span>
             <p className="text-2xl font-bold tracking-tight">
-              {track ? "No lyrics found in this FLAC file." : "Select a track to view lyrics."}
+              {track ? i18n.t('lyrics.noLyricsFound') : i18n.t('lyrics.selectTrack')}
             </p>
           </div>
         )}

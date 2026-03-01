@@ -6,6 +6,7 @@ import { logger } from '../services/logger';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
+import { i18n } from '../services/i18n';
 import SettingsDialog from './SettingsDialog';
 import { Track } from '../types';
 
@@ -87,6 +88,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const previousTrigger = useRef(searchTrigger);
+  // Force re-render when language changes
+  const [, setLanguageVersion] = useState(0);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -97,6 +100,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Subscribe to language changes
+  useEffect(() => {
+    const unsubscribe = i18n.subscribe(() => {
+      setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
   }, []);
 
   // Check cookie on mount
@@ -146,12 +157,12 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             logger.error('[BrowseView] Search failed:', err);
             const errorMsg = err.message || '';
             if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-              setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
+              setError(i18n.t('browse.corsError'));
             } else if (errorMsg.includes('Cookie')) {
-              setError('访问凭证已过期，请重新设置');
+              setError(i18n.t('browse.cookieExpired'));
               setShowSettingsDialog(true);
             } else {
-              setError(errorMsg || '搜索失败，请稍后重试');
+              setError(errorMsg || i18n.t('browse.searchFailed'));
             }
           } finally {
             setIsLoading(false);
@@ -168,7 +179,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
   const loadRecommendations = useCallback(async () => {
     if (!cookieManager.hasCookie()) {
-      setError('请先设置访问凭证');
+      setError(i18n.t('browse.pleaseSetCookie'));
       setShowSettingsDialog(true);
       return;
     }
@@ -182,7 +193,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       logger.debug('[BrowseView] Got songs:', songs.length);
       
       if (!songs || songs.length === 0) {
-        setError('未获取到推荐歌曲，请检查访问凭证是否有效');
+        setError(i18n.t('browse.noMusic'));
       } else {
         setSongs(songs);
         setHasSearched(false);
@@ -192,11 +203,11 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       logger.error('[BrowseView] Failed to load recommendations:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-        setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
+        setError(i18n.t('browse.corsError'));
       } else if (errorMsg.includes('Cookie')) {
         setShowSettingsDialog(true);
       } else {
-        setError(errorMsg || '加载推荐音乐失败，请检查网络连接或访问凭证有效性');
+        setError(errorMsg || i18n.t('browse.searchFailed'));
       }
     } finally {
       setIsLoading(false);
@@ -225,12 +236,12 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       logger.error('[BrowseView] Search failed:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-        setError('浏览器安全限制：无法直接访问音乐服务API。请在桌面端使用此功能。');
+        setError(i18n.t('browse.corsError'));
       } else if (errorMsg.includes('Cookie')) {
-        setError('访问凭证已过期，请重新设置');
+        setError(i18n.t('browse.cookieExpired'));
         setShowSettingsDialog(true);
       } else {
-        setError(errorMsg || '搜索失败，请稍后重试');
+        setError(errorMsg || i18n.t('browse.searchFailed'));
       }
     } finally {
       setIsLoading(false);
@@ -364,7 +375,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
     // Check if download path is set
     if (!downloadPath) {
-      setError('请先在设置中选择下载目录');
+      setError(i18n.t('browse.selectDownloadPath'));
       setShowSettingsDialog(true);
       return;
     }
@@ -495,7 +506,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       const errorMsg = err.message || '';
       // If it's a cookie error, show settings dialog
       if (errorMsg.includes('Cookie') || errorMsg.includes('cookie')) {
-        setError('访问凭证已过期，请重新设置');
+        setError(i18n.t('browse.cookieExpired'));
         setShowSettingsDialog(true);
       }
       
@@ -535,17 +546,16 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       {/* Header */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-extrabold mb-2">Browse</h1>
+          <h1 className="text-4xl font-extrabold mb-2">{i18n.t('browse.title')}</h1>
           <p className="text-white/40">
             {hasSearched 
-              ? `Search results for "${executedSearchQuery}"` 
-              : 'Recommended'}
+              ? `${i18n.t('browse.searchResults')} "${executedSearchQuery}"` 
+              : i18n.t('browse.recommended')}
           </p>
         </div>
         <button
           onClick={() => setShowSettingsDialog(true)}
           className="w-10 h-10 rounded-xl bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary transition-all flex items-center justify-center"
-          title="Settings"
         >
           <span className="material-symbols-outlined">settings</span>
         </button>
@@ -557,39 +567,39 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           <div className="h-full flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <span className="material-symbols-outlined text-4xl text-primary animate-spin">refresh</span>
-              <p className="text-white/60">加载中...</p>
+              <p className="text-white/60">{i18n.t('browse.loading')}</p>
             </div>
           </div>
         ) : error ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center max-w-md">
               <span className="material-symbols-outlined text-6xl text-red-400 mb-4 block">error</span>
-              <p className="text-xl font-medium text-red-400 mb-2">出错了</p>
+              <p className="text-xl font-medium text-red-400 mb-2">{i18n.t('browse.error')}</p>
               <p className="text-sm text-white/60 mb-6">{error}</p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => loadRecommendations()}
                   className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
                 >
-                  重试
+                  {i18n.t('browse.retry')}
                 </button>
-                {!error.includes('浏览器') && !error.includes('桌面端') && (
+                {!error.includes('CORS') && !error.includes('浏览器') && !error.includes('桌面端') && !error.includes('desktop') && !error.includes('browser') && (
                   <button
                     onClick={() => setShowSettingsDialog(true)}
                     className="px-4 py-2 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 transition-all"
                   >
-                    打开设置
+                    {i18n.t('browse.openSettings')}
                   </button>
                 )}
               </div>
-              {(error.includes('CORS') || error.includes('浏览器') || error.includes('桌面端')) && (
+              {(error.includes('CORS') || error.includes('浏览器') || error.includes('桌面端') || error.includes('desktop') || error.includes('browser')) && (
                 <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                   <p className="text-xs text-yellow-400/80">
                     <span className="material-symbols-outlined text-sm align-text-bottom mr-1">lightbulb</span>
-                    提示：浏览功能需要在桌面端使用，因为浏览器存在跨域限制。
+                    {i18n.t('browse.browserLimitTitle')}
                   </p>
                   <p className="text-xs text-yellow-400/60 mt-2">
-                    构建桌面版：npm run electron:build
+                    {i18n.t('browse.buildDesktop')}
                   </p>
                 </div>
               )}
@@ -599,15 +609,15 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           <div className="h-full flex items-center justify-center">
             <div className="text-center opacity-40">
               <span className="material-symbols-outlined text-6xl mb-4 block">music_off</span>
-              <p className="text-xl font-medium">暂无音乐</p>
+              <p className="text-xl font-medium">{i18n.t('browse.noMusic')}</p>
               <p className="text-sm mt-2 mb-4">
-                {hasSearched ? '尝试其他搜索关键词' : '请设置访问凭证以获取推荐'}
+                {hasSearched ? i18n.t('browse.tryDifferentKeywords') : i18n.t('browse.setCookieToGetRecommended')}
               </p>
               <button
                 onClick={() => loadRecommendations()}
                 className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
               >
-                刷新
+                {i18n.t('browse.refresh')}
               </button>
             </div>
           </div>
@@ -616,10 +626,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             {/* Column Headers */}
             <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_80px_100px]">
               <span>#</span>
-              <span>Title</span>
-              <span>Album</span>
-              <span className="text-right">Time</span>
-              <span className="text-right">Action</span>
+              <span>{i18n.t('library.titleCol')}</span>
+              <span>{i18n.t('library.albumCol')}</span>
+              <span className="text-right">{i18n.t('library.timeCol')}</span>
+              <span className="text-right">{i18n.t('browse.actionCol')}</span>
             </div>
 
             {/* Song List */}
@@ -671,13 +681,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                       ) : isCompleted ? (
                         <span className="text-green-400 text-xs flex items-center gap-1">
                           <span className="material-symbols-outlined text-sm">check</span>
-                          完成
+                          {i18n.t('browse.completed')}
                         </span>
                       ) : (
                         <div className="relative">
                           <button
                             onClick={() => toggleDropdown(song.songmid)}
-                            title="下载"
+                            title={i18n.t('browse.download')}
                             className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                           >
                             <span className="material-symbols-outlined text-base">download</span>
@@ -694,13 +704,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                                 >
                                   <span>{option.label}</span>
                                   {option.value === '128' && (
-                                    <span className="text-[10px] text-white/30">标准</span>
+                                    <span className="text-[10px] text-white/30">{i18n.t('browse.standard')}</span>
                                   )}
                                   {option.value === '320' && (
-                                    <span className="text-[10px] text-white/30">高品质</span>
+                                    <span className="text-[10px] text-white/30">{i18n.t('browse.highQuality')}</span>
                                   )}
                                   {option.value === 'flac' && (
-                                    <span className="text-[10px] text-primary/60">无损</span>
+                                    <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>
                                   )}
                                 </button>
                               ))}
