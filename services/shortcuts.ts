@@ -22,6 +22,7 @@ export type ShortcutAction =
   | 'volumeUp10'
   | 'volumeDown10'
   | 'toggleMute'
+  | 'togglePlaybackMode'
   | 'enterFocusMode'
   | 'exitFocusMode'
   | 'focusSearch'
@@ -126,6 +127,14 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     description: 'shortcut.toggleMuteDesc',
     defaultKey: 'M',
     currentKey: 'M',
+    scope: 'player'
+  },
+  togglePlaybackMode: {
+    id: 'togglePlaybackMode',
+    name: 'shortcut.togglePlaybackMode',
+    description: 'shortcut.togglePlaybackModeDesc',
+    defaultKey: 'Alt+Tab',
+    currentKey: 'Alt+Tab',
     scope: 'player'
   },
   enterFocusMode: {

@@ -143,13 +143,13 @@ const Controls: React.FC<ControlsProps> = memo(({
         <button
           onClick={onTogglePlaybackMode}
           className="text-white/60 hover:text-white transition-colors relative top-[3.5px]"
-          title={
-            playbackMode === 'shuffle'
-              ? i18n.t('controls.shuffleMode')
-              : playbackMode === 'repeat-one'
-              ? i18n.t('controls.repeatOneMode')
-              : i18n.t('controls.repeatAllMode')
-          }
+          // title={
+          //   playbackMode === 'shuffle'
+          //     ? i18n.t('controls.shuffleMode')
+          //     : playbackMode === 'repeat-one'
+          //     ? i18n.t('controls.repeatOneMode')
+          //     : i18n.t('controls.repeatAllMode')
+          // }
         >
           <span className="material-symbols-outlined text-lg">
             {playbackMode === 'shuffle'

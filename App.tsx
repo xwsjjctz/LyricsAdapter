@@ -194,6 +194,7 @@ const App: React.FC = () => {
     volume,
     setVolume,
     handleToggleMute,
+    handleTogglePlaybackMode,
     onImportClick: () => {
       if (isDesktop()) {
         handleDesktopImport();

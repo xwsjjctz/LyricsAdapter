@@ -683,14 +683,14 @@ const translations: Translations = {
     de: 'Einen wiederholen',
     fr: 'Répéter une fois'
   },
-  'controls.shuffle': {
-    zh: '随机播放',
-    en: 'Shuffle',
-    ja: 'シャッフル',
-    ko: '무작위 재생',
-    de: 'Zufällig',
-    fr: 'Aléatoire'
-  },
+  // 'controls.shuffle': {
+  //   zh: '随机播放',
+  //   en: 'Shuffle',
+  //   ja: 'シャッフル',
+  //   ko: '무작위 재생',
+  //   de: 'Zufällig',
+  //   fr: 'Aléatoire'
+  // },
   'controls.sequence': {
     zh: '顺序播放',
     en: 'Sequence',
@@ -1606,6 +1606,22 @@ const translations: Translations = {
     ko: '테마 보기로 전환',
     de: 'Zur Themenansicht wechseln',
     fr: 'Passer à la vue thème'
+  },
+  'shortcut.togglePlaybackMode': {
+    zh: '切换播放模式',
+    en: 'Toggle Playback Mode',
+    ja: '再生モードを切り替え',
+    ko: '재생 모드 전환',
+    de: 'Wiedergabemodus umschalten',
+    fr: 'Changer le mode de lecture'
+  },
+  'shortcut.togglePlaybackModeDesc': {
+    zh: '在顺序播放、随机播放和单曲循环之间切换',
+    en: 'Switch between sequence, shuffle, and repeat-one modes',
+    ja: '順次再生、シャッフル、1曲リピートを切り替え',
+    ko: '순차 재생, 무작위 재생, 한 곡 반복 전환',
+    de: 'Zwischen Sequenz, Zufallswiedergabe und Einzelwiederholung wechseln',
+    fr: 'Basculer entre séquence, aléatoire et répétition unique'
   }
 };
 

@@ -17,6 +17,7 @@ interface UseShortcutsProps {
   volume: number;
   setVolume: (volume: number) => void;
   handleToggleMute: () => void;
+  handleTogglePlaybackMode: () => void;
   onImportClick: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
   currentTime: number;
@@ -36,6 +37,7 @@ export const useShortcuts = ({
   volume,
   setVolume,
   handleToggleMute,
+  handleTogglePlaybackMode,
   onImportClick,
   searchInputRef,
   currentTime,
@@ -55,6 +57,7 @@ export const useShortcuts = ({
   const handleSeekRef = useRef(handleSeek);
   const setVolumeRef = useRef(setVolume);
   const handleToggleMuteRef = useRef(handleToggleMute);
+  const handleTogglePlaybackModeRef = useRef(handleTogglePlaybackMode);
   const onImportClickRef = useRef(onImportClick);
   const setIsFocusModeRef = useRef(setIsFocusMode);
   const setViewModeRef = useRef(setViewMode);
@@ -71,6 +74,7 @@ export const useShortcuts = ({
   useEffect(() => { handleSeekRef.current = handleSeek; }, [handleSeek]);
   useEffect(() => { setVolumeRef.current = setVolume; }, [setVolume]);
   useEffect(() => { handleToggleMuteRef.current = handleToggleMute; }, [handleToggleMute]);
+  useEffect(() => { handleTogglePlaybackModeRef.current = handleTogglePlaybackMode; }, [handleTogglePlaybackMode]);
   useEffect(() => { onImportClickRef.current = onImportClick; }, [onImportClick]);
   useEffect(() => { setIsFocusModeRef.current = setIsFocusMode; }, [setIsFocusMode]);
   useEffect(() => { setViewModeRef.current = setViewMode; }, [setViewMode]);
@@ -127,6 +131,7 @@ export const useShortcuts = ({
     const handleSeek = handleSeekRef.current;
     const setVolume = setVolumeRef.current;
     const handleToggleMute = handleToggleMuteRef.current;
+    const handleTogglePlaybackMode = handleTogglePlaybackModeRef.current;
     const onImportClick = onImportClickRef.current;
     const setIsFocusMode = setIsFocusModeRef.current;
     const setViewMode = setViewModeRef.current;
@@ -180,12 +185,14 @@ export const useShortcuts = ({
         handleToggleMute();
         break;
 
+      case 'togglePlaybackMode':
+        handleTogglePlaybackMode();
+        break;
+
       case 'enterFocusMode':
       case 'exitFocusMode':
-        // Toggle focus mode with Enter key
-        if (viewMode !== ViewMode.BROWSE) {
-          setIsFocusMode(!isFocusMode);
-        }
+        // Toggle focus mode with Enter key - now works in all views including browse
+        setIsFocusMode(!isFocusMode);
         break;
 
       case 'focusSearch':
