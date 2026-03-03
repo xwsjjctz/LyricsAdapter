@@ -5,7 +5,7 @@
   --color-background-dark: #101922;
   --color-background-sidebar: #16212e;
   --color-background-card: rgba(255, 255, 255, 0.05);
-  --font-family-sans: 'Inter', sans-serif;
+  --font-family-sans: var(--theme-font-main, 'Inter', sans-serif);
 }
 
 /* Fade in animation for floating locate button */
@@ -22,4 +22,21 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Remove focus outline for mouse interactions, keep for keyboard navigation */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Remove default focus styles for input and textarea */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
 }

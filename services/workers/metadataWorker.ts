@@ -210,9 +210,9 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
           text: textWithoutTimestamps
         });
       }
-      plainTextLines.push(textWithoutTimestamps);
+      plainTextLines.push(trimmedLine); // Keep original line with timestamps
     } else if (textWithoutTimestamps) {
-      plainTextLines.push(textWithoutTimestamps);
+      plainTextLines.push(trimmedLine);
     }
   }
 

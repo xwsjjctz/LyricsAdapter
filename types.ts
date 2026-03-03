@@ -31,6 +31,7 @@ export enum ViewMode {
   PLAYER = 'player',
   LYRICS = 'lyrics',
   BROWSE = 'browse',
+  METADATA = 'metadata',
   SETTINGS = 'settings',
   THEME = 'theme'
 }

@@ -31,6 +31,14 @@ const translations: Translations = {
     de: 'Durchsuchen',
     fr: 'Parcourir'
   },
+  'sidebar.metadata': {
+    zh: '元数据',
+    en: 'Metadata',
+    ja: 'メタデータ',
+    ko: '메타데이터',
+    de: 'Metadaten',
+    fr: 'Métadonnées'
+  },
   'sidebar.importFiles': {
     zh: '导入文件',
     en: 'Import Files',
@@ -121,6 +129,14 @@ const translations: Translations = {
     de: 'Zeit',
     fr: 'Durée'
   },
+  'library.actionCol': {
+    zh: '操作',
+    en: 'Action',
+    ja: '操作',
+    ko: '작업',
+    de: 'Aktion',
+    fr: 'Action'
+  },
   'library.cancel': {
     zh: '取消',
     en: 'Cancel',
@@ -208,6 +224,30 @@ const translations: Translations = {
     ko: '현재 재생 위치로',
     de: 'Zur aktuellen Wiedergabe springen',
     fr: 'Aller à la lecture actuelle'
+  },
+  'library.deleteConfirmTitle': {
+    zh: '确认删除',
+    en: 'Confirm Delete',
+    ja: '削除の確認',
+    ko: '삭제 확인',
+    de: 'Löschen bestätigen',
+    fr: 'Confirmer la suppression'
+  },
+  'library.deleteConfirmMessage': {
+    zh: '确定要删除这首歌曲吗？此操作无法撤销。',
+    en: 'Are you sure you want to delete this track? This action cannot be undone.',
+    ja: 'このトラックを削除してもよろしいですか？この操作は元に戻せません。',
+    ko: '이 트랙을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.',
+    de: 'Möchten Sie diesen Titel wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+    fr: 'Êtes-vous sûr de vouloir supprimer ce titre ? Cette action ne peut pas être annulée.'
+  },
+  'library.deleteSelectedConfirmMessage': {
+    zh: '确定要删除选中的 {count} 首歌曲吗？此操作无法撤销。',
+    en: 'Are you sure you want to delete {count} selected tracks? This action cannot be undone.',
+    ja: '選択された {count} 曲のトラックを削除してもよろしいですか？この操作は元に戻せません。',
+    ko: '선택된 {count} 곡의 트랙을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.',
+    de: 'Möchten Sie {count} ausgewählte Titel wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+    fr: 'Êtes-vous sûr de vouloir supprimer {count} titres sélectionnés ? Cette action ne peut pas être annulée.'
   },
   'library.dropFiles': {
     zh: '拖放音频文件到这里',
@@ -534,6 +574,308 @@ const translations: Translations = {
     ko: '테마 기능 곧 출시 예정',
     de: 'Themen-Funktion kommt bald',
     fr: 'La fonctionnalité de thème arrive bientôt'
+  },
+  'theme.selectTheme': {
+    zh: '选择主题',
+    en: 'Select Theme',
+    ja: 'テーマを選択',
+    ko: '테마 선택',
+    de: 'Thema auswählen',
+    fr: 'Sélectionner un thème'
+  },
+  'theme.preview': {
+    zh: '预览',
+    en: 'Preview',
+    ja: 'プレビュー',
+    ko: '미리보기',
+    de: 'Vorschau',
+    fr: 'Aperçu'
+  },
+  'theme.apply': {
+    zh: '应用',
+    en: 'Apply',
+    ja: '適用',
+    ko: '적용',
+    de: 'Anwenden',
+    fr: 'Appliquer'
+  },
+  'theme.applied': {
+    zh: '已应用',
+    en: 'Applied',
+    ja: '適用済み',
+    ko: '적용됨',
+    de: 'Angewendet',
+    fr: 'Appliqué'
+  },
+  'theme.current': {
+    zh: '当前主题',
+    en: 'Current Theme',
+    ja: '現在のテーマ',
+    ko: '현재 테마',
+    de: 'Aktuelles Thema',
+    fr: 'Thème actuel'
+  },
+  'theme.darkMode': {
+    zh: '深色主题',
+    en: 'Dark Theme',
+    ja: 'ダークテーマ',
+    ko: '다크 테마',
+    de: 'Dunkles Thema',
+    fr: 'Thème sombre'
+  },
+  'theme.lightMode': {
+    zh: '浅色主题',
+    en: 'Light Theme',
+    ja: 'ライトテーマ',
+    ko: '라이트 테마',
+    de: 'Helles Thema',
+    fr: 'Thème clair'
+  },
+
+  // Theme names
+  'theme.name.default': {
+    zh: '经典蓝',
+    en: 'Classic Blue',
+    ja: 'クラシックブルー',
+    ko: '클래식 블루',
+    de: 'Klassisches Blau',
+    fr: 'Bleu classique'
+  },
+  'theme.name.cute': {
+    zh: '可爱粉',
+    en: 'Cute Pink',
+    ja: 'キュートピンク',
+    ko: '귀여운 핑크',
+    de: 'Süßes Rosa',
+    fr: 'Rose mignon'
+  },
+  'theme.name.ocean': {
+    zh: '海洋蓝',
+    en: 'Ocean Blue',
+    ja: 'オーシャンブルー',
+    ko: '오션 블루',
+    de: 'Ozeanblau',
+    fr: 'Bleu océan'
+  },
+  'theme.name.sunset': {
+    zh: '落日橙',
+    en: 'Sunset Orange',
+    ja: 'サンセットオレンジ',
+    ko: '선셋 오렌지',
+    de: 'Sonnenuntergangs-Orange',
+    fr: 'Orange coucher de soleil'
+  },
+  'theme.name.forest': {
+    zh: '森林绿',
+    en: 'Forest Green',
+    ja: 'フォレストグリーン',
+    ko: '포레스트 그린',
+    de: 'Waldgrün',
+    fr: 'Vert forêt'
+  },
+  'theme.name.midnight': {
+    zh: '午夜紫',
+    en: 'Midnight Purple',
+    ja: 'ミッドナイトパープル',
+    ko: '미드나이트 퍼플',
+    de: 'Mitternachtslila',
+    fr: 'Violet minuit'
+  },
+
+  // Theme descriptions
+  'theme.desc.default': {
+    zh: '默认主题，经典蓝色调',
+    en: 'Default theme with classic blue tones',
+    ja: 'デフォルトテーマ、クラシックブルー',
+    ko: '기본 테마, 클래식 블루 톤',
+    de: 'Standard-Design mit klassischen Blautönen',
+    fr: 'Thème par défaut aux tons bleus classiques'
+  },
+  'theme.desc.cute': {
+    zh: '甜美可爱，粉色系主题',
+    en: 'Sweet and cute pink theme',
+    ja: 'スイートでキュートなピンクテーマ',
+    ko: '달콤하고 귀여운 핑크 테마',
+    de: 'Süßes rosa Design',
+    fr: 'Thème rose doux et mignon'
+  },
+  'theme.desc.ocean': {
+    zh: '深邃海洋，宁静致远',
+    en: 'Deep ocean, peaceful and serene',
+    ja: '深遠な海洋、平和で静寂',
+    ko: '깊은 바다, 평화롭고 고요함',
+    de: 'Tiefer Ozean, friedlich und ruhig',
+    fr: 'Océan profond, paisible et serein'
+  },
+  'theme.desc.sunset': {
+    zh: '温暖落日，温馨舒适',
+    en: 'Warm sunset, cozy and comfortable',
+    ja: '温かい夕日、居心地良い',
+    ko: '따뜻한 일몰, 아늑하고 편안함',
+    de: 'Warmer Sonnenuntergang, gemütlich',
+    fr: 'Coucher de soleil chaud, douillet'
+  },
+  'theme.desc.forest': {
+    zh: '清新自然，绿意盎然',
+    en: 'Fresh and natural green theme',
+    ja: '爽やかで自然なグリーンテーマ',
+    ko: '상쾌하고 자연적인 그린 테마',
+    de: 'Frisches und natürliches Grün',
+    fr: 'Thème vert frais et naturel'
+  },
+  'theme.desc.midnight': {
+    zh: '神秘优雅，深邃迷人',
+    en: 'Mysterious and elegant purple',
+    ja: '神秘的でエレガントなパープル',
+    ko: '신비롭고 우아한 퍼플',
+    de: 'Geheimnisvolles und elegantes Lila',
+    fr: 'Violet mystérieux et élégant'
+  },
+
+  // Theme tags
+  'theme.tag.default': {
+    zh: '默认',
+    en: 'Default',
+    ja: 'デフォルト',
+    ko: '기본',
+    de: 'Standard',
+    fr: 'Par défaut'
+  },
+  'theme.tag.classic': {
+    zh: '经典',
+    en: 'Classic',
+    ja: 'クラシック',
+    ko: '클래식',
+    de: 'Klassisch',
+    fr: 'Classique'
+  },
+  'theme.tag.business': {
+    zh: '商务',
+    en: 'Business',
+    ja: 'ビジネス',
+    ko: '비즈니스',
+    de: 'Geschäftlich',
+    fr: 'Affaires'
+  },
+  'theme.tag.cute': {
+    zh: '可爱',
+    en: 'Cute',
+    ja: 'キュート',
+    ko: '귀여운',
+    de: 'Süß',
+    fr: 'Mignon'
+  },
+  'theme.tag.sweet': {
+    zh: '甜美',
+    en: 'Sweet',
+    ja: 'スイート',
+    ko: '스위트',
+    de: 'Süß',
+    fr: 'Doux'
+  },
+  'theme.tag.pink': {
+    zh: '粉色',
+    en: 'Pink',
+    ja: 'ピンク',
+    ko: '핑크',
+    de: 'Rosa',
+    fr: 'Rose'
+  },
+  'theme.tag.ocean': {
+    zh: '海洋',
+    en: 'Ocean',
+    ja: 'オーシャン',
+    ko: '오션',
+    de: 'Ozean',
+    fr: 'Océan'
+  },
+  'theme.tag.blue': {
+    zh: '蓝色',
+    en: 'Blue',
+    ja: 'ブルー',
+    ko: '블루',
+    de: 'Blau',
+    fr: 'Bleu'
+  },
+  'theme.tag.deep': {
+    zh: '深邃',
+    en: 'Deep',
+    ja: '深遠',
+    ko: '깊은',
+    de: 'Tief',
+    fr: 'Profond'
+  },
+  'theme.tag.warm': {
+    zh: '温暖',
+    en: 'Warm',
+    ja: '温かい',
+    ko: '따뜻한',
+    de: 'Warm',
+    fr: 'Chaud'
+  },
+  'theme.tag.orange': {
+    zh: '橙色',
+    en: 'Orange',
+    ja: 'オレンジ',
+    ko: '오렌지',
+    de: 'Orange',
+    fr: 'Orange'
+  },
+  'theme.tag.cozy': {
+    zh: '舒适',
+    en: 'Cozy',
+    ja: '居心地良い',
+    ko: '편안한',
+    de: 'Gemütlich',
+    fr: 'Douillet'
+  },
+  'theme.tag.natural': {
+    zh: '自然',
+    en: 'Natural',
+    ja: '自然',
+    ko: '자연적인',
+    de: 'Natürlich',
+    fr: 'Naturel'
+  },
+  'theme.tag.green': {
+    zh: '绿色',
+    en: 'Green',
+    ja: 'グリーン',
+    ko: '그린',
+    de: 'Grün',
+    fr: 'Vert'
+  },
+  'theme.tag.fresh': {
+    zh: '清新',
+    en: 'Fresh',
+    ja: '爽やか',
+    ko: '상쾌한',
+    de: 'Frisch',
+    fr: 'Frais'
+  },
+  'theme.tag.mysterious': {
+    zh: '神秘',
+    en: 'Mysterious',
+    ja: '神秘的',
+    ko: '신비로운',
+    de: 'Geheimnisvoll',
+    fr: 'Mystérieux'
+  },
+  'theme.tag.purple': {
+    zh: '紫色',
+    en: 'Purple',
+    ja: 'パープル',
+    ko: '퍼플',
+    de: 'Lila',
+    fr: 'Violet'
+  },
+  'theme.tag.elegant': {
+    zh: '优雅',
+    en: 'Elegant',
+    ja: 'エレガント',
+    ko: '우아한',
+    de: 'Elegant',
+    fr: 'Élégant'
   },
 
   // Settings Dialog (BrowseView)
@@ -1606,6 +1948,80 @@ const translations: Translations = {
     ko: '테마 보기로 전환',
     de: 'Zur Themenansicht wechseln',
     fr: 'Passer à la vue thème'
+  },
+
+  // Metadata View
+  'metadataView.title': {
+    zh: '元数据',
+    en: 'Metadata',
+    ja: 'メタデータ',
+    ko: '메타데이터',
+    de: 'Metadaten',
+    fr: 'Métadonnées'
+  },
+  'metadataView.description': {
+    zh: '编辑音频文件的元数据信息',
+    en: 'Edit audio file metadata information',
+    ja: 'オーディオファイルのメタデータを編集',
+    ko: '오디오 파일 메타데이터 편집',
+    de: 'Audio-Datei-Metadaten bearbeiten',
+    fr: 'Modifier les métadonnées des fichiers audio'
+  },
+  'metadataView.importFiles': {
+    zh: '导入文件',
+    en: 'Import Files',
+    ja: 'ファイルをインポート',
+    ko: '파일 가져오기',
+    de: 'Dateien importieren',
+    fr: 'Importer des fichiers'
+  },
+  'metadataView.importFromLibrary': {
+    zh: '从音乐库导入',
+    en: 'Import from Library',
+    ja: 'ライブラリからインポート',
+    ko: '라이브러리에서 가져오기',
+    de: 'Aus Bibliothek importieren',
+    fr: 'Importer depuis la bibliothèque'
+  },
+  'metadataView.importedTracks': {
+    zh: '已导入',
+    en: 'Imported',
+    ja: 'インポート済み',
+    ko: '가져옴',
+    de: 'Importiert',
+    fr: 'Importé'
+  },
+  'metadataView.selectFromLibrary': {
+    zh: '从音乐库选择',
+    en: 'Select from Library',
+    ja: 'ライブラリから選択',
+    ko: '라이브러리에서 선택',
+    de: 'Aus Bibliothek auswählen',
+    fr: 'Sélectionner depuis la bibliothèque'
+  },
+  'metadataView.selectTrack': {
+    zh: '请选择一首曲目',
+    en: 'Please select a track',
+    ja: 'トラックを選択してください',
+    ko: '트랙을 선택하세요',
+    de: 'Bitte wählen Sie einen Titel',
+    fr: 'Veuillez sélectionner un titre'
+  },
+  'metadataView.importSelected': {
+    zh: '导入所选',
+    en: 'Import Selected',
+    ja: '選択をインポート',
+    ko: '선택 항목 가져오기',
+    de: 'Ausgewählte importieren',
+    fr: 'Importer la sélection'
+  },
+  'metadataView.importCover': {
+    zh: '导入封面',
+    en: 'Import Cover',
+    ja: 'カバーをインポート',
+    ko: '표지 가져오기',
+    de: 'Cover importieren',
+    fr: 'Importer la pochette'
   }
 };
 

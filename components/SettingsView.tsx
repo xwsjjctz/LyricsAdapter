@@ -46,100 +46,78 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   return (
     <div className="max-w-4xl mx-auto w-full flex flex-col h-full">
       {/* Header */}
-      <div className="mb-6 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-white mb-1">{i18n.t('settings.title')}</h1>
-        <p className="text-white/50 text-sm">{i18n.t('settings.description')}</p>
+      <div className="mb-4 flex-shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
+          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{i18n.t('settings.description')}</p>
+        </div>
       </div>
 
       {/* Settings Content */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto no-scrollbar">
-          
-          {/* Language Setting Section */}
-          <section className="mb-6">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/[0.07] transition-colors">
-              <div className="flex items-center justify-between">
-                {/* Left side - Icon and labels */}
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-primary text-xl">language</span>
+
+          {/* 语言和关于合并为紧凑的双列布局 */}
+          <section className="mb-4">
+            <div className="grid grid-cols-2 gap-3">
+              {/* Language Setting */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-3 hover:bg-white/[0.07] transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="material-symbols-outlined text-primary text-lg">language</span>
+                    <span className="text-sm text-white/90 truncate">{i18n.t('settings.language')}</span>
                   </div>
-                  <div>
-                    <h3 className="text-base font-medium text-white">{i18n.t('settings.language')}</h3>
-                    <p className="text-xs text-white/40 mt-0.5">
-                      {currentLanguageOption?.nativeLabel} • {currentLanguageOption?.label}
-                    </p>
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded text-white/80 hover:bg-white/10 hover:border-white/20 transition-all text-sm"
+                    >
+                      <span>{currentLanguageOption?.nativeLabel}</span>
+                      <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
+                        expand_more
+                      </span>
+                    </button>
+
+                    {isLangDropdownOpen && (
+                      <div className="absolute top-full right-0 mt-1 bg-[#1a2533] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 min-w-[140px]">
+                        {languageOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => handleLanguageChange(option.value)}
+                            className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors text-sm ${
+                              currentLang === option.value
+                                ? 'bg-primary/20 text-primary'
+                                : 'text-white/70 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span>{option.nativeLabel}</span>
+                            {currentLang === option.value && (
+                              <span className="material-symbols-outlined text-primary text-sm">check</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {/* Right side - Dropdown */}
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                    className="flex items-center gap-3 px-5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/80 hover:bg-white/10 hover:border-white/20 transition-all min-w-[180px] justify-between"
-                  >
-                    <span className="text-sm font-medium">{currentLanguageOption?.nativeLabel}</span>
-                    <span className={`material-symbols-outlined text-lg transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
-                      expand_more
-                    </span>
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {isLangDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 bg-[#1a2533] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 min-w-[180px]">
-                      {languageOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => handleLanguageChange(option.value)}
-                          className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
-                            currentLang === option.value
-                              ? 'bg-primary/20 text-primary'
-                              : 'text-white/70 hover:bg-white/5 hover:text-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium">{option.nativeLabel}</span>
-                            <span className="text-xs text-white/40">{option.label}</span>
-                          </div>
-                          {currentLang === option.value && (
-                            <span className="material-symbols-outlined text-primary text-lg">check</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+              {/* About */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/[0.07] transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-white/60 text-lg">info</span>
+                  <div className="min-w-0">
+                    <span className="text-sm text-white/90">Lyrics Adapter</span>
+                    <span className="text-xs text-white/40 ml-2">v1.0.0</span>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
-
-          {/* Divider */}
-          <div className="border-t border-white/5 my-4"></div>
 
           {/* Shortcuts Section */}
-          <section className="mb-6">
+          <section className="mb-4">
             <ShortcutsSettings />
-          </section>
-
-          {/* Divider */}
-          <div className="border-t border-white/5 my-4"></div>
-
-          {/* About Section */}
-          <section className="mb-6">
-            <h2 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-3 px-1">
-              {i18n.t('settings.about')}
-            </h2>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/[0.07] transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-white/60 text-xl">info</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-medium text-white">Lyrics Adapter</h3>
-                  <p className="text-xs text-white/40 mt-0.5">v1.0.0</p>
-                </div>
-              </div>
-            </div>
           </section>
 
         </div>

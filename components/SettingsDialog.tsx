@@ -4,6 +4,8 @@ import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -16,8 +18,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [isValidating, setIsValidating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
-  // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   useEffect(() => {
     if (isOpen) {
@@ -31,6 +33,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
     });
     return unsubscribe;
   }, []);
@@ -81,6 +90,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
+  const colors = currentTheme.colors;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-[#1a2533] border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
@@ -104,7 +115,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
               placeholder={i18n.t('settingsDialog.pasteCookie')}
-              className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all resize-none"
+              className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-0 transition-all resize-none"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.05)',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)';
+                e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
               disabled={isValidating}
             />
           </div>
@@ -119,7 +141,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 value={downloadPath}
                 onChange={(e) => setDownloadPath(e.target.value)}
                 placeholder={i18n.t('settingsDialog.downloadFolderPath')}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-0 transition-all"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.05)',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
                 disabled={isValidating}
               />
               <button

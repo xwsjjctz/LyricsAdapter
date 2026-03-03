@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ViewMode } from '../types';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 
 interface SidebarProps {
   onImportClick: () => void;
@@ -14,25 +16,28 @@ interface SidebarProps {
   viewMode: ViewMode;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ 
-  onImportClick, 
-  onNavigate, 
-  currentView, 
-  onReloadFiles, 
-  hasUnavailableTracks, 
-  searchInputValue = '', 
+const Sidebar: React.FC<SidebarProps> = ({
+  onImportClick,
+  onNavigate,
+  currentView,
+  onReloadFiles,
+  hasUnavailableTracks,
+  searchInputValue = '',
   onSearchInputChange,
   onSearchExecute,
   viewMode
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isBrowseView = currentView === ViewMode.BROWSE;
-  
+  const isMetadataView = currentView === ViewMode.METADATA;
+
   // Local state for input (synced with global searchInputValue)
   const [inputValue, setInputValue] = useState(searchInputValue);
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
-  
+  // Track current theme for styling
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+
   // Sync local state with global searchInputValue when it changes from outside
   useEffect(() => {
     setInputValue(searchInputValue);
@@ -42,6 +47,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Subscribe to theme changes
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
     });
     return unsubscribe;
   }, []);
@@ -60,25 +73,53 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  // Handle clear - clear both local and global state
+  // Handle clear - clear both local and local state
   const handleClear = () => {
     setInputValue('');
     onSearchInputChange?.('');
     onSearchExecute?.();
   };
 
+  // Get theme-aware styles
+  const colors = currentTheme.colors;
+  const isDark = currentTheme.isDark;
+  
+  // Text colors based on theme
+  const textPrimary = colors.textPrimary;
+  const textSecondary = colors.textSecondary;
+  const textMuted = colors.textMuted;
+
   return (
-    <aside className="w-64 flex flex-col bg-background-sidebar/60 backdrop-blur-md border-r border-white/10 z-20 pt-8">
+    <aside 
+      className="w-64 flex flex-col backdrop-blur-md z-20 pt-8"
+      style={{
+        backgroundColor: colors.backgroundSidebar,
+        borderRight: `1px solid ${colors.borderLight}`,
+      }}
+    >
       <div className="px-6 flex flex-col gap-6 pt-6">
         <div>
           <nav className="flex flex-col gap-2">
             <button
               onClick={() => onNavigate(ViewMode.PLAYER)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                isLibraryView
-                  ? 'bg-primary/20 text-primary shadow-[0_0_20px_rgba(43,140,238,0.15)]'
-                  : 'text-white/60 hover:bg-white/5 hover:text-white'
-              }`}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+              style={{
+                backgroundColor: isLibraryView ? `${colors.primary}33` : 'transparent',
+                color: isLibraryView ? colors.primary : textSecondary,
+                boxShadow: isLibraryView ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isLibraryView) {
+                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                  e.currentTarget.style.color = textPrimary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isLibraryView) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = textSecondary;
+                }
+              }}
             >
               <span className={`material-symbols-outlined text-xl ${isLibraryView ? 'fill-1' : ''}`}>library_music</span>
               <span className="text-sm font-semibold">{i18n.t('sidebar.library')}</span>
@@ -86,19 +127,69 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => onNavigate(ViewMode.BROWSE)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                isBrowseView
-                  ? 'bg-primary/20 text-primary shadow-[0_0_20px_rgba(43,140,238,0.15)]'
-                  : 'text-white/60 hover:bg-white/5 hover:text-white'
-              }`}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+              style={{
+                backgroundColor: isBrowseView ? `${colors.primary}33` : 'transparent',
+                color: isBrowseView ? colors.primary : textSecondary,
+                boxShadow: isBrowseView ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isBrowseView) {
+                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                  e.currentTarget.style.color = textPrimary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isBrowseView) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = textSecondary;
+                }
+              }}
             >
               <span className={`material-symbols-outlined text-xl ${isBrowseView ? 'fill-1' : ''}`}>explore</span>
               <span className="text-sm font-semibold">{i18n.t('sidebar.browse')}</span>
             </button>
 
             <button
+              onClick={() => onNavigate(ViewMode.METADATA)}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+              style={{
+                backgroundColor: isMetadataView ? `${colors.primary}33` : 'transparent',
+                color: isMetadataView ? colors.primary : textSecondary,
+                boxShadow: isMetadataView ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isMetadataView) {
+                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                  e.currentTarget.style.color = textPrimary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isMetadataView) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = textSecondary;
+                }
+              }}
+            >
+              <span className={`material-symbols-outlined text-xl ${isMetadataView ? 'fill-1' : ''}`}>description</span>
+              <span className="text-sm font-semibold">{i18n.t('sidebar.metadata')}</span>
+            </button>
+
+            <button
               onClick={onImportClick}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/60 hover:bg-primary/10 hover:text-primary transition-all mt-4 border border-dashed border-white/20 group"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-4 border border-dashed group"
+              style={{
+                color: textSecondary,
+                borderColor: colors.borderLight,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = `${colors.primary}1a`;
+                e.currentTarget.style.color = colors.primary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = textSecondary;
+              }}
             >
               <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
               <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
@@ -108,7 +199,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             {onSearchInputChange && onSearchExecute && (
               <div className="mt-4">
                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-white/40 text-lg">
+                  <span 
+                    className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-lg"
+                    style={{ color: textMuted }}
+                  >
                     search
                   </span>
                   <input
@@ -117,12 +211,30 @@ const Sidebar: React.FC<SidebarProps> = ({
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-13 pr-10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-primary/50 focus:bg-white/[0.07] transition-all"
+                    className="w-full rounded-xl py-3 pl-13 pr-10 text-sm transition-all focus:outline-none focus:ring-0"
+                    style={{
+                      backgroundColor: colors.backgroundCard,
+                      border: `1px solid ${colors.borderLight}`,
+                      color: textPrimary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                   {inputValue && (
                     <button
                       onClick={handleClear}
-                      className="absolute right-3 top-5/9 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                      className="absolute right-3 top-5/9 -translate-y-1/2 transition-colors"
+                      style={{ color: textMuted }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = textPrimary;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = textMuted;
+                      }}
                     >
                       <span className="material-symbols-outlined text-lg">close</span>
                     </button>
@@ -135,24 +247,48 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 onClick={() => onNavigate(ViewMode.SETTINGS)}
-                className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-all ${
-                  currentView === ViewMode.SETTINGS
-                    ? 'bg-primary/20 text-primary shadow-[0_0_20px_rgba(43,140,238,0.15)]'
-                    : 'bg-white/5 text-white/60 hover:bg-white/[0.08] hover:text-white'
-                }`}
-                title={i18n.t('sidebar.settings')}
+                className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
+                style={{
+                  backgroundColor: currentView === ViewMode.SETTINGS ? `${colors.primary}33` : colors.backgroundCard,
+                  color: currentView === ViewMode.SETTINGS ? colors.primary : textSecondary,
+                  boxShadow: currentView === ViewMode.SETTINGS ? `0 0 20px ${colors.glowColor}` : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (currentView !== ViewMode.SETTINGS) {
+                    e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                    e.currentTarget.style.color = textPrimary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (currentView !== ViewMode.SETTINGS) {
+                    e.currentTarget.style.backgroundColor = colors.backgroundCard;
+                    e.currentTarget.style.color = textSecondary;
+                  }
+                }}
               >
                 <span className={`material-symbols-outlined text-[22px] ${currentView === ViewMode.SETTINGS ? 'fill-1' : ''}`}>settings</span>
               </button>
 
               <button
                 onClick={() => onNavigate(ViewMode.THEME)}
-                className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-all ${
-                  currentView === ViewMode.THEME
-                    ? 'bg-primary/20 text-primary shadow-[0_0_20px_rgba(43,140,238,0.15)]'
-                    : 'bg-white/5 text-white/60 hover:bg-white/[0.08] hover:text-white'
-                }`}
-                title={i18n.t('sidebar.theme')}
+                className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
+                style={{
+                  backgroundColor: currentView === ViewMode.THEME ? `${colors.primary}33` : colors.backgroundCard,
+                  color: currentView === ViewMode.THEME ? colors.primary : textSecondary,
+                  boxShadow: currentView === ViewMode.THEME ? `0 0 20px ${colors.glowColor}` : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (currentView !== ViewMode.THEME) {
+                    e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                    e.currentTarget.style.color = textPrimary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (currentView !== ViewMode.THEME) {
+                    e.currentTarget.style.backgroundColor = colors.backgroundCard;
+                    e.currentTarget.style.color = textSecondary;
+                  }
+                }}
               >
                 <span className={`material-symbols-outlined text-[22px] ${currentView === ViewMode.THEME ? 'fill-1' : ''}`}>checkroom</span>
               </button>
@@ -161,7 +297,19 @@ const Sidebar: React.FC<SidebarProps> = ({
             {hasUnavailableTracks && onReloadFiles && (
               <button
                 onClick={onReloadFiles}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-yellow-400/80 hover:bg-yellow-500/10 hover:text-yellow-400 transition-all border border-dashed border-yellow-500/20 group"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all border border-dashed group"
+                style={{
+                  color: isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706',
+                  borderColor: isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(217, 119, 6, 0.3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = isDark ? 'rgba(234, 179, 8, 0.1)' : 'rgba(217, 119, 6, 0.1)';
+                  e.currentTarget.style.color = isDark ? '#facc15' : '#b45309';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706';
+                }}
                 title="Reload unavailable tracks"
               >
                 <span className="material-symbols-outlined group-hover:scale-110 transition-transform">refresh</span>
@@ -172,8 +320,13 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="mt-auto p-8 opacity-20">
-        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-center">Lyrics Adapter</p>
+      <div className="mt-auto p-8" style={{ opacity: 0.2 }}>
+        <p 
+          className="text-[9px] font-bold uppercase tracking-[0.3em] text-center"
+          style={{ color: textPrimary }}
+        >
+          Lyrics Adapter
+        </p>
       </div>
     </aside>
   );
