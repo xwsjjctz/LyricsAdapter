@@ -1223,7 +1223,28 @@ app.whenReady().then(() => {
       log(`[METAFLAC] Creating backup: ${backupPath}`);
       fs.copyFileSync(filePath, backupPath);
 
-      // Step 1: Remove existing tags and picture (major operations)
+      // Step 1: Extract existing cover if no new cover is provided
+      let existingCoverPath: string | undefined;
+      if (!metadata.coverUrl) {
+        try {
+          existingCoverPath = filePath + '.existing_cover.jpg';
+          log(`[METAFLAC] Extracting existing cover to: ${existingCoverPath}`);
+          execSync(`"${metaflacBinary}" --export-picture-to="${existingCoverPath}" "${filePath}"`, execOptions);
+          if (fs.existsSync(existingCoverPath)) {
+            const stats = fs.statSync(existingCoverPath);
+            log(`[METAFLAC] ✓ Existing cover extracted (${stats.size} bytes)`);
+          } else {
+            existingCoverPath = undefined;
+            log(`[METAFLAC] No existing cover found`);
+          }
+        } catch (e: any) {
+          existingCoverPath = undefined;
+          log(`[METAFLAC] Warning: Failed to extract existing cover: ${e.message}`);
+          // Continue even if extraction fails
+        }
+      }
+
+      // Step 2: Remove existing tags and picture (major operations)
       log(`[METAFLAC] Removing existing metadata`);
       try {
         execSync(`"${metaflacBinary}" --remove-all-tags "${filePath}"`, execOptions);
@@ -1311,6 +1332,16 @@ app.whenReady().then(() => {
           log(`[METAFLAC] Warning: Failed to add cover: ${e.message}`);
           // Continue even if cover fails
         }
+      } else if (existingCoverPath && fs.existsSync(existingCoverPath)) {
+        // Restore existing cover if no new cover was provided
+        try {
+          log(`[METAFLAC] Restoring existing cover from: ${existingCoverPath}`);
+          execSync(`"${metaflacBinary}" --import-picture-from="${existingCoverPath}" "${filePath}"`, execOptions);
+          log(`[METAFLAC] ✓ Existing cover restored`);
+        } catch (e: any) {
+          log(`[METAFLAC] Warning: Failed to restore existing cover: ${e.message}`);
+          // Continue even if restoration fails
+        }
       }
 
       // Verify the file BEFORE writing metadata
@@ -1331,6 +1362,16 @@ app.whenReady().then(() => {
       // Delete backup on success
       log(`[METAFLAC] Success, removing backup`);
       fs.unlinkSync(backupPath);
+
+      // Clean up existing cover temp file
+      if (existingCoverPath && fs.existsSync(existingCoverPath)) {
+        try {
+          fs.unlinkSync(existingCoverPath);
+          log(`[METAFLAC] ✓ Cleaned up existing cover temp file`);
+        } catch (e: any) {
+          log(`[METAFLAC] Warning: Failed to clean up existing cover temp file: ${e.message}`);
+        }
+      }
 
       log('[METAFLAC] ✓ Metadata written successfully');
       return true;

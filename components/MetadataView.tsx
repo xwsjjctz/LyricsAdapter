@@ -3,7 +3,8 @@ import { Track } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
-import { parseAudioFile } from '../services/metadataService';
+import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
+import { coverArtService } from '../services/coverArtService';
 import TrackCover from './TrackCover';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -47,6 +48,19 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
     }
   }, [selectedTrack?.id]);
 
+  // Convert synced lyrics to LRC format for saving
+  const syncedLyricsToLRC = useCallback((syncedLyrics?: { time: number; text: string }[]): string => {
+    if (!syncedLyrics || syncedLyrics.length === 0) return '';
+    return syncedLyrics
+      .map(line => {
+        const minutes = Math.floor(line.time / 60);
+        const seconds = Math.floor(line.time % 60);
+        const centiseconds = Math.floor((line.time % 1) * 100);
+        return `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}]${line.text}`;
+      })
+      .join('\n');
+  }, []);
+
   // Auto-select first track when library is loaded and no track is selected
   useEffect(() => {
     if (libraryTracks.length > 0 && !selectedTrack && !autoSelectedRef.current) {
@@ -74,6 +88,13 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
           const file = new File([result.data.buffer], result.data.fileName, { type: result.data.mimeType });
           const metadata = await parseAudioFile(file);
           
+          // Ensure syncedLyrics is populated from lyrics if it contains LRC timestamps
+          let finalSyncedLyrics = metadata.syncedLyrics;
+          if (!finalSyncedLyrics && metadata.lyrics) {
+            const parsed = parseLRCLyrics(metadata.lyrics);
+            finalSyncedLyrics = parsed.syncedLyrics;
+          }
+          
           // Create updated track with cover URL
           const updatedTrack: Track = {
             ...selectedTrack,
@@ -81,7 +102,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             artist: metadata.artist,
             album: metadata.album,
             lyrics: metadata.lyrics,
-            syncedLyrics: metadata.syncedLyrics,
+            syncedLyrics: finalSyncedLyrics,
             coverUrl: metadata.coverUrl,
           };
           
@@ -136,11 +157,16 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
         // Write metadata with cover
         const desktopAPI = await getDesktopAPIAsync();
         if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
+          // Convert syncedLyrics to LRC format for saving
+          const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
+            ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
+            : selectedTrack.lyrics;
+          
           const metadata = {
             title: selectedTrack.title,
             artist: selectedTrack.artist,
             album: selectedTrack.album,
-            lyrics: selectedTrack.lyrics,
+            lyrics: lyricsToSave,
             coverUrl: dataUrl, // Pass data URL directly
           };
 
@@ -149,6 +175,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
 
           if (result.success) {
             logger.info('[MetadataView] ✓ Cover written successfully');
+            // Clear cover cache after cover update
+            await coverArtService.deleteCover(selectedTrack.id);
             // Refresh metadata to show new cover
             await refreshMetadata();
           } else {
@@ -162,10 +190,15 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
       }
     };
     input.click();
-  }, [selectedTrack, refreshMetadata]);
+  }, [selectedTrack, refreshMetadata, syncedLyricsToLRC]);
 
   const renderMetadataField = useCallback((label: string, value: string | undefined, field: 'title' | 'artist' | 'album' | 'lyrics', isLyrics: boolean = false) => {
-    const currentValue = selectedTrack?.[field] || '';
+    // For lyrics field, prefer synced lyrics in LRC format if available
+    let currentValue = selectedTrack?.[field] || '';
+    if (isLyrics && selectedTrack?.syncedLyrics && selectedTrack.syncedLyrics.length > 0) {
+      currentValue = syncedLyricsToLRC(selectedTrack.syncedLyrics);
+    }
+    
     const originalValue = originalTrack?.[field] || '';
     const hasChanged = currentValue !== originalValue;
     const colors = currentTheme.colors;
@@ -221,12 +254,18 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     try {
                       const desktopAPI = await getDesktopAPIAsync();
                       if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
+                        // Convert syncedLyrics to LRC format for saving
+                        const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
+                          ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
+                          : selectedTrack.lyrics;
+                        
                         // Pass all metadata fields to avoid clearing other fields
                         const metadata = {
                           title: selectedTrack.title,
                           artist: selectedTrack.artist,
                           album: selectedTrack.album,
-                          lyrics: selectedTrack.lyrics,
+                          lyrics: lyricsToSave,
+                          coverUrl: selectedTrack.coverUrl,
                         };
                         
                         const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
@@ -302,7 +341,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
               >
                 <span className="material-symbols-outlined text-sm">close</span>
               </button>
-<button
+              <button
                   onClick={async () => {
                     if (!selectedTrack?.filePath) return;
                     
@@ -311,18 +350,26 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     try {
                       const desktopAPI = await getDesktopAPIAsync();
                       if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
+                        // Convert syncedLyrics to LRC format for saving
+                        const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
+                          ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
+                          : selectedTrack.lyrics;
+                        
                         // Pass all metadata fields to avoid clearing other fields
                         const metadata = {
                           title: selectedTrack.title,
                           artist: selectedTrack.artist,
                           album: selectedTrack.album,
-                          lyrics: selectedTrack.lyrics,
+                          lyrics: lyricsToSave,
+                          coverUrl: selectedTrack.coverUrl,
                         };
                         
                         const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
                         
                         if (result.success) {
                           logger.info(`[MetadataView] Saved ${field} for track ${selectedTrack.id}`);
+                          // Clear cover cache after metadata update
+                          await coverArtService.deleteCover(selectedTrack.id);
                           // Refresh metadata after saving
                           await refreshMetadata();
                         } else {

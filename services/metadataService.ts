@@ -589,7 +589,7 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
 }
 
 // Parse LRC format lyrics (with timestamps like [00:12.34] or [00:00:00])
-function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: { time: number; text: string }[] } {
+export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: { time: number; text: string }[] } {
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: { time: number; text: string }[] = [];
   const plainTextLines: string[] = [];
