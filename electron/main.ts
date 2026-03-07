@@ -21,6 +21,17 @@ app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 // Enable logging for storage but suppress quota errors
 app.commandLine.appendSwitch('log-level', '3');
 
+// In development mode, use separate userData directory for each instance
+// to avoid conflicts when running multiple instances simultaneously
+if (!app.isPackaged) {
+  const originalUserData = app.getPath('userData');
+  const uniqueSuffix = `dev-${process.pid}`;
+  const devUserData = path.join(originalUserData, uniqueSuffix);
+  app.setPath('userData', devUserData);
+  logger.info('[Main] Development mode detected');
+  logger.info('[Main] Using separate userData directory:', devUserData);
+}
+
 // The built directory structure
 //
 // ├─┬─┬ dist
@@ -1451,6 +1462,46 @@ app.whenReady().then(() => {
       return { success };
     } catch (error) {
       logger.error('[Main] Write metadata failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // Refresh metadata for a single track
+  ipcMain.handle('refresh-track-metadata', async (event, filePath: string) => {
+    try {
+      const expandedPath = expandHomeDir(filePath);
+      logger.info('[Main] Refreshing metadata for:', expandedPath);
+
+      // Check if file exists
+      if (!fs.existsSync(expandedPath)) {
+        return { success: false, error: '文件不存在' };
+      }
+
+      // Read file data
+      const fileData = fs.readFileSync(expandedPath);
+      logger.info('[Main] File size:', fileData.length, 'bytes');
+
+      // Determine MIME type based on file extension
+      const ext = path.extname(expandedPath).toLowerCase();
+      const fileName = path.basename(expandedPath);
+      let mimeType = 'audio/mpeg';
+      if (ext === '.flac') {
+        mimeType = 'audio/flac';
+      } else if (ext === '.m4a' || ext === '.mp4') {
+        mimeType = 'audio/mp4';
+      }
+
+      // Send to renderer for parsing
+      return {
+        success: true,
+        data: {
+          fileName,
+          mimeType,
+          buffer: fileData.buffer
+        }
+      };
+    } catch (error) {
+      logger.error('[Main] Refresh metadata failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });

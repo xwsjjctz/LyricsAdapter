@@ -634,10 +634,10 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: { time:
           text: textWithoutTimestamps
         });
       }
-      plainTextLines.push(textWithoutTimestamps);
+      plainTextLines.push(trimmedLine); // Keep original line with timestamps
     } else if (textWithoutTimestamps) {
       // Line without timestamp, just add to plain text
-      plainTextLines.push(textWithoutTimestamps);
+      plainTextLines.push(trimmedLine);
     }
   }
 

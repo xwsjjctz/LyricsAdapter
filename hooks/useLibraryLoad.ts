@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
+import { coverArtService } from '../services/coverArtService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 
@@ -91,6 +92,13 @@ export function useLibraryLoad({
 
     setTracks(loadedTracks);
     logger.debug('[LibraryLoad] Loaded tracks:', loadedTracks.length);
+
+    // Preload all covers from IndexedDB cache into memory
+    // This prevents the placeholder flash on app startup
+    const trackIds = loadedTracks.map(t => t.id);
+    coverArtService.preloadCoversFromCache(trackIds).catch(err => {
+      logger.warn('[LibraryLoad] Cover preload failed:', err);
+    });
 
     const restoredTrackId = libraryData.settings?.currentTrackId;
     let restoredIndex = -1;

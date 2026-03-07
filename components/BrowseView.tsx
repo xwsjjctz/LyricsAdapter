@@ -88,8 +88,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const previousTrigger = useRef(searchTrigger);
-  // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
+  const cookiePromptShown = sessionStorage.getItem('cookiePromptShown') === 'true';
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -115,7 +115,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     const checkCookie = async () => {
       if (!cookieManager.hasCookie() || cookieManager.shouldCheckCookie()) {
         const status = await cookieManager.validateCookie();
-        if (!status.valid) {
+        if (!status.valid && !cookiePromptShown) {
+          sessionStorage.setItem('cookiePromptShown', 'true');
           setShowSettingsDialog(true);
         } else {
           loadRecommendations();
@@ -141,7 +142,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             return;
           }
 
-          if (!cookieManager.hasCookie()) {
+          if (!cookieManager.hasCookie() && !cookiePromptShown) {
+            sessionStorage.setItem('cookiePromptShown', 'true');
             setShowSettingsDialog(true);
             return;
           }
@@ -160,7 +162,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               setError(i18n.t('browse.corsError'));
             } else if (errorMsg.includes('Cookie')) {
               setError(i18n.t('browse.cookieExpired'));
-              setShowSettingsDialog(true);
+        if (!cookiePromptShown) {
+          sessionStorage.setItem('cookiePromptShown', 'true');
+          setShowSettingsDialog(true);
+              }
             } else {
               setError(errorMsg || i18n.t('browse.searchFailed'));
             }
@@ -180,7 +185,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
   const loadRecommendations = useCallback(async () => {
     if (!cookieManager.hasCookie()) {
       setError(i18n.t('browse.pleaseSetCookie'));
-      setShowSettingsDialog(true);
+      if (!cookiePromptShown) {
+        sessionStorage.setItem('cookiePromptShown', 'true');
+        setShowSettingsDialog(true);
+      }
       return;
     }
     
@@ -205,7 +213,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
         setError(i18n.t('browse.corsError'));
       } else if (errorMsg.includes('Cookie')) {
-        setShowSettingsDialog(true);
+        if (!cookiePromptShown) {
+          sessionStorage.setItem('cookiePromptShown', 'true');
+          setShowSettingsDialog(true);
+        }
       } else {
         setError(errorMsg || i18n.t('browse.searchFailed'));
       }
@@ -221,7 +232,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     }
 
     if (!cookieManager.hasCookie()) {
-      setShowSettingsDialog(true);
+      if (!cookiePromptShown) {
+        sessionStorage.setItem('cookiePromptShown', 'true');
+        setShowSettingsDialog(true);
+      }
       return;
     }
 
@@ -239,7 +253,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         setError(i18n.t('browse.corsError'));
       } else if (errorMsg.includes('Cookie')) {
         setError(i18n.t('browse.cookieExpired'));
-        setShowSettingsDialog(true);
+        if (!cookiePromptShown) {
+          sessionStorage.setItem('cookiePromptShown', 'true');
+          setShowSettingsDialog(true);
+        }
       } else {
         setError(errorMsg || i18n.t('browse.searchFailed'));
       }
@@ -507,7 +524,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       // If it's a cookie error, show settings dialog
       if (errorMsg.includes('Cookie') || errorMsg.includes('cookie')) {
         setError(i18n.t('browse.cookieExpired'));
-        setShowSettingsDialog(true);
+        if (!cookiePromptShown) {
+          sessionStorage.setItem('cookiePromptShown', 'true');
+          setShowSettingsDialog(true);
+        }
       }
       
       setDownloadProgress(prev => ({
@@ -546,8 +566,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       {/* Header */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-extrabold mb-2">{i18n.t('browse.title')}</h1>
-          <p className="text-white/40">
+          <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('browse.title')}</h1>
+          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
             {hasSearched 
               ? `${i18n.t('browse.searchResults')} "${executedSearchQuery}"` 
               : i18n.t('browse.recommended')}
@@ -567,7 +587,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           <div className="h-full flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <span className="material-symbols-outlined text-4xl text-primary animate-spin">refresh</span>
-              <p className="text-white/60">{i18n.t('browse.loading')}</p>
+              <p style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>{i18n.t('browse.loading')}</p>
             </div>
           </div>
         ) : error ? (

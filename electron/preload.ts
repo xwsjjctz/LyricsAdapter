@@ -169,6 +169,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
   },
 
+  // Refresh metadata for a single track
+  refreshTrackMetadata: async (filePath: string) => {
+    return ipcRenderer.invoke('refresh-track-metadata', filePath);
+  },
+
   // Shortcut events - listen for shortcuts from main process
   onShortcut: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => {
     const wrapped = (_event: unknown, data: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => callback(data);

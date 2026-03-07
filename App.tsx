@@ -12,12 +12,14 @@ import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useImport } from './hooks/useImport';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
+import { themeManager } from './services/themeManager';
 
 // Components
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import BrowseView from './components/BrowseView';
+import MetadataView from './components/MetadataView';
 import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
@@ -151,7 +153,7 @@ const App: React.FC = () => {
   // Handle download completion from BrowseView
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
-    
+
     // Check if track already exists (by filePath)
     const existingTrack = tracks.find(t => t.filePath === track.filePath);
     if (existingTrack) {
@@ -179,6 +181,44 @@ const App: React.FC = () => {
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
   }, [tracks, setTracks, volume, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode, persistedTimeRef]);
+
+  // Handle track reordering
+  const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
+    logger.debug(`[App] Reordering track from ${fromIndex} to ${toIndex}`);
+
+    // Create new array with reordered tracks
+    const newTracks = [...tracks];
+    const [movedTrack] = newTracks.splice(fromIndex, 1);
+
+    // Adjust toIndex when moving down because array shifted after removal
+    const adjustedToIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
+    newTracks.splice(adjustedToIndex, 0, movedTrack);
+
+    // Update current track index if needed
+    let newCurrentTrackIndex = currentTrackIndex;
+    if (currentTrackIndex === fromIndex) {
+      newCurrentTrackIndex = adjustedToIndex;
+    } else if (currentTrackIndex > fromIndex && currentTrackIndex < toIndex) {
+      newCurrentTrackIndex = currentTrackIndex - 1;
+    } else if (currentTrackIndex < fromIndex && currentTrackIndex > toIndex) {
+      newCurrentTrackIndex = currentTrackIndex + 1;
+    }
+
+    setTracks(newTracks);
+    setCurrentTrackIndex(newCurrentTrackIndex);
+
+    // Save library to disk
+    const libraryData = buildLibraryIndexData(newTracks, {
+      volume: volume,
+      currentTrackIndex: newCurrentTrackIndex,
+      currentTrackId: newTracks[newCurrentTrackIndex]?.id,
+      currentTime: persistedTimeRef.current || currentTime,
+      isPlaying: isPlaying,
+      playbackMode: playbackMode
+    });
+    await libraryStorage.saveLibrary(libraryData);
+    logger.debug('[App] Library saved after reordering');
+  }, [tracks, setTracks, currentTrackIndex, setCurrentTrackIndex, volume, currentTrack, currentTime, isPlaying, playbackMode, persistedTimeRef]);
 
   // Initialize keyboard shortcuts
   useShortcuts({
@@ -240,9 +280,64 @@ const App: React.FC = () => {
     };
   }, [activeBlobUrlsRef]);
 
+  // Initialize theme on mount
+  useEffect(() => {
+    const theme = themeManager.getCurrentTheme();
+    const root = document.documentElement;
+    const colors = theme.colors;
+    const fonts = theme.fonts;
+    const radius = theme.borderRadius;
+
+    // Apply CSS custom properties (CSS variables)
+    root.style.setProperty('--theme-primary', colors.primary);
+    root.style.setProperty('--theme-primary-hover', colors.primaryHover);
+    root.style.setProperty('--theme-primary-light', colors.primaryLight);
+    root.style.setProperty('--theme-background-dark', colors.backgroundDark);
+    root.style.setProperty('--theme-background-gradient-start', colors.backgroundGradientStart);
+    root.style.setProperty('--theme-background-gradient-end', colors.backgroundGradientEnd);
+    root.style.setProperty('--theme-background-sidebar', colors.backgroundSidebar);
+    root.style.setProperty('--theme-background-card', colors.backgroundCard);
+    root.style.setProperty('--theme-background-card-hover', colors.backgroundCardHover);
+    root.style.setProperty('--theme-text-primary', colors.textPrimary);
+    root.style.setProperty('--theme-text-secondary', colors.textSecondary);
+    root.style.setProperty('--theme-text-muted', colors.textMuted);
+    root.style.setProperty('--theme-border-light', colors.borderLight);
+    root.style.setProperty('--theme-border-hover', colors.borderHover);
+    root.style.setProperty('--theme-accent', colors.accent);
+    root.style.setProperty('--theme-accent-hover', colors.accentHover);
+    root.style.setProperty('--theme-success', colors.success);
+    root.style.setProperty('--theme-warning', colors.warning);
+    root.style.setProperty('--theme-error', colors.error);
+    root.style.setProperty('--theme-info', colors.info);
+    root.style.setProperty('--theme-shadow-color', colors.shadowColor);
+    root.style.setProperty('--theme-glow-color', colors.glowColor);
+    root.style.setProperty('--theme-font-main', fonts.main);
+    root.style.setProperty('--theme-radius-sm', radius.sm);
+    root.style.setProperty('--theme-radius-md', radius.md);
+    root.style.setProperty('--theme-radius-lg', radius.lg);
+    root.style.setProperty('--theme-radius-xl', radius.xl);
+    root.style.setProperty('--theme-radius-full', radius.full);
+
+    // Apply font family to body
+    root.style.fontFamily = fonts.main;
+
+    // Add/remove dark mode class
+    if (theme.isDark) {
+      root.classList.add('theme-dark');
+      root.classList.remove('theme-light');
+    } else {
+      root.classList.add('theme-light');
+      root.classList.remove('theme-dark');
+    }
+
+    logger.debug('[App] Theme initialized:', themeManager.getCurrentThemeId());
+  }, []);
+
   return (
     <ErrorBoundary>
-      <div className="flex h-screen w-screen overflow-hidden bg-background-dark font-sans relative">
+      <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={{
+        backgroundColor: 'var(--theme-background-dark, #101922)',
+      }}>
         <TitleBar />
         <div className="flex flex-1">
           <Sidebar
@@ -270,7 +365,9 @@ const App: React.FC = () => {
           viewMode={viewMode}
         />
 
-        <main className="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-background-dark to-[#1a2533] pt-8">
+        <main className="flex-1 flex flex-col relative overflow-hidden pt-8" style={{
+          background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
+        }}>
           {currentTrack && (
             <audio
               ref={setAudioRef}
@@ -293,12 +390,24 @@ const App: React.FC = () => {
             onChange={handleFileInputChange}
           />
 
-          <div className="flex-1 p-10 overflow-hidden pt-10">
+          <div className="flex-1 p-10 overflow-hidden pt-6">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 inputValue={searchInputValue}
                 searchTrigger={searchTrigger}
                 onDownloadComplete={handleDownloadComplete}
+              />
+            ) : viewMode === ViewMode.METADATA ? (
+              <MetadataView
+                libraryTracks={tracks}
+                onImportFromLibrary={(trackIds) => {
+                  logger.debug('[App] Imported tracks to metadata view:', trackIds);
+                }}
+                onUpdateTrack={(updatedTrack) => {
+                  setTracks(prev => prev.map(track => 
+                    track.id === updatedTrack.id ? updatedTrack : track
+                  ));
+                }}
               />
             ) : viewMode === ViewMode.SETTINGS ? (
               <SettingsView />
@@ -313,6 +422,7 @@ const App: React.FC = () => {
                 onRemoveMultipleTracks={handleRemoveMultipleTracks}
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleDropFilePaths}
+                onReorderTracks={handleReorderTracks}
                 isFocusMode={isFocusMode}
                 inputValue={searchInputValue}
                 searchTrigger={searchTrigger}

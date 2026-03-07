@@ -433,7 +433,46 @@ class CoverArtService {
   }
 
   /**
-   * Preload covers for multiple tracks
+   * Preload covers for multiple tracks from IndexedDB cache
+   * This should be called on app startup to populate memory cache
+   */
+  async preloadCoversFromCache(trackIds: string[]): Promise<void> {
+    if (trackIds.length === 0) return;
+
+    logger.debug(`[CoverArtService] Preloading ${trackIds.length} covers from IndexedDB cache...`);
+    const startTime = performance.now();
+    let loadedCount = 0;
+
+    try {
+      // Batch load all covers from IndexedDB
+      const promises = trackIds.map(async (trackId) => {
+        // Skip if already cached
+        if (this.coverUrlCache.has(trackId)) return;
+
+        try {
+          const blob = await indexedDBStorage.getCover(trackId);
+          if (blob) {
+            const blobUrl = URL.createObjectURL(blob);
+            this.coverUrlCache.set(trackId, blobUrl);
+            loadedCount++;
+          }
+        } catch (error) {
+          // Silently ignore individual errors
+        }
+      });
+
+      await Promise.all(promises);
+
+      const elapsed = performance.now() - startTime;
+      logger.debug(`[CoverArtService] ✓ Preloaded ${loadedCount}/${trackIds.length} covers in ${elapsed.toFixed(0)}ms`);
+    } catch (error) {
+      logger.error('[CoverArtService] Failed to preload covers:', error);
+    }
+  }
+
+  /**
+   * Preload covers for multiple tracks by extracting from files
+   * This is expensive and should only be called for tracks without cached covers
    */
   async preloadCovers(tracks: Array<{ id: string; filePath?: string }>): Promise<void> {
     const promises = tracks
