@@ -3,7 +3,7 @@ import { Track } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
-import { PRELOAD, PLAYBACK, UI } from '../constants/config';
+import { PLAYBACK, UI } from '../constants/config';
 
 interface UsePlaybackOptions {
   tracks: Track[];
@@ -175,12 +175,11 @@ export function usePlayback({
       const readResult = await desktopAPI.readFile(track.filePath);
 
       if (readResult.success && readResult.data.byteLength > 0) {
-        const fileData = new Uint8Array(readResult.data);
         const fileName = track.fileName || 'audio.flac';
-        const file = new File([fileData], fileName, { type: 'audio/flac' });
+        const file = new File([readResult.data], fileName, { type: 'audio/flac' });
         const audioUrl = createTrackedBlobUrl(file);
 
-        logger.debug('[Playback] ✓ Audio loaded, size:', (fileData.length / 1024 / 1024).toFixed(2), 'MB');
+        logger.debug('[Playback] ✓ Audio loaded, size:', (readResult.data.byteLength / 1024 / 1024).toFixed(2), 'MB');
 
         return {
           ...track,
@@ -456,59 +455,61 @@ export function usePlayback({
     prevAudioUrlRef.current = currentAudioUrl;
   }, [currentTrack?.audioUrl, revokeBlobUrl]);
 
-  useEffect(() => {
-    const preloadAdjacent = async () => {
-      if (currentTrackIndex < 0 || !isDesktop()) return;
+  // Preloading disabled to reduce memory usage
+  // For local files on SSD, loading time is < 100ms which is imperceptible
+  // useEffect(() => {
+  //   const preloadAdjacent = async () => {
+  //     if (currentTrackIndex < 0 || !isDesktop()) return;
 
-      const desktopAPI = await getDesktopAPIAsync();
-      if (!desktopAPI) return;
+  //     const desktopAPI = await getDesktopAPIAsync();
+  //     if (!desktopAPI) return;
 
-      // Preload next track
-      if (currentTrackIndex < tracks.length - 1) {
-        const nextTrack = tracks[currentTrackIndex + 1];
-        const fileSize = nextTrack.fileSize || 0;
+  //     // Preload next track
+  //     if (currentTrackIndex < tracks.length - 1) {
+  //       const nextTrack = tracks[currentTrackIndex + 1];
+  //       const fileSize = nextTrack.fileSize || 0;
 
-        if (!fileSize || fileSize <= 0) {
-          logger.debug('[Playback] Skipping preload (unknown size):', nextTrack.title);
-        } else if (!nextTrack.audioUrl && nextTrack.filePath && fileSize <= PRELOAD.MAX_SIZE_BYTES) {
-          logger.debug('[Playback] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
-          loadAudioFileForTrack(nextTrack).then(updatedTrack => {
-            setTracks(prev => {
-              const newTracks = [...prev];
-              newTracks[currentTrackIndex + 1] = updatedTrack;
-              return newTracks;
-            });
-          });
-        } else if (fileSize > PRELOAD.MAX_SIZE_BYTES) {
-          logger.debug('[Playback] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > ${PRELOAD.MAX_SIZE_BYTES / 1024 / 1024} MB)`);
-        }
-      }
+  //       if (!fileSize || fileSize <= 0) {
+  //         logger.debug('[Playback] Skipping preload (unknown size):', nextTrack.title);
+  //       } else if (!nextTrack.audioUrl && nextTrack.filePath && fileSize <= PRELOAD.MAX_SIZE_BYTES) {
+  //         logger.debug('[Playback] Preloading next track:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+  //         loadAudioFileForTrack(nextTrack).then(updatedTrack => {
+  //           setTracks(prev => {
+  //             const newTracks = [...prev];
+  //             newTracks[currentTrackIndex + 1] = updatedTrack;
+  //             return newTracks;
+  //           });
+  //         });
+  //       } else if (fileSize > PRELOAD.MAX_SIZE_BYTES) {
+  //         logger.debug('[Playback] Skipping large file for preload:', nextTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > ${PRELOAD.MAX_SIZE_BYTES / 1024 / 1024} MB)`);
+  //       }
+  //     }
 
-      // Preload previous track
-      if (currentTrackIndex > 0) {
-        const prevTrack = tracks[currentTrackIndex - 1];
-        const fileSize = prevTrack.fileSize || 0;
+  //     // Preload previous track
+  //     if (currentTrackIndex > 0) {
+  //       const prevTrack = tracks[currentTrackIndex - 1];
+  //       const fileSize = prevTrack.fileSize || 0;
 
-        if (!fileSize || fileSize <= 0) {
-          logger.debug('[Playback] Skipping preload (unknown size):', prevTrack.title);
-        } else if (!prevTrack.audioUrl && prevTrack.filePath && fileSize <= PRELOAD.MAX_SIZE_BYTES) {
-          logger.debug('[Playback] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
-          loadAudioFileForTrack(prevTrack).then(updatedTrack => {
-            setTracks(prev => {
-              const newTracks = [...prev];
-              newTracks[currentTrackIndex - 1] = updatedTrack;
-              return newTracks;
-            });
-          });
-        } else if (fileSize > PRELOAD.MAX_SIZE_BYTES) {
-          logger.debug('[Playback] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > ${PRELOAD.MAX_SIZE_BYTES / 1024 / 1024} MB)`);
-        }
-      }
-    };
+  //       if (!fileSize || fileSize <= 0) {
+  //         logger.debug('[Playback] Skipping preload (unknown size):', prevTrack.title);
+  //       } else if (!prevTrack.audioUrl && prevTrack.filePath && fileSize <= PRELOAD.MAX_SIZE_BYTES) {
+  //         logger.debug('[Playback] Preloading previous track:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+  //         loadAudioFileForTrack(prevTrack).then(updatedTrack => {
+  //           setTracks(prev => {
+  //             const newTracks = [...prev];
+  //             newTracks[currentTrackIndex - 1] = updatedTrack;
+  //             return newTracks;
+  //           });
+  //         });
+  //       } else if (fileSize > PRELOAD.MAX_SIZE_BYTES) {
+  //         logger.debug('[Playback] Skipping large file for preload:', prevTrack.title, `(${(fileSize / 1024 / 1024).toFixed(2)} MB > ${PRELOAD.MAX_SIZE_BYTES / 1024 / 1024} MB)`);
+  //       }
+  //     }
+  //   };
 
-    const timer = setTimeout(preloadAdjacent, PRELOAD.DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks, loadAudioFileForTrack, setTracks]);
+  //   const timer = setTimeout(preloadAdjacent, PRELOAD.DELAY_MS);
+  //   return () => clearTimeout(timer);
+  // }, [currentTrackIndex, tracks, loadAudioFileForTrack, setTracks]);
 
   useEffect(() => {
     if (audioRef.current) {
