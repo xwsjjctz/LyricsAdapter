@@ -74,7 +74,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
           const file = new File([result.data.buffer], result.data.fileName, { type: result.data.mimeType });
           const metadata = await parseAudioFile(file);
           
-          // Create updated track
+          // Create updated track with cover URL
           const updatedTrack: Track = {
             ...selectedTrack,
             title: metadata.title,
@@ -82,6 +82,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             album: metadata.album,
             lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
+            coverUrl: metadata.coverUrl,
           };
           
           // Update state
@@ -105,23 +106,63 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
     }
   }, [selectedTrack, onUpdateTrack]);
 
-  const handleCoverImport = useCallback((trackId: string) => {
+  const handleCoverImport = useCallback(async (trackId: string) => {
+    if (!selectedTrack?.filePath) {
+      logger.warn('[MetadataView] No track selected or no file path');
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
+    input.accept = 'image/jpeg,image/png,image/webp';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        logger.debug(`[MetadataView] Imported cover for track ${trackId}`);
-      };
-      reader.readAsDataURL(file);
+      try {
+        setIsRefreshing(true);
+        logger.info('[MetadataView] Importing cover for track:', trackId);
+
+        // Read file as data URL
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        logger.debug('[MetadataView] Cover file read, size:', dataUrl.length);
+
+        // Write metadata with cover
+        const desktopAPI = await getDesktopAPIAsync();
+        if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
+          const metadata = {
+            title: selectedTrack.title,
+            artist: selectedTrack.artist,
+            album: selectedTrack.album,
+            lyrics: selectedTrack.lyrics,
+            coverUrl: dataUrl, // Pass data URL directly
+          };
+
+          logger.info('[MetadataView] Writing cover to file...');
+          const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
+
+          if (result.success) {
+            logger.info('[MetadataView] ✓ Cover written successfully');
+            // Refresh metadata to show new cover
+            await refreshMetadata();
+          } else {
+            logger.error('[MetadataView] Failed to write cover:', result.error);
+          }
+        }
+      } catch (error) {
+        logger.error('[MetadataView] Error importing cover:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
     };
     input.click();
-  }, []);
+  }, [selectedTrack, refreshMetadata]);
 
   const renderMetadataField = useCallback((label: string, value: string | undefined, field: 'title' | 'artist' | 'album' | 'lyrics', isLyrics: boolean = false) => {
     const currentValue = selectedTrack?.[field] || '';
@@ -180,8 +221,13 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     try {
                       const desktopAPI = await getDesktopAPIAsync();
                       if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
-                        const metadata: any = {};
-                        metadata[field] = selectedTrack[field];
+                        // Pass all metadata fields to avoid clearing other fields
+                        const metadata = {
+                          title: selectedTrack.title,
+                          artist: selectedTrack.artist,
+                          album: selectedTrack.album,
+                          lyrics: selectedTrack.lyrics,
+                        };
                         
                         const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
                         
@@ -256,38 +302,43 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
               >
                 <span className="material-symbols-outlined text-sm">close</span>
               </button>
-              <button
-                onClick={async () => {
-                  if (!selectedTrack?.filePath) return;
-                  
-                  setSavingFields(prev => new Set(prev).add(field));
-                  
-                  try {
-                    const desktopAPI = await getDesktopAPIAsync();
-                    if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
-                      const metadata: any = {};
-                      metadata[field] = selectedTrack[field];
-                      
-                      const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
-                      
-                      if (result.success) {
-                        logger.info(`[MetadataView] Saved ${field} for track ${selectedTrack.id}`);
-                        // Refresh metadata after saving
-                        await refreshMetadata();
-                      } else {
-                        logger.error(`[MetadataView] Failed to save ${field}:`, result.error);
+<button
+                  onClick={async () => {
+                    if (!selectedTrack?.filePath) return;
+                    
+                    setSavingFields(prev => new Set(prev).add(field));
+                    
+                    try {
+                      const desktopAPI = await getDesktopAPIAsync();
+                      if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
+                        // Pass all metadata fields to avoid clearing other fields
+                        const metadata = {
+                          title: selectedTrack.title,
+                          artist: selectedTrack.artist,
+                          album: selectedTrack.album,
+                          lyrics: selectedTrack.lyrics,
+                        };
+                        
+                        const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
+                        
+                        if (result.success) {
+                          logger.info(`[MetadataView] Saved ${field} for track ${selectedTrack.id}`);
+                          // Refresh metadata after saving
+                          await refreshMetadata();
+                        } else {
+                          logger.error(`[MetadataView] Failed to save ${field}:`, result.error);
+                        }
                       }
+                    } catch (error) {
+                      logger.error(`[MetadataView] Error saving ${field}:`, error);
+                    } finally {
+                      setSavingFields(prev => {
+                        const next = new Set(prev);
+                        next.delete(field);
+                        return next;
+                      });
                     }
-                  } catch (error) {
-                    logger.error(`[MetadataView] Error saving ${field}:`, error);
-                  } finally {
-                    setSavingFields(prev => {
-                      const next = new Set(prev);
-                      next.delete(field);
-                      return next;
-                    });
-                  }
-                }}
+                  }}
                 disabled={savingFields.has(field)}
                 className={`w-6 h-6 rounded bg-primary text-white hover:bg-primary/90 transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={i18n.t('common.save')}

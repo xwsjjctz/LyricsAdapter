@@ -21,16 +21,7 @@ app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 // Enable logging for storage but suppress quota errors
 app.commandLine.appendSwitch('log-level', '3');
 
-// In development mode, use separate userData directory for each instance
-// to avoid conflicts when running multiple instances simultaneously
-if (!app.isPackaged) {
-  const originalUserData = app.getPath('userData');
-  const uniqueSuffix = `dev-${process.pid}`;
-  const devUserData = path.join(originalUserData, uniqueSuffix);
-  app.setPath('userData', devUserData);
-  logger.info('[Main] Development mode detected');
-  logger.info('[Main] Using separate userData directory:', devUserData);
-}
+
 
 // The built directory structure
 //
@@ -1398,20 +1389,34 @@ app.whenReady().then(() => {
       let coverBuffer: Buffer | undefined;
       if (metadata.coverUrl) {
         try {
-          logger.info('[Main] Downloading cover from:', metadata.coverUrl);
-          const response = await fetch(metadata.coverUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Referer': 'https://y.qq.com/',
-            },
-          });
-          if (response.ok) {
-            const arrayBuffer = await response.arrayBuffer();
-            coverBuffer = Buffer.from(arrayBuffer);
-            logger.info('[Main] Cover downloaded, size:', coverBuffer.length);
+          // Check if it's a data URL (base64)
+          if (metadata.coverUrl.startsWith('data:')) {
+            logger.info('[Main] Parsing data URL cover');
+            // Parse data URL: data:image/jpeg;base64,<data>
+            const matches = metadata.coverUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches && matches[2]) {
+              coverBuffer = Buffer.from(matches[2], 'base64');
+              logger.info('[Main] Cover parsed from data URL, size:', coverBuffer.length);
+            } else {
+              logger.error('[Main] Invalid data URL format');
+            }
+          } else {
+            // Regular URL
+            logger.info('[Main] Downloading cover from:', metadata.coverUrl.substring(0, 100));
+            const response = await fetch(metadata.coverUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                'Referer': 'https://y.qq.com/',
+              },
+            });
+            if (response.ok) {
+              const arrayBuffer = await response.arrayBuffer();
+              coverBuffer = Buffer.from(arrayBuffer);
+              logger.info('[Main] Cover downloaded, size:', coverBuffer.length);
+            }
           }
         } catch (e) {
-          logger.error('[Main] Failed to download cover:', e);
+          logger.error('[Main] Failed to process cover:', e);
         }
       }
 

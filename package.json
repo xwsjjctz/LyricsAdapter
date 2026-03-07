@@ -23,7 +23,6 @@
     "flac-metadata": "^0.1.1",
     "idb": "^8.0.3",
     "music-metadata": "^11.11.0",
-    "music-metadata-browser": "^2.5.11",
     "node-id3": "^0.2.9",
     "probe-image-size": "^7.2.3",
     "react": "18.2.0",
@@ -50,9 +49,12 @@
       "output": "release"
     },
     "icon": "app-icon.png",
+    "compression": "maximum",
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/node_modules/lightningcss-darwin-arm64/**",
+      "!**/node_modules/@tailwindcss/oxide-darwin-arm64/**"
     ],
     "extraResources": [
       {
