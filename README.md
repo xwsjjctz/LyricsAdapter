@@ -80,13 +80,15 @@
 ### 主界面
 简洁优雅的曲库管理界面，支持批量导入、搜索、编辑和拖拽排序
 
-![主界面](resource/mainpage.png)
+![库界面](resource/LibraryView.png)
+![浏览界面](resource/BrowseView.png)
+![设置界面](resource/SettingsView.png)
 
 ### 沉浸式歌词模式
 全屏沉浸体验，动态背景跟随封面色调，歌词实时同步滚动
 
-![沉浸式模式1](resource/player_1.png)
-![沉浸式模式2](resource/player_2.png)
+![沉浸式模式1](resource/FocusMode_1.png)
+![沉浸式模式2](resource/FocusMode_2.png)
 
 ### 主题切换
 6 种精心设计的主题，一键切换应用外观
