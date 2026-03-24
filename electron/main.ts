@@ -1308,19 +1308,44 @@ app.whenReady().then(() => {
       // Step 4: Add cover image
       if (metadata.coverUrl) {
         try {
-          log(`[METAFLAC] Downloading cover from: ${metadata.coverUrl}`);
-          const response = await fetch(metadata.coverUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Referer': 'https://y.qq.com/',
-            },
-          });
-          if (response.ok) {
-            const arrayBuffer = await response.arrayBuffer();
-            const coverBuffer = Buffer.from(arrayBuffer);
-            const coverFile = filePath + '.cover.jpg';
+          let coverFile = filePath + '.cover.jpg';
+          let coverBuffer: Buffer | undefined;
+
+          if (metadata.coverUrl.startsWith('data:')) {
+            // Parse data URL
+            log(`[METAFLAC] Parsing data URL cover`);
+            const matches = metadata.coverUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches && matches[2]) {
+              coverBuffer = Buffer.from(matches[2], 'base64');
+            }
+          } else if (metadata.coverUrl.startsWith('cover://')) {
+            // Local cover protocol - read from covers directory
+            const coverFileName = metadata.coverUrl.slice('cover://'.length);
+            const coverPath = path.join(app.getPath('userData'), 'covers', coverFileName);
+            log(`[METAFLAC] Reading cover from local path: ${coverPath}`);
+            if (fs.existsSync(coverPath)) {
+              coverBuffer = fs.readFileSync(coverPath);
+            } else {
+              log(`[METAFLAC] Warning: Cover file not found: ${coverPath}`);
+            }
+          } else {
+            // Regular URL - try to fetch
+            log(`[METAFLAC] Downloading cover from: ${metadata.coverUrl}`);
+            const response = await fetch(metadata.coverUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                'Referer': 'https://y.qq.com/',
+              },
+            });
+            if (response.ok) {
+              const arrayBuffer = await response.arrayBuffer();
+              coverBuffer = Buffer.from(arrayBuffer);
+            }
+          }
+
+          if (coverBuffer) {
             fs.writeFileSync(coverFile, coverBuffer);
-            log(`[METAFLAC] Cover downloaded (${coverBuffer.length} bytes)`);
+            log(`[METAFLAC] Cover prepared (${coverBuffer.length} bytes)`);
 
             execSync(`"${metaflacBinary}" --import-picture-from="${coverFile}" "${filePath}"`, execOptions);
             log(`[METAFLAC] ✓ Cover written`);
@@ -1440,6 +1465,17 @@ app.whenReady().then(() => {
               logger.info('[Main] Cover parsed from data URL, size:', coverBuffer.length);
             } else {
               logger.error('[Main] Invalid data URL format');
+            }
+          } else if (metadata.coverUrl.startsWith('cover://')) {
+            // Local cover protocol - read from covers directory
+            const coverFileName = metadata.coverUrl.slice('cover://'.length);
+            const coverPath = path.join(app.getPath('userData'), 'covers', coverFileName);
+            logger.info('[Main] Reading cover from local path:', coverPath);
+            if (fs.existsSync(coverPath)) {
+              coverBuffer = fs.readFileSync(coverPath);
+              logger.info('[Main] Cover read from local file, size:', coverBuffer.length);
+            } else {
+              logger.warn('[Main] Cover file not found:', coverPath);
             }
           } else {
             // Regular URL

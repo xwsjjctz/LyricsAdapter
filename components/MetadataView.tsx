@@ -95,6 +95,12 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             finalSyncedLyrics = parsed.syncedLyrics;
           }
           
+          // Preserve the original cover URL if it was a cover:// protocol URL
+          // The parsed metadata.coverUrl may be a blob URL which can't be fetched by the main process
+          const coverUrl = selectedTrack.coverUrl?.startsWith('cover://')
+            ? selectedTrack.coverUrl
+            : (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') ? metadata.coverUrl : selectedTrack.coverUrl);
+
           // Create updated track with cover URL
           const updatedTrack: Track = {
             ...selectedTrack,
@@ -103,7 +109,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             album: metadata.album,
             lyrics: metadata.lyrics,
             syncedLyrics: finalSyncedLyrics,
-            coverUrl: metadata.coverUrl,
+            coverUrl,
           };
           
           // Update state
