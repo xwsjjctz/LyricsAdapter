@@ -2,6 +2,8 @@
 import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 
 interface MainPlayerProps {
   track: Track | null;
@@ -13,10 +15,19 @@ interface MainPlayerProps {
 const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlaying, onTogglePlay }) => {
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const colors = currentTheme.colors;
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
     });
     return unsubscribe;
   }, []);
@@ -41,8 +52,8 @@ const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlayin
               onClick={onTogglePlay}
               className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all bg-black/30 rounded-2xl cursor-pointer"
             >
-              <div className="size-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 scale-90 group-hover:scale-100 transition-transform">
-                <span className="material-symbols-outlined text-5xl fill-1 text-white">
+              <div className="size-20 rounded-full backdrop-blur-md flex items-center justify-center scale-90 group-hover:scale-100 transition-transform" style={{ backgroundColor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                <span className="material-symbols-outlined text-5xl fill-1" style={{ color: colors.textPrimary }}>
                   {isPlaying ? 'pause' : 'play_arrow'}
                 </span>
               </div>
@@ -50,7 +61,7 @@ const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlayin
           </div>
 
           <div className="mt-12 text-center max-w-2xl">
-            <h1 className="text-5xl font-bold tracking-tight mb-3 text-white drop-shadow-lg">{track.title}</h1>
+            <h1 className="text-5xl font-bold tracking-tight mb-3 drop-shadow-lg" style={{ color: colors.textPrimary }}>{track.title}</h1>
             <p className="text-2xl text-primary font-medium opacity-90">{track.artist} — {track.album}</p>
           </div>
         </>

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from '
 import { Track, SyncedLyricLine } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -9,6 +11,14 @@ function decodeHtmlEntities(text: string): string {
   textarea.innerHTML = text;
   return textarea.value;
 }
+
+const hexToRgb = (hex: string): string => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (result) {
+    return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
+  }
+  return '255, 255, 255';
+};
 
 interface FocusModeProps {
   track: Track | null;
@@ -35,10 +45,18 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 }) => {
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
     });
     return unsubscribe;
   }, []);
@@ -68,6 +86,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
+
+  // Theme colors
+  const colors = currentTheme.colors;
 
   // Use RAF to get more accurate currentTime, with higher frequency for better sync
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
@@ -737,12 +758,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         <header className="flex items-center justify-start px-6 py-4 shrink-0 pt-12">
           <button
             onClick={onClose}
-            className="flex items-center gap-2 text-white/40 hover:text-white transition-all group"
+            className="flex items-center gap-2 transition-all group"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
           >
-            <div className="bg-white/5 p-1.5 rounded-full group-hover:bg-white/10 transition-colors flex items-center justify-center">
+            <div className="p-1.5 rounded-full transition-colors flex items-center justify-center" style={{ backgroundColor: colors.backgroundCard }} onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover} onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}>
               <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
             </div>
-            {/* <span className="text-[9px] font-bold tracking-[0.15em] uppercase">Now Playing</span> */}
           </button>
         </header>
 
@@ -759,13 +782,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
               />
             </div>
             <div className="mt-5 lg:mt-7 text-center w-full max-w-[340px]">
-              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white mb-2 line-clamp-2 drop-shadow-2xl">
+              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2 drop-shadow-2xl" style={{ color: colors.textPrimary }}>
                 {track?.title}
               </h1>
-              <p className="text-base lg:text-lg text-primary font-semibold truncate opacity-80">
+              <p className="text-base lg:text-lg font-semibold truncate opacity-80" style={{ color: colors.primary }}>
                 {track?.artist}
               </p>
-              <p className="text-xs lg:text-sm text-white/30 font-medium truncate mt-1">
+              <p className="text-xs lg:text-sm font-medium truncate mt-1" style={{ color: colors.textMuted }}>
                 {track?.album}
               </p>
             </div>
@@ -799,16 +822,19 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                       className={`text-xl lg:text-2xl font-bold leading-tight cursor-default ${
                         isActive 
                           ? 'active-lyric transition-all duration-300' 
-                          : 'text-white/10 hover:text-white/30 transition-all duration-200'
+                          : ''
                       } ${hasTimestamp ? 'cursor-pointer' : ''}`}
+                      style={{ color: isActive ? colors.textPrimary : colors.textMuted }}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = colors.textSecondary; }}
+                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = colors.textMuted; }}
                     >
                       {decodeHtmlEntities(lyric.text)}
                     </p>
                   );
                 })
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-white/10 gap-3">
+                <div className="h-full flex flex-col items-center justify-center gap-3" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-4xl">lyrics</span>
                   <p className="italic text-base">No lyrics found in metadata</p>
                 </div>
@@ -823,14 +849,19 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             ref={playerRef}
             onMouseEnter={handlePlayerMouseEnter}
             onMouseLeave={handlePlayerMouseLeave}
-            className="glass rounded-2xl p-4 flex flex-col gap-3 shadow-xl border border-white/5 relative z-20 transition-opacity duration-500"
-            style={{ opacity: isPlayerVisible ? 1 : 0 }}
+            className="glass rounded-2xl p-4 flex flex-col gap-3 shadow-xl relative z-20 transition-opacity duration-500"
+            style={{ 
+              opacity: isPlayerVisible ? 1 : 0,
+              borderColor: colors.borderLight,
+              backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.6)`,
+            }}
           >
             {/* Progress */}
             <div className="w-full flex items-center gap-3">
-              <span className="text-[10px] tabular-nums font-bold text-white/30 w-10 text-right">{formatTime(activeCurrentTime)}</span>
+              <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>{formatTime(activeCurrentTime)}</span>
               <div
-                className="flex-1 relative h-1 bg-white/10 rounded-full cursor-pointer group"
+                className="flex-1 relative h-1 rounded-full cursor-pointer group"
+                style={{ backgroundColor: colors.borderLight }}
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const x = e.clientX - rect.left;
@@ -839,23 +870,26 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                 }}
               >
                 <div
-                  className="absolute top-0 left-0 h-full bg-primary shadow-[0_0_15px_rgba(43,140,238,0.5)] rounded-full transition-all duration-100"
-                  style={{ width: `${progress}%` }}
+                  className="absolute top-0 left-0 h-full rounded-full transition-all duration-100"
+                  style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 15px ${colors.glowColor}` }}
                 />
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 size-2 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${progress}%`, marginLeft: '-4px' }}
+                  className="absolute top-1/2 -translate-y-1/2 size-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary }}
                 />
               </div>
-              <span className="text-[10px] tabular-nums font-bold text-white/30 w-10">{formatTime(track?.duration || 0)}</span>
+              <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: colors.textMuted }}>{formatTime(track?.duration || 0)}</span>
             </div>
 
             {/* Controls */}
             <div className="flex items-center justify-between px-4">
-              <div className="flex gap-4 text-white/20">
+              <div className="flex gap-4" style={{ color: colors.textMuted }}>
                 <span
-                  className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors relative -left-[4px]"
+                  className="material-symbols-outlined text-lg cursor-pointer transition-colors relative -left-[4px]"
+                  style={{ color: colors.textMuted }}
                   onClick={onTogglePlaybackMode}
+                  onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
+                  onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
                 >
                   {playbackMode === 'shuffle'
                     ? 'shuffle'
@@ -866,24 +900,40 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
               </div>
 
               <div className="flex items-center gap-6 relative left-[30px]">
-                <button onClick={onSkipPrev} className="text-white/60 hover:text-white transition-all hover:scale-110">
+                <button
+                  onClick={onSkipPrev}
+                  className="transition-all hover:scale-110"
+                  style={{ color: colors.textSecondary }}
+                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
+                >
                   <span className="material-symbols-outlined text-2xl">skip_previous</span>
                 </button>
                 <button
                   onClick={onTogglePlay}
-                  className="bg-white text-black size-11 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+                  className="size-11 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+                  style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark }}
                 >
                   <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
                 </button>
-                <button onClick={onSkipNext} className="text-white/60 hover:text-white transition-all hover:scale-110">
+                <button
+                  onClick={onSkipNext}
+                  className="transition-all hover:scale-110"
+                  style={{ color: colors.textSecondary }}
+                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
+                >
                   <span className="material-symbols-outlined text-2xl">skip_next</span>
                 </button>
               </div>
 
-              <div className="flex justify-end gap-4 text-white/20 items-center">
+              <div className="flex justify-end gap-4 items-center" style={{ color: colors.textMuted }}>
                 <span
-                  className="material-symbols-outlined text-lg hover:text-white cursor-pointer transition-colors"
+                  className="material-symbols-outlined text-lg cursor-pointer transition-colors"
+                  style={{ color: colors.textMuted }}
                   onClick={onToggleMute}
+                  onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
+                  onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
                 >
                   {volume === 0 ? 'volume_off' : 'volume_up'}
                 </span>
@@ -893,8 +943,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                     onChange={(e) => onVolumeChange(Number(e.target.value))}
                     className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
                   />
-                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-white/60" style={{width: `${volume * 100}%`}}></div>
+                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.borderLight }}>
+                    <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }}></div>
                   </div>
                 </div>
               </div>

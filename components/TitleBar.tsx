@@ -2,6 +2,8 @@ import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -34,6 +36,7 @@ const TitleBar: React.FC = memo(() => {
 
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
@@ -41,6 +44,15 @@ const TitleBar: React.FC = memo(() => {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
+    });
+    return unsubscribe;
+  }, []);
+
+  const colors = currentTheme.colors;
 
   // 检测平台
   const desktopAPI = getDesktopAPI();
@@ -90,21 +102,30 @@ const TitleBar: React.FC = memo(() => {
         >
           <button
             onClick={minimize}
-            className="w-[46px] h-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-[46px] h-full flex items-center justify-center transition-colors"
+            style={{ color: colors.textSecondary }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
             aria-label={i18n.t('titleBar.minimize')}
           >
             <MinimizeIcon />
           </button>
           <button
             onClick={maximize}
-            className="w-[46px] h-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-[46px] h-full flex items-center justify-center transition-colors"
+            style={{ color: colors.textSecondary }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
             aria-label={isMaximized ? i18n.t('titleBar.restore') : i18n.t('titleBar.maximize')}
           >
             {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
           </button>
           <button
             onClick={close}
-            className="w-[46px] h-full flex items-center justify-center text-white/70 hover:text-white hover:bg-[#c42b1c] transition-colors"
+            className="w-[46px] h-full flex items-center justify-center transition-colors"
+            style={{ color: colors.textSecondary }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.backgroundColor = '#c42b1c'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
             aria-label={i18n.t('titleBar.close')}
           >
             <CloseIcon />
