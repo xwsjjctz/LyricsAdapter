@@ -681,6 +681,14 @@ const translations: Translations = {
     de: 'Mitternachtslila',
     fr: 'Violet minuit'
   },
+  'theme.name.warm': {
+    zh: '暖米',
+    en: 'Warm Cream',
+    ja: 'ウォームクリーム',
+    ko: '웜 크림',
+    de: 'Warme Creme',
+    fr: 'Crème chaud'
+  },
 
   // Theme descriptions
   'theme.desc.default': {
@@ -730,6 +738,14 @@ const translations: Translations = {
     ko: '신비롭고 우아한 퍼플',
     de: 'Geheimnisvolles und elegantes Lila',
     fr: 'Violet mystérieux et élégant'
+  },
+  'theme.desc.warm': {
+    zh: '温暖米色，极简留白',
+    en: 'Warm cream, minimalist and spacious',
+    ja: '温かいクリーム色、ミニマルで宽敞',
+    ko: '따뜻한 크림색, 미니멀하고 넓은',
+    de: 'Warmes Creme, minimalistisch und geräumig',
+    fr: 'Crème chaud, minimaliste et spacieux'
   },
 
   // Theme tags
@@ -876,6 +892,14 @@ const translations: Translations = {
     ko: '우아한',
     de: 'Elegant',
     fr: 'Élégant'
+  },
+  'theme.tag.minimal': {
+    zh: '极简',
+    en: 'Minimal',
+    ja: 'ミニマル',
+    ko: '미니멀',
+    de: 'Minimal',
+    fr: 'Minimaliste'
   },
 
   // Settings Dialog (BrowseView)
