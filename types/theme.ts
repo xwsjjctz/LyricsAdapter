@@ -55,7 +55,7 @@ export interface ThemeBorderRadius {
 }
 
 export interface ThemeConfig {
-  id: string;
+  id: ThemeId;
   name: string;
   description: string;
   icon: string;
