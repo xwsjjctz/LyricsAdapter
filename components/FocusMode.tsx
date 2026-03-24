@@ -20,6 +20,16 @@ const hexToRgb = (hex: string): string => {
   return '255, 255, 255';
 };
 
+// FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
+const FOCUS_MODE_COLORS = {
+  textPrimary: '#ffffff',
+  textSecondary: 'rgba(255, 255, 255, 0.7)',
+  textMuted: 'rgba(255, 255, 255, 0.4)',
+  backgroundCard: 'rgba(255, 255, 255, 0.08)',
+  backgroundCardHover: 'rgba(255, 255, 255, 0.12)',
+  borderLight: 'rgba(255, 255, 255, 0.1)',
+};
+
 interface FocusModeProps {
   track: Track | null;
   isVisible: boolean;
@@ -89,6 +99,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   // Theme colors
   const colors = currentTheme.colors;
+  // FocusMode uses fixed dark colors for immersive experience (except player controls)
+  const focusColors = FOCUS_MODE_COLORS;
 
   // Use RAF to get more accurate currentTime, with higher frequency for better sync
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
@@ -759,11 +771,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           <button
             onClick={onClose}
             className="flex items-center gap-2 transition-all group"
-            style={{ color: colors.textMuted }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
+            style={{ color: focusColors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = focusColors.textPrimary; }}
+            onMouseLeave={e => { e.currentTarget.style.color = focusColors.textMuted; }}
           >
-            <div className="p-1.5 rounded-full transition-colors flex items-center justify-center" style={{ backgroundColor: colors.backgroundCard }} onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover} onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}>
+            <div className="p-1.5 rounded-full transition-colors flex items-center justify-center" style={{ backgroundColor: focusColors.backgroundCard }} onMouseEnter={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCardHover} onMouseLeave={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCard}>
               <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
             </div>
           </button>
@@ -782,13 +794,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
               />
             </div>
             <div className="mt-5 lg:mt-7 text-center w-full max-w-[340px]">
-              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2 drop-shadow-2xl" style={{ color: colors.textPrimary }}>
+              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2 drop-shadow-2xl" style={{ color: focusColors.textPrimary }}>
                 {track?.title}
               </h1>
-              <p className="text-base lg:text-lg font-semibold truncate opacity-80" style={{ color: colors.primary }}>
+              <p className="text-base lg:text-lg font-semibold truncate opacity-80" style={{ color: focusColors.textPrimary }}>
                 {track?.artist}
               </p>
-              <p className="text-xs lg:text-sm font-medium truncate mt-1" style={{ color: colors.textMuted }}>
+              <p className="text-xs lg:text-sm font-medium truncate mt-1" style={{ color: focusColors.textMuted }}>
                 {track?.album}
               </p>
             </div>
@@ -824,17 +836,17 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                           ? 'active-lyric transition-all duration-300' 
                           : ''
                       } ${hasTimestamp ? 'cursor-pointer' : ''}`}
-                      style={{ color: isActive ? colors.textPrimary : colors.textMuted }}
+                      style={{ color: isActive ? focusColors.textPrimary : focusColors.textMuted }}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = colors.textSecondary; }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = colors.textMuted; }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}
+                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = focusColors.textMuted; }}
                     >
                       {decodeHtmlEntities(lyric.text)}
                     </p>
                   );
                 })
               ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-3" style={{ color: colors.textMuted }}>
+                <div className="h-full flex flex-col items-center justify-center gap-3" style={{ color: focusColors.textMuted }}>
                   <span className="material-symbols-outlined text-4xl">lyrics</span>
                   <p className="italic text-base">No lyrics found in metadata</p>
                 </div>

@@ -14,6 +14,9 @@ const ThemeView: React.FC = () => {
     const unsubscribe = themeManager.subscribe((themeId) => {
       setCurrentThemeId(themeId);
       setPreviewTheme(null);
+      // Re-apply current theme styles when theme changes
+      const currentTheme = themeManager.getCurrentTheme();
+      applyThemeStyles(currentTheme);
     });
     return unsubscribe;
   }, []);
@@ -309,7 +312,7 @@ const ThemeView: React.FC = () => {
                     className="px-6 py-3 rounded-full font-semibold transition-transform transform hover:scale-105"
                     style={{
                       backgroundColor: theme.colors.primary,
-                      color: '#fff',
+                      color: theme.isDark ? '#ffffff' : '#1a1a1a',
                     }}
                   >
                     {isCurrent ? i18n.t('theme.applied') : i18n.t('theme.apply')}
