@@ -272,6 +272,9 @@ async function writeFlacMetadataWithFfmpeg(
 
   try {
     logger.info('[FFMPEG] Starting FLAC remux metadata write for:', filePath);
+    logger.info('[FFMPEG] FFmpeg binary path:', ffmpegBinary);
+    logger.info('[FFMPEG] Metadata to write:', JSON.stringify(metadata, null, 2));
+    logger.info('[FFMPEG] Cover buffer present:', !!coverBuffer, 'Size:', coverBuffer?.length || 0);
     fs.copyFileSync(filePath, backupPath);
     fs.writeFileSync(metadataPath, buildFfmetadataContent(metadata), 'utf-8');
     if (coverBuffer && coverBuffer.length > 0) {
@@ -320,6 +323,9 @@ async function writeFlacMetadataWithFfmpeg(
     }
 
     args.push(outputPath);
+
+    logger.info('[FFMPEG] Executing command:', ffmpegBinary, args.join(' '));
+    logger.info('[FFMPEG] Metadata file content:', fs.readFileSync(metadataPath, 'utf-8'));
 
     await runCommand(ffmpegBinary, args);
 
@@ -623,17 +629,30 @@ export async function writeAudioMetadata(
   } else if (actualFormat === 'flac') {
     logger.info('[Main] FLAC metadata write using ffmpeg remux');
     try {
+      logger.info('[Main] Attempting ffmpeg remux with metadata:', {
+        title: metadata.title,
+        artist: metadata.artist,
+        album: metadata.album,
+        lyricsLength: metadata.lyrics?.length || 0,
+        hasCover: !!coverBuffer
+      });
       success = await writeFlacMetadataWithFfmpeg(expandedPath, {
         title: metadata.title,
         artist: metadata.artist,
         album: metadata.album,
         lyrics: metadata.lyrics,
       }, coverBuffer);
+      logger.info('[Main] FFmpeg remux completed, success:', success);
     } catch (ffmpegError) {
       logger.warn('[Main] FFmpeg FLAC metadata write failed, fallback to metaflac:', ffmpegError);
-      success = await writeFlacMetadataWithMetaflac(expandedPath, metadata);
+      logger.info('[Main] Attempting metaflac with full metadata object (including coverUrl)');
+      success = await writeFlacMetadataWithMetaflac(expandedPath, {
+        ...metadata,
+        coverUrl: metadata.coverUrl
+      });
+      logger.info('[Main] Metaflac completed, success:', success);
     }
-    logger.info('[Main] FLAC metadata write result:', success);
+    logger.info('[Main] FLAC metadata write final result:', success);
   } else {
     logger.warn('[Main] Unsupported file format for metadata:', actualFormat);
     return { success: false, error: `不支持的文件格式: ${actualFormat} (扩展名: ${ext})` };

@@ -488,6 +488,15 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
       if (savedFilePath && window.electron?.writeAudioMetadata) {
         try {
+          logger.info('[BrowseView] Attempting to write metadata to file:', savedFilePath);
+          logger.info('[BrowseView] Metadata payload:', {
+            title: song.songname,
+            artist: singer,
+            album: song.albumname || '',
+            lyricsLength: lyrics?.length || 0,
+            coverUrl: coverUrl ? `${coverUrl.substring(0, 50)}...` : undefined
+          });
+
           const metadataResult = await window.electron.writeAudioMetadata(savedFilePath, {
             title: song.songname,
             artist: singer,
@@ -496,12 +505,18 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             coverUrl
           });
 
+          logger.info('[BrowseView] Metadata write result:', metadataResult);
+
           if (!metadataResult?.success) {
-            logger.warn('[BrowseView] Metadata write failed:', metadataResult?.error);
+            logger.error('[BrowseView] Metadata write FAILED:', metadataResult?.error);
+          } else {
+            logger.info('[BrowseView] ✅ Metadata written successfully to file');
           }
         } catch (error) {
-          logger.warn('[BrowseView] Metadata write error:', error);
+          logger.error('[BrowseView] Metadata write EXCEPTION:', error);
         }
+      } else {
+        logger.warn('[BrowseView] writeAudioMetadata not available or no file path');
       }
 
       // Create track and add to library
