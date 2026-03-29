@@ -1,6 +1,8 @@
 import { app } from 'electron';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import fs from 'fs';
+import { logger } from '../logger';
 
 export function isCommandAvailable(command: string, versionArg: string): boolean {
   try {
@@ -43,6 +45,22 @@ export function getBundledBinaryPath(tool: 'metaflac' | 'ffmpeg', appDir: string
   }
 
   throw new Error(`Unsupported platform: ${platform}-${arch}`);
+}
+
+export function getBinaryPath(tool: 'metaflac' | 'ffmpeg', appDir: string): string {
+  const bundledPath = getBundledBinaryPath(tool, appDir);
+
+  if (fs.existsSync(bundledPath)) {
+    logger.info(`[BinaryUtils] Using bundled ${tool}:`, bundledPath);
+    return bundledPath;
+  }
+
+  if (isCommandAvailable(tool, tool === 'metaflac' ? '--version' : '-version')) {
+    logger.info(`[BinaryUtils] Using system ${tool} from PATH`);
+    return tool;
+  }
+
+  throw new Error(`${tool} binary not found (bundled or system PATH)`);
 }
 
 export async function runCommand(command: string, args: string[]): Promise<void> {

@@ -4,7 +4,7 @@ import { app } from 'electron';
 import { execSync } from 'child_process';
 import NodeID3 from 'node-id3';
 import { logger } from '../logger';
-import { getBundledBinaryPath, runCommand } from './binaryUtils';
+import { getBundledBinaryPath, getBinaryPath, runCommand } from './binaryUtils';
 import { expandHomeDir, detectFileFormat } from './fileUtils';
 
 export function escapeFfmetadataValue(value: string): string {
@@ -264,7 +264,7 @@ async function writeFlacMetadataWithFfmpeg(
   coverBuffer?: Buffer
 ): Promise<boolean> {
   const appDir = path.dirname(require.resolve('electron'));
-  const ffmpegBinary = getBundledBinaryPath('ffmpeg', appDir);
+  const ffmpegBinary = getBinaryPath('ffmpeg', appDir);
   const backupPath = `${filePath}.ffmpeg.backup`;
   const metadataPath = `${filePath}.ffmetadata.txt`;
   const coverPath = `${filePath}.cover.ffmpeg.jpg`;
@@ -352,7 +352,7 @@ async function writeFlacMetadataWithMetaflac(
 ): Promise<boolean> {
   const logFile = path.join(app.getPath('userData'), 'flac-metadata.log');
   const appDir = path.dirname(require.resolve('electron'));
-  const metaflacBinary = getBundledBinaryPath('metaflac', appDir);
+  const metaflacBinary = getBinaryPath('metaflac', appDir);
 
   const execOptions = {
     encoding: 'utf-8' as const,
