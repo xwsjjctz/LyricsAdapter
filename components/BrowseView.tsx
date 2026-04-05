@@ -7,6 +7,8 @@ import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 import SettingsDialog from './SettingsDialog';
 import { Track } from '../types';
 
@@ -90,6 +92,15 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
   const previousTrigger = useRef(searchTrigger);
   const [, setLanguageVersion] = useState(0);
   const cookiePromptShown = sessionStorage.getItem('cookiePromptShown') === 'true';
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const colors = currentTheme.colors;
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
+    });
+    return unsubscribe;
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -477,6 +488,15 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
       if (savedFilePath && window.electron?.writeAudioMetadata) {
         try {
+          logger.info('[BrowseView] Attempting to write metadata to file:', savedFilePath);
+          logger.info('[BrowseView] Metadata payload:', {
+            title: song.songname,
+            artist: singer,
+            album: song.albumname || '',
+            lyricsLength: lyrics?.length || 0,
+            coverUrl: coverUrl ? `${coverUrl.substring(0, 50)}...` : undefined
+          });
+
           const metadataResult = await window.electron.writeAudioMetadata(savedFilePath, {
             title: song.songname,
             artist: singer,
@@ -485,12 +505,18 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             coverUrl
           });
 
+          logger.info('[BrowseView] Metadata write result:', metadataResult);
+
           if (!metadataResult?.success) {
-            logger.warn('[BrowseView] Metadata write failed:', metadataResult?.error);
+            logger.error('[BrowseView] Metadata write FAILED:', metadataResult?.error);
+          } else {
+            logger.info('[BrowseView] ✅ Metadata written successfully to file');
           }
         } catch (error) {
-          logger.warn('[BrowseView] Metadata write error:', error);
+          logger.error('[BrowseView] Metadata write EXCEPTION:', error);
         }
+      } else {
+        logger.warn('[BrowseView] writeAudioMetadata not available or no file path');
       }
 
       // Create track and add to library
@@ -575,7 +601,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         </div>
         <button
           onClick={() => setShowSettingsDialog(true)}
-          className="w-10 h-10 rounded-xl bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary transition-all flex items-center justify-center"
+          className="w-10 h-10 rounded-xl transition-all flex items-center justify-center"
+          style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
         >
           <span className="material-symbols-outlined">settings</span>
         </button>
@@ -595,11 +624,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             <div className="text-center max-w-md">
               <span className="material-symbols-outlined text-6xl text-red-400 mb-4 block">error</span>
               <p className="text-xl font-medium text-red-400 mb-2">{i18n.t('browse.error')}</p>
-              <p className="text-sm text-white/60 mb-6">{error}</p>
+              <p className="text-sm mb-6" style={{ color: colors.textMuted }}>{error}</p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => loadRecommendations()}
-                  className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
+                  className="px-4 py-2 rounded-xl transition-all"
+                  style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                 >
                   {i18n.t('browse.retry')}
                 </button>
@@ -635,7 +667,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               </p>
               <button
                 onClick={() => loadRecommendations()}
-                className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
+                className="px-4 py-2 rounded-xl transition-all"
+                style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
               >
                 {i18n.t('browse.refresh')}
               </button>
@@ -644,7 +679,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         ) : (
           <div className="h-full overflow-y-auto no-scrollbar">
             {/* Column Headers */}
-            <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_80px_100px]">
+            <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_80px_100px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
               <span>#</span>
               <span>{i18n.t('library.titleCol')}</span>
               <span>{i18n.t('library.albumCol')}</span>
@@ -663,7 +698,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                 return (
                   <div
                     key={song.songmid}
-                    className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center hover:bg-white/5 grid-cols-[48px_1fr_1fr_80px_100px]"
+                    className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center grid-cols-[48px_1fr_1fr_80px_100px]"
+                    style={{}}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
                     <div className="text-sm font-medium opacity-50">
                       {index + 1}
@@ -690,13 +728,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                     <div className="flex justify-end" ref={isDropdownOpen ? dropdownRef : undefined}>
                       {isDownloading ? (
                         <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
                             <div
                               className="h-full bg-primary rounded-full transition-all"
                               style={{ width: `${progress.progress}%` }}
                             />
                           </div>
-                          <span className="text-xs text-white/50">{progress.progress}%</span>
+                          <span className="text-xs" style={{ color: colors.textMuted }}>{progress.progress}%</span>
                         </div>
                       ) : isCompleted ? (
                         <span className="text-green-400 text-xs flex items-center gap-1">
@@ -708,26 +746,32 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                           <button
                             onClick={() => toggleDropdown(song.songmid)}
                             title={i18n.t('browse.download')}
-                            className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                            style={{ color: colors.textMuted }}
+                            onMouseEnter={e => { e.currentTarget.style.color = colors.primary; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                             <span className="material-symbols-outlined text-base">download</span>
                           </button>
                           
                           {/* Dropdown Menu */}
                           {isDropdownOpen && (
-                            <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] bg-[#1a2533] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                            <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg shadow-xl overflow-hidden" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
                               {qualityOptions.map((option) => (
                                 <button
                                   key={option.value}
                                   onClick={() => handleDownload(song, option.value)}
-                                  className="w-full px-3 py-2 text-left text-xs text-white/70 hover:bg-primary/20 hover:text-primary transition-all flex items-center justify-between"
+                                  className="w-full px-3 py-2 text-left text-xs transition-all flex items-center justify-between"
+                                  style={{ color: colors.textSecondary }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
                                 >
                                   <span>{option.label}</span>
                                   {option.value === '128' && (
-                                    <span className="text-[10px] text-white/30">{i18n.t('browse.standard')}</span>
+                                    <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.standard')}</span>
                                   )}
                                   {option.value === '320' && (
-                                    <span className="text-[10px] text-white/30">{i18n.t('browse.highQuality')}</span>
+                                    <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.highQuality')}</span>
                                   )}
                                   {option.value === 'flac' && (
                                     <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>

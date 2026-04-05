@@ -37,7 +37,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(43, 140, 238, 0.15)',
     },
     fonts: {
-      main: "'Inter', sans-serif",
+      main: "'Inter', 'Noto Sans SC', sans-serif",
+      display: "'Inter', 'Noto Sans SC', sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -79,7 +80,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(236, 72, 153, 0.15)',
     },
     fonts: {
-      main: "'Inter', sans-serif",
+      main: "'Inter', 'Noto Sans SC', sans-serif",
+      display: "'Inter', 'Noto Sans SC', sans-serif",
     },
     borderRadius: {
       sm: '8px',
@@ -121,7 +123,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(0, 180, 216, 0.15)',
     },
     fonts: {
-      main: "'Inter', sans-serif",
+      main: "'Inter', 'Noto Sans SC', sans-serif",
+      display: "'Inter', 'Noto Sans SC', sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -163,7 +166,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(247, 127, 0, 0.15)',
     },
     fonts: {
-      main: "'Inter', sans-serif",
+      main: "'Inter', 'Noto Sans SC', sans-serif",
+      display: "'Inter', 'Noto Sans SC', sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -205,7 +209,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(82, 183, 136, 0.15)',
     },
     fonts: {
-      main: "'Inter', sans-serif",
+      main: "'Inter', 'Noto Sans SC', sans-serif",
+      display: "'Inter', 'Noto Sans SC', sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -247,7 +252,51 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(177, 133, 219, 0.15)',
     },
     fonts: {
-      main: "'Inter', sans-serif",
+      main: "'Inter', 'Noto Sans SC', sans-serif",
+      display: "'Inter', 'Noto Sans SC', sans-serif",
+    },
+    borderRadius: {
+      sm: '4px',
+      md: '8px',
+      lg: '12px',
+      xl: '16px',
+      full: '9999px',
+    },
+  },
+  {
+    id: THEME_IDS.WARM,
+    name: '暖米',
+    description: '温暖米色，简约雅致',
+    icon: 'light_mode',
+    isDark: false,
+    tags: ['极简', '暖色', '简约'],
+    colors: {
+      primary: '#b8956a',
+      primaryHover: '#a68458',
+      primaryLight: 'rgba(184, 149, 106, 0.2)',
+      backgroundDark: '#f5f0e8',
+      backgroundGradientStart: '#f5f0e8',
+      backgroundGradientEnd: '#ebe5d9',
+      backgroundSidebar: '#e8e2d6',
+      backgroundCard: 'rgba(255, 255, 255, 0.6)',
+      backgroundCardHover: 'rgba(255, 255, 255, 0.85)',
+      textPrimary: '#3d3028',
+      textSecondary: '#5a4a3a',
+      textMuted: '#8a7a6a',
+      borderLight: 'rgba(61, 48, 40, 0.12)',
+      borderHover: 'rgba(61, 48, 40, 0.25)',
+      accent: '#b8956a',
+      accentHover: '#a68458',
+      success: '#5a9e5f',
+      warning: '#c49a4a',
+      error: '#c46a6a',
+      info: '#6a8ec4',
+      shadowColor: 'rgba(61, 48, 40, 0.1)',
+      glowColor: 'rgba(184, 149, 106, 0.2)',
+    },
+    fonts: {
+      main: "'Noto Sans SC', 'Inter', sans-serif",
+      display: "'Noto Sans SC', 'Inter', sans-serif",
     },
     borderRadius: {
       sm: '4px',

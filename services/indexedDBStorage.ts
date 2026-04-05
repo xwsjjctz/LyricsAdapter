@@ -74,7 +74,7 @@ class IndexedDBStorageService {
             logger.debug('[IndexedDB] Created covers store');
           }
 
-          // Create library store for browser mode persistence
+          // Create library store for browser mode persistence (deprecated)
           if (!db.objectStoreNames.contains('library')) {
             const libraryStore = db.createObjectStore('library', { keyPath: 'key' });
             logger.debug('[IndexedDB] Created library store');
@@ -367,7 +367,7 @@ class IndexedDBStorageService {
   // ========== Library Operations ==========
 
   /**
-   * Load library from IndexedDB (for browser mode)
+   * @deprecated Browser mode only - use libraryStorage.saveLibrary() for Electron
    */
   async loadLibrary(): Promise<LibraryData | LibraryIndexData | null> {
     await this.ensureInitialized();
@@ -387,7 +387,7 @@ class IndexedDBStorageService {
   }
 
   /**
-   * Save library to IndexedDB (for browser mode)
+   * @deprecated Browser mode only - use libraryStorage.saveLibrary() for Electron
    */
   async saveLibrary(library: LibraryData | LibraryIndexData): Promise<void> {
     await this.ensureInitialized();

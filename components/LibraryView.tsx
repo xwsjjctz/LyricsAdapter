@@ -3,6 +3,8 @@ import { Track } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
@@ -80,6 +82,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Subscribe to theme changes
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
     });
     return unsubscribe;
   }, []);
@@ -165,6 +176,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const baseRowHeight = rowHeight || 64;
   const rowStride = baseRowHeight + rowGap;
+
+  // Theme colors
+  const colors = currentTheme.colors;
 
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
@@ -771,7 +785,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <div className="text-center">
             <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
             <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
-            <p className="text-sm text-white/60">{i18n.t('library.supportFormats')}</p>
+            <p className="text-sm" style={{ color: colors.textMuted }}>{i18n.t('library.supportFormats')}</p>
           </div>
         </div>
       )}
@@ -790,14 +804,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleSelectAll}
-                className="px-3 py-2 rounded-lg text-sm text-white/60 hover:bg-white/10 transition-all"
+                className="px-3 py-2 rounded-lg text-sm transition-all"
+                style={{ color: colors.textSecondary, backgroundColor: 'transparent' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; }}
               >
                 {selectedIds.size === tracks.length ? i18n.t('library.cancel') : i18n.t('library.selectAll')}
               </button>
               {selectedIds.size > 0 && (
                 <button
                   onClick={handleRemoveSelected}
-                  className="px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                  className="px-3 py-2 rounded-lg text-sm transition-all"
+                  style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
                 >
                   {i18n.t('library.deleteSelected')} ({selectedIds.size})
                 </button>
@@ -809,26 +827,28 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               setIsEditMode(!isEditMode);
               if (!isEditMode) setSelectedIds(new Set());
             }}
-            className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center ${
-              isEditMode
-                ? 'bg-primary text-white shadow-lg shadow-primary/25'
-                : 'bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary'
-            }`}
+            className="w-10 h-10 rounded-xl transition-all flex items-center justify-center"
+            style={{
+              backgroundColor: isEditMode ? colors.primary : colors.backgroundCard,
+              color: isEditMode ? '#fff' : colors.textSecondary,
+              boxShadow: isEditMode ? `0 0 20px ${colors.glowColor}` : 'none',
+            }}
           >
             <span className="material-symbols-outlined">{isEditMode ? 'check' : 'edit'}</span>
           </button>
-          <div className="flex items-center rounded-xl border border-white/10 bg-white/5">
+          <div className="flex items-center rounded-xl border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
             <button
               onClick={() => {
                 setFilterType('default');
                 setSelectedArtist(null);
                 setSelectedAlbum(null);
               }}
-              className={`w-10 h-[38px] rounded-l-lg text-sm transition-all flex items-center justify-center ${
-                filterType === 'default'
-                  ? 'bg-primary text-white shadow-lg shadow-primary/25'
-                  : 'text-white/60 hover:bg-white/10'
-              }`}
+              className="w-10 h-[38px] rounded-l-lg text-sm transition-all flex items-center justify-center"
+              style={{
+                backgroundColor: filterType === 'default' ? colors.primary : 'transparent',
+                color: filterType === 'default' ? '#fff' : colors.textSecondary,
+                boxShadow: filterType === 'default' ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
             >
               <span className="material-symbols-outlined text-xl">list</span>
             </button>
@@ -838,11 +858,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 setSelectedArtist(null);
                 setSelectedAlbum(uniqueAlbums.length > 0 ? uniqueAlbums[0].name : null);
               }}
-              className={`w-10 h-[38px] text-sm transition-all flex items-center justify-center ${
-                filterType === 'album'
-                  ? 'bg-primary text-white shadow-lg shadow-primary/25'
-                  : 'text-white/60 hover:bg-white/10'
-              }`}
+              className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
+              style={{
+                backgroundColor: filterType === 'album' ? colors.primary : 'transparent',
+                color: filterType === 'album' ? '#fff' : colors.textSecondary,
+                boxShadow: filterType === 'album' ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
             >
               <span className="material-symbols-outlined text-xl">album</span>
             </button>
@@ -852,11 +873,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 setSelectedArtist(uniqueArtists.length > 0 ? uniqueArtists[0].name : null);
                 setSelectedAlbum(null);
               }}
-              className={`w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center ${
-                filterType === 'artist'
-                  ? 'bg-primary text-white shadow-lg shadow-primary/25'
-                  : 'text-white/60 hover:bg-white/10'
-              }`}
+              className="w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center"
+              style={{
+                backgroundColor: filterType === 'artist' ? colors.primary : 'transparent',
+                color: filterType === 'artist' ? '#fff' : colors.textSecondary,
+                boxShadow: filterType === 'artist' ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
             >
               <span className="material-symbols-outlined text-xl">artist</span>
             </button>
@@ -866,7 +888,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
-          <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_100px]">
+          <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_100px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
             <span>#</span><span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span><span className="text-right">{isEditMode ? i18n.t('library.actionCol') : i18n.t('library.timeCol')}</span>
           </div>
         </div>
@@ -882,14 +904,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <div className="absolute inset-0 pointer-events-none">
             {highlightStyle.opacity > 0 && (
               <div
-                className="absolute rounded-xl pointer-events-none transition-[transform,height] duration-150 ease-out glass-soft shadow-xl border border-white/10"
+                className="absolute rounded-xl pointer-events-none transition-[transform,height] duration-150 ease-out shadow-xl"
                 style={{
                   transform: `translateY(${highlightStyle.top - scrollTop}px)`,
                   height: `${highlightStyle.height}px`,
                   opacity: highlightStyle.opacity,
                   left: 24,
                   right: 24,
-                  backgroundColor: 'rgba(59, 130, 246, 0.15)'
+                  backgroundColor: `${colors.primary}26`,
+                  border: `1px solid ${colors.primary}40`,
                 }}
               />
             )}
@@ -908,12 +931,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               >
                 {insertPosition !== null && (
                   <div
-                    className="absolute left-0 right-0 h-0.5 bg-primary rounded-full shadow-lg shadow-primary/50 z-20 transition-all duration-150"
+                    className="absolute left-0 right-0 h-0.5 rounded-full shadow-lg z-20 transition-all duration-150"
                     style={{
                       top: (insertPosition.position === 'before'
                         ? (insertPosition.index - startIndex)
                         : (insertPosition.index - startIndex + 1)) * rowStride,
-                      opacity: insertPosition.index >= startIndex - 1 && insertPosition.index < endIndex ? 1 : 0
+                      opacity: insertPosition.index >= startIndex - 1 && insertPosition.index < endIndex ? 1 : 0,
+                      backgroundColor: colors.primary,
+                      boxShadow: `0 0 10px ${colors.primary}`,
                     }}
                   />
                 )}
@@ -941,19 +966,26 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                        onDragOver={(e) => handleTrackDragOver(e, filteredIndex)}
                        onDragEnd={handleTrackDragEnd}
                        onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
-                       style={animationStyle}
+                       style={{
+                         ...animationStyle,
+                         backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
+                         border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
+                       }}
                        className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px] ${
-                          isDragged ? 'opacity-40' :
-                          isUnavailable
-                            ? 'opacity-40 bg-white/5'
-                            : isSelected
-                            ? 'bg-red-500/10 border border-red-500/30'
-                            : isCurrentTrack
-                            ? 'text-primary'
-                            : 'hover:bg-white/5'
-                        } ${canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
+                           isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
+                         }`}
+                       onMouseEnter={e => {
+                         if (!isDragged && !isUnavailable && !isSelected && !isCurrentTrack) {
+                           e.currentTarget.style.backgroundColor = colors.backgroundCard;
+                         }
+                       }}
+                       onMouseLeave={e => {
+                         if (!isDragged && !isUnavailable && !isSelected && !isCurrentTrack) {
+                           e.currentTarget.style.backgroundColor = 'transparent';
+                         }
+                       }}
                      >
-                      <div className={`text-sm font-medium ${canDrag ? 'cursor-move' : ''} opacity-50`}>
+                      <div className="text-sm font-medium" style={{ opacity: 0.5, color: isCurrentTrack ? colors.primary : colors.textSecondary }}>
                         {isEditMode && !isUnavailable ? (
                           <span className="material-symbols-outlined">drag_handle</span>
                         ) : (
@@ -968,14 +1000,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           className="size-10 rounded-lg object-cover"
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold truncate">
+                          <p className="text-sm font-semibold truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary }}>
                             {track.title}
-                            {isUnavailable && <span className="text-xs text-yellow-400 ml-2">{i18n.t('library.needReimport')}</span>}
+                            {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{i18n.t('library.needReimport')}</span>}
                           </p>
-                          <p className="text-xs opacity-50 truncate">{track.artist}</p>
+                          <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
                         </div>
                       </div>
-                      <div className="text-sm opacity-50 truncate pl-8">{track.album}</div>
+                      <div className="text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
                       {isEditMode ? (
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -983,7 +1015,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                               e.stopPropagation();
                               confirmDelete(track.id);
                             }}
-                            className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                            style={{ color: colors.error }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${colors.error}1a`; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                             <span className="material-symbols-outlined text-lg">delete</span>
                           </button>
@@ -992,11 +1027,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                             checked={isSelected}
                             onChange={() => toggleSelectOne(track.id)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 rounded border-white/20 bg-white/10 checked:bg-primary checked:border-primary cursor-pointer"
+                            className="w-4 h-4 rounded cursor-pointer"
+                            style={{ accentColor: colors.primary }}
                           />
                         </div>
                       ) : (
-                        <div className="text-sm opacity-50 text-right tabular-nums">
+                        <div className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
                           {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
                         </div>
                       )}
@@ -1005,13 +1041,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 })}
               </div>
             ) : executedSearchQuery ? (
-              <div className="py-20 text-center opacity-40">
+              <div className="py-20 text-center" style={{ opacity: 0.4, color: colors.textSecondary }}>
                 <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
                 <p className="text-xl font-medium">{i18n.t('library.noMatchingTracks')}</p>
                 <p className="text-sm mt-2">{i18n.t('library.tryAdjustingSearch')}</p>
               </div>
             ) : (
-              <div className="py-20 text-center opacity-20 border-2 border-dashed border-white/10 rounded-2xl">
+              <div className="py-20 text-center rounded-2xl" style={{ opacity: 0.2, color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
                 <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
                 <p className="text-xl font-medium">{i18n.t('library.noTracksImported')}</p>
                 <p className="text-sm">{i18n.t('library.useSidebarToImport')}</p>
@@ -1023,7 +1059,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div className="flex-1 flex gap-4 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
           {/* 左侧分类列表 */}
           <div className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar">
-            <div className="text-xs font-bold text-white/30 uppercase tracking-widest mb-2 px-2">
+            <div className="text-xs font-bold uppercase tracking-widest mb-2 px-2" style={{ color: colors.textMuted }}>
               {filterType === 'artist' ? '歌手' : '专辑'}
             </div>
             <div className="flex flex-col gap-1">
@@ -1032,11 +1068,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={artist.name}
                     onClick={() => setSelectedArtist(artist.name)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                      selectedArtist === artist.name
-                        ? 'bg-white/10 text-white'
-                        : 'text-white/60 hover:bg-white/5'
-                    }`}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: selectedArtist === artist.name ? colors.backgroundCard : 'transparent',
+                      color: selectedArtist === artist.name ? colors.textPrimary : colors.textSecondary,
+                    }}
+                    onMouseEnter={e => { if (selectedArtist !== artist.name) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                    onMouseLeave={e => { if (selectedArtist !== artist.name) e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
                     {artist.coverUrl && (
                       <img
@@ -1053,11 +1091,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={album.name}
                     onClick={() => setSelectedAlbum(album.name)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                      selectedAlbum === album.name
-                        ? 'bg-white/10 text-white'
-                        : 'text-white/60 hover:bg-white/5'
-                    }`}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: selectedAlbum === album.name ? colors.backgroundCard : 'transparent',
+                      color: selectedAlbum === album.name ? colors.textPrimary : colors.textSecondary,
+                    }}
+                    onMouseEnter={e => { if (selectedAlbum !== album.name) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                    onMouseLeave={e => { if (selectedAlbum !== album.name) e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
                     {album.coverUrl && (
                       <img
@@ -1068,7 +1108,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm truncate">{album.name}</p>
-                      <p className="text-xs opacity-50 truncate">{album.artist}</p>
+                      <p className="text-xs truncate" style={{ color: colors.textMuted }}>{album.artist}</p>
                     </div>
                   </button>
                 ))
@@ -1079,27 +1119,28 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
            {/* 右侧歌曲列表 */}
            <div className="flex-1 flex flex-col min-w-0">
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-               <div className="grid gap-4 px-4 py-2 text-xs font-bold text-white/30 uppercase tracking-widest border-b border-white/5 mb-2 grid-cols-[48px_1fr_1fr_100px]">
+               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_100px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
                  <span>#</span><span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span><span className="text-right">{isEditMode ? i18n.t('library.actionCol') : i18n.t('library.timeCol')}</span>
                </div>
              </div>
-            <div className="flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-              {/* Sliding highlight overlay (outside scroll clipping) */}
-              <div className="absolute inset-0 pointer-events-none">
-                {highlightStyle.opacity > 0 && (
-                  <div
-                    className="absolute rounded-xl pointer-events-none transition-[transform,height] duration-150 ease-out glass-soft shadow-xl border border-white/10"
-                    style={{
-                      transform: `translateY(${highlightStyle.top - scrollTop}px)`,
-                      height: `${highlightStyle.height}px`,
-                      opacity: highlightStyle.opacity,
-                      left: 24,
-                      right: 24,
-                      backgroundColor: 'rgba(59, 130, 246, 0.15)'
-                    }}
-                  />
-                )}
-              </div>
+             <div className="flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
+               {/* Sliding highlight overlay (outside scroll clipping) */}
+               <div className="absolute inset-0 pointer-events-none">
+                 {highlightStyle.opacity > 0 && (
+                   <div
+                     className="absolute rounded-xl pointer-events-none transition-[transform,height] duration-150 ease-out shadow-xl"
+                     style={{
+                       transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+                       height: `${highlightStyle.height}px`,
+                       opacity: highlightStyle.opacity,
+                       left: 24,
+                       right: 24,
+                       backgroundColor: `${colors.primary}26`,
+                       border: `1px solid ${colors.primary}40`,
+                     }}
+                   />
+                 )}
+               </div>
 
               <div
                 ref={scrollContainerRef}
@@ -1128,16 +1169,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                             ref={idx === 0 ? rowMeasureRef : undefined}
                             data-track-index={originalIndex}
                             onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
-                            style={animationStyle}
-                            className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px] ${
-                              isUnavailable
-                                ? 'opacity-40 bg-white/5'
-                                : isSelected
-                                ? 'bg-red-500/10 border border-red-500/30'
-                                : isCurrentTrack
-                                ? 'text-primary'
-                                : 'hover:bg-white/5'
-                            } ${isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'}`}
+                            className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
+                            style={{
+                              ...animationStyle,
+                              opacity: isUnavailable ? 0.4 : 1,
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                              border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
+                              color: isCurrentTrack ? colors.primary : colors.textPrimary,
+                              cursor: (isEditMode || isUnavailable) ? 'default' : 'pointer',
+                            }}
+                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                            onMouseLeave={e => { if (!isUnavailable && !isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                            <div className="text-sm font-medium opacity-50">
                              {isEditMode && !isUnavailable ? (
@@ -1173,13 +1215,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                >
                                  <span className="material-symbols-outlined text-lg">delete</span>
                                </button>
-                               <input
-                                 type="checkbox"
-                                 checked={isSelected}
-                                 onChange={() => toggleSelectOne(track.id)}
-                                 onClick={(e) => e.stopPropagation()}
-                                 className="w-4 h-4 rounded border-white/20 bg-white/10 checked:bg-primary checked:border-primary cursor-pointer"
-                               />
+<input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelectOne(track.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-4 h-4 rounded cursor-pointer"
+                                  style={{ accentColor: colors.primary, borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}
+                                />
                              </div>
                            ) : (
                              <div className="text-sm opacity-50 text-right tabular-nums">
@@ -1206,8 +1249,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {showLocateButton && currentTrackInFilteredIndex >= 0 && (
         <button
           onClick={handleLocateToCurrentTrack}
-          className="absolute bottom-6 right-28 w-9 h-9 rounded-lg bg-white/10 text-white/60 shadow-md flex items-center justify-center hover:bg-white/20 hover:text-white transition-all z-20 animate-fadeIn"
+          className="absolute bottom-6 right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-20 animate-fadeIn"
+          style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary }}
           title={i18n.t('library.locateToCurrent')}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
         >
           <span className="material-symbols-outlined text-lg">my_location</span>
         </button>
@@ -1215,23 +1261,27 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {/* Delete confirmation dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-white/10 shadow-2xl">
-            <h3 className="text-lg font-semibold text-white mb-2">{i18n.t('library.deleteConfirmTitle')}</h3>
-            <p className="text-white/80 mb-6">{i18n.t('library.deleteConfirmMessage')}</p>
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
+            <p className="mb-6" style={{ color: colors.textSecondary }}>{i18n.t('library.deleteConfirmMessage')}</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setTrackToDelete(null);
                 }}
-                className="px-4 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-all"
+                className="px-4 py-2 rounded-lg transition-all"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 {i18n.t('common.cancel')}
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                className="px-4 py-2 rounded-lg transition-all"
+                style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
               >
                 {i18n.t('common.delete')}
               </button>
@@ -1242,22 +1292,26 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {/* Batch delete confirmation dialog */}
       {showBatchDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-white/10 shadow-2xl">
-            <h3 className="text-lg font-semibold text-white mb-2">{i18n.t('library.deleteConfirmTitle')}</h3>
-            <p className="text-white/80 mb-6">
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
+            <p className="mb-6" style={{ color: colors.textSecondary }}>
               {i18n.t('library.deleteSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowBatchDeleteConfirm(false)}
-                className="px-4 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-all"
+                className="px-4 py-2 rounded-lg transition-all"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 {i18n.t('common.cancel')}
               </button>
               <button
                 onClick={handleConfirmBatchDelete}
-                className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                className="px-4 py-2 rounded-lg transition-all"
+                style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
               >
                 {i18n.t('common.delete')}
               </button>

@@ -94,13 +94,16 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1a2533] border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+      <div className="rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">{i18n.t('settingsDialog.title')}</h2>
+          <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>{i18n.t('settingsDialog.title')}</h2>
           <button
             onClick={handleClose}
-            className="text-white/40 hover:text-white transition-colors"
+            className="transition-colors"
+            style={{ color: colors.textMuted }}
             disabled={isValidating}
+            onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
+            onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
           >
             <span className="material-symbols-outlined">close</span>
           </button>
@@ -108,23 +111,25 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-white/80 mb-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
               {i18n.t('settingsDialog.cookie')}
             </label>
             <textarea
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
               placeholder={i18n.t('settingsDialog.pasteCookie')}
-              className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-0 transition-all resize-none"
+              className="w-full h-24 rounded-xl p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
               style={{
-                backgroundColor: 'rgba(255,255,255,0.05)',
+                backgroundColor: colors.backgroundCard,
+                border: `1px solid ${colors.borderLight}`,
+                color: colors.textPrimary,
               }}
               onFocus={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)';
+                e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
                 e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`;
               }}
               onBlur={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                e.currentTarget.style.backgroundColor = colors.backgroundCard;
                 e.currentTarget.style.boxShadow = 'none';
               }}
               disabled={isValidating}
@@ -132,7 +137,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-white/80 mb-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
               {i18n.t('settingsDialog.savePath')}
             </label>
             <div className="flex gap-2">
@@ -141,16 +146,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 value={downloadPath}
                 onChange={(e) => setDownloadPath(e.target.value)}
                 placeholder={i18n.t('settingsDialog.downloadFolderPath')}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-0 transition-all"
+                className="flex-1 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={{
-                  backgroundColor: 'rgba(255,255,255,0.05)',
+                  backgroundColor: colors.backgroundCard,
+                  border: `1px solid ${colors.borderLight}`,
+                  color: colors.textPrimary,
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
                   e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.backgroundColor = colors.backgroundCard;
                   e.currentTarget.style.boxShadow = 'none';
                 }}
                 disabled={isValidating}
@@ -166,13 +173,16 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                   }
                 }}
                 disabled={isValidating}
-                className="px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-3 rounded-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
                 title={i18n.t('settingsDialog.savePath')}
               >
                 <span className="material-symbols-outlined text-base">folder_open</span>
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-white/40">
+            <p className="mt-1.5 text-xs" style={{ color: colors.textMuted }}>
               {i18n.t('settingsDialog.tip')}
             </p>
           </div>
@@ -196,14 +206,20 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
             <button
               onClick={handleClose}
               disabled={isValidating}
-              className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-white/70 hover:bg-white/10 transition-all disabled:opacity-50"
+              className="flex-1 px-4 py-3 rounded-xl transition-all disabled:opacity-50"
+              style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
             >
               {i18n.t('settingsDialog.close')}
             </button>
             <button
               onClick={handleSave}
               disabled={isValidating}
-              className="flex-1 px-4 py-3 rounded-xl bg-primary text-white hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
             >
               {isValidating ? (
                 <>

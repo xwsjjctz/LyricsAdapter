@@ -26,6 +26,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const colors = currentTheme.colors;
   const autoSelectedRef = useRef(false);
 
   useEffect(() => {
@@ -95,6 +96,12 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             finalSyncedLyrics = parsed.syncedLyrics;
           }
           
+          // Preserve the original cover URL if it was a cover:// protocol URL
+          // The parsed metadata.coverUrl may be a blob URL which can't be fetched by the main process
+          const coverUrl = selectedTrack.coverUrl?.startsWith('cover://')
+            ? selectedTrack.coverUrl
+            : (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') ? metadata.coverUrl : selectedTrack.coverUrl);
+
           // Create updated track with cover URL
           const updatedTrack: Track = {
             ...selectedTrack,
@@ -103,7 +110,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             album: metadata.album,
             lyrics: metadata.lyrics,
             syncedLyrics: finalSyncedLyrics,
-            coverUrl: metadata.coverUrl,
+            coverUrl,
           };
           
           // Update state
@@ -201,13 +208,12 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
     
     const originalValue = originalTrack?.[field] || '';
     const hasChanged = currentValue !== originalValue;
-    const colors = currentTheme.colors;
     
     if (isLyrics) {
       return (
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center gap-2 mb-2 flex-shrink-0">
-            <span className="text-sm font-bold text-white/40 uppercase tracking-widest">{label}:</span>
+            <span className="text-sm font-bold uppercase tracking-widest" style={{ color: colors.textMuted }}>{label}:</span>
           </div>
           <div className="flex-1 relative min-h-0">
             <textarea
@@ -218,16 +224,18 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                   setSelectedTrack(updated as Track);
                 }
               }}
-              className="absolute inset-0 w-full h-full bg-white/5 border border-white/10 rounded-lg p-3 pr-20 text-sm text-white focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar"
+              className="absolute inset-0 w-full rounded-lg p-3 pr-20 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar"
               style={{
-                backgroundColor: 'rgba(255,255,255,0.05)',
+                backgroundColor: colors.backgroundCard,
+                border: `1px solid ${colors.borderLight}`,
+                color: colors.textPrimary,
               }}
               onFocus={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)';
+                e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
                 e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`;
               }}
               onBlur={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                e.currentTarget.style.backgroundColor = colors.backgroundCard;
                 e.currentTarget.style.boxShadow = 'none';
               }}
             />
@@ -240,7 +248,10 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                       setSelectedTrack(updated as Track);
                     }
                   }}
-                  className="w-7 h-7 rounded-md bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all flex items-center justify-center"
+                  className="w-7 h-7 rounded-md transition-all flex items-center justify-center"
+                  style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
                   title={i18n.t('common.cancel')}
                 >
                   <span className="material-symbols-outlined text-base">close</span>
@@ -289,7 +300,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     }
                   }}
                   disabled={savingFields.has(field)}
-                  className={`w-7 h-7 rounded-md bg-primary text-white hover:bg-primary/90 transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-7 h-7 rounded-md transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
                   title={i18n.t('common.save')}
                 >
                   <span className="material-symbols-outlined text-base">{savingFields.has(field) ? 'hourglass_empty' : 'check'}</span>
@@ -303,7 +315,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
 
     return (
       <div className="flex items-center gap-4">
-        <span className="text-sm font-bold text-white/40 uppercase tracking-widest w-16 flex-shrink-0">{label}:</span>
+        <span className="text-sm font-bold uppercase tracking-widest w-16 flex-shrink-0" style={{ color: colors.textMuted }}>{label}:</span>
         <div className="relative flex-1">
           <input
             type="text"
@@ -314,16 +326,18 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                 setSelectedTrack(updated as Track);
               }
             }}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-0 transition-all"
+            className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-0 transition-all"
             style={{
-              backgroundColor: 'rgba(255,255,255,0.05)',
+              backgroundColor: colors.backgroundCard,
+              border: `1px solid ${colors.borderLight}`,
+              color: colors.textPrimary,
             }}
             onFocus={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)';
+              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
               e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
             }}
             onBlur={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+              e.currentTarget.style.backgroundColor = colors.backgroundCard;
               e.currentTarget.style.boxShadow = 'none';
             }}
           />
@@ -336,7 +350,10 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     setSelectedTrack(updated as Track);
                   }
                 }}
-                className="w-6 h-6 rounded bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all flex items-center justify-center"
+                className="w-6 h-6 rounded transition-all flex items-center justify-center"
+                style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
                 title={i18n.t('common.cancel')}
               >
                 <span className="material-symbols-outlined text-sm">close</span>
@@ -387,7 +404,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     }
                   }}
                 disabled={savingFields.has(field)}
-                className={`w-6 h-6 rounded bg-primary text-white hover:bg-primary/90 transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-6 h-6 rounded transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
                 title={i18n.t('common.save')}
               >
                 <span className="material-symbols-outlined text-sm">{savingFields.has(field) ? 'hourglass_empty' : 'check'}</span>
@@ -412,7 +430,10 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
         <button
           onClick={refreshMetadata}
           disabled={isRefreshing || !selectedTrack}
-          className="w-10 h-10 rounded-xl bg-white/10 text-white/60 hover:bg-primary/20 hover:text-primary transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-10 h-10 rounded-xl transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
           title={isRefreshing ? '刷新中...' : '刷新元数据'}
         >
           <span className={`material-symbols-outlined text-xl ${isRefreshing ? 'animate-spin' : ''}`}>{isRefreshing ? 'sync' : 'refresh'}</span>
@@ -428,11 +449,19 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
               <button
                 key={track.id}
                 onClick={() => setSelectedTrack(track)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                  selectedTrack?.id === track.id
-                    ? 'bg-white/10 text-white'
-                    : 'text-white/60 hover:bg-white/5'
-                }`}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                style={selectedTrack?.id === track.id 
+                  ? { backgroundColor: colors.backgroundCard, color: colors.textPrimary }
+                  : { backgroundColor: 'transparent', color: colors.textMuted }
+                }
+                onMouseEnter={e => { 
+                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover; 
+                  e.currentTarget.style.color = colors.textPrimary;
+                }}
+                onMouseLeave={e => { 
+                  e.currentTarget.style.backgroundColor = selectedTrack?.id === track.id ? colors.backgroundCard : 'transparent'; 
+                  e.currentTarget.style.color = selectedTrack?.id === track.id ? colors.textPrimary : colors.textMuted;
+                }}
               >
                 <TrackCover
                   trackId={track.id}
@@ -466,8 +495,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                     className="absolute top-0 left-0 w-32 h-32 bg-black/50 flex items-center justify-center rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                   >
                     <div className="text-center">
-                      <span className="material-symbols-outlined text-3xl text-white mb-1 block">add_photo_alternate</span>
-                      <div className="text-xs text-white">{i18n.t('metadataView.importCover')}</div>
+                      <span className="material-symbols-outlined text-3xl mb-1 block" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
+                      <div className="text-xs" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.importCover')}</div>
                     </div>
                   </button>
                 </div>

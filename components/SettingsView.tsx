@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../services/i18n';
+import { themeManager } from '../services/themeManager';
+import { ThemeConfig } from '../types/theme';
 import ShortcutsSettings from './ShortcutsSettings';
 
 interface SettingsViewProps {}
@@ -7,6 +9,7 @@ interface SettingsViewProps {}
 const SettingsView: React.FC<SettingsViewProps> = () => {
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,6 +18,15 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
+    });
+    return unsubscribe;
+  }, []);
+
+  const colors = currentTheme.colors;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -61,16 +73,17 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
           <section className="mb-4">
             <div className="grid grid-cols-2 gap-3">
               {/* Language Setting */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-3 hover:bg-white/[0.07] transition-colors">
+              <div className="rounded-lg p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="material-symbols-outlined text-primary text-lg">language</span>
-                    <span className="text-sm text-white/90 truncate">{i18n.t('settings.language')}</span>
+                    <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
+                    <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{i18n.t('settings.language')}</span>
                   </div>
                   <div className="relative" ref={dropdownRef}>
                     <button
                       onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded text-white/80 hover:bg-white/10 hover:border-white/20 transition-all text-sm"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm transition-all"
+                      style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}`, color: colors.textSecondary }}
                     >
                       <span>{currentLanguageOption?.nativeLabel}</span>
                       <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
@@ -79,20 +92,19 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
                     </button>
 
                     {isLangDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1 bg-[#1a2533] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 min-w-[140px]">
+                      <div className="absolute top-full right-0 mt-1 rounded-lg shadow-xl overflow-hidden z-50 min-w-[140px]" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
                         {languageOptions.map((option) => (
                           <button
                             key={option.value}
                             onClick={() => handleLanguageChange(option.value)}
-                            className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors text-sm ${
-                              currentLang === option.value
-                                ? 'bg-primary/20 text-primary'
-                                : 'text-white/70 hover:bg-white/5 hover:text-white'
-                            }`}
+                            className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors text-sm"
+                            style={{ color: currentLang === option.value ? colors.primary : colors.textSecondary }}
+                            onMouseEnter={e => { if (currentLang !== option.value) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
+                            onMouseLeave={e => { if (currentLang !== option.value) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
                           >
                             <span>{option.nativeLabel}</span>
                             {currentLang === option.value && (
-                              <span className="material-symbols-outlined text-primary text-sm">check</span>
+                              <span className="material-symbols-outlined text-sm" style={{ color: colors.primary }}>check</span>
                             )}
                           </button>
                         ))}
@@ -103,12 +115,12 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
               </div>
 
               {/* About */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/[0.07] transition-colors">
+              <div className="rounded-lg p-4 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-white/60 text-lg">info</span>
+                  <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
                   <div className="min-w-0">
-                    <span className="text-sm text-white/90">Lyrics Adapter</span>
-                    <span className="text-xs text-white/40 ml-2">v1.0.0</span>
+                    <span className="text-sm" style={{ color: colors.textPrimary }}>Lyrics Adapter</span>
+                    <span className="text-xs ml-2" style={{ color: colors.textMuted }}>v1.0.0</span>
                   </div>
                 </div>
               </div>

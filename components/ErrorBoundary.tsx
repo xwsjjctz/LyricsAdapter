@@ -31,12 +31,13 @@ class ErrorBoundary extends Component<Props, State> {
         <div className="flex items-center justify-center h-screen bg-background">
           <div className="text-center p-8">
             <span className="material-symbols-outlined text-6xl text-red-400 mb-4">error</span>
-            <h1 className="text-2xl font-bold text-white mb-2">{i18n.t('errorBoundary.title')}</h1>
-            <p className="text-white/60 mb-4">{i18n.t('errorBoundary.description')}</p>
-            <p className="text-sm text-white/40 mb-4">{i18n.t('errorBoundary.errorLabel')}: {this.state.error?.message}</p>
+            <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('errorBoundary.title')}</h1>
+            <p className="mb-4" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>{i18n.t('errorBoundary.description')}</p>
+            <p className="text-sm mb-4" style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{i18n.t('errorBoundary.errorLabel')}: {this.state.error?.message}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-all"
+              className="px-4 py-2 rounded-lg transition-all"
+              style={{ backgroundColor: 'var(--theme-primary, #3b82f6)', color: 'var(--theme-text-primary, #fff)' }}
             >
               {i18n.t('errorBoundary.reload')}
             </button>

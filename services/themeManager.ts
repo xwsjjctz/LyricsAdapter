@@ -117,6 +117,8 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-glow-color', colors.glowColor);
 
     root.style.setProperty('--theme-font-main', fonts.main);
+    root.style.setProperty('--theme-font-display', fonts.display || fonts.main);
+    root.style.setProperty('--theme-font-mono', fonts.mono || 'ui-monospace, monospace');
 
     root.style.setProperty('--theme-radius-sm', radius.sm);
     root.style.setProperty('--theme-radius-md', radius.md);
