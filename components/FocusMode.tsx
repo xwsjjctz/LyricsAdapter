@@ -820,7 +820,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             width: 'calc(100% + 200px)',
             height: 'calc(100% + 200px)',
             filter: 'blur(80px) saturate(1.5) brightness(0.55)',
-            opacity: 1,
             transition: 'filter 700ms ease-in-out'
           }}
         />
