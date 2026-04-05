@@ -96,6 +96,64 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
+  const canvasOpacityRef = useRef(1);
+  const enterExitAnimRef = useRef<number | null>(null);
+
+  const CANVAS_REST_OPACITY = 0.90;
+  const CANVAS_ENTER_DELAY = 700;
+  const CANVAS_OPACITY_DURATION = 500;
+
+  useEffect(() => {
+    if (enterExitAnimRef.current) {
+      cancelAnimationFrame(enterExitAnimRef.current);
+      enterExitAnimRef.current = null;
+    }
+
+    const canvas = canvasRef.current;
+
+    if (isVisible) {
+      canvasOpacityRef.current = 1;
+      if (canvas) canvas.style.opacity = '1';
+
+      const delayTimer = setTimeout(() => {
+        const start = performance.now();
+        const from = 1;
+        const to = CANVAS_REST_OPACITY;
+
+        const animate = (now: number) => {
+          const elapsed = now - start;
+          const p = Math.min(elapsed / CANVAS_OPACITY_DURATION, 1);
+          const eased = 1 - Math.pow(1 - p, 3);
+          const val = from + (to - from) * eased;
+          canvasOpacityRef.current = val;
+          if (canvas) canvas.style.opacity = String(val);
+          if (p < 1) {
+            enterExitAnimRef.current = requestAnimationFrame(animate);
+          }
+        };
+        enterExitAnimRef.current = requestAnimationFrame(animate);
+      }, CANVAS_ENTER_DELAY);
+
+      return () => clearTimeout(delayTimer);
+    } else {
+      const start = performance.now();
+      const from = canvasOpacityRef.current;
+      const to = 1;
+
+      const animate = (now: number) => {
+        const elapsed = now - start;
+        const p = Math.min(elapsed / CANVAS_OPACITY_DURATION, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        const val = from + (to - from) * eased;
+        canvasOpacityRef.current = val;
+        if (canvas) canvas.style.opacity = String(val);
+        if (p < 1) {
+          enterExitAnimRef.current = requestAnimationFrame(animate);
+        }
+      };
+      enterExitAnimRef.current = requestAnimationFrame(animate);
+    }
+  }, [isVisible]);
 
   // Theme colors
   const colors = currentTheme.colors;
@@ -762,7 +820,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             width: 'calc(100% + 200px)',
             height: 'calc(100% + 200px)',
             filter: 'blur(80px) saturate(1.5) brightness(0.55)',
-            opacity: 0.90,
+            opacity: 1,
             transition: 'filter 700ms ease-in-out'
           }}
         />
