@@ -99,7 +99,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const canvasOpacityRef = useRef(1);
   const enterExitAnimRef = useRef<number | null>(null);
 
-  const CANVAS_REST_OPACITY = 0.90;
+  const CANVAS_REST_OPACITY = 1.0;
   const CANVAS_ENTER_DELAY = 700;
   const CANVAS_OPACITY_DURATION = 500;
 
