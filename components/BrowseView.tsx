@@ -703,7 +703,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
-                    <div className="text-sm font-medium opacity-50">
+                    <div className="text-sm font-medium" style={{ color: colors.textMuted }}>
                       {index + 1}
                     </div>
                     <div className="flex items-center gap-3 min-w-0">
@@ -713,16 +713,16 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                         alt={song.songname}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold truncate">{song.songname}</p>
-                        <p className="text-xs opacity-50 truncate">
+                        <p className="text-sm font-semibold truncate" style={{ color: colors.textPrimary }}>{song.songname}</p>
+                        <p className="text-xs truncate" style={{ color: colors.textMuted }}>
                           {song.singer?.map(s => s.name).join(', ')}
                         </p>
                       </div>
                     </div>
-                    <div className="text-sm opacity-50 truncate">
+                    <div className="text-sm truncate" style={{ color: colors.textMuted }}>
                       {song.albumname || '-'}
                     </div>
-                    <div className="text-sm opacity-50 text-right tabular-nums">
+                    <div className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
                       {formatDuration(song.interval)}
                     </div>
                     <div className="flex justify-end" ref={isDropdownOpen ? dropdownRef : undefined}>
@@ -737,7 +737,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                           <span className="text-xs" style={{ color: colors.textMuted }}>{progress.progress}%</span>
                         </div>
                       ) : isCompleted ? (
-                        <span className="text-green-400 text-xs flex items-center gap-1">
+                        <span className="text-xs flex items-center gap-1" style={{ color: colors.success }}>
                           <span className="material-symbols-outlined text-sm">check</span>
                           {i18n.t('browse.completed')}
                         </span>

@@ -212,7 +212,7 @@ const ThemeView: React.FC = () => {
                   isPreview ? 'ring-2 ring-offset-2 ring-offset-transparent' : ''
                 }`}
                 style={{
-                  backgroundColor: theme.colors.backgroundCard,
+                  backgroundColor: theme.colors.backgroundSidebar,
                   boxShadow: isPreview ? `0 0 0 2px ${theme.colors.primary}` : undefined,
                 }}
                 onClick={() => handlePreviewTheme(theme)}
