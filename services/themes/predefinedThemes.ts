@@ -37,8 +37,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(43, 140, 238, 0.15)',
     },
     fonts: {
-      main: "'Inter', 'Noto Sans SC', sans-serif",
-      display: "'Inter', 'Noto Sans SC', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -80,8 +80,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(236, 72, 153, 0.15)',
     },
     fonts: {
-      main: "'Inter', 'Noto Sans SC', sans-serif",
-      display: "'Inter', 'Noto Sans SC', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '8px',
@@ -123,8 +123,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(0, 180, 216, 0.15)',
     },
     fonts: {
-      main: "'Inter', 'Noto Sans SC', sans-serif",
-      display: "'Inter', 'Noto Sans SC', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -166,8 +166,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(247, 127, 0, 0.15)',
     },
     fonts: {
-      main: "'Inter', 'Noto Sans SC', sans-serif",
-      display: "'Inter', 'Noto Sans SC', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -209,8 +209,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(82, 183, 136, 0.15)',
     },
     fonts: {
-      main: "'Inter', 'Noto Sans SC', sans-serif",
-      display: "'Inter', 'Noto Sans SC', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -252,8 +252,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(177, 133, 219, 0.15)',
     },
     fonts: {
-      main: "'Inter', 'Noto Sans SC', sans-serif",
-      display: "'Inter', 'Noto Sans SC', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '4px',
@@ -295,8 +295,8 @@ export const predefinedThemes: ThemeConfig[] = [
       glowColor: 'rgba(184, 149, 106, 0.2)',
     },
     fonts: {
-      main: "'Noto Sans SC', 'Inter', sans-serif",
-      display: "'Noto Sans SC', 'Inter', sans-serif",
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
     },
     borderRadius: {
       sm: '4px',
