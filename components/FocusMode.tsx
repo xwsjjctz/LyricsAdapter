@@ -755,10 +755,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       {bgImage1 && (
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
           style={{
+            position: 'absolute',
+            top: '-100px',
+            left: '-100px',
+            width: 'calc(100% + 200px)',
+            height: 'calc(100% + 200px)',
             filter: 'blur(80px) saturate(1.5) brightness(0.55)',
-            opacity: 1,
+            opacity: 0.90,
             transition: 'filter 700ms ease-in-out'
           }}
         />
