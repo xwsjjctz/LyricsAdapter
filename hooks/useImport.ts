@@ -6,6 +6,8 @@ import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
+import { notify } from '../services/notificationService';
+import { i18n } from '../services/i18n';
 
 interface UseImportOptions {
   tracks: Track[];
@@ -477,10 +479,23 @@ export function useImport({
       logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
       logger.debug(`[Import] Failed: ${totalFailed}`);
 
-      if (totalFailed > 0) {
+    logger.debug(`[Import] ===== Import Summary =====`);
+    logger.debug(`[Import] Total processed: ${totalProcessed}`);
+    logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
+    logger.debug(`[Import] Failed: ${totalFailed}`);
+
+    if (totalFailed > 0) {
         logger.error(`[Import] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
+        notify(
+          i18n.t('notifications.importComplete'),
+          i18n.t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
+        );
       } else {
         logger.debug(`[Import] ✓ All files imported successfully`);
+        notify(
+          i18n.t('notifications.importComplete'),
+          i18n.t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
+        );
       }
 
       logger.debug('[Import] Manually triggering library save after import...');
@@ -613,6 +628,18 @@ export function useImport({
     logger.debug(`[Import] Total processed: ${totalProcessed}`);
     logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
     logger.debug(`[Import] Failed: ${totalFailed}`);
+
+    if (totalFailed > 0) {
+      notify(
+        i18n.t('notifications.importComplete'),
+        i18n.t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
+      );
+    } else if (totalProcessed > 0) {
+      notify(
+        i18n.t('notifications.importComplete'),
+        i18n.t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
+      );
+    }
   }, [
     createTracksMap,
     processDesktopFilePathBatch,

@@ -3,6 +3,7 @@ import { QQMusicSong, qqMusicApi } from '../services/qqMusicApi';
 import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
+import { notify } from '../services/notificationService';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
@@ -534,6 +535,12 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         [song.songmid]: { progress: 100, status: 'completed' }
       }));
 
+      notify(
+        i18n.t('notifications.downloadComplete'),
+        `${song.songname} ${i18n.t('notifications.addedToLibrary')}`,
+        { silent: true }
+      );
+
       // Clear progress after 3 seconds
       setTimeout(() => {
         setDownloadProgress(prev => {
@@ -560,6 +567,11 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         ...prev,
         [song.songmid]: { progress: 0, status: 'error' }
       }));
+
+      notify(
+        i18n.t('notifications.downloadFailed'),
+        `${song.songname} ${i18n.t('notifications.downloadFailedBody')}`
+      );
 
       // Clear error state after 5 seconds
       setTimeout(() => {

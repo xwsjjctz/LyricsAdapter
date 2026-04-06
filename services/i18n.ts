@@ -2046,6 +2046,86 @@ const translations: Translations = {
     ko: '표지 가져오기',
     de: 'Cover importieren',
     fr: 'Importer la pochette'
+  },
+  'notifications.downloadComplete': {
+    zh: '下载完成',
+    en: 'Download Complete',
+    ja: 'ダウンロード完了',
+    ko: '다운로드 완료',
+    de: 'Download abgeschlossen',
+    fr: 'Téléchargement terminé'
+  },
+  'notifications.downloadFailed': {
+    zh: '下载失败',
+    en: 'Download Failed',
+    ja: 'ダウンロード失敗',
+    ko: '다운로드 실패',
+    de: 'Download fehlgeschlagen',
+    fr: 'Échec du téléchargement'
+  },
+  'notifications.addedToLibrary': {
+    zh: '已添加到资料库',
+    en: 'added to library',
+    ja: 'ライブラリに追加',
+    ko: '라이브러리에 추가됨',
+    de: 'zur Bibliothek hinzugefügt',
+    fr: 'ajouté à la bibliothèque'
+  },
+  'notifications.downloadFailedBody': {
+    zh: '下载失败',
+    en: 'download failed',
+    ja: 'ダウンロードに失敗しました',
+    ko: '다운로드 실패',
+    de: 'Download fehlgeschlagen',
+    fr: 'échec du téléchargement'
+  },
+  'notifications.importComplete': {
+    zh: '导入完成',
+    en: 'Import Complete',
+    ja: 'インポート完了',
+    ko: '가져오기 완료',
+    de: 'Import abgeschlossen',
+    fr: 'Importation terminée'
+  },
+  'notifications.importSuccessCount': {
+    zh: '成功导入 {count} 首歌曲',
+    en: 'Successfully imported {count} track(s)',
+    ja: '{count} 曲のインポートに成功しました',
+    ko: '{count}곡 가져오기 성공',
+    de: '{count} Titel erfolgreich importiert',
+    fr: '{count} piste(s) importée(s)'
+  },
+  'notifications.importPartialCount': {
+    zh: '成功导入 {success} 首歌曲，{failed} 首失败',
+    en: 'Imported {success} track(s), {failed} failed',
+    ja: '{success} 曲インポート成功、{failed} 曲失敗',
+    ko: '{success}곡 가져오기 성공, {failed}곡 실패',
+    de: '{success} Titel importiert, {failed} fehlgeschlagen',
+    fr: '{success} piste(s) importée(s), {failed} échouée(s)'
+  },
+  'notifications.saveFailed': {
+    zh: '保存失败',
+    en: 'Save Failed',
+    ja: '保存失敗',
+    ko: '저장 실패',
+    de: 'Speichern fehlgeschlagen',
+    fr: 'Échec de la sauvegarde'
+  },
+  'notifications.fieldSaveFailed': {
+    zh: '{field} 保存失败',
+    en: 'Failed to save {field}',
+    ja: '{field} の保存に失敗しました',
+    ko: '{field} 저장 실패',
+    de: '{field} konnte nicht gespeichert werden',
+    fr: 'Échec de la sauvegarde de {field}'
+  },
+  'notifications.coverSaveFailed': {
+    zh: '封面图片保存失败',
+    en: 'Failed to save cover image',
+    ja: 'カバー画像の保存に失敗しました',
+    ko: '표지 이미지 저장 실패',
+    de: 'Cover-Bild konnte nicht gespeichert werden',
+    fr: 'Échec de la sauvegarde de la pochette'
   }
 };
 

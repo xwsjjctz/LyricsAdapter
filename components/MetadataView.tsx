@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
+import { notify } from '../services/notificationService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
 import { coverArtService } from '../services/coverArtService';
@@ -188,10 +189,18 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             await refreshMetadata();
           } else {
             logger.error('[MetadataView] Failed to write cover:', result.error);
+            notify(
+              i18n.t('notifications.saveFailed'),
+              i18n.t('notifications.coverSaveFailed')
+            );
           }
         }
       } catch (error) {
         logger.error('[MetadataView] Error importing cover:', error);
+        notify(
+          i18n.t('notifications.saveFailed'),
+          i18n.t('notifications.coverSaveFailed')
+        );
       } finally {
         setIsRefreshing(false);
       }
@@ -287,10 +296,18 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                           await refreshMetadata();
                         } else {
                           logger.error(`[MetadataView] Failed to save ${field}:`, result.error);
+                          notify(
+                            i18n.t('notifications.saveFailed'),
+                            i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
+                          );
                         }
                       }
                     } catch (error) {
                       logger.error(`[MetadataView] Error saving ${field}:`, error);
+                      notify(
+                        i18n.t('notifications.saveFailed'),
+                        i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
+                      );
                     } finally {
                       setSavingFields(prev => {
                         const next = new Set(prev);
@@ -391,10 +408,18 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                           await refreshMetadata();
                         } else {
                           logger.error(`[MetadataView] Failed to save ${field}:`, result.error);
+                          notify(
+                            i18n.t('notifications.saveFailed'),
+                            i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
+                          );
                         }
                       }
                     } catch (error) {
                       logger.error(`[MetadataView] Error saving ${field}:`, error);
+                      notify(
+                        i18n.t('notifications.saveFailed'),
+                        i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
+                      );
                     } finally {
                       setSavingFields(prev => {
                         const next = new Set(prev);
