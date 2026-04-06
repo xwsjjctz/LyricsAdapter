@@ -152,7 +152,7 @@ const ThemeView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto w-full flex flex-col h-full">
+    <div className="w-full flex flex-col h-full">
       {/* Header */}
       <div className="mb-6 flex-shrink-0 flex items-center justify-between">
         <div>

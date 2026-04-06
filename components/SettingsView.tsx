@@ -56,7 +56,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const currentLanguageOption = languageOptions.find(opt => opt.value === currentLang);
 
   return (
-    <div className="max-w-4xl mx-auto w-full flex flex-col h-full">
+    <div className="w-full flex flex-col h-full">
       {/* Header */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>

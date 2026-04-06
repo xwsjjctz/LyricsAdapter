@@ -588,7 +588,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
   };
 
   return (
-    <div className="max-w-5xl mx-auto w-full flex flex-col h-full">
+    <div className="w-full flex flex-col h-full">
       {/* Header */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>

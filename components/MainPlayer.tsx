@@ -60,7 +60,7 @@ const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlayin
             </div>
           </div>
 
-          <div className="mt-12 text-center max-w-2xl">
+          <div className="mt-12 text-center w-full">
             <h1 className="text-5xl font-bold tracking-tight mb-3 drop-shadow-lg" style={{ color: colors.textPrimary }}>{track.title}</h1>
             <p className="text-2xl text-primary font-medium opacity-90">{track.artist} — {track.album}</p>
           </div>

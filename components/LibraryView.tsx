@@ -770,7 +770,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   return (
     <div
-      className={`max-w-5xl mx-auto w-full flex flex-col h-full relative transition-all duration-300 ${
+      className={`w-full flex flex-col h-full relative transition-all duration-300 ${
         isDragging
           ? 'bg-primary/5'
           : ''

@@ -34,7 +34,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = memo(({ track, isVisible }) 
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-start py-20 px-10 overflow-y-auto custom-scrollbar transition-all duration-700 animate-in fade-in zoom-in-95">
-      <div className="max-w-3xl w-full">
+      <div className="w-full">
         {track?.lyrics ? (
           <div className="flex flex-col gap-8 items-center text-center">
              {lines.map((line, idx) => (

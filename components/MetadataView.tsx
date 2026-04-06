@@ -418,7 +418,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
   }, [selectedTrack, originalTrack, currentTheme]);
 
   return (
-    <div className="max-w-5xl mx-auto w-full flex flex-col h-full">
+    <div className="w-full flex flex-col h-full">
       {/* 固定的标题部分 */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
@@ -481,7 +481,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
         {/* 右侧元数据显示 */}
         {selectedTrack ? (
           <div className="flex-1 overflow-hidden">
-            <div className="max-w-2xl w-full h-full flex flex-col gap-4">
+            <div className="w-full h-full flex flex-col gap-4">
               <div className="flex gap-5 flex-shrink-0">
                 <div className="relative group flex-shrink-0">
                   <TrackCover
