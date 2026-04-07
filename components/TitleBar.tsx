@@ -129,10 +129,10 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             >
               {isWindowFocused && isButtonHovered && (
                 <svg
-                  width="10"
-                  height="10"
+                  width="12"
+                  height="12"
                   viewBox="0 0 24 24"
-                  fill="white"
+                  fill="black"
                   style={{
                     transition: 'opacity 0.15s ease-in-out',
                     opacity: 1
