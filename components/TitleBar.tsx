@@ -49,6 +49,26 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
+  // Window focus state
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
+
+  // Mouse hover state for the button
+  const [isButtonHovered, setIsButtonHovered] = useState(false);
+
+  // Track window focus
+  useEffect(() => {
+    const handleFocus = () => setIsWindowFocused(true);
+    const handleBlur = () => setIsWindowFocused(false);
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
@@ -96,18 +116,31 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             onClick={onToggleFocusMode}
             className="w-12 h-12 flex items-center justify-center"
             aria-label={isFocusMode ? i18n.t('titleBar.exitFocusMode') : i18n.t('titleBar.enterFocusMode')}
+            onMouseEnter={() => setIsButtonHovered(true)}
+            onMouseLeave={() => setIsButtonHovered(false)}
           >
             <div
               className="w-[12.4px] h-[12.4px] rounded-full flex items-center justify-center transition-all"
               style={{
-                backgroundColor: '#3b82f6',
-                transform: isFocusMode ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                backgroundColor: isWindowFocused ? '#3b82f6' : 'rgba(255, 255, 255, 0.15)',
+                transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)',
+                transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.00s ease-in-out'
               }}
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
-                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
-              </svg>
+              {isWindowFocused && isButtonHovered && (
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="white"
+                  style={{
+                    transition: 'opacity 0.15s ease-in-out',
+                    opacity: 1
+                  }}
+                >
+                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+                </svg>
+              )}
             </div>
           </button>
         </div>
