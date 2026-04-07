@@ -31,7 +31,18 @@ const CloseIcon = () => (
   </svg>
 );
 
-const TitleBar: React.FC = memo(() => {
+const CollapseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+  </svg>
+);
+
+interface TitleBarProps {
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
+}
+
+const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode }) => {
   const { canControl, minimize, maximize, close, isMaximized } = useWindowControls();
 
   // Force re-render when language changes
@@ -69,7 +80,7 @@ const TitleBar: React.FC = memo(() => {
   if (isMacOS) {
     return (
       <div
-        className="fixed top-0 left-0 right-0 h-8 bg-transparent select-none z-50"
+        className="fixed top-0 left-0 right-0 h-9.5 bg-transparent select-none z-[100] flex items-center"
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',
@@ -77,6 +88,29 @@ const TitleBar: React.FC = memo(() => {
         } as React.CSSProperties}
       >
         {/* macOS 系统会在左侧显示红绿黄按钮 */}
+        {/* 拖动区域占据红绿灯按钮右侧到收起按钮之间的空间 */}
+        <div className="w-[55px] h-full" />
+        {/* 右侧收起/展开按钮，紧贴红绿灯按钮 */}
+        <div className="flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <button
+            onClick={onToggleFocusMode}
+            className="w-12 h-12 flex items-center justify-center"
+            aria-label={isFocusMode ? i18n.t('titleBar.exitFocusMode') : i18n.t('titleBar.enterFocusMode')}
+          >
+            <div
+              className="w-[12.4px] h-[12.4px] rounded-full flex items-center justify-center transition-all"
+              style={{
+                backgroundColor: '#3b82f6',
+                transform: isFocusMode ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+              </svg>
+            </div>
+          </button>
+        </div>
       </div>
     );
   }
@@ -100,6 +134,18 @@ const TitleBar: React.FC = memo(() => {
           className="flex items-center h-full"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
+          <button
+            onClick={onToggleFocusMode}
+            className="w-[46px] h-full flex items-center justify-center transition-colors"
+            style={{ color: colors.textSecondary }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            aria-label={isFocusMode ? i18n.t('titleBar.exitFocusMode') : i18n.t('titleBar.enterFocusMode')}
+          >
+            <span className="transition-transform duration-250 ease-out" style={{ transform: isFocusMode ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+              <CollapseIcon />
+            </span>
+          </button>
           <button
             onClick={minimize}
             className="w-[46px] h-full flex items-center justify-center transition-colors"

@@ -47,11 +47,12 @@ interface FocusModeProps {
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
+  showExitButton?: boolean;
 }
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime, onClose,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef, showExitButton
 }) => {
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
@@ -829,17 +830,19 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       <div className="relative h-full flex flex-col z-10 overflow-hidden">
         {/* Top Header */}
         <header className="flex items-center justify-start px-6 py-4 shrink-0 pt-12">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 transition-all group"
-            style={{ color: focusColors.textMuted }}
-            onMouseEnter={e => { e.currentTarget.style.color = focusColors.textPrimary; }}
-            onMouseLeave={e => { e.currentTarget.style.color = focusColors.textMuted; }}
-          >
-            <div className="p-1.5 rounded-full transition-colors flex items-center justify-center" style={{ backgroundColor: focusColors.backgroundCard }} onMouseEnter={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCardHover} onMouseLeave={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCard}>
-              <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
-            </div>
-          </button>
+          {showExitButton && (
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 transition-all group"
+              style={{ color: focusColors.textMuted }}
+              onMouseEnter={e => { e.currentTarget.style.color = focusColors.textPrimary; }}
+              onMouseLeave={e => { e.currentTarget.style.color = focusColors.textMuted; }}
+            >
+              <div className="p-1.5 rounded-full transition-colors flex items-center justify-center" style={{ backgroundColor: focusColors.backgroundCard }} onMouseEnter={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCardHover} onMouseLeave={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCard}>
+                <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
+              </div>
+            </button>
+          )}
         </header>
 
         {/* Content Section */}

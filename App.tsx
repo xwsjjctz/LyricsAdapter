@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
-import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from './services/desktopAdapter';
+import { getDesktopAPIAsync, getDesktopAPI, isDesktop, type DesktopAPI } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { coverArtService } from './services/coverArtService';
 import { libraryStorage } from './services/libraryStorage';
@@ -333,12 +333,20 @@ const App: React.FC = () => {
     logger.debug('[App] Theme initialized:', themeManager.getCurrentThemeId());
   }, []);
 
+  // Detect platform for FocusMode exit button display
+  const desktopAPISync = getDesktopAPI();
+  const platform = desktopAPISync?.platform || '';
+  const isLinux = platform === 'linux';
+
   return (
     <ErrorBoundary>
       <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={{
         backgroundColor: 'var(--theme-background-dark, #101922)',
       }}>
-        <TitleBar />
+        <TitleBar
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+        />
         <div className="flex flex-1">
           <Sidebar
           onImportClick={() => {
@@ -471,6 +479,7 @@ const App: React.FC = () => {
           onTogglePlaybackMode={handleTogglePlaybackMode}
           onToggleFocus={() => setIsFocusMode(!isFocusMode)}
           audioRef={audioRef}
+          showExitButton={isLinux}
         />
         </div>
       </div>
