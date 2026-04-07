@@ -120,6 +120,9 @@ const ThemeView: React.FC = () => {
       '神秘': 'theme.tag.mysterious',
       '紫色': 'theme.tag.purple',
       '优雅': 'theme.tag.elegant',
+      '浅色': 'theme.tag.light',
+      '冷色': 'theme.tag.cool',
+      '现代': 'theme.tag.modern',
       'Default': 'theme.tag.default',
       'Classic': 'theme.tag.classic',
       'Business': 'theme.tag.business',
@@ -138,6 +141,9 @@ const ThemeView: React.FC = () => {
       'Mysterious': 'theme.tag.mysterious',
       'Purple': 'theme.tag.purple',
       'Elegant': 'theme.tag.elegant',
+      'Light': 'theme.tag.light',
+      'Cool': 'theme.tag.cool',
+      'Modern': 'theme.tag.modern',
     };
     return tagMap[tag] || '';
   };

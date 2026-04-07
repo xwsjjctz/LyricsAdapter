@@ -75,6 +75,7 @@ export const THEME_IDS = {
   FOREST: 'forest',
   MIDNIGHT: 'midnight',
   WARM: 'warm',
+  GLACIER: 'glacier',
 } as const;
 
 export type ThemeId = typeof THEME_IDS[keyof typeof THEME_IDS];

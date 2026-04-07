@@ -689,6 +689,14 @@ const translations: Translations = {
     de: 'Warme Creme',
     fr: 'Crème chaud'
   },
+  'theme.name.glacier': {
+    zh: '冰川蓝',
+    en: 'Glacier Blue',
+    ja: 'グレイシャーブルー',
+    ko: '글레이셔 블루',
+    de: 'Gletscherblau',
+    fr: 'Bleu Glacier'
+  },
 
   // Theme descriptions
   'theme.desc.default': {
@@ -746,6 +754,14 @@ const translations: Translations = {
     ko: '따뜻한 크림색, 미니멀하고 넓은',
     de: 'Warmes Creme, minimalistisch und geräumig',
     fr: 'Crème chaud, minimaliste et spacieux'
+  },
+  'theme.desc.glacier': {
+    zh: '清新明亮，冷色调现代风格',
+    en: 'Fresh and bright, modern cool-toned style',
+    ja: '爽やかで明亮、モダンな寒色系',
+    ko: '상쾌하고 밝은, 모던한 쿨톤',
+    de: 'Frisch und hell, moderner kühler Ton',
+    fr: 'Frais et lumineux, style moderne frais'
   },
 
   // Theme tags
@@ -900,6 +916,30 @@ const translations: Translations = {
     ko: '미니멀',
     de: 'Minimal',
     fr: 'Minimaliste'
+  },
+  'theme.tag.light': {
+    zh: '浅色',
+    en: 'Light',
+    ja: 'ライト',
+    ko: '라이트',
+    de: 'Hell',
+    fr: 'Clair'
+  },
+  'theme.tag.cool': {
+    zh: '冷色',
+    en: 'Cool',
+    ja: 'クール',
+    ko: '쿨',
+    de: 'Kühl',
+    fr: 'Frais'
+  },
+  'theme.tag.modern': {
+    zh: '现代',
+    en: 'Modern',
+    ja: 'モダン',
+    ko: '모던',
+    de: 'Modern',
+    fr: 'Moderne'
   },
 
   // Settings Dialog (BrowseView)
