@@ -299,7 +299,12 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       }
 
       // Parse metadata from the downloaded file
-      let metadata;
+      let metadata: {
+        lyrics?: string;
+        syncedLyrics?: { time: number; text: string }[];
+        duration?: number;
+        fileSize?: number;
+      } | undefined;
       try {
         const parseResult = await desktopAPI.parseAudioMetadata(filePath);
         if (parseResult.success && parseResult.metadata) {
@@ -466,10 +471,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
       // Download and save via Electron main process
       try {
-        const downloadResult = await window.electron!.downloadAndSave(url, rawCookie, fullPath);
+        const downloadResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
 
-        if (!downloadResult.success) {
-          throw new Error(`下载失败: ${downloadResult.error}`);
+        if (!downloadResult || !downloadResult.success) {
+          throw new Error(`下载失败: ${downloadResult?.error || 'downloadAndSave unavailable'}`);
         }
 
         savedFilePath = downloadResult.filePath;
