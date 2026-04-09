@@ -2013,6 +2013,22 @@ const translations: Translations = {
     de: 'Zur Themenansicht wechseln',
     fr: 'Passer à la vue thème'
   },
+  'shortcut.gotoMetadata': {
+    zh: '转到元数据',
+    en: 'Go to Metadata',
+    ja: 'メタデータへ移動',
+    ko: '메타데이터로 이동',
+    de: 'Zu Metadaten',
+    fr: 'Aller aux métadonnées'
+  },
+  'shortcut.gotoMetadataDesc': {
+    zh: '切换到元数据编辑界面',
+    en: 'Switch to metadata view',
+    ja: 'メタデータ画面に切り替え',
+    ko: '메타데이터 보기로 전환',
+    de: 'Zur Metadatenansicht wechseln',
+    fr: 'Passer à la vue métadonnées'
+  },
 
   // Metadata View
   'metadataView.title': {

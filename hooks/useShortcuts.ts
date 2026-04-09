@@ -232,6 +232,11 @@ export const useShortcuts = ({
         setViewMode(ViewMode.THEME);
         setIsFocusMode(false);
         break;
+
+      case 'gotoMetadata':
+        setViewMode(ViewMode.METADATA);
+        setIsFocusMode(false);
+        break;
     }
   }, []);
 

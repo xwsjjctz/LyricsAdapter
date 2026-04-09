@@ -30,7 +30,8 @@ export type ShortcutAction =
   | 'gotoLibrary'
   | 'gotoBrowse'
   | 'gotoSettings'
-  | 'gotoTheme';
+  | 'gotoTheme'
+  | 'gotoMetadata';
 
 export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
   playPause: {
@@ -199,6 +200,14 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     description: 'shortcut.gotoThemeDesc',
     defaultKey: 'CmdOrCtrl+T',
     currentKey: 'CmdOrCtrl+T',
+    scope: 'navigation'
+  },
+  gotoMetadata: {
+    id: 'gotoMetadata',
+    name: 'shortcut.gotoMetadata',
+    description: 'shortcut.gotoMetadataDesc',
+    defaultKey: 'CmdOrCtrl+Shift+M',
+    currentKey: 'CmdOrCtrl+Shift+M',
     scope: 'navigation'
   }
 };
