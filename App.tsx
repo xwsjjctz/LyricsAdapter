@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [searchInputValue, setSearchInputValue] = useState(''); // Global search input value (shared between views)
   const [searchTrigger, setSearchTrigger] = useState(0); // Trigger to execute search
   const [libraryScrollPosition, setLibraryScrollPosition] = useState(0); // Save LibraryView scroll position
+  const [cloudTracks, setCloudTracks] = useState<Track[]>([]);
   const [autoLocateToken, setAutoLocateToken] = useState(0); // Increment only when track is switched by playback actions
   const isFirstLibraryLoadRef = useRef(true); // Track if LibraryView is loading for the first time
 
@@ -64,6 +65,7 @@ const App: React.FC = () => {
     setTracks,
     currentTrackIndex,
     setCurrentTrackIndex,
+    webdavTracks: cloudTracks,
     createTrackedBlobUrl,
     revokeBlobUrl,
     onTrackSwitch: handleTrackSwitch
@@ -93,7 +95,7 @@ const App: React.FC = () => {
     handleTogglePlaybackMode,
     handleAudioError,
     selectTrack,
-    setCloudCurrentTrack,
+    setCloudTrack,
     clearCloudTrack,
     shouldAutoPlayRef,
     restoredTimeRef,
@@ -430,8 +432,9 @@ const App: React.FC = () => {
               <LibraryView
                 tracks={tracks}
                 currentTrackIndex={currentTrackIndex}
+                currentTrackId={currentTrack?.id}
                 onTrackSelect={selectTrack}
-                onCloudTrackSelect={setCloudCurrentTrack}
+                onCloudTrackSelect={setCloudTrack}
                 onRemoveTrack={handleRemoveTrack}
                 onRemoveMultipleTracks={handleRemoveMultipleTracks}
                 onDropFiles={handleDropFiles}
@@ -448,6 +451,7 @@ const App: React.FC = () => {
                 importProgress={importProgress}
                 onDataSourceChange={async (source, webdavTracks) => {
                   if (source === 'cloud' && webdavTracks) {
+                    setCloudTracks(webdavTracks);
                     if (!localTracksBackup) {
                       setLocalTracksBackup(tracks);
                     }

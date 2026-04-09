@@ -13,8 +13,9 @@ import TrackCover from './TrackCover';
 interface LibraryViewProps {
   tracks: Track[];
   currentTrackIndex: number;
+  currentTrackId?: string;
   onTrackSelect: (index: number) => void;
-  onCloudTrackSelect?: (track: Track) => void; // For cloud mode track selection
+  onCloudTrackSelect?: (index: number) => void; // For cloud mode track selection
   onRemoveTrack: (trackId: string) => void;
   onRemoveMultipleTracks?: (trackIds: string[]) => void; // Batch removal
   onDropFiles?: (files: File[]) => void; // Handle dropped files (Web mode or fallback)
@@ -35,6 +36,7 @@ interface LibraryViewProps {
 const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
   currentTrackIndex,
+  currentTrackId,
   onTrackSelect,
   onCloudTrackSelect,
   onRemoveTrack,
@@ -1020,7 +1022,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   const filteredIndex = startIndex + idx;
                   const isUnavailable = track.available === false;
                   const isSelected = selectedIds.has(track.id);
-                  const isCurrentTrack = track.id === (displayTracks[currentTrackIndex]?.id);
+                  const isCurrentTrack = track.id === currentTrackId;
                   const isDragged = draggedIndex === filteredIndex;
                   const isDragOver = dragOverIndex === filteredIndex;
                   const canDrag = isEditMode && !isUnavailable && !executedSearchQuery; // Only allow drag when not searching
@@ -1041,14 +1043,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         onClick={() => {
                           if (isEditMode || isUnavailable) return;
                           if (dataSource === 'cloud' && onCloudTrackSelect) {
-                            onCloudTrackSelect(track);
+                            onCloudTrackSelect(filteredIndex);
                           } else {
                             onTrackSelect(filteredIndex);
                           }
                         }}
-                       style={{
-                         ...animationStyle,
-                         backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
+                        style={{
+                          ...animationStyle,
+                          backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
                          border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
                        }}
                        className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px] ${
@@ -1237,7 +1239,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         const filteredIndex = idx;
                          const isUnavailable = track.available === false;
                          const isSelected = selectedIds.has(track.id);
-                         const isCurrentTrack = track.id === (displayTracks[currentTrackIndex]?.id);
+                         const isCurrentTrack = track.id === currentTrackId;
                          const animationStyle = shouldShowAnimation
                            ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
                            : undefined;
@@ -1247,15 +1249,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              key={track.id}
                              ref={idx === 0 ? rowMeasureRef : undefined}
                              data-track-index={filteredIndex}
-onClick={() => {
-                          if (isEditMode || isUnavailable) return;
-                          if (dataSource === 'cloud' && onCloudTrackSelect) {
-                            onCloudTrackSelect(track);
-                          } else {
-                            onTrackSelect(filteredIndex);
-                          }
-                        }}
-                            className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
+ onClick={() => {
+                           if (isEditMode || isUnavailable) return;
+                           if (dataSource === 'cloud' && onCloudTrackSelect) {
+                             onCloudTrackSelect(filteredIndex);
+                           } else {
+                             onTrackSelect(filteredIndex);
+                           }
+                         }}
+                             className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
                             style={{
                               ...animationStyle,
                               opacity: isUnavailable ? 0.4 : 1,

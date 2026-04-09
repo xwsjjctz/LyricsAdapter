@@ -226,23 +226,6 @@ class WebDAVClient {
     return result.redirectUrl;
   }
 
-  async fetchAudioAsBlobUrl(filePath: string): Promise<string | null> {
-    const api = await getDesktopAPI();
-    if (!api) return null;
-
-    const cdnUrl = await this.getCdnUrl(filePath);
-    if (!cdnUrl) return null;
-
-    const result = await api.webdavGetRange(cdnUrl, '', -1, -1);
-    if (!result.success || !result.data) {
-      logger.error('[WebDAV] Audio full fetch failed:', result.error);
-      return null;
-    }
-
-    const blob = new Blob([result.data]);
-    return URL.createObjectURL(blob);
-  }
-
   async fetchFileRange(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {
     const api = await getDesktopAPI();
     if (!api) return null;
