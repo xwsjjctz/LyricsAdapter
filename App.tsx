@@ -93,6 +93,8 @@ const App: React.FC = () => {
     handleTogglePlaybackMode,
     handleAudioError,
     selectTrack,
+    setCloudCurrentTrack,
+    clearCloudTrack,
     shouldAutoPlayRef,
     restoredTimeRef,
     restoredTrackIdRef,
@@ -429,6 +431,7 @@ const App: React.FC = () => {
                 tracks={tracks}
                 currentTrackIndex={currentTrackIndex}
                 onTrackSelect={selectTrack}
+                onCloudTrackSelect={setCloudCurrentTrack}
                 onRemoveTrack={handleRemoveTrack}
                 onRemoveMultipleTracks={handleRemoveMultipleTracks}
                 onDropFiles={handleDropFiles}
@@ -463,8 +466,8 @@ const App: React.FC = () => {
                       await api.saveLibraryIndex(libraryData);
                       logger.info('[App] Local library saved to backup and main file before switching to cloud');
                     }
-                    setTracks(webdavTracks);
-                    setCurrentTrackIndex(-1);
+                    // Don't set tracks to webdavTracks - keep App's tracks purely local
+                    clearCloudTrack();
                   } else if (source === 'local') {
                     const api = await getDesktopAPIAsync();
                     if (api) {
@@ -494,6 +497,7 @@ const App: React.FC = () => {
                         setTracks(restoredTracks);
                         logger.info('[App] Local library restored from backup');
                         setLocalTracksBackup(null);
+                        clearCloudTrack();
                         setCurrentTrackIndex(-1);
                         return;
                       }
@@ -501,6 +505,7 @@ const App: React.FC = () => {
                     if (localTracksBackup) {
                       setTracks(localTracksBackup);
                       setLocalTracksBackup(null);
+                      clearCloudTrack();
                       setCurrentTrackIndex(-1);
                     }
                   }

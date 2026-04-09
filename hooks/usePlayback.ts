@@ -11,6 +11,7 @@ interface UsePlaybackOptions {
   setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   currentTrackIndex: number;
   setCurrentTrackIndex: React.Dispatch<React.SetStateAction<number>>;
+  cloudCurrentTrack?: Track | null;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
   onTrackSwitch?: () => void;
@@ -21,6 +22,7 @@ export function usePlayback({
   setTracks,
   currentTrackIndex,
   setCurrentTrackIndex,
+  cloudCurrentTrack = null,
   createTrackedBlobUrl,
   revokeBlobUrl,
   onTrackSwitch
@@ -29,6 +31,7 @@ export function usePlayback({
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState<number>(UI.DEFAULT_VOLUME);
   const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
+  const [cloudCurrentTrackState, setCloudCurrentTrackState] = useState<Track | null>(cloudCurrentTrack);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoPlayRef = useRef<boolean>(false);
@@ -48,8 +51,15 @@ export function usePlayback({
   }, [currentTrackIndex]);
 
   const currentTrack = useMemo(() => (
-    currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null
-  ), [tracks, currentTrackIndex]);
+    cloudCurrentTrackState || (currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null)
+  ), [tracks, currentTrackIndex, cloudCurrentTrackState]);
+
+  // Sync cloudCurrentTrack prop to internal state when it changes
+  useEffect(() => {
+    if (cloudCurrentTrack !== undefined) {
+      setCloudCurrentTrackState(cloudCurrentTrack);
+    }
+  }, [cloudCurrentTrack]);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
     if (length <= 1) return exclude;
@@ -591,6 +601,17 @@ export function usePlayback({
     setIsPlaying(true);
   }, [switchToTrackIndex]);
 
+  const setCloudCurrentTrack = useCallback((track: Track) => {
+    shouldAutoPlayRef.current = true;
+    forcePlayRef.current = true;
+    setCloudCurrentTrackState(track);
+    setIsPlaying(true);
+  }, []);
+
+  const clearCloudTrack = useCallback(() => {
+    setCloudCurrentTrackState(null);
+  }, []);
+
   return {
     audioRef,
     setAudioRef,
@@ -616,6 +637,8 @@ export function usePlayback({
     handleTogglePlaybackMode,
     handleAudioError,
     selectTrack,
+    setCloudCurrentTrack,
+    clearCloudTrack,
     loadAudioFileForTrack,
     shouldAutoPlayRef,
     waitingForCanPlayRef,
