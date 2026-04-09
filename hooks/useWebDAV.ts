@@ -85,6 +85,7 @@ export const useWebDAV = () => {
 
   const fetchMetadata = async (file: WebDAVFile): Promise<CachedMetadata> => {
     const buffer = await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+    logger.info('[useWebDAV] fetchFileRange for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null');
     if (!buffer) {
       return {
         ...parseArtistTitleFromFilename(file.name),

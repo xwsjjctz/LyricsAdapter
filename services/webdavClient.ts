@@ -187,6 +187,7 @@ class WebDAVClient {
   async getCdnUrl(filePath: string): Promise<string | null> {
     const cached = this.cdnCache.get(filePath);
     if (cached && cached.expiry > Date.now()) {
+      logger.info('[WebDAV] CDN cache hit for:', filePath);
       return cached.url;
     }
 
@@ -194,7 +195,9 @@ class WebDAVClient {
     if (!api) return null;
 
     const url = this.buildUrl(filePath);
+    logger.info('[WebDAV] Getting CDN URL for:', url);
     const result = await api.webdavGetRedirect(url, this.buildAuthHeader());
+    logger.info('[WebDAV] GET redirect result:', JSON.stringify(result));
 
     if (!result.success || !result.redirectUrl) {
       logger.error('[WebDAV] GET redirect failed:', result.error);

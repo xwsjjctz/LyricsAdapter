@@ -306,36 +306,39 @@ export function usePlayback({
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
-    logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex);
+    logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex, 'source:', currentTrack.source);
 
     audioUrlReadyRef.current = false;
 
-    if (currentTrack.source === 'webdav' && currentTrack.webdavPath) {
-      logger.debug('[Playback] Loading WebDAV audio for:', currentTrack.title);
+    const handleWebdav = async () => {
+      if (!currentTrack.webdavPath) return;
+      logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title, 'webdavPath:', currentTrack.webdavPath);
 
-      if (isPlaying) {
-        shouldAutoPlayRef.current = true;
-      }
+      shouldAutoPlayRef.current = true;
+      forcePlayRef.current = true;
 
-      webdavClient.getCdnUrl(currentTrack.webdavPath).then(cdnUrl => {
+      try {
+        const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
+        logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
         if (cdnUrl && audioRef.current) {
           audioRef.current.src = cdnUrl;
           audioUrlReadyRef.current = true;
-
-          if (isPlaying || shouldAutoPlayRef.current || forcePlayRef.current) {
-            audioRef.current.play().then(() => {
-              shouldAutoPlayRef.current = false;
-              forcePlayRef.current = false;
-              setIsPlaying(true);
-            }).catch((e) => {
-              logger.debug('[Playback] WebDAV playback failed:', e);
-              waitingForCanPlayRef.current = true;
-              shouldAutoPlayRef.current = true;
-              forcePlayRef.current = true;
-            });
-          }
+          await audioRef.current.play();
+          logger.info('[Playback] WebDAV playback started');
+          shouldAutoPlayRef.current = false;
+          forcePlayRef.current = false;
+          setIsPlaying(true);
+        } else {
+          logger.error('[Playback] Failed to get CDN URL for:', currentTrack.webdavPath);
         }
-      });
+      } catch (e) {
+        logger.error('[Playback] WebDAV playback error:', e);
+        waitingForCanPlayRef.current = true;
+      }
+    };
+
+    if (currentTrack.source === 'webdav') {
+      handleWebdav();
       return;
     }
 
