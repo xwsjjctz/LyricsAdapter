@@ -82,7 +82,14 @@ class WebDAVClient {
   private buildUrl(path: string): string {
     if (!this.config) return '';
     const base = this.config.serverUrl.replace(/\/+$/, '');
-    return `${base}${path.startsWith('/') ? path : '/' + path}`;
+    let cleanPath = path.startsWith('/') ? path : '/' + path;
+    const baseSegment = new URL(base).pathname.replace(/\/+$/, '');
+    if (baseSegment && cleanPath.startsWith(baseSegment + '/')) {
+      cleanPath = cleanPath.slice(baseSegment.length);
+    } else if (cleanPath === baseSegment) {
+      cleanPath = '';
+    }
+    return `${base}${cleanPath}`;
   }
 
   getConfig(): WebDAVConfig | null {
