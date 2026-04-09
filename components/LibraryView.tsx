@@ -5,6 +5,8 @@ import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
+import { webdavClient } from '../services/webdavClient';
+import { useWebDAV } from '../hooks/useWebDAV';
 import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
@@ -23,6 +25,7 @@ interface LibraryViewProps {
   onScrollPositionChange?: (position: number) => void; // Callback to save scroll position
   isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
   autoLocateToken?: number; // Trigger auto-locate only when track switch action occurs
+  onNavigateToSettings?: (section?: string) => void;
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -40,7 +43,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   savedScrollPosition = 0,
   onScrollPositionChange,
   isFirstLoad = false,
-  autoLocateToken = 0
+  autoLocateToken = 0,
+  onNavigateToSettings
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -58,6 +62,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
+  const [dataSource, setDataSource] = useState<'local' | 'cloud'>('local');
+  const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadWebDAVFiles } = useWebDAV();
+
+  const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
@@ -102,19 +110,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Filter tracks based on executed search query
   const filteredTracks = useMemo(() => {
-    if (!executedSearchQuery.trim()) return tracks;
+    if (!executedSearchQuery.trim()) return displayTracks;
     const query = executedSearchQuery.toLowerCase();
-    return tracks.filter(track =>
+    return displayTracks.filter(track =>
       track.title.toLowerCase().includes(query) ||
       track.artist.toLowerCase().includes(query) ||
       track.album.toLowerCase().includes(query)
     );
-  }, [tracks, executedSearchQuery]);
+  }, [displayTracks, executedSearchQuery]);
 
-  // Extract unique artists with their first track cover
   const uniqueArtists = useMemo(() => {
     const artistMap = new Map<string, { name: string; coverUrl?: string }>();
-    tracks.forEach(track => {
+    displayTracks.forEach(track => {
       const artists = track.artist.split(/[/&、]/).map(a => a.trim()).filter(a => a);
       artists.forEach(artist => {
         if (!artistMap.has(artist)) {
@@ -126,12 +133,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       });
     });
     return Array.from(artistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [tracks]);
+  }, [displayTracks]);
 
-  // Extract unique albums with their cover
   const uniqueAlbums = useMemo(() => {
     const albumMap = new Map<string, { name: string; artist: string; coverUrl?: string }>();
-    tracks.forEach(track => {
+    displayTracks.forEach(track => {
       if (!albumMap.has(track.album)) {
         albumMap.set(track.album, {
           name: track.album,
@@ -141,7 +147,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       }
     });
     return Array.from(albumMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [tracks]);
+  }, [displayTracks]);
 
   // Filter tracks based on selected category
   const categoryFilteredTracks = useMemo(() => {
@@ -796,7 +802,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('library.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
             {filteredTracks.length} {i18n.t('library.trackCount')}
-            {executedSearchQuery && filteredTracks.length !== tracks.length && ` (${i18n.t('library.of')} ${tracks.length})`}
+            {executedSearchQuery && filteredTracks.length !== displayTracks.length && ` (${i18n.t('library.of')} ${displayTracks.length})`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -881,6 +887,45 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               }}
             >
               <span className="material-symbols-outlined text-xl">artist</span>
+            </button>
+          </div>
+          <div className="flex items-center rounded-xl border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
+            <button
+              onClick={() => {
+                if (dataSource !== 'local') {
+                  setDataSource('local');
+                  setFilterType('default');
+                  setSelectedArtist(null);
+                  setSelectedAlbum(null);
+                }
+              }}
+              className="px-3 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"
+              style={{
+                backgroundColor: dataSource === 'local' ? colors.primary : 'transparent',
+                color: dataSource === 'local' ? '#fff' : colors.textSecondary,
+                boxShadow: dataSource === 'local' ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
+            >
+              Local
+            </button>
+            <button
+              onClick={async () => {
+                if (dataSource === 'cloud') return;
+                if (!webdavClient.hasConfig()) {
+                  onNavigateToSettings?.('webdav');
+                  return;
+                }
+                setDataSource('cloud');
+                await loadWebDAVFiles();
+              }}
+              className="px-3 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
+              style={{
+                backgroundColor: dataSource === 'cloud' ? colors.primary : 'transparent',
+                color: dataSource === 'cloud' ? '#fff' : colors.textSecondary,
+                boxShadow: dataSource === 'cloud' ? `0 0 20px ${colors.glowColor}` : 'none',
+              }}
+            >
+              Cloud
             </button>
           </div>
         </div>

@@ -736,6 +736,18 @@ function getAudioDuration(file: File): Promise<number> {
   });
 }
 
+export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith('.mp3')) {
+    return parseID3v2(buffer);
+  } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
+    return parseMP4(buffer);
+  } else if (lowerName.endsWith('.flac')) {
+    return parseFLAC(buffer);
+  }
+  return {};
+}
+
 export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
   const audioUrl = URL.createObjectURL(file);
   // Default values

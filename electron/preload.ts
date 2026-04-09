@@ -182,5 +182,20 @@ contextBridge.exposeInMainWorld('electron', {
     return () => {
       ipcRenderer.removeListener('shortcut-triggered', wrapped);
     };
+  },
+
+  // WebDAV PROPFIND request
+  webdavPropfind: async (url: string, authHeader: string, depth: string) => {
+    return ipcRenderer.invoke('webdav-propfind', url, authHeader, depth);
+  },
+
+  // WebDAV GET with redirect manual
+  webdavGetRedirect: async (url: string, authHeader: string) => {
+    return ipcRenderer.invoke('webdav-get-redirect', url, authHeader);
+  },
+
+  // WebDAV GET with Range header
+  webdavGetRange: async (url: string, authHeader: string, start: number, end: number) => {
+    return ipcRenderer.invoke('webdav-get-range', url, authHeader, start, end);
   }
 });

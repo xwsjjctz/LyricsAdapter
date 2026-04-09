@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
+import { webdavClient } from '../services/webdavClient';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
@@ -16,6 +17,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [cookie, setCookie] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [isValidating, setIsValidating] = useState(false);
+  const [webdavServerUrl, setWebdavServerUrl] = useState('');
+  const [webdavUsername, setWebdavUsername] = useState('');
+  const [webdavPassword, setWebdavPassword] = useState('');
+  const [isTestingWebdav, setIsTestingWebdav] = useState(false);
+  const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
+  const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
   const [, setLanguageVersion] = useState(0);
@@ -25,7 +32,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
     if (isOpen) {
       setCookie(cookieManager.getCookie());
       setDownloadPath(settingsManager.getDownloadPath());
+      const webdavConfig = webdavClient.getConfig();
+      if (webdavConfig) {
+        setWebdavServerUrl(webdavConfig.serverUrl);
+        setWebdavUsername(webdavConfig.username);
+        setWebdavPassword(webdavConfig.password);
+      }
       setMessage(null);
+      setWebdavMessage(null);
     }
   }, [isOpen]);
 
@@ -72,6 +86,15 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
       // Save download path
       settingsManager.setDownloadPath(downloadPath.trim());
+
+      // Save WebDAV config
+      if (webdavServerUrl.trim() && webdavUsername.trim() && webdavPassword.trim()) {
+        webdavClient.saveConfig({
+          serverUrl: webdavServerUrl.trim(),
+          username: webdavUsername.trim(),
+          password: webdavPassword.trim(),
+        });
+      }
 
       showMessage(i18n.t('settingsDialog.saved'), 'success');
     } catch (err) {
@@ -185,6 +208,119 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
             <p className="mt-1.5 text-xs" style={{ color: colors.textMuted }}>
               {i18n.t('settingsDialog.tip')}
             </p>
+          </div>
+
+          <div className="pt-2 border-t" style={{ borderColor: colors.borderLight }}>
+            <h3 className="text-sm font-medium mb-3" style={{ color: colors.textPrimary }}>
+              {i18n.t('settingsDialog.webdavTitle')}
+            </h3>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={webdavServerUrl}
+                onChange={(e) => setWebdavServerUrl(e.target.value)}
+                placeholder="https://webdav.123pan.cn/webdav"
+                className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                style={{
+                  backgroundColor: colors.backgroundCard,
+                  border: `1px solid ${colors.borderLight}`,
+                  color: colors.textPrimary,
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                  e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCard;
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                disabled={isValidating}
+              />
+              <input
+                type="text"
+                value={webdavUsername}
+                onChange={(e) => setWebdavUsername(e.target.value)}
+                placeholder={i18n.t('settingsDialog.webdavUsername')}
+                className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                style={{
+                  backgroundColor: colors.backgroundCard,
+                  border: `1px solid ${colors.borderLight}`,
+                  color: colors.textPrimary,
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                  e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCard;
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                disabled={isValidating}
+              />
+              <input
+                type="password"
+                value={webdavPassword}
+                onChange={(e) => setWebdavPassword(e.target.value)}
+                placeholder={i18n.t('settingsDialog.webdavPassword')}
+                className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                style={{
+                  backgroundColor: colors.backgroundCard,
+                  border: `1px solid ${colors.borderLight}`,
+                  color: colors.textPrimary,
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                  e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCard;
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                disabled={isValidating}
+              />
+              {webdavMessage && (
+                <div className={`p-2 rounded-lg text-xs ${
+                  webdavMessageType === 'success'
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                }`}>
+                  {webdavMessage}
+                </div>
+              )}
+              <button
+                onClick={async () => {
+                  if (!webdavServerUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
+                    setWebdavMessage(i18n.t('settingsDialog.webdavFillAll'));
+                    setWebdavMessageType('error');
+                    return;
+                  }
+                  setIsTestingWebdav(true);
+                  webdavClient.saveConfig({
+                    serverUrl: webdavServerUrl.trim(),
+                    username: webdavUsername.trim(),
+                    password: webdavPassword.trim(),
+                  });
+                  const result = await webdavClient.testConnection();
+                  setWebdavMessage(result.message);
+                  setWebdavMessageType(result.success ? 'success' : 'error');
+                  setIsTestingWebdav(false);
+                }}
+                disabled={isTestingWebdav}
+                className="px-4 py-2 rounded-xl text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
+              >
+                {isTestingWebdav ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                    {i18n.t('settingsDialog.webdavTesting')}
+                  </>
+                ) : (
+                  i18n.t('settingsDialog.webdavTestConnection')
+                )}
+              </button>
+            </div>
           </div>
 
           {message && (

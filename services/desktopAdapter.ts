@@ -41,6 +41,10 @@ export interface DesktopAPI {
   selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
   // Shortcut API
   onShortcut?: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => (() => void) | void;
+  // WebDAV APIs
+  webdavPropfind: (url: string, authHeader: string, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
+  webdavGetRedirect: (url: string, authHeader: string) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
+  webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -277,6 +281,18 @@ class ElectronAdapter implements DesktopAPI {
       return this.api.getPathForFile(file);
     }
     throw new Error('getPathForFile not available');
+  }
+
+  async webdavPropfind(url: string, authHeader: string, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
+    return this.api.webdavPropfind(url, authHeader, depth);
+  }
+
+  async webdavGetRedirect(url: string, authHeader: string): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
+    return this.api.webdavGetRedirect(url, authHeader);
+  }
+
+  async webdavGetRange(url: string, authHeader: string, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
+    return this.api.webdavGetRange(url, authHeader, start, end);
   }
 
 }

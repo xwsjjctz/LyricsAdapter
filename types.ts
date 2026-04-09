@@ -20,6 +20,12 @@ export interface Track {
   addedAt?: string; // ISO timestamp when added to library
   playCount?: number; // Number of times played
   lastPlayed?: string; // ISO timestamp of last play
+
+  // WebDAV fields
+  source?: 'local' | 'webdav';
+  webdavPath?: string;
+  cdnUrl?: string;
+  cdnUrlExpiry?: number;
 }
 
 export interface SyncedLyricLine {

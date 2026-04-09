@@ -1039,6 +1039,54 @@ const translations: Translations = {
     de: 'Cookie ungültig',
     fr: 'Cookie invalide'
   },
+  'settingsDialog.webdavTitle': {
+    zh: 'WebDAV 配置',
+    en: 'WebDAV Configuration',
+    ja: 'WebDAV 設定',
+    ko: 'WebDAV 설정',
+    de: 'WebDAV-Konfiguration',
+    fr: 'Configuration WebDAV'
+  },
+  'settingsDialog.webdavUsername': {
+    zh: '账号',
+    en: 'Username',
+    ja: 'ユーザー名',
+    ko: '사용자 이름',
+    de: 'Benutzername',
+    fr: 'Nom d\'utilisateur'
+  },
+  'settingsDialog.webdavPassword': {
+    zh: '应用密码',
+    en: 'Application Password',
+    ja: 'アプリパスワード',
+    ko: '앱 비밀번호',
+    de: 'Anwendungspasswort',
+    fr: 'Mot de passe d\'application'
+  },
+  'settingsDialog.webdavTestConnection': {
+    zh: '测试连接',
+    en: 'Test Connection',
+    ja: '接続テスト',
+    ko: '연결 테스트',
+    de: 'Verbindung testen',
+    fr: 'Tester la connexion'
+  },
+  'settingsDialog.webdavTesting': {
+    zh: '测试中...',
+    en: 'Testing...',
+    ja: 'テスト中...',
+    ko: '테스트 중...',
+    de: 'Teste...',
+    fr: 'Test en cours...'
+  },
+  'settingsDialog.webdavFillAll': {
+    zh: '请填写所有 WebDAV 配置项',
+    en: 'Please fill in all WebDAV fields',
+    ja: 'すべてのWebDAVフィールドに入力してください',
+    ko: '모든 WebDAV 필드를 입력하세요',
+    de: 'Bitte alle WebDAV-Felder ausfüllen',
+    fr: 'Veuillez remplir tous les champs WebDAV'
+  },
 
   // Player Controls
   'controls.playlist': {

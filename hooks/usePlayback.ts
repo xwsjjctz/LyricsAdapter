@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
+import { webdavClient } from '../services/webdavClient';
 import { PLAYBACK, UI } from '../constants/config';
 
 interface UsePlaybackOptions {
@@ -308,6 +309,35 @@ export function usePlayback({
     logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex);
 
     audioUrlReadyRef.current = false;
+
+    if (currentTrack.source === 'webdav' && currentTrack.webdavPath) {
+      logger.debug('[Playback] Loading WebDAV audio for:', currentTrack.title);
+
+      if (isPlaying) {
+        shouldAutoPlayRef.current = true;
+      }
+
+      webdavClient.getCdnUrl(currentTrack.webdavPath).then(cdnUrl => {
+        if (cdnUrl && audioRef.current) {
+          audioRef.current.src = cdnUrl;
+          audioUrlReadyRef.current = true;
+
+          if (isPlaying || shouldAutoPlayRef.current || forcePlayRef.current) {
+            audioRef.current.play().then(() => {
+              shouldAutoPlayRef.current = false;
+              forcePlayRef.current = false;
+              setIsPlaying(true);
+            }).catch((e) => {
+              logger.debug('[Playback] WebDAV playback failed:', e);
+              waitingForCanPlayRef.current = true;
+              shouldAutoPlayRef.current = true;
+              forcePlayRef.current = true;
+            });
+          }
+        }
+      });
+      return;
+    }
 
     if (!currentTrack.audioUrl && currentTrack.filePath) {
       logger.debug('[Playback] Lazy loading audio for:', currentTrack.title);

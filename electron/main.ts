@@ -11,6 +11,7 @@ import {
   registerMetadataHandlers,
   registerQQMusicHandlers
 } from './ipc/handlers';
+import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
@@ -29,6 +30,7 @@ app.whenReady().then(async () => {
   registerDownloadHandlers();
   registerMetadataHandlers();
   registerQQMusicHandlers();
+  registerWebDAVHandlers();
 
   logger.info('[Main] All IPC handlers registered');
 });
