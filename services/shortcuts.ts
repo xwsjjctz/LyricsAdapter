@@ -23,8 +23,7 @@ export type ShortcutAction =
   | 'volumeDown10'
   | 'toggleMute'
   | 'togglePlaybackMode'
-  | 'enterFocusMode'
-  | 'exitFocusMode'
+  | 'toggleFocusMode'
   | 'focusSearch'
   | 'importFiles'
   | 'gotoLibrary'
@@ -138,18 +137,10 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     currentKey: 'Tab',
     scope: 'player'
   },
-  enterFocusMode: {
-    id: 'enterFocusMode',
-    name: 'shortcut.enterFocusMode',
-    description: 'shortcut.enterFocusModeDesc',
-    defaultKey: 'CmdOrCtrl+Enter',
-    currentKey: 'CmdOrCtrl+Enter',
-    scope: 'navigation'
-  },
-  exitFocusMode: {
-    id: 'exitFocusMode',
-    name: 'shortcut.exitFocusMode',
-    description: 'shortcut.exitFocusModeDesc',
+  toggleFocusMode: {
+    id: 'toggleFocusMode',
+    name: 'shortcut.toggleFocusMode',
+    description: 'shortcut.toggleFocusModeDesc',
     defaultKey: 'CmdOrCtrl+Enter',
     currentKey: 'CmdOrCtrl+Enter',
     scope: 'navigation'

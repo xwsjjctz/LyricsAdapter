@@ -195,9 +195,7 @@ export const useShortcuts = ({
         handleTogglePlaybackMode();
         break;
 
-      case 'enterFocusMode':
-      case 'exitFocusMode':
-        // Toggle focus mode with Enter key - now works in all views including browse
+      case 'toggleFocusMode':
         setIsFocusMode(!isFocusMode);
         break;
 

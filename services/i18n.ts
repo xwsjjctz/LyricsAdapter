@@ -1901,37 +1901,21 @@ const translations: Translations = {
     de: 'Zwischen Reihenfolge, Zufall und Einmal wiederholen wechseln',
     fr: 'Basculer entre ordre, aléatoire et répétition unique'
   },
-  'shortcut.enterFocusMode': {
-    zh: '进入专注模式',
-    en: 'Enter Focus Mode',
-    ja: 'フォーカスモードに入る',
-    ko: '집중 모드 진입',
-    de: 'Fokusmodus betreten',
-    fr: 'Entrer en mode concentré'
+  'shortcut.toggleFocusMode': {
+    zh: '进入/退出专注模式',
+    en: 'Enter/Exit Focus Mode',
+    ja: 'フォーカスモード 切り替え',
+    ko: '집중 모드 전환',
+    de: 'Fokusmodus ein/ausschalten',
+    fr: 'Entrer/Sortir du mode concentré'
   },
-  'shortcut.enterFocusModeDesc': {
-    zh: '打开专注模式界面',
-    en: 'Open focus mode view',
-    ja: 'フォーカスモード画面を開く',
-    ko: '집중 모드 보기 열기',
-    de: 'Fokusmodus-Ansicht öffnen',
-    fr: 'Ouvrir la vue mode concentré'
-  },
-  'shortcut.exitFocusMode': {
-    zh: '退出专注模式',
-    en: 'Exit Focus Mode',
-    ja: 'フォーカスモードを終了',
-    ko: '집중 모드 종료',
-    de: 'Fokusmodus verlassen',
-    fr: 'Quitter le mode concentré'
-  },
-  'shortcut.exitFocusModeDesc': {
-    zh: '关闭专注模式界面',
-    en: 'Close focus mode view',
-    ja: 'フォーカスモード画面を閉じる',
-    ko: '집중 모드 보기 닫기',
-    de: 'Fokusmodus-Ansicht schließen',
-    fr: 'Fermer la vue mode concentré'
+  'shortcut.toggleFocusModeDesc': {
+    zh: '切换专注模式界面',
+    en: 'Toggle focus mode view',
+    ja: 'フォーカスモード画面を切り替え',
+    ko: '집중 모드 보기 전환',
+    de: 'Fokusmodus-Ansicht umschalten',
+    fr: 'Basculer la vue mode concentré'
   },
   'shortcut.focusSearch': {
     zh: '聚焦搜索框',
