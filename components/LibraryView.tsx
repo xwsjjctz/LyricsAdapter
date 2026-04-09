@@ -27,6 +27,7 @@ interface LibraryViewProps {
   isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
   autoLocateToken?: number; // Trigger auto-locate only when track switch action occurs
   onNavigateToSettings?: (section?: string) => void;
+  onDataSourceChange?: (source: 'local' | 'cloud', webdavTracks?: Track[]) => void;
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -45,7 +46,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onScrollPositionChange,
   isFirstLoad = false,
   autoLocateToken = 0,
-  onNavigateToSettings
+  onNavigateToSettings,
+  onDataSourceChange
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -65,6 +67,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [scrollTop, setScrollTop] = useState(0);
   const [dataSource, setDataSource] = useState<'local' | 'cloud'>('local');
   const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
+
+  useEffect(() => {
+    if (dataSource === 'cloud' && !webdavLoading && webdavTracks.length > 0) {
+      onDataSourceChange?.('cloud', webdavTracks);
+    }
+  }, [dataSource, webdavTracks, webdavLoading]);
 
   const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -915,6 +923,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   setFilterType('default');
                   setSelectedArtist(null);
                   setSelectedAlbum(null);
+                  onDataSourceChange?.('local');
                 }
               }}
               className="w-10 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"

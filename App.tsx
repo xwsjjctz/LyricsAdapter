@@ -43,6 +43,7 @@ declare global {
 
 const App: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [localTracksBackup, setLocalTracksBackup] = useState<Track[] | null>(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(-1);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
@@ -440,6 +441,21 @@ const App: React.FC = () => {
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
                 onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
+                onDataSourceChange={(source, webdavTracks) => {
+                  if (source === 'cloud' && webdavTracks) {
+                    if (!localTracksBackup) {
+                      setLocalTracksBackup(tracks);
+                    }
+                    setTracks(webdavTracks);
+                    setCurrentTrackIndex(-1);
+                  } else if (source === 'local') {
+                    if (localTracksBackup) {
+                      setTracks(localTracksBackup);
+                      setLocalTracksBackup(null);
+                      setCurrentTrackIndex(-1);
+                    }
+                  }
+                }}
               />
             )}
           </div>
