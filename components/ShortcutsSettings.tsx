@@ -36,7 +36,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
   const formatKey = useCallback((event: React.KeyboardEvent): string => {
     const parts: string[] = [];
 
-    if (event.ctrlKey) parts.push('CmdOrCtrl');
+    if (event.ctrlKey || event.metaKey) parts.push('CmdOrCtrl');
     if (event.altKey) parts.push('Alt');
     if (event.shiftKey) parts.push('Shift');
 
