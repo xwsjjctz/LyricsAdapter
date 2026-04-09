@@ -64,7 +64,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   });
   const [scrollTop, setScrollTop] = useState(0);
   const [dataSource, setDataSource] = useState<'local' | 'cloud'>('local');
-  const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadWebDAVFiles } = useWebDAV();
+  const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
 
   const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -802,9 +802,26 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div>
           <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('library.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-            {filteredTracks.length} {i18n.t('library.trackCount')}
-            {executedSearchQuery && filteredTracks.length !== displayTracks.length && ` (${i18n.t('library.of')} ${displayTracks.length})`}
+            {dataSource === 'cloud' && loadProgress ? (
+              `${i18n.t('library.loadingMetadata')} ${loadProgress.loaded}/${loadProgress.total}`
+            ) : (
+              <>
+                {filteredTracks.length} {i18n.t('library.trackCount')}
+                {executedSearchQuery && filteredTracks.length !== displayTracks.length && ` (${i18n.t('library.of')} ${displayTracks.length})`}
+              </>
+            )}
           </p>
+          {dataSource === 'cloud' && loadProgress && (
+            <div className="mt-2 w-48 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${(loadProgress.loaded / loadProgress.total) * 100}%`,
+                  backgroundColor: colors.primary,
+                }}
+              />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isEditMode && (

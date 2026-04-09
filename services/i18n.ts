@@ -97,6 +97,14 @@ const translations: Translations = {
     de: 'Titel in Ihrer Sammlung',
     fr: 'Titres dans votre collection'
   },
+  'library.loadingMetadata': {
+    zh: '正在加载元数据',
+    en: 'Loading metadata',
+    ja: 'メタデータを読み込み中',
+    ko: '메타데이터 로딩 중',
+    de: 'Metadaten werden geladen',
+    fr: 'Chargement des métadonnées'
+  },
   'library.of': {
     zh: '共',
     en: 'of',

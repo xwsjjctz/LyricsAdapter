@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react';
-import { Track, SyncedLyricLine } from '../types';
+import { useState, useCallback, useRef } from 'react';
+import { Track } from '../types';
 import { webdavClient, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer } from '../services/metadataService';
 import { logger } from '../services/logger';
 
 const METADATA_CACHE_KEY = 'webdav-metadata-cache';
-const METADATA_CACHE_TTL = 24 * 60 * 60 * 1000;
+const BATCH_SIZE = 5;
+const RANGE_SIZE = 65536;
 
 interface CachedMetadata {
   title: string;
@@ -13,27 +14,55 @@ interface CachedMetadata {
   album: string;
   coverUrl: string;
   duration: number;
-  cachedAt: number;
+  fileSize: number;
+  lastModified: string;
+}
+
+function parseArtistTitleFromFilename(filename: string): { artist: string; title: string } {
+  const name = filename.replace(/\.[^/.]+$/, '');
+  const patterns = [
+    /^(.+?)\s*[-–—]\s*(.+)$/,
+    /^(.+?)\s*_\s*(.+)$/,
+  ];
+  for (const p of patterns) {
+    const match = name.match(p);
+    if (match) {
+      return { artist: match[1].trim(), title: match[2].trim() };
+    }
+  }
+  return { artist: 'Unknown Artist', title: name };
+}
+
+function fileToPlaceholderTrack(file: WebDAVFile): Track {
+  const { artist, title } = parseArtistTitleFromFilename(file.name);
+  return {
+    id: `webdav-${file.path}`,
+    title,
+    artist,
+    album: 'Unknown Album',
+    duration: 0,
+    coverUrl: `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
+    audioUrl: '',
+    source: 'webdav',
+    webdavPath: file.path,
+    fileName: file.name,
+    fileSize: file.size,
+  };
 }
 
 export const useWebDAV = () => {
   const [webdavTracks, setWebdavTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
+  const abortRef = useRef(false);
 
   const loadMetadataCache = (): Map<string, CachedMetadata> => {
     try {
       const saved = localStorage.getItem(METADATA_CACHE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Record<string, CachedMetadata>;
-        const map = new Map<string, CachedMetadata>();
-        const now = Date.now();
-        for (const [key, value] of Object.entries(parsed)) {
-          if (now - value.cachedAt < METADATA_CACHE_TTL) {
-            map.set(key, value);
-          }
-        }
-        return map;
+        return new Map(Object.entries(parsed));
       }
     } catch (e) {
       logger.error('[useWebDAV] Failed to load metadata cache:', e);
@@ -50,30 +79,45 @@ export const useWebDAV = () => {
     }
   };
 
-  const parseRemoteMetadata = async (file: WebDAVFile): Promise<CachedMetadata> => {
-    const buffer = await webdavClient.fetchFileRange(file.path, 0, 65536);
+  const isCacheValid = (cached: CachedMetadata, file: WebDAVFile): boolean => {
+    return cached.fileSize === file.size && cached.lastModified === file.lastModified;
+  };
+
+  const fetchMetadata = async (file: WebDAVFile): Promise<CachedMetadata> => {
+    const buffer = await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
     if (!buffer) {
       return {
-        title: file.name.replace(/\.[^/.]+$/, ''),
-        artist: 'Unknown Artist',
+        ...parseArtistTitleFromFilename(file.name),
         album: 'Unknown Album',
         coverUrl: '',
         duration: 0,
-        cachedAt: Date.now()
+        fileSize: file.size,
+        lastModified: file.lastModified,
       };
     }
 
     const parsed = parseMetadataFromBuffer(buffer, file.name);
+    const { artist, title } = parseArtistTitleFromFilename(file.name);
 
     return {
-      title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
-      artist: parsed.artist || 'Unknown Artist',
+      title: parsed.title || title,
+      artist: parsed.artist || artist,
       album: parsed.album || 'Unknown Album',
       coverUrl: parsed.coverUrl || '',
       duration: parsed.duration || 0,
-      cachedAt: Date.now()
+      fileSize: file.size,
+      lastModified: file.lastModified,
     };
   };
+
+  const enrichTrack = (track: Track, meta: CachedMetadata): Track => ({
+    ...track,
+    title: meta.title,
+    artist: meta.artist,
+    album: meta.album,
+    duration: meta.duration,
+    coverUrl: meta.coverUrl || track.coverUrl,
+  });
 
   const loadWebDAVFiles = useCallback(async () => {
     if (!webdavClient.hasConfig()) {
@@ -81,52 +125,75 @@ export const useWebDAV = () => {
       return;
     }
 
+    abortRef.current = false;
     setIsLoading(true);
     setError(null);
 
     try {
       const files = await webdavClient.listFiles('/');
       const audioFiles = files.filter(f => !f.isDirectory);
+
+      if (audioFiles.length === 0) {
+        setWebdavTracks([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const placeholderTracks = audioFiles.map(fileToPlaceholderTrack);
+      setWebdavTracks(placeholderTracks);
+
       const metadataCache = loadMetadataCache();
-      const tracks: Track[] = [];
+      const toFetch: { file: WebDAVFile; index: number }[] = [];
 
-      for (const file of audioFiles) {
-        let metadata = metadataCache.get(file.path);
+      for (let i = 0; i < audioFiles.length; i++) {
+        const file = audioFiles[i];
+        const cached = metadataCache.get(file.path);
+        if (cached && isCacheValid(cached, file)) {
+          placeholderTracks[i] = enrichTrack(placeholderTracks[i], cached);
+        } else {
+          toFetch.push({ file, index: i });
+        }
+      }
 
-        if (!metadata) {
-          try {
-            metadata = await parseRemoteMetadata(file);
-            metadataCache.set(file.path, metadata);
-          } catch (e) {
-            logger.warn('[useWebDAV] Failed to parse metadata for', file.name, e);
-            metadata = {
-              title: file.name.replace(/\.[^/.]+$/, ''),
-              artist: 'Unknown Artist',
-              album: 'Unknown Album',
-              coverUrl: '',
-              duration: 0,
-              cachedAt: Date.now()
-            };
+      if (toFetch.length === 0) {
+        setWebdavTracks([...placeholderTracks]);
+        setIsLoading(false);
+        setLoadProgress(null);
+        return;
+      }
+
+      setLoadProgress({ loaded: audioFiles.length - toFetch.length, total: audioFiles.length });
+      setWebdavTracks([...placeholderTracks]);
+
+      let fetched = audioFiles.length - toFetch.length;
+
+      for (let batch = 0; batch < toFetch.length; batch += BATCH_SIZE) {
+        if (abortRef.current) return;
+
+        const batchItems = toFetch.slice(batch, batch + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batchItems.map(async ({ file, index }) => {
+            const meta = await fetchMetadata(file);
+            metadataCache.set(file.path, meta);
+            return { index, meta };
+          })
+        );
+
+        fetched += batchItems.length;
+        setLoadProgress({ loaded: Math.min(fetched, audioFiles.length), total: audioFiles.length });
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { index, meta } = result.value;
+            placeholderTracks[index] = enrichTrack(placeholderTracks[index], meta);
           }
         }
 
-        tracks.push({
-          id: `webdav-${file.path}`,
-          title: metadata.title,
-          artist: metadata.artist,
-          album: metadata.album,
-          duration: metadata.duration,
-          coverUrl: metadata.coverUrl || `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
-          audioUrl: '',
-          source: 'webdav',
-          webdavPath: file.path,
-          fileName: file.name,
-          fileSize: file.size,
-        });
+        setWebdavTracks([...placeholderTracks]);
+        saveMetadataCache(metadataCache);
       }
 
-      saveMetadataCache(metadataCache);
-      setWebdavTracks(tracks);
+      setLoadProgress(null);
     } catch (e: any) {
       logger.error('[useWebDAV] Failed to load files:', e);
       setError(e.message || 'Failed to load WebDAV files');
@@ -135,10 +202,16 @@ export const useWebDAV = () => {
     }
   }, []);
 
+  const cancelLoad = useCallback(() => {
+    abortRef.current = true;
+  }, []);
+
   return {
     webdavTracks,
     isLoading,
     error,
+    loadProgress,
     loadWebDAVFiles,
+    cancelLoad,
   };
 };
