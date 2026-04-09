@@ -134,8 +134,8 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     id: 'togglePlaybackMode',
     name: 'shortcut.togglePlaybackMode',
     description: 'shortcut.togglePlaybackModeDesc',
-    defaultKey: 'Alt+Tab',
-    currentKey: 'Alt+Tab',
+    defaultKey: 'Tab',
+    currentKey: 'Tab',
     scope: 'player'
   },
   enterFocusMode: {
@@ -298,17 +298,17 @@ class ShortcutManager {
   // Convert shortcut key to display format
   formatKeyForDisplay(key: string): string {
     return key
-      .replace('CmdOrCtrl+', '⌘')
+      .replace('CmdOrCtrl+', 'Cmd/Ctrl+')
       .replace('Ctrl+', 'Ctrl+')
-      .replace('Cmd+', '⌘')
-      .replace('Alt+', '⌥')
-      .replace('Shift+', '⇧')
-      .replace('Left', '←')
-      .replace('Right', '→')
-      .replace('Up', '↑')
-      .replace('Down', '↓')
+      .replace('Cmd+', 'Cmd+')
+      .replace('Alt+', 'Option/Alt+')
+      .replace('Shift+', 'Shift+')
+      .replace('Left', 'Left')
+      .replace('Right', 'Right')
+      .replace('Up', 'Up')
+      .replace('Down', 'Down')
       .replace('Space', 'Space')
-      .replace('Enter', '↵')
+      .replace('Enter', 'Enter')
       .replace('Escape', 'Esc');
   }
 
