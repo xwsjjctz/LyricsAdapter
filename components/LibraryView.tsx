@@ -304,11 +304,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Get the index of current track in filtered list
   const currentTrackInFilteredIndex = useMemo(() => {
-    if (currentTrackIndex < 0) return -1;
-    const currentTrackId = tracks[currentTrackIndex]?.id;
+    if (!currentTrackId) return -1;
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
     return targetTracks.findIndex(t => t.id === currentTrackId);
-  }, [currentTrackIndex, tracks, filteredTracks, categoryFilteredTracks, filterType]);
+  }, [currentTrackId, filteredTracks, categoryFilteredTracks, filterType]);
+
+  // Get the index of current track in the full displayTracks list
+  const currentTrackInDisplayIndex = useMemo(() => {
+    if (!currentTrackId) return -1;
+    return displayTracks.findIndex(t => t.id === currentTrackId);
+  }, [currentTrackId, displayTracks]);
 
   // Auto-locate only when a track-switch action occurs.
   useEffect(() => {
@@ -358,7 +363,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Update sliding highlight position when current track changes
   useEffect(() => {
-    if (isEditMode || currentTrackIndex < 0 || tracks.length === 0) {
+    if (isEditMode || !currentTrackId || displayTracks.length === 0) {
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
       return;
     }
@@ -368,27 +373,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       if (filterType === 'default') {
         currentTrackElement = listRef.current?.querySelector(
-          `[data-track-index="${currentTrackIndex}"]`
+          `[data-track-index="${currentTrackInDisplayIndex}"]`
         ) as HTMLElement | null;
       } else {
-        const currentTrack = tracks[currentTrackIndex];
-        if (currentTrack) {
-          const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrack.id);
-          logger.debug(`[LibraryView] Highlight update: filterType=${filterType}, currentTrackId=${currentTrack.id}, isCurrentInCategory=${isCurrentInCategory}, categoryTracksLength=${categoryFilteredTracks.length}, listRef=${!!listRef.current}`);
-          if (isCurrentInCategory && listRef.current) {
-            const element = listRef.current.querySelector(
-              `[data-track-index="${currentTrackIndex}"]`
-            ) as HTMLElement | null;
-            logger.debug(`[LibraryView] Highlight update: element=${element ? 'found' : 'not found'}, offsetTop=${element?.offsetTop}, offsetHeight=${element?.offsetHeight}`);
-            if (element) {
-              currentTrackElement = element;
-            }
+        const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrackId);
+        if (isCurrentInCategory && listRef.current) {
+          const element = listRef.current.querySelector(
+            `[data-track-index="${currentTrackInDisplayIndex}"]`
+          ) as HTMLElement | null;
+          if (element) {
+            currentTrackElement = element;
           }
         }
       }
 
       if (currentTrackElement) {
-        logger.debug(`[LibraryView] Highlight set: top=${currentTrackElement.offsetTop}, height=${currentTrackElement.offsetHeight}`);
         setHighlightStyle({
           top: currentTrackElement.offsetTop,
           height: currentTrackElement.offsetHeight,
@@ -397,7 +396,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         return;
       }
 
-      logger.debug(`[LibraryView] Highlight hidden: no element found`);
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
     };
 
@@ -406,7 +404,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }, filterType !== 'default' ? 150 : 0);
 
     return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks.length, isEditMode, rowStride, baseRowHeight, filterType, categoryFilteredTracks]);
+  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isEditMode, rowStride, baseRowHeight, filterType, categoryFilteredTracks]);
 
   // Hide highlight immediately when leaving default view
   useEffect(() => {
@@ -421,7 +419,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Update sliding highlight position when current track changes
   useEffect(() => {
-    if (isEditMode || currentTrackIndex < 0 || tracks.length === 0) {
+    if (isEditMode || !currentTrackId || displayTracks.length === 0) {
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
       return;
     }
@@ -432,46 +430,36 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const updateHighlight = (retryCount = 0) => {
       // Check if this is still the latest update
       if (currentUpdateId !== highlightUpdateIdRef.current) {
-        logger.debug(`[LibraryView] Skipping outdated highlight update (${currentUpdateId} vs ${highlightUpdateIdRef.current})`);
         return;
       }
-
-      logger.debug(`[LibraryView] updateHighlight called, updateId=${currentUpdateId}, retryCount=${retryCount}, filterType=${filterType}`);
 
       let currentTrackElement: HTMLElement | null = null;
 
       if (filterType === 'default') {
         // Default mode: use listRef
         currentTrackElement = listRef.current?.querySelector(
-          `[data-track-index="${currentTrackIndex}"]`
+          `[data-track-index="${currentTrackInDisplayIndex}"]`
         ) as HTMLElement | null;
       } else {
         // Album/Artist mode: search in scrollContainer instead
-        const currentTrack = tracks[currentTrackIndex];
-        if (currentTrack) {
-          const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrack.id);
-          logger.debug(`[LibraryView] Highlight update: filterType=${filterType}, currentTrackId=${currentTrack.id}, isCurrentInCategory=${isCurrentInCategory}, categoryTracksLength=${categoryFilteredTracks.length}, scrollContainerRef=${!!scrollContainerRef.current}, listRef=${!!listRef.current}`);
-          if (isCurrentInCategory && scrollContainerRef.current) {
-            // Search in scrollContainer instead of listRef
-            const element = scrollContainerRef.current.querySelector(
-              `[data-track-index="${currentTrackIndex}"]`
-            ) as HTMLElement | null;
-            logger.debug(`[LibraryView] Highlight update: element=${element ? 'found' : 'not found'}, offsetTop=${element?.offsetTop}, offsetHeight=${element?.offsetHeight}`);
-            if (element) {
-              currentTrackElement = element;
-            }
+        const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrackId);
+        if (isCurrentInCategory && scrollContainerRef.current) {
+          // Search in scrollContainer instead of listRef
+          const element = scrollContainerRef.current.querySelector(
+            `[data-track-index="${currentTrackInDisplayIndex}"]`
+          ) as HTMLElement | null;
+          if (element) {
+            currentTrackElement = element;
           }
         }
       }
 
       // Double-check this is still the latest update before setting state
       if (currentUpdateId !== highlightUpdateIdRef.current) {
-        logger.debug(`[LibraryView] Skipping outdated highlight update before setting state (${currentUpdateId} vs ${highlightUpdateIdRef.current})`);
         return;
       }
 
       if (currentTrackElement) {
-        logger.debug(`[LibraryView] Highlight set: updateId=${currentUpdateId}, top=${currentTrackElement.offsetTop}, height=${currentTrackElement.offsetHeight}`);
         setHighlightStyle({
           top: currentTrackElement.offsetTop,
           height: currentTrackElement.offsetHeight,
@@ -484,12 +472,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       if (filterType !== 'default' && retryCount < 30) {
         const nextRetry = retryCount + 1;
         const delay = 50 * nextRetry;
-        logger.debug(`[LibraryView] Element not found, retrying in ${delay}ms (attempt ${nextRetry}/30), updateId=${currentUpdateId}`);
         setTimeout(() => {
           requestAnimationFrame(() => updateHighlight(nextRetry));
         }, delay);
       } else {
-        logger.debug(`[LibraryView] Highlight hidden: no element found after retries, updateId=${currentUpdateId}`);
         setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
       }
     };
@@ -502,9 +488,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     return () => {
       clearTimeout(timer);
-      logger.debug(`[LibraryView] Cleanup: highlight update ${currentUpdateId}`);
     };
-  }, [currentTrackIndex, tracks.length, isEditMode, filterType, categoryFilteredTracks]);
+  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isEditMode, filterType, categoryFilteredTracks]);
 
   // Check if current track is visible in viewport
   const isCurrentTrackVisible = useCallback(() => {
@@ -781,7 +766,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     if (showLocateButton && isCurrentTrackVisible()) {
       setShowLocateButton(false);
     }
-  }, [currentTrackIndex, showLocateButton, isCurrentTrackVisible]);
+  }, [currentTrackId, showLocateButton, isCurrentTrackVisible]);
 
   return (
     <div
