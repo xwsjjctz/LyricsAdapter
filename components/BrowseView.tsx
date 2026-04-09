@@ -10,13 +10,13 @@ import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
-import SettingsDialog from './SettingsDialog';
-import { Track } from '../types';
+import { Track, ViewMode } from '../types';
 
 interface BrowseViewProps {
-  inputValue?: string; // Search input value from parent (shared between views)
-  searchTrigger?: number; // Trigger to execute search
+  inputValue?: string;
+  searchTrigger?: number;
   onDownloadComplete?: (track: Track) => void;
+  onNavigateToSettings?: () => void;
 }
 
 interface DownloadProgress {
@@ -80,11 +80,10 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time
   };
 }
 
-const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete }) => {
+const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete, onNavigateToSettings }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [hasSearched, setHasSearched] = useState(false);
   const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
@@ -129,7 +128,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         const status = await cookieManager.validateCookie();
         if (!status.valid && !cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
-          setShowSettingsDialog(true);
+          onNavigateToSettings?.();
         } else {
           loadRecommendations();
         }
@@ -156,7 +155,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
           if (!cookieManager.hasCookie() && !cookiePromptShown) {
             sessionStorage.setItem('cookiePromptShown', 'true');
-            setShowSettingsDialog(true);
+            onNavigateToSettings?.();
             return;
           }
 
@@ -176,7 +175,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               setError(i18n.t('browse.cookieExpired'));
         if (!cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
-          setShowSettingsDialog(true);
+          onNavigateToSettings?.();
               }
             } else {
               setError(errorMsg || i18n.t('browse.searchFailed'));
@@ -199,7 +198,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       setError(i18n.t('browse.pleaseSetCookie'));
       if (!cookiePromptShown) {
         sessionStorage.setItem('cookiePromptShown', 'true');
-        setShowSettingsDialog(true);
+        onNavigateToSettings?.();
       }
       return;
     }
@@ -227,7 +226,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       } else if (errorMsg.includes('Cookie')) {
         if (!cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
-          setShowSettingsDialog(true);
+          onNavigateToSettings?.();
         }
       } else {
         setError(errorMsg || i18n.t('browse.searchFailed'));
@@ -246,7 +245,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     if (!cookieManager.hasCookie()) {
       if (!cookiePromptShown) {
         sessionStorage.setItem('cookiePromptShown', 'true');
-        setShowSettingsDialog(true);
+        onNavigateToSettings?.();
       }
       return;
     }
@@ -267,7 +266,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         setError(i18n.t('browse.cookieExpired'));
         if (!cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
-          setShowSettingsDialog(true);
+          onNavigateToSettings?.();
         }
       } else {
         setError(errorMsg || i18n.t('browse.searchFailed'));
@@ -278,8 +277,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
   }, [loadRecommendations]);
 
   const handleSettingsDialogClose = () => {
-    setShowSettingsDialog(false);
-    // Reload recommendations in case cookie was updated
     if (cookieManager.hasCookie()) {
       loadRecommendations();
     }
@@ -410,7 +407,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     // Check if download path is set
     if (!downloadPath) {
       setError(i18n.t('browse.selectDownloadPath'));
-      setShowSettingsDialog(true);
+      onNavigateToSettings?.();
       return;
     }
 
@@ -564,7 +561,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         setError(i18n.t('browse.cookieExpired'));
         if (!cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
-          setShowSettingsDialog(true);
+          onNavigateToSettings?.();
         }
       }
       
@@ -617,7 +614,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           </p>
         </div>
         <button
-          onClick={() => setShowSettingsDialog(true)}
+          onClick={() => onNavigateToSettings?.()}
           className="w-10 h-10 rounded-xl transition-all flex items-center justify-center"
           style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
           onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
@@ -654,7 +651,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
                 </button>
                 {!error.includes('CORS') && !error.includes('浏览器') && !error.includes('桌面端') && !error.includes('desktop') && !error.includes('browser') && (
                   <button
-                    onClick={() => setShowSettingsDialog(true)}
+                    onClick={() => onNavigateToSettings?.()}
                     className="px-4 py-2 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 transition-all"
                   >
                     {i18n.t('browse.openSettings')}
@@ -807,12 +804,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           </div>
         )}
       </div>
-
-      {/* Settings Dialog */}
-      <SettingsDialog
-        isOpen={showSettingsDialog}
-        onClose={handleSettingsDialogClose}
-      />
     </div>
   );
 };

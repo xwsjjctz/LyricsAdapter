@@ -404,6 +404,7 @@ const App: React.FC = () => {
                 inputValue={searchInputValue}
                 searchTrigger={searchTrigger}
                 onDownloadComplete={handleDownloadComplete}
+                onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
               />
             ) : viewMode === ViewMode.METADATA ? (
               <MetadataView
@@ -438,6 +439,7 @@ const App: React.FC = () => {
                 onScrollPositionChange={setLibraryScrollPosition}
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
+                onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
               />
             )}
           </div>

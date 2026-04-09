@@ -1087,6 +1087,14 @@ const translations: Translations = {
     de: 'Bitte alle WebDAV-Felder ausfüllen',
     fr: 'Veuillez remplir tous les champs WebDAV'
   },
+  'settingsDialog.qqMusicTitle': {
+    zh: 'QQ 音乐',
+    en: 'QQ Music',
+    ja: 'QQ音楽',
+    ko: 'QQ 뮤직',
+    de: 'QQ Music',
+    fr: 'QQ Music'
+  },
 
   // Player Controls
   'controls.playlist': {
