@@ -7,6 +7,7 @@ import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV } from '../hooks/useWebDAV';
+import { notify } from '../services/notificationService';
 import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
@@ -899,33 +900,34 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   setSelectedAlbum(null);
                 }
               }}
-              className="px-3 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"
+              className="w-10 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"
               style={{
                 backgroundColor: dataSource === 'local' ? colors.primary : 'transparent',
                 color: dataSource === 'local' ? '#fff' : colors.textSecondary,
                 boxShadow: dataSource === 'local' ? `0 0 20px ${colors.glowColor}` : 'none',
               }}
             >
-              Local
+              <span className="material-symbols-outlined text-lg">hard_drive</span>
             </button>
             <button
               onClick={async () => {
                 if (dataSource === 'cloud') return;
                 if (!webdavClient.hasConfig()) {
+                  notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
                   onNavigateToSettings?.('webdav');
                   return;
                 }
                 setDataSource('cloud');
                 await loadWebDAVFiles();
               }}
-              className="px-3 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
+              className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
               style={{
                 backgroundColor: dataSource === 'cloud' ? colors.primary : 'transparent',
                 color: dataSource === 'cloud' ? '#fff' : colors.textSecondary,
                 boxShadow: dataSource === 'cloud' ? `0 0 20px ${colors.glowColor}` : 'none',
               }}
             >
-              Cloud
+              <span className="material-symbols-outlined text-lg">cloud</span>
             </button>
           </div>
         </div>

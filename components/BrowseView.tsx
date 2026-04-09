@@ -128,6 +128,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         const status = await cookieManager.validateCookie();
         if (!status.valid && !cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
+          notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
           onNavigateToSettings?.();
         } else {
           loadRecommendations();
@@ -155,6 +156,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
 
           if (!cookieManager.hasCookie() && !cookiePromptShown) {
             sessionStorage.setItem('cookiePromptShown', 'true');
+            notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
             onNavigateToSettings?.();
             return;
           }
@@ -175,8 +177,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               setError(i18n.t('browse.cookieExpired'));
         if (!cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
+          notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
           onNavigateToSettings?.();
-              }
+        }
             } else {
               setError(errorMsg || i18n.t('browse.searchFailed'));
             }
@@ -198,6 +201,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       setError(i18n.t('browse.pleaseSetCookie'));
       if (!cookiePromptShown) {
         sessionStorage.setItem('cookiePromptShown', 'true');
+        notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
         onNavigateToSettings?.();
       }
       return;
@@ -275,12 +279,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
       setIsLoading(false);
     }
   }, [loadRecommendations]);
-
-  const handleSettingsDialogClose = () => {
-    if (cookieManager.hasCookie()) {
-      loadRecommendations();
-    }
-  };
 
   const createTrackFromDownloadedFile = async (
     filePath: string,
@@ -407,6 +405,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     // Check if download path is set
     if (!downloadPath) {
       setError(i18n.t('browse.selectDownloadPath'));
+      notify(i18n.t('browse.selectDownloadPath'), i18n.t('browse.pleaseSetCookie'));
       onNavigateToSettings?.();
       return;
     }
@@ -613,15 +612,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               : i18n.t('browse.recommended')}
           </p>
         </div>
-        <button
-          onClick={() => onNavigateToSettings?.()}
-          className="w-10 h-10 rounded-xl transition-all flex items-center justify-center"
-          style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
-        >
-          <span className="material-symbols-outlined">settings</span>
-        </button>
       </div>
 
       {/* Content */}
