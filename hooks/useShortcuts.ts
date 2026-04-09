@@ -91,14 +91,20 @@ export const useShortcuts = ({
     // Debug log
     logger.debug('[Shortcuts] Key pressed:', event.key, 'code:', event.code, 'ctrl:', event.ctrlKey, 'meta:', event.metaKey, 'alt:', event.altKey);
     
-    // Don't handle shortcuts when typing in input/textarea
+    // In input/textarea/contentEditable, only skip shortcuts without modifier keys
+    // Modifier-key combos (Cmd/Ctrl/Alt) are application-level and should still fire
     const target = event.target as HTMLElement;
-    if (
+    const isInputElement =
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
-      target.isContentEditable
+      target.isContentEditable;
+    if (
+      isInputElement &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey
     ) {
-      logger.debug('[Shortcuts] Input focused, ignoring shortcut');
+      logger.debug('[Shortcuts] Input focused without modifier, ignoring shortcut');
       return;
     }
 
