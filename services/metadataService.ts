@@ -1,5 +1,15 @@
 import { logger } from './logger';
 
+export interface CoverNeededRange {
+  offset: number;
+  length: number;
+}
+
+export interface BufferParseContext {
+  coverNeededRange?: CoverNeededRange;
+  bufferOffset: number;
+}
+
 export interface ParsedMetadata {
   title: string;
   artist: string;
@@ -211,7 +221,7 @@ function parseUSLTFrame(buffer: ArrayBuffer): string {
 }
 
 // Decode picture (APIC) frame
-function decodePictureFrame(buffer: ArrayBuffer): string {
+function decodePictureFrame(buffer: ArrayBuffer): { coverUrl: string; imageDataOffset: number } {
   const view = new DataView(buffer);
   let offset = 0;
 
@@ -226,7 +236,7 @@ function decodePictureFrame(buffer: ArrayBuffer): string {
       mimeTypeEnd++;
     }
     const mimeType = getStringFromView(view, offset, mimeTypeEnd - offset);
-    offset = mimeTypeEnd + 1; // Skip null terminator
+    offset = mimeTypeEnd + 1;
 
     // Skip picture type (1 byte)
     offset += 1;
@@ -234,14 +244,12 @@ function decodePictureFrame(buffer: ArrayBuffer): string {
     // Skip description (null terminated string with encoding)
     while (offset < buffer.byteLength) {
       if (encoding === 0 || encoding === 3) {
-        // ISO-8859-1 or UTF-8
         if (view.getUint8(offset) === 0) {
           offset += 1;
           break;
         }
         offset += 1;
       } else {
-        // UTF-16
         if (view.getUint16(offset, false) === 0) {
           offset += 2;
           break;
@@ -250,20 +258,17 @@ function decodePictureFrame(buffer: ArrayBuffer): string {
       }
     }
 
-    // The rest is image data
     const imageData = buffer.slice(offset);
-
-    // Create blob URL
     const blob = new Blob([imageData], { type: mimeType || 'image/jpeg' });
-    return URL.createObjectURL(blob);
+    return { coverUrl: URL.createObjectURL(blob), imageDataOffset: offset };
   } catch (e) {
     logger.error('Error in decodePictureFrame:', e);
-    return '';
+    return { coverUrl: '', imageDataOffset: 0 };
   }
 }
 
 // Simple ID3v2 parser for MP3 files
-function parseID3v2(buffer: ArrayBuffer): Partial<ParsedMetadata> {
+function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<ParsedMetadata> {
   const view = new DataView(buffer);
   const result: Partial<ParsedMetadata> = {};
 
@@ -306,15 +311,14 @@ function parseID3v2(buffer: ArrayBuffer): Partial<ParsedMetadata> {
     const rawFrameSize = view.getUint32(offset + 4);
     const frameSize = isV23 ? rawFrameSize : decodeSynchsafe(rawFrameSize);
 
-    if (frameSize === 0 || frameSize > buffer.byteLength || offset + 10 + frameSize > end) {
+    if (frameSize === 0 || frameSize > buffer.byteLength) {
       break;
     }
 
-    // Parse frames based on ID
-    const frameData = buffer.slice(offset + 10, offset + 10 + frameSize);
+    const frameAvailable = offset + 10 + frameSize <= end;
+    const frameData = buffer.slice(offset + 10, Math.min(offset + 10 + frameSize, end));
 
     if (frameId.startsWith('T')) {
-      // Text frames
       const text = decodeTextFrame(frameData);
       if (text) {
         switch (frameId) {
@@ -327,10 +331,16 @@ function parseID3v2(buffer: ArrayBuffer): Partial<ParsedMetadata> {
           case 'TALB':
             result.album = text;
             break;
+          case 'TLEN': {
+            const ms = parseInt(text, 10);
+            if (!isNaN(ms) && ms > 0) {
+              result.duration = ms / 1000;
+            }
+            break;
+          }
         }
       }
     } else if (frameId === 'USLT') {
-      // Unsynchronized lyrics - parse with LRC parser to extract timestamps if present
       const text = parseUSLTFrame(frameData);
       if (text) {
         const parsedLyrics = parseLRCLyrics(text);
@@ -338,17 +348,27 @@ function parseID3v2(buffer: ArrayBuffer): Partial<ParsedMetadata> {
         result.syncedLyrics = parsedLyrics.syncedLyrics;
       }
     } else if (frameId === 'SYLT') {
-      // Synchronized lyrics (SYLT frame)
       const syncedLyrics = parseSYLTFrame(frameData);
       if (syncedLyrics.length > 0) {
         result.syncedLyrics = syncedLyrics;
         result.lyrics = syncedLyrics.map(l => l.text).join('\n');
       }
     } else if (frameId === 'APIC') {
-      // Attached picture
-      result.coverUrl = decodePictureFrame(frameData);
+      if (frameAvailable) {
+        const pic = decodePictureFrame(frameData);
+        result.coverUrl = pic.coverUrl;
+      } else if (ctx) {
+        const coverFileOffset = offset + 10;
+        ctx.coverNeededRange = {
+          offset: coverFileOffset,
+          length: frameSize,
+        };
+      }
     }
 
+    if (!frameAvailable) {
+      break;
+    }
     offset += 10 + frameSize;
   }
 
@@ -458,7 +478,7 @@ function parseMP4(buffer: ArrayBuffer): Partial<ParsedMetadata> {
 }
 
 // FLAC metadata parser with full VORBIS_COMMENT and PICTURE support
-function parseFLAC(buffer: ArrayBuffer): Partial<ParsedMetadata> {
+function parseFLAC(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<ParsedMetadata> {
   const result: Partial<ParsedMetadata> = {};
 
   const view = new DataView(buffer);
@@ -484,24 +504,40 @@ function parseFLAC(buffer: ArrayBuffer): Partial<ParsedMetadata> {
 
     offset += 4; // Skip block header
 
-    const blockData = buffer.slice(offset, offset + blockSize);
+    const blockData = buffer.slice(offset, Math.min(offset + blockSize, buffer.byteLength));
+    const blockTruncated = offset + blockSize > buffer.byteLength;
 
-    if (blockType === 4) {
+    if (blockType === 0) {
+      // STREAMINFO block (34 bytes)
+      if (blockSize >= 18) {
+        const blockView = new DataView(blockData);
+        const sampleRate = (blockView.getUint16(10, false) << 4) |
+                           ((blockView.getUint8(12) >> 4) & 0x0F);
+        const totalSamplesHigh = blockView.getUint8(13) & 0x0F;
+        const totalSamplesLow = blockView.getUint32(14, false);
+        const totalSamples = totalSamplesHigh * 0x100000000 + totalSamplesLow;
+        if (sampleRate > 0 && totalSamples > 0) {
+          result.duration = totalSamples / sampleRate;
+        }
+      }
+    } else if (blockType === 4) {
       // VORBIS_COMMENT block
       const comments = parseVorbisComment(blockData);
       Object.assign(result, comments);
     } else if (blockType === 6) {
-      // PICTURE block
-      result.coverUrl = parseFLACPicture(blockData);
+      if (!blockTruncated) {
+        result.coverUrl = parseFLACPicture(blockData);
+      } else if (ctx) {
+        ctx.coverNeededRange = {
+          offset,
+          length: blockSize,
+        };
+      }
     }
 
     offset += blockSize;
 
-    if (isLast || blockType === 6) {
-      // PICTURE is usually the last metadata block we care about
-      // Or if this is the last block, stop parsing
-      if (isLast) break;
-    }
+    if (isLast) break;
   }
 
   return result;
@@ -685,7 +721,10 @@ function parseFLACPicture(buffer: ArrayBuffer): string {
     // Picture data
     const pictureData = buffer.slice(offset, offset + pictureDataLength);
 
-    // Create blob URL
+    if (pictureData.byteLength < pictureDataLength) {
+      return '';
+    }
+
     const blob = new Blob([pictureData], { type: mimeType || 'image/jpeg' });
     return URL.createObjectURL(blob);
   } catch (e) {
@@ -736,16 +775,36 @@ function getAudioDuration(file: File): Promise<number> {
   });
 }
 
-export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> {
+export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange } {
+  const ctx: BufferParseContext = { bufferOffset: 0 };
   const lowerName = fileName.toLowerCase();
+  let result: Partial<ParsedMetadata> = {};
   if (lowerName.endsWith('.mp3')) {
-    return parseID3v2(buffer);
+    result = parseID3v2(buffer, ctx);
   } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
-    return parseMP4(buffer);
+    result = parseMP4(buffer);
   } else if (lowerName.endsWith('.flac')) {
-    return parseFLAC(buffer);
+    result = parseFLAC(buffer, ctx);
   }
-  return {};
+  return { ...result, coverNeededRange: ctx.coverNeededRange };
+}
+
+export function parseCoverFromRange(buffer: ArrayBuffer, fileName: string, rangeOffset: number): string {
+  const lowerName = fileName.toLowerCase();
+  try {
+    if (lowerName.endsWith('.flac')) {
+      // buffer contains a FLAC PICTURE block (without the 4-byte block header)
+      // rangeOffset points to the start of the block data (after header)
+      return parseFLACPicture(buffer);
+    } else if (lowerName.endsWith('.mp3')) {
+      // buffer contains an ID3v2 APIC frame (without the 10-byte frame header)
+      const pic = decodePictureFrame(buffer);
+      return pic.coverUrl;
+    }
+  } catch (e) {
+    logger.error('[MetadataService] parseCoverFromRange failed:', e);
+  }
+  return '';
 }
 
 export async function parseAudioFile(file: File): Promise<ParsedMetadata> {

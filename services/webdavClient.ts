@@ -106,6 +106,12 @@ class WebDAVClient {
     return this.config !== null && !!this.config.serverUrl && !!this.config.username && !!this.config.password;
   }
 
+  clearCdnCache(): void {
+    this.cdnCache.clear();
+    localStorage.removeItem(CDN_CACHE_KEY);
+    logger.info('[WebDAV] CDN cache cleared');
+  }
+
   async testConnection(): Promise<{ success: boolean; message: string }> {
     if (!this.hasConfig()) {
       return { success: false, message: 'WebDAV not configured' };
@@ -218,6 +224,23 @@ class WebDAVClient {
     this.saveCdnCache();
 
     return result.redirectUrl;
+  }
+
+  async fetchAudioAsBlobUrl(filePath: string): Promise<string | null> {
+    const api = await getDesktopAPI();
+    if (!api) return null;
+
+    const cdnUrl = await this.getCdnUrl(filePath);
+    if (!cdnUrl) return null;
+
+    const result = await api.webdavGetRange(cdnUrl, '', -1, -1);
+    if (!result.success || !result.data) {
+      logger.error('[WebDAV] Audio full fetch failed:', result.error);
+      return null;
+    }
+
+    const blob = new Blob([result.data]);
+    return URL.createObjectURL(blob);
   }
 
   async fetchFileRange(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {

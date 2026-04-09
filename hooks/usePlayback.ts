@@ -329,18 +329,18 @@ export function usePlayback({
       forcePlayRef.current = true;
 
       try {
-        const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
+        const blobUrl = await webdavClient.fetchAudioAsBlobUrl(currentTrack.webdavPath);
         if (currentTrackIndexRef.current !== trackIdx || !audioRef.current) return;
-        logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
-        if (cdnUrl) {
-          audioRef.current.src = cdnUrl;
+        logger.info('[Playback] Audio blob URL result:', blobUrl ? blobUrl.substring(0, 60) + '...' : 'null');
+        if (blobUrl) {
+          audioRef.current.src = blobUrl;
           audioUrlReadyRef.current = true;
           await audioRef.current.play();
           shouldAutoPlayRef.current = false;
           forcePlayRef.current = false;
           setIsPlaying(true);
         } else {
-          logger.error('[Playback] Failed to get CDN URL for:', currentTrack.webdavPath);
+          logger.error('[Playback] Failed to get audio blob for:', currentTrack.webdavPath);
         }
       } catch (e: any) {
         if (e.name === 'AbortError') return;

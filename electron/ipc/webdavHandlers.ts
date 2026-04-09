@@ -54,12 +54,17 @@ export function registerWebDAVHandlers(): void {
 
   ipcMain.handle('webdav-get-range', async (_event, url: string, authHeader: string, start: number, end: number) => {
     try {
+      const headers: Record<string, string> = {};
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+      }
+      if (start >= 0 && end >= 0) {
+        headers['Range'] = `bytes=${start}-${end}`;
+      }
+
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': authHeader,
-          'Range': `bytes=${start}-${end}`,
-        },
+        headers,
         redirect: 'follow',
       });
 

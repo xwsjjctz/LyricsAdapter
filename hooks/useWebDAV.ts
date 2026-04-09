@@ -1,12 +1,28 @@
 import { useState, useCallback, useRef } from 'react';
 import { Track } from '../types';
 import { webdavClient, WebDAVFile } from '../services/webdavClient';
-import { parseMetadataFromBuffer } from '../services/metadataService';
+import { parseMetadataFromBuffer, parseCoverFromRange } from '../services/metadataService';
 import { logger } from '../services/logger';
 
 const METADATA_CACHE_KEY = 'webdav-metadata-cache';
 const BATCH_SIZE = 5;
 const RANGE_SIZE = 65536;
+
+async function blobUrlToDataUrl(blobUrl: string): Promise<string> {
+  if (!blobUrl || !blobUrl.startsWith('blob:')) return blobUrl;
+  try {
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(blobUrl);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return blobUrl;
+  }
+}
 
 interface CachedMetadata {
   title: string;
@@ -14,6 +30,8 @@ interface CachedMetadata {
   album: string;
   coverUrl: string;
   duration: number;
+  lyrics?: string;
+  syncedLyrics?: { time: number; text: string }[];
   fileSize: number;
   lastModified: string;
 }
@@ -100,12 +118,24 @@ export const useWebDAV = () => {
     const parsed = parseMetadataFromBuffer(buffer, file.name);
     const { artist, title } = parseArtistTitleFromFilename(file.name);
 
+    let coverUrl = parsed.coverUrl || '';
+    if (!coverUrl && parsed.coverNeededRange) {
+      const { offset: coverOffset, length: coverLength } = parsed.coverNeededRange;
+      logger.info('[useWebDAV] Cover truncated, fetching range:', coverOffset, '-', coverOffset + coverLength);
+      const coverBuffer = await webdavClient.fetchFileRange(file.path, coverOffset, coverOffset + coverLength);
+      if (coverBuffer) {
+        coverUrl = parseCoverFromRange(coverBuffer, file.name, coverOffset);
+      }
+    }
+
     return {
       title: parsed.title || title,
       artist: parsed.artist || artist,
       album: parsed.album || 'Unknown Album',
-      coverUrl: parsed.coverUrl || '',
+      coverUrl: await blobUrlToDataUrl(coverUrl),
       duration: parsed.duration || 0,
+      lyrics: parsed.lyrics,
+      syncedLyrics: parsed.syncedLyrics,
       fileSize: file.size,
       lastModified: file.lastModified,
     };
@@ -118,6 +148,8 @@ export const useWebDAV = () => {
     album: meta.album,
     duration: meta.duration,
     coverUrl: meta.coverUrl || track.coverUrl,
+    lyrics: meta.lyrics,
+    syncedLyrics: meta.syncedLyrics,
   });
 
   const loadWebDAVFiles = useCallback(async (): Promise<Track[]> => {
@@ -208,9 +240,25 @@ export const useWebDAV = () => {
     }
   }, []);
 
+  const clearWebdavCache = useCallback(() => {
+    localStorage.removeItem(METADATA_CACHE_KEY);
+    webdavClient.clearCdnCache();
+    setWebdavTracks([]);
+    logger.info('[useWebDAV] Cache cleared');
+  }, []);
+
   const cancelLoad = useCallback(() => {
     abortRef.current = true;
   }, []);
+
+  if (typeof window !== 'undefined' && !(window as any).__webdav_debug_bound) {
+    (window as any).__webdav_debug_bound = true;
+    (window as any).clear_webdav_cache = () => {
+      localStorage.removeItem(METADATA_CACHE_KEY);
+      webdavClient.clearCdnCache();
+      console.log('[WebDAV] Metadata cache and CDN cache cleared. Switch to Cloud tab to reload.');
+    };
+  }
 
   return {
     webdavTracks,
@@ -219,5 +267,6 @@ export const useWebDAV = () => {
     loadProgress,
     loadWebDAVFiles,
     cancelLoad,
+    clearWebdavCache,
   };
 };
