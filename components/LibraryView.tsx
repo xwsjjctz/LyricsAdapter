@@ -27,7 +27,8 @@ interface LibraryViewProps {
   isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
   autoLocateToken?: number; // Trigger auto-locate only when track switch action occurs
   onNavigateToSettings?: (section?: string) => void;
-  onDataSourceChange?: (source: 'local' | 'cloud', webdavTracks?: Track[]) => void;
+  onDataSourceChange?: (source: 'local' | 'cloud', webdavTracks?: Track[]) => void; // Notify App of data source changes
+  importProgress?: { loaded: number; total: number } | null; // Import progress from App
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -47,7 +48,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   isFirstLoad = false,
   autoLocateToken = 0,
   onNavigateToSettings,
-  onDataSourceChange
+  onDataSourceChange,
+  importProgress
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -67,17 +69,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [scrollTop, setScrollTop] = useState(0);
   const [dataSource, setDataSource] = useState<'local' | 'cloud'>('local');
   const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
-  const cloudSyncedRef = useRef(false);
-
-  useEffect(() => {
-    if (dataSource === 'cloud' && !webdavLoading && webdavTracks.length > 0 && !cloudSyncedRef.current) {
-      cloudSyncedRef.current = true;
-      onDataSourceChange?.('cloud', webdavTracks);
-    }
-    if (dataSource === 'local') {
-      cloudSyncedRef.current = false;
-    }
-  }, [dataSource, webdavTracks, webdavLoading]);
 
   const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -815,7 +806,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div>
           <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('library.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-            {dataSource === 'cloud' && loadProgress ? (
+            {importProgress ? (
+              `${i18n.t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
+            ) : dataSource === 'cloud' && loadProgress ? (
               `${i18n.t('library.loadingMetadata')} ${loadProgress.loaded}/${loadProgress.total}`
             ) : (
               <>
@@ -824,12 +817,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               </>
             )}
           </p>
-          {dataSource === 'cloud' && loadProgress && (
+          {(importProgress || (dataSource === 'cloud' && loadProgress)) && (
             <div className="mt-2 w-48 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
               <div
                 className="h-full rounded-full transition-all duration-300"
                 style={{
-                  width: `${(loadProgress.loaded / loadProgress.total) * 100}%`,
+                  width: `${((importProgress || loadProgress)!.loaded / (importProgress || loadProgress)!.total) * 100}%`,
                   backgroundColor: colors.primary,
                 }}
               />
@@ -949,7 +942,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   return;
                 }
                 setDataSource('cloud');
-                await loadWebDAVFiles();
+                const loadedTracks = await loadWebDAVFiles();
+                onDataSourceChange?.('cloud', loadedTracks);
               }}
               className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
               style={{
@@ -1022,10 +1016,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 )}
                 {visibleTracks.map((track, idx) => {
                   const filteredIndex = startIndex + idx;
-                  const originalIndex = tracks.findIndex(t => t.id === track.id);
                   const isUnavailable = track.available === false;
                   const isSelected = selectedIds.has(track.id);
-                  const isCurrentTrack = originalIndex === currentTrackIndex;
+                  const isCurrentTrack = track.id === (displayTracks[currentTrackIndex]?.id);
                   const isDragged = draggedIndex === filteredIndex;
                   const isDragOver = dragOverIndex === filteredIndex;
                   const canDrag = isEditMode && !isUnavailable && !executedSearchQuery; // Only allow drag when not searching
@@ -1038,12 +1031,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     <div
                       key={track.id}
                       ref={idx === 0 ? rowMeasureRef : undefined}
-                       data-track-index={originalIndex}  // Use original index for auto-scroll
-                       draggable={canDrag}
-                       onDragStart={(e) => handleTrackDragStart(e, filteredIndex)}
-                       onDragOver={(e) => handleTrackDragOver(e, filteredIndex)}
-                       onDragEnd={handleTrackDragEnd}
-                       onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
+                        data-track-index={filteredIndex}
+                        draggable={canDrag}
+                        onDragStart={(e) => handleTrackDragStart(e, filteredIndex)}
+                        onDragOver={(e) => handleTrackDragOver(e, filteredIndex)}
+                        onDragEnd={handleTrackDragEnd}
+                        onClick={() => !isEditMode && !isUnavailable && onTrackSelect(filteredIndex)}
                        style={{
                          ...animationStyle,
                          backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
@@ -1233,20 +1226,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                    >
                       {visibleTracks.map((track, idx) => {
                         const filteredIndex = idx;
-                        const originalIndex = tracks.findIndex(t => t.id === track.id);
-                        const isUnavailable = track.available === false;
-                        const isSelected = selectedIds.has(track.id);
-                        const isCurrentTrack = originalIndex === currentTrackIndex;
-                        const animationStyle = shouldShowAnimation
-                          ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
-                          : undefined;
+                         const isUnavailable = track.available === false;
+                         const isSelected = selectedIds.has(track.id);
+                         const isCurrentTrack = track.id === (displayTracks[currentTrackIndex]?.id);
+                         const animationStyle = shouldShowAnimation
+                           ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
+                           : undefined;
 
-                        return (
-                          <div
-                            key={track.id}
-                            ref={idx === 0 ? rowMeasureRef : undefined}
-                            data-track-index={originalIndex}
-                            onClick={() => !isEditMode && !isUnavailable && onTrackSelect(originalIndex)}
+                         return (
+                           <div
+                             key={track.id}
+                             ref={idx === 0 ? rowMeasureRef : undefined}
+                             data-track-index={filteredIndex}
+                             onClick={() => !isEditMode && !isUnavailable && onTrackSelect(filteredIndex)}
                             className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
                             style={{
                               ...animationStyle,

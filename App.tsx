@@ -104,7 +104,8 @@ const App: React.FC = () => {
     handleDesktopImport,
     handleDropFiles,
     handleDropFilePaths,
-    handleFileInputChange
+    handleFileInputChange,
+    importProgress
   } = useImport({
     tracks,
     setTracks,
@@ -441,14 +442,62 @@ const App: React.FC = () => {
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
                 onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
-                onDataSourceChange={(source, webdavTracks) => {
+                importProgress={importProgress}
+                onDataSourceChange={async (source, webdavTracks) => {
                   if (source === 'cloud' && webdavTracks) {
                     if (!localTracksBackup) {
                       setLocalTracksBackup(tracks);
                     }
+                    const libraryData = buildLibraryIndexData(tracks, {
+                      volume: volume,
+                      currentTrackIndex: currentTrackIndex,
+                      currentTrackId: currentTrack?.id,
+                      currentTime: persistedTimeRef.current || currentTime,
+                      isPlaying: isPlaying,
+                      playbackMode: playbackMode
+                    });
+                    libraryStorage.clearSaveTimer();
+                    const api = await getDesktopAPIAsync();
+                    if (api) {
+                      await api.saveLocalLibraryBackup(libraryData);
+                      await api.saveLibraryIndex(libraryData);
+                      logger.info('[App] Local library saved to backup and main file before switching to cloud');
+                    }
                     setTracks(webdavTracks);
                     setCurrentTrackIndex(-1);
                   } else if (source === 'local') {
+                    const api = await getDesktopAPIAsync();
+                    if (api) {
+                      const result = await api.loadLocalLibraryBackup();
+                      if (result.success && result.library) {
+                        const backupData = result.library as { songs: any[]; settings: any };
+                        const restoredTracks: Track[] = (backupData.songs || []).map((song: any) => ({
+                          id: song.id,
+                          title: song.title || song.fileName?.replace(/\.[^/.]+$/, '') || 'Unknown',
+                          artist: song.artist || 'Unknown Artist',
+                          album: song.album || 'Unknown Album',
+                          duration: song.duration || 0,
+                          lyrics: song.lyrics || '',
+                          syncedLyrics: song.syncedLyrics,
+                          coverUrl: song.coverUrl,
+                          audioUrl: '',
+                          filePath: song.filePath,
+                          fileName: song.fileName,
+                          fileSize: song.fileSize,
+                          lastModified: song.lastModified,
+                          addedAt: song.addedAt,
+                          playCount: song.playCount || 0,
+                          lastPlayed: song.lastPlayed || undefined,
+                          available: song.available ?? true
+                        }));
+                        await api.saveLibraryIndex(backupData);
+                        setTracks(restoredTracks);
+                        logger.info('[App] Local library restored from backup');
+                        setLocalTracksBackup(null);
+                        setCurrentTrackIndex(-1);
+                        return;
+                      }
+                    }
                     if (localTracksBackup) {
                       setTracks(localTracksBackup);
                       setLocalTracksBackup(null);

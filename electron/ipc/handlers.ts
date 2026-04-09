@@ -295,6 +295,43 @@ export function registerLibraryHandlers(): void {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  ipcMain.handle('save-local-library-backup', async (event, library) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const backupPath = path.join(userDataPath, 'library-local-backup.json');
+
+      if (!fs.existsSync(userDataPath)) {
+        fs.mkdirSync(userDataPath, { recursive: true });
+      }
+
+      fs.writeFileSync(backupPath, JSON.stringify(library, null, 2), 'utf-8');
+      logger.info('[IPC] Local library backup saved');
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to save local library backup:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('load-local-library-backup', async () => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const backupPath = path.join(userDataPath, 'library-local-backup.json');
+
+      if (fs.existsSync(backupPath)) {
+        const data = fs.readFileSync(backupPath, 'utf-8');
+        const library = JSON.parse(data);
+        logger.info('[IPC] Local library backup loaded');
+        return { success: true, library };
+      }
+
+      return { success: true, library: null };
+    } catch (error) {
+      logger.error('Failed to load local library backup:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }
 
 export function registerCoverHandlers(): void {

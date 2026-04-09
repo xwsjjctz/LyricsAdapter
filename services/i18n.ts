@@ -105,6 +105,14 @@ const translations: Translations = {
     de: 'Metadaten werden geladen',
     fr: 'Chargement des métadonnées'
   },
+  'library.importing': {
+    zh: '正在导入',
+    en: 'Importing',
+    ja: 'インポート中',
+    ko: '가져오는 중',
+    de: 'Importieren',
+    fr: 'Importation'
+  },
   'library.of': {
     zh: '共',
     en: 'of',

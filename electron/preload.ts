@@ -66,6 +66,16 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('save-library-index', library);
   },
 
+  // Save local library backup (before switching to cloud)
+  saveLocalLibraryBackup: async (library: any) => {
+    return ipcRenderer.invoke('save-local-library-backup', library);
+  },
+
+  // Load local library backup (when switching back to local)
+  loadLocalLibraryBackup: async () => {
+    return ipcRenderer.invoke('load-local-library-backup');
+  },
+
   // Validate single file path
   validateFilePath: async (filePath: string) => {
     return ipcRenderer.invoke('validate-file-path', filePath);

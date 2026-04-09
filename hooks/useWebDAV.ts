@@ -120,10 +120,10 @@ export const useWebDAV = () => {
     coverUrl: meta.coverUrl || track.coverUrl,
   });
 
-  const loadWebDAVFiles = useCallback(async () => {
+  const loadWebDAVFiles = useCallback(async (): Promise<Track[]> => {
     if (!webdavClient.hasConfig()) {
       setError('WebDAV not configured');
-      return;
+      return [];
     }
 
     abortRef.current = false;
@@ -137,7 +137,7 @@ export const useWebDAV = () => {
       if (audioFiles.length === 0) {
         setWebdavTracks([]);
         setIsLoading(false);
-        return;
+        return [];
       }
 
       const placeholderTracks = audioFiles.map(fileToPlaceholderTrack);
@@ -157,10 +157,11 @@ export const useWebDAV = () => {
       }
 
       if (toFetch.length === 0) {
-        setWebdavTracks([...placeholderTracks]);
+        const finalTracks = [...placeholderTracks];
+        setWebdavTracks(finalTracks);
         setIsLoading(false);
         setLoadProgress(null);
-        return;
+        return finalTracks;
       }
 
       setLoadProgress({ loaded: audioFiles.length - toFetch.length, total: audioFiles.length });
@@ -169,7 +170,7 @@ export const useWebDAV = () => {
       let fetched = audioFiles.length - toFetch.length;
 
       for (let batch = 0; batch < toFetch.length; batch += BATCH_SIZE) {
-        if (abortRef.current) return;
+        if (abortRef.current) return [];
 
         const batchItems = toFetch.slice(batch, batch + BATCH_SIZE);
         const results = await Promise.allSettled(
@@ -195,9 +196,13 @@ export const useWebDAV = () => {
       }
 
       setLoadProgress(null);
+      const finalTracks = [...placeholderTracks];
+      setWebdavTracks(finalTracks);
+      return finalTracks;
     } catch (e: any) {
       logger.error('[useWebDAV] Failed to load files:', e);
       setError(e.message || 'Failed to load WebDAV files');
+      return [];
     } finally {
       setIsLoading(false);
     }

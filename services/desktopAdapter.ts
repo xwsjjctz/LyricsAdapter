@@ -16,6 +16,8 @@ export interface DesktopAPI {
   saveLibrary: (library: unknown) => Promise<{ success: boolean; error?: string }>;
   loadLibraryIndex?: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibraryIndex?: (library: unknown) => Promise<{ success: boolean; error?: string }>;
+  saveLocalLibraryBackup?: (library: unknown) => Promise<{ success: boolean; error?: string }>;
+  loadLocalLibraryBackup?: () => Promise<{ success: boolean; library: unknown | null; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
   validateAllPaths: (songs: unknown[]) => Promise<{ success: boolean; results: unknown[]; error?: string }>;
   saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
@@ -92,6 +94,22 @@ class ElectronAdapter implements DesktopAPI {
       return this.api.saveLibraryIndex(library);
     }
     return this.api.saveLibrary(library);
+  }
+
+  async saveLocalLibraryBackup(library: any): Promise<{ success: boolean; error?: string }> {
+    if (typeof this.api.saveLocalLibraryBackup === 'function') {
+      return this.api.saveLocalLibraryBackup(library);
+    }
+    logger.warn('[DesktopAPI] saveLocalLibraryBackup not available');
+    return { success: false, error: 'Not available' };
+  }
+
+  async loadLocalLibraryBackup(): Promise<{ success: boolean; library: any; error?: string }> {
+    if (typeof this.api.loadLocalLibraryBackup === 'function') {
+      return this.api.loadLocalLibraryBackup();
+    }
+    logger.warn('[DesktopAPI] loadLocalLibraryBackup not available');
+    return { success: false, library: null, error: 'Not available' };
   }
 
   async validateFilePath(filePath: string): Promise<boolean> {

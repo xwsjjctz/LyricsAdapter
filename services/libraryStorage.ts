@@ -58,6 +58,13 @@ class LibraryStorageService {
   private saveTimer: NodeJS.Timeout | null = null;
   private saveDelay = 1000; // 防抖延迟：1秒
 
+  clearSaveTimer(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+  }
+
   /**
    * 从磁盘加载音乐库
    */

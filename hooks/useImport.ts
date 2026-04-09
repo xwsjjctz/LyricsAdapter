@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track } from '../types';
 import { parseAudioFile, libraryStorage } from '../services/metadataService';
 import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from '../services/desktopAdapter';
@@ -36,6 +36,7 @@ export function useImport({
 }: UseImportOptions) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const tracksCountRef = useRef<number>(0);
+  const [importProgress, setImportProgress] = useState<{ loaded: number; total: number } | null>(null);
 
   useEffect(() => {
     tracksCountRef.current = tracks.length;
@@ -408,6 +409,8 @@ export function useImport({
       logger.debug(`[Import] ===== Starting Import Process =====`);
       logger.debug(`[Import] Total files to import: ${newFilePaths.length}`);
 
+      setImportProgress({ loaded: 0, total: newFilePaths.length });
+
       for (let i = 0; i < newFilePaths.length; i += BATCH_SIZE) {
         const batch = newFilePaths.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
@@ -423,6 +426,7 @@ export function useImport({
 
         totalProcessed += batch.length;
         totalFailed += failedCount;
+        setImportProgress({ loaded: totalProcessed, total: newFilePaths.length });
 
         logger.debug(`[Import] ✅ Batch ${batchNumber} result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
 
@@ -510,8 +514,10 @@ export function useImport({
       });
       await libraryStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Manual library save completed');
+      setImportProgress(null);
     } catch (error) {
       logger.error('[Import] Failed to import files:', error);
+      setImportProgress(null);
     }
   }, [
     createTracksMap,
@@ -568,6 +574,8 @@ export function useImport({
     logger.debug(`[Import] ===== Starting Path-based Import =====`);
     logger.debug(`[Import] Total files to import: ${newFilePaths.length}`);
 
+    setImportProgress({ loaded: 0, total: newFilePaths.length });
+
     for (let i = 0; i < newFilePaths.length; i += BATCH_SIZE) {
       const batch = newFilePaths.slice(i, i + BATCH_SIZE);
       const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
@@ -581,6 +589,7 @@ export function useImport({
 
       totalProcessed += batch.length;
       totalFailed += failedCount;
+      setImportProgress({ loaded: totalProcessed, total: newFilePaths.length });
 
       allNewTracks.push(...successfulTracks);
       importedTracksAll.push(...successfulTracks);
@@ -640,6 +649,7 @@ export function useImport({
         i18n.t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
       );
     }
+    setImportProgress(null);
   }, [
     createTracksMap,
     processDesktopFilePathBatch,
@@ -669,12 +679,17 @@ export function useImport({
     const allNewTracks: Track[] = [];
     const importedTracksAll: Track[] = [];
     const baseTracks = tracks;
+    let totalProcessed = 0;
+
+    setImportProgress({ loaded: 0, total: files.length });
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
       logger.debug(`[Import] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
 
       const batchTracks = await processWebFileBatch(batch, tracksMap);
+      totalProcessed += batch.length;
+      setImportProgress({ loaded: totalProcessed, total: files.length });
       allNewTracks.push(...batchTracks);
       importedTracksAll.push(...batchTracks);
 
@@ -720,6 +735,7 @@ export function useImport({
     }
 
     logger.debug('[Import] ✓ All files imported successfully');
+    setImportProgress(null);
   }, [
     createTracksMap,
     processWebFileBatch,
@@ -762,12 +778,17 @@ export function useImport({
     const BATCH_SIZE = 10;
     const UI_UPDATE_BATCH = 20;
     const allNewTracks: Track[] = [];
+    let totalProcessed = 0;
+
+    setImportProgress({ loaded: 0, total: newFiles.length });
 
     for (let i = 0; i < newFiles.length; i += BATCH_SIZE) {
       const batch = newFiles.slice(i, i + BATCH_SIZE);
       logger.debug(`[Import] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(newFiles.length / BATCH_SIZE)} (${batch.length} files)`);
 
       const batchTracks = await processWebFileBatch(batch, tracksMap);
+      totalProcessed += batch.length;
+      setImportProgress({ loaded: totalProcessed, total: newFiles.length });
       allNewTracks.push(...batchTracks);
 
       if (allNewTracks.length >= UI_UPDATE_BATCH) {
@@ -799,6 +820,7 @@ export function useImport({
       logger.debug('[Import] ✓ Library saved to IndexedDB');
     }
 
+    setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode, volume, persistedTimeRef]);
 
@@ -807,6 +829,7 @@ export function useImport({
     handleDesktopImport,
     handleDropFiles,
     handleDropFilePaths,
-    handleFileInputChange
+    handleFileInputChange,
+    importProgress
   };
 }

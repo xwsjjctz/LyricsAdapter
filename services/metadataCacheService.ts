@@ -24,6 +24,9 @@ class MetadataCacheService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Set flag BEFORE async operations to prevent race condition
+    this.initialized = true;
+
     logger.debug('[MetadataCache] Initializing cache...');
 
     // Initialize IndexedDB (works in both Web and Desktop)
@@ -72,7 +75,6 @@ class MetadataCacheService {
       }
     }
 
-    this.initialized = true;
     logger.debug('[MetadataCache] ✓ Initialization complete');
   }
 
