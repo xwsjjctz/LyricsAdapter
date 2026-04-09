@@ -1885,6 +1885,22 @@ const translations: Translations = {
     de: 'Stumm ein/aus umschalten',
     fr: 'Activer/désactiver la sourdine'
   },
+  'shortcut.togglePlaybackMode': {
+    zh: '切换播放顺序',
+    en: 'Toggle Playback Mode',
+    ja: '再生モード切り替え',
+    ko: '재생 모드 전환',
+    de: 'Wiedergabemodus umschalten',
+    fr: 'Changer le mode de lecture'
+  },
+  'shortcut.togglePlaybackModeDesc': {
+    zh: '在顺序、随机、单曲循环之间切换',
+    en: 'Cycle through order, shuffle, and repeat-one',
+    ja: '順序、シャッフル、リピートの切り替え',
+    ko: '순서, 셔플, 1곡 반복 전환',
+    de: 'Zwischen Reihenfolge, Zufall und Einmal wiederholen wechseln',
+    fr: 'Basculer entre ordre, aléatoire et répétition unique'
+  },
   'shortcut.enterFocusMode': {
     zh: '进入专注模式',
     en: 'Enter Focus Mode',
