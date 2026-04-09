@@ -214,8 +214,10 @@ class WebDAVClient {
     const api = await getDesktopAPI();
     if (!api) return null;
 
-    const url = this.buildUrl(filePath);
-    const result = await api.webdavGetRange(url, this.buildAuthHeader(), start, end);
+    const cdnUrl = await this.getCdnUrl(filePath);
+    if (!cdnUrl) return null;
+
+    const result = await api.webdavGetRange(cdnUrl, '', start, end);
 
     if (!result.success) {
       logger.error('[WebDAV] Range fetch failed:', result.error);
