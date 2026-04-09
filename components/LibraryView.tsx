@@ -67,10 +67,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [scrollTop, setScrollTop] = useState(0);
   const [dataSource, setDataSource] = useState<'local' | 'cloud'>('local');
   const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
+  const cloudSyncedRef = useRef(false);
 
   useEffect(() => {
-    if (dataSource === 'cloud' && !webdavLoading && webdavTracks.length > 0) {
+    if (dataSource === 'cloud' && !webdavLoading && webdavTracks.length > 0 && !cloudSyncedRef.current) {
+      cloudSyncedRef.current = true;
       onDataSourceChange?.('cloud', webdavTracks);
+    }
+    if (dataSource === 'local') {
+      cloudSyncedRef.current = false;
     }
   }, [dataSource, webdavTracks, webdavLoading]);
 

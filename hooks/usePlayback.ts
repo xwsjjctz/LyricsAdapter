@@ -312,26 +312,28 @@ export function usePlayback({
 
     const handleWebdav = async () => {
       if (!currentTrack.webdavPath) return;
-      logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title, 'webdavPath:', currentTrack.webdavPath);
+      const trackIdx = currentTrackIndex;
+      logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title);
 
       shouldAutoPlayRef.current = true;
       forcePlayRef.current = true;
 
       try {
         const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
+        if (currentTrackIndexRef.current !== trackIdx || !audioRef.current) return;
         logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
-        if (cdnUrl && audioRef.current) {
+        if (cdnUrl) {
           audioRef.current.src = cdnUrl;
           audioUrlReadyRef.current = true;
           await audioRef.current.play();
-          logger.info('[Playback] WebDAV playback started');
           shouldAutoPlayRef.current = false;
           forcePlayRef.current = false;
           setIsPlaying(true);
         } else {
           logger.error('[Playback] Failed to get CDN URL for:', currentTrack.webdavPath);
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
         logger.error('[Playback] WebDAV playback error:', e);
         waitingForCanPlayRef.current = true;
       }
