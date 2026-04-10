@@ -36,8 +36,10 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      setCookie(cookieManager.getCookie());
-      setError(null);
+      cookieManager.ensureLoaded().then(() => {
+        setCookie(cookieManager.getCookie());
+        setError(null);
+      });
     }
   }, [isOpen]);
 

@@ -30,16 +30,20 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      setCookie(cookieManager.getCookie());
-      setDownloadPath(settingsManager.getDownloadPath());
-      const webdavConfig = webdavClient.getConfig();
-      if (webdavConfig) {
-        setWebdavServerUrl(webdavConfig.serverUrl);
-        setWebdavUsername(webdavConfig.username);
-        setWebdavPassword(webdavConfig.password);
-      }
-      setMessage(null);
-      setWebdavMessage(null);
+      (async () => {
+        await cookieManager.ensureLoaded();
+        await settingsManager.ensureLoaded();
+        setCookie(cookieManager.getCookie());
+        setDownloadPath(settingsManager.getDownloadPath());
+        const webdavConfig = webdavClient.getConfig();
+        if (webdavConfig) {
+          setWebdavServerUrl(webdavConfig.serverUrl);
+          setWebdavUsername(webdavConfig.username);
+          setWebdavPassword(webdavConfig.password);
+        }
+        setMessage(null);
+        setWebdavMessage(null);
+      })();
     }
   }, [isOpen]);
 

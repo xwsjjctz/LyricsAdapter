@@ -13,17 +13,15 @@ export interface CookieStatus {
 class CookieManager {
   private cookie: string = '';
   private lastCheckTime: number = 0;
-  private initialized: boolean = false;
+  private initPromise: Promise<void>;
 
   constructor() {
-    this.loadFromStorage();
+    this.initPromise = this.loadFromStorage();
   }
 
   private async loadFromStorage(): Promise<void> {
     try {
-      // Initialize IndexedDB first
       await indexedDBStorage.initialize();
-      this.initialized = true;
 
       const storedCookie = await indexedDBStorage.getSetting(COOKIE_STORAGE_KEY);
       const storedCheckTime = await indexedDBStorage.getSetting(COOKIE_CHECK_TIME_KEY);
@@ -168,6 +166,10 @@ class CookieManager {
 
   hasCookie(): boolean {
     return !!this.cookie;
+  }
+
+  async ensureLoaded(): Promise<void> {
+    await this.initPromise;
   }
 }
 

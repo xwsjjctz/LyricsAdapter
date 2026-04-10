@@ -31,14 +31,18 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
 
   useEffect(() => {
-    setCookie(cookieManager.getCookie());
-    setDownloadPath(settingsManager.getDownloadPath());
-    const webdavConfig = webdavClient.getConfig();
-    if (webdavConfig) {
-      setWebdavServerUrl(webdavConfig.serverUrl);
-      setWebdavUsername(webdavConfig.username);
-      setWebdavPassword(webdavConfig.password);
-    }
+    (async () => {
+      await cookieManager.ensureLoaded();
+      await settingsManager.ensureLoaded();
+      setCookie(cookieManager.getCookie());
+      setDownloadPath(settingsManager.getDownloadPath());
+      const webdavConfig = webdavClient.getConfig();
+      if (webdavConfig) {
+        setWebdavServerUrl(webdavConfig.serverUrl);
+        setWebdavUsername(webdavConfig.username);
+        setWebdavPassword(webdavConfig.password);
+      }
+    })();
   }, []);
 
   useEffect(() => {

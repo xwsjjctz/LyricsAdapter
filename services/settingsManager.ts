@@ -5,15 +5,17 @@ const DOWNLOAD_PATH_KEY = 'download_path';
 
 class SettingsManager {
   private downloadPath: string = '';
+  private initialized: boolean = false;
+  private initPromise: Promise<void>;
 
   constructor() {
-    this.loadFromStorage();
+    this.initPromise = this.loadFromStorage();
   }
 
   private async loadFromStorage(): Promise<void> {
     try {
-      // Initialize IndexedDB first
       await indexedDBStorage.initialize();
+      this.initialized = true;
 
       const storedPath = await indexedDBStorage.getSetting(DOWNLOAD_PATH_KEY);
       if (storedPath) {
@@ -47,11 +49,8 @@ class SettingsManager {
     return !!this.downloadPath;
   }
 
-  // Get the default download path based on platform
-  getDefaultDownloadPath(): string {
-    // In Electron, we can't easily get the Downloads folder
-    // So we'll return an empty string and let the user select
-    return '';
+  async ensureLoaded(): Promise<void> {
+    await this.initPromise;
   }
 }
 
