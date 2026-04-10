@@ -631,32 +631,9 @@ export async function writeAudioMetadata(
     success = !!result;
     logger.info('[Main] MP3 metadata write result:', success);
   } else if (actualFormat === 'flac') {
-    logger.info('[Main] FLAC metadata write using ffmpeg remux');
-    try {
-      logger.info('[Main] Attempting ffmpeg remux with metadata:', {
-        title: metadata.title,
-        artist: metadata.artist,
-        album: metadata.album,
-        lyricsLength: metadata.lyrics?.length || 0,
-        hasCover: !!coverBuffer
-      });
-      success = await writeFlacMetadataWithFfmpeg(expandedPath, {
-        title: metadata.title,
-        artist: metadata.artist,
-        album: metadata.album,
-        lyrics: metadata.lyrics,
-      }, coverBuffer);
-      logger.info('[Main] FFmpeg remux completed, success:', success);
-    } catch (ffmpegError) {
-      logger.warn('[Main] FFmpeg FLAC metadata write failed, fallback to metaflac:', ffmpegError);
-      logger.info('[Main] Attempting metaflac with full metadata object (including coverUrl)');
-      success = await writeFlacMetadataWithMetaflac(expandedPath, {
-        ...metadata,
-        coverUrl: metadata.coverUrl
-      });
-      logger.info('[Main] Metaflac completed, success:', success);
-    }
-    logger.info('[Main] FLAC metadata write final result:', success);
+    logger.info('[Main] FLAC metadata write using direct block write');
+    success = await writeFlacMetadata(expandedPath, metadata, coverBuffer);
+    logger.info('[Main] FLAC metadata write result:', success);
   } else {
     logger.warn('[Main] Unsupported file format for metadata:', actualFormat);
     return { success: false, error: `不支持的文件格式: ${actualFormat} (扩展名: ${ext})` };
