@@ -57,6 +57,7 @@ const App: React.FC = () => {
   const [libraryFilterType, setLibraryFilterType] = useState<'default' | 'album' | 'artist'>('default');
   const [libraryCategorySelection, setLibraryCategorySelection] = useState<string | null>(null);
   const [webdavTracks, setWebdavTracks] = useState<Track[]>([]);
+  const pendingCloudRestoreRef = useRef<string | null>(null);
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -103,7 +104,8 @@ const App: React.FC = () => {
     shouldAutoPlayRef,
     restoredTimeRef,
     restoredTrackIdRef,
-    persistedTimeRef
+    persistedTimeRef,
+    cloudTrackIndex
   } = playback;
 
   const {
@@ -156,7 +158,18 @@ const App: React.FC = () => {
     restoredTimeRef,
     restoredTrackIdRef,
     shouldAutoPlayRef,
-    persistedTimeRef
+    persistedTimeRef,
+    libraryDataSource,
+    cloudTracks,
+    cloudTrackIndex,
+    onLibrarySettingsRestored: ({ libraryDataSource: restoredDataSource, localCurrentTrackId, cloudCurrentTrackId }) => {
+      if (restoredDataSource === 'cloud') {
+        setLibraryDataSource('cloud');
+        if (cloudCurrentTrackId) {
+          pendingCloudRestoreRef.current = cloudCurrentTrackId;
+        }
+      }
+    }
   });
 
   // Handle download completion from BrowseView
@@ -185,7 +198,10 @@ const App: React.FC = () => {
       currentTrackId: currentTrack?.id,
       currentTime: persistedTimeRef.current || currentTime,
       isPlaying: isPlaying,
-      playbackMode: playbackMode
+      playbackMode: playbackMode,
+      libraryDataSource,
+      localCurrentTrackId: libraryDataSource === 'local' ? currentTrack?.id : undefined,
+      cloudCurrentTrackId: libraryDataSource === 'cloud' ? cloudTracks[cloudTrackIndex]?.id : undefined
     });
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
@@ -223,7 +239,10 @@ const App: React.FC = () => {
       currentTrackId: newTracks[newCurrentTrackIndex]?.id,
       currentTime: persistedTimeRef.current || currentTime,
       isPlaying: isPlaying,
-      playbackMode: playbackMode
+      playbackMode: playbackMode,
+      libraryDataSource,
+      localCurrentTrackId: libraryDataSource === 'local' ? newTracks[newCurrentTrackIndex]?.id : undefined,
+      cloudCurrentTrackId: libraryDataSource === 'cloud' ? cloudTracks[cloudTrackIndex]?.id : undefined
     });
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
@@ -460,7 +479,17 @@ const App: React.FC = () => {
                 webdavTracks={webdavTracks}
                 onWebdavTracksChange={setWebdavTracks}
                 onCloudLoad={async (webdavTracks) => {
+                  const localTrackId = currentTrack?.id;
+                  const cloudTrackId = cloudTracks[cloudTrackIndex]?.id;
                   setCloudTracks(webdavTracks);
+                  if (pendingCloudRestoreRef.current) {
+                    const restoreId = pendingCloudRestoreRef.current;
+                    pendingCloudRestoreRef.current = null;
+                    const restoreIndex = webdavTracks.findIndex(t => t.id === restoreId);
+                    if (restoreIndex >= 0) {
+                      setCloudTrack(restoreIndex);
+                    }
+                  }
                   if (!localTracksBackup) {
                     setLocalTracksBackup(tracks);
                   }
@@ -470,7 +499,10 @@ const App: React.FC = () => {
                     currentTrackId: currentTrack?.id,
                     currentTime: persistedTimeRef.current || currentTime,
                     isPlaying: isPlaying,
-                    playbackMode: playbackMode
+                    playbackMode: playbackMode,
+                    libraryDataSource: 'cloud',
+                    localCurrentTrackId: localTrackId,
+                    cloudCurrentTrackId: cloudTrackId
                   });
                   libraryStorage.clearSaveTimer();
                   const api = await getDesktopAPIAsync();
@@ -505,20 +537,32 @@ const App: React.FC = () => {
                         lastPlayed: song.lastPlayed || undefined,
                         available: song.available ?? true
                       }));
+                      const localTrackId = currentTrack?.id;
                       await api.saveLibraryIndex(backupData);
                       setTracks(restoredTracks);
                       logger.info('[App] Local library restored from backup');
                       setLocalTracksBackup(null);
                       clearCloudTrack();
-                      setCurrentTrackIndex(-1);
+                      if (localTrackId) {
+                        const restoredIndex = restoredTracks.findIndex(t => t.id === localTrackId);
+                        if (restoredIndex >= 0) {
+                          setCurrentTrackIndex(restoredIndex);
+                        }
+                      }
                       return;
                     }
                   }
                   if (localTracksBackup) {
+                    const localTrackId = currentTrack?.id;
                     setTracks(localTracksBackup);
                     setLocalTracksBackup(null);
                     clearCloudTrack();
-                    setCurrentTrackIndex(-1);
+                    if (localTrackId) {
+                      const restoredIndex = localTracksBackup.findIndex(t => t.id === localTrackId);
+                      if (restoredIndex >= 0) {
+                        setCurrentTrackIndex(restoredIndex);
+                      }
+                    }
                   }
                 }}
               />

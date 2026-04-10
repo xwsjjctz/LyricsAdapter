@@ -24,6 +24,15 @@ interface UseLibraryLoadOptions {
   restoredTrackIdRef: React.MutableRefObject<string | null>;
   shouldAutoPlayRef: React.MutableRefObject<boolean>;
   persistedTimeRef: React.MutableRefObject<number>;
+  libraryDataSource: 'local' | 'cloud';
+  cloudTracks: Track[];
+  cloudTrackIndex: number;
+  onLibrarySettingsRestored?: (settings: {
+    libraryDataSource: 'local' | 'cloud';
+    localCurrentTrackId?: string;
+    cloudCurrentTrackId?: string;
+    cloudTracks: Track[];
+  }) => void;
 }
 
 export function useLibraryLoad({
@@ -43,7 +52,11 @@ export function useLibraryLoad({
   restoredTimeRef,
   restoredTrackIdRef,
   shouldAutoPlayRef,
-  persistedTimeRef
+  persistedTimeRef,
+  libraryDataSource,
+  cloudTracks,
+  cloudTrackIndex,
+  onLibrarySettingsRestored
 }: UseLibraryLoadOptions) {
   // Helper function to load library data and restore state
   const loadAndRestoreLibrary = async (libraryData: { songs: any[]; settings: any }) => {
@@ -93,6 +106,9 @@ export function useLibraryLoad({
     logger.debug('[LibraryLoad] Loaded tracks:', loadedTracks.length);
 
     const restoredTrackId = libraryData.settings?.currentTrackId;
+    const libraryDataSource = libraryData.settings?.libraryDataSource || 'local';
+    const localCurrentTrackId = libraryData.settings?.localCurrentTrackId;
+    const cloudCurrentTrackId = libraryData.settings?.cloudCurrentTrackId;
     let restoredIndex = -1;
 
     if (restoredTrackId) {
@@ -131,6 +147,14 @@ export function useLibraryLoad({
         logger.warn('[LibraryLoad] Startup cleanup failed:', err);
       });
     }
+
+    // Notify App of restored library settings (for cloud mode restore)
+    onLibrarySettingsRestored?.({
+      libraryDataSource,
+      localCurrentTrackId,
+      cloudCurrentTrackId,
+      cloudTracks: []
+    });
 
     // Validate paths in Desktop mode
     // Only validate tracks that have a filePath (skip tracks imported via File objects)
@@ -186,12 +210,15 @@ export function useLibraryLoad({
       currentTrackId: currentTrack?.id,
       currentTime: persistedTimeRef.current || currentTime,
       isPlaying: isPlaying,
-      playbackMode: playbackMode
+      playbackMode: playbackMode,
+      libraryDataSource,
+      localCurrentTrackId: libraryDataSource === 'local' ? currentTrack?.id : undefined,
+      cloudCurrentTrackId: libraryDataSource === 'cloud' ? cloudTracks[cloudTrackIndex]?.id : undefined
     });
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length);
     libraryStorage.saveLibraryDebounced(libraryData);
-  }, [tracks, volume, currentTrackIndex, isPlaying, currentTrack?.id, playbackMode, currentTime, persistedTimeRef]);
+  }, [tracks, volume, currentTrackIndex, isPlaying, currentTrack?.id, playbackMode, currentTime, persistedTimeRef, libraryDataSource, cloudTracks, cloudTrackIndex]);
 
   useEffect(() => {
     if (!isDesktop()) return;

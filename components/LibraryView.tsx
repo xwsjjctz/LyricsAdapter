@@ -918,8 +918,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 if (dataSource !== 'local') {
                   onFilterTypeChange('default');
                   onCategoryChange(null);
-                  onDataSourceChange('local');
                   onLocalRestore();
+                  onDataSourceChange('local');
                 }
               }}
               className="w-10 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"

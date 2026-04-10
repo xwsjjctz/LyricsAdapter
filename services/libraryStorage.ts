@@ -46,6 +46,10 @@ export interface LibrarySettings {
   currentTime?: number;
   isPlaying?: boolean;
   playbackMode?: 'order' | 'shuffle' | 'repeat-one';
+  // Library view state
+  libraryDataSource?: 'local' | 'cloud';
+  localCurrentTrackId?: string;
+  cloudCurrentTrackId?: string;
   [key: string]: any;
 }
 

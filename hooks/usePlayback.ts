@@ -594,6 +594,7 @@ export function usePlayback({
     restoredTrackIdRef,
     audioUrlReadyRef,
     persistedTimeRef,
-    forcePlayRef
+    forcePlayRef,
+    cloudTrackIndex
   };
 }
