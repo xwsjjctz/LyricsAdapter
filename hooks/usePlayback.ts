@@ -31,6 +31,7 @@ export function usePlayback({
   const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const shouldAutoPlayRef = useRef<boolean>(false);
   const waitingForCanPlayRef = useRef<boolean>(false);
   const prevAudioUrlRef = useRef<string | null>(null);
   const audioUrlReadyRef = useRef<boolean>(false);
@@ -79,8 +80,10 @@ export function usePlayback({
 
     setIsPlaying(prevIsPlaying => {
       if (prevIsPlaying) {
+        shouldAutoPlayRef.current = false;
         audioRef.current?.pause();
       } else {
+        shouldAutoPlayRef.current = true;
         audioRef.current?.play().catch(e => logger.error('Playback failed', e));
       }
       return !prevIsPlaying;
@@ -130,6 +133,7 @@ export function usePlayback({
     if (playbackMode === 'repeat-one') {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
+        shouldAutoPlayRef.current = true;
         audioRef.current.play().catch(() => {
           setIsPlaying(false);
         });
@@ -141,6 +145,7 @@ export function usePlayback({
     const nextIndex = getNextTrackIndex('forward');
     if (nextIndex < 0) return;
 
+    shouldAutoPlayRef.current = true;
     onTrackSwitch?.();
     setCurrentTrackIndex(nextIndex);
   }, [playbackMode, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
@@ -178,6 +183,7 @@ export function usePlayback({
 
   const skipForward = useCallback(() => {
     if (tracks.length === 0) return;
+    shouldAutoPlayRef.current = true;
     onTrackSwitch?.();
     const nextIndex = getNextTrackIndex('forward');
     setCurrentTrackIndex(nextIndex);
@@ -185,6 +191,7 @@ export function usePlayback({
 
   const skipBackward = useCallback(() => {
     if (tracks.length === 0) return;
+    shouldAutoPlayRef.current = true;
     onTrackSwitch?.();
     const nextIndex = getNextTrackIndex('backward');
     setCurrentTrackIndex(nextIndex);
@@ -231,9 +238,11 @@ export function usePlayback({
       audioRef.current.play().then(() => {
         logger.debug('[Playback] ✓ Playback started after canplay');
         setIsPlaying(true);
+        shouldAutoPlayRef.current = false;
       }).catch((e) => {
         logger.debug('[Playback] Playback failed after canplay:', e);
         setIsPlaying(false);
+        shouldAutoPlayRef.current = true;
       });
     }
   }, []);
@@ -249,7 +258,8 @@ export function usePlayback({
       const handleWebdav = async () => {
         if (!currentTrack.webdavPath) return;
         const capturedIndex = currentTrackIndex;
-        logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title);
+        const shouldPlay = shouldAutoPlayRef.current;
+        logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title, 'autoPlay:', shouldPlay);
 
         try {
           const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
@@ -258,8 +268,9 @@ export function usePlayback({
           if (cdnUrl) {
             audioRef.current.src = cdnUrl;
             audioUrlReadyRef.current = true;
-            if (isPlaying) {
+            if (shouldPlay) {
               await audioRef.current.play();
+              shouldAutoPlayRef.current = false;
               setIsPlaying(true);
             } else {
               audioRef.current.pause();
@@ -304,9 +315,10 @@ export function usePlayback({
     audioUrlReadyRef.current = true;
 
     if (currentTrack.audioUrl) {
-      if (isPlaying) {
+      if (shouldAutoPlayRef.current) {
         audioRef.current.play().then(() => {
           logger.debug('[Playback] ✓ Playback started successfully');
+          shouldAutoPlayRef.current = false;
           setIsPlaying(true);
         }).catch((e) => {
           logger.debug('[Playback] Playback failed, waiting for canplay:', e);
@@ -314,7 +326,7 @@ export function usePlayback({
         });
       }
     }
-  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, setTracks, isPlaying]);
+  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, setTracks]);
 
   useEffect(() => {
     if (!currentTrack) return;
@@ -407,6 +419,7 @@ export function usePlayback({
 
     setIsPlaying(false);
     waitingForCanPlayRef.current = false;
+    shouldAutoPlayRef.current = false;
 
     if (currentTrack && audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
       if (currentTrack.source === 'webdav') {
@@ -426,6 +439,7 @@ export function usePlayback({
   }, [currentTrack, setTracks]);
 
   const selectTrack = useCallback((idx: number) => {
+    shouldAutoPlayRef.current = true;
     switchToTrackIndex(idx);
     setIsPlaying(true);
   }, [switchToTrackIndex]);
