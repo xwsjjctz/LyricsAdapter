@@ -247,7 +247,12 @@ const App: React.FC = () => {
     });
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
-  }, [tracks, setTracks, currentTrackIndex, setCurrentTrackIndex, volume, currentTrack, currentTime, isPlaying, playbackMode, persistedTimeRef]);
+  }, [tracks, setTracks, currentTrackIndex, setCurrentTrackIndex, volume, currentTrack, currentTime, isPlaying, playbackMode, persistedTimeRef, libraryDataSource, cloudTracks, cloudTrackIndex]);
+
+  // Handle library scroll position change
+  const handleLibraryScrollPositionChange = useCallback((position: number) => {
+    setLibraryScrollPosition(prev => ({ ...prev, [libraryDataSource]: position }));
+  }, [libraryDataSource]);
 
   // Initialize keyboard shortcuts
   useShortcuts({
@@ -466,7 +471,7 @@ const App: React.FC = () => {
                 inputValue={searchInputValue}
                 searchTrigger={searchTrigger}
                 savedScrollPosition={libraryScrollPosition[libraryDataSource]}
-                onScrollPositionChange={(position) => setLibraryScrollPosition(prev => ({ ...prev, [libraryDataSource]: position }))}
+                onScrollPositionChange={handleLibraryScrollPositionChange}
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
                 onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
