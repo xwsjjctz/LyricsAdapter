@@ -14,6 +14,7 @@ interface UsePlaybackOptions {
   createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
   onTrackSwitch?: () => void;
+  initialCurrentTime?: number;
 }
 
 export function usePlayback({
@@ -23,7 +24,8 @@ export function usePlayback({
   setCurrentTrackIndex,
   createTrackedBlobUrl,
   revokeBlobUrl,
-  onTrackSwitch
+  onTrackSwitch,
+  initialCurrentTime = 0
 }: UsePlaybackOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -38,6 +40,14 @@ export function usePlayback({
   const persistedTimeRef = useRef<number>(0);
   const lastNonZeroVolumeRef = useRef<number>(0.5);
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
+  const restoredTimeRef = useRef<number>(0);
+  const hasRestoredRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (!hasRestoredRef.current && initialCurrentTime > 0) {
+      restoredTimeRef.current = initialCurrentTime;
+    }
+  }, [initialCurrentTime]);
 
   useEffect(() => {
     currentTrackIndexRef.current = currentTrackIndex;
@@ -98,6 +108,16 @@ export function usePlayback({
 
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current && currentTrack) {
+      if (!hasRestoredRef.current && restoredTimeRef.current > 0) {
+        const seekTime = Math.min(restoredTimeRef.current, audioRef.current.duration || Infinity);
+        if (seekTime > 0) {
+          audioRef.current.currentTime = seekTime;
+          setCurrentTime(seekTime);
+          logger.debug('[Playback] Restored time:', seekTime);
+        }
+        hasRestoredRef.current = true;
+        restoredTimeRef.current = 0;
+      }
       if (currentTrack.source !== 'webdav') {
         setTracks(prev => {
           const newTracks = [...prev];

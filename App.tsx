@@ -57,6 +57,7 @@ const App: React.FC = () => {
     updateSlot,
     setActiveTrackIndex,
     setActiveTracks,
+    setActiveCurrentTime,
     setActiveScrollPosition,
     setActiveFilterType,
     setActiveCategorySelection,
@@ -78,7 +79,8 @@ const App: React.FC = () => {
     setCurrentTrackIndex: setActiveTrackIndex,
     createTrackedBlobUrl,
     revokeBlobUrl,
-    onTrackSwitch: handleTrackSwitch
+    onTrackSwitch: handleTrackSwitch,
+    initialCurrentTime: activeSlot.currentTime,
   });
 
   const {
@@ -107,6 +109,20 @@ const App: React.FC = () => {
     selectTrack,
     persistedTimeRef,
   } = playback;
+
+  useEffect(() => {
+    if (currentTime > 0) {
+      setActiveCurrentTime(currentTime);
+    }
+  }, [currentTime, setActiveCurrentTime]);
+
+  useEffect(() => {
+    updateSlot('local', s => s.volume !== volume ? { ...s, volume } : s);
+  }, [volume]);
+
+  useEffect(() => {
+    updateSlot('local', s => s.playbackMode !== playbackMode ? { ...s, playbackMode } : s);
+  }, [playbackMode]);
 
   const {
     fileInputRef,
@@ -148,8 +164,14 @@ const App: React.FC = () => {
     loadCloudTracks,
     setActiveTrackIndex,
     setIsPlaying,
-    setVolume: (v: number) => updateSlot('local', s => ({ ...s, volume: v })),
-    setPlaybackMode: (m: 'order' | 'shuffle' | 'repeat-one') => updateSlot('local', s => ({ ...s, playbackMode: m })),
+    setVolume: (v: number) => {
+      updateSlot('local', s => ({ ...s, volume: v }));
+      setVolume(v);
+    },
+    setPlaybackMode: (m: 'order' | 'shuffle' | 'repeat-one') => {
+      updateSlot('local', s => ({ ...s, playbackMode: m }));
+      setPlaybackMode(m);
+    },
     audioRef,
     persistedTimeRef,
     onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId }) => {
