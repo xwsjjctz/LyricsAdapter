@@ -7,6 +7,7 @@ export interface CoverNeededRange {
 
 export interface BufferParseContext {
   coverNeededRange?: CoverNeededRange;
+  vorbisCommentNeededRange?: CoverNeededRange;
   bufferOffset: number;
 }
 
@@ -366,10 +367,11 @@ function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Pars
       }
     }
 
-    if (!frameAvailable) {
+    if (frameAvailable) {
+      offset += 10 + frameSize;
+    } else {
       break;
     }
-    offset += 10 + frameSize;
   }
 
   return result;
@@ -521,9 +523,15 @@ function parseFLAC(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Parse
         }
       }
     } else if (blockType === 4) {
-      // VORBIS_COMMENT block
-      const comments = parseVorbisComment(blockData);
-      Object.assign(result, comments);
+      if (blockTruncated && ctx) {
+        ctx.vorbisCommentNeededRange = {
+          offset: offset,
+          length: blockSize,
+        };
+      } else {
+        const comments = parseVorbisComment(blockData);
+        Object.assign(result, comments);
+      }
     } else if (blockType === 6) {
       if (!blockTruncated) {
         result.coverUrl = parseFLACPicture(blockData);
@@ -544,7 +552,7 @@ function parseFLAC(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Parse
 }
 
 // Parse VORBIS_COMMENT block
-function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
+export function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata> {
   const result: Partial<ParsedMetadata> = {};
   const view = new DataView(buffer);
   let offset = 0;
@@ -775,7 +783,7 @@ function getAudioDuration(file: File): Promise<number> {
   });
 }
 
-export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange } {
+export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange; vorbisCommentNeededRange?: CoverNeededRange } {
   const ctx: BufferParseContext = { bufferOffset: 0 };
   const lowerName = fileName.toLowerCase();
   let result: Partial<ParsedMetadata> = {};
@@ -786,7 +794,7 @@ export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): 
   } else if (lowerName.endsWith('.flac')) {
     result = parseFLAC(buffer, ctx);
   }
-  return { ...result, coverNeededRange: ctx.coverNeededRange };
+  return { ...result, coverNeededRange: ctx.coverNeededRange, vorbisCommentNeededRange: ctx.vorbisCommentNeededRange };
 }
 
 export function parseCoverFromRange(buffer: ArrayBuffer, fileName: string, rangeOffset: number): string {

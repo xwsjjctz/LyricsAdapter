@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Track } from '../types';
 import { webdavClient, WebDAVFile } from '../services/webdavClient';
-import { parseMetadataFromBuffer, parseCoverFromRange } from '../services/metadataService';
+import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
 
 const METADATA_CACHE_KEY = 'webdav-metadata-cache';
@@ -117,6 +117,20 @@ export const useWebDAV = () => {
 
     const parsed = parseMetadataFromBuffer(buffer, file.name);
     const { artist, title } = parseArtistTitleFromFilename(file.name);
+
+    if (parsed.vorbisCommentNeededRange) {
+      const { offset: vcOffset, length: vcLength } = parsed.vorbisCommentNeededRange;
+      logger.info('[useWebDAV] VORBIS_COMMENT truncated, fetching range:', vcOffset, '-', vcOffset + vcLength);
+      const vcBuffer = await webdavClient.fetchFileRange(file.path, vcOffset, vcOffset + vcLength);
+      if (vcBuffer) {
+        const vcResult = parseVorbisComment(vcBuffer);
+        if (vcResult.title) parsed.title = vcResult.title;
+        if (vcResult.artist) parsed.artist = vcResult.artist;
+        if (vcResult.album) parsed.album = vcResult.album;
+        if (vcResult.lyrics) parsed.lyrics = vcResult.lyrics;
+        if (vcResult.syncedLyrics) parsed.syncedLyrics = vcResult.syncedLyrics;
+      }
+    }
 
     let coverUrl = parsed.coverUrl || '';
     if (!coverUrl && parsed.coverNeededRange) {
