@@ -53,9 +53,6 @@ class IndexedDBStorageService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Set flag BEFORE async operation to prevent race condition from concurrent calls
-    this.initialized = true;
-
     try {
       logger.debug('[IndexedDB] Opening database...');
       this.db = await openDB<LyricsAdapterDB>(STORAGE.DB_NAME, STORAGE.DB_VERSION, {
@@ -84,19 +81,27 @@ class IndexedDBStorageService {
             }
           }
         },
+        blocked() {
+          logger.warn('[IndexedDB] Database blocked by another tab');
+        },
+        blocking() {
+          logger.warn('[IndexedDB] Database blocking another tab');
+        },
+        terminated() {
+          logger.error('[IndexedDB] Database terminated unexpectedly');
+          this.initialized = false;
+        },
       });
-
-      logger.debug('[IndexedDB] ✓ Database opened successfully');
+      this.initialized = true;
+      logger.debug('[IndexedDB] ✓ Database ready');
     } catch (error) {
-      this.initialized = false; // Reset on failure
-      logger.error('[IndexedDB] ✗ Failed to open database:', error);
+      logger.error('[IndexedDB] Failed to open database:', error);
+      this.initialized = false;
+      this.db = null;
       throw error;
     }
   }
 
-  /**
-   * Ensure database is initialized before operations
-   */
   private async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
       await this.initialize();

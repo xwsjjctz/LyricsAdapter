@@ -105,6 +105,7 @@ export const useWebDAV = () => {
     const buffer = await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
     logger.info('[useWebDAV] fetchFileRange for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null');
     if (!buffer) {
+      logger.warn('[useWebDAV] fetchFileRange returned null for', file.name, '- falling back to filename');
       return {
         ...parseArtistTitleFromFilename(file.name),
         album: 'Unknown Album',
@@ -116,6 +117,7 @@ export const useWebDAV = () => {
     }
 
     const parsed = parseMetadataFromBuffer(buffer, file.name);
+    logger.info('[useWebDAV] parseMetadataFromBuffer for', file.name, '→ album:', parsed.album, 'lyrics:', parsed.lyrics ? 'found' : 'none', 'vcTruncated:', !!parsed.vorbisCommentNeededRange);
     const { artist, title } = parseArtistTitleFromFilename(file.name);
 
     if (parsed.vorbisCommentNeededRange) {
@@ -123,12 +125,16 @@ export const useWebDAV = () => {
       logger.info('[useWebDAV] VORBIS_COMMENT truncated, fetching range:', vcOffset, '-', vcOffset + vcLength);
       const vcBuffer = await webdavClient.fetchFileRange(file.path, vcOffset, vcOffset + vcLength);
       if (vcBuffer) {
+        logger.info('[useWebDAV] VORBIS_COMMENT refetch got', vcBuffer.byteLength, 'bytes');
         const vcResult = parseVorbisComment(vcBuffer);
         if (vcResult.title) parsed.title = vcResult.title;
         if (vcResult.artist) parsed.artist = vcResult.artist;
         if (vcResult.album) parsed.album = vcResult.album;
         if (vcResult.lyrics) parsed.lyrics = vcResult.lyrics;
         if (vcResult.syncedLyrics) parsed.syncedLyrics = vcResult.syncedLyrics;
+        logger.info('[useWebDAV] After VORBIS_COMMENT refetch:', parsed.album, parsed.lyrics ? 'lyrics found' : 'no lyrics');
+      } else {
+        logger.warn('[useWebDAV] VORBIS_COMMENT refetch returned null for', file.name);
       }
     }
 
