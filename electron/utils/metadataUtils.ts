@@ -48,18 +48,22 @@ export function createVorbisComment(comments: string[]): Buffer {
   const vendor = 'LyricsAdapter';
   const vendorBuffer = Buffer.from(vendor, 'utf-8');
 
+  const vendorLen = Buffer.alloc(4);
+  vendorLen.writeUInt32LE(vendorBuffer.length, 0);
+
   const commentDataBuffers: Buffer[] = [];
   for (const comment of comments) {
     const commentBuffer = Buffer.from(comment, 'utf-8');
     const lenBuf = Buffer.alloc(4);
-    lenBuf.writeUInt32BE(commentBuffer.length, 0);
+    lenBuf.writeUInt32LE(commentBuffer.length, 0);
     commentDataBuffers.push(Buffer.concat([lenBuf, commentBuffer]));
   }
 
   const countBuffer = Buffer.alloc(4);
-  countBuffer.writeUInt32BE(comments.length, 0);
+  countBuffer.writeUInt32LE(comments.length, 0);
 
   const commentsData = Buffer.concat([
+    vendorLen,
     vendorBuffer,
     countBuffer,
     ...commentDataBuffers
@@ -81,10 +85,8 @@ export function createPictureBlock(imageBuffer: Buffer): Buffer {
   mimeLen.writeUInt32BE(mimeStr.length, 0);
   const mimeBuffer = Buffer.from(mimeStr, 'utf-8');
 
-  const descStr = '';
   const descLen = Buffer.alloc(4);
-  descLen.writeUInt32BE(descStr.length, 0);
-  const descBuffer = Buffer.from(descStr, 'utf-8');
+  descLen.writeUInt32BE(0, 0);
 
   const width = Buffer.alloc(4);
   width.writeUInt32BE(0, 0);
@@ -95,16 +97,19 @@ export function createPictureBlock(imageBuffer: Buffer): Buffer {
   const colors = Buffer.alloc(4);
   colors.writeUInt32BE(0, 0);
 
+  const picDataLen = Buffer.alloc(4);
+  picDataLen.writeUInt32BE(imageBuffer.length, 0);
+
   const pictureData = Buffer.concat([
     pictureType,
     mimeLen,
     mimeBuffer,
     descLen,
-    descBuffer,
     width,
     height,
     depth,
     colors,
+    picDataLen,
     imageBuffer
   ]);
 
