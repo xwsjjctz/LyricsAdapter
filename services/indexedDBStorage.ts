@@ -56,6 +56,14 @@ interface LyricsAdapterDB extends DBSchema {
     key: string;
     value: string;
   };
+  webdavFileListSnapshot: {
+    key: string;
+    value: {
+      key: string;
+      size: number;
+      lastModified: string;
+    };
+  };
 }
 
 class IndexedDBStorageService {
@@ -100,6 +108,13 @@ class IndexedDBStorageService {
             if (!db.objectStoreNames.contains('webdavMetadata')) {
               db.createObjectStore('webdavMetadata', { keyPath: 'key' });
               logger.debug('[IndexedDB] Created webdavMetadata store');
+            }
+          }
+
+          if (oldVersion < 4) {
+            if (!db.objectStoreNames.contains('webdavFileListSnapshot')) {
+              db.createObjectStore('webdavFileListSnapshot', { keyPath: 'key' });
+              logger.debug('[IndexedDB] Created webdavFileListSnapshot store');
             }
           }
         },
@@ -337,6 +352,56 @@ class IndexedDBStorageService {
       logger.debug('[IndexedDB] Cleared all webdav metadata');
     } catch (error) {
       logger.error('[IndexedDB] Failed to clear webdav metadata:', error);
+    }
+  }
+
+  // ========== WebDAV File List Snapshot Operations ==========
+
+  async getFileListSnapshot(): Promise<Record<string, { size: number; lastModified: string }> | null> {
+    await this.ensureInitialized();
+    if (!this.db) return null;
+
+    try {
+      const results = await this.db.getAll('webdavFileListSnapshot');
+      if (results.length === 0) return null;
+      const entries: Record<string, { size: number; lastModified: string }> = {};
+      for (const result of results) {
+        const { key, ...data } = result;
+        entries[key] = data;
+      }
+      return entries;
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to get file list snapshot:', error);
+      return null;
+    }
+  }
+
+  async setFileListSnapshot(snapshot: Record<string, { size: number; lastModified: string }>): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      const tx = this.db.transaction('webdavFileListSnapshot', 'readwrite');
+      await tx.store.clear();
+      for (const [key, data] of Object.entries(snapshot)) {
+        await tx.store.put({ key, ...data });
+      }
+      await tx.done;
+      logger.debug('[IndexedDB] ✓ Saved file list snapshot (' + Object.keys(snapshot).length + ' files)');
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to save file list snapshot:', error);
+    }
+  }
+
+  async clearFileListSnapshot(): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      await this.db.clear('webdavFileListSnapshot');
+      logger.debug('[IndexedDB] Cleared file list snapshot');
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to clear file list snapshot:', error);
     }
   }
 

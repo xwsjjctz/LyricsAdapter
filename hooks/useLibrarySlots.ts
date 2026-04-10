@@ -122,6 +122,39 @@ export function useLibrarySlots() {
     }));
   }, []);
 
+  const mergeCloudTracks = useCallback((added: Track[], removedIds: string[], updated: Track[]) => {
+    setSlots(prev => {
+      const cloud = prev.cloud;
+      const removedSet = new Set(removedIds);
+      const updatedMap = new Map(updated.map(t => [t.id, t]));
+      const currentPlayingId = cloud.currentTrackIndex >= 0 && cloud.currentTrackIndex < cloud.tracks.length
+        ? cloud.tracks[cloud.currentTrackIndex].id
+        : null;
+
+      const filtered = cloud.tracks.filter(t => {
+        if (!removedSet.has(t.id)) return true;
+        if (t.id === currentPlayingId) return true;
+        return false;
+      }).map(t => {
+        if (removedSet.has(t.id) && t.id === currentPlayingId) {
+          return { ...t, available: false };
+        }
+        if (updatedMap.has(t.id)) {
+          return updatedMap.get(t.id)!;
+        }
+        return t;
+      });
+
+      const existingIds = new Set(filtered.map(t => t.id));
+      const newAdded = added.filter(t => !existingIds.has(t.id));
+
+      return {
+        ...prev,
+        cloud: { ...cloud, tracks: [...filtered, ...newAdded] },
+      };
+    });
+  }, []);
+
   const updateLocalTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
     setSlots(prev => {
       const newTracks = typeof updater === 'function' ? updater(prev.local.tracks) : updater;
@@ -204,6 +237,7 @@ export function useLibrarySlots() {
     setActiveFilterType,
     setActiveCategorySelection,
     loadCloudTracks,
+    mergeCloudTracks,
     updateLocalTracks,
     getPersistenceData,
     restoreFromPersistence,

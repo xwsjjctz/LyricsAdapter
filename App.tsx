@@ -62,6 +62,7 @@ const App: React.FC = () => {
     setActiveFilterType,
     setActiveCategorySelection,
     loadCloudTracks,
+    mergeCloudTracks,
     updateLocalTracks,
     getPersistenceData,
     restoreFromPersistence,
@@ -473,6 +474,7 @@ const App: React.FC = () => {
                 onFilterTypeChange={setActiveFilterType}
                 onCategoryChange={setActiveCategorySelection}
                 onLoadCloudTracks={loadCloudTracks}
+                onMergeCloudTracks={mergeCloudTracks}
                 cloudTracks={slots.cloud.tracks}
               />
             )}

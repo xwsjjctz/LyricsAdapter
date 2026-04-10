@@ -6,7 +6,7 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import { webdavClient } from '../services/webdavClient';
-import { useWebDAV } from '../hooks/useWebDAV';
+import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
 import { notify } from '../services/notificationService';
 import TrackCover from './TrackCover';
 
@@ -36,6 +36,7 @@ interface LibraryViewProps {
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
   onCategoryChange: (selection: string | null) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
+  onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
   cloudTracks: Track[];
 }
 
@@ -65,6 +66,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onFilterTypeChange,
   onCategoryChange,
   onLoadCloudTracks,
+  onMergeCloudTracks,
   cloudTracks,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -85,13 +87,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [scrollTop, setScrollTop] = useState(0);
   const { isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad, clearWebdavCache, forceReload } = useWebDAV();
 
+  const applyDiffResult = useCallback((result: WebDAVDiffResult) => {
+    if (result.type === 'full') {
+      onLoadCloudTracks(result.tracks);
+    } else {
+      onMergeCloudTracks(result.added, result.removed, result.updated);
+    }
+  }, [onLoadCloudTracks, onMergeCloudTracks]);
+
   // Auto-load WebDAV on startup if dataSource is 'cloud'
   useEffect(() => {
     if (dataSource === 'cloud' && cloudTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
       (async () => {
         try {
-          const loadedTracks = await loadWebDAVFiles();
-          onLoadCloudTracks(loadedTracks);
+          const result = await loadWebDAVFiles();
+          applyDiffResult(result);
         } catch (err) {
           logger.warn('[LibraryView] Auto WebDAV load failed:', err);
         }
@@ -107,15 +117,28 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       onLoadCloudTracks([]);
       setTimeout(() => {
         if (webdavClient.hasConfig()) {
-          loadWebDAVFiles().then(tracks => {
-            if (tracks.length > 0) {
-              onLoadCloudTracks(tracks);
-            }
+          loadWebDAVFiles().then(result => {
+            applyDiffResult(result);
           });
         }
       }, 50);
     };
-  }, [clearWebdavCache, onLoadCloudTracks, loadWebDAVFiles]);
+    (window as any).sync_webdav = () => {
+      if (!webdavClient.hasConfig()) {
+        logger.warn('[LibraryView] WebDAV not configured');
+        return;
+      }
+      loadWebDAVFiles().then(result => {
+        if (result.type === 'full') {
+          logger.info('[LibraryView] sync_webdav: full load, ' + result.tracks.length + ' tracks');
+          onLoadCloudTracks(result.tracks);
+        } else {
+          logger.info('[LibraryView] sync_webdav: diff — added=' + result.added.length + ' removed=' + result.removed.length + ' updated=' + result.updated.length);
+          onMergeCloudTracks(result.added, result.removed, result.updated);
+        }
+      });
+    };
+  }, [clearWebdavCache, onLoadCloudTracks, onMergeCloudTracks, loadWebDAVFiles, applyDiffResult]);
 
   const displayTracks = tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -973,8 +996,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 }
                 onDataSourceChange('cloud');
                 if (cloudTracks.length === 0) {
-                  const loadedTracks = await loadWebDAVFiles();
-                  onLoadCloudTracks(loadedTracks);
+                  const result = await loadWebDAVFiles();
+                  applyDiffResult(result);
                 }
               }}
               className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
