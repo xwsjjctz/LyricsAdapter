@@ -419,13 +419,13 @@ export function usePlayback({
 
     setIsPlaying(false);
     waitingForCanPlayRef.current = false;
-    shouldAutoPlayRef.current = false;
 
     if (currentTrack && audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
       if (currentTrack.source === 'webdav') {
         logger.warn('[Playback] CDN URL not supported, retrying with fresh URL');
         webdavClient.clearCdnCache();
       } else {
+        logger.warn('[Playback] Blob URL revoked, re-loading audio file');
         setTracks(prev => {
           const newTracks = [...prev];
           const idx = newTracks.findIndex(t => t.id === currentTrack.id);
@@ -435,6 +435,8 @@ export function usePlayback({
           return newTracks;
         });
       }
+    } else {
+      shouldAutoPlayRef.current = false;
     }
   }, [currentTrack, setTracks]);
 
