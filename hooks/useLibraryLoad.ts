@@ -11,6 +11,7 @@ interface UseLibraryLoadOptions {
   getPersistenceData: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
   slots: Record<'local' | 'cloud', LibrarySlot>;
   setLocalTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
+  loadCloudTracks: (tracks: Track[]) => void;
   setActiveTrackIndex: (index: number | ((prev: number) => number)) => void;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setVolume: (volume: number) => void;
@@ -25,6 +26,7 @@ export function useLibraryLoad({
   getPersistenceData,
   slots,
   setLocalTracks,
+  loadCloudTracks,
   setActiveTrackIndex,
   setIsPlaying,
   setVolume,
@@ -35,8 +37,8 @@ export function useLibraryLoad({
 }: UseLibraryLoadOptions) {
   const isFirstLoadRef = useRef(true);
 
-  const loadAndRestoreLibrary = async (libraryData: { songs: any[]; settings: any }) => {
-    logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0);
+  const loadAndRestoreLibrary = async (libraryData: { songs: any[]; cloudSongs?: any[]; settings: any }) => {
+    logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0, 'cloud songs:', libraryData.cloudSongs?.length || 0);
 
     const settings = libraryData.settings || {};
     const loadedTracks: Track[] = (libraryData.songs || []).map((song: any) => {
@@ -65,6 +67,33 @@ export function useLibraryLoad({
     });
 
     restoreFromPersistence(settings, loadedTracks);
+
+    if (libraryData.cloudSongs && libraryData.cloudSongs.length > 0) {
+      const restoredCloudTracks: Track[] = libraryData.cloudSongs.map((song: any) => {
+        const fileName = song.fileName || '';
+        const fallbackTitle = song.title || fileName.replace(/\.[^/.]+$/, '');
+        return {
+          id: song.id,
+          title: fallbackTitle,
+          artist: song.artist || 'Unknown Artist',
+          album: song.album || 'Unknown Album',
+          duration: song.duration || 0,
+          lyrics: song.lyrics || '',
+          syncedLyrics: song.syncedLyrics,
+          coverUrl: song.coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
+          audioUrl: '',
+          source: 'webdav' as const,
+          webdavPath: song.webdavPath,
+          fileName: song.fileName,
+          fileSize: song.fileSize,
+          lastModified: song.lastModified,
+          playCount: song.playCount,
+          lastPlayed: song.lastPlayed || undefined,
+        } as Track;
+      });
+      loadCloudTracks(restoredCloudTracks);
+      logger.debug('[LibraryLoad] Restored', restoredCloudTracks.length, 'cloud tracks from disk');
+    }
 
     const activeSource = settings.activeSlotId || settings.activeDataSource || 'local';
     const slotData = settings.localSlot || settings.cloudSlot ? settings : null;
@@ -140,11 +169,11 @@ export function useLibraryLoad({
     if (isFirstLoadRef.current) return;
 
     const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexData(slots.local.tracks, persistData);
+    const libraryData = buildLibraryIndexData(slots.local.tracks, persistData, slots.cloud.tracks);
 
-    logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length);
+    logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.cloud.currentTrackIndex, slots.local.volume, slots.local.playbackMode]);
+  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.cloud.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks]);
 
   useEffect(() => {
     if (!isDesktop()) return;
@@ -166,7 +195,7 @@ export function useLibraryLoad({
   useEffect(() => {
     const handleBeforeUnload = async () => {
       const persistData = getPersistenceData();
-      const libraryData = buildLibraryIndexData(slots.local.tracks, persistData);
+      const libraryData = buildLibraryIndexData(slots.local.tracks, persistData, slots.cloud.tracks);
 
       logger.debug('[LibraryLoad] Saving library before quit');
       await libraryStorage.saveLibrary(libraryData);
@@ -177,5 +206,5 @@ export function useLibraryLoad({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [slots.local.tracks, getPersistenceData]);
+  }, [slots.local.tracks, slots.cloud.tracks, getPersistenceData]);
 }

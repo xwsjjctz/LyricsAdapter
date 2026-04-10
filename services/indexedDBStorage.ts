@@ -33,6 +33,21 @@ interface LyricsAdapterDB extends DBSchema {
       lastModified: number;
     };
   };
+  webdavMetadata: {
+    key: string;
+    value: {
+      key: string;
+      title: string;
+      artist: string;
+      album: string;
+      coverUrl: string;
+      duration: number;
+      lyrics?: string;
+      syncedLyrics?: { time: number; text: string }[];
+      fileSize: number;
+      lastModified: string;
+    };
+  };
   library: {
     key: string;
     value: LibraryData | LibraryIndexData;
@@ -78,6 +93,13 @@ class IndexedDBStorageService {
               logger.debug('[IndexedDB] Removed covers store (v2 migration)');
             } catch {
               // Store may not exist, ignore
+            }
+          }
+
+          if (oldVersion < 3) {
+            if (!db.objectStoreNames.contains('webdavMetadata')) {
+              db.createObjectStore('webdavMetadata', { keyPath: 'key' });
+              logger.debug('[IndexedDB] Created webdavMetadata store');
             }
           }
         },
@@ -257,6 +279,64 @@ class IndexedDBStorageService {
       logger.debug('[IndexedDB] ✓ Cleared all metadata');
     } catch (error) {
       logger.error('[IndexedDB] Failed to clear metadata:', error);
+    }
+  }
+
+  // ========== WebDAV Metadata Operations ==========
+
+  async getWebdavMetadata(filePath: string): Promise<any | null> {
+    await this.ensureInitialized();
+    if (!this.db) return null;
+
+    try {
+      const result = await this.db.get('webdavMetadata', filePath);
+      if (!result) return null;
+      const { key, ...metadata } = result;
+      return metadata;
+    } catch (error) {
+      logger.error(`[IndexedDB] Failed to get webdav metadata for ${filePath}:`, error);
+      return null;
+    }
+  }
+
+  async setWebdavMetadata(filePath: string, metadata: any): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      await this.db.put('webdavMetadata', { key: filePath, ...metadata });
+    } catch (error) {
+      logger.error(`[IndexedDB] Failed to save webdav metadata for ${filePath}:`, error);
+    }
+  }
+
+  async getAllWebdavMetadata(): Promise<Record<string, any>> {
+    await this.ensureInitialized();
+    if (!this.db) return {};
+
+    try {
+      const results = await this.db.getAll('webdavMetadata');
+      const entries: Record<string, any> = {};
+      for (const result of results) {
+        const { key, ...metadata } = result;
+        entries[key] = metadata;
+      }
+      return entries;
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to get all webdav metadata:', error);
+      return {};
+    }
+  }
+
+  async clearWebdavMetadata(): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      await this.db.clear('webdavMetadata');
+      logger.debug('[IndexedDB] Cleared all webdav metadata');
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to clear webdav metadata:', error);
     }
   }
 

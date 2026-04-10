@@ -29,10 +29,13 @@ export interface LibraryIndexSong {
   playCount?: number;
   lastPlayed?: string | null;
   available?: boolean;
+  source?: 'local' | 'webdav';
+  webdavPath?: string;
 }
 
 export interface LibraryIndexData {
   songs: LibraryIndexSong[];
+  cloudSongs?: LibraryIndexSong[];
   settings: LibrarySettings;
 }
 

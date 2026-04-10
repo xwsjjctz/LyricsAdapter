@@ -3,10 +3,10 @@ import { Track } from '../types';
 import { webdavClient, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
+import { indexedDBStorage } from '../services/indexedDBStorage';
 
-const METADATA_CACHE_KEY = 'webdav-metadata-cache';
-const BATCH_SIZE = 5;
-const RANGE_SIZE = 524288;
+const BATCH_SIZE = 10;
+const RANGE_SIZE = 1048576;
 
 async function blobUrlToDataUrl(blobUrl: string): Promise<string> {
   if (!blobUrl || !blobUrl.startsWith('blob:')) return blobUrl;
@@ -75,25 +75,25 @@ export const useWebDAV = () => {
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const abortRef = useRef(false);
 
-  const loadMetadataCache = (): Map<string, CachedMetadata> => {
+  const loadMetadataCache = async (): Promise<Map<string, CachedMetadata>> => {
     try {
-      const saved = localStorage.getItem(METADATA_CACHE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as Record<string, CachedMetadata>;
-        return new Map(Object.entries(parsed));
-      }
+      await indexedDBStorage.initialize();
+      const entries = await indexedDBStorage.getAllWebdavMetadata();
+      return new Map(Object.entries(entries));
     } catch (e) {
-      logger.error('[useWebDAV] Failed to load metadata cache:', e);
+      logger.error('[useWebDAV] Failed to load metadata cache from IndexedDB:', e);
+      return new Map();
     }
-    return new Map();
   };
 
-  const saveMetadataCache = (cache: Map<string, CachedMetadata>) => {
+  const saveMetadataCache = async (cache: Map<string, CachedMetadata>) => {
     try {
-      const obj = Object.fromEntries(cache);
-      localStorage.setItem(METADATA_CACHE_KEY, JSON.stringify(obj));
+      await indexedDBStorage.initialize();
+      for (const [key, value] of cache) {
+        await indexedDBStorage.setWebdavMetadata(key, value);
+      }
     } catch (e) {
-      logger.error('[useWebDAV] Failed to save metadata cache:', e);
+      logger.error('[useWebDAV] Failed to save metadata cache to IndexedDB:', e);
     }
   };
 
@@ -195,7 +195,7 @@ export const useWebDAV = () => {
       const placeholderTracks = audioFiles.map(fileToPlaceholderTrack);
       setWebdavTracks(placeholderTracks);
 
-      const metadataCache = loadMetadataCache();
+      const metadataCache = await loadMetadataCache();
       const toFetch: { file: WebDAVFile; index: number }[] = [];
 
       for (let i = 0; i < audioFiles.length; i++) {
@@ -244,8 +244,9 @@ export const useWebDAV = () => {
         }
 
         setWebdavTracks([...placeholderTracks]);
-        saveMetadataCache(metadataCache);
       }
+
+      await saveMetadataCache(metadataCache);
 
       setLoadProgress(null);
       const finalTracks = [...placeholderTracks];
@@ -260,8 +261,13 @@ export const useWebDAV = () => {
     }
   }, []);
 
-  const clearWebdavCache = useCallback(() => {
-    localStorage.removeItem(METADATA_CACHE_KEY);
+  const clearWebdavCache = useCallback(async () => {
+    try {
+      await indexedDBStorage.initialize();
+      await indexedDBStorage.clearWebdavMetadata();
+    } catch (e) {
+      logger.warn('[useWebDAV] Failed to clear IndexedDB cache:', e);
+    }
     webdavClient.clearCdnCache();
     setWebdavTracks([]);
     logger.info('[useWebDAV] Cache cleared');

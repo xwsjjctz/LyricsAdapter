@@ -33,7 +33,7 @@ export const STORAGE = {
   DB_NAME: 'lyrics-adapter-db',
 
   /** IndexedDB database version */
-  DB_VERSION: 2,
+  DB_VERSION: 3,
 } as const;
 
 /**

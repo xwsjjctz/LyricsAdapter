@@ -145,6 +145,7 @@ const App: React.FC = () => {
     getPersistenceData,
     slots,
     setLocalTracks: updateLocalTracks,
+    loadCloudTracks,
     setActiveTrackIndex,
     setIsPlaying,
     setVolume: (v: number) => updateSlot('local', s => ({ ...s, volume: v })),
