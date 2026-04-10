@@ -159,7 +159,7 @@ export async function writeFlacMetadata(
     let isLastBlock = false;
     let blockCount = 0;
 
-    while (!isLastBlock && pos < fileData.length) {
+    while (!isLastBlock && pos < fileData.length - 4) {
       const blockHeader = fileData[pos];
       isLastBlock = (blockHeader & 0x80) !== 0;
       const blockType = blockHeader & 0x7F;
