@@ -300,6 +300,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return () => clearTimeout(timer);
   }, [isFirstLoad, currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, savedScrollPosition]);
 
+  // Restore scroll position when switching between local/cloud
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    scrollContainerRef.current.scrollTop = savedScrollPosition;
+    setScrollTop(savedScrollPosition);
+  }, [dataSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Save scroll position on unmount
   useEffect(() => {
     return () => {

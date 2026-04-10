@@ -158,8 +158,12 @@ const App: React.FC = () => {
     },
   });
 
+  const lastScrollPositionRef = useRef<number>(0);
+
   const handleSwitchSlot = useCallback((targetSlot: 'local' | 'cloud') => {
     if (targetSlot === activeSlotId) return;
+
+    setActiveScrollPosition(lastScrollPositionRef.current);
 
     if (audioRef.current && isPlaying) {
       audioRef.current.pause();
@@ -167,7 +171,12 @@ const App: React.FC = () => {
     }
 
     switchTo(targetSlot);
-  }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo]);
+  }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo, setActiveScrollPosition]);
+
+  const handleLibraryScrollPositionChange = useCallback((position: number) => {
+    lastScrollPositionRef.current = position;
+    setActiveScrollPosition(position);
+  }, [setActiveScrollPosition]);
 
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
@@ -219,10 +228,6 @@ const App: React.FC = () => {
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
   }, [activeTracks, activeTrackIndex, setActiveTracks, setActiveTrackIndex, activeSlotId, slots.local.tracks, getPersistenceData]);
-
-  const handleLibraryScrollPositionChange = useCallback((position: number) => {
-    setActiveScrollPosition(position);
-  }, [setActiveScrollPosition]);
 
   useShortcuts({
     viewMode,
