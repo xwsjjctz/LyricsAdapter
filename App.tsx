@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Track, ViewMode } from './types';
+import { Track, ViewMode, PlaybackContext } from './types';
 import { getDesktopAPIAsync, getDesktopAPI, isDesktop, type DesktopAPI } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { libraryStorage } from './services/libraryStorage';
@@ -106,7 +106,11 @@ const App: React.FC = () => {
     restoredTimeRef,
     restoredTrackIdRef,
     persistedTimeRef,
-    cloudTrackIndex
+    cloudTrackIndex,
+    savePlaybackContext,
+    restorePlaybackContext,
+    getPlaybackContexts,
+    setPlaybackContexts
   } = playback;
 
   const {
@@ -170,7 +174,9 @@ const App: React.FC = () => {
           pendingCloudRestoreRef.current = cloudCurrentTrackId;
         }
       }
-    }
+    },
+    setPlaybackContexts,
+    getPlaybackContexts
   });
 
   // Handle download completion from BrowseView
@@ -479,7 +485,25 @@ const App: React.FC = () => {
                 dataSource={libraryDataSource}
                 filterType={libraryFilterType}
                 categorySelection={libraryCategorySelection}
-                onDataSourceChange={setLibraryDataSource}
+                onDataSourceChange={(newSource: 'local' | 'cloud') => {
+                  if (newSource === libraryDataSource) return;
+                  const oldSource = libraryDataSource;
+
+                  // 1. Save current playback to old source's context
+                  savePlaybackContext(oldSource);
+
+                  // 2. Pause if playing
+                  if (audioRef.current && isPlaying) {
+                    audioRef.current.pause();
+                    setIsPlaying(false);
+                  }
+
+                  // 3. Switch data source
+                  setLibraryDataSource(newSource);
+
+                  // 4. Restore new source's context (no auto-play)
+                  restorePlaybackContext(newSource);
+                }}
                 onFilterTypeChange={setLibraryFilterType}
                 onCategoryChange={setLibraryCategorySelection}
                 webdavTracks={webdavTracks}
@@ -494,7 +518,7 @@ const App: React.FC = () => {
                     pendingCloudRestoreRef.current = null;
                     const restoreIndex = webdavTracks.findIndex(t => t.id === restoreId);
                     if (restoreIndex >= 0) {
-                      setCloudTrack(restoreIndex);
+                      setCloudTrack(restoreIndex, false);
                     }
                   }
                   if (!localTracksBackup) {

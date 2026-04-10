@@ -3,7 +3,7 @@
  * 处理与 Electron 主进程的通信，实现数据的读写和验证
  */
 
-import { Track } from '../types';
+import { Track, PlaybackContext } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
 
@@ -40,16 +40,17 @@ export interface LibrarySettings {
   volume?: number;
   autoScroll?: boolean;
   theme?: string;
-  // 播放状态
   currentTrackIndex?: number;
   currentTrackId?: string;
   currentTime?: number;
   isPlaying?: boolean;
   playbackMode?: 'order' | 'shuffle' | 'repeat-one';
-  // Library view state
   libraryDataSource?: 'local' | 'cloud';
   localCurrentTrackId?: string;
   cloudCurrentTrackId?: string;
+  activeDataSource?: 'local' | 'cloud';
+  localPlaybackContext?: PlaybackContext;
+  cloudPlaybackContext?: PlaybackContext;
   [key: string]: any;
 }
 

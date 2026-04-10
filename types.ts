@@ -33,6 +33,15 @@ export interface SyncedLyricLine {
   text: string;
 }
 
+export interface PlaybackContext {
+  trackIndex: number;
+  trackId?: string;
+  currentTime: number;
+  volume: number;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  isPlaying: boolean;
+}
+
 export enum ViewMode {
   PLAYER = 'player',
   LYRICS = 'lyrics',

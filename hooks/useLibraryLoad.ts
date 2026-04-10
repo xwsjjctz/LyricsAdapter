@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Track } from '../types';
+import { useEffect, useRef } from 'react';
+import { Track, PlaybackContext } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
@@ -33,7 +33,13 @@ interface UseLibraryLoadOptions {
     cloudCurrentTrackId?: string;
     cloudTracks: Track[];
   }) => void;
+  setPlaybackContexts: (localCtx: PlaybackContext, cloudCtx: PlaybackContext) => void;
+  getPlaybackContexts: () => { localPlaybackContext: PlaybackContext; cloudPlaybackContext: PlaybackContext };
 }
+
+const DEFAULT_CONTEXT: PlaybackContext = {
+  trackIndex: -1, currentTime: 0, volume: 0.5, playbackMode: 'order', isPlaying: false
+};
 
 export function useLibraryLoad({
   tracks,
@@ -56,28 +62,44 @@ export function useLibraryLoad({
   libraryDataSource,
   cloudTracks,
   cloudTrackIndex,
-  onLibrarySettingsRestored
+  onLibrarySettingsRestored,
+  setPlaybackContexts,
+  getPlaybackContexts
 }: UseLibraryLoadOptions) {
-  // Helper function to load library data and restore state
+  const isFirstLoadRef = useRef(true);
+
   const loadAndRestoreLibrary = async (libraryData: { songs: any[]; settings: any }) => {
-    logger.debug('[LibraryLoad] Library data loaded:', libraryData);
     logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0);
 
-    if (libraryData.settings?.volume !== undefined) {
-      setVolume(libraryData.settings.volume);
+    // Migration: if no playback contexts exist, create them from legacy fields
+    const settings = libraryData.settings || {};
+    if (!settings.localPlaybackContext && !settings.cloudPlaybackContext) {
+      logger.info('[LibraryLoad] Migrating legacy playback state to independent contexts');
+      settings.localPlaybackContext = {
+        trackIndex: settings.currentTrackIndex ?? -1,
+        trackId: settings.currentTrackId,
+        currentTime: settings.currentTime ?? 0,
+        volume: settings.volume ?? 0.5,
+        playbackMode: settings.playbackMode ?? 'order',
+        isPlaying: false
+      };
+      settings.cloudPlaybackContext = { ...DEFAULT_CONTEXT };
+      settings.activeDataSource = settings.activeDataSource || 'local';
     }
 
-    if (libraryData.settings?.playbackMode) {
-      setPlaybackMode(libraryData.settings.playbackMode);
+    if (settings.volume !== undefined) {
+      setVolume(settings.volume);
+    }
+    if (settings.playbackMode) {
+      setPlaybackMode(settings.playbackMode);
     }
 
-    if (libraryData.songs && libraryData.songs.length > 0) {
-      logger.debug('[LibraryLoad] Found', libraryData.songs.length, 'songs in library index');
-    } else {
-      logger.warn('[LibraryLoad] No songs found in library data');
-    }
+    // Load playback contexts into usePlayback's refs
+    const localCtx: PlaybackContext = settings.localPlaybackContext || { ...DEFAULT_CONTEXT };
+    const cloudCtx: PlaybackContext = settings.cloudPlaybackContext || { ...DEFAULT_CONTEXT };
+    setPlaybackContexts(localCtx, cloudCtx);
 
-    const loadedTracks: Track[] = (libraryData.songs || []).map(song => {
+    const loadedTracks: Track[] = (libraryData.songs || []).map((song: any) => {
       const fileName = song.fileName || '';
       const fallbackTitle = song.title || fileName.replace(/\.[^/.]+$/, '');
       return {
@@ -105,59 +127,46 @@ export function useLibraryLoad({
     setTracks(loadedTracks);
     logger.debug('[LibraryLoad] Loaded tracks:', loadedTracks.length);
 
-    const restoredTrackId = libraryData.settings?.currentTrackId;
-    const libraryDataSource = libraryData.settings?.libraryDataSource || 'local';
-    const localCurrentTrackId = libraryData.settings?.localCurrentTrackId;
-    const cloudCurrentTrackId = libraryData.settings?.cloudCurrentTrackId;
+    // Restore track from the active context
+    const activeSource = settings.activeDataSource || 'local';
+    const activeCtx = activeSource === 'cloud' ? cloudCtx : localCtx;
+
     let restoredIndex = -1;
-
-    if (restoredTrackId) {
-      restoredIndex = loadedTracks.findIndex(t => t.id === restoredTrackId);
+    if (activeCtx.trackId) {
+      restoredIndex = loadedTracks.findIndex(t => t.id === activeCtx.trackId);
     }
-
-    if (restoredIndex < 0 &&
-        libraryData.settings?.currentTrackIndex !== undefined &&
-        libraryData.settings?.currentTrackIndex >= 0 &&
-        libraryData.settings?.currentTrackIndex < loadedTracks.length) {
-      restoredIndex = libraryData.settings.currentTrackIndex;
+    if (restoredIndex < 0 && activeCtx.trackIndex >= 0 && activeCtx.trackIndex < loadedTracks.length) {
+      restoredIndex = activeCtx.trackIndex;
     }
 
     if (restoredIndex >= 0 && restoredIndex < loadedTracks.length) {
-      if (libraryData.settings.currentTime !== undefined) {
-        const restoredTime = libraryData.settings.currentTime;
-        restoredTimeRef.current = restoredTime;
-        restoredTrackIdRef.current = loadedTracks[restoredIndex].id;
-      }
-
+      restoredTimeRef.current = activeCtx.currentTime || 0;
+      restoredTrackIdRef.current = loadedTracks[restoredIndex].id;
       setCurrentTrackIndex(restoredIndex);
       setIsPlaying(false);
       shouldAutoPlayRef.current = false;
     }
 
-    // Initialize metadata cache
     metadataCacheService.initialize().catch(err => {
       logger.warn('[LibraryLoad] Metadata cache init failed:', err);
     });
 
-    // Run startup resource cleanup
-    const activeTrackIds = loadedTracks.map(t => t.id);
     const desktopAPI = await getDesktopAPIAsync();
     if (desktopAPI?.runStartupCleanup) {
-      desktopAPI.runStartupCleanup(activeTrackIds).catch(err => {
+      desktopAPI.runStartupCleanup(loadedTracks.map(t => t.id)).catch(err => {
         logger.warn('[LibraryLoad] Startup cleanup failed:', err);
       });
     }
 
-    // Notify App of restored library settings (for cloud mode restore)
+    const localCurrentTrackId = localCtx.trackId;
+    const cloudCurrentTrackId = cloudCtx.trackId;
     onLibrarySettingsRestored?.({
-      libraryDataSource,
+      libraryDataSource: activeSource,
       localCurrentTrackId,
       cloudCurrentTrackId,
       cloudTracks: []
     });
 
-    // Validate paths in Desktop mode
-    // Only validate tracks that have a filePath (skip tracks imported via File objects)
     const tracksToValidate = loadedTracks.filter(t => t.filePath);
     if (tracksToValidate.length > 0) {
       libraryStorage.validateAllPaths(tracksToValidate).then(results => {
@@ -165,7 +174,6 @@ export function useLibraryLoad({
         setTracks(prev => {
           let changed = false;
           const next = prev.map(track => {
-            // Skip tracks without filePath - keep their available status
             if (!track.filePath) return track;
             const exists = map.get(track.id);
             if (exists === undefined || track.available === exists) return track;
@@ -186,24 +194,19 @@ export function useLibraryLoad({
       try {
         const libraryData = await libraryStorage.loadLibrary();
         await loadAndRestoreLibrary(libraryData);
+        isFirstLoadRef.current = false;
       } catch (error) {
         logger.error('[LibraryLoad] Failed to load library:', error);
       }
     };
 
     loadLibraryFromDisk();
-  }, [
-    restoredTimeRef,
-    restoredTrackIdRef,
-    setCurrentTrackIndex,
-    setIsPlaying,
-    setPlaybackMode,
-    setTracks,
-    setVolume,
-    shouldAutoPlayRef
-  ]);
+  }, []);
 
   useEffect(() => {
+    if (isFirstLoadRef.current) return;
+
+    const { localPlaybackContext, cloudPlaybackContext } = getPlaybackContexts();
     const libraryData = buildLibraryIndexData(tracks, {
       volume: volume,
       currentTrackIndex: currentTrackIndex,
@@ -213,7 +216,10 @@ export function useLibraryLoad({
       playbackMode: playbackMode,
       libraryDataSource,
       localCurrentTrackId: libraryDataSource === 'local' ? currentTrack?.id : undefined,
-      cloudCurrentTrackId: libraryDataSource === 'cloud' ? cloudTracks[cloudTrackIndex]?.id : undefined
+      cloudCurrentTrackId: libraryDataSource === 'cloud' ? cloudTracks[cloudTrackIndex]?.id : undefined,
+      activeDataSource: libraryDataSource,
+      localPlaybackContext,
+      cloudPlaybackContext
     });
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length);
@@ -239,13 +245,18 @@ export function useLibraryLoad({
 
   useEffect(() => {
     const handleBeforeUnload = async () => {
+      const { localPlaybackContext, cloudPlaybackContext } = getPlaybackContexts();
       const libraryData = buildLibraryIndexData(tracks, {
         volume: volume,
         currentTrackIndex: currentTrackIndex,
         currentTrackId: currentTrack?.id,
         currentTime: persistedTimeRef.current || currentTime,
         isPlaying: isPlaying,
-        playbackMode: playbackMode
+        playbackMode: playbackMode,
+        libraryDataSource,
+        activeDataSource: libraryDataSource,
+        localPlaybackContext,
+        cloudPlaybackContext
       });
 
       logger.debug('[LibraryLoad] Saving library before quit');
@@ -257,5 +268,5 @@ export function useLibraryLoad({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [tracks, volume, currentTrackIndex, isPlaying, currentTrack?.id, playbackMode, currentTime, persistedTimeRef]);
+  }, [tracks, volume, currentTrackIndex, isPlaying, currentTrack?.id, playbackMode, currentTime, persistedTimeRef, libraryDataSource]);
 }

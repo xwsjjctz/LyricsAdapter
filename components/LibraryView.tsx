@@ -91,6 +91,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [scrollTop, setScrollTop] = useState(0);
   const { isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
 
+  // Auto-load WebDAV on startup if dataSource is 'cloud'
+  useEffect(() => {
+    if (isFirstLoad && dataSource === 'cloud' && webdavTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
+      (async () => {
+        try {
+          const loadedTracks = await loadWebDAVFiles();
+          onWebdavTracksChange(loadedTracks);
+          await onCloudLoad(loadedTracks);
+        } catch (err) {
+          logger.warn('[LibraryView] Auto WebDAV load failed:', err);
+        }
+      })();
+    }
+  }, [isFirstLoad, dataSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
