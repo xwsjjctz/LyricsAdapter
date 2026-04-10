@@ -15,22 +15,31 @@ interface LibraryViewProps {
   currentTrackIndex: number;
   currentTrackId?: string;
   onTrackSelect: (index: number) => void;
-  onCloudTrackSelect?: (index: number) => void; // For cloud mode track selection
+  onCloudTrackSelect?: (index: number) => void;
   onRemoveTrack: (trackId: string) => void;
-  onRemoveMultipleTracks?: (trackIds: string[]) => void; // Batch removal
-  onDropFiles?: (files: File[]) => void; // Handle dropped files (Web mode or fallback)
-  onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void; // Handle dropped file paths (Electron mode)
-  onReorderTracks?: (fromIndex: number, toIndex: number) => void; // Handle track reordering
-  isFocusMode?: boolean; // Check if focus mode (lyrics overlay) is active
-  inputValue?: string; // Search input value from parent (shared between views)
-  searchTrigger?: number; // Trigger to execute search
-  savedScrollPosition?: number; // Saved scroll position from parent
-  onScrollPositionChange?: (position: number) => void; // Callback to save scroll position
-  isFirstLoad?: boolean; // Whether this is the initial app load (should scroll to playing track)
-  autoLocateToken?: number; // Trigger auto-locate only when track switch action occurs
+  onRemoveMultipleTracks?: (trackIds: string[]) => void;
+  onDropFiles?: (files: File[]) => void;
+  onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
+  onReorderTracks?: (fromIndex: number, toIndex: number) => void;
+  isFocusMode?: boolean;
+  inputValue?: string;
+  searchTrigger?: number;
+  savedScrollPosition?: number;
+  onScrollPositionChange?: (position: number, source: 'local' | 'cloud') => void;
+  isFirstLoad?: boolean;
+  autoLocateToken?: number;
   onNavigateToSettings?: (section?: string) => void;
-  onDataSourceChange?: (source: 'local' | 'cloud', webdavTracks?: Track[]) => void; // Notify App of data source changes
-  importProgress?: { loaded: number; total: number } | null; // Import progress from App
+  importProgress?: { loaded: number; total: number } | null;
+  dataSource: 'local' | 'cloud';
+  filterType: 'default' | 'album' | 'artist';
+  categorySelection: string | null;
+  onDataSourceChange: (source: 'local' | 'cloud') => void;
+  onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
+  onCategoryChange: (selection: string | null) => void;
+  onCloudLoad: (webdavTracks: Track[]) => Promise<void>;
+  onLocalRestore: () => Promise<void>;
+  webdavTracks: Track[];
+  onWebdavTracksChange: (tracks: Track[]) => void;
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -52,8 +61,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   isFirstLoad = false,
   autoLocateToken = 0,
   onNavigateToSettings,
+  importProgress,
+  dataSource,
+  filterType,
+  categorySelection,
   onDataSourceChange,
-  importProgress
+  onFilterTypeChange,
+  onCategoryChange,
+  onCloudLoad,
+  onLocalRestore,
+  webdavTracks,
+  onWebdavTracksChange
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -71,21 +89,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
-  const [dataSource, setDataSource] = useState<'local' | 'cloud'>('local');
-  const { webdavTracks, isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
+  const { isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
 
   const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
   const [showLocateButton, setShowLocateButton] = useState(false);
-  const [filterType, setFilterType] = useState<'default' | 'album' | 'artist'>('default');
-  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
-  const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const previousTrigger = useRef(searchTrigger);
+
+  const selectedArtist = filterType === 'artist' ? categorySelection : null;
+  const selectedAlbum = filterType === 'album' ? categorySelection : null;
 
   // Execute search when trigger changes (from Enter key in Sidebar)
   useEffect(() => {
@@ -182,11 +199,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const previousTrackIndexRef = useRef<number>(-1); // Track previous track index
+  const previousTrackIndexRef = useRef<number>(-1);
   const lastHandledAutoLocateTokenRef = useRef<number>(autoLocateToken);
-  const previousFilterTypeRef = useRef<'default' | 'album' | 'artist'>('default');
-  const isFilterTypeChangingRef = useRef(false);
-  const highlightUpdateIdRef = useRef(0); // Track the latest highlight update
+  const highlightUpdateIdRef = useRef(0);
   const overscan = 6;
 
   const baseRowHeight = rowHeight || 64;
@@ -270,7 +285,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         setScrollTop(savedScrollPosition);
         logger.debug(`[LibraryView] Returned from other view - restored scroll position: ${savedScrollPosition}`);
       }
-      
+
       isInitialMountRef.current = false;
     }, 50); // Small delay to ensure row height is calculated
 
@@ -282,11 +297,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return () => {
       if (scrollContainerRef.current) {
         const finalScrollPosition = scrollContainerRef.current.scrollTop;
-        onScrollPositionChange?.(finalScrollPosition);
-        logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition}`);
+        onScrollPositionChange?.(finalScrollPosition, dataSource);
+        logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition} (${dataSource})`);
       }
     };
-  }, [onScrollPositionChange]);
+  }, [onScrollPositionChange, dataSource]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -412,8 +427,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       logger.debug(`[LibraryView] Filter type changed to ${filterType}, hiding highlight temporarily`);
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
     } else {
-      // When returning to default view, reset
-      isFilterTypeChangingRef.current = false;
     }
   }, [filterType]);
 
@@ -506,7 +519,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const newScrollTop = e.currentTarget.scrollTop;
     setScrollTop(newScrollTop);
     // Notify parent of scroll position change
-    onScrollPositionChange?.(newScrollTop);
+    onScrollPositionChange?.(newScrollTop, dataSource);
     
     // Check if current playing track is visible (only if it's in filtered results)
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
@@ -858,9 +871,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <div className="flex items-center rounded-xl border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
             <button
               onClick={() => {
-                setFilterType('default');
-                setSelectedArtist(null);
-                setSelectedAlbum(null);
+                onFilterTypeChange('default');
+                onCategoryChange(null);
               }}
               className="w-10 h-[38px] rounded-l-lg text-sm transition-all flex items-center justify-center"
               style={{
@@ -873,9 +885,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             </button>
             <button
               onClick={() => {
-                setFilterType('album');
-                setSelectedArtist(null);
-                setSelectedAlbum(uniqueAlbums.length > 0 ? uniqueAlbums[0].name : null);
+                onFilterTypeChange('album');
+                onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0].name : null);
               }}
               className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
               style={{
@@ -888,9 +899,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             </button>
             <button
               onClick={() => {
-                setFilterType('artist');
-                setSelectedArtist(uniqueArtists.length > 0 ? uniqueArtists[0].name : null);
-                setSelectedAlbum(null);
+                onFilterTypeChange('artist');
+                onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0].name : null);
               }}
               className="w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center"
               style={{
@@ -906,11 +916,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             <button
               onClick={() => {
                 if (dataSource !== 'local') {
-                  setDataSource('local');
-                  setFilterType('default');
-                  setSelectedArtist(null);
-                  setSelectedAlbum(null);
-                  onDataSourceChange?.('local');
+                  onFilterTypeChange('default');
+                  onCategoryChange(null);
+                  onDataSourceChange('local');
+                  onLocalRestore();
                 }
               }}
               className="w-10 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"
@@ -930,9 +939,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   onNavigateToSettings?.('webdav');
                   return;
                 }
-                setDataSource('cloud');
+                onDataSourceChange('cloud');
                 const loadedTracks = await loadWebDAVFiles();
-                onDataSourceChange?.('cloud', loadedTracks);
+                onWebdavTracksChange(loadedTracks);
+                onCloudLoad(loadedTracks);
               }}
               className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
               style={{
@@ -1134,7 +1144,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 uniqueArtists.map((artist) => (
                   <button
                     key={artist.name}
-                    onClick={() => setSelectedArtist(artist.name)}
+                    onClick={() => onCategoryChange(artist.name)}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
                     style={{
                       backgroundColor: selectedArtist === artist.name ? colors.backgroundCard : 'transparent',
@@ -1157,7 +1167,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 uniqueAlbums.map((album) => (
                   <button
                     key={album.name}
-                    onClick={() => setSelectedAlbum(album.name)}
+                    onClick={() => onCategoryChange(album.name)}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
                     style={{
                       backgroundColor: selectedAlbum === album.name ? colors.backgroundCard : 'transparent',

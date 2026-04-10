@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPIAsync, getDesktopAPI, isDesktop, type DesktopAPI } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
-import { coverArtService } from './services/coverArtService';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
@@ -50,10 +49,14 @@ const App: React.FC = () => {
   const [forceUpdateCounter] = useState(0); // Force re-render after restore
   const [searchInputValue, setSearchInputValue] = useState(''); // Global search input value (shared between views)
   const [searchTrigger, setSearchTrigger] = useState(0); // Trigger to execute search
-  const [libraryScrollPosition, setLibraryScrollPosition] = useState(0); // Save LibraryView scroll position
+  const [libraryScrollPosition, setLibraryScrollPosition] = useState<Record<'local' | 'cloud', number>>({ local: 0, cloud: 0 });
   const [cloudTracks, setCloudTracks] = useState<Track[]>([]);
-  const [autoLocateToken, setAutoLocateToken] = useState(0); // Increment only when track is switched by playback actions
-  const isFirstLibraryLoadRef = useRef(true); // Track if LibraryView is loading for the first time
+  const [autoLocateToken, setAutoLocateToken] = useState(0);
+  const isFirstLibraryLoadRef = useRef(true);
+  const [libraryDataSource, setLibraryDataSource] = useState<'local' | 'cloud'>('local');
+  const [libraryFilterType, setLibraryFilterType] = useState<'default' | 'album' | 'artist'>('default');
+  const [libraryCategorySelection, setLibraryCategorySelection] = useState<string | null>(null);
+  const [webdavTracks, setWebdavTracks] = useState<Track[]>([]);
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -282,7 +285,6 @@ const App: React.FC = () => {
       logger.debug('[App] ✓ All blob URLs revoked');
 
       metadataCacheService.revokeAllBlobUrls();
-      coverArtService.revokeAllBlobUrls();
     };
   }, [activeBlobUrlsRef]);
 
@@ -443,75 +445,80 @@ const App: React.FC = () => {
                 isFocusMode={isFocusMode}
                 inputValue={searchInputValue}
                 searchTrigger={searchTrigger}
-                savedScrollPosition={libraryScrollPosition}
-                onScrollPositionChange={setLibraryScrollPosition}
+                savedScrollPosition={libraryScrollPosition[libraryDataSource]}
+                onScrollPositionChange={(position) => setLibraryScrollPosition(prev => ({ ...prev, [libraryDataSource]: position }))}
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
                 onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
                 importProgress={importProgress}
-                onDataSourceChange={async (source, webdavTracks) => {
-                  if (source === 'cloud' && webdavTracks) {
-                    setCloudTracks(webdavTracks);
-                    if (!localTracksBackup) {
-                      setLocalTracksBackup(tracks);
-                    }
-                    const libraryData = buildLibraryIndexData(tracks, {
-                      volume: volume,
-                      currentTrackIndex: currentTrackIndex,
-                      currentTrackId: currentTrack?.id,
-                      currentTime: persistedTimeRef.current || currentTime,
-                      isPlaying: isPlaying,
-                      playbackMode: playbackMode
-                    });
-                    libraryStorage.clearSaveTimer();
-                    const api = await getDesktopAPIAsync();
-                    if (api) {
-                      await api.saveLocalLibraryBackup(libraryData);
-                      await api.saveLibraryIndex(libraryData);
-                      logger.info('[App] Local library saved to backup and main file before switching to cloud');
-                    }
-                    // Don't set tracks to webdavTracks - keep App's tracks purely local
-                    clearCloudTrack();
-                  } else if (source === 'local') {
-                    const api = await getDesktopAPIAsync();
-                    if (api) {
-                      const result = await api.loadLocalLibraryBackup();
-                      if (result.success && result.library) {
-                        const backupData = result.library as { songs: any[]; settings: any };
-                        const restoredTracks: Track[] = (backupData.songs || []).map((song: any) => ({
-                          id: song.id,
-                          title: song.title || song.fileName?.replace(/\.[^/.]+$/, '') || 'Unknown',
-                          artist: song.artist || 'Unknown Artist',
-                          album: song.album || 'Unknown Album',
-                          duration: song.duration || 0,
-                          lyrics: song.lyrics || '',
-                          syncedLyrics: song.syncedLyrics,
-                          coverUrl: song.coverUrl,
-                          audioUrl: '',
-                          filePath: song.filePath,
-                          fileName: song.fileName,
-                          fileSize: song.fileSize,
-                          lastModified: song.lastModified,
-                          addedAt: song.addedAt,
-                          playCount: song.playCount || 0,
-                          lastPlayed: song.lastPlayed || undefined,
-                          available: song.available ?? true
-                        }));
-                        await api.saveLibraryIndex(backupData);
-                        setTracks(restoredTracks);
-                        logger.info('[App] Local library restored from backup');
-                        setLocalTracksBackup(null);
-                        clearCloudTrack();
-                        setCurrentTrackIndex(-1);
-                        return;
-                      }
-                    }
-                    if (localTracksBackup) {
-                      setTracks(localTracksBackup);
+                dataSource={libraryDataSource}
+                filterType={libraryFilterType}
+                categorySelection={libraryCategorySelection}
+                onDataSourceChange={setLibraryDataSource}
+                onFilterTypeChange={setLibraryFilterType}
+                onCategoryChange={setLibraryCategorySelection}
+                webdavTracks={webdavTracks}
+                onWebdavTracksChange={setWebdavTracks}
+                onCloudLoad={async (webdavTracks) => {
+                  setCloudTracks(webdavTracks);
+                  if (!localTracksBackup) {
+                    setLocalTracksBackup(tracks);
+                  }
+                  const libraryData = buildLibraryIndexData(tracks, {
+                    volume: volume,
+                    currentTrackIndex: currentTrackIndex,
+                    currentTrackId: currentTrack?.id,
+                    currentTime: persistedTimeRef.current || currentTime,
+                    isPlaying: isPlaying,
+                    playbackMode: playbackMode
+                  });
+                  libraryStorage.clearSaveTimer();
+                  const api = await getDesktopAPIAsync();
+                  if (api) {
+                    await api.saveLocalLibraryBackup(libraryData);
+                    await api.saveLibraryIndex(libraryData);
+                    logger.info('[App] Local library saved to backup and main file before switching to cloud');
+                  }
+                }}
+                onLocalRestore={async () => {
+                  const api = await getDesktopAPIAsync();
+                  if (api) {
+                    const result = await api.loadLocalLibraryBackup();
+                    if (result.success && result.library) {
+                      const backupData = result.library as { songs: any[]; settings: any };
+                      const restoredTracks: Track[] = (backupData.songs || []).map((song: any) => ({
+                        id: song.id,
+                        title: song.title || song.fileName?.replace(/\.[^/.]+$/, '') || 'Unknown',
+                        artist: song.artist || 'Unknown Artist',
+                        album: song.album || 'Unknown Album',
+                        duration: song.duration || 0,
+                        lyrics: song.lyrics || '',
+                        syncedLyrics: song.syncedLyrics,
+                        coverUrl: song.coverUrl,
+                        audioUrl: '',
+                        filePath: song.filePath,
+                        fileName: song.fileName,
+                        fileSize: song.fileSize,
+                        lastModified: song.lastModified,
+                        addedAt: song.addedAt,
+                        playCount: song.playCount || 0,
+                        lastPlayed: song.lastPlayed || undefined,
+                        available: song.available ?? true
+                      }));
+                      await api.saveLibraryIndex(backupData);
+                      setTracks(restoredTracks);
+                      logger.info('[App] Local library restored from backup');
                       setLocalTracksBackup(null);
                       clearCloudTrack();
                       setCurrentTrackIndex(-1);
+                      return;
                     }
+                  }
+                  if (localTracksBackup) {
+                    setTracks(localTracksBackup);
+                    setLocalTracksBackup(null);
+                    clearCloudTrack();
+                    setCurrentTrackIndex(-1);
                   }
                 }}
               />

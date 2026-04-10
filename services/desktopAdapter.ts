@@ -47,6 +47,7 @@ export interface DesktopAPI {
   webdavPropfind: (url: string, authHeader: string, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
   webdavGetRedirect: (url: string, authHeader: string) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
   webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
+  runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -311,6 +312,14 @@ class ElectronAdapter implements DesktopAPI {
 
   async webdavGetRange(url: string, authHeader: string, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
     return this.api.webdavGetRange(url, authHeader, start, end);
+  }
+
+  async runStartupCleanup(activeTrackIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> {
+    if (typeof this.api.runStartupCleanup === 'function') {
+      return this.api.runStartupCleanup(activeTrackIds);
+    }
+    logger.warn('[DesktopAPI] runStartupCleanup not available');
+    return { success: false, error: 'Not available' };
   }
 
 }

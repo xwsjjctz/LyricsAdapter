@@ -1,14 +1,4 @@
-/**
- * Track Cover Component
- * Displays cover art for a track, loading from:
- * 1. IndexedDB cache (if available)
- * 2. Audio file metadata (if filePath is provided)
- * 3. Fallback URL or placeholder
- */
-
-import React, { useState, useEffect, useRef, memo } from 'react';
-import { coverArtService } from '../services/coverArtService';
-import { logger } from '../services/logger';
+import React, { useState, memo } from 'react';
 
 interface TrackCoverProps {
   trackId: string;
@@ -25,57 +15,23 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
   fallbackUrl,
   className = 'size-10 rounded-lg object-cover'
 }) => {
-  const [coverUrl, setCoverUrl] = useState<string>(PLACEHOLDER_SVG);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const loadingRef = useRef(false);
+  const [hasError, setHasError] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadCover = async () => {
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-
-      try {
-        const url = await coverArtService.getCoverUrl({
-          id: trackId,
-          filePath,
-          coverUrl: fallbackUrl
-        });
-
-        if (mounted) {
-          setCoverUrl(url);
-          setIsLoaded(true);
-        }
-      } catch (error) {
-        logger.warn(`[TrackCover] Failed to load cover for ${trackId}:`, error);
-        if (mounted && fallbackUrl) {
-          setCoverUrl(fallbackUrl);
-          setIsLoaded(true);
-        }
-      } finally {
-        loadingRef.current = false;
-      }
-    };
-
-    loadCover();
-
-    return () => {
-      mounted = false;
-    };
-  }, [trackId, filePath, fallbackUrl]);
+  const src = hasError || !fallbackUrl
+    ? PLACEHOLDER_SVG
+    : fallbackUrl;
 
   return (
     <img
-      src={coverUrl}
-      className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-50'} transition-opacity duration-200`}
+      src={src}
+      className={className}
       alt=""
       loading="lazy"
+      onError={() => setHasError(true)}
     />
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if trackId or filePath changes
-  return prevProps.trackId === nextProps.trackId && 
+  return prevProps.trackId === nextProps.trackId &&
          prevProps.filePath === nextProps.filePath &&
          prevProps.fallbackUrl === nextProps.fallbackUrl;
 });

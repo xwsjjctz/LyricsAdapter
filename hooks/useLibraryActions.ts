@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Track } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
+import { indexedDBStorage } from '../services/indexedDBStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { coverArtService } from '../services/coverArtService';
 import { logger } from '../services/logger';
@@ -97,16 +98,11 @@ export function useLibraryActions({
 
       const cleanupCover = async () => {
         try {
-          const desktopAPI = await getDesktopAPIAsync();
-          if (desktopAPI && desktopAPI.deleteCoverThumbnail) {
-            await desktopAPI.deleteCoverThumbnail(trackId);
-            logger.debug(`✅ Cover deleted from disk for track: ${trackToRemove?.title || trackId}`);
-          }
-          await metadataCacheService.deleteCover(trackId);
           await coverArtService.deleteCover(trackId);
-          logger.debug(`✅ Cover deleted from IndexedDB for track: ${trackToRemove?.title || trackId}`);
+          await indexedDBStorage.deleteMetadata(trackId);
+          logger.debug(`✅ Resources cleaned up for track: ${trackToRemove?.title || trackId}`);
         } catch (error) {
-          logger.warn('Failed to delete cover from IndexedDB:', error);
+          logger.warn('Failed to cleanup resources for track:', error);
         }
       };
 
@@ -148,10 +144,9 @@ export function useLibraryActions({
 
     for (const trackId of trackIds) {
       try {
-        await metadataCacheService.deleteCover(trackId);
-        await coverArtService.deleteCover(trackId);
+        await indexedDBStorage.deleteMetadata(trackId);
       } catch (error) {
-        logger.warn(`Failed to delete cover for ${trackId} from IndexedDB:`, error);
+        logger.warn(`Failed to delete metadata for ${trackId}:`, error);
       }
     }
 
@@ -250,23 +245,17 @@ export function useLibraryActions({
                   }
                 }
 
-                if (!coverSavedToDisk) {
-                  const byteCharacters = atob(metadata.coverData);
-                  const byteNumbers = new Array(byteCharacters.length);
-                  for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                  }
-                  const byteArray = new Uint8Array(byteNumbers);
-                  const blob = new Blob([byteArray], { type: metadata.coverMime });
-                  coverUrl = createTrackedBlobUrl(blob);
-
-                  try {
-                    await metadataCacheService.saveCover(updatedTracks[trackIndex].id, blob);
-                  } catch (error) {
-                    logger.warn('[LibraryActions] Failed to save cover to IndexedDB:', error);
+                  if (!coverSavedToDisk) {
+                    const byteCharacters = atob(metadata.coverData);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                      byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: metadata.coverMime });
+                    coverUrl = createTrackedBlobUrl(blob);
                   }
                 }
-              }
 
               metadataCacheService.set(updatedTracks[trackIndex].id, {
                 title: metadata.title,
@@ -275,8 +264,6 @@ export function useLibraryActions({
                 duration: metadata.duration,
                 lyrics: metadata.lyrics,
                 syncedLyrics: metadata.syncedLyrics,
-                coverData: coverSavedToDisk ? undefined : metadata.coverData,
-                coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
                 fileName: fileName,
                 fileSize: metadata.fileSize || 0,
                 lastModified: Date.now(),

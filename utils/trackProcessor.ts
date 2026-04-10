@@ -32,7 +32,6 @@ export async function processCoverArt(
   let coverUrl = `https://picsum.photos/seed/${trackId}/1000/1000`;
   let coverSavedToDisk = false;
 
-  // Try to save to disk in Electron mode
   if (desktopAPI?.saveCoverThumbnail) {
     try {
       const coverResult = await desktopAPI.saveCoverThumbnail({
@@ -51,7 +50,6 @@ export async function processCoverArt(
     }
   }
 
-  // Fallback to IndexedDB if disk save failed or not available
   if (!coverSavedToDisk) {
     try {
       const byteCharacters = atob(coverData);
@@ -62,13 +60,6 @@ export async function processCoverArt(
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: coverMime });
       coverUrl = createTrackedBlobUrl(blob);
-
-      try {
-        await metadataCacheService.saveCover(trackId, blob);
-        logger.debug(`[CoverProcessor] ✓ Saved cover to IndexedDB: ${trackId}`);
-      } catch (error) {
-        logger.warn('[CoverProcessor] Failed to save cover to IndexedDB:', error);
-      }
     } catch (error) {
       logger.error('[CoverProcessor] Failed to create cover blob:', error);
     }
@@ -107,8 +98,6 @@ export async function saveMetadataToCache(
       duration: metadata.duration || 0,
       lyrics: metadata.lyrics || '',
       syncedLyrics: metadata.syncedLyrics,
-      coverData: coverSavedToDisk ? undefined : metadata.coverData,
-      coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
       fileName: metadata.fileName || '',
       fileSize: metadata.fileSize || 0,
       lastModified: Date.now(),

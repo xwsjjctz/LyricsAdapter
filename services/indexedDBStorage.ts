@@ -10,7 +10,6 @@ import {
   validateMetadata,
   validateMetadataMap,
   validateSongId,
-  validateBlob,
   type ValidatedMetadata
 } from './dataValidator';
 import { logger } from './logger';
@@ -33,10 +32,6 @@ interface LyricsAdapterDB extends DBSchema {
       fileSize: number;
       lastModified: number;
     };
-  };
-  covers: {
-    key: string;
-    value: Blob;
   };
   library: {
     key: string;
@@ -65,28 +60,28 @@ class IndexedDBStorageService {
       logger.debug('[IndexedDB] Opening database...');
       this.db = await openDB<LyricsAdapterDB>(STORAGE.DB_NAME, STORAGE.DB_VERSION, {
         upgrade(db, oldVersion, newVersion, transaction) {
-          // Create metadata store
           if (!db.objectStoreNames.contains('metadata')) {
-            const metadataStore = db.createObjectStore('metadata', { keyPath: 'key' });
+            db.createObjectStore('metadata', { keyPath: 'key' });
             logger.debug('[IndexedDB] Created metadata store');
           }
 
-          // Create covers store for Blob storage
-          if (!db.objectStoreNames.contains('covers')) {
-            const coversStore = db.createObjectStore('covers');
-            logger.debug('[IndexedDB] Created covers store');
-          }
-
-          // Create library store for browser mode persistence (deprecated)
           if (!db.objectStoreNames.contains('library')) {
-            const libraryStore = db.createObjectStore('library', { keyPath: 'key' });
+            db.createObjectStore('library', { keyPath: 'key' });
             logger.debug('[IndexedDB] Created library store');
           }
 
-          // Create settings store for app settings
           if (!db.objectStoreNames.contains('settings')) {
-            const settingsStore = db.createObjectStore('settings');
+            db.createObjectStore('settings');
             logger.debug('[IndexedDB] Created settings store');
+          }
+
+          if (oldVersion < 2) {
+            try {
+              (db as unknown as { deleteObjectStore: (name: string) => void }).deleteObjectStore('covers');
+              logger.debug('[IndexedDB] Removed covers store (v2 migration)');
+            } catch {
+              // Store may not exist, ignore
+            }
           }
         },
       });
@@ -260,113 +255,6 @@ class IndexedDBStorageService {
     }
   }
 
-  // ========== Cover Image Operations ==========
-
-  /**
-   * Get cover image for a song
-   * Validates songId and returned Blob
-   */
-  async getCover(songId: string): Promise<Blob | null> {
-    await this.ensureInitialized();
-    if (!this.db) return null;
-
-    // Validate songId
-    const validSongId = validateSongId(songId);
-    if (!validSongId) {
-      logger.warn(`[IndexedDB] Invalid songId: ${songId}`);
-      return null;
-    }
-
-    try {
-      const result = await this.db.get('covers', validSongId);
-      if (!result) {
-        return null;
-      }
-
-      // Validate the returned blob
-      if (!validateBlob(result, STORAGE.MAX_COVER_SIZE_BYTES)) {
-        logger.warn(`[IndexedDB] Invalid blob in cache for ${validSongId}, removing`);
-        await this.db.delete('covers', validSongId);
-        return null;
-      }
-
-      return result;
-    } catch (error) {
-      logger.error(`[IndexedDB] Failed to get cover for ${validSongId}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Set cover image for a song
-   * Validates songId and Blob before storing
-   */
-  async setCover(songId: string, coverBlob: Blob): Promise<void> {
-    await this.ensureInitialized();
-    if (!this.db) return;
-
-    // Validate songId
-    const validSongId = validateSongId(songId);
-    if (!validSongId) {
-      logger.error(`[IndexedDB] Invalid songId: ${songId}`);
-      throw new Error('Invalid songId');
-    }
-
-    // Validate Blob (max size from config)
-    const validated = validateBlob(coverBlob, STORAGE.MAX_COVER_SIZE_BYTES);
-    if (!validated) {
-      logger.error(`[IndexedDB] Invalid cover blob for ${validSongId}`);
-      throw new Error('Invalid cover blob');
-    }
-
-    try {
-      // Use put with the blob as value and songId as key
-      await this.db.put('covers', validated, validSongId);
-      logger.debug(`[IndexedDB] ✓ Saved cover for ${validSongId} (${(validated.size / 1024).toFixed(2)} KB)`);
-    } catch (error) {
-      logger.error(`[IndexedDB] ✗ Failed to save cover for ${validSongId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete cover for a song
-   * Validates songId before deletion
-   */
-  async deleteCover(songId: string): Promise<void> {
-    await this.ensureInitialized();
-    if (!this.db) return;
-
-    // Validate songId
-    const validSongId = validateSongId(songId);
-    if (!validSongId) {
-      logger.warn(`[IndexedDB] Invalid songId for deletion: ${songId}`);
-      return;
-    }
-
-    try {
-      await this.db.delete('covers', validSongId);
-      logger.debug(`[IndexedDB] ✓ Deleted cover for ${validSongId}`);
-    } catch (error) {
-      logger.error(`[IndexedDB] ✗ Failed to delete cover for ${validSongId}:`, error);
-    }
-  }
-
-  /**
-   * Clear all covers
-   */
-  async clearCovers(): Promise<void> {
-    await this.ensureInitialized();
-    if (!this.db) return;
-
-    try {
-      await this.db.clear('covers');
-      logger.debug('[IndexedDB] ✓ Cleared all covers');
-    } catch (error) {
-      logger.error('[IndexedDB] Failed to clear covers:', error);
-    }
-  }
-
   // ========== Library Operations ==========
 
   /**
@@ -435,8 +323,7 @@ class IndexedDBStorageService {
 
     try {
       await this.db.clear('metadata');
-      await this.db.clear('covers');
-      logger.debug('[IndexedDB] ✓ Cleared all data');
+      logger.debug('[IndexedDB] ✓ Cleared all metadata');
     } catch (error) {
       logger.error('[IndexedDB] Failed to clear all data:', error);
     }

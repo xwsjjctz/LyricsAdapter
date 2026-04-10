@@ -3,7 +3,6 @@ import { Track } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { coverArtService } from '../services/coverArtService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 
@@ -93,13 +92,6 @@ export function useLibraryLoad({
     setTracks(loadedTracks);
     logger.debug('[LibraryLoad] Loaded tracks:', loadedTracks.length);
 
-    // Preload all covers from IndexedDB cache into memory
-    // This prevents the placeholder flash on app startup
-    const trackIds = loadedTracks.map(t => t.id);
-    coverArtService.preloadCoversFromCache(trackIds).catch(err => {
-      logger.warn('[LibraryLoad] Cover preload failed:', err);
-    });
-
     const restoredTrackId = libraryData.settings?.currentTrackId;
     let restoredIndex = -1;
 
@@ -130,6 +122,15 @@ export function useLibraryLoad({
     metadataCacheService.initialize().catch(err => {
       logger.warn('[LibraryLoad] Metadata cache init failed:', err);
     });
+
+    // Run startup resource cleanup
+    const activeTrackIds = loadedTracks.map(t => t.id);
+    const desktopAPI = await getDesktopAPIAsync();
+    if (desktopAPI?.runStartupCleanup) {
+      desktopAPI.runStartupCleanup(activeTrackIds).catch(err => {
+        logger.warn('[LibraryLoad] Startup cleanup failed:', err);
+      });
+    }
 
     // Validate paths in Desktop mode
     // Only validate tracks that have a filePath (skip tracks imported via File objects)

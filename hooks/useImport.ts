@@ -112,11 +112,7 @@ export function useImport({
               const blob = new Blob([byteArray], { type: metadata.coverMime });
               coverUrl = createTrackedBlobUrl(blob);
 
-              try {
-                await metadataCacheService.saveCover(trackId, blob);
-              } catch (error) {
-                logger.warn('[Import] Failed to save cover to IndexedDB:', error);
-              }
+
             } catch (error) {
               logger.error('[Import] Failed to create cover blob:', error);
             }
@@ -131,8 +127,6 @@ export function useImport({
             duration: metadata.duration,
             lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
-            coverData: coverSavedToDisk ? undefined : metadata.coverData,
-            coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
             fileName: fileName,
             fileSize: metadata.fileSize || 0,
             lastModified: Date.now(),
@@ -262,11 +256,7 @@ export function useImport({
               const blob = new Blob([byteArray], { type: metadata.coverMime });
               coverUrl = createTrackedBlobUrl(blob);
 
-              try {
-                await metadataCacheService.saveCover(trackId, blob);
-              } catch (error) {
-                logger.warn('[Import] Failed to save cover to IndexedDB:', error);
-              }
+
             } catch (error) {
               logger.error('[Import] Failed to create cover blob:', error);
             }
@@ -281,8 +271,6 @@ export function useImport({
             duration: metadata.duration,
             lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
-            coverData: coverSavedToDisk ? undefined : metadata.coverData,
-            coverMime: coverSavedToDisk ? undefined : metadata.coverMime,
             fileName: fileName,
             fileSize: metadata.fileSize || 0,
             lastModified: Date.now(),

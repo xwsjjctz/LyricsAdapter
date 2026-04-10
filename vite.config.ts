@@ -17,7 +17,6 @@ export default defineConfig(({ mode }) => {
         tailwindcss(),
         electron([
           {
-            // Main process file
             entry: 'electron/main.ts',
             vite: {
               build: {
@@ -29,11 +28,21 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            // Preload file
             entry: 'electron/preload.ts',
             onstart(args) {
               args.reload();
             },
+            vite: {
+              build: {
+                outDir: 'dist-electron',
+                rollupOptions: {
+                  external: ['electron']
+                }
+              }
+            }
+          },
+          {
+            entry: 'electron/cleanup.ts',
             vite: {
               build: {
                 outDir: 'dist-electron',

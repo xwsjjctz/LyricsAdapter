@@ -11,15 +11,11 @@ import { type ValidatedMetadata, validateMetadata } from './dataValidator';
 import { logger } from './logger';
 
 interface CachedMetadata extends ValidatedMetadata {
-  // Now caching cover data in IndexedDB (no quota limits!)
-  coverData?: string; // Base64 encoded
-  coverMime?: string;
 }
 
 class MetadataCacheService {
   private cache: Map<string, CachedMetadata> = new Map();
   private initialized = false;
-  private coverCache: Map<string, string> = new Map(); // songId -> blob URL
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -102,158 +98,8 @@ class MetadataCacheService {
     return this.cache.has(songId);
   }
 
-  // ========== Cover Image Caching (NEW!) ==========
-
-  /**
-   * Compress image blob to reduce storage size
-   * @param blob - Original image blob
-   * @param maxWidth - Maximum width in pixels (default: 800)
-   * @param quality - JPEG quality 0-1 (default: 0.85)
-   * @returns Compressed blob
-   */
-  private async compressImage(blob: Blob, maxWidth: number = 800, quality: number = 0.85): Promise<Blob> {
-    // Skip compression for small images
-    if (blob.size < 500 * 1024) { // Less than 500KB
-      return blob;
-    }
-
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Calculate scale ratio
-        if (width > maxWidth) {
-          height = (height * maxWidth) / width;
-          width = maxWidth;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
-          return;
-        }
-
-        // Draw image on canvas
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Compress as JPEG
-        canvas.toBlob(
-          (compressed) => {
-            if (compressed) {
-              logger.debug(`[MetadataCache] Image compressed: ${(blob.size / 1024).toFixed(2)} KB → ${(compressed.size / 1024).toFixed(2)} KB`);
-              resolve(compressed);
-            } else {
-              reject(new Error('Compression failed'));
-            }
-          },
-          'image/jpeg',
-          quality
-        );
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Failed to load image'));
-      };
-
-      img.src = url;
-    });
-  }
-
-  /**
-   * Get cover blob URL for a song
-   * Returns cached URL if available, null otherwise
-   */
-  getCoverUrl(songId: string): string | null {
-    return this.coverCache.get(songId) || null;
-  }
-
-  /**
-   * Set cover blob URL for a song (in-memory cache)
-   * The blob itself is stored in IndexedDB, URL is just a reference
-   */
-  setCoverUrl(songId: string, blobUrl: string): void {
-    this.coverCache.set(songId, blobUrl);
-  }
-
-  /**
-   * Load cover from IndexedDB and create blob URL
-   * Returns the blob URL if found, null otherwise
-   */
-  async loadCover(songId: string): Promise<string | null> {
-    try {
-      const coverBlob = await indexedDBStorage.getCover(songId);
-      if (coverBlob) {
-        const blobUrl = URL.createObjectURL(coverBlob);
-        this.coverCache.set(songId, blobUrl);
-        logger.debug(`[MetadataCache] ✓ Loaded cover for ${songId} from IndexedDB`);
-        return blobUrl;
-      }
-      return null;
-    } catch (error) {
-      logger.error(`[MetadataCache] Failed to load cover for ${songId}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Save cover blob to IndexedDB
-   */
-  async saveCover(songId: string, coverBlob: Blob): Promise<void> {
-    try {
-      // Compress image before saving
-      const compressedBlob = await this.compressImage(coverBlob);
-
-      await indexedDBStorage.setCover(songId, compressedBlob);
-
-      // Also create and cache the blob URL
-      const existingUrl = this.coverCache.get(songId);
-      if (existingUrl) {
-        URL.revokeObjectURL(existingUrl); // Revoke old URL
-      }
-      const blobUrl = URL.createObjectURL(compressedBlob);
-      this.coverCache.set(songId, blobUrl);
-
-      logger.debug(`[MetadataCache] ✓ Saved cover for ${songId} (${(compressedBlob.size / 1024).toFixed(2)} KB)`);
-    } catch (error) {
-      logger.error(`[MetadataCache] Failed to save cover for ${songId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete cover from cache and IndexedDB
-   */
-  async deleteCover(songId: string): Promise<void> {
-    // Revoke blob URL
-    const existingUrl = this.coverCache.get(songId);
-    if (existingUrl) {
-      URL.revokeObjectURL(existingUrl);
-      this.coverCache.delete(songId);
-    }
-
-    // Delete from IndexedDB
-    await indexedDBStorage.deleteCover(songId);
-  }
-
   async save(): Promise<void> {
-    // All environments now use IndexedDB for metadata storage
-    // Metadata is already saved in set() method asynchronously
-    // This save() is now mainly for triggering any pending operations
-
     try {
-      // Ensure all pending IndexedDB writes are complete
-      // (Most saves happen in set() via fire-and-forget)
       logger.debug('[MetadataCache] ✓ Metadata persistence check complete');
     } catch (error) {
       logger.warn('[MetadataCache] Failed during persistence check:', error);
@@ -262,7 +108,6 @@ class MetadataCacheService {
 
   clear(): void {
     this.cache.clear();
-    this.coverCache.clear();
   }
 
   // Convert cached metadata to track metadata format
@@ -297,15 +142,7 @@ class MetadataCacheService {
    * Revoke all cached blob URLs (call before app unmount)
    */
   revokeAllBlobUrls(): void {
-    this.coverCache.forEach(blobUrl => {
-      try {
-        URL.revokeObjectURL(blobUrl);
-      } catch (e) {
-        // Ignore errors during cleanup
-      }
-    });
-    this.coverCache.clear();
-    logger.debug('[MetadataCache] ✓ Revoked all cached blob URLs');
+    logger.debug('[MetadataCache] ✓ Cleanup complete');
   }
 }
 
