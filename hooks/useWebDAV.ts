@@ -267,18 +267,16 @@ export const useWebDAV = () => {
     logger.info('[useWebDAV] Cache cleared');
   }, []);
 
+  const forceReload = useCallback(() => {
+    setWebdavTracks([]);
+    setIsLoading(false);
+    setError(null);
+    setLoadProgress(null);
+  }, []);
+
   const cancelLoad = useCallback(() => {
     abortRef.current = true;
   }, []);
-
-  if (typeof window !== 'undefined' && !(window as any).__webdav_debug_bound) {
-    (window as any).__webdav_debug_bound = true;
-    (window as any).clear_webdav_cache = () => {
-      localStorage.removeItem(METADATA_CACHE_KEY);
-      webdavClient.clearCdnCache();
-      console.log('[WebDAV] Metadata cache and CDN cache cleared. Switch to Cloud tab to reload.');
-    };
-  }
 
   return {
     webdavTracks,
@@ -288,5 +286,6 @@ export const useWebDAV = () => {
     loadWebDAVFiles,
     cancelLoad,
     clearWebdavCache,
+    forceReload,
   };
 };

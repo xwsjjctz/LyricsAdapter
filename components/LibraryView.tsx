@@ -83,11 +83,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
-  const { isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad } = useWebDAV();
+  const { isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad, clearWebdavCache, forceReload } = useWebDAV();
 
   // Auto-load WebDAV on startup if dataSource is 'cloud'
   useEffect(() => {
-    if (isFirstLoad && dataSource === 'cloud' && cloudTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
+    if (dataSource === 'cloud' && cloudTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
       (async () => {
         try {
           const loadedTracks = await loadWebDAVFiles();
@@ -97,7 +97,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         }
       })();
     }
-  }, [isFirstLoad, dataSource]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dataSource, cloudTracks.length, webdavLoading]);
+
+  // Global cache clear: clears CDN cache + localStorage, clears slot, reloads
+  useEffect(() => {
+    (window as any).__webdav_cache_loaded = false;
+    (window as any).clear_webdav_cache = () => {
+      clearWebdavCache();
+      onLoadCloudTracks([]);
+      setTimeout(() => {
+        if (webdavClient.hasConfig()) {
+          loadWebDAVFiles().then(tracks => {
+            if (tracks.length > 0) {
+              onLoadCloudTracks(tracks);
+            }
+          });
+        }
+      }, 50);
+    };
+  }, [clearWebdavCache, onLoadCloudTracks, loadWebDAVFiles]);
 
   const displayTracks = tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
