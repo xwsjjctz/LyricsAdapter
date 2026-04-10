@@ -15,7 +15,6 @@ interface LibraryViewProps {
   currentTrackIndex: number;
   currentTrackId?: string;
   onTrackSelect: (index: number) => void;
-  onCloudTrackSelect?: (index: number) => void;
   onRemoveTrack: (trackId: string) => void;
   onRemoveMultipleTracks?: (trackIds: string[]) => void;
   onDropFiles?: (files: File[]) => void;
@@ -25,7 +24,7 @@ interface LibraryViewProps {
   inputValue?: string;
   searchTrigger?: number;
   savedScrollPosition?: number;
-  onScrollPositionChange?: (position: number, source: 'local' | 'cloud') => void;
+  onScrollPositionChange?: (position: number) => void;
   isFirstLoad?: boolean;
   autoLocateToken?: number;
   onNavigateToSettings?: (section?: string) => void;
@@ -36,10 +35,8 @@ interface LibraryViewProps {
   onDataSourceChange: (source: 'local' | 'cloud') => void;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
   onCategoryChange: (selection: string | null) => void;
-  onCloudLoad: (webdavTracks: Track[]) => Promise<void>;
-  onLocalRestore: () => Promise<void>;
-  webdavTracks: Track[];
-  onWebdavTracksChange: (tracks: Track[]) => void;
+  onLoadCloudTracks: (tracks: Track[]) => void;
+  cloudTracks: Track[];
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -47,7 +44,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   currentTrackIndex,
   currentTrackId,
   onTrackSelect,
-  onCloudTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
   onDropFiles,
@@ -68,10 +64,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onDataSourceChange,
   onFilterTypeChange,
   onCategoryChange,
-  onCloudLoad,
-  onLocalRestore,
-  webdavTracks,
-  onWebdavTracksChange
+  onLoadCloudTracks,
+  cloudTracks,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -93,12 +87,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Auto-load WebDAV on startup if dataSource is 'cloud'
   useEffect(() => {
-    if (isFirstLoad && dataSource === 'cloud' && webdavTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
+    if (isFirstLoad && dataSource === 'cloud' && cloudTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
       (async () => {
         try {
           const loadedTracks = await loadWebDAVFiles();
-          onWebdavTracksChange(loadedTracks);
-          await onCloudLoad(loadedTracks);
+          onLoadCloudTracks(loadedTracks);
         } catch (err) {
           logger.warn('[LibraryView] Auto WebDAV load failed:', err);
         }
@@ -106,7 +99,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
   }, [isFirstLoad, dataSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const displayTracks = dataSource === 'cloud' ? webdavTracks : tracks;
+  const displayTracks = tracks;
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
   const [rowGap, setRowGap] = useState(8);
@@ -312,7 +305,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return () => {
       if (scrollContainerRef.current) {
         const finalScrollPosition = scrollContainerRef.current.scrollTop;
-        onScrollPositionChange?.(finalScrollPosition, dataSource);
+        onScrollPositionChange?.(finalScrollPosition);
         logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition} (${dataSource})`);
       }
     };
@@ -534,7 +527,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const newScrollTop = e.currentTarget.scrollTop;
     setScrollTop(newScrollTop);
     // Notify parent of scroll position change
-    onScrollPositionChange?.(newScrollTop, dataSource);
+    onScrollPositionChange?.(newScrollTop);
     
     // Check if current playing track is visible (only if it's in filtered results)
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
@@ -933,7 +926,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 if (dataSource !== 'local') {
                   onFilterTypeChange('default');
                   onCategoryChange(null);
-                  onLocalRestore();
                   onDataSourceChange('local');
                 }
               }}
@@ -955,9 +947,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   return;
                 }
                 onDataSourceChange('cloud');
-                const loadedTracks = await loadWebDAVFiles();
-                onWebdavTracksChange(loadedTracks);
-                onCloudLoad(loadedTracks);
+                if (cloudTracks.length === 0) {
+                  const loadedTracks = await loadWebDAVFiles();
+                  onLoadCloudTracks(loadedTracks);
+                }
               }}
               className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
               style={{
@@ -1052,11 +1045,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         onDragEnd={handleTrackDragEnd}
                         onClick={() => {
                           if (isEditMode || isUnavailable) return;
-                          if (dataSource === 'cloud' && onCloudTrackSelect) {
-                            onCloudTrackSelect(filteredIndex);
-                          } else {
-                            onTrackSelect(filteredIndex);
-                          }
+                          onTrackSelect(filteredIndex);
                         }}
                         style={{
                           ...animationStyle,
@@ -1259,14 +1248,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              key={track.id}
                              ref={idx === 0 ? rowMeasureRef : undefined}
                              data-track-index={filteredIndex}
- onClick={() => {
-                           if (isEditMode || isUnavailable) return;
-                           if (dataSource === 'cloud' && onCloudTrackSelect) {
-                             onCloudTrackSelect(filteredIndex);
-                           } else {
-                             onTrackSelect(filteredIndex);
-                           }
-                         }}
+  onClick={() => {
+                            if (isEditMode || isUnavailable) return;
+                            onTrackSelect(filteredIndex);
+                          }}
                              className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
                             style={{
                               ...animationStyle,

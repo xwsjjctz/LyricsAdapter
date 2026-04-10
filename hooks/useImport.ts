@@ -21,7 +21,6 @@ interface UseImportOptions {
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
 }
-
 export function useImport({
   tracks,
   setTracks,

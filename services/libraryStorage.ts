@@ -3,7 +3,7 @@
  * 处理与 Electron 主进程的通信，实现数据的读写和验证
  */
 
-import { Track, PlaybackContext } from '../types';
+import { Track, PlaybackContext, LibrarySlot } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
 
@@ -51,6 +51,9 @@ export interface LibrarySettings {
   activeDataSource?: 'local' | 'cloud';
   localPlaybackContext?: PlaybackContext;
   cloudPlaybackContext?: PlaybackContext;
+  localSlot?: Omit<LibrarySlot, 'id' | 'tracks'>;
+  cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'>;
+  activeSlotId?: 'local' | 'cloud';
   [key: string]: any;
 }
 

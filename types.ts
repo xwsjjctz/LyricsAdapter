@@ -42,6 +42,32 @@ export interface PlaybackContext {
   isPlaying: boolean;
 }
 
+export interface LibrarySlot {
+  id: 'local' | 'cloud';
+  tracks: Track[];
+  currentTrackIndex: number;
+  currentTime: number;
+  volume: number;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  scrollPosition: number;
+  filterType: 'default' | 'album' | 'artist';
+  categorySelection: string | null;
+}
+
+export function createEmptySlot(id: 'local' | 'cloud'): LibrarySlot {
+  return {
+    id,
+    tracks: [],
+    currentTrackIndex: -1,
+    currentTime: 0,
+    volume: 0.5,
+    playbackMode: 'order',
+    scrollPosition: 0,
+    filterType: 'default',
+    categorySelection: null,
+  };
+}
+
 export enum ViewMode {
   PLAYER = 'player',
   LYRICS = 'lyrics',

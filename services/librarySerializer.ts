@@ -4,7 +4,6 @@ import type { LibraryData, LibraryIndexData, LibrarySettings } from './librarySt
 export function buildLibraryData(tracks: Track[], settings: LibrarySettings): LibraryData {
   return {
     songs: tracks.map(track => {
-      // Filter out file:// URLs - only keep blob:, data:, cover://, and https:// URLs
       let coverUrl = track.coverUrl || '';
       if (coverUrl.startsWith('file:')) {
         coverUrl = '';
@@ -36,7 +35,6 @@ export function buildLibraryData(tracks: Track[], settings: LibrarySettings): Li
 export function buildLibraryIndexData(tracks: Track[], settings: LibrarySettings): LibraryIndexData {
   return {
     songs: tracks.map(track => {
-      // Filter out blob:, data:, and file:// URLs - only keep cover:// and https:// URLs
       let coverUrl = track.coverUrl || '';
       if (coverUrl.startsWith('blob:') || coverUrl.startsWith('data:') || coverUrl.startsWith('file:')) {
         coverUrl = '';

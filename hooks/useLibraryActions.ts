@@ -10,13 +10,12 @@ interface UseLibraryActionsOptions {
   tracks: Track[];
   setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   currentTrackIndex: number;
-  setCurrentTrackIndex: React.Dispatch<React.SetStateAction<number>>;
+  setCurrentTrackIndex: (index: number | ((prev: number) => number)) => void;
   isPlaying: boolean;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
-  shouldAutoPlayRef: React.MutableRefObject<boolean>;
 }
 
 export function useLibraryActions({
@@ -29,7 +28,6 @@ export function useLibraryActions({
   createTrackedBlobUrl,
   revokeBlobUrl,
   audioRef,
-  shouldAutoPlayRef
 }: UseLibraryActionsOptions) {
   // Note: cleanupOrphanAudio is no longer needed since we only store paths
   // Files are not copied to app directory anymore
@@ -76,14 +74,6 @@ export function useLibraryActions({
 
       setCurrentTrackIndex(newIndex);
 
-      if (removedIndex === currentTrackIndex) {
-        if (newTracks.length > 0) {
-          if (isPlaying) {
-            shouldAutoPlayRef.current = true;
-          }
-        }
-      }
-
       if (trackToRemove) {
         if (trackToRemove.audioUrl && trackToRemove.audioUrl.startsWith('blob:')) {
           revokeBlobUrl(trackToRemove.audioUrl);
@@ -111,7 +101,7 @@ export function useLibraryActions({
 
       return newTracks;
     });
-  }, [currentTrackIndex, isPlaying, audioRef, revokeBlobUrl, setCurrentTrackIndex, setIsPlaying, setTracks, shouldAutoPlayRef, cleanupOrphanAudio]);
+  }, [currentTrackIndex, isPlaying, audioRef, revokeBlobUrl, setCurrentTrackIndex, setIsPlaying, setTracks, cleanupOrphanAudio]);
 
   const handleRemoveMultipleTracks = useCallback(async (trackIds: string[]) => {
     logger.debug(`[LibraryActions] Batch removing ${trackIds.length} tracks...`);

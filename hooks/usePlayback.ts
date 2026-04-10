@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Track, PlaybackContext } from '../types';
-import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
+import { Track } from '../types';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
@@ -10,8 +10,7 @@ interface UsePlaybackOptions {
   tracks: Track[];
   setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   currentTrackIndex: number;
-  setCurrentTrackIndex: React.Dispatch<React.SetStateAction<number>>;
-  webdavTracks: Track[];
+  setCurrentTrackIndex: (index: number | ((prev: number) => number)) => void;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
   onTrackSwitch?: () => void;
@@ -22,7 +21,6 @@ export function usePlayback({
   setTracks,
   currentTrackIndex,
   setCurrentTrackIndex,
-  webdavTracks,
   createTrackedBlobUrl,
   revokeBlobUrl,
   onTrackSwitch
@@ -31,45 +29,22 @@ export function usePlayback({
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState<number>(UI.DEFAULT_VOLUME);
   const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
-  const [cloudTrackIndex, setCloudTrackIndex] = useState<number>(-1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const shouldAutoPlayRef = useRef<boolean>(false);
   const waitingForCanPlayRef = useRef<boolean>(false);
-  const restoredTimeRef = useRef<number>(0);
-  const restoredTrackIdRef = useRef<string | null>(null);
   const prevAudioUrlRef = useRef<string | null>(null);
   const audioUrlReadyRef = useRef<boolean>(false);
   const persistedTimeRef = useRef<number>(0);
-  const forcePlayRef = useRef<boolean>(false);
   const lastNonZeroVolumeRef = useRef<number>(0.5);
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
-  const cloudTrackIndexRef = useRef<number>(cloudTrackIndex);
-
-  // Playback contexts stored as refs to avoid re-render cycles
-  const localPlaybackCtx = useRef<PlaybackContext>({
-    trackIndex: -1, currentTime: 0, volume: 0.5, playbackMode: 'order', isPlaying: false
-  });
-  const cloudPlaybackCtx = useRef<PlaybackContext>({
-    trackIndex: -1, currentTime: 0, volume: 0.5, playbackMode: 'order', isPlaying: false
-  });
-
-  const isCloudMode = cloudTrackIndex >= 0;
 
   useEffect(() => {
     currentTrackIndexRef.current = currentTrackIndex;
   }, [currentTrackIndex]);
 
-  useEffect(() => {
-    cloudTrackIndexRef.current = cloudTrackIndex;
-  }, [cloudTrackIndex]);
-
   const currentTrack = useMemo(() => {
-    if (cloudTrackIndex >= 0 && webdavTracks[cloudTrackIndex]) {
-      return webdavTracks[cloudTrackIndex];
-    }
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
-  }, [tracks, currentTrackIndex, webdavTracks, cloudTrackIndex]);
+  }, [tracks, currentTrackIndex]);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
     if (length <= 1) return exclude;
@@ -104,12 +79,8 @@ export function usePlayback({
 
     setIsPlaying(prevIsPlaying => {
       if (prevIsPlaying) {
-        shouldAutoPlayRef.current = false;
-        forcePlayRef.current = false;
         audioRef.current?.pause();
       } else {
-        shouldAutoPlayRef.current = true;
-        forcePlayRef.current = true;
         audioRef.current?.play().catch(e => logger.error('Playback failed', e));
       }
       return !prevIsPlaying;
@@ -124,7 +95,7 @@ export function usePlayback({
 
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current && currentTrack) {
-      if (!isCloudMode) {
+      if (currentTrack.source !== 'webdav') {
         setTracks(prev => {
           const newTracks = [...prev];
           if (newTracks[currentTrackIndex] && audioRef.current) {
@@ -136,28 +107,13 @@ export function usePlayback({
           return newTracks;
         });
       }
-
-      if (restoredTimeRef.current > 0) {
-        if (restoredTrackIdRef.current && restoredTrackIdRef.current !== currentTrack.id) {
-          return;
-        }
-
-        const duration = audioRef.current.duration || 0;
-        const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - PLAYBACK.MAX_RESTORE_OFFSET)));
-        logger.debug('[Playback] Restoring playback time:', restoreTime);
-
-        audioRef.current.currentTime = restoreTime;
-        setCurrentTime(restoreTime);
-        restoredTimeRef.current = 0;
-        restoredTrackIdRef.current = null;
-      }
     }
-  }, [currentTrack, currentTrackIndex, setTracks, isCloudMode]);
+  }, [currentTrack, currentTrackIndex, setTracks]);
 
   const getNextTrackIndex = useCallback((direction: 'forward' | 'backward'): number => {
-    const listLength = isCloudMode ? webdavTracks.length : tracks.length;
+    const listLength = tracks.length;
     if (listLength === 0) return -1;
-    const currentIdx = isCloudMode ? cloudTrackIndexRef.current : currentTrackIndexRef.current;
+    const currentIdx = currentTrackIndexRef.current;
 
     if (playbackMode === 'shuffle') {
       return getRandomIndex(currentIdx, listLength);
@@ -168,14 +124,12 @@ export function usePlayback({
     } else {
       return currentIdx > 0 ? currentIdx - 1 : listLength - 1;
     }
-  }, [isCloudMode, webdavTracks.length, tracks.length, playbackMode, getRandomIndex]);
+  }, [tracks.length, playbackMode, getRandomIndex]);
 
   const handleTrackEnded = useCallback(() => {
     if (playbackMode === 'repeat-one') {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
-        shouldAutoPlayRef.current = true;
-        forcePlayRef.current = true;
         audioRef.current.play().catch(() => {
           setIsPlaying(false);
         });
@@ -187,16 +141,9 @@ export function usePlayback({
     const nextIndex = getNextTrackIndex('forward');
     if (nextIndex < 0) return;
 
-    shouldAutoPlayRef.current = true;
-    forcePlayRef.current = true;
     onTrackSwitch?.();
-
-    if (isCloudMode) {
-      setCloudTrackIndex(nextIndex);
-    } else {
-      setCurrentTrackIndex(nextIndex);
-    }
-  }, [isCloudMode, playbackMode, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
+    setCurrentTrackIndex(nextIndex);
+  }, [playbackMode, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
     const desktopAPI = await getDesktopAPIAsync();
@@ -205,8 +152,7 @@ export function usePlayback({
     }
 
     try {
-      logger.debug('[Playback] Loading audio file for:', track.title, `(${desktopAPI.platform})`);
-      logger.debug('[Playback] Using blob URL protocol');
+      logger.debug('[Playback] Loading audio file for:', track.title);
       const readResult = await desktopAPI.readFile(track.filePath);
 
       if (readResult.success && readResult.data.byteLength > 0) {
@@ -231,34 +177,18 @@ export function usePlayback({
   }, [createTrackedBlobUrl]);
 
   const skipForward = useCallback(() => {
-    const listLength = isCloudMode ? webdavTracks.length : tracks.length;
-    if (listLength === 0) return;
-    shouldAutoPlayRef.current = true;
-    forcePlayRef.current = true;
+    if (tracks.length === 0) return;
     onTrackSwitch?.();
-
     const nextIndex = getNextTrackIndex('forward');
-    if (isCloudMode) {
-      setCloudTrackIndex(nextIndex);
-    } else {
-      setCurrentTrackIndex(nextIndex);
-    }
-  }, [isCloudMode, webdavTracks.length, tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
+    setCurrentTrackIndex(nextIndex);
+  }, [tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const skipBackward = useCallback(() => {
-    const listLength = isCloudMode ? webdavTracks.length : tracks.length;
-    if (listLength === 0) return;
-    shouldAutoPlayRef.current = true;
-    forcePlayRef.current = true;
+    if (tracks.length === 0) return;
     onTrackSwitch?.();
-
     const nextIndex = getNextTrackIndex('backward');
-    if (isCloudMode) {
-      setCloudTrackIndex(nextIndex);
-    } else {
-      setCurrentTrackIndex(nextIndex);
-    }
-  }, [isCloudMode, webdavTracks.length, tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
+    setCurrentTrackIndex(nextIndex);
+  }, [tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const handleSeek = useCallback((time: number) => {
     if (audioRef.current) {
@@ -295,66 +225,41 @@ export function usePlayback({
   const handleCanPlay = useCallback(() => {
     logger.debug('[Playback] Audio is ready to play');
 
-    if (restoredTimeRef.current > 0 && audioRef.current) {
-      if (restoredTrackIdRef.current && currentTrack && restoredTrackIdRef.current !== currentTrack.id) {
-        return;
-      }
-
-      const duration = audioRef.current.duration || 0;
-      const restoreTime = Math.max(0, Math.min(restoredTimeRef.current, Math.max(0, duration - PLAYBACK.MAX_RESTORE_OFFSET)));
-      logger.debug('[Playback] Restoring playback time in canplay:', restoreTime);
-
-      audioRef.current.currentTime = restoreTime;
-      setCurrentTime(restoreTime);
-
-      restoredTimeRef.current = 0;
-      restoredTrackIdRef.current = null;
-      logger.debug('[Playback] ✓ Playback time restored');
-    }
-
-    if ((waitingForCanPlayRef.current || shouldAutoPlayRef.current || forcePlayRef.current) && audioRef.current) {
+    if (waitingForCanPlayRef.current && audioRef.current) {
       waitingForCanPlayRef.current = false;
       logger.debug('[Playback] Attempting playback after canplay');
       audioRef.current.play().then(() => {
         logger.debug('[Playback] ✓ Playback started after canplay');
         setIsPlaying(true);
-        shouldAutoPlayRef.current = false;
-        forcePlayRef.current = false;
       }).catch((e) => {
         logger.debug('[Playback] Playback failed after canplay:', e);
         setIsPlaying(false);
-        shouldAutoPlayRef.current = true;
-        forcePlayRef.current = true;
       });
     }
-  }, [currentTrack]);
+  }, []);
 
-  // Main track-change effect — does NOT depend on isPlaying
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
-    logger.debug('[Playback] Track changed:', currentTrack.title, 'cloudIdx:', cloudTrackIndex, 'localIdx:', currentTrackIndex, 'source:', currentTrack.source);
+    logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex, 'source:', currentTrack.source);
 
     audioUrlReadyRef.current = false;
 
     if (currentTrack.source === 'webdav') {
       const handleWebdav = async () => {
         if (!currentTrack.webdavPath) return;
-        const capturedCloudIdx = cloudTrackIndex;
-        const shouldPlay = shouldAutoPlayRef.current || forcePlayRef.current;
-        logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title, 'autoPlay:', shouldPlay);
+        const capturedIndex = currentTrackIndex;
+        logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title);
 
         try {
           const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
-          if (cloudTrackIndexRef.current !== capturedCloudIdx || !audioRef.current) return;
+          if (currentTrackIndexRef.current !== capturedIndex || !audioRef.current) return;
           logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
           if (cdnUrl) {
             audioRef.current.src = cdnUrl;
             audioUrlReadyRef.current = true;
-            if (shouldPlay) {
+            if (isPlaying) {
               await audioRef.current.play();
-              shouldAutoPlayRef.current = false;
-              forcePlayRef.current = false;
               setIsPlaying(true);
             } else {
               audioRef.current.pause();
@@ -395,51 +300,21 @@ export function usePlayback({
       return;
     }
 
-    if (waitingForCanPlayRef.current) {
-      waitingForCanPlayRef.current = false;
-    }
-
-    if (restoredTimeRef.current > 0) {
-      logger.debug('[Playback] Need to restore playback time:', restoredTimeRef.current);
-    }
-
+    waitingForCanPlayRef.current = false;
     audioUrlReadyRef.current = true;
 
     if (currentTrack.audioUrl) {
-      if (shouldAutoPlayRef.current || forcePlayRef.current) {
+      if (isPlaying) {
         audioRef.current.play().then(() => {
           logger.debug('[Playback] ✓ Playback started successfully');
-          shouldAutoPlayRef.current = false;
-          forcePlayRef.current = false;
           setIsPlaying(true);
         }).catch((e) => {
           logger.debug('[Playback] Playback failed, waiting for canplay:', e);
           waitingForCanPlayRef.current = true;
-          shouldAutoPlayRef.current = true;
-          forcePlayRef.current = true;
         });
       }
     }
-  }, [currentTrackIndex, cloudTrackIndex, currentTrack, loadAudioFileForTrack, setTracks]);
-
-  useEffect(() => {
-    if (!audioRef.current || !currentTrack || !currentTrack.audioUrl) return;
-
-    if ((shouldAutoPlayRef.current || forcePlayRef.current) && audioUrlReadyRef.current) {
-      logger.debug('[Playback] Auto-playing after audio URL loaded:', currentTrack.title);
-      audioRef.current.play().then(() => {
-        logger.debug('[Playback] ✓ Auto-play started successfully');
-        setIsPlaying(true);
-        shouldAutoPlayRef.current = false;
-        forcePlayRef.current = false;
-      }).catch((e) => {
-        logger.debug('[Playback] Auto-play failed:', e);
-        waitingForCanPlayRef.current = true;
-        shouldAutoPlayRef.current = true;
-        forcePlayRef.current = true;
-      });
-    }
-  }, [currentTrack?.audioUrl, currentTrack]);
+  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, setTracks, isPlaying]);
 
   useEffect(() => {
     if (!currentTrack) return;
@@ -532,10 +407,9 @@ export function usePlayback({
 
     setIsPlaying(false);
     waitingForCanPlayRef.current = false;
-    shouldAutoPlayRef.current = false;
 
     if (currentTrack && audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
-      if (isCloudMode) {
+      if (currentTrack.source === 'webdav') {
         logger.warn('[Playback] CDN URL not supported, retrying with fresh URL');
         webdavClient.clearCdnCache();
       } else {
@@ -549,105 +423,12 @@ export function usePlayback({
         });
       }
     }
-  }, [currentTrack, setTracks, isCloudMode]);
+  }, [currentTrack, setTracks]);
 
   const selectTrack = useCallback((idx: number) => {
-    shouldAutoPlayRef.current = true;
-    forcePlayRef.current = true;
-    setCloudTrackIndex(-1);
     switchToTrackIndex(idx);
     setIsPlaying(true);
   }, [switchToTrackIndex]);
-
-  const setCloudTrack = useCallback((idx: number, autoPlay = true) => {
-    shouldAutoPlayRef.current = autoPlay;
-    forcePlayRef.current = autoPlay;
-    setCloudTrackIndex(idx);
-    if (autoPlay) {
-      setIsPlaying(true);
-    }
-  }, []);
-
-  const clearCloudTrack = useCallback(() => {
-    setCloudTrackIndex(-1);
-  }, []);
-
-  // --- Independent Playback Context API (uses refs, no re-render cycles) ---
-
-  const savePlaybackContext = useCallback((source: 'local' | 'cloud') => {
-    const ctx: PlaybackContext = {
-      trackIndex: source === 'cloud' ? cloudTrackIndexRef.current : currentTrackIndexRef.current,
-      trackId: source === 'cloud'
-        ? webdavTracks[cloudTrackIndexRef.current]?.id
-        : tracks[currentTrackIndexRef.current]?.id,
-      currentTime: persistedTimeRef.current || 0,
-      volume,
-      playbackMode,
-      isPlaying
-    };
-    if (source === 'cloud') {
-      cloudPlaybackCtx.current = ctx;
-    } else {
-      localPlaybackCtx.current = ctx;
-    }
-    logger.debug('[Playback] Saved', source, 'playback context:', ctx);
-  }, [tracks, webdavTracks, volume, playbackMode, isPlaying]);
-
-  const restorePlaybackContext = useCallback((source: 'local' | 'cloud') => {
-    const ctx = source === 'cloud' ? cloudPlaybackCtx.current : localPlaybackCtx.current;
-    if (!ctx || ctx.trackIndex < 0) {
-      logger.debug('[Playback] No saved context for', source, ', skipping restore');
-      return;
-    }
-    logger.debug('[Playback] Restoring', source, 'playback context:', ctx);
-
-    setVolume(ctx.volume);
-    setPlaybackMode(ctx.playbackMode);
-    restoredTimeRef.current = ctx.currentTime;
-    if (ctx.trackId) {
-      restoredTrackIdRef.current = ctx.trackId;
-    }
-
-    if (source === 'cloud') {
-      if (ctx.trackIndex >= 0 && ctx.trackIndex < webdavTracks.length) {
-        setCloudTrackIndex(ctx.trackIndex);
-      }
-    } else {
-      if (ctx.trackIndex >= 0 && ctx.trackIndex < tracks.length) {
-        setCurrentTrackIndex(ctx.trackIndex);
-      }
-    }
-
-    setIsPlaying(false);
-  }, [tracks.length, webdavTracks.length]);
-
-  const getPlaybackContexts = useCallback(() => {
-    const currentCtx: PlaybackContext = {
-      trackIndex: isCloudMode ? cloudTrackIndexRef.current : currentTrackIndexRef.current,
-      trackId: isCloudMode
-        ? webdavTracks[cloudTrackIndexRef.current]?.id
-        : tracks[currentTrackIndexRef.current]?.id,
-      currentTime: persistedTimeRef.current || 0,
-      volume,
-      playbackMode,
-      isPlaying
-    };
-    if (isCloudMode) {
-      cloudPlaybackCtx.current = currentCtx;
-    } else {
-      localPlaybackCtx.current = currentCtx;
-    }
-    return {
-      localPlaybackContext: localPlaybackCtx.current,
-      cloudPlaybackContext: cloudPlaybackCtx.current
-    };
-  }, [tracks, webdavTracks, volume, playbackMode, isPlaying, isCloudMode]);
-
-  const setPlaybackContexts = useCallback((localCtx: PlaybackContext, cloudCtx: PlaybackContext) => {
-    localPlaybackCtx.current = localCtx;
-    cloudPlaybackCtx.current = cloudCtx;
-    logger.debug('[Playback] Set playback contexts from persistence:', { localCtx, cloudCtx });
-  }, []);
 
   return {
     audioRef,
@@ -674,20 +455,9 @@ export function usePlayback({
     handleTogglePlaybackMode,
     handleAudioError,
     selectTrack,
-    setCloudTrack,
-    clearCloudTrack,
     loadAudioFileForTrack,
-    shouldAutoPlayRef,
     waitingForCanPlayRef,
-    restoredTimeRef,
-    restoredTrackIdRef,
     audioUrlReadyRef,
     persistedTimeRef,
-    forcePlayRef,
-    cloudTrackIndex,
-    savePlaybackContext,
-    restorePlaybackContext,
-    getPlaybackContexts,
-    setPlaybackContexts
   };
 }
