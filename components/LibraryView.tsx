@@ -1052,7 +1052,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         onDragEnd={handleTrackDragEnd}
                         onClick={() => {
                           if (isEditMode || isUnavailable) return;
-                          onTrackSelect(filteredIndex);
+                          const realIndex = displayTracks.findIndex(t => t.id === track.id);
+                          if (realIndex >= 0) onTrackSelect(realIndex);
                         }}
                         style={{
                           ...animationStyle,
@@ -1256,9 +1257,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              ref={idx === 0 ? rowMeasureRef : undefined}
                              data-track-index={filteredIndex}
   onClick={() => {
-                            if (isEditMode || isUnavailable) return;
-                            onTrackSelect(filteredIndex);
-                          }}
+                             if (isEditMode || isUnavailable) return;
+                             const realIndex = displayTracks.findIndex(t => t.id === track.id);
+                             if (realIndex >= 0) onTrackSelect(realIndex);
+                           }}
                              className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
                             style={{
                               ...animationStyle,
