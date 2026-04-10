@@ -995,10 +995,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   return;
                 }
                 onDataSourceChange('cloud');
-                if (cloudTracks.length === 0) {
-                  const result = await loadWebDAVFiles();
-                  applyDiffResult(result);
-                }
+                const result = await loadWebDAVFiles();
+                applyDiffResult(result);
               }}
               className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
               style={{
