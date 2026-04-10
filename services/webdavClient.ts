@@ -231,12 +231,15 @@ class WebDAVClient {
     if (!api) return null;
 
     const cdnUrl = await this.getCdnUrl(filePath);
-    if (!cdnUrl) return null;
+    if (!cdnUrl) {
+      logger.warn('[WebDAV] fetchFileRange: no CDN URL for', filePath);
+      return null;
+    }
 
     const result = await api.webdavGetRange(cdnUrl, '', start, end);
 
     if (!result.success) {
-      logger.error('[WebDAV] Range fetch failed:', result.error);
+      logger.error('[WebDAV] Range fetch failed:', result.error, 'path:', filePath, 'range:', `${start}-${end}`);
       return null;
     }
 

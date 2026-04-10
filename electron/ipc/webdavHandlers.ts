@@ -69,13 +69,15 @@ export function registerWebDAVHandlers(): void {
       });
 
       if (!response.ok && response.status !== 206) {
+        logger.error('[WebDAV IPC] Range fetch failed:', response.status, response.statusText, 'URL:', url.substring(0, 100));
         return { success: false, error: `Range fetch failed: ${response.status}` };
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      logger.info('[WebDAV IPC] Range fetch success:', url.substring(0, 80), 'range:', `${start}-${end}`, 'got', arrayBuffer.byteLength, 'bytes');
       return { success: true, data: arrayBuffer };
     } catch (e: any) {
-      logger.error('[WebDAV] Range fetch error:', e);
+      logger.error('[WebDAV IPC] Range fetch error:', e.message, 'URL:', url.substring(0, 100));
       return { success: false, error: e.message };
     }
   });

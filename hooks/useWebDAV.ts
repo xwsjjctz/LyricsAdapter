@@ -6,7 +6,7 @@ import { logger } from '../services/logger';
 
 const METADATA_CACHE_KEY = 'webdav-metadata-cache';
 const BATCH_SIZE = 5;
-const RANGE_SIZE = 65536;
+const RANGE_SIZE = 524288;
 
 async function blobUrlToDataUrl(blobUrl: string): Promise<string> {
   if (!blobUrl || !blobUrl.startsWith('blob:')) return blobUrl;
