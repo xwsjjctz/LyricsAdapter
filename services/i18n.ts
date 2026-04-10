@@ -1355,6 +1355,22 @@ const translations: Translations = {
     de: 'Schließen',
     fr: 'Fermer'
   },
+  'titleBar.enterFocusMode': {
+    zh: '进入专注模式',
+    en: 'Enter Focus Mode',
+    ja: 'フォーカスモードに入る',
+    ko: '집중 모드 진입',
+    de: 'Fokusmodus aktivieren',
+    fr: 'Entrer en mode concentré'
+  },
+  'titleBar.exitFocusMode': {
+    zh: '退出专注模式',
+    en: 'Exit Focus Mode',
+    ja: 'フォーカスモードを終了',
+    ko: '집중 모드 종료',
+    de: 'Fokusmodus beenden',
+    fr: 'Quitter le mode concentré'
+  },
 
   // Cookie Dialog
   'cookieDialog.title': {

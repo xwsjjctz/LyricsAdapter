@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const [libraryCategorySelection, setLibraryCategorySelection] = useState<string | null>(null);
   const [webdavTracks, setWebdavTracks] = useState<Track[]>([]);
   const pendingCloudRestoreRef = useRef<string | null>(null);
+  const pendingLocalTrackIdRef = useRef<string | null>(null);
 
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -480,6 +481,7 @@ const App: React.FC = () => {
                 onWebdavTracksChange={setWebdavTracks}
                 onCloudLoad={async (webdavTracks) => {
                   const localTrackId = currentTrack?.id;
+                  pendingLocalTrackIdRef.current = localTrackId;
                   const cloudTrackId = cloudTracks[cloudTrackIndex]?.id;
                   setCloudTracks(webdavTracks);
                   if (pendingCloudRestoreRef.current) {
@@ -537,7 +539,8 @@ const App: React.FC = () => {
                         lastPlayed: song.lastPlayed || undefined,
                         available: song.available ?? true
                       }));
-                      const localTrackId = currentTrack?.id;
+                      const localTrackId = pendingLocalTrackIdRef.current || backupData.settings?.localCurrentTrackId;
+                      pendingLocalTrackIdRef.current = null;
                       await api.saveLibraryIndex(backupData);
                       setTracks(restoredTracks);
                       logger.info('[App] Local library restored from backup');
@@ -553,7 +556,8 @@ const App: React.FC = () => {
                     }
                   }
                   if (localTracksBackup) {
-                    const localTrackId = currentTrack?.id;
+                    const localTrackId = pendingLocalTrackIdRef.current;
+                    pendingLocalTrackIdRef.current = null;
                     setTracks(localTracksBackup);
                     setLocalTracksBackup(null);
                     clearCloudTrack();
