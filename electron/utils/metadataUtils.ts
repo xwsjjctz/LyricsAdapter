@@ -648,13 +648,8 @@ export async function writeAudioMetadata(
       }, coverBuffer);
       logger.info('[Main] FFmpeg remux completed, success:', success);
     } catch (ffmpegError) {
-      logger.warn('[Main] FFmpeg FLAC metadata write failed, fallback to metaflac:', ffmpegError);
-      logger.info('[Main] Attempting metaflac with full metadata object (including coverUrl)');
-      success = await writeFlacMetadataWithMetaflac(expandedPath, {
-        ...metadata,
-        coverUrl: metadata.coverUrl
-      });
-      logger.info('[Main] Metaflac completed, success:', success);
+      logger.warn('[Main] FFmpeg FLAC metadata write failed, fallback to direct block write');
+      success = await writeFlacMetadata(expandedPath, metadata, coverBuffer);
     }
     logger.info('[Main] FLAC metadata write final result:', success);
   } else {
