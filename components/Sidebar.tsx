@@ -25,7 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   searchInputValue = '',
   onSearchInputChange,
   onSearchExecute,
-  viewMode
+  viewMode: _viewMode
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isBrowseView = currentView === ViewMode.BROWSE;

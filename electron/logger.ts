@@ -17,7 +17,7 @@ class Logger {
 
   constructor() {
     // Check for environment variable
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       this.level = LogLevel.WARN;
     }
   }

@@ -5,10 +5,10 @@ export interface QQMusicSong {
   songmid: string;
   songname: string;
   singer: { name: string; mid?: string }[];
-  albumname?: string;
-  albummid?: string;
-  interval?: number; // duration in seconds
-  coverUrl?: string;
+  albumname?: string | undefined;
+  albummid?: string | undefined;
+  interval?: number | undefined;
+  coverUrl?: string | undefined;
 }
 
 export interface QQMusicSearchResult {
@@ -30,7 +30,7 @@ interface QQMusicElectronAPI {
   saveFileToPath?: (dirPath: string, fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   writeAudioMetadata?: (
     filePath: string,
-    metadata: { title?: string; artist?: string; album?: string; lyrics?: string; coverUrl?: string }
+    metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }
   ) => Promise<{ success: boolean; error?: string }>;
   onDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
   offDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
@@ -51,11 +51,6 @@ class QQMusicAPI {
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
     'Referer': 'https://y.qq.com/',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-  };
-
-  private mobileHeaders = {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36 Edg/123.0.0.0',
-    'Referer': 'https://y.qq.com/',
   };
 
   private handleFetchError(error: Error | unknown, context: string): never {
@@ -254,7 +249,7 @@ class QQMusicAPI {
       flac: { s: 'F000', e: '.flac', bitrate: 'FLAC' },
     };
 
-    const config = fileConfig[quality];
+    const config = fileConfig[quality]!;
     const file = `${config.s}${songmid}${songmid}${config.e}`;
 
     const reqData = {
@@ -290,7 +285,7 @@ class QQMusicAPI {
       const rawCookie = cookieManager.getCookie();
       logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
 
-      const ipcResult = await window.electron!.getQQMusicUrl(reqData, rawCookie) as { success: boolean; error?: string; data?: unknown };
+      const ipcResult = await window.electron!.getQQMusicUrl!(reqData, rawCookie) as { success: boolean; error?: string; data?: unknown };
 
       if (!ipcResult.success) {
         throw new Error(ipcResult.error || 'Failed to get music URL');
@@ -338,7 +333,7 @@ class QQMusicAPI {
       const url = sip + purl;
       logger.debug('[QQMusicAPI] Final URL:', url);
 
-      return { url, bitrate: config.bitrate };
+      return { url, bitrate: config!.bitrate };
     } catch (error: unknown) {
       this.handleFetchError(error, '获取音乐链接');
     }
@@ -477,7 +472,7 @@ class QQMusicAPI {
   async downloadAudio(
     songmid: string,
     songName: string,
-    singer: string,
+    _singer: string,
     quality: 'm4a' | '128' | '320' | 'flac' = '128',
     onProgress?: (downloaded: number, total: number) => void
   ): Promise<Blob> {
@@ -503,7 +498,7 @@ class QQMusicAPI {
 
       let result;
       try {
-        result = await window.electron!.downloadAudioFile(url, rawCookie);
+        result = await window.electron!.downloadAudioFile!(url, rawCookie);
       } finally {
         // Clean up progress listener
         if (progressListener && window.electron?.offDownloadProgress) {

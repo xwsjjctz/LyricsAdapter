@@ -73,7 +73,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state for file drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null); // Track being reordered
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null); // Drop target
+  const [_dragOverIndex, setDragOverIndex] = useState<number | null>(null); // Drop target
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
   const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
@@ -85,7 +85,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
-  const { isLoading: webdavLoading, error: webdavError, loadProgress, loadWebDAVFiles, cancelLoad, clearWebdavCache, forceReload } = useWebDAV();
+  const { isLoading: webdavLoading, loadProgress, loadWebDAVFiles, clearWebdavCache } = useWebDAV();
 
   const applyDiffResult = useCallback((result: WebDAVDiffResult) => {
     if (result.type === 'full') {
@@ -179,8 +179,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, []);
 
   // Track if animation has already played for current tracks
-  const hasAnimatedRef = useRef(false);
-  const previousTracksRef = useRef<Track[]>([]);
+
   const isInitialMountRef = useRef(true);
 
   // Filter tracks based on executed search query
@@ -202,7 +201,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         if (!artistMap.has(artist)) {
           artistMap.set(artist, {
             name: artist,
-            coverUrl: track.coverUrl
+            ...(track.coverUrl != null && { coverUrl: track.coverUrl })
           });
         }
       });
@@ -217,7 +216,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         albumMap.set(track.album, {
           name: track.album,
           artist: track.artist,
-          coverUrl: track.coverUrl
+          ...(track.coverUrl != null && { coverUrl: track.coverUrl })
         });
       }
     });
@@ -240,11 +239,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [filteredTracks, filterType, selectedArtist, selectedAlbum]);
 
   // Check if tracks actually changed (by comparing IDs)
-  const didTracksChange = useCallback((prevTracks: Track[], newTracks: Track[]) => {
-    if (prevTracks.length !== newTracks.length) return true;
-    return prevTracks.some((track, index) => track.id !== newTracks[index]?.id);
-  }, []);
-
   // Ref for the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -738,7 +732,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       logger.debug('[LibraryView] Using sequential removal (fallback)...');
       for (let i = 0; i < idsToRemove.length; i++) {
-        const id = idsToRemove[i];
+        const id = idsToRemove[i]!;
         logger.debug(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
         await onRemoveTrack(id);
       }
@@ -942,7 +936,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             <button
               onClick={() => {
                 onFilterTypeChange('album');
-                onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0].name : null);
+                onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0]!.name : null);
               }}
               className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
               style={{
@@ -956,7 +950,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             <button
               onClick={() => {
                 onFilterTypeChange('artist');
-                onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0].name : null);
+                onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0]!.name : null);
               }}
               className="w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center"
               style={{
@@ -1073,7 +1067,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   const isSelected = selectedIds.has(track.id);
                   const isCurrentTrack = track.id === currentTrackId;
                   const isDragged = draggedIndex === filteredIndex;
-                  const isDragOver = dragOverIndex === filteredIndex;
                   const canDrag = isEditMode && !isUnavailable && !executedSearchQuery; // Only allow drag when not searching
                   // Only apply animation when shouldShowAnimation is true
                   const animationStyle = shouldShowAnimation

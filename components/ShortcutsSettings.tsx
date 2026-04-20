@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { i18n } from '../services/i18n';
-import { shortcutManager, ShortcutAction, ShortcutConfig, DEFAULT_SHORTCUTS } from '../services/shortcuts';
+import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 

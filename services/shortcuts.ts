@@ -327,7 +327,7 @@ class ShortcutManager {
     };
     
     // Get the expected event.key value (try both original and lowercase for letters)
-    const expectedKey = keyMap[key] || key;
+    const expectedKey = keyMap[key!] || key!;
     const expectedKeyLower = expectedKey.toLowerCase();
 
     const ctrlMatch = needsCtrl === (event.ctrlKey || event.metaKey);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
-import { Track, SyncedLyricLine } from '../types';
+import { Track } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
@@ -15,7 +15,7 @@ function decodeHtmlEntities(text: string): string {
 const hexToRgb = (hex: string): string => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (result) {
-    return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
+    return `${parseInt(result[1]!, 16)}, ${parseInt(result[2]!, 16)}, ${parseInt(result[3]!, 16)}`;
   }
   return '255, 255, 255';
 };
@@ -52,7 +52,7 @@ interface FocusModeProps {
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime, onClose,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef, showExitButton
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, showExitButton
 }) => {
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
@@ -249,7 +249,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         .map(line => line.trim())
         .filter(line => line.length > 0 && line !== '//');
       // Convert to synced lyrics format with even distribution
-      return plainLines.map((text, idx) => ({
+      return plainLines.map((text, _idx) => ({
         time: 0, // No timing info for plain lyrics
         text
       }));
@@ -263,8 +263,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
     // If we have synced lyrics, find the line based on current time
     if (track.syncedLyrics && track.syncedLyrics.length > 0) {
-      for (let i = lyricsLines.length - 1; i >= 0; i--) {
-        if (activeCurrentTime >= lyricsLines[i].time) {
+        for (let i = lyricsLines.length - 1; i >= 0; i--) {
+        if (lyricsLines[i] && activeCurrentTime >= lyricsLines[i]!.time) {
           return i;
         }
       }
@@ -301,7 +301,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     // Calculate total content height
     let totalContentHeight = 0;
     for (let i = 0; i < lineElements.length; i++) {
-      totalContentHeight += lineElements[i].offsetHeight;
+      totalContentHeight += lineElements[i]!.offsetHeight;
       if (i < lineElements.length - 1) {
         totalContentHeight += GAP;
       }
@@ -309,12 +309,12 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
     // First line should stay visible - restrict downward scroll
     // Keep first line within upper half of container (around 8% from top)
-    const firstLineHeight = lineElements[0].offsetHeight;
+    const firstLineHeight = lineElements[0]!.offsetHeight;
     const minOffset = containerHeight * 0.02 - totalContentHeight + firstLineHeight / 2;
     
     // Restrict upward scroll - keep first line from scrolling too far up
     // Limit to 20% from top so first line stays visible when scrolling down
-    const lastLineHeight = lineElements[lineElements.length - 1].offsetHeight;
+    const lastLineHeight = lineElements[lineElements.length - 1]!.offsetHeight;
     const maxOffset = containerHeight * 0.2 - lastLineHeight / 2;
 
     return { min: minOffset, max: maxOffset };
@@ -475,7 +475,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     // Look for lyrics that will start within PRE_SCROLL_TIME window
     let targetIndex = -1;
     for (let i = 0; i < lyricsLines.length; i++) {
-      const lyricTime = lyricsLines[i].time;
+      const lyricTime = lyricsLines[i]!.time;
       // Trigger scroll when current time is 0.4s before this lyric
       if (activeCurrentTime >= lyricTime - PRE_SCROLL_TIME && 
           activeCurrentTime < lyricTime + 0.1) {
@@ -499,10 +499,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const GAP = 28;
     let offsetToTarget = 0;
     for (let i = 0; i < targetIndex; i++) {
-      offsetToTarget += lineElements[i].offsetHeight + GAP;
+      offsetToTarget += lineElements[i]!.offsetHeight + GAP;
     }
 
-    const targetLineHeight = lineElements[targetIndex].offsetHeight;
+    const targetLineHeight = lineElements[targetIndex]!.offsetHeight;
     const autoOffsetY = containerHeight * 0.1 - offsetToTarget - targetLineHeight / 2;
     
     autoOffsetRef.current = autoOffsetY;

@@ -14,7 +14,7 @@ export interface ValidatedMetadata {
   album: string;
   duration: number;
   lyrics: string;
-  syncedLyrics?: { time: number; text: string }[];
+  syncedLyrics?: { time: number; text: string }[] | undefined;
   fileName: string;
   fileSize: number;
   lastModified: number;
@@ -103,12 +103,12 @@ function sanitizeSyncedLyrics(input: unknown): { time: number; text: string }[] 
 
     const obj = item as Record<string, unknown>;
     const time = sanitizeNumber(
-      obj.time,
+      obj['time'],
       0,
       MAX_DURATION,
       0
     );
-    const text = sanitizeString(obj.text, MAX_STRING_LENGTH, true);
+    const text = sanitizeString(obj['text'], MAX_STRING_LENGTH, true);
 
     if (text) {
       sanitized.push({ time, text });
@@ -133,11 +133,11 @@ export function validateMetadata(data: unknown): ValidatedMetadata | null {
   const obj = data as Record<string, unknown>;
 
   // Validate required fields - use fallback if missing
-  let title = sanitizeString(obj.title, MAX_TITLE_LENGTH);
-  let artist = sanitizeString(obj.artist, MAX_ARTIST_LENGTH);
-  let album = sanitizeString(obj.album, MAX_ALBUM_LENGTH);
-  const lyrics = sanitizeString(obj.lyrics || '', MAX_LYRICS_LENGTH, true);
-  let fileName = sanitizeString(obj.fileName, MAX_FILENAME_LENGTH);
+  let title = sanitizeString(obj['title'], MAX_TITLE_LENGTH);
+  let artist = sanitizeString(obj['artist'], MAX_ARTIST_LENGTH);
+  let album = sanitizeString(obj['album'], MAX_ALBUM_LENGTH);
+  const lyrics = sanitizeString(obj['lyrics'] || '', MAX_LYRICS_LENGTH, true);
+  let fileName = sanitizeString(obj['fileName'], MAX_FILENAME_LENGTH);
 
   // Use fallback values if missing (instead of rejecting)
   if (!title) {
@@ -149,12 +149,12 @@ export function validateMetadata(data: unknown): ValidatedMetadata | null {
   }
 
   // Validate numeric fields
-  const duration = sanitizeNumber(obj.duration, 0, MAX_DURATION, 0);
-  const fileSize = sanitizeNumber(obj.fileSize, 0, MAX_FILE_SIZE, 0);
-  const lastModified = sanitizeNumber(obj.lastModified, MIN_TIMESTAMP, MAX_TIMESTAMP, Date.now());
+  const duration = sanitizeNumber(obj['duration'], 0, MAX_DURATION, 0);
+  const fileSize = sanitizeNumber(obj['fileSize'], 0, MAX_FILE_SIZE, 0);
+  const lastModified = sanitizeNumber(obj['lastModified'], MIN_TIMESTAMP, MAX_TIMESTAMP, Date.now());
 
   // Validate optional syncedLyrics
-  const syncedLyrics = sanitizeSyncedLyrics(obj.syncedLyrics);
+  const syncedLyrics = sanitizeSyncedLyrics(obj['syncedLyrics']);
 
   return {
     title,

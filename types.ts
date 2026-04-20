@@ -4,28 +4,28 @@ export interface Track {
   title: string;
   artist: string;
   album: string;
-  duration: number; // in seconds
-  coverUrl?: string;
-  lyrics?: string;
-  syncedLyrics?: SyncedLyricLine[]; // Time-synced lyrics
+  duration: number;
+  coverUrl?: string | undefined;
+  lyrics?: string | undefined;
+  syncedLyrics?: SyncedLyricLine[] | undefined;
   audioUrl: string;
-  file?: File;
-  available?: boolean; // Whether the audio file is currently available
+  file?: File | undefined;
+  available?: boolean | undefined;
 
   // Persistence fields for Electron
-  filePath?: string; // Original file path on disk
-  fileName?: string; // Original file name
-  fileSize?: number; // File size in bytes
-  lastModified?: number; // File last modified timestamp
-  addedAt?: string; // ISO timestamp when added to library
-  playCount?: number; // Number of times played
-  lastPlayed?: string; // ISO timestamp of last play
+  filePath?: string | undefined;
+  fileName?: string | undefined;
+  fileSize?: number | undefined;
+  lastModified?: number | undefined;
+  addedAt?: string | undefined;
+  playCount?: number | undefined;
+  lastPlayed?: string | undefined;
 
   // WebDAV fields
-  source?: 'local' | 'webdav';
-  webdavPath?: string;
-  cdnUrl?: string;
-  cdnUrlExpiry?: number;
+  source?: 'local' | 'webdav' | undefined;
+  webdavPath?: string | undefined;
+  cdnUrl?: string | undefined;
+  cdnUrlExpiry?: number | undefined;
 }
 
 export interface SyncedLyricLine {

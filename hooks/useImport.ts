@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track } from '../types';
 import { parseAudioFile, libraryStorage } from '../services/metadataService';
+
+interface ParsedAudioMetadata {
+  title?: string;
+  artist?: string;
+  album?: string;
+  duration?: number;
+  lyrics?: string;
+  syncedLyrics?: { time: number; text: string }[];
+  coverData?: string;
+  coverMime?: string;
+  fileSize?: number;
+}
 import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
@@ -68,11 +80,11 @@ export function useImport({
           logger.debug(`[Import] 🆕 File "${fileName}" is new, creating new track`);
         }
 
-        let metadata;
+        let metadata: ParsedAudioMetadata | undefined;
         try {
           const parseResult = await desktopAPI.parseAudioMetadata(filePath);
           if (parseResult.success && parseResult.metadata) {
-            metadata = parseResult.metadata;
+            metadata = parseResult.metadata as ParsedAudioMetadata;
             logger.debug(`[Import] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
           }
         } catch (error) {
@@ -120,11 +132,11 @@ export function useImport({
 
         if (metadata) {
           metadataCacheService.set(trackId, {
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            duration: metadata.duration,
-            lyrics: metadata.lyrics,
+            title: metadata.title ?? '',
+            artist: metadata.artist ?? '',
+            album: metadata.album ?? '',
+            duration: metadata.duration ?? 0,
+            lyrics: metadata.lyrics ?? '',
             syncedLyrics: metadata.syncedLyrics,
             fileName: fileName,
             fileSize: metadata.fileSize || 0,
@@ -173,136 +185,6 @@ export function useImport({
     }));
     return processDesktopFilePathBatch(pathObjects, desktopAPI, tracksMap);
   }, [processDesktopFilePathBatch]);
-
-  // Process files from buffer (for drag-and-drop in Electron)
-  const processDesktopFileBatchFromBuffer = useCallback(async (
-    files: File[],
-    desktopAPI: any,
-    tracksMap: Map<string, Track>
-  ): Promise<Track[]> => {
-    const results = await Promise.all(
-      files.map(async (file) => {
-        const fileName = file.name;
-
-        const existingTrack = tracksMap.get(fileName);
-        if (existingTrack) {
-          logger.debug(`[Import] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
-        } else {
-          logger.debug(`[Import] 🆕 File "${fileName}" is new, creating new track`);
-        }
-
-        let savedFilePath = '';
-        try {
-          // Read file as ArrayBuffer
-          const arrayBuffer = await file.arrayBuffer();
-          const saveResult = await desktopAPI.saveAudioFileFromBuffer(fileName, arrayBuffer);
-          if (saveResult?.success && saveResult?.filePath) {
-            savedFilePath = saveResult.filePath;
-            logger.debug(`[Import] ✅ File saved from buffer: ${fileName} → ${savedFilePath} (${saveResult.method})`);
-          } else {
-            logger.warn(`[Import] ⚠️ saveAudioFileFromBuffer failed for "${fileName}":`, saveResult);
-          }
-        } catch (error) {
-          logger.error(`[Import] ❌ Failed to save file "${fileName}":`, error);
-          return null;
-        }
-
-        if (!savedFilePath) {
-          logger.error(`[Import] ❌ saveAudioFileFromBuffer returned empty path for "${fileName}"`);
-          return null;
-        }
-
-        let metadata;
-        try {
-          const parseResult = await desktopAPI.parseAudioMetadata(savedFilePath);
-          if (parseResult.success && parseResult.metadata) {
-            metadata = parseResult.metadata;
-            logger.debug(`[Import] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
-          }
-        } catch (error) {
-          logger.error('[Import] Failed to parse metadata:', error);
-        }
-
-        const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
-
-        let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
-        let coverSavedToDisk = false;
-        if (metadata?.coverData && metadata?.coverMime) {
-          if (desktopAPI.saveCoverThumbnail) {
-            try {
-              const coverResult = await desktopAPI.saveCoverThumbnail({
-                id: trackId,
-                data: metadata.coverData,
-                mime: metadata.coverMime
-              });
-              if (coverResult?.success && coverResult.coverUrl) {
-                coverUrl = coverResult.coverUrl;
-                coverSavedToDisk = true;
-              }
-            } catch (error) {
-              logger.warn('[Import] Failed to save cover thumbnail to disk:', error);
-            }
-          }
-
-          if (!coverSavedToDisk) {
-            try {
-              const byteCharacters = atob(metadata.coverData);
-              const byteNumbers = new Array(byteCharacters.length);
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-              }
-              const byteArray = new Uint8Array(byteNumbers);
-              const blob = new Blob([byteArray], { type: metadata.coverMime });
-              coverUrl = createTrackedBlobUrl(blob);
-
-
-            } catch (error) {
-              logger.error('[Import] Failed to create cover blob:', error);
-            }
-          }
-        }
-
-        if (metadata) {
-          metadataCacheService.set(trackId, {
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            duration: metadata.duration,
-            lyrics: metadata.lyrics,
-            syncedLyrics: metadata.syncedLyrics,
-            fileName: fileName,
-            fileSize: metadata.fileSize || 0,
-            lastModified: Date.now(),
-          });
-        }
-
-        const track = {
-          id: trackId,
-          title: metadata?.title || fileName.replace(/\.[^/.]+$/, ''),
-          artist: metadata?.artist || 'Unknown Artist',
-          album: metadata?.album || 'Unknown Album',
-          duration: metadata?.duration || 0,
-          lyrics: metadata?.lyrics || '',
-          syncedLyrics: metadata?.syncedLyrics,
-          coverUrl: coverUrl,
-          audioUrl: '',
-          fileName: fileName,
-          filePath: savedFilePath,
-          fileSize: metadata?.fileSize || 0,
-          lastModified: Date.now(),
-          addedAt: new Date().toISOString(),
-          available: true
-        } as Track;
-
-        logger.debug(`[Import] ✓ Track created: ${track.title} (ID: ${track.id})`);
-        return track;
-      })
-    );
-
-    const filtered = results.filter((track): track is Track => track !== null);
-    logger.debug(`[Import] Buffer Batch complete: ${results.length} total, ${filtered.length} successful, ${results.length - filtered.length} failed`);
-    return filtered;
-  }, [createTrackedBlobUrl]);
 
   const processWebFileBatch = useCallback(async (
     files: File[],

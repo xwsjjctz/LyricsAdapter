@@ -4,7 +4,7 @@ import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
-import { PLAYBACK, UI } from '../constants/config';
+import { UI } from '../constants/config';
 
 interface UsePlaybackOptions {
   tracks: Track[];
@@ -54,7 +54,7 @@ export function usePlayback({
   }, [currentTrackIndex]);
 
   const currentTrack = useMemo(() => {
-    return currentTrackIndex >= 0 ? tracks[currentTrackIndex] : null;
+    return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
   }, [tracks, currentTrackIndex]);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
@@ -377,6 +377,7 @@ export function usePlayback({
           const idx = prev.findIndex(t => t.id === currentTrack.id);
           if (idx === -1) return prev;
           const existing = prev[idx];
+          if (!existing) return prev;
           const hasLyrics = existing.lyrics && existing.lyrics.length > 0;
           const hasSynced = existing.syncedLyrics && existing.syncedLyrics.length > 0;
           if (hasLyrics || hasSynced) return prev;
@@ -450,7 +451,9 @@ export function usePlayback({
           const newTracks = [...prev];
           const idx = newTracks.findIndex(t => t.id === currentTrack.id);
           if (idx !== -1) {
-            newTracks[idx] = { ...newTracks[idx], audioUrl: '' };
+            const track = newTracks[idx];
+            if (!track) return newTracks;
+            newTracks[idx] = { ...track, audioUrl: '' };
           }
           return newTracks;
         });

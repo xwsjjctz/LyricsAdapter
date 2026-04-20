@@ -18,7 +18,7 @@ interface MetadataViewProps {
 
 const MetadataView: React.FC<MetadataViewProps> = memo(({
   libraryTracks,
-  onImportFromLibrary,
+  onImportFromLibrary: _onImportFromLibrary,
   onUpdateTrack
 }) => {
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -69,7 +69,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
       autoSelectedRef.current = true;
       // Small delay to ensure component is fully mounted
       const timer = setTimeout(() => {
-        setSelectedTrack(libraryTracks[0]);
+        setSelectedTrack(libraryTracks[0] ?? null);
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -174,8 +174,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             title: selectedTrack.title,
             artist: selectedTrack.artist,
             album: selectedTrack.album,
-            lyrics: lyricsToSave,
-            coverUrl: dataUrl, // Pass data URL directly
+            ...(lyricsToSave != null && { lyrics: lyricsToSave }),
+            coverUrl: dataUrl,
           };
 
           logger.info('[MetadataView] Writing cover to file...');
@@ -208,7 +208,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
     input.click();
   }, [selectedTrack, refreshMetadata, syncedLyricsToLRC]);
 
-  const renderMetadataField = useCallback((label: string, value: string | undefined, field: 'title' | 'artist' | 'album' | 'lyrics', isLyrics: boolean = false) => {
+  const renderMetadataField = useCallback((label: string, _value: string | undefined, field: 'title' | 'artist' | 'album' | 'lyrics', isLyrics: boolean = false) => {
     // For lyrics field, prefer synced lyrics in LRC format if available
     let currentValue = selectedTrack?.[field] || '';
     if (isLyrics && selectedTrack?.syncedLyrics && selectedTrack.syncedLyrics.length > 0) {
@@ -284,8 +284,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                           title: selectedTrack.title,
                           artist: selectedTrack.artist,
                           album: selectedTrack.album,
-                          lyrics: lyricsToSave,
-                          coverUrl: selectedTrack.coverUrl,
+                          ...(lyricsToSave != null && { lyrics: lyricsToSave }),
+                          ...(selectedTrack.coverUrl != null && { coverUrl: selectedTrack.coverUrl }),
                         };
                         
                         const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
@@ -394,8 +394,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                           title: selectedTrack.title,
                           artist: selectedTrack.artist,
                           album: selectedTrack.album,
-                          lyrics: lyricsToSave,
-                          coverUrl: selectedTrack.coverUrl,
+                          ...(lyricsToSave != null && { lyrics: lyricsToSave }),
+                          ...(selectedTrack.coverUrl != null && { coverUrl: selectedTrack.coverUrl }),
                         };
                         
                         const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
@@ -490,8 +490,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
               >
                 <TrackCover
                   trackId={track.id}
-                  filePath={track.filePath}
-                  fallbackUrl={track.coverUrl}
+                  {...(track.filePath != null && { filePath: track.filePath })}
+                  {...(track.coverUrl != null && { fallbackUrl: track.coverUrl })}
                   className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                 />
                 <div className="min-w-0 flex-1 text-left">
@@ -511,8 +511,8 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                 <div className="relative group flex-shrink-0">
                   <TrackCover
                     trackId={selectedTrack.id}
-                    filePath={selectedTrack.filePath}
-                    fallbackUrl={selectedTrack.coverUrl}
+                    {...(selectedTrack.filePath != null && { filePath: selectedTrack.filePath })}
+                    {...(selectedTrack.coverUrl != null && { fallbackUrl: selectedTrack.coverUrl })}
                     className="w-32 h-32 rounded-2xl object-cover shadow-2xl"
                   />
                   <button

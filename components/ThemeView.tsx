@@ -7,7 +7,7 @@ import { predefinedThemes } from '../services/themes/predefinedThemes';
 const ThemeView: React.FC = () => {
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [previewTheme, setPreviewTheme] = useState<ThemeConfig | null>(null);
-  const [languageVersion, setLanguageVersion] = useState(0);
+  const [, setLanguageVersion] = useState(0);
 
   // Subscribe to theme changes
   useEffect(() => {

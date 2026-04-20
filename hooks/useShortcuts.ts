@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { logger } from '../services/logger';
 import { shortcutManager, ShortcutAction } from '../services/shortcuts';
-import { isDesktop } from '../services/desktopAdapter';
 import { ViewMode } from '../types';
 
 interface UseShortcutsProps {
@@ -27,7 +26,7 @@ interface UseShortcutsProps {
 export const useShortcuts = ({
   viewMode,
   isFocusMode,
-  isPlaying,
+  isPlaying: _isPlaying,
   setIsFocusMode,
   setViewMode,
   togglePlay,
@@ -39,7 +38,7 @@ export const useShortcuts = ({
   handleToggleMute,
   handleTogglePlaybackMode,
   onImportClick,
-  searchInputRef,
+  searchInputRef: _searchInputRef,
   currentTime,
   duration
 }: UseShortcutsProps) => {
@@ -112,7 +111,7 @@ export const useShortcuts = ({
     const shortcuts = shortcutsRef.current;
 
     // Check each shortcut
-    for (const [action, config] of Object.entries(shortcuts)) {
+    for (const [action, _config] of Object.entries(shortcuts)) {
       if (shortcutManager.matchesShortcut(action as ShortcutAction, event)) {
         logger.debug('[Shortcuts] Matched action:', action);
         event.preventDefault();
@@ -129,7 +128,6 @@ export const useShortcuts = ({
     const currentTime = currentTimeRef.current;
     const duration = durationRef.current;
     const volume = volumeRef.current;
-    const viewMode = viewModeRef.current;
     const isFocusMode = isFocusModeRef.current;
     const togglePlay = togglePlayRef.current;
     const skipForward = skipForwardRef.current;

@@ -6,8 +6,8 @@ export interface CoverNeededRange {
 }
 
 export interface BufferParseContext {
-  coverNeededRange?: CoverNeededRange;
-  vorbisCommentNeededRange?: CoverNeededRange;
+  coverNeededRange?: CoverNeededRange | undefined;
+  vorbisCommentNeededRange?: CoverNeededRange | undefined;
   bufferOffset: number;
 }
 
@@ -18,19 +18,19 @@ export interface ParsedMetadata {
   duration: number;
   coverUrl: string;
   lyrics: string;
-  syncedLyrics?: { time: number; text: string }[];
+  syncedLyrics?: { time: number; text: string }[] | undefined;
   audioUrl: string;
   file: File;
 }
 
 interface WorkerMetadataResult {
-  title?: string;
-  artist?: string;
-  album?: string;
-  lyrics?: string;
-  syncedLyrics?: { time: number; text: string }[];
-  coverData?: ArrayBuffer;
-  coverMime?: string;
+  title?: string | undefined;
+  artist?: string | undefined;
+  album?: string | undefined;
+  lyrics?: string | undefined;
+  syncedLyrics?: { time: number; text: string }[] | undefined;
+  coverData?: ArrayBuffer | undefined;
+  coverMime?: string | undefined;
 }
 
 let metadataWorker: Worker | null = null;
@@ -137,7 +137,7 @@ function decodeSynchsafe(value: number): number {
   out.push((value >> 8) & 0x7F);
   out.push((value >> 16) & 0x7F);
   out.push((value >> 24) & 0x7F);
-  return (out[0] << 21) | (out[1] << 14) | (out[2] << 7) | out[3];
+  return (out[0]! << 21) | (out[1]! << 14) | (out[2]! << 7) | out[3]!;
 }
 
 // Decode text frame with proper encoding handling
@@ -297,7 +297,6 @@ function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Pars
   
   // ID3v2.3 uses non-synchsafe frame sizes, ID3v2.4 uses synchsafe
   const isV23 = majorVersion === 3;
-  const isV24 = majorVersion === 4;
 
   while (offset < end) {
     // Read frame header
@@ -472,7 +471,7 @@ function parseSYLTFrame(buffer: ArrayBuffer): { time: number; text: string }[] {
 }
 
 // MP4/M4A metadata parser (simplified)
-function parseMP4(buffer: ArrayBuffer): Partial<ParsedMetadata> {
+function parseMP4(_buffer: ArrayBuffer): Partial<ParsedMetadata> {
   const result: Partial<ParsedMetadata> = {};
   // MP4 parsing is complex, would need full atom parsing
   // For now, return empty to fall back to defaults
@@ -633,7 +632,7 @@ export function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata>
 }
 
 // Parse LRC format lyrics (with timestamps like [00:12.34] or [00:00:00])
-export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: { time: number; text: string }[] } {
+export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] | undefined } {
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: { time: number; text: string }[] = [];
   const plainTextLines: string[] = [];
@@ -655,8 +654,8 @@ export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: 
     if (matches.length > 0 && textWithoutTimestamps) {
       // Parse each timestamp and add to synced lyrics
       for (const match of matches) {
-        const minutes = parseInt(match[1], 10);
-        const seconds = parseInt(match[2], 10);
+        const minutes = parseInt(match[1]!, 10);
+        const seconds = parseInt(match[2]!, 10);
         // match[3] is seconds in [hh:mm:ss] format, match[4] is milliseconds
         const hoursOrSeconds = match[3];
         const milliseconds = match[4] ? parseInt(match[4].padEnd(3, '0'), 10) : 0;
@@ -783,7 +782,7 @@ function getAudioDuration(file: File): Promise<number> {
   });
 }
 
-export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange; vorbisCommentNeededRange?: CoverNeededRange } {
+export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange | undefined; vorbisCommentNeededRange?: CoverNeededRange | undefined } {
   const ctx: BufferParseContext = { bufferOffset: 0 };
   const lowerName = fileName.toLowerCase();
   let result: Partial<ParsedMetadata> = {};
@@ -797,7 +796,7 @@ export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): 
   return { ...result, coverNeededRange: ctx.coverNeededRange, vorbisCommentNeededRange: ctx.vorbisCommentNeededRange };
 }
 
-export function parseCoverFromRange(buffer: ArrayBuffer, fileName: string, rangeOffset: number): string {
+export function parseCoverFromRange(buffer: ArrayBuffer, fileName: string, _rangeOffset: number): string {
   const lowerName = fileName.toLowerCase();
   try {
     if (lowerName.endsWith('.flac')) {
@@ -840,11 +839,11 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
       if (workerResult) {
         workerParsed = true;
         metadata = {
-          title: workerResult.title,
-          artist: workerResult.artist,
-          album: workerResult.album,
+          ...(workerResult.title != null && { title: workerResult.title }),
+          ...(workerResult.artist != null && { artist: workerResult.artist }),
+          ...(workerResult.album != null && { album: workerResult.album }),
           lyrics: workerResult.lyrics || '',
-          syncedLyrics: workerResult.syncedLyrics
+          ...(workerResult.syncedLyrics != null && { syncedLyrics: workerResult.syncedLyrics }),
         };
 
         if (workerResult.coverData) {

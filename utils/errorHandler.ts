@@ -16,7 +16,7 @@ export class AppError extends Error {
     message: string,
     public code: string,
     public recoverable: boolean = true,
-    public details?: Record<string, unknown>
+    public details?: Record<string, unknown> | undefined
   ) {
     super(message);
     this.name = 'AppError';
@@ -169,13 +169,11 @@ export interface ErrorResult {
     message: string;
     code: string;
     recoverable: boolean;
-    details?: Record<string, unknown>;
+    details?: Record<string, unknown> | undefined;
   };
 }
 
 /**
- * Create a success result object
- */
 export interface SuccessResult<T = unknown> {
   success: true;
   data: T;

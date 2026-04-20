@@ -33,7 +33,7 @@ const formatTime = (seconds: number): string => {
 const hexToRgb = (hex: string): string => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (result) {
-    return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
+    return `${parseInt(result[1]!, 16)}, ${parseInt(result[2]!, 16)}, ${parseInt(result[3]!, 16)}`;
   }
   return '255, 255, 255';
 };
@@ -41,7 +41,7 @@ const hexToRgb = (hex: string): string => {
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
-  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter, audioRef
+  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter: _forceUpdateCounter, audioRef: _audioRef
 }) => {
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -62,7 +62,7 @@ const Controls: React.FC<ControlsProps> = memo(({
 
 // Use audio element's currentTime directly for progress calculation
   // This ensures we show the actual audio playback position
-  const actualCurrentTime = audioRef?.current ? audioRef.current.currentTime : currentTime;
+  const actualCurrentTime = _audioRef?.current ? _audioRef.current.currentTime : currentTime;
   
   // Calculate progress percentage
   const progress = track ? (actualCurrentTime / track.duration) * 100 : 0;

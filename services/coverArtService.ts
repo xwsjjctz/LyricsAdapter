@@ -331,7 +331,7 @@ class CoverArtService {
     out.push((value >> 8) & 0x7F);
     out.push((value >> 16) & 0x7F);
     out.push((value >> 24) & 0x7F);
-    return (out[0] << 21) | (out[1] << 14) | (out[2] << 7) | out[3];
+    return (out[0]! << 21) | (out[1]! << 14) | (out[2]! << 7) | out[3]!;
   }
 
   private getStringFromView(view: DataView, offset: number, length: number): string {
@@ -355,7 +355,7 @@ class CoverArtService {
     }
   }
 
-  private getPlaceholderUrl(trackId: string): string {
+  private getPlaceholderUrl(_trackId: string): string {
     return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23222"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23666" font-size="10">♪</text></svg>`;
   }
 

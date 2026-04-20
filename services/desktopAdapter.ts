@@ -31,7 +31,7 @@ export interface DesktopAPI {
   saveMetadataCache: (cache: { entries: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
   getMetadataForSong: (songId: string) => Promise<unknown>;
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
-  writeAudioMetadata?: (filePath: string, metadata: { title?: string; artist?: string; album?: string; lyrics?: string; coverUrl?: string }) => Promise<{ success: boolean; error?: string }>;
+  writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }) => Promise<{ success: boolean; error?: string }>;
   refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; data?: { fileName: string; mimeType: string; buffer: ArrayBuffer }; error?: string }>;
   getPathForFile?: (file: File) => string;
   // Window control APIs
@@ -255,7 +255,7 @@ class ElectronAdapter implements DesktopAPI {
     return { success: false, error: 'selectDownloadFolder not available' };
   }
 
-  async writeAudioMetadata(filePath: string, metadata: { title?: string; artist?: string; album?: string; lyrics?: string; coverUrl?: string }): Promise<{ success: boolean; error?: string }> {
+  async writeAudioMetadata(filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }): Promise<{ success: boolean; error?: string }> {
     if (typeof this.api.writeAudioMetadata === 'function') {
       return this.api.writeAudioMetadata(filePath, metadata);
     }

@@ -14,8 +14,7 @@ import {
 } from './dataValidator';
 import { logger } from './logger';
 import { STORAGE } from '../constants/config';
-import { Track } from '../types';
-import type { LibraryData, LibraryIndexData, LibrarySettings } from './libraryStorage';
+import type { LibraryData, LibraryIndexData } from './libraryStorage';
 
 interface LyricsAdapterDB extends DBSchema {
   metadata: {
@@ -27,7 +26,7 @@ interface LyricsAdapterDB extends DBSchema {
       album: string;
       duration: number;
       lyrics: string;
-      syncedLyrics?: { time: number; text: string }[];
+      syncedLyrics?: { time: number; text: string }[] | undefined;
       fileName: string;
       fileSize: number;
       lastModified: number;
@@ -43,7 +42,7 @@ interface LyricsAdapterDB extends DBSchema {
       coverUrl: string;
       duration: number;
       lyrics?: string;
-      syncedLyrics?: { time: number; text: string }[];
+      syncedLyrics?: { time: number; text: string }[] | undefined;
       fileSize: number;
       lastModified: string;
     };
@@ -79,7 +78,7 @@ class IndexedDBStorageService {
     try {
       logger.debug('[IndexedDB] Opening database...');
       this.db = await openDB<LyricsAdapterDB>(STORAGE.DB_NAME, STORAGE.DB_VERSION, {
-        upgrade(db, oldVersion, newVersion, transaction) {
+        upgrade(db, oldVersion, _newVersion, _transaction) {
           if (!db.objectStoreNames.contains('metadata')) {
             db.createObjectStore('metadata', { keyPath: 'key' });
             logger.debug('[IndexedDB] Created metadata store');
@@ -124,7 +123,7 @@ class IndexedDBStorageService {
         blocking() {
           logger.warn('[IndexedDB] Database blocking another tab');
         },
-        terminated() {
+        terminated: () => {
           logger.error('[IndexedDB] Database terminated unexpectedly');
           this.initialized = false;
         },

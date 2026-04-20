@@ -111,7 +111,7 @@ class MetadataCacheService {
   }
 
   // Convert cached metadata to track metadata format
-  cachedToTrack(cached: CachedMetadata, filePath: string, songId: string): {
+  cachedToTrack(cached: CachedMetadata, _filePath: string, _songId: string): {
     title: string;
     artist: string;
     album: string;
@@ -125,12 +125,12 @@ class MetadataCacheService {
       album: cached.album,
       duration: cached.duration,
       lyrics: cached.lyrics,
-      syncedLyrics: cached.syncedLyrics,
+      ...(cached.syncedLyrics !== undefined && { syncedLyrics: cached.syncedLyrics }),
     };
   }
 
   // Check if cached metadata is still valid (file hasn't changed)
-  isValid(songId: string, fileName: string, fileSize: number, lastModified: number): boolean {
+  isValid(songId: string, fileName: string, _fileSize: number, _lastModified: number): boolean {
     const cached = this.cache.get(songId);
     if (!cached) return false;
 

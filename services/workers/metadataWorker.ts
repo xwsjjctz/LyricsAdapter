@@ -3,13 +3,13 @@
 type SyncedLyricLine = { time: number; text: string };
 
 interface WorkerMetadataResult {
-  title?: string;
-  artist?: string;
-  album?: string;
-  lyrics?: string;
-  syncedLyrics?: SyncedLyricLine[];
-  coverData?: ArrayBuffer;
-  coverMime?: string;
+  title?: string | undefined;
+  artist?: string | undefined;
+  album?: string | undefined;
+  lyrics?: string | undefined;
+  syncedLyrics?: SyncedLyricLine[] | undefined;
+  coverData?: ArrayBuffer | undefined;
+  coverMime?: string | undefined;
 }
 
 interface WorkerRequest {
@@ -45,7 +45,7 @@ function decodeSynchsafe(value: number): number {
   out.push((value >> 8) & 0x7F);
   out.push((value >> 16) & 0x7F);
   out.push((value >> 24) & 0x7F);
-  return (out[0] << 21) | (out[1] << 14) | (out[2] << 7) | out[3];
+  return (out[0]! << 21) | (out[1]! << 14) | (out[2]! << 7) | out[3]!;
 }
 
 function decodeTextFrame(buffer: ArrayBuffer): string {
@@ -167,7 +167,7 @@ function decodePictureFrame(buffer: ArrayBuffer): { mime?: string; data?: ArrayB
   }
 }
 
-function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedLyricLine[] } {
+function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: SyncedLyricLine[] | undefined } {
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: SyncedLyricLine[] = [];
   const plainTextLines: string[] = [];
@@ -187,8 +187,8 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
 
     if (matches.length > 0 && textWithoutTimestamps) {
       for (const match of matches) {
-        const minutes = parseInt(match[1], 10);
-        const seconds = parseInt(match[2], 10);
+        const minutes = parseInt(match[1]!, 10);
+        const seconds = parseInt(match[2]!, 10);
         // match[3] is seconds in [hh:mm:ss] format, match[4] is milliseconds
         const hoursOrSeconds = match[3];
         const milliseconds = match[4] ? parseInt(match[4].padEnd(3, '0'), 10) : 0;
@@ -220,7 +220,7 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
 
   return {
     plainText: plainTextLines.join('\n'),
-    syncedLyrics
+    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined
   };
 }
 
@@ -267,17 +267,15 @@ function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> 
           case 'SYNCHRONIZEDLYRICS': {
             const parsedLyrics = parseLRCLyrics(value);
             result.lyrics = parsedLyrics.plainText;
-            result.syncedLyrics = parsedLyrics.syncedLyrics.length > 0 ? parsedLyrics.syncedLyrics : undefined;
+            result.syncedLyrics = parsedLyrics.syncedLyrics;
             break;
           }
           case 'COMMENT':
           case 'DESCRIPTION':
-            // ffmpeg may place lyrics in COMMENT/DESCRIPTION on some platforms.
-            // Only treat them as lyrics when they clearly look like LRC.
             if (!result.lyrics && hasLrcTimestamp) {
               const parsedLyrics = parseLRCLyrics(value);
               result.lyrics = parsedLyrics.plainText;
-              result.syncedLyrics = parsedLyrics.syncedLyrics.length > 0 ? parsedLyrics.syncedLyrics : undefined;
+              result.syncedLyrics = parsedLyrics.syncedLyrics;
             }
             break;
           default:
@@ -350,7 +348,6 @@ function parseID3v2(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
   
   // ID3v2.3 uses non-synchsafe frame sizes, ID3v2.4 uses synchsafe
   const isV23 = majorVersion === 3;
-  const isV24 = majorVersion === 4;
 
   while (offset < end) {
     const frameId = getStringFromView(view, offset, 4);
@@ -391,7 +388,7 @@ function parseID3v2(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
       if (text) {
         const parsedLyrics = parseLRCLyrics(text);
         result.lyrics = parsedLyrics.plainText;
-        result.syncedLyrics = parsedLyrics.syncedLyrics.length > 0 ? parsedLyrics.syncedLyrics : undefined;
+        result.syncedLyrics = parsedLyrics.syncedLyrics;
       }
     } else if (frameId === 'SYLT') {
       // Synchronized lyrics (SYLT frame)

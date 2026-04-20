@@ -5,7 +5,6 @@ const DOWNLOAD_PATH_KEY = 'download_path';
 
 class SettingsManager {
   private downloadPath: string = '';
-  private initialized: boolean = false;
   private initPromise: Promise<void>;
 
   constructor() {
@@ -15,7 +14,6 @@ class SettingsManager {
   private async loadFromStorage(): Promise<void> {
     try {
       await indexedDBStorage.initialize();
-      this.initialized = true;
 
       const storedPath = await indexedDBStorage.getSetting(DOWNLOAD_PATH_KEY);
       if (storedPath) {

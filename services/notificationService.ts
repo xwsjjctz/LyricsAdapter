@@ -6,7 +6,7 @@ export function notify(title: string, body: string, options?: { silent?: boolean
       logger.debug('[Notification] Notification API not available');
       return;
     }
-    const n = new Notification(title, { body, silent: options?.silent });
+    const n = new Notification(title, { body, ...(options?.silent !== undefined && { silent: options.silent }) });
     n.onclick = () => {
       n.close();
     };

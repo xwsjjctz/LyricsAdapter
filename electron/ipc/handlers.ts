@@ -1,7 +1,6 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { app } from 'electron';
 import { logger } from '../logger';
 import {
@@ -29,14 +28,14 @@ function toLibraryIndex(library: any): any {
     lastModified: song.lastModified || 0,
     addedAt: song.addedAt || '',
     playCount: song.playCount || 0,
-    lastPlayed: song.lastPlayed || null,
+    lastPlayed: song.lastPlayed ?? undefined,
     available: song.available ?? true
   })) : [];
   return { songs, settings: library?.settings || {} };
 }
 
 export function registerFileHandlers(): void {
-  ipcMain.handle('read-file', async (event, filePath) => {
+  ipcMain.handle('read-file', async (_event, filePath) => {
     try {
       const data = fs.readFileSync(filePath);
       return { success: true, data: data.buffer };
@@ -46,7 +45,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('check-file-exists', async (event, filePath) => {
+  ipcMain.handle('check-file-exists', async (_event, filePath) => {
     try {
       return fs.existsSync(filePath);
     } catch {
@@ -65,7 +64,7 @@ export function registerFileHandlers(): void {
     return app.getPath('userData');
   });
 
-  ipcMain.handle('validate-file-path', async (event, filePath) => {
+  ipcMain.handle('validate-file-path', async (_event, filePath) => {
     try {
       return fs.existsSync(filePath);
     } catch {
@@ -73,7 +72,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('save-audio-file', async (event, sourcePath: string, fileName: string) => {
+  ipcMain.handle('save-audio-file', async (_event, sourcePath: string, fileName: string) => {
     try {
       const sanitizedFileName = sanitizeFileName(fileName);
       if (!validateSourcePath(sourcePath)) {
@@ -112,7 +111,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('save-audio-file-from-buffer', async (event, fileName: string, fileData: ArrayBuffer) => {
+  ipcMain.handle('save-audio-file-from-buffer', async (_event, fileName: string, fileData: ArrayBuffer) => {
     try {
       const userDataPath = app.getPath('userData');
       const audioDir = path.join(userDataPath, 'audio');
@@ -135,7 +134,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('delete-audio-file', async (event, filePath: string) => {
+  ipcMain.handle('delete-audio-file', async (_event, filePath: string) => {
     try {
       if (!filePath) {
         return { success: false, error: 'File path is empty' };
@@ -155,7 +154,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('cleanup-orphan-audio', async (event, keepPaths: string[]) => {
+  ipcMain.handle('cleanup-orphan-audio', async (_event, keepPaths: string[]) => {
     try {
       const userDataPath = app.getPath('userData');
       const audioDir = path.join(userDataPath, 'audio');
@@ -195,7 +194,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('validate-all-paths', async (event, songs) => {
+  ipcMain.handle('validate-all-paths', async (_event, songs) => {
     try {
       const results = songs.map((song: any) => ({
         id: song.id,
@@ -253,7 +252,7 @@ export function registerLibraryHandlers(): void {
     }
   });
 
-  ipcMain.handle('save-library', async (event, library) => {
+  ipcMain.handle('save-library', async (_event, library) => {
     try {
       const userDataPath = app.getPath('userData');
       const libraryPath = path.join(userDataPath, 'library.json');
@@ -279,7 +278,7 @@ export function registerLibraryHandlers(): void {
     }
   });
 
-  ipcMain.handle('save-library-index', async (event, library) => {
+  ipcMain.handle('save-library-index', async (_event, library) => {
     try {
       const userDataPath = app.getPath('userData');
       const indexPath = path.join(userDataPath, 'library-index.json');
@@ -296,7 +295,7 @@ export function registerLibraryHandlers(): void {
     }
   });
 
-  ipcMain.handle('save-local-library-backup', async (event, library) => {
+  ipcMain.handle('save-local-library-backup', async (_event, library) => {
     try {
       const userDataPath = app.getPath('userData');
       const backupPath = path.join(userDataPath, 'library-local-backup.json');
@@ -335,7 +334,7 @@ export function registerLibraryHandlers(): void {
 }
 
 export function registerCoverHandlers(): void {
-  ipcMain.handle('save-cover-thumbnail', async (event, payload: { id: string; data: string; mime: string }) => {
+  ipcMain.handle('save-cover-thumbnail', async (_event, payload: { id: string; data: string; mime: string }) => {
     try {
       if (!payload?.id || !payload?.data) {
         return { success: false, error: 'Missing cover data' };
@@ -362,7 +361,7 @@ export function registerCoverHandlers(): void {
     }
   });
 
-  ipcMain.handle('delete-cover-thumbnail', async (event, trackId: string) => {
+  ipcMain.handle('delete-cover-thumbnail', async (_event, trackId: string) => {
     try {
       if (!trackId) {
         return { success: false, error: 'Missing trackId' };
@@ -570,7 +569,7 @@ export function registerDownloadHandlers(): void {
     }
   });
 
-  ipcMain.handle('save-file-to-path', async (event, dirPath: string, fileName: string, fileData: ArrayBuffer) => {
+  ipcMain.handle('save-file-to-path', async (_event, dirPath: string, fileName: string, fileData: ArrayBuffer) => {
     try {
       const expandedDir = expandHomeDir(dirPath);
       const fullPath = path.join(expandedDir, fileName);
@@ -594,7 +593,7 @@ export function registerDownloadHandlers(): void {
 }
 
 export function registerMetadataHandlers(): void {
-  ipcMain.handle('write-audio-metadata', async (event, filePath: string, metadata: {
+  ipcMain.handle('write-audio-metadata', async (_event, filePath: string, metadata: {
     title?: string;
     artist?: string;
     album?: string;
@@ -609,7 +608,7 @@ export function registerMetadataHandlers(): void {
     }
   });
 
-  ipcMain.handle('refresh-track-metadata', async (event, filePath: string) => {
+  ipcMain.handle('refresh-track-metadata', async (_event, filePath: string) => {
     try {
       const expandedPath = expandHomeDir(filePath);
       logger.info('[Main] Refreshing metadata for:', expandedPath);
@@ -646,7 +645,7 @@ export function registerMetadataHandlers(): void {
 }
 
 export function registerQQMusicHandlers(): void {
-  ipcMain.handle('get-qq-music-url', async (event, requestData: any, cookieString: string) => {
+  ipcMain.handle('get-qq-music-url', async (_event, requestData: any, cookieString: string) => {
     try {
       logger.info('[Main] Getting QQ Music URL...');
 
@@ -681,7 +680,7 @@ export function registerQQMusicHandlers(): void {
     }
   });
 
-  ipcMain.handle('get-qq-music-lyrics', async (event, songmid: string, cookieString: string) => {
+  ipcMain.handle('get-qq-music-lyrics', async (_event, songmid: string, cookieString: string) => {
     try {
       logger.info('[Main] Getting lyrics for:', songmid);
 

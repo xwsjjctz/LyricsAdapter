@@ -1,11 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import NodeID3 from 'node-id3';
 import { logger } from '../logger';
-import { getBundledBinaryPath, getBinaryPath, runCommand } from './binaryUtils';
+import { getBinaryPath, runCommand } from './binaryUtils';
 import { expandHomeDir, detectFileFormat } from './fileUtils';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,10 +24,10 @@ export function escapeFfmetadataValue(value: string): string {
 }
 
 export function buildFfmetadataContent(metadata: {
-  title?: string;
-  artist?: string;
-  album?: string;
-  lyrics?: string;
+  title?: string | undefined;
+  artist?: string | undefined;
+  album?: string | undefined;
+  lyrics?: string | undefined;
 }): string {
   const lines = [';FFMETADATA1'];
   if (metadata.title) lines.push(`TITLE=${escapeFfmetadataValue(metadata.title)}`);
@@ -122,7 +121,7 @@ export function createPictureBlock(imageBuffer: Buffer): Buffer {
 
 export async function writeFlacMetadata(
   filePath: string,
-  metadata: { title?: string; artist?: string; album?: string; lyrics?: string; coverUrl?: string },
+  metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined },
   coverBuffer?: Buffer
 ): Promise<boolean> {
   const backupPath = filePath + '.backup';
@@ -166,9 +165,10 @@ export async function writeFlacMetadata(
 
     while (!isLastBlock && pos < fileData.length - 4) {
       const blockHeader = fileData[pos];
+      if (blockHeader === undefined) break;
       isLastBlock = (blockHeader & 0x80) !== 0;
       const blockType = blockHeader & 0x7F;
-      const blockLength = (fileData[pos + 1] << 16) | (fileData[pos + 2] << 8) | fileData[pos + 3];
+      const blockLength = ((fileData[pos + 1] ?? 0) << 16) | ((fileData[pos + 2] ?? 0) << 8) | (fileData[pos + 3] ?? 0);
 
       log(`[FLAC] Block ${blockCount}: type=${blockType}, length=${blockLength}, isLast=${isLastBlock}`);
 
@@ -191,8 +191,9 @@ export async function writeFlacMetadata(
 
     for (let i = 0; i < keptBlocks.length; i++) {
       const block = keptBlocks[i];
+      if (!block) continue;
       const modified = Buffer.from(block);
-      modified[0] &= 0x7F;
+      modified[0] = (modified[0] ?? 0) & 0x7F;
       newBlocks.push(modified);
     }
 
@@ -219,8 +220,9 @@ export async function writeFlacMetadata(
 
     if (newBlocks.length > 0) {
       const lastBlock = newBlocks[newBlocks.length - 1];
+      if (!lastBlock) return false;
       const modifiedLast = Buffer.from(lastBlock);
-      modifiedLast[0] |= 0x80;
+      modifiedLast[0] = (modifiedLast[0] ?? 0) | 0x80;
       newBlocks[newBlocks.length - 1] = modifiedLast;
     }
 
@@ -269,7 +271,7 @@ export async function writeFlacMetadata(
 
 async function writeFlacMetadataWithFfmpeg(
   filePath: string,
-  metadata: { title?: string; artist?: string; album?: string; lyrics?: string },
+  metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined },
   coverBuffer?: Buffer
 ): Promise<boolean> {
   const appDir = __dirname;
@@ -361,201 +363,14 @@ async function writeFlacMetadataWithFfmpeg(
   }
 }
 
-async function writeFlacMetadataWithMetaflac(
-  filePath: string,
-  metadata: { title?: string; artist?: string; album?: string; lyrics?: string; coverUrl?: string }
-): Promise<boolean> {
-  const logFile = path.join(app.getPath('userData'), 'flac-metadata.log');
-  const appDir = __dirname;
-  const metaflacBinary = getBinaryPath('metaflac', appDir);
-
-  const execOptions = {
-    encoding: 'utf-8' as const,
-    stdio: 'pipe' as const,
-    env: {
-      ...process.env,
-      LANG: 'en_US.UTF-8',
-      LC_ALL: 'en_US.UTF-8'
-    }
-  };
-
-  const log = (message: string) => {
-    const timestamp = new Date().toISOString();
-    const logLine = `[${timestamp}] ${message}\n`;
-    logger.info(message);
-    try {
-      fs.appendFileSync(logFile, logLine);
-    } catch (e) {
-      // Ignore log errors
-    }
-  };
-
-  try {
-    log(`[METAFLAC] Starting metadata write for: ${filePath}`);
-
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`);
-    }
-
-    const backupPath = filePath + '.backup';
-    log(`[METAFLAC] Creating backup: ${backupPath}`);
-    fs.copyFileSync(filePath, backupPath);
-
-    let existingCoverPath: string | undefined;
-    if (!metadata.coverUrl) {
-      try {
-        existingCoverPath = filePath + '.existing_cover.jpg';
-        log(`[METAFLAC] Extracting existing cover to: ${existingCoverPath}`);
-        execSync(`"${metaflacBinary}" --export-picture-to="${existingCoverPath}" "${filePath}"`, execOptions);
-        if (fs.existsSync(existingCoverPath)) {
-          const stats = fs.statSync(existingCoverPath);
-          log(`[METAFLAC] ✓ Existing cover extracted (${stats.size} bytes)`);
-        } else {
-          existingCoverPath = undefined;
-          log(`[METAFLAC] No existing cover found`);
-        }
-      } catch (e: any) {
-        existingCoverPath = undefined;
-        log(`[METAFLAC] Warning: Failed to extract existing cover: ${e.message}`);
-      }
-    }
-
-    log(`[METAFLAC] Removing existing metadata`);
-    try {
-      execSync(`"${metaflacBinary}" --remove-all-tags "${filePath}"`, execOptions);
-      execSync(`"${metaflacBinary}" --remove --block-type=PICTURE "${filePath}"`, execOptions);
-    } catch (e: any) {
-      log(`[METAFLAC] Warning during removal: ${e.message}`);
-    }
-
-    const tags: { field: string; value: string }[] = [];
-    if (metadata.title) tags.push({ field: 'TITLE', value: metadata.title });
-    if (metadata.artist) tags.push({ field: 'ARTIST', value: metadata.artist });
-    if (metadata.album && metadata.album.trim()) tags.push({ field: 'ALBUM', value: metadata.album });
-
-    if (tags.length > 0) {
-      log(`[METAFLAC] Writing ${tags.length} tags: ${tags.map(t => t.field).join(', ')}`);
-      log(`[METAFLAC] Metadata: ${JSON.stringify(metadata)}`);
-
-      for (const tag of tags) {
-        try {
-          const tagFile = filePath + `.${tag.field}.txt`;
-          fs.writeFileSync(tagFile, tag.value, 'utf-8');
-          execSync(`"${metaflacBinary}" --set-tag-from-file="${tag.field}=${tagFile}" "${filePath}"`, execOptions);
-          log(`[METAFLAC] ✓ Set ${tag.field}=${tag.value.substring(0, 30)}${tag.value.length > 30 ? '...' : ''}`);
-          fs.unlinkSync(tagFile);
-        } catch (e: any) {
-          log(`[METAFLAC] Warning: Failed to set ${tag.field}: ${e.message}`);
-        }
-      }
-      log(`[METAFLAC] ✓ All tags written`);
-    }
-
-    if (metadata.lyrics) {
-      try {
-        const lyricsFile = filePath + '.lyrics.txt';
-        fs.writeFileSync(lyricsFile, metadata.lyrics, 'utf-8');
-        execSync(`"${metaflacBinary}" --set-tag-from-file="LYRICS=${lyricsFile}" "${filePath}"`, execOptions);
-        fs.unlinkSync(lyricsFile);
-        log(`[METAFLAC] ✓ Lyrics written (${metadata.lyrics.length} chars)`);
-      } catch (e: any) {
-        log(`[METAFLAC] Warning: Failed to write lyrics: ${e.message}`);
-      }
-    }
-
-    if (metadata.coverUrl) {
-      try {
-        let coverFile = filePath + '.cover.jpg';
-        let coverBuf: Buffer | undefined;
-
-        if (metadata.coverUrl.startsWith('data:')) {
-          log(`[METAFLAC] Parsing data URL cover`);
-          const matches = metadata.coverUrl.match(/^data:([^;]+);base64,(.+)$/);
-          if (matches && matches[2]) {
-            coverBuf = Buffer.from(matches[2], 'base64');
-          }
-        } else if (metadata.coverUrl.startsWith('cover://')) {
-          const coverFileName = metadata.coverUrl.slice('cover://'.length);
-          const coverPathLoc = path.join(app.getPath('userData'), 'covers', coverFileName);
-          log(`[METAFLAC] Reading cover from local path: ${coverPathLoc}`);
-          if (fs.existsSync(coverPathLoc)) {
-            coverBuf = fs.readFileSync(coverPathLoc);
-          } else {
-            log(`[METAFLAC] Warning: Cover file not found: ${coverPathLoc}`);
-          }
-        } else {
-          log(`[METAFLAC] Downloading cover from: ${metadata.coverUrl}`);
-          const response = await fetch(metadata.coverUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Referer': 'https://y.qq.com/',
-            },
-          });
-          if (response.ok) {
-            const arrayBuffer = await response.arrayBuffer();
-            coverBuf = Buffer.from(arrayBuffer);
-          }
-        }
-
-        if (coverBuf) {
-          fs.writeFileSync(coverFile, coverBuf);
-          log(`[METAFLAC] Cover prepared (${coverBuf.length} bytes)`);
-          execSync(`"${metaflacBinary}" --import-picture-from="${coverFile}" "${filePath}"`, execOptions);
-          log(`[METAFLAC] ✓ Cover written`);
-          fs.unlinkSync(coverFile);
-        }
-      } catch (e: any) {
-        log(`[METAFLAC] Warning: Failed to add cover: ${e.message}`);
-      }
-    } else if (existingCoverPath && fs.existsSync(existingCoverPath)) {
-      try {
-        log(`[METAFLAC] Restoring existing cover from: ${existingCoverPath}`);
-        execSync(`"${metaflacBinary}" --import-picture-from="${existingCoverPath}" "${filePath}"`, execOptions);
-        log(`[METAFLAC] ✓ Existing cover restored`);
-      } catch (e: any) {
-        log(`[METAFLAC] Warning: Failed to restore existing cover: ${e.message}`);
-      }
-    }
-
-    log(`[METAFLAC] Success, removing backup`);
-    fs.unlinkSync(backupPath);
-
-    if (existingCoverPath && fs.existsSync(existingCoverPath)) {
-      try {
-        fs.unlinkSync(existingCoverPath);
-        log(`[METAFLAC] ✓ Cleaned up existing cover temp file`);
-      } catch (e: any) {
-        log(`[METAFLAC] Warning: Failed to clean up existing cover temp file: ${e.message}`);
-      }
-    }
-
-    log('[METAFLAC] ✓ Metadata written successfully');
-    return true;
-  } catch (e) {
-    log(`[METAFLAC] ✗ Error: ${(e as Error).message}`);
-    const backupPath = filePath + '.backup';
-    if (fs.existsSync(backupPath)) {
-      log(`[METAFLAC] Restoring from backup`);
-      try {
-        fs.copyFileSync(backupPath, filePath);
-        fs.unlinkSync(backupPath);
-        log(`[METAFLAC] ✓ Backup restored`);
-      } catch (restoreError) {
-        log(`[METAFLAC] ✗ Failed to restore backup`);
-      }
-    }
-    throw e;
-  }
-}
-
 export async function writeAudioMetadata(
   filePath: string,
   metadata: {
-    title?: string;
-    artist?: string;
-    album?: string;
-    lyrics?: string;
-    coverUrl?: string;
+    title?: string | undefined;
+    artist?: string | undefined;
+    album?: string | undefined;
+    lyrics?: string | undefined;
+    coverUrl?: string | undefined;
   }
 ): Promise<{ success: boolean; error?: string }> {
   const expandedPath = expandHomeDir(filePath);

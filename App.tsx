@@ -229,6 +229,8 @@ const App: React.FC = () => {
     const newTracks = [...activeTracks];
     const [movedTrack] = newTracks.splice(fromIndex, 1);
 
+    if (!movedTrack) return;
+
     const adjustedToIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
     newTracks.splice(adjustedToIndex, 0, movedTrack);
 
@@ -451,7 +453,7 @@ const App: React.FC = () => {
               <LibraryView
                 tracks={activeTracks}
                 currentTrackIndex={activeTrackIndex}
-                currentTrackId={currentTrack?.id}
+                {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
                 onTrackSelect={selectTrack}
                 onRemoveTrack={handleRemoveTrack}
                 onRemoveMultipleTracks={handleRemoveMultipleTracks}

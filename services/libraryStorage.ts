@@ -40,23 +40,23 @@ export interface LibraryIndexData {
 }
 
 export interface LibrarySettings {
-  volume?: number;
-  autoScroll?: boolean;
-  theme?: string;
-  currentTrackIndex?: number;
-  currentTrackId?: string;
-  currentTime?: number;
-  isPlaying?: boolean;
-  playbackMode?: 'order' | 'shuffle' | 'repeat-one';
-  libraryDataSource?: 'local' | 'cloud';
-  localCurrentTrackId?: string;
-  cloudCurrentTrackId?: string;
-  activeDataSource?: 'local' | 'cloud';
-  localPlaybackContext?: PlaybackContext;
-  cloudPlaybackContext?: PlaybackContext;
-  localSlot?: Omit<LibrarySlot, 'id' | 'tracks'>;
-  cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'>;
-  activeSlotId?: 'local' | 'cloud';
+  volume?: number | undefined;
+  autoScroll?: boolean | undefined;
+  theme?: string | undefined;
+  currentTrackIndex?: number | undefined;
+  currentTrackId?: string | undefined;
+  currentTime?: number | undefined;
+  isPlaying?: boolean | undefined;
+  playbackMode?: 'order' | 'shuffle' | 'repeat-one' | undefined;
+  libraryDataSource?: 'local' | 'cloud' | undefined;
+  localCurrentTrackId?: string | undefined;
+  cloudCurrentTrackId?: string | undefined;
+  activeDataSource?: 'local' | 'cloud' | undefined;
+  localPlaybackContext?: PlaybackContext | undefined;
+  cloudPlaybackContext?: PlaybackContext | undefined;
+  localSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
+  cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
+  activeSlotId?: 'local' | 'cloud' | undefined;
   [key: string]: any;
 }
 

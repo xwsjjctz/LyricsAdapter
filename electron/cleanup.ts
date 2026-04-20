@@ -1,9 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 function sanitizeTrackId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, '_');

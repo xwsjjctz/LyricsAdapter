@@ -3,12 +3,6 @@ import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
 
-// Decode HTML entities in lyrics text
-function decodeHtmlEntities(text: string): string {
-  const textarea = document.createElement('textarea');
-  textarea.innerHTML = text;
-  return textarea.value;
-}
 
 interface LyricsOverlayProps {
   track: Track | null;

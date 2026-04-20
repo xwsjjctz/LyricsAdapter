@@ -6,9 +6,9 @@ import { logger } from './logger';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-process.env.DIST = path.join(__dirname, '../dist');
-process.env.VITE_PUBLIC = app.isPackaged
-  ? process.env.DIST
+process.env['DIST'] = path.join(__dirname, '../dist');
+process.env['VITE_PUBLIC'] = app.isPackaged
+  ? process.env['DIST']
   : path.join(__dirname, '../../public');
 
 let win: BrowserWindow | null = null;
@@ -101,7 +101,7 @@ export async function createWindow(): Promise<BrowserWindow> {
       win?.webContents.executeJavaScript('logger.info("React render check:", document.getElementById("root"))');
     });
 
-    win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
       log('Failed to load:', errorCode, errorDescription);
     });
 
@@ -112,7 +112,7 @@ export async function createWindow(): Promise<BrowserWindow> {
     win.loadURL('http://localhost:3000');
   }
 
-  win.webContents.on('before-input-event', (event, input) => {
+  win.webContents.on('before-input-event', (_event, input) => {
     if (['Shift', 'Control', 'Alt', 'Meta'].includes(input.key)) {
       return;
     }

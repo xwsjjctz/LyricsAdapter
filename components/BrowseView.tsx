@@ -4,13 +4,12 @@ import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
-import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
-import { Track, ViewMode } from '../types';
+import { Track } from '../types';
 
 interface BrowseViewProps {
   inputValue?: string;
@@ -61,8 +60,8 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time
 
     if (matches.length > 0) {
       for (const match of matches) {
-        const minutes = parseInt(match[1], 10);
-        const seconds = parseInt(match[2], 10);
+        const minutes = parseInt(match[1]!, 10);
+        const seconds = parseInt(match[2]!, 10);
         const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
         syncedLyrics.push({
           time: minutes * 60 + seconds + milliseconds / 1000,
@@ -76,7 +75,7 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time
   syncedLyrics.sort((a, b) => a.time - b.time);
   return {
     plainText: plainTextLines.join('\n'),
-    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined
+    ...(syncedLyrics.length > 0 && { syncedLyrics })
   };
 }
 
@@ -240,46 +239,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     }
   }, []);
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      loadRecommendations();
-      return;
-    }
-
-    if (!cookieManager.hasCookie()) {
-      if (!cookiePromptShown) {
-        sessionStorage.setItem('cookiePromptShown', 'true');
-        onNavigateToSettings?.();
-      }
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setHasSearched(true);
-
-    try {
-      const results = await qqMusicApi.searchMusic(query, 30);
-      setSongs(results);
-    } catch (err: any) {
-      logger.error('[BrowseView] Search failed:', err);
-      const errorMsg = err.message || '';
-      if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-        setError(i18n.t('browse.corsError'));
-      } else if (errorMsg.includes('Cookie')) {
-        setError(i18n.t('browse.cookieExpired'));
-        if (!cookiePromptShown) {
-          sessionStorage.setItem('cookiePromptShown', 'true');
-          onNavigateToSettings?.();
-        }
-      } else {
-        setError(errorMsg || i18n.t('browse.searchFailed'));
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadRecommendations]);
-
   const createTrackFromDownloadedFile = async (
     filePath: string,
     fileName: string,
@@ -333,7 +292,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             const base64Promise = new Promise<string>((resolve) => {
               reader.onloadend = () => {
                 const base64 = reader.result as string;
-                resolve(base64.split(',')[1]);
+                resolve(base64.split(',')[1] ?? '');
               };
             });
             reader.readAsDataURL(coverBlob);
@@ -503,8 +462,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
             title: song.songname,
             artist: singer,
             album: song.albumname || '',
-            lyrics,
-            coverUrl
+            ...(lyrics != null && { lyrics }),
+            ...(coverUrl != null && { coverUrl })
           });
 
           logger.info('[BrowseView] Metadata write result:', metadataResult);

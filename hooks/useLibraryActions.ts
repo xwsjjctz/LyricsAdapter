@@ -199,7 +199,7 @@ export function useLibraryActions({
           return t.fileName === fileName;
         });
 
-        if (trackIndex !== -1 && !updatedTracks[trackIndex].available) {
+        if (trackIndex !== -1 && !updatedTracks[trackIndex]!.available) {
           try {
             // Parse metadata directly from the selected file path
             const parseResult = await desktopAPI.parseAudioMetadata(filePath);
@@ -222,7 +222,7 @@ export function useLibraryActions({
                 if (desktopAPI.saveCoverThumbnail) {
                   try {
                     const coverResult = await desktopAPI.saveCoverThumbnail({
-                      id: updatedTracks[trackIndex].id,
+                      id: updatedTracks[trackIndex]!.id,
                       data: metadata.coverData,
                       mime: metadata.coverMime
                     });
@@ -247,12 +247,12 @@ export function useLibraryActions({
                   }
                 }
 
-              metadataCacheService.set(updatedTracks[trackIndex].id, {
-                title: metadata.title,
-                artist: metadata.artist,
-                album: metadata.album,
-                duration: metadata.duration,
-                lyrics: metadata.lyrics,
+              metadataCacheService.set(updatedTracks[trackIndex]!.id, {
+                title: metadata.title ?? '',
+                artist: metadata.artist ?? '',
+                album: metadata.album ?? '',
+                duration: metadata.duration ?? 0,
+                lyrics: metadata.lyrics ?? '',
                 syncedLyrics: metadata.syncedLyrics,
                 fileName: fileName,
                 fileSize: metadata.fileSize || 0,
@@ -260,17 +260,17 @@ export function useLibraryActions({
               });
 
               updatedTracks[trackIndex] = {
-                ...updatedTracks[trackIndex],
-                title: metadata.title,
-                artist: metadata.artist,
-                album: metadata.album,
-                duration: metadata.duration,
-                lyrics: metadata.lyrics,
+                ...updatedTracks[trackIndex]!,
+                title: metadata.title ?? '',
+                artist: metadata.artist ?? '',
+                album: metadata.album ?? '',
+                duration: metadata.duration ?? 0,
+                lyrics: metadata.lyrics ?? '',
                 syncedLyrics: metadata.syncedLyrics,
                 coverUrl: coverUrl,
-                filePath: filePath,  // Store the original path directly
+                filePath: filePath,
                 fileName: fileName,
-                fileSize: metadata.fileSize || updatedTracks[trackIndex].fileSize,
+                fileSize: metadata.fileSize || updatedTracks[trackIndex]!.fileSize,
                 lastModified: Date.now(),
                 available: true
               };

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { LibrarySlot, Track, createEmptySlot, PlaybackContext } from '../types';
 import { UI } from '../constants/config';
 import { logger } from '../services/logger';
@@ -128,7 +128,7 @@ export function useLibrarySlots() {
       const removedSet = new Set(removedIds);
       const updatedMap = new Map(updated.map(t => [t.id, t]));
       const currentPlayingId = cloud.currentTrackIndex >= 0 && cloud.currentTrackIndex < cloud.tracks.length
-        ? cloud.tracks[cloud.currentTrackIndex].id
+        ? cloud.tracks[cloud.currentTrackIndex]!.id
         : null;
 
       const filtered = cloud.tracks.filter(t => {

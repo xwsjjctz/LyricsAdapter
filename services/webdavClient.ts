@@ -243,7 +243,7 @@ class WebDAVClient {
       return null;
     }
 
-    return result.data;
+    return result.data ?? null;
   }
 }
 

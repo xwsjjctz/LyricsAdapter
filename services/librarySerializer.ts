@@ -22,7 +22,7 @@ function serializeTrack(track: Track): any {
     lastModified: track.lastModified || 0,
     addedAt: track.addedAt || new Date().toISOString(),
     playCount: track.playCount || 0,
-    lastPlayed: track.lastPlayed || null,
+    lastPlayed: track.lastPlayed ?? undefined,
     available: track.available ?? true,
     source: track.source,
     webdavPath: track.webdavPath || '',
@@ -52,7 +52,7 @@ export function buildLibraryData(tracks: Track[], settings: LibrarySettings): Li
         lastModified: track.lastModified || 0,
         addedAt: track.addedAt || new Date().toISOString(),
         playCount: track.playCount || 0,
-        lastPlayed: track.lastPlayed || null,
+        lastPlayed: track.lastPlayed ?? undefined,
         available: track.available ?? true
       };
     }),

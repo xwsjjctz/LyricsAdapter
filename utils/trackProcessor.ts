@@ -88,7 +88,7 @@ export async function saveMetadataToCache(
     fileName?: string;
     fileSize?: number;
   },
-  coverSavedToDisk: boolean
+  _coverSavedToDisk: boolean
 ): Promise<void> {
   try {
     await metadataCacheService.set(trackId, {

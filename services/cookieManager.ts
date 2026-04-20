@@ -156,14 +156,6 @@ class CookieManager {
     }
   }
 
-  private checkRequiredCookieFields(): boolean {
-    // Check if cookie contains common required fields for QQ Music
-    const cookieLower = this.cookie.toLowerCase();
-    // At least one of these should be present
-    const commonFields = ['uin', 'qm_keyst', 'p_uin', 'p_skey', 'skey'];
-    return commonFields.some(field => cookieLower.includes(field));
-  }
-
   hasCookie(): boolean {
     return !!this.cookie;
   }

@@ -86,7 +86,7 @@ function parseArtistTitleFromFilename(filename: string): { artist: string; title
   for (const p of patterns) {
     const match = name.match(p);
     if (match) {
-      return { artist: match[1].trim(), title: match[2].trim() };
+      return { artist: match[1]!.trim(), title: match[2]!.trim() };
     }
   }
   return { artist: 'Unknown Artist', title: name };
@@ -195,8 +195,8 @@ export const useWebDAV = () => {
       album: parsed.album || 'Unknown Album',
       coverUrl: await blobUrlToDataUrl(coverUrl),
       duration: parsed.duration || 0,
-      lyrics: parsed.lyrics,
-      syncedLyrics: parsed.syncedLyrics,
+      ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
+      ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
       fileSize: file.size,
       lastModified: file.lastModified,
     };
@@ -256,7 +256,6 @@ export const useWebDAV = () => {
         return { type: 'diff', added: [], removed: [], updated: [] };
       }
 
-      const existingTrackMap = new Map(currentTracks.map(t => [t.webdavPath || '', t]));
       const filesToFetch: WebDAVFile[] = [...diff.added, ...diff.changed];
       const newPlaceholderMap = new Map<string, Track>();
       for (const file of filesToFetch) {
@@ -354,9 +353,10 @@ export const useWebDAV = () => {
 
     for (let i = 0; i < audioFiles.length; i++) {
       const file = audioFiles[i];
+      if (!file) continue;
       const cached = metadataCache.get(file.path);
       if (cached && isCacheValid(cached, file)) {
-        placeholderTracks[i] = enrichTrack(placeholderTracks[i], cached);
+        placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
       } else {
         toFetch.push({ file, index: i });
       }
@@ -398,7 +398,7 @@ export const useWebDAV = () => {
       for (const result of results) {
         if (result.status === 'fulfilled') {
           const { index, meta } = result.value;
-          placeholderTracks[index] = enrichTrack(placeholderTracks[index], meta);
+          placeholderTracks[index] = enrichTrack(placeholderTracks[index]!, meta);
         }
       }
 

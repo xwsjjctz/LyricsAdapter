@@ -12,7 +12,6 @@ const THEME_STORAGE_KEY = 'app-theme';
 class ThemeManagerClass {
   private currentThemeId: ThemeId = THEME_IDS.DEFAULT;
   private listeners: Set<(themeId: ThemeId) => void> = new Set();
-  private isInitialized = false;
 
   constructor() {
     this.loadFromStorage();
@@ -30,7 +29,6 @@ class ThemeManagerClass {
     } catch (error) {
       logger.error('[ThemeManager] Failed to load from localStorage:', error);
     }
-    this.isInitialized = true;
   }
 
   private saveToStorage(themeId: ThemeId): void {
