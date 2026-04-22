@@ -44,7 +44,7 @@
 
 ### 🎵 核心播放功能
 
-- **多格式音频支持** - 完整支持 FLAC、MP3、M4A、WAV 等常见音频格式
+- **多格式音频支持** - 完整支持 FLAC、MP3 等常见音频格式
 - **智能元数据解析** - 自动提取音频文件内嵌的标题、艺术家、专辑、封面、歌词等信息
 - **LRC 歌词同步** - 自动解析并同步显示 LRC 格式歌词，支持毫秒级精确同步
 - **完整播放控制** - 播放/暂停、上一曲/下一曲、进度调节、音量控制
@@ -60,18 +60,11 @@
 
 ### 🌐 在线功能
 
-- **QQ 音乐集成** - 搜索并下载 QQ 音乐曲库
 - **多音质下载** - 支持 128kbps、320kbps、FLAC 无损格式
 - **自动元数据写入** - 下载后自动嵌入歌词、封面等信息
 - **推荐歌曲** - 基于热歌榜的智能推荐
-
-### ⚡ 高级特性
-
-- **懒加载机制** - 智能预加载相邻曲目，流畅播放体验
-- **播放状态持久化** - 应用关闭后自动恢复播放进度
-- **自定义快捷键** - 完整可自定义的键盘快捷键系统
-- **元数据编辑** - 可视化编辑音频文件元数据
-- **离线使用** - 完全本地化运行，保护用户隐私
+- **WebDAV 支持** - 浏览和播放 WebDAV 服务器上的音乐文件
+- **云端播放** - 支持流式播放远程音频文件，无需下载
 
 ---
 
@@ -90,11 +83,6 @@
 ![沉浸式模式1](resource/FocusMode_1.png)
 ![沉浸式模式2](resource/FocusMode_2.png)
 
-### 主题切换
-6 种精心设计的主题，一键切换应用外观
-
-### 在线浏览
-直接搜索并下载 QQ 音乐曲库，支持多种音质选择
 
 ---
 
@@ -161,7 +149,7 @@ npm run electron:build
 
 - **方式一**：点击侧边栏的"导入文件"按钮，选择音频文件
 - **方式二**：直接拖拽音频文件到应用窗口
-- **支持格式**：`.flac`, `.mp3`, `.m4a`, `.wav`
+- **支持格式**：`.flac`, `.mp3`
 
 #### 管理曲目
 
@@ -176,21 +164,6 @@ npm run electron:build
 2. 从音乐库选择曲目
 3. 编辑标题、艺术家、专辑、歌词等信息
 4. 保存更改
-
-### 在线浏览与下载
-
-#### 配置访问凭证
-
-由于 QQ 音乐 API 需要身份验证，首次使用需配置 Cookie：
-
-1. 在浏览器中打开 [y.qq.com](https://y.qq.com) 并登录
-2. 按 `F12` 打开开发者工具
-3. 切换到 `Network` 标签
-4. 刷新页面，找到任意请求
-5. 复制请求头中的 `Cookie` 字段
-6. 在应用的设置中粘贴 Cookie
-
-> **注意**：Cookie 每 24 小时需要重新验证一次。
 
 #### 搜索与下载
 
@@ -209,6 +182,32 @@ npm run electron:build
 在设置对话框中配置下载文件夹路径：
 - 支持使用 `~` 代表用户主目录
 - 例如：`~/Music` → `/Users/你的用户名/Music`
+
+### WebDAV 云端播放
+
+#### 配置 WebDAV 服务器
+
+1. 进入"设置"视图
+2. 找到"WebDAV 设置"部分
+3. 填写以下信息：
+   - **服务器地址**：WebDAV 服务器 URL（如 `https://example.com/dav`）
+   - **用户名**：认证用户名
+   - **密码**：认证密码
+   - **根目录**：WebDAV 根目录路径（可选）
+
+#### 浏览云端音乐
+
+1. 切换到"浏览"视图
+2. 选择"WebDAV"标签
+3. 浏览服务器目录结构
+4. 点击音频文件即可播放（无需下载）
+
+#### 云端播放特性
+
+- **流式播放**：音频文件按需加载，不占用本地存储
+- **缓存支持**：已播放的音频片段会被缓存
+- **断点续播**：支持从上次播放位置继续
+- **独立状态**：云端播放状态与本地库独立保存
 
 ### 沉浸式播放
 
@@ -274,6 +273,9 @@ npm run electron:build
 | `Ctrl/Cmd + B` | 跳转到浏览 |
 | `Ctrl/Cmd + ,` | 打开设置 |
 | `Ctrl/Cmd + T` | 打开主题 |
+| `Ctrl/Cmd + 1` | 切换到本地库 |
+| `Ctrl/Cmd + 2` | 切换到云端库 |
+| `Ctrl/Cmd + M` | 跳转到元数据视图 |
 
 #### 自定义快捷键
 
@@ -294,13 +296,18 @@ npm run electron:build
 | **Vite** | 6.2.0 | 下一代前端构建工具，快速热更新 |
 | **Electron** | 40.0.0 | 跨平台桌面应用框架 |
 | **Tailwind CSS** | 4.1.18 | 实用优先的 CSS 框架 |
-| **music-metadata** | 11.11.0 | 音频元数据解析库 |
+| **music-metadata** | 11.11.0 | 音频元数据解析库（读取） |
+| **node-id3** | 0.2.9 | MP3 元数据写入库 |
+| **flac-metadata** | 0.1.1 | FLAC 元数据读写库 |
 | **idb** | 8.0.3 | IndexedDB 封装库（已弃用，改用文件系统） |
+| **probe-image-size** | 7.2.3 | 图片尺寸探测库 |
 
 ### 构建工具
 
 - **Vite Plugin Electron** - Electron 集成插件
+- **Vite Plugin Electron Renderer** - Electron 渲染进程插件
 - **Electron Builder** - 跨平台打包工具
+- **cross-env** - 跨平台环境变量设置
 
 ---
 
@@ -309,48 +316,50 @@ npm run electron:build
 ```
 LyricsAdapter/
 ├── components/              # React 组件
+│   ├── BrowseView.tsx       # 在线浏览视图
 │   ├── Controls.tsx         # 播放控制器（进度条、播放控制、音量）
+│   ├── CookieDialog.tsx     # Cookie 配置对话框
+│   ├── ErrorBoundary.tsx    # 错误边界组件
 │   ├── FocusMode.tsx        # 沉浸式歌词模式
 │   ├── LibraryView.tsx      # 音乐库视图（歌曲列表、编辑模式）
-│   ├── BrowseView.tsx       # 在线浏览视图（QQ 音乐搜索下载）
-│   ├── ThemeView.tsx        # 主题选择视图
-│   ├── SettingsView.tsx     # 设置视图
-│   ├── MetadataView.tsx     # 元数据编辑视图
-│   ├── Sidebar.tsx          # 侧边栏导航
-│   ├── TitleBar.tsx         # 自定义窗口标题栏
-│   ├── QueuePanel.tsx       # 播放队列面板
-│   ├── MainPlayer.tsx       # 主播放器界面
 │   ├── LyricsOverlay.tsx    # 歌词浮层组件
-│   ├── TrackCover.tsx       # 封面显示组件
-│   ├── CookieDialog.tsx     # Cookie 配置对话框
+│   ├── MainPlayer.tsx       # 主播放器界面
+│   ├── MetadataView.tsx     # 元数据编辑视图
+│   ├── QueuePanel.tsx       # 播放队列面板
 │   ├── SettingsDialog.tsx   # 设置对话框
+│   ├── SettingsView.tsx     # 设置视图
 │   ├── ShortcutsSettings.tsx# 快捷键设置组件
-│   └── ErrorBoundary.tsx    # 错误边界组件
+│   ├── Sidebar.tsx          # 侧边栏导航
+│   ├── ThemeView.tsx        # 主题选择视图
+│   ├── TitleBar.tsx         # 自定义窗口标题栏
+│   └── TrackCover.tsx       # 封面显示组件
 ├── hooks/                   # 自定义 React Hooks
-│   ├── usePlayback.ts       # 播放控制逻辑
-│   ├── useLibraryLoad.ts    # 音乐库加载/保存
+│   ├── useBlobUrls.ts       # Blob URL 管理
 │   ├── useImport.ts         # 文件导入逻辑
 │   ├── useLibraryActions.ts # 音乐库操作（删除、重载）
-│   ├── useCoverArt.ts       # 封面提取和缓存
-│   ├── useWindowControls.ts # 窗口控制
+│   ├── useLibraryLoad.ts    # 音乐库加载/保存
+│   ├── useLibrarySlots.ts   # 库槽管理（本地/云端独立播放上下文）
+│   ├── usePlayback.ts       # 播放控制逻辑
 │   ├── useShortcuts.ts      # 快捷键处理
-│   └── useBlobUrls.ts       # Blob URL 管理
+│   ├── useWebDAV.ts         # WebDAV 客户端集成
+│   └── useWindowControls.ts # 窗口控制
 ├── services/                # 业务逻辑服务
-│   ├── metadataService.ts   # 音频元数据解析服务
-│   ├── qqMusicApi.ts        # QQ 音乐 API 集成
 │   ├── cookieManager.ts     # Cookie 管理
-│   ├── settingsManager.ts   # 应用设置管理
-│   ├── themeManager.ts      # 主题管理
-│   ├── shortcuts.ts         # 快捷键管理
-│   ├── i18n.ts              # 国际化服务
-│   ├── logger.ts            # 日志服务
-│   ├── desktopAdapter.ts    # Electron API 适配器
-│   ├── libraryStorage.ts    # 音乐库存储
-│   ├── librarySerializer.ts # 音乐库序列化
-│   ├── metadataCacheService.ts # 元数据缓存
 │   ├── coverArtService.ts   # 封面服务
 │   ├── dataValidator.ts     # 数据验证
+│   ├── desktopAdapter.ts    # Electron API 适配器
 │   ├── indexedDBStorage.ts  # IndexedDB 存储（已弃用）
+│   ├── librarySerializer.ts # 音乐库序列化
+│   ├── libraryStorage.ts    # 音乐库存储
+│   ├── logger.ts            # 日志服务
+│   ├── metadataCacheService.ts # 元数据缓存
+│   ├── metadataService.ts   # 音频元数据解析服务
+│   ├── notificationService.ts # 系统通知服务
+│   ├── qqMusicApi.ts
+│   ├── settingsManager.ts   # 应用设置管理
+│   ├── shortcuts.ts         # 快捷键管理
+│   ├── themeManager.ts      # 主题管理
+│   ├── webdavClient.ts      # WebDAV 客户端
 │   └── themes/              # 主题配置
 │       └── predefinedThemes.ts
 ├── electron/                # Electron 主进程
@@ -362,11 +371,8 @@ LyricsAdapter/
 ├── constants/               # 常量配置
 │   └── config.ts            # 应用配置常量
 ├── types/                   # TypeScript 类型定义
-│   └── theme.ts             # 主题相关类型
-├── workers/                 # Web Workers
-│   └── metadataWorker.ts    # 元数据解析 Worker
 ├── App.tsx                  # 主应用组件
-├── types.ts                 # 全局类型定义
+├── types.ts                 # 全局类型定义（Track、PlaybackContext、LibrarySlot等）
 ├── index.tsx                # 应用入口
 ├── vite.config.ts           # Vite 配置
 ├── tsconfig.json            # TypeScript 配置
@@ -375,27 +381,6 @@ LyricsAdapter/
 ```
 
 ---
-
-## 🏗️ 架构设计
-
-### 应用架构
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     Electron 应用                        │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌────────────────┐         ┌─────────────────────┐   │
-│  │  主进程 (Main)  │ ←─IPC─→ │ 渲染进程 (Renderer)  │   │
-│  │                │         │                     │   │
-│  │  - 文件系统     │         │  - React 应用       │   │
-│  │  - 下载管理     │         │  - 状态管理         │   │
-│  │  - 元数据写入   │         │  - UI 渲染          │   │
-│  │  - Cookie 代理  │         │  - 用户交互         │   │
-│  └────────────────┘         └─────────────────────┘   │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
 
 ### 数据流
 
@@ -435,38 +420,62 @@ Audio 元素播放
 预加载相邻曲目 (500ms 延迟)
 ```
 
-#### QQ 音乐下载流程
+#### WebDAV 播放流程
 
 ```
-用户搜索歌曲
+用户浏览 WebDAV 目录
     ↓
-调用 QQ 音乐 API (qqMusicApi.searchMusic)
+调用 WebDAV PROPFIND (webdavClient.browseDirectory)
     ↓
-选择音质并下载
+解析 XML 响应，获取文件列表
     ↓
-获取下载链接 (getMusicUrl)
+用户选择音频文件
     ↓
-主进程下载文件 (downloadAndSave)
+获取重定向 URL (webdavClient.getRedirectUrl)
     ↓
-写入元数据 (writeAudioMetadata)
+通过 Range 请求流式加载音频 (webdavClient.getRange)
     ↓
-解析文件并创建 Track
+创建 Track 对象（source: 'webdav'）
     ↓
-添加到音乐库
+添加到云端库槽
+    ↓
+播放时按需加载音频数据
 ```
 
 ### 状态管理
 
-应用使用 React Hooks 进行状态管理，主要状态包括：
+应用使用 React Hooks 进行状态管理，采用**独立播放上下文**架构：
 
-- **`tracks`** - 音乐库曲目列表
-- **`currentTrackIndex`** - 当前播放曲目索引
+#### 库槽系统 (Library Slots)
+应用维护两个独立的库槽，每个槽拥有完整的播放状态：
+
+```typescript
+interface LibrarySlot {
+  id: 'local' | 'cloud';      // 槽标识：本地或云端
+  tracks: Track[];            // 曲目列表
+  currentTrackIndex: number;  // 当前播放曲目索引
+  currentTime: number;        // 当前播放时间
+  volume: number;             // 音量
+  playbackMode: 'order' | 'shuffle' | 'repeat-one'; // 播放模式
+  scrollPosition: number;     // 滚动位置
+  filterType: 'default' | 'album' | 'artist'; // 筛选类型
+  categorySelection: string | null; // 分类选择
+}
+```
+
+#### 主要状态
+- **`slots`** - 库槽集合（local 和 cloud）
+- **`activeSlotId`** - 当前活动槽标识
+- **`activeSlot`** - 当前活动槽
 - **`viewMode`** - 当前视图模式
 - **`isFocusMode`** - 是否处于沉浸模式
-- **`isPlaying`** - 播放状态
-- **`volume`** - 音量
-- **`playbackMode`** - 播放模式
-- **`currentTime`** - 当前播放时间
+- **`searchInputValue`** - 搜索输入值
+
+#### 切换行为
+- 切换列表时保存当前播放状态到对应槽
+- 播放暂停，不自动播放
+- 目标列表的播放状态被恢复（进度、音量、模式）
+- `isPlaying` 在切换后始终设为 `false`（需要手动播放）
 
 ### 持久化存储
 
@@ -541,6 +550,8 @@ interface Track {
   coverUrl?: string;          // 封面 URL
   lyrics?: string;            // 纯文本歌词
   syncedLyrics?: SyncedLyricLine[]; // 同步歌词
+  audioUrl: string;           // Blob URL（播放时创建）
+  available?: boolean;        // 文件是否可用
   
   // Electron 持久化字段
   filePath?: string;          // 文件路径
@@ -550,14 +561,29 @@ interface Track {
   addedAt?: string;           // 添加时间 ISO 字符串
   playCount?: number;         // 播放次数
   lastPlayed?: string;        // 最后播放时间
-  available?: boolean;        // 文件是否可用
   
-  audioUrl?: string;          // Blob URL（播放时创建）
+  // WebDAV 字段
+  source?: 'local' | 'webdav'; // 来源类型
+  webdavPath?: string;        // WebDAV 路径
+  cdnUrl?: string;            // CDN URL（用于流式播放）
+  cdnUrlExpiry?: number;      // CDN URL 过期时间
 }
 
 interface SyncedLyricLine {
   time: number;  // 秒
   text: string;
+}
+
+interface LibrarySlot {
+  id: 'local' | 'cloud';      // 槽标识：本地或云端
+  tracks: Track[];            // 曲目列表
+  currentTrackIndex: number;  // 当前播放曲目索引
+  currentTime: number;        // 当前播放时间
+  volume: number;             // 音量
+  playbackMode: 'order' | 'shuffle' | 'repeat-one'; // 播放模式
+  scrollPosition: number;     // 滚动位置
+  filterType: 'default' | 'album' | 'artist'; // 筛选类型
+  categorySelection: string | null; // 分类选择
 }
 ```
 
@@ -645,53 +671,17 @@ export WIN_CSC_KEY_PASSWORD=your_password
 npm run electron:build:win
 ```
 
-### 自动更新
-
-应用支持自动更新功能（需要配置服务器）：
-
-1. 在 `package.json` 中配置 `publish` 选项
-2. 使用 `electron-updater` 库
-3. 部署更新服务器
-
 ---
 
 ## ❓ 常见问题
 
-### 1. 为什么无法在线浏览？
-
-**原因**：浏览器环境存在 CORS 跨域限制。
-
-**解决方案**：
-- 使用 Electron 桌面版本
-- 运行 `npm run electron:dev` 或构建桌面应用
-
-### 2. Cookie 为什么会过期？
-
-**原因**：QQ 音乐 Cookie 有效期约 24 小时。
-
-**解决方案**：
-- 定期重新获取 Cookie
-- 应用会在 Cookie 过期时提示更新
-
-### 3. 为什么有些歌曲无法下载？
-
-**可能原因**：
-- VIP 专属歌曲（需要 QQ 音乐 VIP）
-- 版权限制
-- Cookie 无效
-
-**解决方案**：
-- 检查是否为 VIP 歌曲
-- 更新 Cookie
-- 尝试其他音质
-
-### 4. 如何批量导入音乐？
+### 1. 如何批量导入音乐？
 
 **方法**：
 - 在文件选择对话框中按住 `Ctrl` (Windows/Linux) 或 `Cmd` (macOS) 多选
 - 直接拖拽文件夹到应用窗口
 
-### 5. 应用数据存储在哪里？
+### 2. 应用数据存储在哪里？
 
 **存储位置**：
 - **macOS**: `~/Library/Application Support/LyricsAdapter/`
@@ -703,7 +693,7 @@ npm run electron:build:win
 - `library-index.json` - 音乐库索引
 - `covers/` - 封面缓存
 
-### 6. 如何迁移音乐库？
+### 3. 如何迁移音乐库？
 
 **步骤**：
 1. 备份上述数据目录
@@ -711,15 +701,13 @@ npm run electron:build:win
 3. 复制备份的数据目录到对应位置
 4. 重启应用
 
-### 7. 支持哪些音频格式？
+### 4. 支持哪些音频格式？
 
 **支持格式**：
 - **FLAC** - 无损压缩格式（推荐）
 - **MP3** - 通用有损压缩格式
-- **M4A** - Apple 音频格式
-- **WAV** - 无压缩格式
 
-### 8. 如何自定义快捷键？
+### 5. 如何自定义快捷键？
 
 **步骤**：
 1. 进入"设置"视图
@@ -730,37 +718,10 @@ npm run electron:build:win
 
 ---
 
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-### 提交 Issue
-
-- 使用清晰的标题描述问题
-- 提供复现步骤
-- 附上错误日志（如有）
-- 说明操作系统和版本
-
-### 提交 Pull Request
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
-
-### 代码规范
-
-- 遵循 ESLint 和 Prettier 配置
-- 添加必要的注释
-- 更新相关文档
-- 确保测试通过（如有）
-
----
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+本项目采用 GPL 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
 ---
 
@@ -778,8 +739,3 @@ npm run electron:build:win
 ### 图标与设计
 
 - [Material Symbols](https://fonts.google.com/symbols) - 图标库
-
-### 灵感来源
-
-- 所有热爱音乐的开发者
-- 开源社区的支持
