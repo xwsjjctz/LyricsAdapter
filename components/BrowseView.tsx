@@ -12,8 +12,6 @@ import { ThemeConfig } from '../types/theme';
 import { Track } from '../types';
 
 interface BrowseViewProps {
-  inputValue?: string;
-  searchTrigger?: number;
   onDownloadComplete?: (track: Track) => void;
   onNavigateToSettings?: () => void;
 }
@@ -79,16 +77,17 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time
   };
 }
 
-const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger = 0, onDownloadComplete, onNavigateToSettings }) => {
+const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateToSettings }) => {
   const [songs, setSongs] = useState<QQMusicSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [hasSearched, setHasSearched] = useState(false);
-  const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
+  const [searchQuery, setSearchQuery] = useState('');
+  const [executedSearchQuery, setExecutedSearchQuery] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const previousTrigger = useRef(searchTrigger);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, setLanguageVersion] = useState(0);
   const cookiePromptShown = sessionStorage.getItem('cookiePromptShown') === 'true';
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -139,20 +138,17 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
     checkCookie();
   }, []);
 
-  // Execute search when trigger changes (from Enter key in Sidebar)
+  // Debounced search: execute 1 second after typing stops
   useEffect(() => {
-    if (searchTrigger !== previousTrigger.current) {
-      previousTrigger.current = searchTrigger;
-      setExecutedSearchQuery(inputValue);
-      
-      if (inputValue) {
-        // Execute search directly
-        const doSearch = async () => {
-          if (!inputValue.trim()) {
-            loadRecommendations();
-            return;
-          }
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
 
+    debounceTimerRef.current = setTimeout(() => {
+      setExecutedSearchQuery(searchQuery);
+
+      if (searchQuery.trim()) {
+        const doSearch = async () => {
           if (!cookieManager.hasCookie() && !cookiePromptShown) {
             sessionStorage.setItem('cookiePromptShown', 'true');
             notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
@@ -165,7 +161,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
           setHasSearched(true);
 
           try {
-            const results = await qqMusicApi.searchMusic(inputValue, 30);
+            const results = await qqMusicApi.searchMusic(searchQuery, 30);
             setSongs(results);
           } catch (err: any) {
             logger.error('[BrowseView] Search failed:', err);
@@ -174,11 +170,11 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               setError(i18n.t('browse.corsError'));
             } else if (errorMsg.includes('Cookie')) {
               setError(i18n.t('browse.cookieExpired'));
-        if (!cookiePromptShown) {
-          sessionStorage.setItem('cookiePromptShown', 'true');
-          notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
-          onNavigateToSettings?.();
-        }
+              if (!cookiePromptShown) {
+                sessionStorage.setItem('cookiePromptShown', 'true');
+                notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
+                onNavigateToSettings?.();
+              }
             } else {
               setError(errorMsg || i18n.t('browse.searchFailed'));
             }
@@ -188,12 +184,17 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
         };
         doSearch();
       } else if (hasSearched) {
-        // Clear search and go back to recommendations
         loadRecommendations();
       }
-    }
+    }, 500);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTrigger, inputValue]);
+  }, [searchQuery]);
 
   const loadRecommendations = useCallback(async () => {
     if (!cookieManager.hasCookie()) {
@@ -570,6 +571,39 @@ const BrowseView: React.FC<BrowseViewProps> = ({ inputValue = '', searchTrigger 
               ? `${i18n.t('browse.searchResults')} "${executedSearchQuery}"` 
               : i18n.t('browse.recommended')}
           </p>
+        </div>
+        <div className="relative flex-1 max-w-[200px]" style={{ minWidth: 0 }}>
+          <span
+            className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg"
+            style={{ color: colors.textMuted }}
+          >
+            search
+          </span>
+          <input
+            type="text"
+            placeholder={i18n.t('sidebar.searchOnline')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full rounded-xl h-[38px] pl-10 pr-9 text-sm transition-all focus:outline-none focus:ring-0"
+            style={{
+              backgroundColor: colors.backgroundCard,
+              border: `1px solid ${colors.borderLight}`,
+              color: colors.textPrimary,
+            }}
+            onFocus={e => { e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`; }}
+            onBlur={e => { e.currentTarget.style.boxShadow = 'none'; }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-[55%] -translate-y-1/2 transition-colors"
+              style={{ color: colors.textMuted }}
+              onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+              onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          )}
         </div>
       </div>
 

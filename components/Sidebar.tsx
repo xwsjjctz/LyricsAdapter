@@ -10,9 +10,6 @@ interface SidebarProps {
   currentView: ViewMode;
   onReloadFiles?: () => void;
   hasUnavailableTracks?: boolean;
-  searchInputValue?: string;
-  onSearchInputChange?: (value: string) => void;
-  onSearchExecute?: () => void;
   viewMode: ViewMode;
 }
 
@@ -22,26 +19,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onReloadFiles,
   hasUnavailableTracks,
-  searchInputValue = '',
-  onSearchInputChange,
-  onSearchExecute,
   viewMode: _viewMode
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isBrowseView = currentView === ViewMode.BROWSE;
   const isMetadataView = currentView === ViewMode.METADATA;
 
-  // Local state for input (synced with global searchInputValue)
-  const [inputValue, setInputValue] = useState(searchInputValue);
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
   // Track current theme for styling
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  // Sync local state with global searchInputValue when it changes from outside
-  useEffect(() => {
-    setInputValue(searchInputValue);
-  }, [searchInputValue]);
 
   // Subscribe to language changes
   useEffect(() => {
@@ -59,27 +46,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     return unsubscribe;
   }, []);
 
-  // Handle input change - update global state and local state
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-    onSearchInputChange?.(newValue);
-  };
-
-  // Handle Enter key to execute search
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      onSearchExecute?.();
-    }
-  };
-
-  // Handle clear - clear both local and local state
-  const handleClear = () => {
-    setInputValue('');
-    onSearchInputChange?.('');
-    onSearchExecute?.();
-  };
-
   // Get theme-aware styles
   const colors = currentTheme.colors;
   const isDark = currentTheme.isDark;
@@ -87,11 +53,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Text colors based on theme
   const textPrimary = colors.textPrimary;
   const textSecondary = colors.textSecondary;
-  const textMuted = colors.textMuted;
 
   return (
     <aside 
-      className="w-64 flex flex-col backdrop-blur-md z-20 pt-8"
+      className="w-56 flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
         backgroundColor: colors.backgroundSidebar,
         borderRight: `1px solid ${colors.borderLight}`,
@@ -194,54 +159,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
               <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
             </button>
-
-            {/* 搜索框 */}
-            {onSearchInputChange && onSearchExecute && (
-              <div className="mt-4">
-                <div className="relative">
-                  <span 
-                    className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-lg"
-                    style={{ color: textMuted }}
-                  >
-                    search
-                  </span>
-                  <input
-                    type="text"
-                    placeholder={isBrowseView ? i18n.t('sidebar.searchOnline') : i18n.t('sidebar.searchTracks')}
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    className="w-full rounded-xl py-3 pl-13 pr-10 text-sm transition-all focus:outline-none focus:ring-0"
-                    style={{
-                      backgroundColor: colors.backgroundCard,
-                      border: `1px solid ${colors.borderLight}`,
-                      color: textPrimary,
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`;
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  />
-                  {inputValue && (
-                    <button
-                      onClick={handleClear}
-                      className="absolute right-3 top-5/9 -translate-y-1/2 transition-colors"
-                      style={{ color: textMuted }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = textPrimary;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = textMuted;
-                      }}
-                    >
-                      <span className="material-symbols-outlined text-lg">close</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* 设置和皮肤按钮 */}
             <div className="mt-4 grid grid-cols-2 gap-2">

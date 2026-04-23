@@ -44,24 +44,24 @@ const translations: Translations = {
     en: 'Import Files',
     ja: 'インポート',
     ko: '파일 가져오기',
-    de: 'Dateien importieren',
+    de: 'Importieren',
     fr: 'Importer'
   },
   'sidebar.searchOnline': {
-    zh: '在线搜索 (回车)',
-    en: 'Search online (Enter)',
-    ja: 'オンライン検索 (Enter)',
-    ko: '온라인 검색 (Enter)',
-    de: 'Online suchen (Enter)',
-    fr: 'Rechercher en ligne (Entrée)'
+    zh: '在线搜索',
+    en: 'Search online',
+    ja: 'オンライン検索',
+    ko: '온라인 검색',
+    de: 'Online suchen',
+    fr: 'Rechercher en ligne'
   },
   'sidebar.searchTracks': {
-    zh: '搜索曲目 (回车)',
-    en: 'Search tracks (Enter)',
-    ja: 'トラックを検索 (Enter)',
-    ko: '트랙 검색 (Enter)',
-    de: 'Titel suchen (Enter)',
-    fr: 'Rechercher des titres (Entrée)'
+    zh: '搜索曲目',
+    en: 'Search tracks',
+    ja: 'トラックを検索',
+    ko: '트랙 검색',
+    de: 'Titel suchen',
+    fr: 'Rechercher des titres'
   },
   'sidebar.reloadFiles': {
     zh: '重新加载文件',

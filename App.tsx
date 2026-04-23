@@ -42,8 +42,6 @@ declare global {
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const [searchInputValue, setSearchInputValue] = useState('');
-  const [searchTrigger, setSearchTrigger] = useState(0);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const isFirstLibraryLoadRef = useRef(true);
 
@@ -394,9 +392,6 @@ const App: React.FC = () => {
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
           currentView={viewMode}
-          searchInputValue={searchInputValue}
-          onSearchInputChange={setSearchInputValue}
-          onSearchExecute={() => setSearchTrigger(prev => prev + 1)}
           viewMode={viewMode}
         />
 
@@ -428,8 +423,6 @@ const App: React.FC = () => {
           <div className="flex-1 p-10 overflow-hidden pt-6">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
-                inputValue={searchInputValue}
-                searchTrigger={searchTrigger}
                 onDownloadComplete={handleDownloadComplete}
                 onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
               />
@@ -461,8 +454,6 @@ const App: React.FC = () => {
                 onDropFilePaths={handleDropFilePaths}
                 onReorderTracks={handleReorderTracks}
                 isFocusMode={isFocusMode}
-                inputValue={searchInputValue}
-                searchTrigger={searchTrigger}
                 savedScrollPosition={activeSlot.scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
                 isFirstLoad={isFirstLibraryLoadRef.current}

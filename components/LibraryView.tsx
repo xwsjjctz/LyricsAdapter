@@ -22,8 +22,6 @@ interface LibraryViewProps {
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
   onReorderTracks?: (fromIndex: number, toIndex: number) => void;
   isFocusMode?: boolean;
-  inputValue?: string;
-  searchTrigger?: number;
   savedScrollPosition?: number;
   onScrollPositionChange?: (position: number) => void;
   isFirstLoad?: boolean;
@@ -52,8 +50,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onDropFilePaths,
   onReorderTracks,
   isFocusMode = false,
-  inputValue: externalInputValue = '',
-  searchTrigger = 0,
   savedScrollPosition = 0,
   onScrollPositionChange,
   isFirstLoad = false,
@@ -77,7 +73,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [_dragOverIndex, setDragOverIndex] = useState<number | null>(null); // Drop target
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
-  const [executedSearchQuery, setExecutedSearchQuery] = useState(''); // Local executed search query
+  const [searchQuery, setSearchQuery] = useState('');
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
@@ -162,18 +158,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
-  const previousTrigger = useRef(searchTrigger);
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
-
-  // Execute search when trigger changes (from Enter key in Sidebar)
-  useEffect(() => {
-    if (searchTrigger !== previousTrigger.current) {
-      previousTrigger.current = searchTrigger;
-      setExecutedSearchQuery(externalInputValue);
-    }
-  }, [searchTrigger, externalInputValue]);
 
   // Subscribe to language changes
   useEffect(() => {
@@ -196,16 +183,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const isInitialMountRef = useRef(true);
 
-  // Filter tracks based on executed search query
+  // Filter tracks based on search query (live filtering)
   const filteredTracks = useMemo(() => {
-    if (!executedSearchQuery.trim()) return displayTracks;
-    const query = executedSearchQuery.toLowerCase();
+    if (!searchQuery.trim()) return displayTracks;
+    const query = searchQuery.toLowerCase();
     return displayTracks.filter(track =>
       track.title.toLowerCase().includes(query) ||
       track.artist.toLowerCase().includes(query) ||
       track.album.toLowerCase().includes(query)
     );
-  }, [displayTracks, executedSearchQuery]);
+  }, [displayTracks, searchQuery]);
 
   const uniqueArtists = useMemo(() => {
     const artistMap = new Map<string, { name: string; coverUrl?: string }>();
@@ -695,7 +682,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const toggleSelectAll = useCallback(() => {
     // Use filtered tracks for selection when searching
-    const targetTracks = executedSearchQuery ? filteredTracks : tracks;
+    const targetTracks = searchQuery ? filteredTracks : tracks;
     
     if (selectedIds.size === targetTracks.length) {
       // Deselect all
@@ -704,7 +691,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       // Select all (filtered tracks or all tracks)
       setSelectedIds(new Set(targetTracks.map(t => t.id)));
     }
-  }, [selectedIds.size, tracks, filteredTracks, executedSearchQuery]);
+  }, [selectedIds.size, tracks, filteredTracks, searchQuery]);
 
   const toggleSelectOne = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -879,7 +866,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             ) : (
               <>
                 {filteredTracks.length} {i18n.t('library.trackCount')}
-                {executedSearchQuery && filteredTracks.length !== displayTracks.length && ` (${i18n.t('library.of')} ${displayTracks.length})`}
+                {searchQuery && filteredTracks.length !== displayTracks.length && ` (${i18n.t('library.of')} ${displayTracks.length})`}
               </>
             )}
           </p>
@@ -1016,6 +1003,39 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               <span className="material-symbols-outlined text-lg">cloud</span>
             </button>
           </div>
+          <div className="relative flex-1 max-w-[200px]" style={{ minWidth: 0 }}>
+            <span
+              className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg"
+              style={{ color: colors.textMuted }}
+            >
+              search
+            </span>
+            <input
+              type="text"
+              placeholder={i18n.t('sidebar.searchTracks')}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl h-[38px] pl-10 pr-9 text-sm transition-all focus:outline-none focus:ring-0"
+              style={{
+                backgroundColor: colors.backgroundCard,
+                border: `1px solid ${colors.borderLight}`,
+                color: colors.textPrimary,
+              }}
+              onFocus={e => { e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`; }}
+              onBlur={e => { e.currentTarget.style.boxShadow = 'none'; }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-[55%] -translate-y-1/2 transition-colors"
+                style={{ color: colors.textMuted }}
+                onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+                onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1081,7 +1101,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   const isSelected = selectedIds.has(track.id);
                   const isCurrentTrack = track.id === currentTrackId;
                   const isDragged = draggedIndex === filteredIndex;
-                  const canDrag = isEditMode && !isUnavailable && !executedSearchQuery; // Only allow drag when not searching
+                  const canDrag = isEditMode && !isUnavailable && !searchQuery; // Only allow drag when not searching
                   // Only apply animation when shouldShowAnimation is true
                   const animationStyle = shouldShowAnimation
                     ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
@@ -1175,7 +1195,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   );
                 })}
               </div>
-            ) : executedSearchQuery ? (
+            ) : searchQuery ? (
               <div className="py-20 text-center" style={{ opacity: 0.4, color: colors.textSecondary }}>
                 <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
                 <p className="text-xl font-medium">{i18n.t('library.noMatchingTracks')}</p>
