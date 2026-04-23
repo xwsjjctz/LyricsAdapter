@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
+import { registerCommand } from '../services/debugCommands';
 import { ThemeConfig } from '../types/theme';
 
 // Decode HTML entities in lyrics text
@@ -100,9 +101,21 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const canvasOpacityRef = useRef(1);
   const enterExitAnimRef = useRef<number | null>(null);
 
+  // Global background transparency control for debugging
+  const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
+
   const CANVAS_REST_OPACITY = 1.0;
   const CANVAS_ENTER_DELAY = 700;
   const CANVAS_OPACITY_DURATION = 500;
+
+  // Helper to update canvas opacity with bgBlurTrans applied
+  const updateCanvasOpacity = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const finalOpacity = bgBlurTrans * canvasOpacityRef.current;
+      canvas.style.opacity = String(finalOpacity);
+    }
+  }, [bgBlurTrans]);
 
   useEffect(() => {
     if (enterExitAnimRef.current) {
@@ -110,11 +123,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       enterExitAnimRef.current = null;
     }
 
-    const canvas = canvasRef.current;
-
     if (isVisible) {
       canvasOpacityRef.current = 1;
-      if (canvas) canvas.style.opacity = '1';
+      updateCanvasOpacity();
 
       const delayTimer = setTimeout(() => {
         const start = performance.now();
@@ -127,7 +138,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           const eased = 1 - Math.pow(1 - p, 3);
           const val = from + (to - from) * eased;
           canvasOpacityRef.current = val;
-          if (canvas) canvas.style.opacity = String(val);
+          updateCanvasOpacity();
           if (p < 1) {
             enterExitAnimRef.current = requestAnimationFrame(animate);
           }
@@ -147,14 +158,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         const eased = 1 - Math.pow(1 - p, 3);
         const val = from + (to - from) * eased;
         canvasOpacityRef.current = val;
-        if (canvas) canvas.style.opacity = String(val);
+        updateCanvasOpacity();
         if (p < 1) {
           enterExitAnimRef.current = requestAnimationFrame(animate);
         }
       };
       enterExitAnimRef.current = requestAnimationFrame(animate);
     }
-  }, [isVisible]);
+  }, [isVisible, updateCanvasOpacity]);
 
   // Theme colors
   const colors = currentTheme.colors;
@@ -207,32 +218,48 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
 
+  // Helper function to draw image with cover mode (like CSS background-size: cover)
+  const drawImageCover = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, canvasWidth: number, canvasHeight: number) => {
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const canvasRatio = canvasWidth / canvasHeight;
+
+    let drawWidth, drawHeight, offsetX, offsetY;
+
+    if (imgRatio > canvasRatio) {
+      drawHeight = canvasHeight;
+      drawWidth = drawHeight * imgRatio;
+      offsetX = (canvasWidth - drawWidth) / 2;
+      offsetY = 0;
+    } else {
+      drawWidth = canvasWidth;
+      drawHeight = drawWidth / imgRatio;
+      offsetX = 0;
+      offsetY = (canvasHeight - drawHeight) / 2;
+    }
+
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+  };
+
   // Render canvas with color gradient transition
   const renderCanvas = useCallback((progress: number) => () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    // Check if image is loaded and not in broken state
     if (!canvas || !ctx || !bgImage1 || !bgImage1.complete || bgImage1.naturalWidth === 0) return;
 
     const width = canvas.width = window.innerWidth;
     const height = canvas.height = window.innerHeight;
 
-    // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // If we have both backgrounds, do the gradient transition
     if (bgImage2 && bgImage2.complete && bgImage2.naturalWidth > 0) {
-      // Draw first background
       ctx.globalAlpha = 1 - progress;
-      ctx.drawImage(bgImage1, 0, 0, width, height);
+      drawImageCover(ctx, bgImage1, width, height);
 
-      // Draw second background on top with inverted alpha
       ctx.globalAlpha = progress;
-      ctx.drawImage(bgImage2, 0, 0, width, height);
+      drawImageCover(ctx, bgImage2, width, height);
     } else {
-      // Only draw first background (no transition)
       ctx.globalAlpha = 1;
-      ctx.drawImage(bgImage1, 0, 0, width, height);
+      drawImageCover(ctx, bgImage1, width, height);
     }
 
     ctx.globalAlpha = 1.0;
@@ -437,6 +464,20 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         lyricAnimationRef.current = null;
       }
     };
+  }, []);
+
+  // Register global debug function for background transparency
+  useEffect(() => {
+    const unregister = registerCommand(
+      'bg_blur_trans',
+      (value: number) => {
+        if (typeof value === 'number' && value >= 0 && value <= 1) {
+          setBgBlurTrans(value);
+        }
+      },
+      'Set FocusMode background transparency (0~1), e.g. bg_blur_trans(0.92)'
+    );
+    return () => unregister();
   }, []);
 
   // Hardware-accelerated lyric positioning using CSS transform with bezier easing

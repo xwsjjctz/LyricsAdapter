@@ -8,6 +8,7 @@ import { ThemeConfig } from '../types/theme';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
 import { notify } from '../services/notificationService';
+import { registerCommand } from '../services/debugCommands';
 import TrackCover from './TrackCover';
 
 interface LibraryViewProps {
@@ -111,32 +112,45 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Global cache clear: clears CDN cache + localStorage, clears slot, reloads
   useEffect(() => {
-    (window as any).__webdav_cache_loaded = false;
-    (window as any).clear_webdav_cache = () => {
-      clearWebdavCache();
-      onLoadCloudTracks([]);
-      setTimeout(() => {
-        if (webdavClient.hasConfig()) {
-          loadWebDAVFiles().then(result => {
-            applyDiffResult(result);
-          });
+    const unregister1 = registerCommand(
+      'clear_webdav_cache',
+      () => {
+        clearWebdavCache();
+        onLoadCloudTracks([]);
+        setTimeout(() => {
+          if (webdavClient.hasConfig()) {
+            loadWebDAVFiles().then(result => {
+              applyDiffResult(result);
+            });
+          }
+        }, 50);
+      },
+      'Clear WebDAV cache and reload cloud tracks'
+    );
+
+    const unregister2 = registerCommand(
+      'sync_webdav',
+      () => {
+        if (!webdavClient.hasConfig()) {
+          logger.warn('[LibraryView] WebDAV not configured');
+          return;
         }
-      }, 50);
-    };
-    (window as any).sync_webdav = () => {
-      if (!webdavClient.hasConfig()) {
-        logger.warn('[LibraryView] WebDAV not configured');
-        return;
-      }
-      loadWebDAVFiles().then(result => {
-        if (result.type === 'full') {
-          logger.info('[LibraryView] sync_webdav: full load, ' + result.tracks.length + ' tracks');
-          onLoadCloudTracks(result.tracks);
-        } else {
-          logger.info('[LibraryView] sync_webdav: diff — added=' + result.added.length + ' removed=' + result.removed.length + ' updated=' + result.updated.length);
-          onMergeCloudTracks(result.added, result.removed, result.updated);
-        }
-      });
+        loadWebDAVFiles().then(result => {
+          if (result.type === 'full') {
+            logger.info('[LibraryView] sync_webdav: full load, ' + result.tracks.length + ' tracks');
+            onLoadCloudTracks(result.tracks);
+          } else {
+            logger.info('[LibraryView] sync_webdav: diff — added=' + result.added.length + ' removed=' + result.removed.length + ' updated=' + result.updated.length);
+            onMergeCloudTracks(result.added, result.removed, result.updated);
+          }
+        });
+      },
+      'Manually trigger WebDAV sync'
+    );
+
+    return () => {
+      unregister1();
+      unregister2();
     };
   }, [clearWebdavCache, onLoadCloudTracks, onMergeCloudTracks, loadWebDAVFiles, applyDiffResult]);
 
