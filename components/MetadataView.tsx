@@ -120,9 +120,15 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
             finalSyncedLyrics = parsed.syncedLyrics;
           }
 
-          const coverUrl = selectedTrack.coverUrl?.startsWith('cover://')
-            ? selectedTrack.coverUrl
-            : (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') ? metadata.coverUrl : selectedTrack.coverUrl);
+          let coverUrl = selectedTrack.coverUrl;
+          if (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') && !metadata.coverUrl.startsWith('https://picsum.photos')) {
+            coverUrl = metadata.coverUrl;
+          } else if (metadata.coverUrl && metadata.coverUrl.startsWith('blob:')) {
+            const cachedCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
+            if (cachedCoverUrl) {
+              coverUrl = cachedCoverUrl;
+            }
+          }
 
           const updatedTrack: Track = {
             ...selectedTrack,
@@ -182,7 +188,22 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
       if (result.success) {
         logger.info(`[MetadataView] Saved all metadata for track ${selectedTrack.id}`);
         await coverArtService.deleteCover(selectedTrack.id);
-        await refreshMetadata();
+        
+        let newCoverUrl = selectedTrack.coverUrl;
+        if (pendingCoverDataUrl) {
+          const cachedCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
+          if (cachedCoverUrl) {
+            newCoverUrl = cachedCoverUrl;
+          }
+        }
+        
+        const updatedTrack = { ...selectedTrack, coverUrl: newCoverUrl };
+        setSelectedTrack(updatedTrack);
+        setOriginalTrack(updatedTrack);
+        if (onUpdateTrack) {
+          onUpdateTrack(updatedTrack);
+        }
+        
         setPendingCoverDataUrl(null);
         notify(
           i18n.t('notifications.saveSuccess'),
@@ -545,18 +566,26 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
                     className="w-32 h-32 rounded-2xl object-cover shadow-2xl"
                   />
                   {pendingCoverDataUrl && (
-                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: colors.primary }}>
-                      <span className="material-symbols-outlined text-xs" style={{ color: '#fff' }}>edit</span>
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPendingCoverDataUrl(null);
+                      }}
+                      className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                      style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
+                      title={i18n.t('common.cancel')}
+                    >
+                      <span className="material-symbols-outlined text-[10px]">close</span>
+                    </button>
                   )}
                   <button
                     onClick={handleCoverImport}
-                    className="absolute top-0 left-0 w-32 h-32 bg-black/50 flex items-center justify-center rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    className="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                   >
-                    <div className="text-center">
-                      <span className="material-symbols-outlined text-3xl mb-1 block" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
-                      <div className="text-xs" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.importCover')}</div>
-                    </div>
+                    <span className="material-symbols-outlined text-sm" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
+                    <span className="text-xs" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.importCover')}</span>
                   </button>
                 </div>
                 <div className="flex-1 flex flex-col gap-2 min-w-0 pt-0 pb-2">
