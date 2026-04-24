@@ -18,12 +18,13 @@ import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import BrowseView from './components/BrowseView';
-import MetadataView from './components/MetadataView';
+import MetadataView, { MetadataViewHandle } from './components/MetadataView';
 import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import ErrorBoundary from './components/ErrorBoundary';
+import { i18n } from './services/i18n';
 
 declare global {
   interface Window {
@@ -43,6 +44,8 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
+  const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
+  const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
 
   const {
@@ -383,6 +386,10 @@ const App: React.FC = () => {
             }
           }}
           onNavigate={(mode) => { 
+            if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
+              setPendingNavigation(mode);
+              return;
+            }
             setViewMode(mode); 
             setIsFocusMode(false); 
             if (viewMode !== ViewMode.BROWSE && mode === ViewMode.BROWSE) {
@@ -428,6 +435,7 @@ const App: React.FC = () => {
               />
             ) : viewMode === ViewMode.METADATA ? (
               <MetadataView
+                ref={metadataViewRef}
                 libraryTracks={activeTracks}
                 onImportFromLibrary={(trackIds) => {
                   logger.debug('[App] Imported tracks to metadata view:', trackIds);
@@ -514,6 +522,58 @@ const App: React.FC = () => {
         />
         </div>
       </div>
+
+      {pendingNavigation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
+          <div className="rounded-2xl p-6 w-96 shadow-2xl" style={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+              {i18n.t('metadataView.unsavedTitle')}
+            </h3>
+            <p className="mb-6 text-sm" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>
+              {i18n.t('metadataView.unsavedMessage')}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPendingNavigation(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                {i18n.t('common.cancel')}
+              </button>
+              <button
+                onClick={() => {
+                  metadataViewRef.current?.stashAll();
+                  setViewMode(pendingNavigation);
+                  setIsFocusMode(false);
+                  setPendingNavigation(null);
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ backgroundColor: 'var(--theme-background-card-hover, rgba(255,255,255,0.1))', color: 'var(--theme-text-primary, #fff)' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-border-light, rgba(255,255,255,0.2))'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
+              >
+                {i18n.t('metadataView.stash')}
+              </button>
+              <button
+                onClick={async () => {
+                  await metadataViewRef.current?.saveAll();
+                  setViewMode(pendingNavigation);
+                  setIsFocusMode(false);
+                  setPendingNavigation(null);
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ backgroundColor: 'var(--theme-primary, #2b8cee)', color: '#fff' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary-hover, #1a7de0)'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary, #2b8cee)'; }}
+              >
+                {i18n.t('metadataView.saveChanges')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ErrorBoundary>
   );
 };

@@ -281,6 +281,38 @@ const translations: Translations = {
     de: 'Unterstützt FLAC, MP3, M4A, WAV',
     fr: 'Supporte FLAC, MP3, M4A, WAV'
   },
+  'library.artistList': {
+    zh: '歌手',
+    en: 'Artists',
+    ja: 'アーティスト',
+    ko: '아티스트',
+    de: 'Künstler',
+    fr: 'Artistes'
+  },
+  'library.albumList': {
+    zh: '专辑',
+    en: 'Albums',
+    ja: 'アルバム',
+    ko: '앨범',
+    de: 'Alben',
+    fr: 'Albums'
+  },
+  'library.selectArtist': {
+    zh: '请选择歌手',
+    en: 'Select an artist',
+    ja: 'アーティストを選択',
+    ko: '아티스트를 선택하세요',
+    de: 'Wählen Sie einen Künstler',
+    fr: 'Sélectionnez un artiste'
+  },
+  'library.selectAlbum': {
+    zh: '请选择专辑',
+    en: 'Select an album',
+    ja: 'アルバムを選択',
+    ko: '앨범을 선택하세요',
+    de: 'Wählen Sie ein Album',
+    fr: 'Sélectionnez un album'
+  },
 
   // Browse View
   'browse.title': {
@@ -2191,6 +2223,38 @@ const translations: Translations = {
     de: 'Cover importieren',
     fr: 'Importer la pochette'
   },
+  'metadataView.unsavedTitle': {
+    zh: '未保存的更改',
+    en: 'Unsaved Changes',
+    ja: '未保存の変更',
+    ko: '저장되지 않은 변경 사항',
+    de: 'Nicht gespeicherte Änderungen',
+    fr: 'Modifications non enregistrées'
+  },
+  'metadataView.unsavedMessage': {
+    zh: '您有未保存的更改，请选择操作：',
+    en: 'You have unsaved changes. What would you like to do?',
+    ja: '未保存の変更があります。どうしますか？',
+    ko: '저장되지 않은 변경 사항이 있습니다. 어떻게 하시겠습니까?',
+    de: 'Sie haben nicht gespeicherte Änderungen. Was möchten Sie tun?',
+    fr: 'Vous avez des modifications non enregistrées. Que souhaitez-vous faire ?'
+  },
+  'metadataView.saveChanges': {
+    zh: '保存',
+    en: 'Save',
+    ja: '保存',
+    ko: '저장',
+    de: 'Speichern',
+    fr: 'Enregistrer'
+  },
+  'metadataView.stash': {
+    zh: '暂存',
+    en: 'Stash',
+    ja: '一時保存',
+    ko: '임시 저장',
+    de: 'Zwischenspeichern',
+    fr: 'Mettre de côté'
+  },
   'notifications.downloadComplete': {
     zh: '下载完成',
     en: 'Download Complete',
@@ -2270,6 +2334,22 @@ const translations: Translations = {
     ko: '표지 이미지 저장 실패',
     de: 'Cover-Bild konnte nicht gespeichert werden',
     fr: 'Échec de la sauvegarde de la pochette'
+  },
+  'notifications.saveSuccess': {
+    zh: '保存成功',
+    en: 'Save Successful',
+    ja: '保存成功',
+    ko: '저장 성공',
+    de: 'Speichern erfolgreich',
+    fr: 'Sauvegarde réussie'
+  },
+  'notifications.metadataSaved': {
+    zh: '元数据已保存到文件',
+    en: 'Metadata saved to file',
+    ja: 'メタデータがファイルに保存されました',
+    ko: '메타데이터가 파일에 저장되었습니다',
+    de: 'Metadaten in Datei gespeichert',
+    fr: 'Métadonnées enregistrées dans le fichier'
   }
 };
 

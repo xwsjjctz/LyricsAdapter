@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
@@ -16,19 +16,30 @@ interface MetadataViewProps {
   onUpdateTrack?: (track: Track) => void;
 }
 
-const MetadataView: React.FC<MetadataViewProps> = memo(({
+export interface MetadataViewHandle {
+  readonly hasUnsavedChanges: boolean;
+  saveAll: () => Promise<void>;
+  stashAll: () => void;
+  cancelAll: () => void;
+}
+
+const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
   libraryTracks,
   onImportFromLibrary: _onImportFromLibrary,
   onUpdateTrack
-}) => {
+}, ref) => {
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [originalTrack, setOriginalTrack] = useState<Track | null>(null);
-  const [savingFields, setSavingFields] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pendingCoverDataUrl, setPendingCoverDataUrl] = useState<string | null>(null);
+  const [stashedMetadata, setStashedMetadata] = useState<Record<string, Partial<Track>>>({});
+  const [pendingTrackSwitch, setPendingTrackSwitch] = useState<Track | null>(null);
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const colors = currentTheme.colors;
   const autoSelectedRef = useRef(false);
+  const originalTrackRef = useRef<Track | null>(null);
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
@@ -47,10 +58,10 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
   useEffect(() => {
     if (selectedTrack) {
       setOriginalTrack(selectedTrack);
+      originalTrackRef.current = selectedTrack;
     }
   }, [selectedTrack?.id]);
 
-  // Convert synced lyrics to LRC format for saving
   const syncedLyricsToLRC = useCallback((syncedLyrics?: { time: number; text: string }[]): string => {
     if (!syncedLyrics || syncedLyrics.length === 0) return '';
     return syncedLyrics
@@ -63,11 +74,9 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
       .join('\n');
   }, []);
 
-  // Auto-select first track when library is loaded and no track is selected
   useEffect(() => {
     if (libraryTracks.length > 0 && !selectedTrack && !autoSelectedRef.current) {
       autoSelectedRef.current = true;
-      // Small delay to ensure component is fully mounted
       const timer = setTimeout(() => {
         setSelectedTrack(libraryTracks[0] ?? null);
       }, 100);
@@ -75,7 +84,15 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
     }
   }, [libraryTracks.length, selectedTrack]);
 
-  // Refresh metadata for selected track
+  const hasUnsavedChanges = useMemo(() => {
+    if (!selectedTrack || !originalTrack) return false;
+    return (selectedTrack.title ?? '') !== (originalTrack.title ?? '')
+      || (selectedTrack.artist ?? '') !== (originalTrack.artist ?? '')
+      || (selectedTrack.album ?? '') !== (originalTrack.album ?? '')
+      || (selectedTrack.lyrics ?? '') !== (originalTrack.lyrics ?? '')
+      || pendingCoverDataUrl !== null;
+  }, [selectedTrack, originalTrack, pendingCoverDataUrl]);
+
   const refreshMetadata = useCallback(async () => {
     if (!selectedTrack?.filePath) return;
 
@@ -84,26 +101,21 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
       const desktopAPI = await getDesktopAPIAsync();
       if (desktopAPI?.refreshTrackMetadata) {
         const result = await desktopAPI.refreshTrackMetadata(selectedTrack.filePath);
-        
+
         if (result.success && result.data) {
-          // Parse the metadata using parseAudioFile
           const file = new File([result.data.buffer], result.data.fileName, { type: result.data.mimeType });
           const metadata = await parseAudioFile(file);
-          
-          // Ensure syncedLyrics is populated from lyrics if it contains LRC timestamps
+
           let finalSyncedLyrics = metadata.syncedLyrics;
           if (!finalSyncedLyrics && metadata.lyrics) {
             const parsed = parseLRCLyrics(metadata.lyrics);
             finalSyncedLyrics = parsed.syncedLyrics;
           }
-          
-          // Preserve the original cover URL if it was a cover:// protocol URL
-          // The parsed metadata.coverUrl may be a blob URL which can't be fetched by the main process
+
           const coverUrl = selectedTrack.coverUrl?.startsWith('cover://')
             ? selectedTrack.coverUrl
             : (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') ? metadata.coverUrl : selectedTrack.coverUrl);
 
-          // Create updated track with cover URL
           const updatedTrack: Track = {
             ...selectedTrack,
             title: metadata.title,
@@ -113,16 +125,14 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             syncedLyrics: finalSyncedLyrics,
             coverUrl,
           };
-          
-          // Update state
+
           setSelectedTrack(updatedTrack);
           setOriginalTrack(updatedTrack);
-          
-          // Notify parent component
+
           if (onUpdateTrack) {
             onUpdateTrack(updatedTrack);
           }
-          
+
           logger.info('[MetadataView] Metadata refreshed for track', selectedTrack.id);
         } else {
           logger.error('[MetadataView] Failed to refresh metadata:', result.error);
@@ -135,7 +145,106 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
     }
   }, [selectedTrack, onUpdateTrack]);
 
-  const handleCoverImport = useCallback(async (trackId: string) => {
+  const saveAll = useCallback(async () => {
+    if (!selectedTrack?.filePath) return;
+    setSaving(true);
+    try {
+      if (!hasUnsavedChanges) {
+        await refreshMetadata();
+        return;
+      }
+
+      const desktopAPI = await getDesktopAPIAsync();
+      if (!desktopAPI?.writeAudioMetadata) return;
+
+      const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
+        ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
+        : selectedTrack.lyrics;
+
+      const metadata = {
+        title: selectedTrack.title,
+        artist: selectedTrack.artist,
+        album: selectedTrack.album,
+        ...(lyricsToSave != null && { lyrics: lyricsToSave }),
+        coverUrl: pendingCoverDataUrl || selectedTrack.coverUrl,
+      };
+
+      const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
+
+      if (result.success) {
+        logger.info(`[MetadataView] Saved all metadata for track ${selectedTrack.id}`);
+        await coverArtService.deleteCover(selectedTrack.id);
+        await refreshMetadata();
+        setPendingCoverDataUrl(null);
+        notify(
+          i18n.t('notifications.saveSuccess'),
+          i18n.t('notifications.metadataSaved')
+        );
+      } else {
+        logger.error('[MetadataView] Failed to save metadata:', result.error);
+        notify(
+          i18n.t('notifications.saveFailed'),
+          i18n.t('notifications.fieldSaveFailed').replace('{field}', 'metadata')
+        );
+      }
+    } catch (error) {
+      logger.error('[MetadataView] Error saving metadata:', error);
+      notify(
+        i18n.t('notifications.saveFailed'),
+        i18n.t('notifications.fieldSaveFailed').replace('{field}', 'metadata')
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedTrack, originalTrack, pendingCoverDataUrl, hasUnsavedChanges, refreshMetadata, syncedLyricsToLRC]);
+
+  const stashAll = useCallback(() => {
+    if (!selectedTrack || !originalTrack) return;
+    const changes: Partial<Track> = {};
+    if (selectedTrack.title !== originalTrack.title) changes.title = selectedTrack.title;
+    if (selectedTrack.artist !== originalTrack.artist) changes.artist = selectedTrack.artist;
+    if (selectedTrack.album !== originalTrack.album) changes.album = selectedTrack.album;
+    if (selectedTrack.lyrics !== originalTrack.lyrics) {
+      changes.lyrics = selectedTrack.lyrics;
+      if (selectedTrack.syncedLyrics) changes.syncedLyrics = selectedTrack.syncedLyrics;
+    }
+    if (pendingCoverDataUrl) changes.coverUrl = pendingCoverDataUrl;
+
+    setStashedMetadata(prev => ({ ...prev, [selectedTrack.id!]: changes }));
+    if (originalTrack) setSelectedTrack(originalTrack);
+    setPendingCoverDataUrl(null);
+  }, [selectedTrack, originalTrack, pendingCoverDataUrl]);
+
+  useImperativeHandle(ref, () => ({
+    get hasUnsavedChanges() { return hasUnsavedChanges; },
+    saveAll,
+    stashAll,
+    cancelAll: () => {
+      if (originalTrack) {
+        setSelectedTrack(originalTrack);
+        setPendingCoverDataUrl(null);
+      }
+    }
+  }), [hasUnsavedChanges, saveAll, stashAll, originalTrack]);
+
+  const selectTrack = useCallback((track: Track) => {
+    const stashed = stashedMetadata[track.id!];
+    if (stashed) {
+      setSelectedTrack({ ...track, ...stashed });
+    } else {
+      setSelectedTrack(track);
+    }
+  }, [stashedMetadata]);
+
+  const handleTrackSelect = useCallback((track: Track) => {
+    if (hasUnsavedChanges) {
+      setPendingTrackSwitch(track);
+      return;
+    }
+    selectTrack(track);
+  }, [hasUnsavedChanges, selectTrack]);
+
+  const handleCoverImport = useCallback(async () => {
     if (!selectedTrack?.filePath) {
       logger.warn('[MetadataView] No track selected or no file path');
       return;
@@ -149,10 +258,6 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
       if (!file) return;
 
       try {
-        setIsRefreshing(true);
-        logger.info('[MetadataView] Importing cover for track:', trackId);
-
-        // Read file as data URL
         const dataUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (event) => resolve(event.target?.result as string);
@@ -160,64 +265,72 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
           reader.readAsDataURL(file);
         });
 
-        logger.debug('[MetadataView] Cover file read, size:', dataUrl.length);
-
-        // Write metadata with cover
-        const desktopAPI = await getDesktopAPIAsync();
-        if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
-          // Convert syncedLyrics to LRC format for saving
-          const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
-            ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
-            : selectedTrack.lyrics;
-          
-          const metadata = {
-            title: selectedTrack.title,
-            artist: selectedTrack.artist,
-            album: selectedTrack.album,
-            ...(lyricsToSave != null && { lyrics: lyricsToSave }),
-            coverUrl: dataUrl,
-          };
-
-          logger.info('[MetadataView] Writing cover to file...');
-          const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
-
-          if (result.success) {
-            logger.info('[MetadataView] ✓ Cover written successfully');
-            // Clear cover cache after cover update
-            await coverArtService.deleteCover(selectedTrack.id);
-            // Refresh metadata to show new cover
-            await refreshMetadata();
-          } else {
-            logger.error('[MetadataView] Failed to write cover:', result.error);
-            notify(
-              i18n.t('notifications.saveFailed'),
-              i18n.t('notifications.coverSaveFailed')
-            );
-          }
-        }
+        setPendingCoverDataUrl(dataUrl);
       } catch (error) {
-        logger.error('[MetadataView] Error importing cover:', error);
-        notify(
-          i18n.t('notifications.saveFailed'),
-          i18n.t('notifications.coverSaveFailed')
-        );
-      } finally {
-        setIsRefreshing(false);
+        logger.error('[MetadataView] Error reading cover file:', error);
       }
     };
     input.click();
-  }, [selectedTrack, refreshMetadata, syncedLyricsToLRC]);
+  }, [selectedTrack]);
+
+  const renderDialog = useCallback((onSave: () => void, onStash: () => void, onCancel: () => void) => {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
+        <div className="rounded-2xl p-6 w-96 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+            {i18n.t('metadataView.unsavedTitle')}
+          </h3>
+          <p className="mb-6 text-sm" style={{ color: colors.textSecondary }}>
+            {i18n.t('metadataView.unsavedMessage')}
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              {i18n.t('common.cancel')}
+            </button>
+            <button
+              onClick={onStash}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{ backgroundColor: colors.backgroundCardHover, color: colors.textPrimary }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.borderLight; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+            >
+              {i18n.t('metadataView.stash')}
+            </button>
+            <button
+              onClick={onSave}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{ backgroundColor: colors.primary, color: '#fff' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.primaryHover; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.primary; }}
+            >
+              {i18n.t('metadataView.saveChanges')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }, [colors]);
 
   const renderMetadataField = useCallback((label: string, _value: string | undefined, field: 'title' | 'artist' | 'album' | 'lyrics', isLyrics: boolean = false) => {
-    // For lyrics field, prefer synced lyrics in LRC format if available
     let currentValue = selectedTrack?.[field] || '';
-    if (isLyrics && selectedTrack?.syncedLyrics && selectedTrack.syncedLyrics.length > 0) {
-      currentValue = syncedLyricsToLRC(selectedTrack.syncedLyrics);
+    let originalValue = originalTrack?.[field] || '';
+    if (isLyrics) {
+      if (selectedTrack?.syncedLyrics?.length) {
+        currentValue = syncedLyricsToLRC(selectedTrack.syncedLyrics);
+      }
+      if (originalTrack?.syncedLyrics?.length) {
+        originalValue = syncedLyricsToLRC(originalTrack.syncedLyrics);
+      }
     }
-    
-    const originalValue = originalTrack?.[field] || '';
+
     const hasChanged = currentValue !== originalValue;
-    
+
     if (isLyrics) {
       return (
         <div className="flex-1 flex flex-col min-h-0">
@@ -230,13 +343,16 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
               onChange={(e) => {
                 if (selectedTrack) {
                   const updated = { ...selectedTrack, [field]: e.target.value };
+                  if (isLyrics) {
+                    updated.syncedLyrics = undefined;
+                  }
                   setSelectedTrack(updated as Track);
                 }
               }}
-              className="absolute inset-0 w-full rounded-lg p-3 pr-20 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar"
+              className="absolute inset-0 w-full rounded-lg p-3 pr-10 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar"
               style={{
                 backgroundColor: colors.backgroundCard,
-                border: `1px solid ${colors.borderLight}`,
+                border: `1px solid ${hasChanged ? colors.primary : colors.borderLight}`,
                 color: colors.textPrimary,
               }}
               onFocus={(e) => {
@@ -249,81 +365,21 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
               }}
             />
             {hasChanged && (
-              <div className="absolute right-2 top-2 flex gap-1">
-                <button
-                  onClick={() => {
-                    if (selectedTrack) {
-                      const updated = { ...selectedTrack, [field]: originalValue || '' };
-                      setSelectedTrack(updated as Track);
-                    }
-                  }}
-                  className="w-7 h-7 rounded-md transition-all flex items-center justify-center"
-                  style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
-                  title={i18n.t('common.cancel')}
-                >
-                  <span className="material-symbols-outlined text-base">close</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!selectedTrack?.filePath) return;
-                    
-                    setSavingFields(prev => new Set(prev).add(field));
-                    
-                    try {
-                      const desktopAPI = await getDesktopAPIAsync();
-                      if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
-                        // Convert syncedLyrics to LRC format for saving
-                        const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
-                          ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
-                          : selectedTrack.lyrics;
-                        
-                        // Pass all metadata fields to avoid clearing other fields
-                        const metadata = {
-                          title: selectedTrack.title,
-                          artist: selectedTrack.artist,
-                          album: selectedTrack.album,
-                          ...(lyricsToSave != null && { lyrics: lyricsToSave }),
-                          ...(selectedTrack.coverUrl != null && { coverUrl: selectedTrack.coverUrl }),
-                        };
-                        
-                        const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
-                        
-                        if (result.success) {
-                          logger.info(`[MetadataView] Saved ${field} for track ${selectedTrack.id}`);
-                          // Refresh metadata after saving
-                          await refreshMetadata();
-                        } else {
-                          logger.error(`[MetadataView] Failed to save ${field}:`, result.error);
-                          notify(
-                            i18n.t('notifications.saveFailed'),
-                            i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
-                          );
-                        }
-                      }
-                    } catch (error) {
-                      logger.error(`[MetadataView] Error saving ${field}:`, error);
-                      notify(
-                        i18n.t('notifications.saveFailed'),
-                        i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
-                      );
-                    } finally {
-                      setSavingFields(prev => {
-                        const next = new Set(prev);
-                        next.delete(field);
-                        return next;
-                      });
-                    }
-                  }}
-                  disabled={savingFields.has(field)}
-                  className={`w-7 h-7 rounded-md transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
-                  title={i18n.t('common.save')}
-                >
-                  <span className="material-symbols-outlined text-base">{savingFields.has(field) ? 'hourglass_empty' : 'check'}</span>
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  if (selectedTrack && originalTrackRef.current) {
+                    const orig = originalTrackRef.current;
+                    const restored = { ...selectedTrack, lyrics: orig.lyrics, syncedLyrics: orig.syncedLyrics };
+                    setSelectedTrack(restored as Track);
+                  }
+                }}
+                className="absolute top-2 right-2 w-6 h-6 rounded transition-all flex items-center justify-center"
+                style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
             )}
           </div>
         </div>
@@ -346,7 +402,7 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
             className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-0 transition-all"
             style={{
               backgroundColor: colors.backgroundCard,
-              border: `1px solid ${colors.borderLight}`,
+              border: `1px solid ${hasChanged ? colors.primary : colors.borderLight}`,
               color: colors.textPrimary,
             }}
             onFocus={(e) => {
@@ -371,80 +427,34 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                 style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
-                title={i18n.t('common.cancel')}
               >
                 <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-              <button
-                  onClick={async () => {
-                    if (!selectedTrack?.filePath) return;
-                    
-                    setSavingFields(prev => new Set(prev).add(field));
-                    
-                    try {
-                      const desktopAPI = await getDesktopAPIAsync();
-                      if (desktopAPI?.writeAudioMetadata && selectedTrack.filePath) {
-                        // Convert syncedLyrics to LRC format for saving
-                        const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
-                          ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
-                          : selectedTrack.lyrics;
-                        
-                        // Pass all metadata fields to avoid clearing other fields
-                        const metadata = {
-                          title: selectedTrack.title,
-                          artist: selectedTrack.artist,
-                          album: selectedTrack.album,
-                          ...(lyricsToSave != null && { lyrics: lyricsToSave }),
-                          ...(selectedTrack.coverUrl != null && { coverUrl: selectedTrack.coverUrl }),
-                        };
-                        
-                        const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
-                        
-                        if (result.success) {
-                          logger.info(`[MetadataView] Saved ${field} for track ${selectedTrack.id}`);
-                          // Clear cover cache after metadata update
-                          await coverArtService.deleteCover(selectedTrack.id);
-                          // Refresh metadata after saving
-                          await refreshMetadata();
-                        } else {
-                          logger.error(`[MetadataView] Failed to save ${field}:`, result.error);
-                          notify(
-                            i18n.t('notifications.saveFailed'),
-                            i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
-                          );
-                        }
-                      }
-                    } catch (error) {
-                      logger.error(`[MetadataView] Error saving ${field}:`, error);
-                      notify(
-                        i18n.t('notifications.saveFailed'),
-                        i18n.t('notifications.fieldSaveFailed').replace('{field}', field)
-                      );
-                    } finally {
-                      setSavingFields(prev => {
-                        const next = new Set(prev);
-                        next.delete(field);
-                        return next;
-                      });
-                    }
-                  }}
-                disabled={savingFields.has(field)}
-                className={`w-6 h-6 rounded transition-all flex items-center justify-center ${savingFields.has(field) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
-                title={i18n.t('common.save')}
-              >
-                <span className="material-symbols-outlined text-sm">{savingFields.has(field) ? 'hourglass_empty' : 'check'}</span>
               </button>
             </div>
           )}
         </div>
       </div>
     );
-  }, [selectedTrack, originalTrack, currentTheme]);
+  }, [selectedTrack, originalTrack, currentTheme, syncedLyricsToLRC]);
 
   return (
     <div className="w-full flex flex-col h-full">
-      {/* 固定的标题部分 */}
+      {pendingTrackSwitch && renderDialog(
+        async () => {
+          await saveAll();
+          selectTrack(pendingTrackSwitch);
+          setPendingTrackSwitch(null);
+        },
+        () => {
+          stashAll();
+          selectTrack(pendingTrackSwitch);
+          setPendingTrackSwitch(null);
+        },
+        () => {
+          setPendingTrackSwitch(null);
+        }
+      )}
+
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('metadataView.title')}</h1>
@@ -453,38 +463,50 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
           </p>
         </div>
         <button
-          onClick={refreshMetadata}
-          disabled={isRefreshing || !selectedTrack}
+          onClick={saveAll}
+          disabled={saving || isRefreshing || !selectedTrack}
           className="w-10 h-10 rounded-xl transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
-          title={isRefreshing ? '刷新中...' : '刷新元数据'}
+          style={{
+            backgroundColor: hasUnsavedChanges ? colors.primary : colors.backgroundCard,
+            color: hasUnsavedChanges ? '#fff' : colors.textMuted,
+          }}
+          onMouseEnter={e => {
+            if (!hasUnsavedChanges) {
+              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+              e.currentTarget.style.color = colors.textPrimary;
+            }
+          }}
+          onMouseLeave={e => {
+            if (!hasUnsavedChanges) {
+              e.currentTarget.style.backgroundColor = colors.backgroundCard;
+              e.currentTarget.style.color = colors.textMuted;
+            }
+          }}
         >
-          <span className={`material-symbols-outlined text-xl ${isRefreshing ? 'animate-spin' : ''}`}>{isRefreshing ? 'sync' : 'refresh'}</span>
+          <span className={`material-symbols-outlined text-xl ${saving || isRefreshing ? 'animate-spin' : ''}`}>
+            {saving || isRefreshing ? 'sync' : (hasUnsavedChanges ? 'check' : 'refresh')}
+          </span>
         </button>
       </div>
 
-      {/* 内容区域 */}
       <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
-        {/* 左侧音频列表 */}
         <div className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar">
           <div className="flex flex-col gap-1">
             {libraryTracks.map((track) => (
               <button
                 key={track.id}
-                onClick={() => setSelectedTrack(track)}
+                onClick={() => handleTrackSelect(track)}
                 className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
-                style={selectedTrack?.id === track.id 
+                style={selectedTrack?.id === track.id
                   ? { backgroundColor: colors.backgroundCard, color: colors.textPrimary }
                   : { backgroundColor: 'transparent', color: colors.textMuted }
                 }
-                onMouseEnter={e => { 
-                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover; 
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
                   e.currentTarget.style.color = colors.textPrimary;
                 }}
-                onMouseLeave={e => { 
-                  e.currentTarget.style.backgroundColor = selectedTrack?.id === track.id ? colors.backgroundCard : 'transparent'; 
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = selectedTrack?.id === track.id ? colors.backgroundCard : 'transparent';
                   e.currentTarget.style.color = selectedTrack?.id === track.id ? colors.textPrimary : colors.textMuted;
                 }}
               >
@@ -503,7 +525,6 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
           </div>
         </div>
 
-        {/* 右侧元数据显示 */}
         {selectedTrack ? (
           <div className="flex-1 overflow-hidden">
             <div className="w-full h-full flex flex-col gap-4">
@@ -512,11 +533,16 @@ const MetadataView: React.FC<MetadataViewProps> = memo(({
                   <TrackCover
                     trackId={selectedTrack.id}
                     {...(selectedTrack.filePath != null && { filePath: selectedTrack.filePath })}
-                    {...(selectedTrack.coverUrl != null && { fallbackUrl: selectedTrack.coverUrl })}
+                    {...((pendingCoverDataUrl || selectedTrack.coverUrl) != null && { fallbackUrl: pendingCoverDataUrl || selectedTrack.coverUrl })}
                     className="w-32 h-32 rounded-2xl object-cover shadow-2xl"
                   />
+                  {pendingCoverDataUrl && (
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: colors.primary }}>
+                      <span className="material-symbols-outlined text-xs" style={{ color: '#fff' }}>edit</span>
+                    </div>
+                  )}
                   <button
-                    onClick={() => handleCoverImport(selectedTrack.id)}
+                    onClick={handleCoverImport}
                     className="absolute top-0 left-0 w-32 h-32 bg-black/50 flex items-center justify-center rounded-2xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                   >
                     <div className="text-center">

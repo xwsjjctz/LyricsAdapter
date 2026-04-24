@@ -1215,7 +1215,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           {/* 左侧分类列表 */}
           <div className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar">
             <div className="text-xs font-bold uppercase tracking-widest mb-2 px-2" style={{ color: colors.textMuted }}>
-              {filterType === 'artist' ? '歌手' : '专辑'}
+              {i18n.t(filterType === 'artist' ? 'library.artistList' : 'library.albumList')}
             </div>
             <div className="flex flex-col gap-1">
               {filterType === 'artist' ? (
@@ -1394,7 +1394,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 ) : (
                   <div className="py-20 text-center opacity-40">
                     <span className="material-symbols-outlined text-6xl mb-4 block">music_note</span>
-                    <p className="text-xl font-medium">{filterType === 'artist' ? '请选择歌手' : '请选择专辑'}</p>
+                    <p className="text-xl font-medium">{i18n.t(filterType === 'artist' ? 'library.selectArtist' : 'library.selectAlbum')}</p>
                   </div>
                 )}
               </div>
