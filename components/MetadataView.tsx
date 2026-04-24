@@ -86,12 +86,20 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
 
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedTrack || !originalTrack) return false;
+
+    const selectedLyrics = selectedTrack.syncedLyrics?.length
+      ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
+      : (selectedTrack.lyrics ?? '');
+    const originalLyrics = originalTrack.syncedLyrics?.length
+      ? syncedLyricsToLRC(originalTrack.syncedLyrics)
+      : (originalTrack.lyrics ?? '');
+
     return (selectedTrack.title ?? '') !== (originalTrack.title ?? '')
       || (selectedTrack.artist ?? '') !== (originalTrack.artist ?? '')
       || (selectedTrack.album ?? '') !== (originalTrack.album ?? '')
-      || (selectedTrack.lyrics ?? '') !== (originalTrack.lyrics ?? '')
+      || selectedLyrics !== originalLyrics
       || pendingCoverDataUrl !== null;
-  }, [selectedTrack, originalTrack, pendingCoverDataUrl]);
+  }, [selectedTrack, originalTrack, pendingCoverDataUrl, syncedLyricsToLRC]);
 
   const refreshMetadata = useCallback(async () => {
     if (!selectedTrack?.filePath) return;
