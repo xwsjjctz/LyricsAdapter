@@ -112,19 +112,24 @@ const App: React.FC = () => {
     persistedTimeRef,
   } = playback;
 
+  const prevSlotIdRef = useRef(activeSlotId);
   useEffect(() => {
+    if (activeSlotId !== prevSlotIdRef.current) {
+      prevSlotIdRef.current = activeSlotId;
+      return;
+    }
     if (currentTime > 0) {
       setActiveCurrentTime(currentTime);
     }
-  }, [currentTime, setActiveCurrentTime]);
+  }, [currentTime, setActiveCurrentTime, activeSlotId]);
 
   useEffect(() => {
-    updateSlot('local', s => s.volume !== volume ? { ...s, volume } : s);
-  }, [volume]);
+    updateSlot(activeSlotId, s => s.volume !== volume ? { ...s, volume } : s);
+  }, [volume, activeSlotId]);
 
   useEffect(() => {
-    updateSlot('local', s => s.playbackMode !== playbackMode ? { ...s, playbackMode } : s);
-  }, [playbackMode]);
+    updateSlot(activeSlotId, s => s.playbackMode !== playbackMode ? { ...s, playbackMode } : s);
+  }, [playbackMode, activeSlotId]);
 
   const {
     fileInputRef,
@@ -166,16 +171,11 @@ const App: React.FC = () => {
     loadCloudTracks,
     setActiveTrackIndex,
     setIsPlaying,
-    setVolume: (v: number) => {
-      updateSlot('local', s => ({ ...s, volume: v }));
-      setVolume(v);
-    },
-    setPlaybackMode: (m: 'order' | 'shuffle' | 'repeat-one') => {
-      updateSlot('local', s => ({ ...s, playbackMode: m }));
-      setPlaybackMode(m);
-    },
+    setVolume,
+    setPlaybackMode,
     audioRef,
     persistedTimeRef,
+    updateSlot,
     onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId }) => {
       if (restoredSlotId) {
         switchTo(restoredSlotId);
@@ -190,13 +190,19 @@ const App: React.FC = () => {
 
     setActiveScrollPosition(lastScrollPositionRef.current);
 
-    if (audioRef.current && isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
+    if (audioRef.current) {
+      const time = audioRef.current.currentTime || 0;
+      if (time > 0) {
+        setActiveCurrentTime(time);
+      }
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
     }
 
     switchTo(targetSlot);
-  }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo, setActiveScrollPosition]);
+  }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo, setActiveScrollPosition, setActiveCurrentTime]);
 
   const handleLibraryScrollPositionChange = useCallback((position: number) => {
     lastScrollPositionRef.current = position;

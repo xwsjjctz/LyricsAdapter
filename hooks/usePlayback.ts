@@ -42,6 +42,17 @@ export function usePlayback({
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
   const restoredTimeRef = useRef<number>(0);
   const hasRestoredRef = useRef<boolean>(false);
+  const prevTrackIndexRef = useRef<number>(currentTrackIndex);
+
+  useEffect(() => {
+    if (currentTrackIndex !== prevTrackIndexRef.current) {
+      prevTrackIndexRef.current = currentTrackIndex;
+      if (currentTrackIndex >= 0) {
+        hasRestoredRef.current = false;
+        restoredTimeRef.current = initialCurrentTime;
+      }
+    }
+  }, [currentTrackIndex, initialCurrentTime]);
 
   useEffect(() => {
     if (!hasRestoredRef.current && initialCurrentTime > 0) {

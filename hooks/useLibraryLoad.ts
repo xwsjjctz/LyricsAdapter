@@ -19,6 +19,7 @@ interface UseLibraryLoadOptions {
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   persistedTimeRef: React.MutableRefObject<number>;
   onLibrarySettingsRestored?: (settings: { activeSlotId?: 'local' | 'cloud' }) => void;
+  updateSlot: (slotId: 'local' | 'cloud', updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
 
 export function useLibraryLoad({
@@ -34,6 +35,7 @@ export function useLibraryLoad({
   audioRef,
   persistedTimeRef,
   onLibrarySettingsRestored,
+  updateSlot,
 }: UseLibraryLoadOptions) {
   const isFirstLoadRef = useRef(true);
 
@@ -102,9 +104,11 @@ export function useLibraryLoad({
       : slotData?.localSlot;
 
     if (activeSlotState?.volume !== undefined) {
+      updateSlot(activeSource, s => ({ ...s, volume: activeSlotState.volume }));
       setVolume(activeSlotState.volume);
     }
     if (activeSlotState?.playbackMode) {
+      updateSlot(activeSource, s => ({ ...s, playbackMode: activeSlotState.playbackMode }));
       setPlaybackMode(activeSlotState.playbackMode);
     }
 
@@ -173,7 +177,7 @@ export function useLibraryLoad({
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.cloud.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks]);
+  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.cloud.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.volume, slots.cloud.playbackMode]);
 
   useEffect(() => {
     if (!isDesktop()) return;
