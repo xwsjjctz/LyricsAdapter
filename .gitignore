@@ -39,12 +39,14 @@ yarn-error.log*
 
 # Editor directories and files
 .idea
-.vscode
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+/archive
+/archive/*
 
 /src/KgmWasm/build
 /src/KgmWasm/*.js
@@ -86,8 +88,6 @@ problems.md
 
 /reserve
 /reserve/*
-
-app-icon.png
 
 /test
 /test/*
