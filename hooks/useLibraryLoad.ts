@@ -18,7 +18,7 @@ interface UseLibraryLoadOptions {
   setPlaybackMode: (mode: 'order' | 'shuffle' | 'repeat-one') => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   persistedTimeRef: React.MutableRefObject<number>;
-  onLibrarySettingsRestored?: (settings: { activeSlotId?: 'local' | 'cloud' }) => void;
+  onLibrarySettingsRestored?: (settings: { activeSlotId?: 'local' | 'cloud'; currentTime?: number }) => void;
   updateSlot: (slotId: 'local' | 'cloud', updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
 
@@ -131,6 +131,7 @@ export function useLibraryLoad({
 
     onLibrarySettingsRestored?.({
       activeSlotId: activeSource,
+      currentTime: activeSlotState?.currentTime ?? 0,
     });
 
     const tracksToValidate = loadedTracks.filter(t => t.filePath);

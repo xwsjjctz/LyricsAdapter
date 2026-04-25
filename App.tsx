@@ -69,6 +69,11 @@ const App: React.FC = () => {
     restoreFromPersistence,
   } = useLibrarySlots();
 
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
+
+  const [restoreTime, setRestoreTime] = useState(0);
+
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
     setAutoLocateToken(prev => prev + 1);
@@ -82,7 +87,7 @@ const App: React.FC = () => {
     createTrackedBlobUrl,
     revokeBlobUrl,
     onTrackSwitch: handleTrackSwitch,
-    initialCurrentTime: activeSlot.currentTime,
+    initialCurrentTime: restoreTime,
   });
 
   const {
@@ -131,6 +136,12 @@ const App: React.FC = () => {
     updateSlot(activeSlotId, s => s.playbackMode !== playbackMode ? { ...s, playbackMode } : s);
   }, [playbackMode, activeSlotId]);
 
+  useEffect(() => {
+    if (restoreTime > 0) {
+      setRestoreTime(0);
+    }
+  }, [activeTrackIndex, restoreTime]);
+
   const {
     fileInputRef,
     handleDesktopImport,
@@ -176,8 +187,9 @@ const App: React.FC = () => {
     audioRef,
     persistedTimeRef,
     updateSlot,
-    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId }) => {
+    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime }) => {
       if (restoredSlotId) {
+        setRestoreTime(restoredTime ?? 0);
         switchTo(restoredSlotId);
       }
     },
@@ -201,6 +213,7 @@ const App: React.FC = () => {
       }
     }
 
+    setRestoreTime(slotsRef.current[targetSlot].currentTime);
     switchTo(targetSlot);
   }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo, setActiveScrollPosition, setActiveCurrentTime]);
 
