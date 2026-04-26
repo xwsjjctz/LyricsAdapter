@@ -116,6 +116,7 @@ const App: React.FC = () => {
     selectTrack,
     persistedTimeRef,
     shouldAutoPlayRef,
+    waitingForCanPlayRef,
   } = playback;
 
   const prevSlotIdRef = useRef(activeSlotId);
@@ -160,7 +161,8 @@ const App: React.FC = () => {
     playbackMode,
     currentTime,
     createTrackedBlobUrl,
-    persistedTimeRef
+    persistedTimeRef,
+    getPersistenceData,
   });
 
   const { handleRemoveTrack, handleRemoveMultipleTracks, handleReloadFiles } = useLibraryActions({
@@ -214,6 +216,7 @@ const App: React.FC = () => {
     }
 
     shouldAutoPlayRef.current = false;
+    waitingForCanPlayRef.current = false;
 
     setRestoreTime(slotsRef.current[targetSlot].currentTime);
     switchTo(targetSlot);

@@ -32,6 +32,7 @@ interface UseImportOptions {
   currentTime: number;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
+  getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
 }
 export function useImport({
   tracks,
@@ -43,11 +44,26 @@ export function useImport({
   playbackMode,
   currentTime,
   createTrackedBlobUrl,
-  persistedTimeRef
+  persistedTimeRef,
+  getPersistenceData,
 }: UseImportOptions) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const tracksCountRef = useRef<number>(0);
   const [importProgress, setImportProgress] = useState<{ loaded: number; total: number } | null>(null);
+
+  const buildImportSettings = useCallback(() => {
+    if (getPersistenceData) {
+      return getPersistenceData();
+    }
+    return {
+      volume,
+      currentTrackIndex,
+      currentTrackId: currentTrack?.id,
+      currentTime: persistedTimeRef.current || currentTime,
+      isPlaying,
+      playbackMode,
+    };
+  }, [getPersistenceData, volume, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode]);
 
   useEffect(() => {
     tracksCountRef.current = tracks.length;
@@ -373,14 +389,7 @@ export function useImport({
 
       logger.debug('[Import] Manually triggering library save after import...');
       logger.debug(`[Import] Saving ${tracks.length} tracks to disk...`);
-      const libraryData = buildLibraryIndexData(finalTracks, {
-        volume: volume,
-        currentTrackIndex: currentTrackIndex,
-        currentTrackId: currentTrack?.id,
-        currentTime: persistedTimeRef.current || currentTime,
-        isPlaying: isPlaying,
-        playbackMode: playbackMode
-      });
+      const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
       await libraryStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Manual library save completed');
       setImportProgress(null);
@@ -491,14 +500,7 @@ export function useImport({
     await metadataCacheService.save();
 
     logger.debug('[Import] Saving library after drop import...');
-    const libraryData = buildLibraryIndexData(finalTracks, {
-      volume: volume,
-      currentTrackIndex: currentTrackIndex,
-      currentTrackId: currentTrack?.id,
-      currentTime: persistedTimeRef.current || currentTime,
-      isPlaying: isPlaying,
-      playbackMode: playbackMode
-    });
+    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[Import] ✓ Drop import with persistence completed');
 
@@ -586,14 +588,7 @@ export function useImport({
     setTracks(finalTracks);
     
     // Save library - use disk storage in Electron, IndexedDB in web
-    const libraryData = buildLibraryIndexData(finalTracks, {
-      volume: volume,
-      currentTrackIndex: currentTrackIndex,
-      currentTrackId: currentTrack?.id,
-      currentTime: persistedTimeRef.current || currentTime,
-      isPlaying: isPlaying,
-      playbackMode: playbackMode
-    });
+    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
     
     if (isDesktop()) {
       await libraryStorage.saveLibrary(libraryData);
@@ -677,14 +672,7 @@ export function useImport({
     // Save to IndexedDB in browser mode
     if (!isDesktop()) {
       const finalTracks = [...tracks, ...allNewTracks];
-      const libraryData = buildLibraryIndexData(finalTracks, {
-        volume: volume,
-        currentTrackIndex: currentTrackIndex,
-        currentTrackId: currentTrack?.id,
-        currentTime: persistedTimeRef.current || currentTime,
-        isPlaying: isPlaying,
-        playbackMode: playbackMode
-      });
+      const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
       await indexedDBStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Library saved to IndexedDB');
     }

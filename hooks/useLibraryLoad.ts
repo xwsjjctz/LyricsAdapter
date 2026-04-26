@@ -172,7 +172,7 @@ export function useLibraryLoad({
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.cloud.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.volume, slots.cloud.playbackMode]);
+  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode]);
 
   useEffect(() => {
     if (!isDesktop()) return;

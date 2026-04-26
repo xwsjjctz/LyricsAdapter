@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { LibrarySlot, Track, createEmptySlot, PlaybackContext } from '../types';
-import { UI } from '../constants/config';
 import { logger } from '../services/logger';
 
 type SlotId = 'local' | 'cloud';
@@ -16,8 +15,8 @@ interface SlotPersistenceData {
 }
 
 interface PersistedSlotState {
-  localSlot?: SlotPersistenceData;
-  cloudSlot?: SlotPersistenceData;
+  localSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
+  cloudSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   activeSlotId?: SlotId;
   activeDataSource?: SlotId;
   localPlaybackContext?: PlaybackContext;
@@ -244,31 +243,35 @@ export function useLibrarySlots() {
   };
 }
 
-function migrateFromLegacyFormat(data: PersistedSlotState): { localSlot: SlotPersistenceData; cloudSlot: SlotPersistenceData; activeSlotId: SlotId } {
+function migrateFromLegacyFormat(data: PersistedSlotState): { localSlot: Partial<SlotPersistenceData>; cloudSlot: Partial<SlotPersistenceData>; activeSlotId: SlotId } {
   const legacyLocal = data.localPlaybackContext;
   const legacyCloud = data.cloudPlaybackContext;
+  const anyData = data as any;
 
-  const localSlot: SlotPersistenceData = {
-    currentTrackIndex: legacyLocal?.trackIndex ?? -1,
-    currentTime: legacyLocal?.currentTime ?? 0,
-    volume: legacyLocal?.volume ?? UI.DEFAULT_VOLUME,
-    playbackMode: legacyLocal?.playbackMode ?? 'order',
-    scrollPosition: 0,
-    filterType: 'default',
-    categorySelection: null,
-  };
+  const localSlot: Partial<SlotPersistenceData> = {};
+  const cloudSlot: Partial<SlotPersistenceData> = {};
 
-  const cloudSlot: SlotPersistenceData = {
-    currentTrackIndex: legacyCloud?.trackIndex ?? -1,
-    currentTime: legacyCloud?.currentTime ?? 0,
-    volume: legacyCloud?.volume ?? UI.DEFAULT_VOLUME,
-    playbackMode: legacyCloud?.playbackMode ?? 'order',
-    scrollPosition: 0,
-    filterType: 'default',
-    categorySelection: null,
-  };
+  if (legacyLocal) {
+    localSlot.currentTrackIndex = legacyLocal.trackIndex;
+    localSlot.currentTime = legacyLocal.currentTime;
+    localSlot.volume = legacyLocal.volume;
+    localSlot.playbackMode = legacyLocal.playbackMode;
+  } else {
+    // 从旧格式顶层字段迁移到 localSlot
+    if (anyData.currentTrackIndex !== undefined) localSlot.currentTrackIndex = anyData.currentTrackIndex;
+    if (anyData.currentTime !== undefined) localSlot.currentTime = anyData.currentTime;
+    if (anyData.volume !== undefined) localSlot.volume = anyData.volume;
+    if (anyData.playbackMode !== undefined) localSlot.playbackMode = anyData.playbackMode;
+  }
 
-  const activeSlotId = data.activeSlotId || data.activeDataSource || 'local';
+  if (legacyCloud) {
+    cloudSlot.currentTrackIndex = legacyCloud.trackIndex;
+    cloudSlot.currentTime = legacyCloud.currentTime;
+    cloudSlot.volume = legacyCloud.volume;
+    cloudSlot.playbackMode = legacyCloud.playbackMode;
+  }
+
+  const activeSlotId = data.activeSlotId || data.activeDataSource || anyData.libraryDataSource || 'local';
 
   logger.info('[useLibrarySlots] Migrated legacy format to slot format');
 
