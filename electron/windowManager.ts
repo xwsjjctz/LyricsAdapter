@@ -84,7 +84,7 @@ export async function createWindow(): Promise<BrowserWindow> {
   const log = (...args: any[]) => {
     logger.info(...args);
     if (win) {
-      win.webContents.executeJavaScript(`logger.info(${args.map(a => JSON.stringify(a)).join(', ')})`);
+      win.webContents.executeJavaScript(`console.log(${args.map(a => JSON.stringify(a)).join(', ')})`);
     }
   };
 
@@ -98,7 +98,7 @@ export async function createWindow(): Promise<BrowserWindow> {
 
     win.webContents.on('did-finish-load', () => {
       log('Page loaded successfully');
-      win?.webContents.executeJavaScript('logger.info("React render check:", document.getElementById("root"))');
+      win?.webContents.executeJavaScript('console.log("React render check:", document.getElementById("root"))');
     });
 
     win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
