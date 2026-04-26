@@ -115,6 +115,7 @@ const App: React.FC = () => {
     handleAudioError,
     selectTrack,
     persistedTimeRef,
+    shouldAutoPlayRef,
   } = playback;
 
   const prevSlotIdRef = useRef(activeSlotId);
@@ -180,7 +181,6 @@ const App: React.FC = () => {
     slots,
     setLocalTracks: updateLocalTracks,
     loadCloudTracks,
-    setActiveTrackIndex,
     setIsPlaying,
     setVolume,
     setPlaybackMode,
@@ -212,6 +212,8 @@ const App: React.FC = () => {
         setIsPlaying(false);
       }
     }
+
+    shouldAutoPlayRef.current = false;
 
     setRestoreTime(slotsRef.current[targetSlot].currentTime);
     switchTo(targetSlot);

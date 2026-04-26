@@ -12,7 +12,6 @@ interface UseLibraryLoadOptions {
   slots: Record<'local' | 'cloud', LibrarySlot>;
   setLocalTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
   loadCloudTracks: (tracks: Track[]) => void;
-  setActiveTrackIndex: (index: number | ((prev: number) => number)) => void;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setVolume: (volume: number) => void;
   setPlaybackMode: (mode: 'order' | 'shuffle' | 'repeat-one') => void;
@@ -28,7 +27,6 @@ export function useLibraryLoad({
   slots,
   setLocalTracks,
   loadCloudTracks,
-  setActiveTrackIndex,
   setIsPlaying,
   setVolume,
   setPlaybackMode,
@@ -112,10 +110,6 @@ export function useLibraryLoad({
       setPlaybackMode(activeSlotState.playbackMode);
     }
 
-    const trackIndex = activeSlotState?.currentTrackIndex ?? -1;
-    if (trackIndex >= 0 && trackIndex < loadedTracks.length) {
-      setActiveTrackIndex(trackIndex);
-    }
     setIsPlaying(false);
 
     metadataCacheService.initialize().catch(err => {

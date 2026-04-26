@@ -42,17 +42,22 @@ export function usePlayback({
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
   const restoredTimeRef = useRef<number>(0);
   const hasRestoredRef = useRef<boolean>(false);
-  const prevTrackIndexRef = useRef<number>(currentTrackIndex);
+  const lastTrackIdRef = useRef<string | undefined>(undefined);
+
+  const currentTrack = useMemo(() => {
+    return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
+  }, [tracks, currentTrackIndex]);
 
   useEffect(() => {
-    if (currentTrackIndex !== prevTrackIndexRef.current) {
-      prevTrackIndexRef.current = currentTrackIndex;
+    const currentId = currentTrack?.id;
+    if (currentId !== lastTrackIdRef.current) {
+      lastTrackIdRef.current = currentId;
       if (currentTrackIndex >= 0) {
         hasRestoredRef.current = false;
         restoredTimeRef.current = initialCurrentTime;
       }
     }
-  }, [currentTrackIndex, initialCurrentTime]);
+  }, [currentTrack?.id, initialCurrentTime]);
 
   useEffect(() => {
     if (!hasRestoredRef.current && initialCurrentTime > 0) {
@@ -63,10 +68,6 @@ export function usePlayback({
   useEffect(() => {
     currentTrackIndexRef.current = currentTrackIndex;
   }, [currentTrackIndex]);
-
-  const currentTrack = useMemo(() => {
-    return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
-  }, [tracks, currentTrackIndex]);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
     if (length <= 1) return exclude;
@@ -509,5 +510,6 @@ export function usePlayback({
     waitingForCanPlayRef,
     audioUrlReadyRef,
     persistedTimeRef,
+    shouldAutoPlayRef,
   };
 }
