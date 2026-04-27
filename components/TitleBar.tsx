@@ -101,63 +101,46 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   }
 
   // macOS Electron 使用系统原生标题栏，显示透明标题栏区域
-  const notchRadius = 10;
   const searchBox = (
     <div
-      className="absolute left-1/2 -translate-x-1/2 flex items-end justify-center"
+      className="absolute left-1/2 -translate-x-1/2 flex items-center"
       style={{
         WebkitAppRegion: 'no-drag',
         top: 0,
         width: '420px',
         maxWidth: 'calc(100vw - 200px)',
-        height: `${32 + notchRadius}px`,
-        paddingBottom: '0px',
-        // Inward curves at top corners (notch effect)
-        WebkitMaskImage: `
-          radial-gradient(circle ${notchRadius}px at ${notchRadius}px ${notchRadius}px, transparent ${notchRadius}px, black ${notchRadius}px),
-          radial-gradient(circle ${notchRadius}px at calc(100% - ${notchRadius}px) ${notchRadius}px, transparent ${notchRadius}px, black ${notchRadius}px)
-        `,
-        WebkitMaskComposite: 'source-in',
-        maskComposite: 'intersect',
-        borderRadius: `0 0 14px 14px`,
-        overflow: 'hidden',
+        height: '32px',
+        backgroundColor: isWindowFocused ? `${colors.backgroundDark}f2` : `${colors.backgroundDark}d0`,
+        backdropFilter: 'blur(16px)',
+        border: `1px solid ${isWindowFocused ? `${colors.borderHover}60` : `${colors.borderLight}40`}`,
+        borderTop: 'none',
+        borderRadius: '0 0 12px 12px',
+        boxShadow: `0 2px 12px rgba(0,0,0,0.3)`,
       } as React.CSSProperties}
     >
-      <div
-        className="relative w-full flex items-center"
-        style={{
-          height: '32px',
-          backgroundColor: isWindowFocused ? `${colors.backgroundDark}f2` : `${colors.backgroundDark}d0`,
-          backdropFilter: 'blur(16px)',
-          border: `1px solid ${isWindowFocused ? `${colors.borderHover}60` : `${colors.borderLight}40`}`,
-          borderTop: 'none',
-          boxShadow: `0 2px 12px rgba(0,0,0,0.3)`,
-        }}
+      <span
+        className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+        style={{ color: colors.textMuted }}
       >
-        <span
-          className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
-          style={{ color: colors.textMuted }}
-        >
-          search
-        </span>
-        <input
-          ref={searchInputRef}
-          type="text"
-          placeholder={i18n.t('search.typeToSearch')}
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          onFocus={onSearchFocus}
-          onBlur={onSearchBlur}
-          className="w-full h-full pl-8 pr-3 text-sm bg-transparent transition-all focus:outline-none"
-          style={{ color: colors.textPrimary }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              onSearchChange('');
-              searchInputRef.current?.blur();
-            }
-          }}
-        />
-      </div>
+        search
+      </span>
+      <input
+        ref={searchInputRef}
+        type="text"
+        placeholder={i18n.t('search.typeToSearch')}
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
+        onFocus={onSearchFocus}
+        onBlur={onSearchBlur}
+        className="w-full h-full pl-8 pr-3 text-sm bg-transparent transition-all focus:outline-none"
+        style={{ color: colors.textPrimary }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            onSearchChange('');
+            searchInputRef.current?.blur();
+          }
+        }}
+      />
     </div>
   );
 
