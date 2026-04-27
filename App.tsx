@@ -497,7 +497,7 @@ const App: React.FC = () => {
         />
         <GlobalSearch
           query={searchQuery}
-          isOpen={isSearchOpen}
+          isOpen={isSearchOpen && !isFocusMode}
           onClose={() => { setIsSearchOpen(false); setSearchQuery(''); }}
           localTracks={slots.local.tracks}
           cloudTracks={slots.cloud.tracks}
