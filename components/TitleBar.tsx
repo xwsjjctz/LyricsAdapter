@@ -127,9 +127,11 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         className="relative w-full flex items-center"
         style={{
           height: '32px',
-          backgroundColor: isWindowFocused ? `${colors.backgroundCard}e0` : `${colors.backgroundCard}90`,
+          backgroundColor: isWindowFocused ? `${colors.backgroundDark}f2` : `${colors.backgroundDark}d0`,
           backdropFilter: 'blur(16px)',
-          borderBottom: `1px solid ${colors.borderLight}`,
+          border: `1px solid ${isWindowFocused ? `${colors.borderHover}60` : `${colors.borderLight}40`}`,
+          borderTop: 'none',
+          boxShadow: `0 2px 12px rgba(0,0,0,0.3)`,
         }}
       >
         <span
