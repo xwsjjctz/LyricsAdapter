@@ -110,7 +110,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         width: '420px',
         maxWidth: 'calc(100vw - 200px)',
         height: '32px',
-        backgroundColor: isWindowFocused ? `${colors.backgroundDark}f2` : `${colors.backgroundDark}d0`,
+        backgroundColor: isWindowFocused ? `${colors.backgroundDark}ff` : `${colors.backgroundDark}f5`,
         backdropFilter: 'blur(16px)',
         border: `1px solid ${isWindowFocused ? `${colors.borderHover}60` : `${colors.borderLight}40`}`,
         borderTop: 'none',
