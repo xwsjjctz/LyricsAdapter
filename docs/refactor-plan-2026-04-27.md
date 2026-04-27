@@ -1,7 +1,7 @@
 # Refactor Plan — LyricsAdapter
 
-Date: 2026-04-27
-Status: Draft
+Date: 2026-04-28
+Status: Phase 1-3 Complete, Phase 4-5 Pending
 
 ## 目标
 
@@ -207,3 +207,46 @@ interface MetaJson {
 - 主题系统和 i18n
 - QQ Music API 代理 (electron/ipc/handlers.ts)
 - WebDAV 流式播放
+
+---
+
+## 七、已完成进度 (2026-04-28)
+
+### Phase 1 ✓ — Sidebar 重构 (local/cloud 提升)
+- [x] local/cloud 切换从 LibraryView 移到 Sidebar，显示 track count
+- [x] LIBRARY 容器包裹 local/cloud 按钮
+- [x] LibraryView 移除 local/cloud 切换按钮和 `onDataSourceChange` prop
+- [x] LibraryView 标题追加小字 local/cloud 区分当前槽
+- [x] LibraryView 移除右上角搜索框
+
+### Phase 2 ✓ — meta.json Sidecar 方案
+- [x] `MetaJson` 类型定义 (types.ts)
+- [x] `services/webdavMetaService.ts` — `generateMetaJson()`, `metaJsonToTrack()`
+- [x] `webdav-put` IPC handler + preload bridge + DesktopAPI
+- [x] `webdavClient.uploadFile()`, `.fetchMetaJson()`, `.uploadMetaJson()`
+- [x] `useWebDAV.fetchMetadata()` 优先读 `.meta.json`，fallback 解析音频头部
+- [x] BrowseView QQ Music 搜索结果新增 `[+]` 按钮 → 上传到 WebDAV
+
+### Phase 3 ✓ — TitleBar 全局搜索
+- [x] `components/GlobalSearch.tsx` — 三级命中（local → cloud → QQ Music）
+- [x] TitleBar 居中搜索框，圆角矩形顶在窗口上边缘
+- [x] 搜索结果显示封面缩略图
+- [x] QQ Music 结果支持 [下载] / [+] 品质选择
+- [x] Ctrl+F 聚焦搜索框
+- [x] 沉浸模式下自动隐藏搜索下拉面板
+
+### 交互变化总结
+| 之前 | 之后 |
+|------|------|
+| LibraryView 标题栏小图标切 local/cloud | Sidebar 导航项直接切换 |
+| Browse 页面单独搜索 | TitleBar 全局搜索，三级命中 |
+| QQ Music 仅能下载到本地 | [+] 按钮上传到 WebDAV（音频 + meta.json）|
+| WebDAV 浏览需解析每个音频头部 | 优先读 .meta.json，快 10-50 倍 |
+
+### 文件变更量
+- 14 个文件修改，2 个新文件
+- +1142 / -188 行
+
+### 待完成
+- Phase 4: MetadataView 改为右键/行内编辑
+- Phase 5: 清理 BrowseView / MetadataView，LibraryView 拆分
