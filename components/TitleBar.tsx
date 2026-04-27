@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
@@ -40,9 +40,14 @@ const CollapseIcon = () => (
 interface TitleBarProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onSearchFocus: () => void;
+  onSearchBlur: () => void;
 }
 
-const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode }) => {
+const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, searchQuery, onSearchChange, onSearchFocus, onSearchBlur }) => {
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { canControl, minimize, maximize, close, isMaximized } = useWindowControls();
 
   // Force re-render when language changes
@@ -96,6 +101,64 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   }
 
   // macOS Electron 使用系统原生标题栏，显示透明标题栏区域
+  const notchRadius = 10;
+  const searchBox = (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 flex items-end justify-center"
+      style={{
+        WebkitAppRegion: 'no-drag',
+        top: 0,
+        width: '420px',
+        maxWidth: 'calc(100vw - 200px)',
+        height: `${32 + notchRadius}px`,
+        paddingBottom: '0px',
+        // Inward curves at top corners (notch effect)
+        WebkitMaskImage: `
+          radial-gradient(circle ${notchRadius}px at ${notchRadius}px ${notchRadius}px, transparent ${notchRadius}px, black ${notchRadius}px),
+          radial-gradient(circle ${notchRadius}px at calc(100% - ${notchRadius}px) ${notchRadius}px, transparent ${notchRadius}px, black ${notchRadius}px)
+        `,
+        WebkitMaskComposite: 'source-in',
+        maskComposite: 'intersect',
+        borderRadius: `0 0 14px 14px`,
+        overflow: 'hidden',
+      } as React.CSSProperties}
+    >
+      <div
+        className="relative w-full flex items-center"
+        style={{
+          height: '32px',
+          backgroundColor: isWindowFocused ? `${colors.backgroundCard}e0` : `${colors.backgroundCard}90`,
+          backdropFilter: 'blur(16px)',
+          borderBottom: `1px solid ${colors.borderLight}`,
+        }}
+      >
+        <span
+          className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+          style={{ color: colors.textMuted }}
+        >
+          search
+        </span>
+        <input
+          ref={searchInputRef}
+          type="text"
+          placeholder={i18n.t('search.typeToSearch')}
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          onFocus={onSearchFocus}
+          onBlur={onSearchBlur}
+          className="w-full h-full pl-8 pr-3 text-sm bg-transparent transition-all focus:outline-none"
+          style={{ color: colors.textPrimary }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              onSearchChange('');
+              searchInputRef.current?.blur();
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+
   if (isMacOS) {
     return (
       <div
@@ -106,10 +169,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           userSelect: 'none'
         } as React.CSSProperties}
       >
-        {/* macOS 系统会在左侧显示红绿黄按钮 */}
-        {/* 拖动区域占据红绿灯按钮右侧到收起按钮之间的空间 */}
         <div className="w-[55px] h-full" />
-        {/* 右侧收起/展开按钮，紧贴红绿灯按钮 */}
         <div className="flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
@@ -143,6 +203,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             </div>
           </button>
         </div>
+        {searchBox}
       </div>
     );
   }
@@ -157,11 +218,13 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           userSelect: 'none'
         } as React.CSSProperties}
       >
-        {/* 左侧拖动区域 */}
-        <div className="flex-1 h-full" />
-        
+        {/* 左侧拖动 + 搜索框 */}
+        <div className="flex-1 h-full flex items-center justify-center">
+          {searchBox}
+        </div>
+
         {/* 右侧窗口控制按钮 */}
-        <div 
+        <div
           className="flex items-center h-full"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >

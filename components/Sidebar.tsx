@@ -3,6 +3,8 @@ import { ViewMode } from '../types';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
+import { webdavClient } from '../services/webdavClient';
+import { notify } from '../services/notificationService';
 
 interface SidebarProps {
   onImportClick: () => void;
@@ -11,6 +13,10 @@ interface SidebarProps {
   onReloadFiles?: () => void;
   hasUnavailableTracks?: boolean;
   viewMode: ViewMode;
+  activeSlotId: 'local' | 'cloud';
+  onSlotChange: (slotId: 'local' | 'cloud') => void;
+  localTrackCount: number;
+  cloudTrackCount: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -19,11 +25,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onReloadFiles,
   hasUnavailableTracks,
-  viewMode: _viewMode
+  viewMode: _viewMode,
+  activeSlotId,
+  onSlotChange,
+  localTrackCount,
+  cloudTrackCount,
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isBrowseView = currentView === ViewMode.BROWSE;
   const isMetadataView = currentView === ViewMode.METADATA;
+  const isSettingsView = currentView === ViewMode.SETTINGS;
+  const isThemeView = currentView === ViewMode.THEME;
 
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
@@ -65,30 +77,84 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="px-6 flex flex-col gap-6 pt-6">
         <div>
           <nav className="flex flex-col gap-2">
-            <button
-              onClick={() => onNavigate(ViewMode.PLAYER)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-              style={{
-                backgroundColor: isLibraryView ? `${colors.primary}33` : 'transparent',
-                color: isLibraryView ? colors.primary : textSecondary,
-                boxShadow: isLibraryView ? `0 0 20px ${colors.glowColor}` : 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (!isLibraryView) {
-                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                  e.currentTarget.style.color = textPrimary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isLibraryView) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = textSecondary;
-                }
-              }}
-            >
-              <span className={`material-symbols-outlined text-xl ${isLibraryView ? 'fill-1' : ''}`}>library_music</span>
-              <span className="text-sm font-semibold">{i18n.t('sidebar.library')}</span>
-            </button>
+            {/* LIBRARY 容器 */}
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: `${colors.backgroundCard}40` }}>
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] px-4 pt-3 pb-1" style={{ color: colors.textMuted }}>
+                {i18n.t('sidebar.library')}
+              </div>
+
+              {/* 本地 */}
+              <button
+                onClick={() => {
+                  if (!isLibraryView) onNavigate(ViewMode.PLAYER);
+                  onSlotChange('local');
+                }}
+                className="flex items-center gap-3 px-4 py-3 transition-all w-full"
+                style={{
+                  backgroundColor: isLibraryView && activeSlotId === 'local' ? `${colors.primary}33` : 'transparent',
+                  color: isLibraryView && activeSlotId === 'local' ? colors.primary : textSecondary,
+                  boxShadow: isLibraryView && activeSlotId === 'local' ? `0 0 20px ${colors.glowColor}` : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (!(isLibraryView && activeSlotId === 'local')) {
+                    e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                    e.currentTarget.style.color = textPrimary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!(isLibraryView && activeSlotId === 'local')) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = textSecondary;
+                  }
+                }}
+              >
+                <span className={`material-symbols-outlined text-xl ${isLibraryView && activeSlotId === 'local' ? 'fill-1' : ''}`}>hard_drive</span>
+                <span className="text-sm font-semibold flex-1">{i18n.t('sidebar.local')}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}>
+                  {localTrackCount}
+                </span>
+              </button>
+
+              {/* 云端 */}
+              <button
+                onClick={() => {
+                  if (!webdavClient.hasConfig()) {
+                    notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
+                    onNavigate(ViewMode.SETTINGS);
+                    return;
+                  }
+                  if (!isLibraryView) onNavigate(ViewMode.PLAYER);
+                  onSlotChange('cloud');
+                }}
+                className="flex items-center gap-3 px-4 py-3 transition-all w-full"
+                style={{
+                  backgroundColor: isLibraryView && activeSlotId === 'cloud' ? `${colors.primary}33` : 'transparent',
+                  color: isLibraryView && activeSlotId === 'cloud' ? colors.primary : textSecondary,
+                  boxShadow: isLibraryView && activeSlotId === 'cloud' ? `0 0 20px ${colors.glowColor}` : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (!(isLibraryView && activeSlotId === 'cloud')) {
+                    e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                    e.currentTarget.style.color = textPrimary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!(isLibraryView && activeSlotId === 'cloud')) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = textSecondary;
+                  }
+                }}
+              >
+                <span className={`material-symbols-outlined text-xl ${isLibraryView && activeSlotId === 'cloud' ? 'fill-1' : ''}`}>cloud</span>
+                <span className="text-sm font-semibold flex-1">{i18n.t('sidebar.cloud')}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}>
+                  {cloudTrackCount}
+                </span>
+              </button>
+            </div>
+
+            {/* 分隔 */}
+            <div className="my-1 mx-4 border-t" style={{ borderColor: colors.borderLight }} />
 
             <button
               onClick={() => onNavigate(ViewMode.BROWSE)}
@@ -142,7 +208,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={onImportClick}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-4 border border-dashed group"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-2 border border-dashed group"
               style={{
                 color: textSecondary,
                 borderColor: colors.borderLight,
@@ -166,48 +232,48 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onNavigate(ViewMode.SETTINGS)}
                 className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
                 style={{
-                  backgroundColor: currentView === ViewMode.SETTINGS ? `${colors.primary}33` : colors.backgroundCard,
-                  color: currentView === ViewMode.SETTINGS ? colors.primary : textSecondary,
-                  boxShadow: currentView === ViewMode.SETTINGS ? `0 0 20px ${colors.glowColor}` : 'none',
+                  backgroundColor: isSettingsView ? `${colors.primary}33` : colors.backgroundCard,
+                  color: isSettingsView ? colors.primary : textSecondary,
+                  boxShadow: isSettingsView ? `0 0 20px ${colors.glowColor}` : 'none',
                 }}
                 onMouseEnter={(e) => {
-                  if (currentView !== ViewMode.SETTINGS) {
+                  if (!isSettingsView) {
                     e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
                     e.currentTarget.style.color = textPrimary;
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (currentView !== ViewMode.SETTINGS) {
+                  if (!isSettingsView) {
                     e.currentTarget.style.backgroundColor = colors.backgroundCard;
                     e.currentTarget.style.color = textSecondary;
                   }
                 }}
               >
-                <span className={`material-symbols-outlined text-[22px] ${currentView === ViewMode.SETTINGS ? 'fill-1' : ''}`}>settings</span>
+                <span className={`material-symbols-outlined text-[22px] ${isSettingsView ? 'fill-1' : ''}`}>settings</span>
               </button>
 
               <button
                 onClick={() => onNavigate(ViewMode.THEME)}
                 className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
                 style={{
-                  backgroundColor: currentView === ViewMode.THEME ? `${colors.primary}33` : colors.backgroundCard,
-                  color: currentView === ViewMode.THEME ? colors.primary : textSecondary,
-                  boxShadow: currentView === ViewMode.THEME ? `0 0 20px ${colors.glowColor}` : 'none',
+                  backgroundColor: isThemeView ? `${colors.primary}33` : colors.backgroundCard,
+                  color: isThemeView ? colors.primary : textSecondary,
+                  boxShadow: isThemeView ? `0 0 20px ${colors.glowColor}` : 'none',
                 }}
                 onMouseEnter={(e) => {
-                  if (currentView !== ViewMode.THEME) {
+                  if (!isThemeView) {
                     e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
                     e.currentTarget.style.color = textPrimary;
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (currentView !== ViewMode.THEME) {
+                  if (!isThemeView) {
                     e.currentTarget.style.backgroundColor = colors.backgroundCard;
                     e.currentTarget.style.color = textSecondary;
                   }
                 }}
               >
-                <span className={`material-symbols-outlined text-[22px] ${currentView === ViewMode.THEME ? 'fill-1' : ''}`}>checkroom</span>
+                <span className={`material-symbols-outlined text-[22px] ${isThemeView ? 'fill-1' : ''}`}>checkroom</span>
               </button>
             </div>
 

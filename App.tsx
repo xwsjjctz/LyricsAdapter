@@ -23,8 +23,15 @@ import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
+import GlobalSearch from './components/GlobalSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import { i18n } from './services/i18n';
+import { QQMusicSong, qqMusicApi } from './services/qqMusicApi';
+import { cookieManager } from './services/cookieManager';
+import { settingsManager } from './services/settingsManager';
+import { webdavClient } from './services/webdavClient';
+import { generateMetaJson } from './services/webdavMetaService';
+import { notify } from './services/notificationService';
 
 declare global {
   interface Window {
@@ -47,6 +54,10 @@ const App: React.FC = () => {
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
+
+  // Global search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const {
     slots,
@@ -280,6 +291,86 @@ const App: React.FC = () => {
     logger.debug('[App] Library saved after reordering');
   }, [activeTracks, activeTrackIndex, setActiveTracks, setActiveTrackIndex, activeSlotId, slots.local.tracks, getPersistenceData]);
 
+  // Global search handlers
+  const handleSearchNavigate = useCallback((track: Track) => {
+    const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
+    if (targetSlot !== activeSlotId) {
+      handleSwitchSlot(targetSlot);
+    }
+    const targetTracks = targetSlot === 'local' ? slots.local.tracks : slots.cloud.tracks;
+    const idx = targetTracks.findIndex(t => t.id === track.id);
+    if (idx >= 0) {
+      selectTrack(idx);
+    }
+  }, [activeSlotId, slots.local.tracks, slots.cloud.tracks, handleSwitchSlot, selectTrack]);
+
+  const handleQQMusicDownload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
+    const downloadPath = settingsManager.getDownloadPath();
+    if (!downloadPath) {
+      setViewMode(ViewMode.SETTINGS);
+      return;
+    }
+    try {
+      const singer = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
+      const ext = quality === 'flac' ? 'flac' : 'mp3';
+      const fileName = `${singer} - ${song.songname}.${ext}`;
+      const rawCookie = cookieManager.getCookie();
+      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const fullPath = `${downloadPath}/${fileName}`;
+      const result = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
+      if (!result?.success || !result.filePath) throw new Error('Download failed');
+      if (window.electron?.writeAudioMetadata) {
+        await window.electron.writeAudioMetadata(result.filePath, {
+          title: song.songname, artist: singer, album: song.albumname || '',
+        });
+      }
+      notify(i18n.t('notifications.downloadComplete'), song.songname, { silent: true });
+    } catch (err: any) {
+      logger.error('[App] QQ Music download failed:', err);
+      notify(i18n.t('notifications.downloadFailed'), err.message || '');
+    }
+  }, [setViewMode]);
+
+  const handleQQMusicUpload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
+    if (!webdavClient.hasConfig()) {
+      setViewMode(ViewMode.SETTINGS);
+      return;
+    }
+    const downloadPath = settingsManager.getDownloadPath();
+    if (!downloadPath) {
+      setViewMode(ViewMode.SETTINGS);
+      return;
+    }
+    try {
+      const singer = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
+      const ext = quality === 'flac' ? 'flac' : 'mp3';
+      const fileName = `${singer} - ${song.songname}.${ext}`;
+      const rawCookie = cookieManager.getCookie();
+      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const fullPath = `${downloadPath}/${fileName}`;
+      const dlResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
+      if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
+      if (window.electron?.writeAudioMetadata) {
+        await window.electron.writeAudioMetadata(dlResult.filePath, {
+          title: song.songname, artist: singer, album: song.albumname || '',
+        });
+      }
+      const readResult = await window.electron?.readFile?.(dlResult.filePath);
+      if (!readResult?.success || !readResult.data) throw new Error('Failed to read file for upload');
+      const webdavPath = `/music/${fileName}`;
+      await webdavClient.uploadFile(webdavPath, readResult.data, `audio/${ext}`);
+      await webdavClient.uploadMetaJson(webdavPath, generateMetaJson({
+        id: `webdav-${webdavPath}`, title: song.songname, artist: singer,
+        album: song.albumname || '', duration: song.interval || 0, audioUrl: '',
+        source: 'webdav', webdavPath, fileName, fileSize: readResult.data.byteLength,
+      }));
+      notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
+    } catch (err: any) {
+      logger.error('[App] QQ Music upload failed:', err);
+      notify(i18n.t('notifications.uploadFailed'), err.message || '');
+    }
+  }, [setViewMode]);
+
   useShortcuts({
     viewMode,
     isFocusMode,
@@ -399,6 +490,20 @@ const App: React.FC = () => {
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchFocus={() => setIsSearchOpen(true)}
+          onSearchBlur={() => {}}
+        />
+        <GlobalSearch
+          query={searchQuery}
+          isOpen={isSearchOpen}
+          onClose={() => { setIsSearchOpen(false); setSearchQuery(''); }}
+          localTracks={slots.local.tracks}
+          cloudTracks={slots.cloud.tracks}
+          onNavigateToTrack={handleSearchNavigate}
+          onQQMusicDownload={handleQQMusicDownload}
+          onQQMusicUpload={handleQQMusicUpload}
         />
         <div className="flex flex-1">
           <Sidebar
@@ -409,13 +514,13 @@ const App: React.FC = () => {
               fileInputRef.current?.click();
             }
           }}
-          onNavigate={(mode) => { 
+          onNavigate={(mode) => {
             if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
               setPendingNavigation(mode);
               return;
             }
-            setViewMode(mode); 
-            setIsFocusMode(false); 
+            setViewMode(mode);
+            setIsFocusMode(false);
             if (viewMode !== ViewMode.BROWSE && mode === ViewMode.BROWSE) {
               isFirstLibraryLoadRef.current = false;
             }
@@ -424,6 +529,10 @@ const App: React.FC = () => {
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
           currentView={viewMode}
           viewMode={viewMode}
+          activeSlotId={activeSlotId}
+          onSlotChange={handleSwitchSlot}
+          localTrackCount={slots.local.tracks.length}
+          cloudTrackCount={slots.cloud.tracks.length}
         />
 
         <main className="flex-1 flex flex-col relative overflow-hidden pt-8" style={{
@@ -490,12 +599,10 @@ const App: React.FC = () => {
                 onScrollPositionChange={handleLibraryScrollPositionChange}
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
-                onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
                 importProgress={importProgress}
                 dataSource={activeSlotId}
                 filterType={activeSlot.filterType}
                 categorySelection={activeSlot.categorySelection}
-                onDataSourceChange={handleSwitchSlot}
                 onFilterTypeChange={setActiveFilterType}
                 onCategoryChange={setActiveCategorySelection}
                 onLoadCloudTracks={loadCloudTracks}

@@ -68,6 +68,20 @@ export function createEmptySlot(id: 'local' | 'cloud'): LibrarySlot {
   };
 }
 
+export interface MetaJson {
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;        // seconds
+  fileSize: number;         // bytes
+  fileName: string;
+  lastModified: string;     // ISO 8601
+  lyrics?: string;
+  syncedLyrics?: SyncedLyricLine[];
+  coverHash?: string;
+  coverMime?: string;
+}
+
 export enum ViewMode {
   PLAYER = 'player',
   LYRICS = 'lyrics',

@@ -226,6 +226,54 @@ class WebDAVClient {
     return result.redirectUrl;
   }
 
+  async uploadFile(filePath: string, data: ArrayBuffer, contentType: string = 'application/octet-stream'): Promise<{ success: boolean; error?: string }> {
+    const api = await getDesktopAPI();
+    if (!api) return { success: false, error: 'Desktop API not available' };
+    const url = this.buildUrl(filePath);
+    return api.webdavPut(url, this.buildAuthHeader(), data, contentType);
+  }
+
+  async uploadTextFile(filePath: string, content: string): Promise<{ success: boolean; error?: string }> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(content).buffer as ArrayBuffer;
+    return this.uploadFile(filePath, data, 'application/json; charset=utf-8');
+  }
+
+  async fetchTextFile(filePath: string): Promise<string | null> {
+    const api = await getDesktopAPI();
+    if (!api) return null;
+    const cdnUrl = await this.getCdnUrl(filePath);
+    if (!cdnUrl) return null;
+    const result = await api.webdavGetRange(cdnUrl, '', 0, 65536);
+    if (!result.success || !result.data) return null;
+    const decoder = new TextDecoder();
+    return decoder.decode(result.data);
+  }
+
+  getMetaJsonPath(audioPath: string): string {
+    return audioPath.replace(/\.[^/.]+$/, '') + '.meta.json';
+  }
+
+  async fetchMetaJson(audioPath: string): Promise<import('../types').MetaJson | null> {
+    try {
+      const metaPath = this.getMetaJsonPath(audioPath);
+      const text = await this.fetchTextFile(metaPath);
+      if (!text) return null;
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.title === 'string') {
+        return parsed as import('../types').MetaJson;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async uploadMetaJson(audioPath: string, meta: import('../types').MetaJson): Promise<{ success: boolean; error?: string }> {
+    const metaPath = this.getMetaJsonPath(audioPath);
+    return this.uploadTextFile(metaPath, JSON.stringify(meta));
+  }
+
   async fetchFileRange(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {
     const api = await getDesktopAPI();
     if (!api) return null;

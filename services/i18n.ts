@@ -15,6 +15,30 @@ interface Translations {
 
 const translations: Translations = {
   // Sidebar
+  'search.typeToSearch': {
+    zh: '输入关键词搜索...',
+    en: 'Type to search...',
+    ja: '検索キーワードを入力...',
+    ko: '검색어를 입력하세요...',
+    de: 'Zum Suchen tippen...',
+    fr: 'Tapez pour rechercher...'
+  },
+  'search.noResults': {
+    zh: '未找到结果',
+    en: 'No results found',
+    ja: '結果が見つかりません',
+    ko: '결과를 찾을 수 없습니다',
+    de: 'Keine Ergebnisse gefunden',
+    fr: 'Aucun résultat trouvé'
+  },
+  'search.searching': {
+    zh: '搜索中',
+    en: 'Searching',
+    ja: '検索中',
+    ko: '검색 중',
+    de: 'Suche',
+    fr: 'Recherche'
+  },
   'sidebar.library': {
     zh: '音乐库',
     en: 'Library',
@@ -22,6 +46,22 @@ const translations: Translations = {
     ko: '라이브러리',
     de: 'Bibliothek',
     fr: 'Bibliothèque'
+  },
+  'sidebar.local': {
+    zh: '本地',
+    en: 'Local',
+    ja: 'ローカル',
+    ko: '로컬',
+    de: 'Lokal',
+    fr: 'Local'
+  },
+  'sidebar.cloud': {
+    zh: '云端',
+    en: 'Cloud',
+    ja: 'クラウド',
+    ko: '클라우드',
+    de: 'Cloud',
+    fr: 'Nuage'
   },
   'sidebar.browse': {
     zh: '浏览',
@@ -434,6 +474,14 @@ const translations: Translations = {
     ko: '다운로드',
     de: 'Herunterladen',
     fr: 'Télécharger'
+  },
+  'browse.uploadToCloud': {
+    zh: '上传到云端',
+    en: 'Upload to Cloud',
+    ja: 'クラウドにアップロード',
+    ko: '클라우드에 업로드',
+    de: 'In Cloud hochladen',
+    fr: 'Télécharger vers le Cloud'
   },
   'browse.standard': {
     zh: '标准',
@@ -2254,6 +2302,22 @@ const translations: Translations = {
     ko: '임시 저장',
     de: 'Zwischenspeichern',
     fr: 'Mettre de côté'
+  },
+  'notifications.uploadComplete': {
+    zh: '上传完成',
+    en: 'Upload Complete',
+    ja: 'アップロード完了',
+    ko: '업로드 완료',
+    de: 'Upload abgeschlossen',
+    fr: 'Téléchargement terminé'
+  },
+  'notifications.uploadFailed': {
+    zh: '上传失败',
+    en: 'Upload Failed',
+    ja: 'アップロード失敗',
+    ko: '업로드 실패',
+    de: 'Upload fehlgeschlagen',
+    fr: 'Échec du téléchargement'
   },
   'notifications.downloadComplete': {
     zh: '下载完成',

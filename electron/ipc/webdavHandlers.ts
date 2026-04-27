@@ -82,5 +82,27 @@ export function registerWebDAVHandlers(): void {
     }
   });
 
+  ipcMain.handle('webdav-put', async (_event, url: string, authHeader: string, data: ArrayBuffer, contentType: string) => {
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': contentType,
+        },
+        body: new Uint8Array(data),
+      });
+
+      if (!response.ok) {
+        return { success: false, error: `PUT failed: ${response.status} ${response.statusText}` };
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      logger.error('[WebDAV] PUT error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   logger.info('[WebDAV] IPC handlers registered');
 }

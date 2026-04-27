@@ -10,6 +10,8 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import { Track } from '../types';
+import { webdavClient } from '../services/webdavClient';
+import { generateMetaJson } from '../services/webdavMetaService';
 
 interface BrowseViewProps {
   onDownloadComplete?: (track: Track) => void;
@@ -86,6 +88,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
   const [searchQuery, setSearchQuery] = useState('');
   const [executedSearchQuery, setExecutedSearchQuery] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [openUploadDropdownId, setOpenUploadDropdownId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<DownloadProgress>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, setLanguageVersion] = useState(0);
@@ -549,8 +553,158 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     }
   };
 
+  const handleUploadToWebdav = async (song: QQMusicSong, quality: 'm4a' | '128' | '320' | 'flac' = 'flac') => {
+    if (!webdavClient.hasConfig()) {
+      notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
+      onNavigateToSettings?.();
+      return;
+    }
+
+    const currentStatus = uploadProgress[song.songmid]?.status;
+    if (currentStatus === 'downloading' || currentStatus === 'completed') return;
+
+    setOpenUploadDropdownId(null);
+
+    setUploadProgress(prev => ({
+      ...prev,
+      [song.songmid]: { progress: 0, status: 'downloading' }
+    }));
+
+    try {
+      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
+      const singerForFileName = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
+
+      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      const safeSinger = sanitizeDownloadFileName(singerForFileName);
+      const safeSongName = sanitizeDownloadFileName(song.songname);
+      const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
+
+      const rawCookie = cookieManager.getCookie();
+      const coverUrl = song.albummid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
+        : song.coverUrl;
+
+      const lyricsPromise = (async (): Promise<string | undefined> => {
+        try {
+          if (window.electron?.getQQMusicLyrics) {
+            const lyricResult = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
+            if (lyricResult?.success && lyricResult.lyrics) return lyricResult.lyrics;
+          }
+        } catch { /* fall through */ }
+        try {
+          return (await qqMusicApi.getLyrics(song.songmid)) || undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+
+      // Download via Electron
+      const downloadPath = settingsManager.getDownloadPath();
+      if (!downloadPath) {
+        setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 0, status: 'error' } }));
+        return;
+      }
+      const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
+      const fullPath = downloadPath + separator + fileName;
+
+      const downloadResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
+      if (!downloadResult || !downloadResult.success) {
+        throw new Error(`Download failed: ${downloadResult?.error || 'unavailable'}`);
+      }
+      const savedFilePath = downloadResult.filePath;
+      if (!savedFilePath) throw new Error('Download succeeded but no file path returned');
+      logger.debug('[BrowseView] Upload: file downloaded to', savedFilePath);
+
+      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 30, status: 'downloading' } }));
+
+      // Write metadata to downloaded file
+      const lyrics = await lyricsPromise;
+      if (window.electron?.writeAudioMetadata) {
+        await window.electron.writeAudioMetadata(savedFilePath, {
+          title: song.songname,
+          artist: singer,
+          album: song.albumname || '',
+          ...(lyrics != null && { lyrics }),
+          ...(coverUrl != null && { coverUrl })
+        });
+      }
+
+      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 50, status: 'downloading' } }));
+
+      // Upload audio to WebDAV
+      const webdavFilePath = `/music/${fileName}`;
+      const readResult = await window.electron?.readFile?.(savedFilePath);
+      if (!readResult?.success || !readResult.data) {
+        throw new Error('Failed to read file for WebDAV upload');
+      }
+
+      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 60, status: 'downloading' } }));
+
+      const uploadResult = await webdavClient.uploadFile(webdavFilePath, readResult.data, `audio/${ext}`);
+      if (!uploadResult.success) {
+        throw new Error(`WebDAV upload failed: ${uploadResult.error}`);
+      }
+
+      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 80, status: 'downloading' } }));
+
+      // Upload meta.json
+      const metaJson = generateMetaJson({
+        id: `webdav-${webdavFilePath}`,
+        title: song.songname,
+        artist: singer,
+        album: song.albumname || '',
+        duration: song.interval || 0,
+        audioUrl: '',
+        source: 'webdav',
+        webdavPath: webdavFilePath,
+        fileName,
+        fileSize: readResult.data.byteLength,
+        ...(lyrics != null && { lyrics }),
+      });
+      await webdavClient.uploadMetaJson(webdavFilePath, metaJson);
+
+      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 100, status: 'completed' } }));
+
+      notify(
+        i18n.t('notifications.uploadComplete'),
+        `${song.songname} → WebDAV`,
+        { silent: true }
+      );
+
+      setTimeout(() => {
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[song.songmid];
+          return newProgress;
+        });
+      }, 3000);
+    } catch (err: any) {
+      logger.error('[BrowseView] WebDAV upload failed:', err);
+      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 0, status: 'error' } }));
+      notify(
+        i18n.t('notifications.uploadFailed'),
+        `${song.songname}: ${err.message || 'Unknown error'}`
+      );
+      setTimeout(() => {
+        setUploadProgress(prev => {
+          if (prev[song.songmid]?.status === 'error') {
+            const newProgress = { ...prev };
+            delete newProgress[song.songmid];
+            return newProgress;
+          }
+          return prev;
+        });
+      }, 5000);
+    }
+  };
+
   const toggleDropdown = (songmid: string) => {
     setOpenDropdownId(openDropdownId === songmid ? null : songmid);
+  };
+
+  const toggleUploadDropdown = (songmid: string) => {
+    setOpenUploadDropdownId(openUploadDropdownId === songmid ? null : songmid);
   };
 
   const formatDuration = (seconds?: number): string => {
@@ -676,7 +830,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
         ) : (
           <div className="h-full overflow-y-auto no-scrollbar">
             {/* Column Headers */}
-            <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_80px_100px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+            <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_80px_140px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
               <span>#</span>
               <span>{i18n.t('library.titleCol')}</span>
               <span>{i18n.t('library.albumCol')}</span>
@@ -687,15 +841,20 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
             {/* Song List */}
             <div className="grid gap-2">
               {songs.map((song, index) => {
-                const progress = downloadProgress[song.songmid];
-                const isDownloading = progress?.status === 'downloading';
-                const isCompleted = progress?.status === 'completed';
+                const dlProgress = downloadProgress[song.songmid];
+                const isDownloading = dlProgress?.status === 'downloading';
+                const isDlCompleted = dlProgress?.status === 'completed';
                 const isDropdownOpen = openDropdownId === song.songmid;
+
+                const ulProgress = uploadProgress[song.songmid];
+                const isUploading = ulProgress?.status === 'downloading';
+                const isUlCompleted = ulProgress?.status === 'completed';
+                const isUploadDropdownOpen = openUploadDropdownId === song.songmid;
 
                 return (
                   <div
                     key={song.songmid}
-                    className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center grid-cols-[48px_1fr_1fr_80px_100px]"
+                    className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center grid-cols-[48px_1fr_1fr_80px_140px]"
                     style={{}}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -722,21 +881,18 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
                     <div className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
                       {formatDuration(song.interval)}
                     </div>
-                    <div className="flex justify-end" ref={isDropdownOpen ? dropdownRef : undefined}>
+                    <div className="flex justify-end gap-1" ref={isDropdownOpen || isUploadDropdownOpen ? dropdownRef : undefined}>
+                      {/* Download button + progress */}
                       {isDownloading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
-                            <div
-                              className="h-full bg-primary rounded-full transition-all"
-                              style={{ width: `${progress.progress}%` }}
-                            />
+                        <div className="flex items-center gap-1">
+                          <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
+                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${dlProgress.progress}%` }} />
                           </div>
-                          <span className="text-xs" style={{ color: colors.textMuted }}>{progress.progress}%</span>
+                          <span className="text-xs" style={{ color: colors.textMuted }}>{dlProgress.progress}%</span>
                         </div>
-                      ) : isCompleted ? (
+                      ) : isDlCompleted ? (
                         <span className="text-xs flex items-center gap-1" style={{ color: colors.success }}>
                           <span className="material-symbols-outlined text-sm">check</span>
-                          {i18n.t('browse.completed')}
                         </span>
                       ) : (
                         <div className="relative">
@@ -750,8 +906,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
                           >
                             <span className="material-symbols-outlined text-base">download</span>
                           </button>
-                          
-                          {/* Dropdown Menu */}
                           {isDropdownOpen && (
                             <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg shadow-xl overflow-hidden" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
                               {qualityOptions.map((option) => (
@@ -764,15 +918,55 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
                                 >
                                   <span>{option.label}</span>
-                                  {option.value === '128' && (
-                                    <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.standard')}</span>
-                                  )}
-                                  {option.value === '320' && (
-                                    <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.highQuality')}</span>
-                                  )}
-                                  {option.value === 'flac' && (
-                                    <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>
-                                  )}
+                                  {option.value === '128' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.standard')}</span>}
+                                  {option.value === '320' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.highQuality')}</span>}
+                                  {option.value === 'flac' && <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Upload to WebDAV button + progress */}
+                      {isUploading ? (
+                        <div className="flex items-center gap-1">
+                          <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
+                            <div className="h-full rounded-full transition-all" style={{ width: `${ulProgress.progress}%`, backgroundColor: colors.accent }} />
+                          </div>
+                          <span className="text-xs" style={{ color: colors.textMuted }}>{ulProgress.progress}%</span>
+                        </div>
+                      ) : isUlCompleted ? (
+                        <span className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
+                          <span className="material-symbols-outlined text-sm">cloud_done</span>
+                        </span>
+                      ) : (
+                        <div className="relative">
+                          <button
+                            onClick={() => toggleUploadDropdown(song.songmid)}
+                            title={i18n.t('browse.uploadToCloud')}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                            style={{ color: colors.textMuted }}
+                            onMouseEnter={e => { e.currentTarget.style.color = colors.accent; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            <span className="material-symbols-outlined text-base">cloud_upload</span>
+                          </button>
+                          {isUploadDropdownOpen && (
+                            <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg shadow-xl overflow-hidden" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
+                              {qualityOptions.map((option) => (
+                                <button
+                                  key={option.value}
+                                  onClick={() => handleUploadToWebdav(song, option.value)}
+                                  className="w-full px-3 py-2 text-left text-xs transition-all flex items-center justify-between"
+                                  style={{ color: colors.textSecondary }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.accent; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
+                                >
+                                  <span>{option.label}</span>
+                                  {option.value === '128' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.standard')}</span>}
+                                  {option.value === '320' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.highQuality')}</span>}
+                                  {option.value === 'flac' && <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>}
                                 </button>
                               ))}
                             </div>

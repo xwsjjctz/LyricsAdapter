@@ -209,6 +209,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('webdav-get-range', url, authHeader, start, end);
   },
 
+  // WebDAV PUT for file upload
+  webdavPut: async (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => {
+    return ipcRenderer.invoke('webdav-put', url, authHeader, data, contentType);
+  },
+
   // Run startup resource cleanup
   runStartupCleanup: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);

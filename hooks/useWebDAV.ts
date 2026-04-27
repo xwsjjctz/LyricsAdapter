@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Track } from '../types';
+import { Track, MetaJson } from '../types';
 import { webdavClient, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
@@ -77,6 +77,10 @@ interface CachedMetadata {
   lastModified: string;
 }
 
+function isMetaJsonValid(meta: MetaJson, file: WebDAVFile): boolean {
+  return meta.fileSize === file.size && meta.lastModified === file.lastModified;
+}
+
 function parseArtistTitleFromFilename(filename: string): { artist: string; title: string } {
   const name = filename.replace(/\.[^/.]+$/, '');
   const patterns = [
@@ -143,6 +147,24 @@ export const useWebDAV = () => {
   };
 
   const fetchMetadata = async (file: WebDAVFile): Promise<CachedMetadata> => {
+    // Try meta.json sidecar first (fast path)
+    const metaJson = await webdavClient.fetchMetaJson(file.path);
+    if (metaJson && isMetaJsonValid(metaJson, file)) {
+      logger.info('[useWebDAV] meta.json hit for', file.name);
+      return {
+        title: metaJson.title,
+        artist: metaJson.artist,
+        album: metaJson.album,
+        coverUrl: '', // cover loaded lazily
+        duration: metaJson.duration,
+        ...(metaJson.lyrics != null && { lyrics: metaJson.lyrics }),
+        ...(metaJson.syncedLyrics != null && { syncedLyrics: metaJson.syncedLyrics }),
+        fileSize: file.size,
+        lastModified: file.lastModified,
+      };
+    }
+
+    // Fallback: parse audio header (slow path)
     const buffer = await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
     logger.info('[useWebDAV] fetchFileRange for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null');
     if (!buffer) {

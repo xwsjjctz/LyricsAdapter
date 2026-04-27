@@ -7,7 +7,6 @@ import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
-import { notify } from '../services/notificationService';
 import { registerCommand } from '../services/debugCommands';
 import TrackCover from './TrackCover';
 
@@ -26,12 +25,10 @@ interface LibraryViewProps {
   onScrollPositionChange?: (position: number) => void;
   isFirstLoad?: boolean;
   autoLocateToken?: number;
-  onNavigateToSettings?: (section?: string) => void;
   importProgress?: { loaded: number; total: number } | null;
   dataSource: 'local' | 'cloud';
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
-  onDataSourceChange: (source: 'local' | 'cloud') => void;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
   onCategoryChange: (selection: string | null) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
@@ -54,12 +51,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onScrollPositionChange,
   isFirstLoad = false,
   autoLocateToken = 0,
-  onNavigateToSettings,
   importProgress,
   dataSource,
   filterType,
   categorySelection,
-  onDataSourceChange,
   onFilterTypeChange,
   onCategoryChange,
   onLoadCloudTracks,
@@ -73,7 +68,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [_dragOverIndex, setDragOverIndex] = useState<number | null>(null); // Drop target
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
-  const [searchQuery, setSearchQuery] = useState('');
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
@@ -183,16 +177,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const isInitialMountRef = useRef(true);
 
-  // Filter tracks based on search query (live filtering)
-  const filteredTracks = useMemo(() => {
-    if (!searchQuery.trim()) return displayTracks;
-    const query = searchQuery.toLowerCase();
-    return displayTracks.filter(track =>
-      track.title.toLowerCase().includes(query) ||
-      track.artist.toLowerCase().includes(query) ||
-      track.album.toLowerCase().includes(query)
-    );
-  }, [displayTracks, searchQuery]);
+  const filteredTracks = displayTracks;
 
   const uniqueArtists = useMemo(() => {
     const artistMap = new Map<string, { name: string; coverUrl?: string }>();
@@ -682,16 +667,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const toggleSelectAll = useCallback(() => {
     // Use filtered tracks for selection when searching
-    const targetTracks = searchQuery ? filteredTracks : tracks;
-    
-    if (selectedIds.size === targetTracks.length) {
+    if (selectedIds.size === tracks.length) {
       // Deselect all
       setSelectedIds(new Set());
     } else {
-      // Select all (filtered tracks or all tracks)
-      setSelectedIds(new Set(targetTracks.map(t => t.id)));
+      // Select all
+      setSelectedIds(new Set(tracks.map(t => t.id)));
     }
-  }, [selectedIds.size, tracks, filteredTracks, searchQuery]);
+  }, [selectedIds.size, tracks]);
 
   const toggleSelectOne = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -857,7 +840,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 固定的标题部分 */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('library.title')}</h1>
+          <h1 className="text-4xl font-extrabold mb-2 flex items-baseline gap-3" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+            {i18n.t('library.title')}
+            <span className="text-lg font-normal opacity-40" style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
+              {dataSource === 'local' ? i18n.t('sidebar.local') : i18n.t('sidebar.cloud')}
+            </span>
+          </h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
             {importProgress ? (
               `${i18n.t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
@@ -866,7 +854,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             ) : (
               <>
                 {filteredTracks.length} {i18n.t('library.trackCount')}
-                {searchQuery && filteredTracks.length !== displayTracks.length && ` (${i18n.t('library.of')} ${displayTracks.length})`}
               </>
             )}
           </p>
@@ -963,79 +950,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               <span className="material-symbols-outlined text-xl">artist</span>
             </button>
           </div>
-          <div className="flex items-center rounded-xl border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
-            <button
-              onClick={() => {
-                if (dataSource !== 'local') {
-                  onFilterTypeChange('default');
-                  onCategoryChange(null);
-                  onDataSourceChange('local');
-                }
-              }}
-              className="w-10 h-[38px] rounded-l-lg text-xs transition-all flex items-center justify-center"
-              style={{
-                backgroundColor: dataSource === 'local' ? colors.primary : 'transparent',
-                color: dataSource === 'local' ? '#fff' : colors.textSecondary,
-                boxShadow: dataSource === 'local' ? `0 0 20px ${colors.glowColor}` : 'none',
-              }}
-            >
-              <span className="material-symbols-outlined text-lg">hard_drive</span>
-            </button>
-            <button
-              onClick={async () => {
-                if (dataSource === 'cloud') return;
-                if (!webdavClient.hasConfig()) {
-                  notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
-                  onNavigateToSettings?.('webdav');
-                  return;
-                }
-                onDataSourceChange('cloud');
-                const result = await loadWebDAVFiles();
-                applyDiffResult(result);
-              }}
-              className="w-10 h-[38px] rounded-r-lg text-xs transition-all flex items-center justify-center"
-              style={{
-                backgroundColor: dataSource === 'cloud' ? colors.primary : 'transparent',
-                color: dataSource === 'cloud' ? '#fff' : colors.textSecondary,
-                boxShadow: dataSource === 'cloud' ? `0 0 20px ${colors.glowColor}` : 'none',
-              }}
-            >
-              <span className="material-symbols-outlined text-lg">cloud</span>
-            </button>
-          </div>
-          <div className="relative flex-1 max-w-[200px]" style={{ minWidth: 0 }}>
-            <span
-              className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg"
-              style={{ color: colors.textMuted }}
-            >
-              search
-            </span>
-            <input
-              type="text"
-              placeholder={i18n.t('sidebar.searchTracks')}
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl h-[38px] pl-10 pr-9 text-sm transition-all focus:outline-none focus:ring-0"
-              style={{
-                backgroundColor: colors.backgroundCard,
-                border: `1px solid ${colors.borderLight}`,
-                color: colors.textPrimary,
-              }}
-              onFocus={e => { e.currentTarget.style.boxShadow = `0 0 20px ${colors.glowColor}`; }}
-              onBlur={e => { e.currentTarget.style.boxShadow = 'none'; }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-[55%] -translate-y-1/2 transition-colors"
-                style={{ color: colors.textMuted }}
-                onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
-                onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
-              >
-                <span className="material-symbols-outlined text-base">close</span>
-              </button>
-            )}
-          </div>
         </div>
       </div>
 
@@ -1101,7 +1015,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   const isSelected = selectedIds.has(track.id);
                   const isCurrentTrack = track.id === currentTrackId;
                   const isDragged = draggedIndex === filteredIndex;
-                  const canDrag = isEditMode && !isUnavailable && !searchQuery; // Only allow drag when not searching
+                  const canDrag = isEditMode && !isUnavailable;
                   // Only apply animation when shouldShowAnimation is true
                   const animationStyle = shouldShowAnimation
                     ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
@@ -1194,12 +1108,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     </div>
                   );
                 })}
-              </div>
-            ) : searchQuery ? (
-              <div className="py-20 text-center" style={{ opacity: 0.4, color: colors.textSecondary }}>
-                <span className="material-symbols-outlined text-6xl mb-4 block">search_off</span>
-                <p className="text-xl font-medium">{i18n.t('library.noMatchingTracks')}</p>
-                <p className="text-sm mt-2">{i18n.t('library.tryAdjustingSearch')}</p>
               </div>
             ) : (
               <div className="py-20 text-center rounded-2xl" style={{ opacity: 0.2, color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
