@@ -1,9 +1,12 @@
-import React, { memo, useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect } from 'react';
+import { Track } from '../types';
+import { QQMusicSong } from '../services/qqMusicApi';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
+import SearchBox from './SearchBox';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -40,14 +43,14 @@ const CollapseIcon = () => (
 interface TitleBarProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onSearchFocus: () => void;
-  onSearchBlur: () => void;
+  localTracks: Track[];
+  cloudTracks: Track[];
+  onNavigateToTrack: (track: Track) => void;
+  onQQMusicDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
+  onQQMusicUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
 }
 
-const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, searchQuery, onSearchChange, onSearchFocus, onSearchBlur }) => {
-  const searchInputRef = useRef<HTMLInputElement>(null);
+const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, localTracks, cloudTracks, onNavigateToTrack, onQQMusicDownload, onQQMusicUpload }) => {
   const { canControl, minimize, maximize, close, isMaximized } = useWindowControls();
 
   // Force re-render when language changes
@@ -89,8 +92,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   }, []);
 
   const colors = currentTheme.colors;
-  const isSearchHidden = Boolean(isFocusMode);
-  const searchTextColor = isWindowFocused ? colors.textPrimary : colors.textSecondary;
 
   // 检测平台
   const desktopAPI = getDesktopAPI();
@@ -102,49 +103,16 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
     return null;
   }
 
-  // macOS Electron 使用系统原生标题栏，显示透明标题栏区域
-  const searchBox = (
-    <div
-      className="flex items-center transition-all duration-500 ease-out"
-      style={{
-        WebkitAppRegion: isSearchHidden ? 'drag' : 'no-drag',
-        width: '430px',
-        maxWidth: 'calc(100vw - 200px)',
-        height: '42px',
-        background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
-        backdropFilter: 'blur(16px)',
-        border: `1px solid ${isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
-        borderRadius: '0 0 18px 18px',
-        boxShadow: `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)`,
-        opacity: isSearchHidden ? 0 : 1,
-        transform: isSearchHidden ? 'translateY(-14px) scale(0.96)' : 'translateY(0) scale(1)',
-        pointerEvents: isSearchHidden ? 'none' : 'auto',
-      } as React.CSSProperties}
-    >
-      <span
-        className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none"
-        style={{ color: colors.textMuted }}
-      >
-        search
-      </span>
-      <input
-        ref={searchInputRef}
-        type="text"
-        placeholder={i18n.t('search.typeToSearch')}
-        value={searchQuery}
-        onChange={(e) => onSearchChange(e.target.value)}
-        onFocus={onSearchFocus}
-        onBlur={onSearchBlur}
-        className="w-full h-full pl-11 pr-4 text-sm font-medium bg-transparent transition-all focus:outline-none"
-        style={{ color: searchTextColor }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            onSearchChange('');
-            searchInputRef.current?.blur();
-          }
-        }}
-      />
-    </div>
+  const searchBoxNode = (
+    <SearchBox
+      isFocusMode={!!isFocusMode}
+      isWindowFocused={isWindowFocused}
+      localTracks={localTracks}
+      cloudTracks={cloudTracks}
+      onNavigateToTrack={onNavigateToTrack}
+      onQQMusicDownload={onQQMusicDownload}
+      onQQMusicUpload={onQQMusicUpload}
+    />
   );
 
   if (isMacOS) {
@@ -192,7 +160,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           </button>
         </div>
         <div className="flex-1 flex justify-center items-start" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-          {searchBox}
+          {searchBoxNode}
         </div>
       </div>
     );
@@ -209,8 +177,8 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         {/* 左侧拖动 + 搜索框 */}
-        <div className="flex-1 h-full flex items-start justify-center" style={{ paddingTop: 0 }}>
-          {searchBox}
+        <div className="flex-1 h-full flex items-start justify-center">
+          {searchBoxNode}
         </div>
 
         {/* 右侧窗口控制按钮 */}

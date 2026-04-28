@@ -23,7 +23,6 @@ import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
-import GlobalSearch from './components/GlobalSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import { i18n } from './services/i18n';
 import { QQMusicSong, qqMusicApi } from './services/qqMusicApi';
@@ -54,10 +53,6 @@ const App: React.FC = () => {
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
-
-  // Global search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const {
     slots,
@@ -490,15 +485,6 @@ const App: React.FC = () => {
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSearchFocus={() => setIsSearchOpen(true)}
-          onSearchBlur={() => {}}
-        />
-        <GlobalSearch
-          query={searchQuery}
-          isOpen={isSearchOpen && !isFocusMode}
-          onClose={() => { setIsSearchOpen(false); setSearchQuery(''); }}
           localTracks={slots.local.tracks}
           cloudTracks={slots.cloud.tracks}
           onNavigateToTrack={handleSearchNavigate}
