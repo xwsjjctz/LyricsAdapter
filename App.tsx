@@ -289,15 +289,37 @@ const App: React.FC = () => {
   // Global search handlers
   const handleSearchNavigate = useCallback((track: Track) => {
     const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
-    if (targetSlot !== activeSlotId) {
-      handleSwitchSlot(targetSlot);
-    }
     const targetTracks = targetSlot === 'local' ? slots.local.tracks : slots.cloud.tracks;
     const idx = targetTracks.findIndex(t => t.id === track.id);
-    if (idx >= 0) {
+    if (idx < 0) return;
+
+    if (targetSlot === activeSlotId) {
+      // Same slot: simple track selection
       selectTrack(idx);
+      return;
     }
-  }, [activeSlotId, slots.local.tracks, slots.cloud.tracks, handleSwitchSlot, selectTrack]);
+
+    // Cross-slot: save current state, update target slot directly, then switch
+    setActiveScrollPosition(lastScrollPositionRef.current);
+    if (audioRef.current) {
+      const time = audioRef.current.currentTime || 0;
+      if (time > 0) setActiveCurrentTime(time);
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+    shouldAutoPlayRef.current = false;
+    waitingForCanPlayRef.current = false;
+
+    // Set target track index on target slot (bypass stale activeSlotId in setActiveTrackIndex)
+    updateSlot(targetSlot, s => ({ ...s, currentTrackIndex: idx }));
+    setRestoreTime(0);
+    switchTo(targetSlot);
+    // Trigger auto-play for the new track
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+  }, [activeSlotId, slots.local.tracks, slots.cloud.tracks, selectTrack, setActiveScrollPosition, audioRef, isPlaying, setIsPlaying, setActiveCurrentTime, updateSlot, switchTo]);
 
   const handleQQMusicDownload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
     const downloadPath = settingsManager.getDownloadPath();
