@@ -89,6 +89,8 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   }, []);
 
   const colors = currentTheme.colors;
+  const isSearchHidden = Boolean(isFocusMode);
+  const searchTextColor = isWindowFocused ? colors.textPrimary : colors.textSecondary;
 
   // 检测平台
   const desktopAPI = getDesktopAPI();
@@ -103,22 +105,28 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   // macOS Electron 使用系统原生标题栏，显示透明标题栏区域
   const searchBox = (
     <div
-      className="absolute left-1/2 -translate-x-1/2 flex items-center"
+      className="absolute left-1/2 -translate-x-1/2 flex items-center transition-all duration-500 ease-out"
       style={{
-        WebkitAppRegion: 'no-drag',
+        WebkitAppRegion: isSearchHidden ? 'drag' : 'no-drag',
         top: 0,
-        width: '420px',
+        width: '430px',
         maxWidth: 'calc(100vw - 200px)',
-        height: '38px',
-        backgroundColor: isWindowFocused ? `${colors.backgroundDark}ff` : `${colors.backgroundDark}f5`,
+        height: '42px',
+        background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
         backdropFilter: 'blur(16px)',
-        border: `1px solid ${isWindowFocused ? `${colors.borderHover}60` : `${colors.borderLight}40`}`,
-        borderRadius: '12px',
-        boxShadow: `0 2px 16px rgba(0,0,0,0.4)`,
+        border: `1px solid ${isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+        borderBottomLeftRadius: '18px',
+        borderBottomRightRadius: '18px',
+        borderTopLeftRadius: '0px',
+        borderTopRightRadius: '0px',
+        boxShadow: `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)`,
+        opacity: isSearchHidden ? 0 : 1,
+        transform: isSearchHidden ? 'translateX(-50%) translateY(-14px) scale(0.96)' : 'translateX(-50%) translateY(0) scale(1)',
+        pointerEvents: isSearchHidden ? 'none' : 'auto',
       } as React.CSSProperties}
     >
       <span
-        className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+        className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none"
         style={{ color: colors.textMuted }}
       >
         search
@@ -131,8 +139,8 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         onChange={(e) => onSearchChange(e.target.value)}
         onFocus={onSearchFocus}
         onBlur={onSearchBlur}
-        className="w-full h-full pl-8 pr-3 text-sm bg-transparent transition-all focus:outline-none"
-        style={{ color: colors.textPrimary }}
+        className="w-full h-full pl-11 pr-4 text-sm font-medium bg-transparent transition-all focus:outline-none"
+        style={{ color: searchTextColor }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             onSearchChange('');
@@ -146,7 +154,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   if (isMacOS) {
     return (
       <div
-        className="fixed top-0 left-0 right-0 h-9.5 bg-transparent select-none z-[100] flex items-center"
+        className="fixed top-0 left-0 right-0 h-9.5 bg-transparent select-none z-[160] flex items-center"
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',
@@ -195,7 +203,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   // Windows / Linux 渲染自定义标题栏和窗口控制按钮
   return (
       <div
-        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[100] flex items-center"
+        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[160] flex items-center"
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',

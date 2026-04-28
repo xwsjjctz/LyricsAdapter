@@ -65,6 +65,35 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Text colors based on theme
   const textPrimary = colors.textPrimary;
   const textSecondary = colors.textSecondary;
+  const libraryItems = [
+    {
+      key: 'local' as const,
+      icon: 'hard_drive',
+      label: i18n.t('sidebar.local'),
+      count: localTrackCount,
+      active: isLibraryView && activeSlotId === 'local',
+      onClick: () => {
+        if (!isLibraryView) onNavigate(ViewMode.PLAYER);
+        onSlotChange('local');
+      },
+    },
+    {
+      key: 'cloud' as const,
+      icon: 'cloud',
+      label: i18n.t('sidebar.cloud'),
+      count: cloudTrackCount,
+      active: isLibraryView && activeSlotId === 'cloud',
+      onClick: () => {
+        if (!webdavClient.hasConfig()) {
+          notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
+          onNavigate(ViewMode.SETTINGS);
+          return;
+        }
+        if (!isLibraryView) onNavigate(ViewMode.PLAYER);
+        onSlotChange('cloud');
+      },
+    },
+  ];
 
   return (
     <aside 
@@ -78,79 +107,65 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div>
           <nav className="flex flex-col gap-2">
             {/* LIBRARY 容器 */}
-            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: `${colors.backgroundCard}40` }}>
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] px-4 pt-3 pb-1" style={{ color: colors.textMuted }}>
+            <div
+              className="rounded-2xl p-2"
+              style={{
+                backgroundColor: `${colors.backgroundCard}55`,
+                border: `1px solid ${colors.borderLight}`,
+                boxShadow: `inset 0 1px 0 ${colors.borderLight}`,
+              }}
+            >
+              <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: colors.textMuted }}>
                 {i18n.t('sidebar.library')}
               </div>
-
-              {/* 本地 */}
-              <button
-                onClick={() => {
-                  if (!isLibraryView) onNavigate(ViewMode.PLAYER);
-                  onSlotChange('local');
-                }}
-                className="flex items-center gap-3 px-4 py-3 transition-all w-full"
-                style={{
-                  backgroundColor: isLibraryView && activeSlotId === 'local' ? `${colors.primary}33` : 'transparent',
-                  color: isLibraryView && activeSlotId === 'local' ? colors.primary : textSecondary,
-                  boxShadow: isLibraryView && activeSlotId === 'local' ? `0 0 20px ${colors.glowColor}` : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!(isLibraryView && activeSlotId === 'local')) {
-                    e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                    e.currentTarget.style.color = textPrimary;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!(isLibraryView && activeSlotId === 'local')) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = textSecondary;
-                  }
-                }}
-              >
-                <span className={`material-symbols-outlined text-xl ${isLibraryView && activeSlotId === 'local' ? 'fill-1' : ''}`}>hard_drive</span>
-                <span className="text-sm font-semibold flex-1">{i18n.t('sidebar.local')}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}>
-                  {localTrackCount}
-                </span>
-              </button>
-
-              {/* 云端 */}
-              <button
-                onClick={() => {
-                  if (!webdavClient.hasConfig()) {
-                    notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
-                    onNavigate(ViewMode.SETTINGS);
-                    return;
-                  }
-                  if (!isLibraryView) onNavigate(ViewMode.PLAYER);
-                  onSlotChange('cloud');
-                }}
-                className="flex items-center gap-3 px-4 py-3 transition-all w-full"
-                style={{
-                  backgroundColor: isLibraryView && activeSlotId === 'cloud' ? `${colors.primary}33` : 'transparent',
-                  color: isLibraryView && activeSlotId === 'cloud' ? colors.primary : textSecondary,
-                  boxShadow: isLibraryView && activeSlotId === 'cloud' ? `0 0 20px ${colors.glowColor}` : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!(isLibraryView && activeSlotId === 'cloud')) {
-                    e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                    e.currentTarget.style.color = textPrimary;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!(isLibraryView && activeSlotId === 'cloud')) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = textSecondary;
-                  }
-                }}
-              >
-                <span className={`material-symbols-outlined text-xl ${isLibraryView && activeSlotId === 'cloud' ? 'fill-1' : ''}`}>cloud</span>
-                <span className="text-sm font-semibold flex-1">{i18n.t('sidebar.cloud')}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}>
-                  {cloudTrackCount}
-                </span>
-              </button>
+              <div className="flex flex-col gap-1">
+                {libraryItems.map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={item.onClick}
+                    className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-all w-full text-left"
+                    style={{
+                      backgroundColor: item.active ? `${colors.primary}29` : 'transparent',
+                      color: item.active ? colors.primary : textSecondary,
+                      boxShadow: item.active ? `0 10px 24px -16px ${colors.glowColor}` : 'none',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!item.active) {
+                        e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                        e.currentTarget.style.color = textPrimary;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!item.active) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = textSecondary;
+                      }
+                    }}
+                  >
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                      style={{
+                        backgroundColor: item.active ? `${colors.primary}22` : `${colors.backgroundCard}cc`,
+                        color: item.active ? colors.primary : textSecondary,
+                      }}
+                    >
+                      <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold leading-none">{item.label}</span>
+                    </span>
+                    <span
+                      className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums"
+                      style={{
+                        backgroundColor: item.active ? `${colors.primary}22` : colors.backgroundCard,
+                        color: item.active ? colors.primary : colors.textMuted,
+                      }}
+                    >
+                      {item.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 分隔 */}

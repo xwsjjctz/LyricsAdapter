@@ -164,78 +164,87 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
   const hasCloud = filteredCloud.length > 0;
   const hasQQ = qqResults.length > 0 || qqLoading;
   const hasAny = hasLocal || hasCloud || hasQQ;
+  let resultOffset = 0;
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex justify-center pointer-events-none" style={{ top: '48px' }}>
+    <div className="fixed inset-0 z-[150] flex justify-center pointer-events-none">
       <div
         ref={panelRef}
-        className="pointer-events-auto w-[600px] max-h-[70vh] overflow-y-auto no-scrollbar rounded-2xl shadow-2xl border mx-auto"
+        className="pointer-events-auto mx-auto mt-[42px] w-[430px] max-w-[calc(100vw-200px)] overflow-hidden rounded-b-[22px] border shadow-2xl transition-all duration-400 ease-out origin-top"
         style={{
-          backgroundColor: 'color-mix(in srgb, var(--theme-background-dark, #101922) 95%, transparent)',
+          maxHeight: isOpen ? 'min(62vh, 560px)' : '0px',
+          opacity: isOpen ? 1 : 0,
+          transform: isOpen ? 'translateY(0) scaleY(1)' : 'translateY(-8px) scaleY(0.92)',
+          background: `linear-gradient(180deg, color-mix(in srgb, ${colors.backgroundSidebar} 94%, transparent) 0%, color-mix(in srgb, ${colors.backgroundDark} 96%, transparent) 100%)`,
           borderColor: 'var(--theme-border-light, rgba(255,255,255,0.15))',
           backdropFilter: 'blur(24px)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.38)',
         }}
       >
+        <div className="max-h-[min(62vh,560px)] overflow-y-auto no-scrollbar">
         {!query.trim() ? (
-          <div className="py-12 text-center" style={{ color: colors.textMuted }}>
-            <span className="material-symbols-outlined text-4xl mb-3 block">search</span>
-            <p className="text-sm">{i18n.t('search.typeToSearch')}</p>
+          <div className="px-5 py-8 text-center" style={{ color: colors.textMuted }}>
+            <span className="material-symbols-outlined text-3xl mb-2 block">search</span>
+            <p className="text-xs tracking-[0.08em] uppercase">Search Library</p>
+            <p className="text-sm mt-2">{i18n.t('search.typeToSearch')}</p>
           </div>
         ) : !hasAny ? (
-          <div className="py-12 text-center" style={{ color: colors.textMuted }}>
-            <span className="material-symbols-outlined text-4xl mb-3 block">search_off</span>
+          <div className="px-5 py-8 text-center" style={{ color: colors.textMuted }}>
+            <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
             <p className="text-sm">{i18n.t('search.noResults')}</p>
           </div>
         ) : (
           <div className="py-3">
             {/* Local results */}
             {hasLocal && (
-              <div className="mb-2">
-                <div className="px-4 py-1 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-2" style={{ color: colors.textMuted }}>
+              <div className="mb-3">
+                <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-xs">hard_drive</span>
                   {i18n.t('sidebar.local')}
                   <span className="opacity-50">({filteredLocal.length})</span>
                 </div>
-                {filteredLocal.map((track) => (
+                {filteredLocal.map((track, index) => (
                   <SearchResultRow
                     key={track.id}
                     track={track}
                     source="local"
-                    isSelected={false}
+                    isSelected={selectedIndex === resultOffset + index}
                     colors={colors}
                     onClick={() => { onNavigateToTrack(track); onClose(); }}
                   />
                 ))}
               </div>
             )}
+            {(() => { resultOffset += filteredLocal.length; return null; })()}
 
             {/* Cloud results */}
             {hasCloud && (
-              <div className="mb-2">
-                <div className="px-4 py-1 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-2" style={{ color: colors.textMuted }}>
+              <div className="mb-3">
+                <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-xs">cloud</span>
                   {i18n.t('sidebar.cloud')}
                   <span className="opacity-50">({filteredCloud.length})</span>
                 </div>
-                {filteredCloud.map((track) => (
+                {filteredCloud.map((track, index) => (
                   <SearchResultRow
                     key={track.id}
                     track={track}
                     source="cloud"
-                    isSelected={false}
+                    isSelected={selectedIndex === resultOffset + index}
                     colors={colors}
                     onClick={() => { onNavigateToTrack(track); onClose(); }}
                   />
                 ))}
               </div>
             )}
+            {(() => { resultOffset += filteredCloud.length; return null; })()}
 
             {/* QQ Music results */}
             {hasQQ && (
               <div>
-                <div className="px-4 py-1 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-2" style={{ color: colors.textMuted }}>
+                <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-xs">language</span>
                   QQ Music
                   {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
@@ -243,10 +252,11 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
                 {qqResults.length === 0 && qqLoading ? (
                   <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{i18n.t('search.searching')}...</div>
                 ) : (
-                  qqResults.map((song) => (
+                  qqResults.map((song, index) => (
                     <QQResultRow
                       key={song.songmid}
                       song={song}
+                      isSelected={selectedIndex === resultOffset + index}
                       colors={colors}
                       openQualityId={openQualityId}
                       openUploadQualityId={openUploadQualityId}
@@ -261,6 +271,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -273,26 +284,43 @@ const SearchResultRow: React.FC<{
   isSelected: boolean;
   colors: ThemeConfig['colors'];
   onClick: () => void;
-}> = ({ track, source, colors, onClick }) => (
+}> = ({ track, source, isSelected, colors, onClick }) => (
   <div
     onClick={onClick}
-    className="flex items-center gap-3 px-4 py-2 mx-2 rounded-lg transition-all cursor-pointer"
-    style={{ backgroundColor: 'transparent' }}
-    onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all cursor-pointer border"
+    style={{
+      backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent',
+      borderColor: isSelected ? `${colors.primary}44` : 'transparent',
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.backgroundColor = colors.backgroundCard;
+      e.currentTarget.style.borderColor = isSelected ? `${colors.primary}44` : `${colors.borderLight}`;
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.backgroundColor = isSelected ? colors.backgroundCardHover : 'transparent';
+      e.currentTarget.style.borderColor = isSelected ? `${colors.primary}44` : 'transparent';
+    }}
   >
     <TrackCover
       trackId={track.id}
       filePath={track.filePath}
       fallbackUrl={track.coverUrl}
-      className="size-8 rounded-md object-cover flex-shrink-0"
+      className="size-10 rounded-lg object-cover flex-shrink-0 shadow-md"
     />
-    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ backgroundColor: source === 'local' ? `${colors.primary}20` : `${colors.accent}20`, color: source === 'local' ? colors.primary : colors.accent }}>
-      {source === 'local' ? '本地' : '云端'}
-    </span>
-    <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>{track.title}</span>
-    <span className="text-xs truncate flex-shrink-0 max-w-[120px]" style={{ color: colors.textMuted }}>{track.artist}</span>
-    <span className="text-xs tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-sm font-semibold truncate min-w-0" style={{ color: colors.textPrimary }}>{track.title}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ backgroundColor: source === 'local' ? `${colors.primary}20` : `${colors.accent}20`, color: source === 'local' ? colors.primary : colors.accent }}>
+          {source === 'local' ? 'Local' : 'Cloud'}
+        </span>
+      </div>
+      <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
+        <span className="truncate max-w-[160px]">{track.artist || 'Unknown Artist'}</span>
+        <span className="opacity-30">•</span>
+        <span className="truncate">{track.album || 'Unknown Album'}</span>
+      </div>
+    </div>
+    <span className="text-[11px] tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
       {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
     </span>
   </div>
@@ -301,6 +329,7 @@ const SearchResultRow: React.FC<{
 // Sub-component for QQ Music search results
 const QQResultRow: React.FC<{
   song: QQMusicSong;
+  isSelected: boolean;
   colors: ThemeConfig['colors'];
   openQualityId: string | null;
   openUploadQualityId: string | null;
@@ -308,26 +337,41 @@ const QQResultRow: React.FC<{
   onToggleUploadQuality: (id: string) => void;
   onDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
   onUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-}> = ({ song, colors, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
+}> = ({ song, isSelected, colors, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
   <div
-    className="flex items-center gap-3 px-4 py-2 mx-2 rounded-lg transition-all"
-    style={{ backgroundColor: 'transparent' }}
-    onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border"
+    style={{
+      backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent',
+      borderColor: isSelected ? `${colors.warning}44` : 'transparent',
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.backgroundColor = colors.backgroundCard;
+      e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : `${colors.borderLight}`;
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.backgroundColor = isSelected ? colors.backgroundCardHover : 'transparent';
+      e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : 'transparent';
+    }}
   >
     <img
       src={song.coverUrl || `https://picsum.photos/seed/${song.songmid}/80/80`}
-      className="size-8 rounded-md object-cover flex-shrink-0"
+      className="size-10 rounded-lg object-cover flex-shrink-0 shadow-md"
       alt=""
     />
-    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ backgroundColor: `${colors.warning}20`, color: colors.warning }}>
-      QQ音乐
-    </span>
-    <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>{song.songname}</span>
-    <span className="text-xs truncate" style={{ color: colors.textMuted }}>
-      {song.singer?.map(s => s.name).join(', ')}
-    </span>
-    <span className="text-xs tabular-nums mr-1" style={{ color: colors.textMuted }}>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>{song.songname}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ backgroundColor: `${colors.warning}20`, color: colors.warning }}>
+          QQ
+        </span>
+      </div>
+      <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
+        <span className="truncate max-w-[150px]">{song.singer?.map(s => s.name).join(', ')}</span>
+        <span className="opacity-30">•</span>
+        <span className="truncate">{song.albumname || 'Unknown Album'}</span>
+      </div>
+    </div>
+    <span className="text-[11px] tabular-nums mr-1 flex-shrink-0" style={{ color: colors.textMuted }}>
       {song.interval ? `${Math.floor(song.interval / 60)}:${Math.floor(song.interval % 60).toString().padStart(2, '0')}` : '--:--'}
     </span>
     {/* Download button */}
