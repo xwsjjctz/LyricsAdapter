@@ -105,23 +105,19 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   // macOS Electron 使用系统原生标题栏，显示透明标题栏区域
   const searchBox = (
     <div
-      className="absolute left-1/2 -translate-x-1/2 flex items-center transition-all duration-500 ease-out"
+      className="flex items-center transition-all duration-500 ease-out"
       style={{
         WebkitAppRegion: isSearchHidden ? 'drag' : 'no-drag',
-        top: 0,
         width: '430px',
         maxWidth: 'calc(100vw - 200px)',
         height: '42px',
         background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
         backdropFilter: 'blur(16px)',
         border: `1px solid ${isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
-        borderBottomLeftRadius: '18px',
-        borderBottomRightRadius: '18px',
-        borderTopLeftRadius: '0px',
-        borderTopRightRadius: '0px',
+        borderRadius: '0 0 18px 18px',
         boxShadow: `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)`,
         opacity: isSearchHidden ? 0 : 1,
-        transform: isSearchHidden ? 'translateX(-50%) translateY(-14px) scale(0.96)' : 'translateX(-50%) translateY(0) scale(1)',
+        transform: isSearchHidden ? 'translateY(-14px) scale(0.96)' : 'translateY(0) scale(1)',
         pointerEvents: isSearchHidden ? 'none' : 'auto',
       } as React.CSSProperties}
     >
@@ -195,7 +191,9 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             </div>
           </button>
         </div>
-        {searchBox}
+        <div className="flex-1 flex justify-center items-start" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+          {searchBox}
+        </div>
       </div>
     );
   }
@@ -211,7 +209,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         {/* 左侧拖动 + 搜索框 */}
-        <div className="flex-1 h-full flex items-center justify-center">
+        <div className="flex-1 h-full flex items-start justify-center" style={{ paddingTop: 0 }}>
           {searchBox}
         </div>
 

@@ -110,9 +110,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div
               className="rounded-2xl p-2"
               style={{
-                backgroundColor: `${colors.backgroundCard}55`,
+                backgroundColor: colors.primaryLight,
                 border: `1px solid ${colors.borderLight}`,
-                boxShadow: `inset 0 1px 0 ${colors.borderLight}`,
               }}
             >
               <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: colors.textMuted }}>
@@ -155,10 +154,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <span className="block text-sm font-semibold leading-none">{item.label}</span>
                     </span>
                     <span
-                      className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums"
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
                       style={{
-                        backgroundColor: item.active ? `${colors.primary}22` : colors.backgroundCard,
-                        color: item.active ? colors.primary : colors.textMuted,
+                        backgroundColor: item.active ? `${colors.primary}30` : `${colors.primary}18`,
+                        color: item.active ? colors.primary : `${colors.primary}cc`,
                       }}
                     >
                       {item.count}
