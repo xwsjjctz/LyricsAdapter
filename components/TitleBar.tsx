@@ -118,7 +118,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   if (isMacOS) {
     return (
       <div
-        className="fixed top-0 left-0 right-0 h-9.5 bg-transparent select-none z-[160] flex items-center"
+        className="fixed top-0 left-0 right-0 h-9.5 bg-transparent select-none z-[160] flex items-start"
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',
@@ -126,7 +126,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         <div className="w-[55px] h-full" />
-        <div className="flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="h-full flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
             className="w-12 h-12 flex items-center justify-center"
@@ -169,7 +169,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   // Windows / Linux 渲染自定义标题栏和窗口控制按钮
   return (
       <div
-        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[160] flex items-center"
+        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[160] flex items-start"
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',
