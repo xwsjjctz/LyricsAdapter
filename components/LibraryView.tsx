@@ -35,7 +35,6 @@ interface LibraryViewProps {
   onCategoryChange: (selection: string | null) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
-  cloudTracks: Track[];
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -62,7 +61,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onCategoryChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
-  cloudTracks,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -79,7 +77,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
-  const { isLoading: webdavLoading, loadProgress, loadWebDAVFiles, clearWebdavCache } = useWebDAV();
+  const { loadProgress, loadWebDAVFiles, clearWebdavCache } = useWebDAV();
 
   const applyDiffResult = useCallback((result: WebDAVDiffResult) => {
     if (result.type === 'full') {
@@ -90,18 +88,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [onLoadCloudTracks, onMergeCloudTracks]);
 
   // Auto-load WebDAV on startup if dataSource is 'cloud'
+  const webdavLoadAttemptedRef = useRef(false);
   useEffect(() => {
-    if (dataSource === 'cloud' && cloudTracks.length === 0 && !webdavLoading && webdavClient.hasConfig()) {
-      (async () => {
-        try {
-          const result = await loadWebDAVFiles();
-          applyDiffResult(result);
-        } catch (err) {
-          logger.warn('[LibraryView] Auto WebDAV load failed:', err);
-        }
-      })();
-    }
-  }, [dataSource, cloudTracks.length, webdavLoading]);
+    if (dataSource !== 'cloud' || !webdavClient.hasConfig()) return;
+    if (webdavLoadAttemptedRef.current) return;
+    webdavLoadAttemptedRef.current = true;
+    (async () => {
+      try {
+        const result = await loadWebDAVFiles();
+        applyDiffResult(result);
+      } catch (err) {
+        logger.warn('[LibraryView] Auto WebDAV load failed:', err);
+      }
+    })();
+  }, [dataSource]);
 
   // Global cache clear: clears CDN cache + localStorage, clears slot, reloads
   useEffect(() => {

@@ -616,7 +616,6 @@ const App: React.FC = () => {
                 onCategoryChange={setActiveCategorySelection}
                 onLoadCloudTracks={loadCloudTracks}
                 onMergeCloudTracks={mergeCloudTracks}
-                cloudTracks={slots.cloud.tracks}
               />
             )}
           </div>
