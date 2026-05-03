@@ -418,6 +418,22 @@ export function registerWindowControls(win: BrowserWindow | null): void {
     }
     return false;
   });
+
+  ipcMain.handle('window-is-fullscreen', async () => {
+    if (win) {
+      return win.isFullScreen();
+    }
+    return false;
+  });
+
+  if (win) {
+    win.on('enter-full-screen', () => {
+      win?.webContents.send('fullscreen-changed', true);
+    });
+    win.on('leave-full-screen', () => {
+      win?.webContents.send('fullscreen-changed', false);
+    });
+  }
 }
 
 export function registerDownloadHandlers(): void {

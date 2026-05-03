@@ -51,7 +51,7 @@ interface TitleBarProps {
 }
 
 const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, localTracks, cloudTracks, onNavigateToTrack, onQQMusicDownload, onQQMusicUpload }) => {
-  const { canControl, minimize, maximize, close, isMaximized } = useWindowControls();
+  const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
@@ -126,6 +126,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         <div className="w-[55px] h-full" />
+        {!isFullScreen && (
         <div className="h-full flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
@@ -159,6 +160,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             </div>
           </button>
         </div>
+        )}
         <div className="flex-1 flex justify-center items-start" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
           {searchBoxNode}
         </div>

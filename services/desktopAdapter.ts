@@ -39,6 +39,8 @@ export interface DesktopAPI {
   maximizeWindow?: () => void;
   closeWindow?: () => void;
   isMaximized?: () => Promise<boolean>;
+  isFullScreen?: () => Promise<boolean>;
+  onFullScreenChange?: (callback: (isFullScreen: boolean) => void) => () => void;
   // Settings APIs
   selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
   // Shortcut API
@@ -294,6 +296,20 @@ class ElectronAdapter implements DesktopAPI {
       return this.api.isMaximized();
     }
     return false;
+  }
+
+  async isFullScreen(): Promise<boolean> {
+    if (typeof this.api.isFullScreen === 'function') {
+      return this.api.isFullScreen();
+    }
+    return false;
+  }
+
+  onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {
+    if (typeof this.api.onFullScreenChange === 'function') {
+      return this.api.onFullScreenChange(callback);
+    }
+    return () => {};
   }
 
   getPathForFile(file: File): string {

@@ -6,24 +6,28 @@ interface WindowControls {
   maximize: () => void;
   close: () => void;
   isMaximized: boolean;
-  canControl: boolean; // 是否在桌面环境（Electron）
+  isFullScreen: boolean;
+  canControl: boolean;
 }
 
 export const useWindowControls = (): WindowControls => {
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [canControl, setCanControl] = useState(false);
 
   useEffect(() => {
-    // 检测是否在桌面环境
     const isElectron = typeof window !== 'undefined' && !!(window as Window & { electron?: DesktopAPI }).electron;
     setCanControl(isElectron);
+    if (!isElectron) return;
 
-    // 如果是 Electron，获取窗口状态
-    if (isElectron && (window as Window & { electron?: DesktopAPI }).electron?.isMaximized) {
-      const result = (window as Window & { electron?: DesktopAPI }).electron!.isMaximized!();
-      // isMaximized 返回的是 Promise<boolean>
-      (result as Promise<boolean>).then(setIsMaximized).catch(() => {});
-    }
+    const api = (window as Window & { electron?: DesktopAPI }).electron!;
+
+    api.isMaximized?.().then(setIsMaximized).catch(() => {});
+    api.isFullScreen?.().then(setIsFullScreen).catch(() => {});
+
+    const unsub = api.onFullScreenChange?.((isFs: boolean) => setIsFullScreen(isFs));
+
+    return () => { unsub?.(); };
   }, []);
 
   const minimize = useCallback(() => {
@@ -52,6 +56,7 @@ export const useWindowControls = (): WindowControls => {
     maximize,
     close,
     isMaximized,
+    isFullScreen,
     canControl
   };
 };

@@ -133,6 +133,16 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('window-is-maximized');
   },
 
+  isFullScreen: async () => {
+    return ipcRenderer.invoke('window-is-fullscreen');
+  },
+
+  onFullScreenChange: (callback: (isFullScreen: boolean) => void) => {
+    const handler = (_event: unknown, isFullScreen: boolean) => callback(isFullScreen);
+    ipcRenderer.on('fullscreen-changed', handler);
+    return () => ipcRenderer.removeListener('fullscreen-changed', handler);
+  },
+
   // Get real file path from File object (for drag-and-drop)
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file);
