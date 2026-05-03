@@ -172,10 +172,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           backdropFilter: 'blur(16px)',
           border: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
           borderRadius: isExpanded ? '0px' : '0 0 18px 18px',
-          borderBottom: isExpanded ? `1px solid ${isFocused ? `${colors.primary}44` : colors.borderLight}` : undefined,
+          borderBottom: isExpanded ? `1px solid ${colors.borderLight}` : undefined,
           boxShadow: isFocused
-            ? `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 28px ${colors.glowColor}`
-            : `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)`,
+            ? `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 28px ${colors.glowColor}`
+            : `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)`,
           transition: 'border-color 0.35s ease, box-shadow 0.35s ease, border-radius 0.3s ease',
         }}
       >
@@ -191,9 +191,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           className="w-full h-full pl-11 pr-4 text-sm font-medium bg-transparent focus:outline-none"
           style={{ color: isWindowFocused ? colors.textPrimary : colors.textSecondary }}
         />
-        {query && (
+        {isFocused && (
           <button
-            onClick={() => { setQuery(''); collapse(); }}
+            onClick={collapse}
             className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full transition-colors"
             style={{ color: colors.textMuted }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; }}
@@ -212,10 +212,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           opacity: isExpanded ? 1 : 0,
           background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
           backdropFilter: 'blur(20px)',
-          border: isExpanded ? `1px solid ${colors.borderLight}` : '1px solid transparent',
+          border: isExpanded ? `1px solid ${isFocused ? `${colors.primary}66` : colors.borderLight}` : '1px solid transparent',
           borderTop: 'none',
           borderRadius: '0 0 18px 18px',
-          boxShadow: isExpanded ? '0 20px 48px rgba(0,0,0,0.35)' : 'none',
+          boxShadow: isExpanded
+            ? `0 12px 28px rgba(0,0,0,0.22), 0 0 24px ${isFocused ? colors.glowColor : 'transparent'}`
+            : 'none',
         }}
       >
         <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">
