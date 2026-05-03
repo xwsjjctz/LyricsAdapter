@@ -333,8 +333,13 @@ const App: React.FC = () => {
     return (await qqMusicApi.getLyrics(songmid)) || undefined;
   };
 
-  // Helper: fetch cover as base64 data URL
+  // Helper: fetch cover as base64 data URL (via IPC to avoid CORS)
   const fetchCoverBase64 = async (coverUrl: string): Promise<string | undefined> => {
+    if (window.electron?.fetchCoverBase64) {
+      const r = await window.electron.fetchCoverBase64(coverUrl);
+      if (r?.success && r.dataUrl) return r.dataUrl;
+    }
+    // Fallback: direct fetch (works with CORS bypass in Electron)
     try {
       const resp = await fetch(coverUrl);
       if (!resp.ok) return undefined;

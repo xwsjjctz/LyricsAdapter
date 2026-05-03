@@ -163,6 +163,10 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('get-qq-music-lyrics', songmid, cookieString);
   },
 
+  fetchCoverBase64: async (coverUrl: string) => {
+    return ipcRenderer.invoke('fetch-cover-base64', coverUrl);
+  },
+
   // Select download folder
   selectDownloadFolder: async () => {
     return ipcRenderer.invoke('select-download-folder');

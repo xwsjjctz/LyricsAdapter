@@ -34,6 +34,7 @@ interface QQMusicElectronAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   onDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
   offDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
+  fetchCoverBase64?: (coverUrl: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
 }
 
 declare global {

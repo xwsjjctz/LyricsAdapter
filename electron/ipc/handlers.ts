@@ -741,4 +741,22 @@ export function registerQQMusicHandlers(): void {
       };
     }
   });
+
+  ipcMain.handle('fetch-cover-base64', async (_event, coverUrl: string) => {
+    try {
+      const response = await fetch(coverUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://y.qq.com/',
+        },
+      });
+      if (!response.ok) return { success: false, error: `HTTP ${response.status}` };
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const mime = response.headers.get('content-type') || 'image/jpeg';
+      return { success: true, dataUrl: `data:${mime};base64,${buffer.toString('base64')}` };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
 }
