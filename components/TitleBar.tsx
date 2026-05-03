@@ -126,8 +126,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         <div className="w-[55px] h-full" />
-        {!isFullScreen && (
-        <div className="h-full flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="h-full flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag', visibility: isFullScreen ? 'hidden' : 'visible' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
             className="w-12 h-12 flex items-center justify-center"
@@ -160,7 +159,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             </div>
           </button>
         </div>
-        )}
         <div className="flex-1 flex justify-center items-start" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
           {searchBoxNode}
         </div>
