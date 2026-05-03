@@ -32,7 +32,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   cloudTrackCount,
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
-  const isBrowseView = currentView === ViewMode.BROWSE;
   const isSettingsView = currentView === ViewMode.SETTINGS;
   const isThemeView = currentView === ViewMode.THEME;
 
@@ -168,31 +167,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             {/* 分隔 */}
             <div className="my-1 mx-4 border-t" style={{ borderColor: colors.borderLight }} />
-
-            <button
-              onClick={() => onNavigate(ViewMode.BROWSE)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-              style={{
-                backgroundColor: isBrowseView ? `${colors.primary}33` : 'transparent',
-                color: isBrowseView ? colors.primary : textSecondary,
-                boxShadow: isBrowseView ? `0 0 20px ${colors.glowColor}` : 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (!isBrowseView) {
-                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                  e.currentTarget.style.color = textPrimary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isBrowseView) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = textSecondary;
-                }
-              }}
-            >
-              <span className={`material-symbols-outlined text-xl ${isBrowseView ? 'fill-1' : ''}`}>explore</span>
-              <span className="text-sm font-semibold">{i18n.t('sidebar.browse')}</span>
-            </button>
 
             <button
               onClick={onImportClick}
