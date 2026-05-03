@@ -440,6 +440,24 @@ const App: React.FC = () => {
         ...(coverBase64 != null && { coverUrl: coverBase64 }),
       }));
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 100 } }));
+
+      // Add track to cloud slot immediately
+      const cloudTrack: Track = {
+        id: `webdav-${webdavPath}`,
+        title: song.songname,
+        artist: singer,
+        album: song.albumname || 'Unknown Album',
+        duration: song.interval || 0,
+        audioUrl: '',
+        source: 'webdav',
+        webdavPath,
+        fileName,
+        fileSize: readResult.data.byteLength,
+        ...(lyrics != null && { lyrics }),
+        ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
+      };
+      mergeCloudTracks([cloudTrack], [], []);
+
       notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
       setTimeout(() => setQqProgress(prev => { const n = { ...prev }; delete n[songmid]; return n; }), 3000);
     } catch (err: any) {
@@ -449,7 +467,7 @@ const App: React.FC = () => {
     } finally {
       if (activeQqSongRef.current === songmid) activeQqSongRef.current = null;
     }
-  }, [setViewMode]);
+  }, [setViewMode, mergeCloudTracks]);
 
   useShortcuts({
     viewMode,
