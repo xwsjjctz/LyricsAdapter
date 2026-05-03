@@ -54,6 +54,9 @@ const App: React.FC = () => {
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
 
+  // QQ Music download/upload progress
+  const [qqProgress, setQqProgress] = useState<Record<string, { type: 'download' | 'upload'; percent: number }>>({});
+
   const {
     slots,
     activeSlotId,
@@ -323,68 +326,96 @@ const App: React.FC = () => {
 
   const handleQQMusicDownload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
     const downloadPath = settingsManager.getDownloadPath();
-    if (!downloadPath) {
-      setViewMode(ViewMode.SETTINGS);
-      return;
-    }
+    if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
+    const songmid = song.songmid;
+    activeQqSongRef.current = songmid;
+    setQqProgress(prev => ({ ...prev, [songmid]: { type: 'download', percent: 0 } }));
     try {
       const singer = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
       const ext = quality === 'flac' ? 'flac' : 'mp3';
       const fileName = `${singer} - ${song.songname}.${ext}`;
       const rawCookie = cookieManager.getCookie();
+      const coverUrl = song.albummid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
+        : song.coverUrl;
+      const lyricsPromise = qqMusicApi.getLyrics(song.songmid).catch(() => undefined);
       const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
       const fullPath = `${downloadPath}/${fileName}`;
       const result = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
+      const lyrics = await lyricsPromise;
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'download', percent: 80 } }));
       if (window.electron?.writeAudioMetadata) {
         await window.electron.writeAudioMetadata(result.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
+          ...(lyrics != null && { lyrics }),
+          ...(coverUrl != null && { coverUrl }),
         });
       }
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'download', percent: 100 } }));
       notify(i18n.t('notifications.downloadComplete'), song.songname, { silent: true });
+      setTimeout(() => setQqProgress(prev => { const n = { ...prev }; delete n[songmid]; return n; }), 3000);
     } catch (err: any) {
       logger.error('[App] QQ Music download failed:', err);
+      setQqProgress(prev => { const n = { ...prev }; delete n[songmid]; return n; });
       notify(i18n.t('notifications.downloadFailed'), err.message || '');
+    } finally {
+      if (activeQqSongRef.current === songmid) activeQqSongRef.current = null;
     }
   }, [setViewMode]);
 
   const handleQQMusicUpload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
-    if (!webdavClient.hasConfig()) {
-      setViewMode(ViewMode.SETTINGS);
-      return;
-    }
+    if (!webdavClient.hasConfig()) { setViewMode(ViewMode.SETTINGS); return; }
     const downloadPath = settingsManager.getDownloadPath();
-    if (!downloadPath) {
-      setViewMode(ViewMode.SETTINGS);
-      return;
-    }
+    if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
+    const songmid = song.songmid;
+    activeQqSongRef.current = songmid;
+    setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
       const ext = quality === 'flac' ? 'flac' : 'mp3';
       const fileName = `${singer} - ${song.songname}.${ext}`;
       const rawCookie = cookieManager.getCookie();
+      const coverUrl = song.albummid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
+        : song.coverUrl;
+      const lyricsPromise = qqMusicApi.getLyrics(song.songmid).catch(() => undefined);
       const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
       const fullPath = `${downloadPath}/${fileName}`;
       const dlResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
+      const lyrics = await lyricsPromise;
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 35 } }));
       if (window.electron?.writeAudioMetadata) {
         await window.electron.writeAudioMetadata(dlResult.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
+          ...(lyrics != null && { lyrics }),
+          ...(coverUrl != null && { coverUrl }),
         });
       }
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 50 } }));
       const readResult = await window.electron?.readFile?.(dlResult.filePath);
       if (!readResult?.success || !readResult.data) throw new Error('Failed to read file for upload');
       const webdavPath = `/music/${fileName}`;
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 65 } }));
       await webdavClient.uploadFile(webdavPath, readResult.data, `audio/${ext}`);
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 85 } }));
       await webdavClient.uploadMetaJson(webdavPath, generateMetaJson({
         id: `webdav-${webdavPath}`, title: song.songname, artist: singer,
         album: song.albumname || '', duration: song.interval || 0, audioUrl: '',
         source: 'webdav', webdavPath, fileName, fileSize: readResult.data.byteLength,
+        ...(lyrics != null && { lyrics }),
+        ...(coverUrl != null && { coverUrl }),
       }));
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 100 } }));
       notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
+      setTimeout(() => setQqProgress(prev => { const n = { ...prev }; delete n[songmid]; return n; }), 3000);
     } catch (err: any) {
       logger.error('[App] QQ Music upload failed:', err);
+      setQqProgress(prev => { const n = { ...prev }; delete n[songmid]; return n; });
       notify(i18n.t('notifications.uploadFailed'), err.message || '');
+    } finally {
+      if (activeQqSongRef.current === songmid) activeQqSongRef.current = null;
     }
   }, [setViewMode]);
 
@@ -412,6 +443,18 @@ const App: React.FC = () => {
     currentTime,
     duration: currentTrack?.duration || 0
   });
+
+  // QQ Music download progress listener
+  const activeQqSongRef = useRef<string | null>(null);
+  useEffect(() => {
+    const handler = (data: { downloaded: number; total: number; progress: number }) => {
+      const songmid = activeQqSongRef.current;
+      if (!songmid) return;
+      setQqProgress(prev => ({ ...prev, [songmid]: { type: 'download', percent: Math.round(data.progress) } }));
+    };
+    window.electron?.onDownloadProgress?.(handler);
+    return () => { window.electron?.offDownloadProgress?.(handler); };
+  }, []);
 
   useEffect(() => {
     const initDesktopAPI = async () => {
@@ -512,6 +555,7 @@ const App: React.FC = () => {
           onNavigateToTrack={handleSearchNavigate}
           onQQMusicDownload={handleQQMusicDownload}
           onQQMusicUpload={handleQQMusicUpload}
+          qqProgress={qqProgress}
         />
         <div className="flex flex-1">
           <Sidebar

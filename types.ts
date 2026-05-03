@@ -78,6 +78,7 @@ export interface MetaJson {
   lastModified: string;     // ISO 8601
   lyrics?: string;
   syncedLyrics?: SyncedLyricLine[];
+  coverUrl?: string;
   coverHash?: string;
   coverMime?: string;
 }

@@ -48,9 +48,10 @@ interface TitleBarProps {
   onNavigateToTrack: (track: Track) => void;
   onQQMusicDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
   onQQMusicUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
+  qqProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
 }
 
-const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, localTracks, cloudTracks, onNavigateToTrack, onQQMusicDownload, onQQMusicUpload }) => {
+const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, localTracks, cloudTracks, onNavigateToTrack, onQQMusicDownload, onQQMusicUpload, qqProgress }) => {
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
   // Force re-render when language changes
@@ -112,6 +113,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
       onNavigateToTrack={onNavigateToTrack}
       onQQMusicDownload={onQQMusicDownload}
       onQQMusicUpload={onQQMusicUpload}
+      qqProgress={qqProgress}
     />
   );
 

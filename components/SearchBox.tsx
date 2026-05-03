@@ -24,6 +24,7 @@ interface SearchBoxProps {
   onNavigateToTrack: (track: Track) => void;
   onQQMusicDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
   onQQMusicUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
+  qqProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
 }
 
 const SearchBox: React.FC<SearchBoxProps> = ({
@@ -34,6 +35,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   onNavigateToTrack,
   onQQMusicDownload,
   onQQMusicUpload,
+  qqProgress,
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -271,6 +273,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                   ) : (
                     qqResults.map((song, idx) => (
                       <QQRow key={song.songmid} song={song} isSelected={selectedIndex === resultOffset + idx} colors={colors}
+                        {...(qqProgress[song.songmid] != null ? { progress: qqProgress[song.songmid] } : {})}
                         openQualityId={openQualityId} openUploadQualityId={openUploadQualityId}
                         onToggleQuality={id => setOpenQualityId(p => p === id ? null : id)}
                         onToggleUploadQuality={id => setOpenUploadQualityId(p => p === id ? null : id)}
@@ -323,11 +326,12 @@ const ResultRow: React.FC<{
 // Result row for QQ Music
 const QQRow: React.FC<{
   song: QQMusicSong; isSelected: boolean; colors: ThemeConfig['colors'];
+  progress?: { type: 'download' | 'upload'; percent: number };
   openQualityId: string | null; openUploadQualityId: string | null;
   onToggleQuality: (id: string) => void; onToggleUploadQuality: (id: string) => void;
   onDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
   onUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-}> = ({ song, isSelected, colors, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
+}> = ({ song, isSelected, colors, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
   <div
     className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border"
     style={{ backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent', borderColor: isSelected ? `${colors.warning}44` : 'transparent' }}
@@ -349,7 +353,19 @@ const QQRow: React.FC<{
     <span className="text-[11px] tabular-nums mr-1 flex-shrink-0" style={{ color: colors.textMuted }}>
       {song.interval ? `${Math.floor(song.interval / 60)}:${Math.floor(song.interval % 60).toString().padStart(2, '0')}` : '--:--'}
     </span>
-    {/* Download */}
+    {/* Progress bar or action buttons */}
+    {progress ? (
+      <div className="flex items-center gap-1.5 mr-1" style={{ minWidth: 72 }}>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
+          <div className="h-full rounded-full transition-all duration-300" style={{
+            width: `${progress.percent}%`,
+            backgroundColor: progress.type === 'upload' ? colors.accent : colors.primary,
+          }} />
+        </div>
+        <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>{progress.percent}%</span>
+      </div>
+    ) : (
+    <>{/* Download */}
     <div className="relative">
       <button onClick={e => { e.stopPropagation(); onToggleQuality(song.songmid); }}
         className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
@@ -395,6 +411,8 @@ const QQRow: React.FC<{
         </div>
       )}
     </div>
+    </>
+    )}
   </div>
 );
 

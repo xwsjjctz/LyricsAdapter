@@ -11,6 +11,7 @@ export function generateMetaJson(track: Track): MetaJson {
     lastModified: new Date().toISOString(),
     ...(track.lyrics != null && { lyrics: track.lyrics }),
     ...(track.syncedLyrics != null && { syncedLyrics: track.syncedLyrics }),
+    ...(track.coverUrl != null && { coverUrl: track.coverUrl }),
     ...(track.coverUrl != null && { coverHash: hashString(track.coverUrl) }),
   };
 }
@@ -39,5 +40,6 @@ export function metaJsonToTrack(meta: MetaJson, audioPath: string): Track {
     fileSize: meta.fileSize,
     ...(meta.lyrics != null && { lyrics: meta.lyrics }),
     ...(meta.syncedLyrics != null && { syncedLyrics: meta.syncedLyrics }),
+    ...(meta.coverUrl != null && { coverUrl: meta.coverUrl }),
   };
 }
