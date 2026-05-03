@@ -33,7 +33,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isBrowseView = currentView === ViewMode.BROWSE;
-  const isMetadataView = currentView === ViewMode.METADATA;
   const isSettingsView = currentView === ViewMode.SETTINGS;
   const isThemeView = currentView === ViewMode.THEME;
 
@@ -193,31 +192,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <span className={`material-symbols-outlined text-xl ${isBrowseView ? 'fill-1' : ''}`}>explore</span>
               <span className="text-sm font-semibold">{i18n.t('sidebar.browse')}</span>
-            </button>
-
-            <button
-              onClick={() => onNavigate(ViewMode.METADATA)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-              style={{
-                backgroundColor: isMetadataView ? `${colors.primary}33` : 'transparent',
-                color: isMetadataView ? colors.primary : textSecondary,
-                boxShadow: isMetadataView ? `0 0 20px ${colors.glowColor}` : 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (!isMetadataView) {
-                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                  e.currentTarget.style.color = textPrimary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isMetadataView) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = textSecondary;
-                }
-              }}
-            >
-              <span className={`material-symbols-outlined text-xl ${isMetadataView ? 'fill-1' : ''}`}>description</span>
-              <span className="text-sm font-semibold">{i18n.t('sidebar.metadata')}</span>
             </button>
 
             <button

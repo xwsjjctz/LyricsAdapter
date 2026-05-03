@@ -9,6 +9,7 @@ import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
 import { registerCommand } from '../services/debugCommands';
 import TrackCover from './TrackCover';
+import MetadataEditorPopup from './MetadataEditorPopup';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -20,6 +21,7 @@ interface LibraryViewProps {
   onDropFiles?: (files: File[]) => void;
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
   onReorderTracks?: (fromIndex: number, toIndex: number) => void;
+  onUpdateTrack?: (track: Track) => void;
   isFocusMode?: boolean;
   savedScrollPosition?: number;
   onScrollPositionChange?: (position: number) => void;
@@ -46,6 +48,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onDropFiles,
   onDropFilePaths,
   onReorderTracks,
+  onUpdateTrack,
   isFocusMode = false,
   savedScrollPosition = 0,
   onScrollPositionChange,
@@ -152,6 +155,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
@@ -1082,6 +1086,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              setEditingTrack(track);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                            style={{ color: colors.textMuted }}
+                            title={i18n.t('sidebar.metadata')}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
+                          >
+                            <span className="material-symbols-outlined text-lg">description</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
                               confirmDelete(track.id);
                             }}
                             className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
@@ -1275,6 +1292,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                <button
                                  onClick={(e) => {
                                    e.stopPropagation();
+                                   setEditingTrack(track);
+                                 }}
+                                 className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                                 style={{ color: colors.textMuted }}
+                                 title={i18n.t('sidebar.metadata')}
+                                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
+                                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
+                               >
+                                 <span className="material-symbols-outlined text-lg">description</span>
+                               </button>
+                               <button
+                                 onClick={(e) => {
+                                   e.stopPropagation();
                                    confirmDelete(track.id);
                                  }}
                                  className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
@@ -1384,6 +1414,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Metadata editor popup */}
+      {editingTrack && (
+        <MetadataEditorPopup
+          track={editingTrack}
+          onUpdateTrack={(updatedTrack) => {
+            onUpdateTrack?.(updatedTrack);
+            setEditingTrack(null);
+          }}
+          onClose={() => setEditingTrack(null)}
+        />
       )}
     </div>
   );

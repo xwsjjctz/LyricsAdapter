@@ -602,6 +602,7 @@ const App: React.FC = () => {
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleDropFilePaths}
                 onReorderTracks={handleReorderTracks}
+                onUpdateTrack={(track) => setActiveTracks(prev => prev.map(t => t.id === track.id ? track : t))}
                 isFocusMode={isFocusMode}
                 savedScrollPosition={activeSlot.scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
