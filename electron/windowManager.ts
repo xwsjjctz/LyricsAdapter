@@ -47,7 +47,7 @@ export async function createWindow(): Promise<BrowserWindow> {
   const session = win.webContents.session;
 
   const filter = {
-    urls: ['https://*.y.qq.com/*', 'https://*.qq.com/*', 'https://*.qqmusic.qq.com/*']
+    urls: ['https://*.y.qq.com/*', 'https://*.qq.com/*', 'https://*.qqmusic.qq.com/*', 'https://*.gtimg.cn/*']
   };
 
   session.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
