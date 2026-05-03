@@ -170,14 +170,16 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           height: '42px',
           background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
           backdropFilter: 'blur(16px)',
-          border: `1px solid ${isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+          border: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
           borderRadius: isExpanded ? '0px' : '0 0 18px 18px',
-          borderBottom: isExpanded ? `1px solid ${colors.borderLight}` : undefined,
-          boxShadow: `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)`,
-          transition: 'border-radius 0.3s ease',
+          borderBottom: isExpanded ? `1px solid ${isFocused ? `${colors.primary}44` : colors.borderLight}` : undefined,
+          boxShadow: isFocused
+            ? `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 28px ${colors.glowColor}`
+            : `0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)`,
+          transition: 'border-color 0.35s ease, box-shadow 0.35s ease, border-radius 0.3s ease',
         }}
       >
-        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none" style={{ color: colors.textMuted }}>search</span>
+        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none transition-colors duration-350" style={{ color: isFocused ? colors.primary : colors.textMuted }}>search</span>
         <input
           ref={inputRef}
           type="text"
