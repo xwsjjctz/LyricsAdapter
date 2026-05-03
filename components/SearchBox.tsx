@@ -170,20 +170,18 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           height: '42px',
           background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
           backdropFilter: 'blur(16px)',
-          borderTop: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
-          borderLeft: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
-          borderRight: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+          borderTop: `1px solid ${colors.primary}66`,
+          borderLeft: `1px solid ${colors.primary}66`,
+          borderRight: `1px solid ${colors.primary}66`,
           borderBottom: isExpanded
             ? `1px solid ${colors.borderLight}`
-            : `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+            : `1px solid ${colors.primary}66`,
           borderRadius: isExpanded ? '0px' : '0 0 18px 18px',
-          boxShadow: isFocused
-            ? `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 28px ${colors.glowColor}`
-            : `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)`,
+          boxShadow: `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 28px ${colors.glowColor}`,
           transition: 'border-color 0.35s ease, box-shadow 0.35s ease, border-radius 0.3s ease',
         }}
       >
-        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none transition-colors duration-350" style={{ color: isFocused ? colors.primary : colors.textMuted }}>search</span>
+        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none transition-colors duration-350" style={{ color: colors.primary }}>search</span>
         <input
           ref={inputRef}
           type="text"
@@ -216,11 +214,11 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           opacity: isExpanded ? 1 : 0,
           background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
           backdropFilter: 'blur(20px)',
-          border: isExpanded ? `1px solid ${isFocused ? `${colors.primary}66` : colors.borderLight}` : '1px solid transparent',
+          border: isExpanded ? `1px solid ${colors.primary}66` : '1px solid transparent',
           borderTop: 'none',
           borderRadius: '0 0 18px 18px',
           boxShadow: isExpanded
-            ? `0 12px 28px rgba(0,0,0,0.22), 0 0 24px ${isFocused ? colors.glowColor : 'transparent'}`
+            ? `0 12px 28px rgba(0,0,0,0.22), 0 0 24px ${colors.glowColor}`
             : 'none',
         }}
       >
