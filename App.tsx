@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPIAsync, getDesktopAPI, isDesktop } from './services/desktopAdapter';
+import { parseLRCLyrics } from './services/metadataService';
 import { metadataCacheService } from './services/metadataCacheService';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
@@ -454,6 +455,10 @@ const App: React.FC = () => {
         fileName,
         fileSize: readResult.data.byteLength,
         ...(lyrics != null && { lyrics }),
+        ...(lyrics != null ? (() => {
+          const parsed = parseLRCLyrics(lyrics);
+          return parsed.syncedLyrics != null ? { syncedLyrics: parsed.syncedLyrics } : {};
+        })() : {}),
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);
