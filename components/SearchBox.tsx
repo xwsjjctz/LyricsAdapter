@@ -170,9 +170,13 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           height: '42px',
           background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
           backdropFilter: 'blur(16px)',
-          border: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+          borderTop: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+          borderLeft: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+          borderRight: `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
+          borderBottom: isExpanded
+            ? `1px solid ${colors.borderLight}`
+            : `1px solid ${isFocused ? `${colors.primary}66` : isWindowFocused ? `${colors.borderHover}66` : `${colors.borderLight}44`}`,
           borderRadius: isExpanded ? '0px' : '0 0 18px 18px',
-          borderBottom: isExpanded ? `1px solid ${colors.borderLight}` : undefined,
           boxShadow: isFocused
             ? `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 28px ${colors.glowColor}`
             : `0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)`,
