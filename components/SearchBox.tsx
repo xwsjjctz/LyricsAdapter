@@ -37,7 +37,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [hasTyped, setHasTyped] = useState(false);
   const [qqResults, setQqResults] = useState<QQMusicSong[]>([]);
   const [qqLoading, setQqLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -137,11 +136,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     }
   }, [isExpanded, totalItems, selectedIndex, filteredLocal, filteredCloud, onNavigateToTrack]);
 
-  // Track whether user has ever typed in this focus session
-  useEffect(() => { if (query.length > 0) setHasTyped(true); }, [query.length]);
-  useEffect(() => { if (!isFocused) setHasTyped(false); }, [isFocused]);
-  const showClear = isFocused && hasTyped;
-
   const collapse = () => { setIsFocused(false); setQuery(''); setSelectedIndex(-1); };
 
   const handleFocus = () => setIsFocused(true);
@@ -197,7 +191,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           className="w-full h-full pl-11 pr-4 text-sm font-medium bg-transparent focus:outline-none"
           style={{ color: isWindowFocused ? colors.textPrimary : colors.textSecondary }}
         />
-        {showClear && (
+        {query && (
           <button
             onClick={collapse}
             className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full transition-colors"
