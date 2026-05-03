@@ -324,6 +324,30 @@ const App: React.FC = () => {
     setIsPlaying(true);
   }, [activeSlotId, slots.local.tracks, slots.cloud.tracks, selectTrack, setActiveScrollPosition, audioRef, isPlaying, setIsPlaying, setActiveCurrentTime, updateSlot, switchTo]);
 
+  // Helper: fetch lyrics via IPC first, fallback to direct API
+  const fetchLyrics = async (songmid: string, cookie: string): Promise<string | undefined> => {
+    if (window.electron?.getQQMusicLyrics) {
+      const r = await window.electron.getQQMusicLyrics(songmid, cookie);
+      if (r?.success && r.lyrics) return r.lyrics;
+    }
+    return (await qqMusicApi.getLyrics(songmid)) || undefined;
+  };
+
+  // Helper: fetch cover as base64 data URL
+  const fetchCoverBase64 = async (coverUrl: string): Promise<string | undefined> => {
+    try {
+      const resp = await fetch(coverUrl);
+      if (!resp.ok) return undefined;
+      const blob = await resp.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(undefined);
+        reader.readAsDataURL(blob);
+      });
+    } catch { return undefined; }
+  };
+
   const handleQQMusicDownload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
     const downloadPath = settingsManager.getDownloadPath();
     if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
@@ -338,12 +362,13 @@ const App: React.FC = () => {
       const coverUrl = song.albummid
         ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
         : song.coverUrl;
-      const lyricsPromise = qqMusicApi.getLyrics(song.songmid).catch(() => undefined);
-      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const [lyrics, { url }] = await Promise.all([
+        fetchLyrics(song.songmid, rawCookie),
+        qqMusicApi.getMusicUrl(song.songmid, quality),
+      ]);
       const fullPath = `${downloadPath}/${fileName}`;
       const result = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
-      const lyrics = await lyricsPromise;
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'download', percent: 80 } }));
       if (window.electron?.writeAudioMetadata) {
         await window.electron.writeAudioMetadata(result.filePath, {
@@ -379,18 +404,20 @@ const App: React.FC = () => {
       const coverUrl = song.albummid
         ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
         : song.coverUrl;
-      const lyricsPromise = qqMusicApi.getLyrics(song.songmid).catch(() => undefined);
-      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const [lyrics, { url }, coverBase64] = await Promise.all([
+        fetchLyrics(song.songmid, rawCookie),
+        qqMusicApi.getMusicUrl(song.songmid, quality),
+        coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
+      ]);
       const fullPath = `${downloadPath}/${fileName}`;
       const dlResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
-      const lyrics = await lyricsPromise;
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 35 } }));
       if (window.electron?.writeAudioMetadata) {
         await window.electron.writeAudioMetadata(dlResult.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
           ...(lyrics != null && { lyrics }),
-          ...(coverUrl != null && { coverUrl }),
+          ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
         });
       }
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 50 } }));
@@ -405,7 +432,7 @@ const App: React.FC = () => {
         album: song.albumname || '', duration: song.interval || 0, audioUrl: '',
         source: 'webdav', webdavPath, fileName, fileSize: readResult.data.byteLength,
         ...(lyrics != null && { lyrics }),
-        ...(coverUrl != null && { coverUrl }),
+        ...(coverBase64 != null && { coverUrl: coverBase64 }),
       }));
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 100 } }));
       notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
