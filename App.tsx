@@ -428,7 +428,7 @@ const App: React.FC = () => {
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 50 } }));
       const readResult = await window.electron?.readFile?.(dlResult.filePath);
       if (!readResult?.success || !readResult.data) throw new Error('Failed to read file for upload');
-      const webdavPath = `/music/${fileName}`;
+      const webdavPath = `/${fileName}`;
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 65 } }));
       await webdavClient.uploadFile(webdavPath, readResult.data, `audio/${ext}`);
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 85 } }));
