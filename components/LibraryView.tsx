@@ -7,6 +7,8 @@ import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
+import { parseMetadataFromBuffer } from '../services/metadataService';
+import { generateMetaJson } from '../services/webdavMetaService';
 import { registerCommand } from '../services/debugCommands';
 import TrackCover from './TrackCover';
 import MetadataEditorPopup from './MetadataEditorPopup';
@@ -141,9 +143,82 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       'Manually trigger WebDAV sync'
     );
 
+    const unregister3 = registerCommand(
+      'scan_webdav_audio',
+      async () => {
+        if (!webdavClient.hasConfig()) {
+          logger.warn('[LibraryView] WebDAV not configured');
+          return;
+        }
+        logger.info('[scan_webdav] Listing WebDAV files...');
+        const files = await webdavClient.listFiles('/');
+        const audioFiles = files.filter(f => !f.isDirectory);
+        logger.info(`[scan_webdav] Found ${audioFiles.length} audio files`);
+
+        let scanned = 0;
+        let skipped = 0;
+        let generated = 0;
+        const RANGE_SIZE = 1048576; // 1MB
+
+        for (const file of audioFiles) {
+          // Check if meta.json already exists
+          const existingMeta = await webdavClient.fetchMetaJson(file.path);
+          if (existingMeta) {
+            skipped++;
+            logger.debug(`[scan_webdav] Skip (has meta.json): ${file.name}`);
+            continue;
+          }
+
+          logger.info(`[scan_webdav] Scanning: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+          try {
+            const buffer = await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+            if (!buffer) {
+              logger.warn(`[scan_webdav] Failed to fetch range for: ${file.name}`);
+              continue;
+            }
+
+            const parsed = parseMetadataFromBuffer(buffer, file.name);
+            const track: Track = {
+              id: `webdav-${file.path}`,
+              title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
+              artist: parsed.artist || 'Unknown Artist',
+              album: parsed.album || 'Unknown Album',
+              duration: parsed.duration || 0,
+              audioUrl: '',
+              source: 'webdav',
+              webdavPath: file.path,
+              fileName: file.name,
+              fileSize: file.size,
+              ...(parsed.lyrics != null && { lyrics: parsed.lyrics }),
+              ...(parsed.syncedLyrics != null && { syncedLyrics: parsed.syncedLyrics }),
+              ...(parsed.coverUrl != null && { coverUrl: parsed.coverUrl }),
+            };
+
+            const metaJson = generateMetaJson(track);
+            await webdavClient.uploadMetaJson(file.path, metaJson);
+            generated++;
+            logger.info(`[scan_webdav] Generated meta.json: ${file.name} — ${parsed.title} / ${parsed.artist} / ${parsed.album}`);
+          } catch (err: any) {
+            logger.error(`[scan_webdav] Failed: ${file.name} — ${err.message}`);
+          }
+          scanned++;
+        }
+
+        logger.info(`[scan_webdav] Done: scanned=${scanned} skipped=${skipped} generated=${generated}`);
+
+        // Reload cloud tracks
+        if (generated > 0) {
+          const result = await loadWebDAVFiles();
+          applyDiffResult(result);
+        }
+      },
+      'Scan WebDAV audio files, parse metadata from 1MB header, generate missing meta.json'
+    );
+
     return () => {
       unregister1();
       unregister2();
+      unregister3();
     };
   }, [clearWebdavCache, onLoadCloudTracks, onMergeCloudTracks, loadWebDAVFiles, applyDiffResult]);
 
