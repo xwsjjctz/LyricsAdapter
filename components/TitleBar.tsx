@@ -178,14 +178,14 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           userSelect: 'none'
         } as React.CSSProperties}
       >
-        {/* 左侧拖动 + 搜索框 */}
-        <div className="flex-1 h-full flex items-start justify-center">
+        {/* 搜索框 - 相对于完整 titlebar 宽度居中 */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-start justify-center" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
           {searchBoxNode}
         </div>
 
         {/* 右侧窗口控制按钮 */}
         <div
-          className="flex items-center h-full"
+          className="flex items-center h-full ml-auto"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           <button
