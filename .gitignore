@@ -92,3 +92,5 @@ problems.md
 /.opencode
 /binaries
 /binaries/*
+/docs
+/docs/*
