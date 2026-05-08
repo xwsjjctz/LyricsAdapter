@@ -81,10 +81,6 @@ problems.md
 /talk
 /docs/*
 /docs
-/binaries/darwin-arm64/*
-/binaries/darwin-x64/*
-/binaries/linux-x64/*
-/binaries/win32-x64/*
 
 /reserve
 /reserve/*
@@ -94,3 +90,5 @@ problems.md
 
 /openspec
 /.opencode
+/binaries
+/binaries/*
