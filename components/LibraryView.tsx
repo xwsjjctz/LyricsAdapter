@@ -921,11 +921,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 固定的标题部分 */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold mb-2 flex items-baseline gap-3" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
             {i18n.t('library.title')}
-            <span className="text-lg font-normal opacity-40" style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-              {dataSource === 'local' ? i18n.t('sidebar.local') : i18n.t('sidebar.cloud')}
-            </span>
           </h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
             {importProgress ? (
