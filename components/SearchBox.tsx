@@ -150,7 +150,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col"
+      className="relative"
       style={{ width: '360px' }}
     >
       {/* Input bar */}
@@ -196,10 +196,15 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         )}
       </div>
 
-      {/* Results panel (connected, animated expand) */}
+      {/* Results panel (absolute定位，不占文档流，视觉上与输入栏无缝连接) */}
       <div
         className="overflow-hidden transition-all duration-350 ease-out"
         style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: '100%',
+          zIndex: 50,
           maxHeight: isExpanded ? 'min(55vh, 480px)' : '0px',
           opacity: isExpanded ? 1 : 0,
           background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
