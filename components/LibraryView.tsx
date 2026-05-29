@@ -37,6 +37,7 @@ interface LibraryViewProps {
   onCategoryChange: (selection: string | null) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
+  searchBox?: React.ReactNode;
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -63,6 +64,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onCategoryChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
+  searchBox,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -949,6 +951,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {searchBox}
           {isEditMode && (
             <div className="flex items-center gap-2">
               <button
