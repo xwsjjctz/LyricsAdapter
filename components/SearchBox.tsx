@@ -150,22 +150,25 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative"
-      style={{
-        width: '360px',
-        transition: 'opacity 0.3s ease',
-      }}
+      className="flex flex-col"
+      style={{ width: '360px' }}
     >
       {/* Input bar */}
       <div
-        className="flex items-center relative"
+        className="flex items-center shrink-0 relative"
         style={{
           height: '36px',
-          borderRadius: '12px',
           background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
           backdropFilter: 'blur(16px)',
-          border: `1px solid ${colors.primary}66`,
+          borderTop: `1px solid ${colors.primary}66`,
+          borderLeft: `1px solid ${colors.primary}66`,
+          borderRight: `1px solid ${colors.primary}66`,
+          borderBottom: isExpanded
+            ? `1px solid ${colors.borderLight}`
+            : `1px solid ${colors.primary}66`,
+          borderRadius: isExpanded ? '12px 12px 0 0' : '12px',
           boxShadow: `0 4px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 20px ${colors.glowColor}`,
+          transition: 'border-color 0.25s ease, border-radius 0.25s ease',
         }}
       >
         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: colors.primary }}>search</span>
@@ -193,21 +196,23 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         )}
       </div>
 
-      {/* Results panel (absolute, floats over content) */}
-      {isExpanded && (
-        <div
-          className="absolute left-0 right-0 overflow-hidden z-50"
-          style={{
-            top: 'calc(100% + 6px)',
-            borderRadius: '12px',
-            maxHeight: 'min(55vh, 480px)',
-            background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${colors.primary}66`,
-            boxShadow: `0 12px 28px rgba(0,0,0,0.22), 0 0 24px ${colors.glowColor}`,
-          }}
-        >
-          <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">
+      {/* Results panel (connected, animated expand) */}
+      <div
+        className="overflow-hidden transition-all duration-350 ease-out"
+        style={{
+          maxHeight: isExpanded ? 'min(55vh, 480px)' : '0px',
+          opacity: isExpanded ? 1 : 0,
+          background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
+          backdropFilter: 'blur(20px)',
+          border: isExpanded ? `1px solid ${colors.primary}66` : '1px solid transparent',
+          borderTop: 'none',
+          borderRadius: '0 0 12px 12px',
+          boxShadow: isExpanded
+            ? `0 12px 28px rgba(0,0,0,0.22), 0 0 24px ${colors.glowColor}`
+            : 'none',
+        }}
+      >
+        <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">
           {!hasAny ? (
             <div className="px-5 py-10 text-center" style={{ color: colors.textMuted }}>
               <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
@@ -271,8 +276,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           )}
         </div>
       </div>
-    )}
-  </div>
+    </div>
   );
 };
 
