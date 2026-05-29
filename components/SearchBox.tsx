@@ -196,17 +196,19 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         )}
       </div>
 
-      {/* Results panel (absolute定位，不占文档流，视觉上与输入栏无缝连接) */}
+      {/* Results panel (absolute定位，不占文档流，scaleY+opacity过渡无延迟) */}
       <div
-        className="overflow-hidden transition-all duration-350 ease-out"
+        className="overflow-hidden"
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
           top: '100%',
           zIndex: 50,
-          maxHeight: isExpanded ? 'min(55vh, 480px)' : '0px',
+          transform: isExpanded ? 'scaleY(1)' : 'scaleY(0)',
+          transformOrigin: 'top center',
           opacity: isExpanded ? 1 : 0,
+          transition: 'transform 0.25s ease, opacity 0.2s ease',
           background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
           backdropFilter: 'blur(20px)',
           border: isExpanded ? `1px solid ${colors.primary}66` : '1px solid transparent',
