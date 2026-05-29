@@ -101,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         borderRight: `1px solid ${colors.borderLight}`,
       }}
     >
-      <div className="px-6 flex flex-col gap-6 pt-6">
+      <div className="px-6 flex flex-col gap-6 pt-0">
         <div>
           <nav className="flex flex-col gap-2">
             {/* LIBRARY 容器 */}
