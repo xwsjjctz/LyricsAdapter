@@ -674,20 +674,18 @@ const App: React.FC = () => {
             onChange={handleFileInputChange}
           />
 
-          {/* Persistent search bar across all views */}
-          <div className="shrink-0 flex justify-center px-10 pt-2 pb-0">
-            <div className="w-full max-w-[480px]">
-              <SearchBox
-                isFocusMode={isFocusMode}
-                isWindowFocused={isWindowFocused}
-                localTracks={slots.local.tracks}
-                cloudTracks={slots.cloud.tracks}
-                onNavigateToTrack={handleSearchNavigate}
-                onQQMusicDownload={handleQQMusicDownload}
-                onQQMusicUpload={handleQQMusicUpload}
-                qqProgress={qqProgress}
-              />
-            </div>
+          {/* Persistent search bar — 与 view 标题左对齐 */}
+          <div className="shrink-0 pl-10 pt-2 pb-1">
+            <SearchBox
+              isFocusMode={isFocusMode}
+              isWindowFocused={isWindowFocused}
+              localTracks={slots.local.tracks}
+              cloudTracks={slots.cloud.tracks}
+              onNavigateToTrack={handleSearchNavigate}
+              onQQMusicDownload={handleQQMusicDownload}
+              onQQMusicUpload={handleQQMusicUpload}
+              qqProgress={qqProgress}
+            />
           </div>
 
           <div className="flex-1 p-10 overflow-hidden pt-2">
