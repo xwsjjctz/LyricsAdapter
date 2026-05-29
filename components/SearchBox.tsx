@@ -17,8 +17,7 @@ const qualityOptions = [
 ];
 
 interface SearchBoxProps {
-  isFocusMode: boolean;
-  isWindowFocused: boolean;
+  isWindowFocused?: boolean;
   localTracks: Track[];
   cloudTracks: Track[];
   onNavigateToTrack: (track: Track) => void;
@@ -28,7 +27,6 @@ interface SearchBoxProps {
 }
 
 const SearchBox: React.FC<SearchBoxProps> = ({
-  isFocusMode,
   isWindowFocused,
   localTracks,
   cloudTracks,
@@ -58,7 +56,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
   const colors = currentTheme.colors;
   const isExpanded = isFocused && query.trim().length > 0;
-  const isHidden = Boolean(isFocusMode);
 
   // Filter local/cloud tracks
   const filteredLocal = useMemo(() => {
@@ -143,8 +140,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const handleFocus = () => setIsFocused(true);
   const handleChange = (v: string) => { setQuery(v); if (!isFocused) setIsFocused(true); };
 
-  // Reset focus when focus mode changes
-  useEffect(() => { if (isFocusMode) { setIsFocused(false); } }, [isFocusMode]);
 
   const hasLocal = filteredLocal.length > 0;
   const hasCloud = filteredCloud.length > 0;
@@ -157,9 +152,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       ref={containerRef}
       className="relative"
       style={{
-        width: isExpanded ? '380px' : '360px',
-        opacity: isHidden ? 0 : 1,
-        pointerEvents: isHidden ? 'none' : 'auto',
+        width: '360px',
         transition: 'opacity 0.3s ease',
       }}
     >

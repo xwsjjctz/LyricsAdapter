@@ -14,7 +14,6 @@ import { useImport } from './hooks/useImport';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
 import { themeManager } from './services/themeManager';
-
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
@@ -33,12 +32,10 @@ import { settingsManager } from './services/settingsManager';
 import { webdavClient } from './services/webdavClient';
 import { generateMetaJson } from './services/webdavMetaService';
 import { notify } from './services/notificationService';
-
 declare global {
   interface Window {
     __DEV__?: boolean;
   }
-
   interface ImportMeta {
     env?: {
       DEV?: boolean;
@@ -47,7 +44,6 @@ declare global {
     };
   }
 }
-
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
@@ -56,7 +52,6 @@ const App: React.FC = () => {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
-
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
     const handleBlur = () => setIsWindowFocused(false);
@@ -67,10 +62,8 @@ const App: React.FC = () => {
       window.removeEventListener('blur', handleBlur);
     };
   }, []);
-
   // QQ Music download/upload progress
   const [qqProgress, setQqProgress] = useState<Record<string, { type: 'download' | 'upload'; percent: number }>>({});
-
   const {
     slots,
     activeSlotId,
@@ -91,17 +84,13 @@ const App: React.FC = () => {
     getPersistenceData,
     restoreFromPersistence,
   } = useLibrarySlots();
-
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
-
   const [restoreTime, setRestoreTime] = useState(0);
-
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
     setAutoLocateToken(prev => prev + 1);
   }, []);
-
   const playback = usePlayback({
     tracks: activeTracks,
     setTracks: setActiveTracks,
@@ -112,7 +101,6 @@ const App: React.FC = () => {
     onTrackSwitch: handleTrackSwitch,
     initialCurrentTime: restoreTime,
   });
-
   const {
     audioRef,
     setAudioRef,
@@ -141,7 +129,6 @@ const App: React.FC = () => {
     shouldAutoPlayRef,
     waitingForCanPlayRef,
   } = playback;
-
   const prevSlotIdRef = useRef(activeSlotId);
   useEffect(() => {
     if (activeSlotId !== prevSlotIdRef.current) {
@@ -152,21 +139,17 @@ const App: React.FC = () => {
       setActiveCurrentTime(currentTime);
     }
   }, [currentTime, setActiveCurrentTime, activeSlotId]);
-
   useEffect(() => {
     updateSlot(activeSlotId, s => s.volume !== volume ? { ...s, volume } : s);
   }, [volume, activeSlotId]);
-
   useEffect(() => {
     updateSlot(activeSlotId, s => s.playbackMode !== playbackMode ? { ...s, playbackMode } : s);
   }, [playbackMode, activeSlotId]);
-
   useEffect(() => {
     if (restoreTime > 0) {
       setRestoreTime(0);
     }
   }, [activeTrackIndex, restoreTime]);
-
   const {
     fileInputRef,
     handleDesktopImport,
@@ -187,7 +170,6 @@ const App: React.FC = () => {
     persistedTimeRef,
     getPersistenceData,
   });
-
   const { handleRemoveTrack, handleRemoveMultipleTracks, handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
     setTracks: setActiveTracks,
@@ -199,7 +181,6 @@ const App: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
-
   useLibraryLoad({
     restoreFromPersistence,
     getPersistenceData,
@@ -219,14 +200,10 @@ const App: React.FC = () => {
       }
     },
   });
-
   const lastScrollPositionRef = useRef<number>(0);
-
   const handleSwitchSlot = useCallback((targetSlot: 'local' | 'cloud') => {
     if (targetSlot === activeSlotId) return;
-
     setActiveScrollPosition(lastScrollPositionRef.current);
-
     if (audioRef.current) {
       const time = audioRef.current.currentTime || 0;
       if (time > 0) {
@@ -237,51 +214,38 @@ const App: React.FC = () => {
         setIsPlaying(false);
       }
     }
-
     shouldAutoPlayRef.current = false;
     waitingForCanPlayRef.current = false;
-
     setRestoreTime(slotsRef.current[targetSlot].currentTime);
     switchTo(targetSlot);
   }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo, setActiveScrollPosition, setActiveCurrentTime]);
-
   const handleLibraryScrollPositionChange = useCallback((position: number) => {
     lastScrollPositionRef.current = position;
     setActiveScrollPosition(position);
   }, [setActiveScrollPosition]);
-
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
-
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
     if (existingTrack) {
       logger.debug('[App] Track already exists in library, skipping:', track.title);
       return;
     }
-
     const newTracks = [...slots.local.tracks, track];
     updateLocalTracks(newTracks);
     logger.debug('[App] Track added to library:', track.title);
-
     await metadataCacheService.save();
-
     const persistData = getPersistenceData();
     const libraryData = buildLibraryIndexData(newTracks, persistData);
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
   }, [slots.local.tracks, updateLocalTracks, getPersistenceData]);
-
   const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
     logger.debug(`[App] Reordering track from ${fromIndex} to ${toIndex}`);
-
     const newTracks = [...activeTracks];
     const [movedTrack] = newTracks.splice(fromIndex, 1);
-
     if (!movedTrack) return;
-
     const adjustedToIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
     newTracks.splice(adjustedToIndex, 0, movedTrack);
-
     let newCurrentTrackIndex = activeTrackIndex;
     if (activeTrackIndex === fromIndex) {
       newCurrentTrackIndex = adjustedToIndex;
@@ -290,10 +254,8 @@ const App: React.FC = () => {
     } else if (activeTrackIndex < fromIndex && activeTrackIndex > toIndex) {
       newCurrentTrackIndex = activeTrackIndex + 1;
     }
-
     setActiveTracks(newTracks);
     setActiveTrackIndex(newCurrentTrackIndex);
-
     const persistData = getPersistenceData();
     const libraryData = buildLibraryIndexData(
       activeSlotId === 'local' ? newTracks : slots.local.tracks,
@@ -302,20 +264,17 @@ const App: React.FC = () => {
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
   }, [activeTracks, activeTrackIndex, setActiveTracks, setActiveTrackIndex, activeSlotId, slots.local.tracks, getPersistenceData]);
-
   // Global search handlers
   const handleSearchNavigate = useCallback((track: Track) => {
     const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
     const targetTracks = targetSlot === 'local' ? slots.local.tracks : slots.cloud.tracks;
     const idx = targetTracks.findIndex(t => t.id === track.id);
     if (idx < 0) return;
-
     if (targetSlot === activeSlotId) {
       // Same slot: simple track selection
       selectTrack(idx);
       return;
     }
-
     // Cross-slot: save current state, update target slot directly, then switch
     setActiveScrollPosition(lastScrollPositionRef.current);
     if (audioRef.current) {
@@ -328,7 +287,6 @@ const App: React.FC = () => {
     }
     shouldAutoPlayRef.current = false;
     waitingForCanPlayRef.current = false;
-
     // Set target track index on target slot (bypass stale activeSlotId in setActiveTrackIndex)
     updateSlot(targetSlot, s => ({ ...s, currentTrackIndex: idx }));
     setRestoreTime(0);
@@ -337,7 +295,6 @@ const App: React.FC = () => {
     shouldAutoPlayRef.current = true;
     setIsPlaying(true);
   }, [activeSlotId, slots.local.tracks, slots.cloud.tracks, selectTrack, setActiveScrollPosition, audioRef, isPlaying, setIsPlaying, setActiveCurrentTime, updateSlot, switchTo]);
-
   // Helper: fetch lyrics via IPC first, fallback to direct API
   const fetchLyrics = async (songmid: string, cookie: string): Promise<string | undefined> => {
     if (window.electron?.getQQMusicLyrics) {
@@ -346,7 +303,6 @@ const App: React.FC = () => {
     }
     return (await qqMusicApi.getLyrics(songmid)) || undefined;
   };
-
   // Helper: fetch cover as base64 data URL (via IPC to avoid CORS)
   const fetchCoverBase64 = async (coverUrl: string): Promise<string | undefined> => {
     if (window.electron?.fetchCoverBase64) {
@@ -366,7 +322,6 @@ const App: React.FC = () => {
       });
     } catch { return undefined; }
   };
-
   const handleQQMusicDownload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
     const downloadPath = settingsManager.getDownloadPath();
     if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
@@ -407,7 +362,6 @@ const App: React.FC = () => {
       if (activeQqSongRef.current === songmid) activeQqSongRef.current = null;
     }
   }, [setViewMode]);
-
   const handleQQMusicUpload = useCallback(async (song: QQMusicSong, quality: '128' | '320' | 'flac') => {
     if (!webdavClient.hasConfig()) { setViewMode(ViewMode.SETTINGS); return; }
     const downloadPath = settingsManager.getDownloadPath();
@@ -454,7 +408,6 @@ const App: React.FC = () => {
         ...(coverBase64 != null && { coverUrl: coverBase64 }),
       }));
       setQqProgress(prev => ({ ...prev, [songmid]: { type: 'upload', percent: 100 } }));
-
       // Add track to cloud slot immediately
       const cloudTrack: Track = {
         id: `webdav-${webdavPath}`,
@@ -475,7 +428,6 @@ const App: React.FC = () => {
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);
-
       notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
       setTimeout(() => setQqProgress(prev => { const n = { ...prev }; delete n[songmid]; return n; }), 3000);
     } catch (err: any) {
@@ -486,7 +438,6 @@ const App: React.FC = () => {
       if (activeQqSongRef.current === songmid) activeQqSongRef.current = null;
     }
   }, [setViewMode, mergeCloudTracks]);
-
   useShortcuts({
     viewMode,
     isFocusMode,
@@ -511,7 +462,6 @@ const App: React.FC = () => {
     currentTime,
     duration: currentTrack?.duration || 0
   });
-
   // QQ Music download progress listener
   const activeQqSongRef = useRef<string | null>(null);
   useEffect(() => {
@@ -523,7 +473,6 @@ const App: React.FC = () => {
     window.electron?.onDownloadProgress?.(handler);
     return () => { window.electron?.offDownloadProgress?.(handler); };
   }, []);
-
   useEffect(() => {
     const initDesktopAPI = async () => {
       logger.debug('[App] Initializing Desktop API...');
@@ -538,9 +487,7 @@ const App: React.FC = () => {
         logger.error('[App] Failed to initialize Desktop API:', error);
       }
     };
-
     initDesktopAPI();
-
     return () => {
       logger.debug('[App] Cleaning up', activeBlobUrlsRef.current.size, 'blob URLs...');
       activeBlobUrlsRef.current.forEach(blobUrl => {
@@ -552,18 +499,15 @@ const App: React.FC = () => {
       });
       activeBlobUrlsRef.current.clear();
       logger.debug('[App] ✓ All blob URLs revoked');
-
       metadataCacheService.revokeAllBlobUrls();
     };
   }, [activeBlobUrlsRef]);
-
   useEffect(() => {
     const theme = themeManager.getCurrentTheme();
     const root = document.documentElement;
     const colors = theme.colors;
     const fonts = theme.fonts;
     const radius = theme.borderRadius;
-
     root.style.setProperty('--theme-primary', colors.primary);
     root.style.setProperty('--theme-primary-hover', colors.primaryHover);
     root.style.setProperty('--theme-primary-light', colors.primaryLight);
@@ -592,9 +536,7 @@ const App: React.FC = () => {
     root.style.setProperty('--theme-radius-lg', radius.lg);
     root.style.setProperty('--theme-radius-xl', radius.xl);
     root.style.setProperty('--theme-radius-full', radius.full);
-
     root.style.fontFamily = fonts.main;
-
     if (theme.isDark) {
       root.classList.add('theme-dark');
       root.classList.remove('theme-light');
@@ -602,14 +544,11 @@ const App: React.FC = () => {
       root.classList.add('theme-light');
       root.classList.remove('theme-dark');
     }
-
     logger.debug('[App] Theme initialized:', themeManager.getCurrentThemeId());
   }, []);
-
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
-
   return (
     <ErrorBoundary>
       <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={{
@@ -648,7 +587,6 @@ const App: React.FC = () => {
           localTrackCount={slots.local.tracks.length}
           cloudTrackCount={slots.cloud.tracks.length}
         />
-
         <main className="flex-1 flex flex-col relative overflow-hidden pt-8" style={{
           background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
         }}>
@@ -664,7 +602,6 @@ const App: React.FC = () => {
               onError={handleAudioError}
             />
           )}
-
           <input
             type="file"
             ref={fileInputRef}
@@ -673,7 +610,6 @@ const App: React.FC = () => {
             className="hidden"
             onChange={handleFileInputChange}
           />
-
           <div className="flex-1 p-10 overflow-hidden pt-2">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
@@ -724,7 +660,6 @@ const App: React.FC = () => {
                 onMergeCloudTracks={mergeCloudTracks}
 	                searchBox={
 	                  <SearchBox
-	                    isFocusMode={isFocusMode}
 	                    isWindowFocused={isWindowFocused}
 	                    localTracks={slots.local.tracks}
 	                    cloudTracks={slots.cloud.tracks}
@@ -737,7 +672,6 @@ const App: React.FC = () => {
               />
             )}
           </div>
-
           <Controls
             track={currentTrack}
             isPlaying={isPlaying}
@@ -757,7 +691,6 @@ const App: React.FC = () => {
             audioRef={audioRef}
           />
         </main>
-
         <FocusMode
           track={currentTrack}
           isVisible={isFocusMode}
@@ -779,7 +712,6 @@ const App: React.FC = () => {
         />
         </div>
       </div>
-
       {pendingNavigation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
           <div className="rounded-2xl p-6 w-96 shadow-2xl" style={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}>
@@ -834,5 +766,4 @@ const App: React.FC = () => {
     </ErrorBoundary>
   );
 };
-
 export default App;
