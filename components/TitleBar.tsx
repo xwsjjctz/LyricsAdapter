@@ -1,12 +1,9 @@
 import React, { memo, useState, useEffect } from 'react';
-import { Track } from '../types';
-import { QQMusicSong } from '../services/qqMusicApi';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
-import SearchBox from './SearchBox';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -43,40 +40,30 @@ const CollapseIcon = () => (
 interface TitleBarProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
-  localTracks: Track[];
-  cloudTracks: Track[];
-  onNavigateToTrack: (track: Track) => void;
-  onQQMusicDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-  onQQMusicUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-  qqProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
 }
 
-const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, localTracks, cloudTracks, onNavigateToTrack, onQQMusicDownload, onQQMusicUpload, qqProgress }) => {
+const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode }) => {
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
-  // Window focus state
+  // Window focus state (for focus button styling)
   const [isWindowFocused, setIsWindowFocused] = useState(true);
-
-  // Mouse hover state for the button
-  const [isButtonHovered, setIsButtonHovered] = useState(false);
-
-  // Track window focus
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
     const handleBlur = () => setIsWindowFocused(false);
-
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
-
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
   }, []);
+
+  // Mouse hover state for the button
+  const [isButtonHovered, setIsButtonHovered] = useState(false);
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
@@ -103,19 +90,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   if (!canControl) {
     return null;
   }
-
-  const searchBoxNode = (
-    <SearchBox
-      isFocusMode={!!isFocusMode}
-      isWindowFocused={isWindowFocused}
-      localTracks={localTracks}
-      cloudTracks={cloudTracks}
-      onNavigateToTrack={onNavigateToTrack}
-      onQQMusicDownload={onQQMusicDownload}
-      onQQMusicUpload={onQQMusicUpload}
-      qqProgress={qqProgress}
-    />
-  );
 
   if (isMacOS) {
     return (
@@ -161,9 +135,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             </div>
           </button>
         </div>
-        <div className="flex-1 flex justify-center items-start" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-          {searchBoxNode}
-        </div>
+        <div className="flex-1" />
       </div>
     );
   }
@@ -178,10 +150,8 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           userSelect: 'none'
         } as React.CSSProperties}
       >
-        {/* 搜索框 - 相对于完整 titlebar 宽度居中 */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-start justify-center" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-          {searchBoxNode}
-        </div>
+        {/* 左侧拖动空间 */}
+        <div className="flex-1 h-full" />
 
         {/* 右侧窗口控制按钮 */}
         <div

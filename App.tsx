@@ -24,6 +24,7 @@ import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
+import SearchBox from './components/SearchBox';
 import ErrorBoundary from './components/ErrorBoundary';
 import { i18n } from './services/i18n';
 import { QQMusicSong, qqMusicApi } from './services/qqMusicApi';
@@ -52,8 +53,20 @@ const App: React.FC = () => {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
+
+  useEffect(() => {
+    const handleFocus = () => setIsWindowFocused(true);
+    const handleBlur = () => setIsWindowFocused(false);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // QQ Music download/upload progress
   const [qqProgress, setQqProgress] = useState<Record<string, { type: 'download' | 'upload'; percent: number }>>({});
@@ -605,12 +618,6 @@ const App: React.FC = () => {
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-          localTracks={slots.local.tracks}
-          cloudTracks={slots.cloud.tracks}
-          onNavigateToTrack={handleSearchNavigate}
-          onQQMusicDownload={handleQQMusicDownload}
-          onQQMusicUpload={handleQQMusicUpload}
-          qqProgress={qqProgress}
         />
         <div className="flex flex-1">
           <Sidebar
@@ -667,7 +674,23 @@ const App: React.FC = () => {
             onChange={handleFileInputChange}
           />
 
-          <div className="flex-1 p-10 overflow-hidden pt-6">
+          {/* Persistent search bar across all views */}
+          <div className="shrink-0 flex justify-center px-10 pt-2 pb-0">
+            <div className="w-full max-w-[480px]">
+              <SearchBox
+                isFocusMode={isFocusMode}
+                isWindowFocused={isWindowFocused}
+                localTracks={slots.local.tracks}
+                cloudTracks={slots.cloud.tracks}
+                onNavigateToTrack={handleSearchNavigate}
+                onQQMusicDownload={handleQQMusicDownload}
+                onQQMusicUpload={handleQQMusicUpload}
+                qqProgress={qqProgress}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 p-10 overflow-hidden pt-2">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 onDownloadComplete={handleDownloadComplete}

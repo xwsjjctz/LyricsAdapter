@@ -162,7 +162,7 @@ const ThemeView: React.FC = () => {
       {/* Header */}
       <div className="mb-6 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+          <h1 className="text-2xl font-extrabold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
             {i18n.t('theme.title')}
           </h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
