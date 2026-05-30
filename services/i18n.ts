@@ -225,6 +225,14 @@ const translations: Translations = {
     de: 'Bearbeitungsmodus',
     fr: 'Mode édition'
   },
+  'library.selectedCount': {
+    zh: '首已选中',
+    en: 'selected',
+    ja: '曲選択済み',
+    ko: '곡 선택됨',
+    de: 'ausgewählt',
+    fr: 'sélectionné(s)'
+  },
   'library.completed': {
     zh: '完成',
     en: 'Completed',

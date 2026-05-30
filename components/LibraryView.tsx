@@ -929,6 +929,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               `${i18n.t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
             ) : dataSource === 'cloud' && loadProgress ? (
               `${i18n.t('library.loadingMetadata')} ${loadProgress.loaded}/${loadProgress.total}`
+            ) : isEditMode ? (
+              `${selectedIds.size} ${i18n.t('library.selectedCount')}`
             ) : (
               <>
                 {filteredTracks.length} {i18n.t('library.trackCount')}
@@ -949,28 +951,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
         <div className="flex items-center gap-2">
           {searchBox}
-          {isEditMode && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={toggleSelectAll}
-                className="px-3 py-2 rounded-lg text-sm transition-all"
-                style={{ color: colors.textSecondary, backgroundColor: 'transparent' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; }}
-              >
-                {selectedIds.size === tracks.length ? i18n.t('library.cancel') : i18n.t('library.selectAll')}
-              </button>
-              {selectedIds.size > 0 && (
-                <button
-                  onClick={handleRemoveSelected}
-                  className="px-3 py-2 rounded-lg text-sm transition-all"
-                  style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
-                >
-                  {i18n.t('library.deleteSelected')} ({selectedIds.size})
-                </button>
-              )}
-            </div>
-          )}
           <button
             onClick={() => {
               setIsEditMode(!isEditMode);
@@ -1034,8 +1014,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
-          <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_100px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
-            <span>#</span><span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span><span className="text-right">{isEditMode ? i18n.t('library.actionCol') : i18n.t('library.timeCol')}</span>
+          <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+            {isEditMode ? (
+              <input
+                type="checkbox"
+                checked={selectedIds.size === tracks.length && tracks.length > 0}
+                onChange={toggleSelectAll}
+                onClick={(e) => e.stopPropagation()}
+                className="w-4 h-4 rounded cursor-pointer"
+                style={{ accentColor: colors.primary }}
+              />
+            ) : (
+              <span>#</span>
+            )}
+            <span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span>
+            {isEditMode ? (
+              <span className="text-right">{i18n.t('library.actionCol')}</span>
+            ) : (
+              <span className="text-right">{i18n.t('library.timeCol')}</span>
+            )}
           </div>
         </div>
       )}
@@ -1119,7 +1116,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
                          border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
                        }}
-                       className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px] ${
+                       className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
                            isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
                          }`}
                        onMouseEnter={e => {
@@ -1135,7 +1132,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                      >
                       <div className="text-sm font-medium" style={{ opacity: 0.5, color: isCurrentTrack ? colors.primary : colors.textSecondary }}>
                         {isEditMode && !isUnavailable ? (
-                          <span className="material-symbols-outlined">drag_handle</span>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectOne(track.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded cursor-pointer"
+                            style={{ accentColor: colors.primary }}
+                          />
                         ) : (
                           filteredIndex + 1
                         )}
@@ -1183,14 +1187,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           >
                             <span className="material-symbols-outlined text-lg">delete</span>
                           </button>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectOne(track.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 rounded cursor-pointer"
-                            style={{ accentColor: colors.primary }}
-                          />
                         </div>
                       ) : (
                         <div className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
@@ -1274,8 +1270,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
            {/* 右侧歌曲列表 */}
            <div className="flex-1 flex flex-col min-w-0">
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_100px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
-                 <span>#</span><span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span><span className="text-right">{isEditMode ? i18n.t('library.actionCol') : i18n.t('library.timeCol')}</span>
+               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+                {isEditMode ? (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === tracks.length && tracks.length > 0}
+                    onChange={toggleSelectAll}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 rounded cursor-pointer"
+                  style={{ accentColor: colors.primary }}
+                />
+                ) : (
+                  <span>#</span>
+                )}
+                 <span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span>
+                {isEditMode ? (
+                  <span className="text-right">{i18n.t('library.actionCol')}</span>
+                ) : (
+                  <span className="text-right">{i18n.t('library.timeCol')}</span>
+                )}
                </div>
              </div>
              <div className="flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
@@ -1327,7 +1340,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              const realIndex = displayTracks.findIndex(t => t.id === track.id);
                              if (realIndex >= 0) onTrackSelect(realIndex);
                            }}
-                             className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_100px]"
+                             className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px]"
                             style={{
                               ...animationStyle,
                               opacity: isUnavailable ? 0.4 : 1,
@@ -1341,7 +1354,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           >
                            <div className="text-sm font-medium opacity-50">
                              {isEditMode && !isUnavailable ? (
-                               <span className="material-symbols-outlined text-sm">block</span>
+                               <input
+                                 type="checkbox"
+                                 checked={isSelected}
+                                 onChange={() => toggleSelectOne(track.id)}
+                                 onClick={(e) => e.stopPropagation()}
+                                 className="w-4 h-4 rounded cursor-pointer"
+                                 style={{ accentColor: colors.primary }}
+                               />
                              ) : (
                                filteredIndex + 1
                              )}
@@ -1386,14 +1406,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                >
                                  <span className="material-symbols-outlined text-lg">delete</span>
                                </button>
-<input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => toggleSelectOne(track.id)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="w-4 h-4 rounded cursor-pointer"
-                                  style={{ accentColor: colors.primary, borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}
-                                />
                              </div>
                            ) : (
                              <div className="text-sm opacity-50 text-right tabular-nums">

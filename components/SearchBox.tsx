@@ -167,7 +167,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             ? `1px solid ${colors.borderLight}`
             : `1px solid ${colors.primary}66`,
           borderRadius: isExpanded ? '12px 12px 0 0' : '12px',
-          boxShadow: `0 4px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 20px ${colors.glowColor}`,
+          boxShadow: `0 2px 8px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 10px ${colors.glowColor}`,
           transition: 'border-color 0.25s ease, border-radius 0.25s ease',
         }}
       >
@@ -215,7 +215,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           borderTop: 'none',
           borderRadius: '0 0 12px 12px',
           boxShadow: isExpanded
-            ? `0 12px 28px rgba(0,0,0,0.22), 0 0 24px ${colors.glowColor}`
+            ? `0 6px 16px rgba(0,0,0,0.14), 0 0 12px ${colors.glowColor}`
             : 'none',
         }}
       >
