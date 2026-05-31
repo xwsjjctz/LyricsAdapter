@@ -151,15 +151,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold leading-none">{item.label}</span>
                     </span>
-                    <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
-                      style={{
-                        backgroundColor: item.active ? `${colors.primary}30` : `${colors.primary}18`,
-                        color: item.active ? colors.primary : `${colors.primary}cc`,
-                      }}
-                    >
-                      {item.count}
-                    </span>
                   </button>
                 ))}
               </div>
