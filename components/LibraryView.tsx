@@ -961,11 +961,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   setIsEditMode(true);
                 }
               }}
-              className="w-10 h-10 flex items-center justify-center relative"
+              className="w-10 h-10 flex items-center justify-center relative shadow-xl"
               style={{
                 backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
                 color: isEditMode ? '#fff' : colors.textSecondary,
-                boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : 'none',
+                boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
                 borderRadius: showEditDropdown ? '12px 12px 0 0' : '12px',
                 transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease',
               }}
@@ -1036,7 +1036,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 </button>
             </div>
           </div>
-          <div className="flex items-center rounded-xl border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
+          <div className="flex items-center rounded-xl border shadow-xl" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
             <button
               onClick={() => {
                 onFilterTypeChange('default');

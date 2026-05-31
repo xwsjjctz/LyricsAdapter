@@ -167,7 +167,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+          className="px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-xl"
           style={{ backgroundColor: colors.primary, color: '#fff' }}
           onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
           onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}

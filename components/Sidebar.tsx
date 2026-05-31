@@ -106,7 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <nav className="flex flex-col gap-2">
             {/* LIBRARY 容器 */}
             <div
-              className="rounded-2xl p-2"
+              className="rounded-2xl p-2 shadow-xl"
               style={{
                 backgroundColor: colors.primaryLight,
                 border: `1px solid ${colors.borderLight}`,
@@ -187,7 +187,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 style={{
                   backgroundColor: isSettingsView ? `${colors.primary}33` : colors.backgroundCard,
                   color: isSettingsView ? colors.primary : textSecondary,
-                  boxShadow: isSettingsView ? `0 0 20px ${colors.glowColor}` : 'none',
+                  boxShadow: isSettingsView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
                 }}
                 onMouseEnter={(e) => {
                   if (!isSettingsView) {
@@ -211,7 +211,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 style={{
                   backgroundColor: isThemeView ? `${colors.primary}33` : colors.backgroundCard,
                   color: isThemeView ? colors.primary : textSecondary,
-                  boxShadow: isThemeView ? `0 0 20px ${colors.glowColor}` : 'none',
+                  boxShadow: isThemeView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
                 }}
                 onMouseEnter={(e) => {
                   if (!isThemeView) {
