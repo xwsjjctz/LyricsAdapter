@@ -69,7 +69,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       style={{
         backgroundColor: colors.backgroundSidebar,
         borderTop: `1px solid ${colors.borderLight}`,
-        boxShadow: `0 4px 16px rgba(0, 0, 0, 0.25)`,
+        boxShadow: `4px 6px 28px rgba(0, 0, 0, 0.45)`,
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
