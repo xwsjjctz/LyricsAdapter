@@ -552,7 +552,7 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={{
-        backgroundColor: 'var(--theme-background-dark, #101922)',
+        background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
       }}>
         <TitleBar
           isFocusMode={isFocusMode}
@@ -587,9 +587,7 @@ const App: React.FC = () => {
           localTrackCount={slots.local.tracks.length}
           cloudTrackCount={slots.cloud.tracks.length}
         />
-        <main className="flex-1 flex flex-col relative overflow-hidden pt-8" style={{
-          background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
-        }}>
+        <main className="flex-1 flex flex-col relative overflow-hidden pt-8">
           {currentTrack && (
             <audio
               ref={setAudioRef}
