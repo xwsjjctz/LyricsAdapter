@@ -117,7 +117,9 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
 
   const groupedShortcuts = {
     player: Object.entries(shortcuts).filter(([, config]) => config?.scope === 'player') as [ShortcutAction, ShortcutConfig][],
-    navigation: Object.entries(shortcuts).filter(([, config]) => config?.scope === 'navigation') as [ShortcutAction, ShortcutConfig][]
+    navigation: Object.entries(shortcuts).filter(([action, config]) =>
+      config?.scope === 'navigation' && action !== 'gotoBrowse' && action !== 'gotoMetadata'
+    ) as [ShortcutAction, ShortcutConfig][]
   };
 
   if (Object.keys(shortcuts).length === 0) {
@@ -204,10 +206,13 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
   );
 
   return (
-    <div className="space-y-3">
+    <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       {/* Header with Reset All button */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium" style={{ color: colors.textPrimary }}>{i18n.t('settings.shortcuts.title')}</h3>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
+          <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>keyboard</span>
+          {i18n.t('settings.shortcuts.title')}
+        </h3>
         <button
           onClick={() => setShowResetConfirm(true)}
           className="px-2.5 py-1 text-xs rounded transition-colors"
@@ -227,7 +232,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
             <span className="text-xs font-medium" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.playerGroup')}</span>
           </div>
           <div>
-            {groupedShortcuts.player?.map(([action, config], index) => 
+            {groupedShortcuts.player?.map(([action, config], index) =>
               renderShortcutRow(action, config, index === (groupedShortcuts.player?.length || 0) - 1)
             )}
           </div>
@@ -239,7 +244,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
             <span className="text-xs font-medium" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.navigationGroup')}</span>
           </div>
           <div>
-            {groupedShortcuts.navigation?.map(([action, config], index) => 
+            {groupedShortcuts.navigation?.map(([action, config], index) =>
               renderShortcutRow(action, config, index === (groupedShortcuts.navigation?.length || 0) - 1)
             )}
           </div>
@@ -247,7 +252,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       </div>
 
       {/* 提示信息 */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border mt-3" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
         <span className="material-symbols-outlined text-sm" style={{ color: colors.textMuted }}>info</span>
         <span className="text-xs" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.legend')}</span>
       </div>
@@ -279,7 +284,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

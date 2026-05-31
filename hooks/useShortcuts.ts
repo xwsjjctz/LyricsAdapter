@@ -214,10 +214,10 @@ export const useShortcuts = ({
         setIsFocusMode(false);
         break;
 
-      case 'gotoBrowse':
-        setViewMode(ViewMode.BROWSE);
-        setIsFocusMode(false);
-        break;
+      // case 'gotoBrowse':
+      //   setViewMode(ViewMode.BROWSE);
+      //   setIsFocusMode(false);
+      //   break;
 
       case 'gotoSettings':
         setViewMode(ViewMode.SETTINGS);
@@ -229,10 +229,10 @@ export const useShortcuts = ({
         setIsFocusMode(false);
         break;
 
-      case 'gotoMetadata':
-        setViewMode(ViewMode.METADATA);
-        setIsFocusMode(false);
-        break;
+      // case 'gotoMetadata':
+      //   setViewMode(ViewMode.METADATA);
+      //   setIsFocusMode(false);
+      //   break;
     }
   }, []);
 
