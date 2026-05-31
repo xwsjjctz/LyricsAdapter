@@ -1005,8 +1005,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 transition: 'transform 0.25s ease, opacity 0.2s ease',
                 background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
                 backdropFilter: 'blur(20px)',
-                border: showEditDropdown ? `1px solid ${colors.primary}44` : '1px solid transparent',
-                borderTop: 'none',
                 borderRadius: '0 0 12px 12px',
                 boxShadow: showEditDropdown ? `0 8px 24px rgba(0,0,0,0.18)` : 'none',
                 pointerEvents: showEditDropdown ? 'auto' : 'none',
@@ -1019,7 +1017,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     confirmBatchDelete();
                   }}
                   disabled={selectedIds.size === 0}
-                  className="w-[38px] h-[38px] flex items-center justify-center rounded-b-xl transition-all"
+                  className="w-10 h-10 flex items-center justify-center rounded-b-xl transition-all"
                   style={{
                     backgroundColor: selectedIds.size > 0 ? colors.error : colors.backgroundCard,
                     color: selectedIds.size > 0 ? '#fff' : colors.textMuted,
