@@ -810,12 +810,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setShowBatchDeleteConfirm(false);
   }, [selectedIds, onRemoveMultipleTracks, onRemoveTrack]);
 
-  const handleRemoveSelected = useCallback(() => {
-    if (selectedIds.size > 0) {
-      confirmBatchDelete();
-    }
-  }, [selectedIds, confirmBatchDelete]);
-
   // Handle drag start for track reordering
   const handleTrackDragStart = useCallback((e: React.DragEvent, index: number) => {
     e.dataTransfer.effectAllowed = 'move';
@@ -1002,9 +996,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               style={{
                 position: 'absolute',
                 right: 0,
-                top: '100%',
+                top: 'calc(100% - 2px)',
                 zIndex: 50,
-                minWidth: 40,
+                width: 40,
                 transform: showEditDropdown ? 'scaleY(1)' : 'scaleY(0)',
                 transformOrigin: 'top center',
                 opacity: showEditDropdown ? 1 : 0,
@@ -1025,7 +1019,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     confirmBatchDelete();
                   }}
                   disabled={selectedIds.size === 0}
-                  className="w-[38px] h-[38px] flex items-center justify-center rounded-xl transition-all"
+                  className="w-[38px] h-[38px] flex items-center justify-center rounded-b-xl transition-all"
                   style={{
                     backgroundColor: selectedIds.size > 0 ? colors.error : colors.backgroundCard,
                     color: selectedIds.size > 0 ? '#fff' : colors.textMuted,
