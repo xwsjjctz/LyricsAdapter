@@ -65,7 +65,7 @@ const Controls: React.FC<ControlsProps> = memo(({
 
   return (
     <div
-      className={`mx-2 mb-2 rounded-lg h-24 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
+      className={`mx-2 mb-2 rounded-lg h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
       style={{
         backgroundColor: colors.backgroundSidebar,
         borderTop: `1px solid ${colors.borderLight}`,

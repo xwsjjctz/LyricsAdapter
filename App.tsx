@@ -608,7 +608,7 @@ const App: React.FC = () => {
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <div className="flex-1 p-10 overflow-hidden pt-2">
+          <div className="flex-1 px-10 pt-2 pb-2 overflow-hidden">
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 onDownloadComplete={handleDownloadComplete}
