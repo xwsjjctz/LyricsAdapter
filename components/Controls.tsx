@@ -30,13 +30,6 @@ const formatTime = (seconds: number): string => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const hexToRgb = (hex: string): string => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (result) {
-    return `${parseInt(result[1]!, 16)}, ${parseInt(result[2]!, 16)}, ${parseInt(result[3]!, 16)}`;
-  }
-  return '255, 255, 255';
-};
 
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
@@ -72,10 +65,11 @@ const Controls: React.FC<ControlsProps> = memo(({
 
   return (
     <div
-      className={`h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
+      className={`mx-2 mb-2 rounded-lg h-24 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
       style={{
-        borderColor: colors.borderLight,
-        backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.4)`,
+        backgroundColor: colors.backgroundSidebar,
+        borderTop: `1px solid ${colors.borderLight}`,
+        boxShadow: `0 4px 16px rgba(0, 0, 0, 0.25)`,
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}

@@ -101,10 +101,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       }}
     >
       <aside
-        className="flex-1 flex flex-col mx-2 mb-2 mt-2 rounded-lg overflow-hidden"
+        className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 rounded-lg overflow-hidden"
         style={{
           backgroundColor: colors.backgroundSidebar,
-          filter: `drop-shadow(0 8px 28px rgba(0, 0, 0, 0.5))`,
+          filter: `drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45))`,
         }}
       >
         {/* 面板延伸到 TitleBar 下层，此 spacer 确保内容避开 TitleBar 交互区域 */}
