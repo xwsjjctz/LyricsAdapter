@@ -6,6 +6,7 @@ import { themeManager } from '../services/themeManager';
 import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
+import { getDesktopAPI } from '../services/desktopAdapter';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -36,7 +37,6 @@ interface FocusModeProps {
   track: Track | null;
   isVisible: boolean;
   currentTime: number;
-  onClose: () => void;
   isPlaying: boolean;
   onTogglePlay: () => void;
   onSkipNext: () => void;
@@ -49,13 +49,14 @@ interface FocusModeProps {
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
-  showExitButton?: boolean;
 }
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
-  track, isVisible, currentTime, onClose,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, showExitButton
+  track, isVisible, currentTime,
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
 }) => {
+  const isLinux = getDesktopAPI()?.platform === 'linux';
+
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -863,7 +864,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-all duration-700 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+    <div className={`fixed inset-0 z-[120] transition-all duration-700 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}${isLinux ? ' rounded-lg overflow-hidden' : ''}`}>
       {/* Canvas-based Color Gradient Background */}
       {bgImage1 && (
         <canvas
@@ -879,25 +880,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           }}
         />
       )}
-      <div className="fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm" />
+      <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
 
       <div className="relative h-full flex flex-col z-10 overflow-hidden">
-        {/* Top Header */}
-        <header className="flex items-center justify-start px-6 py-4 shrink-0 pt-12">
-          {showExitButton && (
-            <button
-              onClick={onClose}
-              className="flex items-center gap-2 transition-all group"
-              style={{ color: focusColors.textMuted }}
-              onMouseEnter={e => { e.currentTarget.style.color = focusColors.textPrimary; }}
-              onMouseLeave={e => { e.currentTarget.style.color = focusColors.textMuted; }}
-            >
-              <div className="p-1.5 rounded-full transition-colors flex items-center justify-center" style={{ backgroundColor: focusColors.backgroundCard }} onMouseEnter={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCardHover} onMouseLeave={e => e.currentTarget.style.backgroundColor = focusColors.backgroundCard}>
-                <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
-              </div>
-            </button>
-          )}
-        </header>
+        {/* Spacer to avoid content behind titlebar */}
+        <div className="shrink-0 pt-12" />
 
         {/* Content Section */}
         <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-visible mb-24 max-w-5xl mx-auto w-full translate-x-6 lg:translate-x-6">
@@ -1101,7 +1088,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   if (prevProps.volume !== nextProps.volume) return false;
 
   // Check callbacks
-  if (prevProps.onClose !== nextProps.onClose) return false;
   if (prevProps.onTogglePlay !== nextProps.onTogglePlay) return false;
   if (prevProps.onSkipNext !== nextProps.onSkipNext) return false;
   if (prevProps.onSkipPrev !== nextProps.onSkipPrev) return false;

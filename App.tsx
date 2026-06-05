@@ -555,12 +555,19 @@ const App: React.FC = () => {
     }
     logger.debug('[App] Theme initialized:', themeManager.getCurrentThemeId());
   }, []);
+  // Linux 透明窗口圆角：body 透明，由根 div 提供背景和圆角裁剪
+  useEffect(() => {
+    const api = getDesktopAPI();
+    if (api?.platform === 'linux') {
+      document.body.style.backgroundColor = 'transparent';
+    }
+  }, []);
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
   return (
     <ErrorBoundary>
-      <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={floatingPanel ? {
+      <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
         background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
       } : {
         backgroundColor: 'var(--theme-background-dark, #101922)',
@@ -710,7 +717,6 @@ const App: React.FC = () => {
           track={currentTrack}
           isVisible={isFocusMode}
           currentTime={currentTime}
-          onClose={() => setIsFocusMode(false)}
           isPlaying={isPlaying}
           onTogglePlay={togglePlay}
           onSkipNext={skipForward}
@@ -723,7 +729,6 @@ const App: React.FC = () => {
           onTogglePlaybackMode={handleTogglePlaybackMode}
           onToggleFocus={() => setIsFocusMode(!isFocusMode)}
           audioRef={audioRef}
-          showExitButton={isLinux}
         />
         </div>
       </div>

@@ -85,6 +85,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const desktopAPI = getDesktopAPI();
   const platform = desktopAPI?.platform || '';
   const isMacOS = platform === 'darwin';
+  const isLinux = platform === 'linux';
 
   // 如果不在桌面环境，不显示标题栏
   if (!canControl) {
@@ -143,7 +144,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   // Windows / Linux 渲染自定义标题栏和窗口控制按钮
   return (
       <div
-        className="fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[160] flex items-start"
+        className={`fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[160] flex items-start${isLinux ? ' rounded-lg overflow-hidden' : ''}`}
         style={{
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',

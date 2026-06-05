@@ -25,6 +25,7 @@ export async function createWindow(): Promise<BrowserWindow> {
   logger.info('===============================');
 
   const isMacOS = process.platform === 'darwin';
+  const isLinux = process.platform === 'linux';
 
   win = new BrowserWindow({
     width: 1200,
@@ -33,6 +34,7 @@ export async function createWindow(): Promise<BrowserWindow> {
     minHeight: 720,
     title: 'LyricsAdapter',
     frame: false,
+    transparent: isLinux,
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

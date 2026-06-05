@@ -213,16 +213,44 @@ class ShortcutManager {
     this.shortcuts = this.loadShortcuts();
   }
 
+  /** Platform-specific key overrides to avoid OS shortcut conflicts */
+  private static PLATFORM_DEFAULTS: Partial<Record<ShortcutAction, Record<string, string>>> = {
+    togglePlaybackMode: {
+      darwin: 'Alt+Tab', // macOS: Option+Tab doesn't conflict with Cmd+Tab
+    }
+  };
+
+  private getPlatform(): string {
+    const p = navigator.platform;
+    if (p.includes('Mac')) return 'darwin';
+    if (p.includes('Win')) return 'win32';
+    return 'linux';
+  }
+
   private loadShortcuts(): Record<ShortcutAction, ShortcutConfig> {
+    // Apply platform-specific defaults first
+    const defaults = { ...DEFAULT_SHORTCUTS };
+    const platform = this.getPlatform();
+
+    for (const [action, platformMap] of Object.entries(ShortcutManager.PLATFORM_DEFAULTS) as [ShortcutAction, Record<string, string>][]) {
+      const platformKey = platformMap[platform];
+      if (platformKey && defaults[action]) {
+        defaults[action] = {
+          ...defaults[action],
+          defaultKey: platformKey,
+          currentKey: platformKey,
+        };
+      }
+    }
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Start with defaults, then merge saved values
-        const merged = { ...DEFAULT_SHORTCUTS };
-        for (const key of Object.keys(DEFAULT_SHORTCUTS) as ShortcutAction[]) {
+        const merged = { ...defaults };
+        for (const key of Object.keys(defaults) as ShortcutAction[]) {
           if (parsed[key]) {
-            merged[key] = { ...DEFAULT_SHORTCUTS[key], ...parsed[key] };
+            merged[key] = { ...defaults[key], ...parsed[key] };
           }
         }
         return merged;
@@ -230,7 +258,7 @@ class ShortcutManager {
     } catch (e) {
       logger.error('[Shortcuts] Failed to load shortcuts:', e);
     }
-    return { ...DEFAULT_SHORTCUTS };
+    return defaults;
   }
 
   private saveShortcuts(): void {
