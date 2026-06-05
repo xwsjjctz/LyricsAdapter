@@ -103,12 +103,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const enterExitAnimRef = useRef<number | null>(null);
 
   // Global background transparency control for debugging
-  const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
-  // Load saved value from persistent storage on mount
+  const [bgBlurTrans, setBgBlurTrans] = useState(() => settingsManager.getBgBlurTrans());
+
+  // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
   useEffect(() => {
-    settingsManager.ensureLoaded().then(() => {
+    const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
     });
+    return unsubscribe;
   }, []);
 
   const CANVAS_REST_OPACITY = 1.0;

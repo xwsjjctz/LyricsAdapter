@@ -58,6 +58,14 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
     return unsubscribe;
   }, []);
 
+  // Debounce bgBlurTrans persistence: 500ms after slider stops moving
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      settingsManager.setBgBlurTrans(bgBlurTrans);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [bgBlurTrans]);
+
   useEffect(() => {
     const unsubscribe = i18n.subscribe((lang) => {
       setCurrentLang(lang);
@@ -441,7 +449,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
                   onChange={(e) => {
                     const value = parseFloat(e.target.value);
                     setBgBlurTrans(value);
-                    settingsManager.setBgBlurTrans(value);
+                    // 实时更新 FocusMode 预览（不持久化）
                     const fn = (window as any).bg_blur_trans;
                     if (typeof fn === 'function') fn(value);
                   }}

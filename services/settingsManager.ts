@@ -1,9 +1,8 @@
 import { logger } from './logger';
-import { indexedDBStorage } from './indexedDBStorage';
 
-const DOWNLOAD_PATH_KEY = 'download_path';
-const FLOATING_PANEL_KEY = 'floating_panel';
-const BG_BLUR_TRANS_KEY = 'bg_blur_trans';
+const DOWNLOAD_PATH_KEY = 'la_download_path';
+const FLOATING_PANEL_KEY = 'la_floating_panel';
+const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 
 type Listener = () => void;
 
@@ -11,54 +10,27 @@ class SettingsManager {
   private downloadPath: string = '';
   private floatingPanel: boolean = false;
   private bgBlurTrans: number = 1.0;
-  private initPromise: Promise<void>;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
-    this.initPromise = this.loadFromStorage();
+    this.loadFromStorage();
   }
 
-  private async loadFromStorage(): Promise<void> {
+  private loadFromStorage(): void {
     try {
-      await indexedDBStorage.initialize();
+      this.downloadPath = localStorage.getItem(DOWNLOAD_PATH_KEY) || '';
 
-      const [storedPath, storedFloatingPanel, storedBgBlurTrans] = await Promise.all([
-        indexedDBStorage.getSetting(DOWNLOAD_PATH_KEY),
-        indexedDBStorage.getSetting(FLOATING_PANEL_KEY),
-        indexedDBStorage.getSetting(BG_BLUR_TRANS_KEY),
-      ]);
+      this.floatingPanel = localStorage.getItem(FLOATING_PANEL_KEY) === 'true';
 
-      if (storedPath) {
-        this.downloadPath = storedPath;
-        logger.debug('[SettingsManager] Download path loaded from storage:', storedPath);
-      }
-
-      if (storedFloatingPanel === 'true') {
-        this.floatingPanel = true;
-        logger.debug('[SettingsManager] Floating panel enabled from storage');
-      }
-
-      if (storedBgBlurTrans) {
-        const parsed = parseFloat(storedBgBlurTrans);
+      const bt = localStorage.getItem(BG_BLUR_TRANS_KEY);
+      if (bt) {
+        const parsed = parseFloat(bt);
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
           this.bgBlurTrans = parsed;
-          logger.debug('[SettingsManager] bgBlurTrans loaded from storage:', parsed);
         }
       }
     } catch (error) {
-      logger.error('[SettingsManager] Failed to load from storage:', error);
-    }
-  }
-
-  private async saveToStorage(): Promise<void> {
-    try {
-      await Promise.all([
-        indexedDBStorage.setSetting(DOWNLOAD_PATH_KEY, this.downloadPath),
-        indexedDBStorage.setSetting(FLOATING_PANEL_KEY, this.floatingPanel ? 'true' : 'false'),
-        indexedDBStorage.setSetting(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans)),
-      ]);
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save to storage:', error);
+      logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
   }
 
@@ -73,9 +45,15 @@ class SettingsManager {
     this.listeners.forEach((listener) => listener());
   }
 
-  async setDownloadPath(path: string): Promise<void> {
+  // --- Download Path ---
+
+  setDownloadPath(path: string): void {
     this.downloadPath = path;
-    await this.saveToStorage();
+    try {
+      localStorage.setItem(DOWNLOAD_PATH_KEY, path);
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save download path:', error);
+    }
     logger.debug('[SettingsManager] Download path saved:', path);
   }
 
@@ -87,16 +65,24 @@ class SettingsManager {
     return !!this.downloadPath;
   }
 
+  // --- Floating Panel ---
+
   getFloatingPanel(): boolean {
     return this.floatingPanel;
   }
 
   setFloatingPanel(enabled: boolean): void {
     this.floatingPanel = enabled;
-    this.saveToStorage();
+    try {
+      localStorage.setItem(FLOATING_PANEL_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save floating panel:', error);
+    }
     this.notify();
     logger.debug(`[SettingsManager] Floating panel set to: ${enabled}`);
   }
+
+  // --- Background Blur Transparency ---
 
   getBgBlurTrans(): number {
     return this.bgBlurTrans;
@@ -104,13 +90,19 @@ class SettingsManager {
 
   setBgBlurTrans(value: number): void {
     this.bgBlurTrans = Math.max(0, Math.min(1, value));
-    this.saveToStorage();
+    try {
+      localStorage.setItem(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans));
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save bgBlurTrans:', error);
+    }
     this.notify();
     logger.debug(`[SettingsManager] bgBlurTrans set to: ${this.bgBlurTrans}`);
   }
 
+  // --- Legacy (kept for backward compatibility, no-op now) ---
+
   async ensureLoaded(): Promise<void> {
-    await this.initPromise;
+    // No-op: all settings are synchronous via localStorage
   }
 }
 

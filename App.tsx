@@ -50,13 +50,10 @@ const App: React.FC = () => {
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
   const [isWindowFocused, setIsWindowFocused] = useState(true);
-  const [floatingPanel, setFloatingPanel] = useState(false);
+  const [floatingPanel, setFloatingPanel] = useState(() => settingsManager.getFloatingPanel());
 
-  // Load floating panel setting
+  // Subscribe to floating panel changes from other components
   useEffect(() => {
-    settingsManager.ensureLoaded().then(() => {
-      setFloatingPanel(settingsManager.getFloatingPanel());
-    });
     const unsubscribe = settingsManager.subscribe(() => {
       setFloatingPanel(settingsManager.getFloatingPanel());
     });
