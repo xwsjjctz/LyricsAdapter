@@ -50,6 +50,18 @@ const App: React.FC = () => {
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
   const [isWindowFocused, setIsWindowFocused] = useState(true);
+  const [floatingPanel, setFloatingPanel] = useState(false);
+
+  // Load floating panel setting
+  useEffect(() => {
+    settingsManager.ensureLoaded().then(() => {
+      setFloatingPanel(settingsManager.getFloatingPanel());
+    });
+    const unsubscribe = settingsManager.subscribe(() => {
+      setFloatingPanel(settingsManager.getFloatingPanel());
+    });
+    return unsubscribe;
+  }, []);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
   useEffect(() => {
@@ -551,8 +563,10 @@ const App: React.FC = () => {
   const isLinux = platform === 'linux';
   return (
     <ErrorBoundary>
-      <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={{
+      <div className="flex h-screen w-screen overflow-hidden font-sans relative" style={floatingPanel ? {
         background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
+      } : {
+        backgroundColor: 'var(--theme-background-dark, #101922)',
       }}>
         <TitleBar
           isFocusMode={isFocusMode}
@@ -586,8 +600,13 @@ const App: React.FC = () => {
           onSlotChange={handleSwitchSlot}
           localTrackCount={slots.local.tracks.length}
           cloudTrackCount={slots.cloud.tracks.length}
+          floating={floatingPanel}
         />
-        <main className="flex-1 flex flex-col relative overflow-hidden pt-8">
+        <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
+          style={floatingPanel ? {} : {
+            background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
+          }}
+        >
           {currentTrack && (
             <audio
               ref={setAudioRef}
@@ -608,7 +627,7 @@ const App: React.FC = () => {
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <div className="flex-1 px-10 pt-2 pb-2 overflow-hidden">
+          <div className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 onDownloadComplete={handleDownloadComplete}
@@ -687,6 +706,7 @@ const App: React.FC = () => {
             isFocusMode={isFocusMode}
             forceUpdateCounter={0}
             audioRef={audioRef}
+            floating={floatingPanel}
           />
         </main>
         <FocusMode

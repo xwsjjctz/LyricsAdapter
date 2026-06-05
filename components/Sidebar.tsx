@@ -17,6 +17,7 @@ interface SidebarProps {
   onSlotChange: (slotId: 'local' | 'cloud') => void;
   localTrackCount: number;
   cloudTrackCount: number;
+  floating?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -30,6 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSlotChange,
   localTrackCount,
   cloudTrackCount,
+  floating = false,
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isSettingsView = currentView === ViewMode.SETTINGS;
@@ -93,7 +95,160 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  return (
+  const SidebarContent = () => (
+    <>
+      {/* LIBRARY 容器 */}
+      <div
+        className="rounded-2xl p-2 shadow-xl"
+        style={{
+          backgroundColor: colors.primaryLight,
+          border: `1px solid ${colors.borderLight}`,
+        }}
+      >
+        <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: colors.textMuted }}>
+          {i18n.t('sidebar.library')}
+        </div>
+        <div className="flex flex-col gap-1">
+          {libraryItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={item.onClick}
+              className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-all w-full text-left"
+              style={{
+                backgroundColor: item.active ? `${colors.primary}29` : 'transparent',
+                color: item.active ? colors.primary : textSecondary,
+                boxShadow: item.active ? `0 10px 24px -16px ${colors.glowColor}` : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!item.active) {
+                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
+                  e.currentTarget.style.color = textPrimary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!item.active) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = textSecondary;
+                }
+              }}
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                  backgroundColor: item.active ? `${colors.primary}22` : `${colors.backgroundCard}cc`,
+                  color: item.active ? colors.primary : textSecondary,
+                }}
+              >
+                <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold leading-none">{item.label}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 分隔 */}
+      <div className="my-1 mx-4 border-t" style={{ borderColor: colors.borderLight }} />
+
+      <button
+        onClick={onImportClick}
+        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-2 border border-dashed group"
+        style={{
+          color: textSecondary,
+          borderColor: colors.borderLight,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = `${colors.primary}1a`;
+          e.currentTarget.style.color = colors.primary;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = textSecondary;
+        }}
+      >
+        <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
+        <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
+      </button>
+
+      {/* 设置和皮肤按钮 */}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => onNavigate(ViewMode.SETTINGS)}
+          className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
+          style={{
+            backgroundColor: isSettingsView ? `${colors.primary}33` : colors.backgroundCard,
+            color: isSettingsView ? colors.primary : textSecondary,
+            boxShadow: isSettingsView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
+          }}
+          onMouseEnter={(e) => {
+            if (!isSettingsView) {
+              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+              e.currentTarget.style.color = textPrimary;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isSettingsView) {
+              e.currentTarget.style.backgroundColor = colors.backgroundCard;
+              e.currentTarget.style.color = textSecondary;
+            }
+          }}
+        >
+          <span className={`material-symbols-outlined text-[22px] ${isSettingsView ? 'fill-1' : ''}`}>settings</span>
+        </button>
+
+        <button
+          onClick={() => onNavigate(ViewMode.THEME)}
+          className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
+          style={{
+            backgroundColor: isThemeView ? `${colors.primary}33` : colors.backgroundCard,
+            color: isThemeView ? colors.primary : textSecondary,
+            boxShadow: isThemeView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
+          }}
+          onMouseEnter={(e) => {
+            if (!isThemeView) {
+              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+              e.currentTarget.style.color = textPrimary;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isThemeView) {
+              e.currentTarget.style.backgroundColor = colors.backgroundCard;
+              e.currentTarget.style.color = textSecondary;
+            }
+          }}
+        >
+          <span className={`material-symbols-outlined text-[22px] ${isThemeView ? 'fill-1' : ''}`}>checkroom</span>
+        </button>
+      </div>
+
+      {hasUnavailableTracks && onReloadFiles && (
+        <button
+          onClick={onReloadFiles}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all border border-dashed group"
+          style={{
+            color: isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706',
+            borderColor: isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(217, 119, 6, 0.3)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = isDark ? 'rgba(234, 179, 8, 0.1)' : 'rgba(217, 119, 6, 0.1)';
+            e.currentTarget.style.color = isDark ? '#facc15' : '#b45309';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706';
+          }}
+          title="Reload unavailable tracks"
+        >
+          <span className="material-symbols-outlined group-hover:scale-110 transition-transform">refresh</span>
+          <span className="text-sm font-semibold">{i18n.t('sidebar.reloadFiles')}</span>
+        </button>
+      )}
+    </>
+  );
+
+  return floating ? (
     <div
       className="w-56 flex flex-col flex-shrink-0"
       style={{
@@ -113,154 +268,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="px-4 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">
           <div>
             <nav className="flex flex-col gap-2">
-              {/* LIBRARY 容器 */}
-              <div
-                className="rounded-2xl p-2 shadow-xl"
-                style={{
-                  backgroundColor: colors.primaryLight,
-                  border: `1px solid ${colors.borderLight}`,
-                }}
-              >
-                <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: colors.textMuted }}>
-                  {i18n.t('sidebar.library')}
-                </div>
-                <div className="flex flex-col gap-1">
-                  {libraryItems.map((item) => (
-                    <button
-                      key={item.key}
-                      onClick={item.onClick}
-                      className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-all w-full text-left"
-                      style={{
-                        backgroundColor: item.active ? `${colors.primary}29` : 'transparent',
-                        color: item.active ? colors.primary : textSecondary,
-                        boxShadow: item.active ? `0 10px 24px -16px ${colors.glowColor}` : 'none',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!item.active) {
-                          e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                          e.currentTarget.style.color = textPrimary;
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!item.active) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.color = textSecondary;
-                        }
-                      }}
-                    >
-                      <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                        style={{
-                          backgroundColor: item.active ? `${colors.primary}22` : `${colors.backgroundCard}cc`,
-                          color: item.active ? colors.primary : textSecondary,
-                        }}
-                      >
-                        <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold leading-none">{item.label}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 分隔 */}
-              <div className="my-1 mx-4 border-t" style={{ borderColor: colors.borderLight }} />
-
-              <button
-                onClick={onImportClick}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-2 border border-dashed group"
-                style={{
-                  color: textSecondary,
-                  borderColor: colors.borderLight,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${colors.primary}1a`;
-                  e.currentTarget.style.color = colors.primary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = textSecondary;
-                }}
-              >
-                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
-                <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
-              </button>
-
-              {/* 设置和皮肤按钮 */}
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => onNavigate(ViewMode.SETTINGS)}
-                  className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
-                  style={{
-                    backgroundColor: isSettingsView ? `${colors.primary}33` : colors.backgroundCard,
-                    color: isSettingsView ? colors.primary : textSecondary,
-                    boxShadow: isSettingsView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSettingsView) {
-                      e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-                      e.currentTarget.style.color = textPrimary;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSettingsView) {
-                      e.currentTarget.style.backgroundColor = colors.backgroundCard;
-                      e.currentTarget.style.color = textSecondary;
-                    }
-                  }}
-                >
-                  <span className={`material-symbols-outlined text-[22px] ${isSettingsView ? 'fill-1' : ''}`}>settings</span>
-                </button>
-
-                <button
-                  onClick={() => onNavigate(ViewMode.THEME)}
-                  className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
-                  style={{
-                    backgroundColor: isThemeView ? `${colors.primary}33` : colors.backgroundCard,
-                    color: isThemeView ? colors.primary : textSecondary,
-                    boxShadow: isThemeView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isThemeView) {
-                      e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-                      e.currentTarget.style.color = textPrimary;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isThemeView) {
-                      e.currentTarget.style.backgroundColor = colors.backgroundCard;
-                      e.currentTarget.style.color = textSecondary;
-                    }
-                  }}
-                >
-                  <span className={`material-symbols-outlined text-[22px] ${isThemeView ? 'fill-1' : ''}`}>checkroom</span>
-                </button>
-              </div>
-
-              {hasUnavailableTracks && onReloadFiles && (
-                <button
-                  onClick={onReloadFiles}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all border border-dashed group"
-                  style={{
-                    color: isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706',
-                    borderColor: isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(217, 119, 6, 0.3)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isDark ? 'rgba(234, 179, 8, 0.1)' : 'rgba(217, 119, 6, 0.1)';
-                    e.currentTarget.style.color = isDark ? '#facc15' : '#b45309';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706';
-                  }}
-                  title="Reload unavailable tracks"
-                >
-                  <span className="material-symbols-outlined group-hover:scale-110 transition-transform">refresh</span>
-                  <span className="text-sm font-semibold">{i18n.t('sidebar.reloadFiles')}</span>
-                </button>
-              )}
+              <SidebarContent />
             </nav>
           </div>
         </div>
@@ -275,6 +283,31 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </aside>
     </div>
+  ) : (
+    <aside
+      className="w-56 flex flex-col backdrop-blur-md z-20 pt-8"
+      style={{
+        backgroundColor: colors.backgroundSidebar,
+        borderRight: `1px solid ${colors.borderLight}`,
+      }}
+    >
+      <div className="px-6 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">
+        <div>
+          <nav className="flex flex-col gap-2">
+            <SidebarContent />
+          </nav>
+        </div>
+      </div>
+
+      <div className="mt-auto p-8" style={{ opacity: 0.2 }}>
+        <p
+          className="text-[9px] font-bold uppercase tracking-[0.3em] text-center"
+          style={{ color: textPrimary }}
+        >
+          Lyrics Adapter
+        </p>
+      </div>
+    </aside>
   );
 };
 

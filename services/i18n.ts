@@ -1747,6 +1747,24 @@ const translations: Translations = {
   },
 
   // Shortcuts
+  // Experimental Features
+  'settings.experimental': {
+    zh: '实验性功能',
+    en: 'Experimental Features',
+    ja: '実験的機能',
+    ko: '실험적 기능',
+    de: 'Experimentelle Funktionen',
+    fr: 'Fonctionnalités expérimentales'
+  },
+  'settings.floatingPanel': {
+    zh: '悬浮效果',
+    en: 'Floating Panel',
+    ja: 'フローティング効果',
+    ko: '플로팅 효과',
+    de: 'Schwebende Leiste',
+    fr: 'Panneau flottant'
+  },
+
   'settings.shortcuts.title': {
     zh: '快捷键',
     en: 'Keyboard Shortcuts',

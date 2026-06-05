@@ -29,6 +29,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const [isTestingWebdav, setIsTestingWebdav] = useState(false);
   const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
+  const [floatingPanel, setFloatingPanel] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +43,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
         setWebdavUsername(webdavConfig.username);
         setWebdavPassword(webdavConfig.password);
       }
+      setFloatingPanel(settingsManager.getFloatingPanel());
     })();
   }, []);
 
@@ -383,6 +385,38 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
                   </span>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/* Experimental Features */}
+          <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
+              <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
+              {i18n.t('settings.experimental')}
+            </h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-lg" style={{ color: colors.textSecondary }}>pan_tool</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.floatingPanel')}</span>
+              </div>
+              <button
+                onClick={() => {
+                  const newValue = !floatingPanel;
+                  setFloatingPanel(newValue);
+                  settingsManager.setFloatingPanel(newValue);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
+                style={{
+                  backgroundColor: floatingPanel ? colors.primary : colors.borderLight,
+                }}
+              >
+                <span
+                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
+                  style={{
+                    transform: floatingPanel ? 'translateX(22px)' : 'translateX(2px)',
+                  }}
+                />
+              </button>
             </div>
           </section>
 

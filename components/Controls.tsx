@@ -21,6 +21,7 @@ interface ControlsProps {
   isFocusMode: boolean;
   forceUpdateCounter?: number; // Force re-render after restore
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
+  floating?: boolean;
 }
 
 // Move formatTime outside component to avoid re-creation
@@ -31,10 +32,20 @@ const formatTime = (seconds: number): string => {
 };
 
 
+const hexToRgb = (hex: string): string => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (result) {
+    return `${parseInt(result[1]!, 16)}, ${parseInt(result[2]!, 16)}, ${parseInt(result[3]!, 16)}`;
+  }
+  return '255, 255, 255';
+};
+
+
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
-  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter: _forceUpdateCounter, audioRef: _audioRef
+  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter: _forceUpdateCounter, audioRef: _audioRef,
+  floating = false
 }) => {
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -65,13 +76,19 @@ const Controls: React.FC<ControlsProps> = memo(({
 
   return (
     <div
-      className={`mx-2 mb-2 rounded-lg h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
-      style={{
+      className={floating
+        ? `mx-2 mb-2 rounded-lg h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
+        : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
+      }
+      style={floating ? {
         backgroundColor: colors.backgroundSidebar,
         borderTop: `1px solid ${colors.borderLight}`,
         borderRight: `1px solid ${colors.borderLight}`,
         borderBottom: `1px solid ${colors.borderLight}`,
         boxShadow: `0 4px 16px rgba(0, 0, 0, 0.2)`,
+      } : {
+        borderColor: colors.borderLight,
+        backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.4)`,
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
@@ -235,6 +252,9 @@ const Controls: React.FC<ControlsProps> = memo(({
   // This prevents excessive re-renders during playback
   const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);
   if (timeDiff > 1) return false;
+
+  // Check floating mode
+  if (prevProps.floating !== nextProps.floating) return false;
 
   // Check force update counter
   if (prevProps.forceUpdateCounter !== nextProps.forceUpdateCounter) return false;
