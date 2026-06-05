@@ -30,6 +30,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
   const [floatingPanel, setFloatingPanel] = useState(false);
+  const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
 
   useEffect(() => {
     (async () => {
@@ -44,7 +45,17 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
         setWebdavPassword(webdavConfig.password);
       }
       setFloatingPanel(settingsManager.getFloatingPanel());
+      setBgBlurTrans(settingsManager.getBgBlurTrans());
     })();
+  }, []);
+
+  // Subscribe to settings changes (e.g. bgBlurTrans updated by FocusMode)
+  useEffect(() => {
+    const unsubscribe = settingsManager.subscribe(() => {
+      setBgBlurTrans(settingsManager.getBgBlurTrans());
+      setFloatingPanel(settingsManager.getFloatingPanel());
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -395,10 +406,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
               {i18n.t('settings.experimental')}
             </h3>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-lg" style={{ color: colors.textSecondary }}>pan_tool</span>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.floatingPanel')}</span>
-              </div>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.floatingPanel')}</span>
               <button
                 onClick={() => {
                   const newValue = !floatingPanel;
@@ -417,6 +425,32 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
                   }}
                 />
               </button>
+            </div>
+
+            {/* 背景模糊透明度滑块 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.bgBlurTrans')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs tabular-nums w-8 text-right" style={{ color: colors.textMuted }}>{bgBlurTrans.toFixed(2)}</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={bgBlurTrans}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    setBgBlurTrans(value);
+                    settingsManager.setBgBlurTrans(value);
+                    const fn = (window as any).bg_blur_trans;
+                    if (typeof fn === 'function') fn(value);
+                  }}
+                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, ${colors.primary} ${bgBlurTrans * 100}%, ${colors.borderLight} ${bgBlurTrans * 100}%)`,
+                  }}
+                />
+              </div>
             </div>
           </section>
 

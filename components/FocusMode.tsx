@@ -4,6 +4,7 @@ import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { registerCommand } from '../services/debugCommands';
+import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 
 // Decode HTML entities in lyrics text
@@ -103,6 +104,12 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   // Global background transparency control for debugging
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
+  // Load saved value from persistent storage on mount
+  useEffect(() => {
+    settingsManager.ensureLoaded().then(() => {
+      setBgBlurTrans(settingsManager.getBgBlurTrans());
+    });
+  }, []);
 
   const CANVAS_REST_OPACITY = 1.0;
   const CANVAS_ENTER_DELAY = 700;
@@ -465,6 +472,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       }
     };
   }, []);
+
+  // Persist bgBlurTrans to settingsManager when it changes
+  useEffect(() => {
+    settingsManager.setBgBlurTrans(bgBlurTrans);
+  }, [bgBlurTrans]);
 
   // Register global debug function for background transparency
   useEffect(() => {

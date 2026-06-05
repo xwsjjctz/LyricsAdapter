@@ -645,6 +645,14 @@ const translations: Translations = {
     de: 'Französisch',
     fr: 'Français'
   },
+  'settings.bgBlurTrans': {
+    zh: '专注模式背景不透明度',
+    en: 'Focus Mode BG Opacity',
+    ja: 'フォーカスモード背景不透明度',
+    ko: '집중 모드 배경 불투명도',
+    de: 'Fokus-Modus Hintergrunddeckkraft',
+    fr: 'Opacité de l\'arrière-plan du mode concentré'
+  },
   'settings.about': {
     zh: '关于',
     en: 'About',
