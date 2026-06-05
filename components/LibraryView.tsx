@@ -107,11 +107,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     })();
   }, [dataSource]);
 
-  // Global cache clear: clears CDN cache + localStorage, clears slot, reloads
+  // Global debug commands — 注册一次后常驻，通过 ref 保持最新回调
+  const debugActionsRef = useRef({
+    clearWebdavCache,
+    loadWebDAVFiles,
+    applyDiffResult,
+    onLoadCloudTracks,
+    onMergeCloudTracks,
+  });
+  debugActionsRef.current = { clearWebdavCache, loadWebDAVFiles, applyDiffResult, onLoadCloudTracks, onMergeCloudTracks };
+
   useEffect(() => {
-    const unregister1 = registerCommand(
+    registerCommand(
       'clear_webdav_cache',
       () => {
+        const { clearWebdavCache, onLoadCloudTracks, loadWebDAVFiles, applyDiffResult } = debugActionsRef.current;
         clearWebdavCache();
         onLoadCloudTracks([]);
         setTimeout(() => {
@@ -125,13 +135,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       'Clear WebDAV cache and reload cloud tracks'
     );
 
-    const unregister2 = registerCommand(
+    registerCommand(
       'sync_webdav',
       () => {
         if (!webdavClient.hasConfig()) {
           logger.warn('[LibraryView] WebDAV not configured');
           return;
         }
+        const { loadWebDAVFiles, onMergeCloudTracks, onLoadCloudTracks } = debugActionsRef.current;
         loadWebDAVFiles().then(result => {
           if (result.type === 'full') {
             logger.info('[LibraryView] sync_webdav: full load, ' + result.tracks.length + ' tracks');
@@ -145,7 +156,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       'Manually trigger WebDAV sync'
     );
 
-    const unregister3 = registerCommand(
+    registerCommand(
       'scan_webdav_audio',
       async () => {
         if (!webdavClient.hasConfig()) {
@@ -216,13 +227,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       },
       'Scan WebDAV audio files, parse metadata from 1MB header, generate missing meta.json'
     );
-
-    return () => {
-      unregister1();
-      unregister2();
-      unregister3();
-    };
-  }, [clearWebdavCache, onLoadCloudTracks, onMergeCloudTracks, loadWebDAVFiles, applyDiffResult]);
+  }, []);
 
   const displayTracks = tracks;
   const [viewportHeight, setViewportHeight] = useState(0);

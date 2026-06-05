@@ -468,7 +468,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   // Register global debug function for background transparency
   useEffect(() => {
-    const unregister = registerCommand(
+    registerCommand(
       'bg_blur_trans',
       (value: number) => {
         if (typeof value === 'number' && value >= 0 && value <= 1) {
@@ -477,7 +477,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       },
       'Set FocusMode background transparency (0~1), e.g. bg_blur_trans(0.92)'
     );
-    return () => unregister();
   }, []);
 
   // Hardware-accelerated lyric positioning using CSS transform with bezier easing
