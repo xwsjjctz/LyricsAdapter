@@ -9,6 +9,7 @@ export interface WebDAVConfig {
   serverUrl: string;
   username: string;
   password: string;
+  readonly?: boolean;
 }
 
 export interface WebDAVFile {

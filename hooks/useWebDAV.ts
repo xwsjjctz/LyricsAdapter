@@ -4,8 +4,8 @@ import { webdavClient, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
 import { indexedDBStorage } from '../services/indexedDBStorage';
+import { getEffectiveConfig } from '../services/webdav/providerConfig';
 
-const BATCH_SIZE = 10;
 const RANGE_SIZE = 1048576;
 
 export type WebDAVDiffResult =
@@ -120,6 +120,11 @@ export const useWebDAV = () => {
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const abortRef = useRef(false);
 
+  // Detect WebDAV provider strategy from server URL
+  const davConfig = webdavClient.getConfig();
+  const providerConfig = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
+  const BATCH_SIZE = providerConfig.batchSize;
+
   const loadMetadataCache = async (): Promise<Map<string, CachedMetadata>> => {
     try {
       await indexedDBStorage.initialize();
@@ -171,11 +176,13 @@ export const useWebDAV = () => {
       logger.warn('[useWebDAV] fetchFileRange returned null for', file.name, '- falling back to filename');
       const { artist, title } = parseArtistTitleFromFilename(file.name);
       // Upload filename-based meta.json (fire-and-forget, better than nothing on next load)
-      const fallbackMeta: MetaJson = {
-        title, artist, album: 'Unknown Album', duration: 0,
-        fileSize: file.size, fileName: file.name, lastModified: file.lastModified,
-      };
-      webdavClient.uploadMetaJson(file.path, fallbackMeta);
+      if (providerConfig.autoUploadMetaJson) {
+        const fallbackMeta: MetaJson = {
+          title, artist, album: 'Unknown Album', duration: 0,
+          fileSize: file.size, fileName: file.name, lastModified: file.lastModified,
+        };
+        webdavClient.uploadMetaJson(file.path, fallbackMeta);
+      }
       return {
         artist, title,
         album: 'Unknown Album',
@@ -223,19 +230,21 @@ export const useWebDAV = () => {
     const reusableCoverUrl = finalCoverUrl.startsWith('data:') ? finalCoverUrl : '';
 
     // Upload meta.json to server for future fast loading (fire-and-forget)
-    const metaJson: MetaJson = {
-      title: parsed.title || title,
-      artist: parsed.artist || artist,
-      album: parsed.album || 'Unknown Album',
-      duration: parsed.duration || 0,
-      fileSize: file.size,
-      fileName: file.name,
-      lastModified: file.lastModified,
-      ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
-      ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
-      ...(reusableCoverUrl ? { coverUrl: reusableCoverUrl } : {}),
-    };
-    webdavClient.uploadMetaJson(file.path, metaJson);
+    if (providerConfig.autoUploadMetaJson) {
+      const metaJson: MetaJson = {
+        title: parsed.title || title,
+        artist: parsed.artist || artist,
+        album: parsed.album || 'Unknown Album',
+        duration: parsed.duration || 0,
+        fileSize: file.size,
+        fileName: file.name,
+        lastModified: file.lastModified,
+        ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
+        ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
+        ...(providerConfig.includeCoverInMetaJson && reusableCoverUrl ? { coverUrl: reusableCoverUrl } : {}),
+      };
+      webdavClient.uploadMetaJson(file.path, metaJson);
+    }
 
     return {
       title: parsed.title || title,
@@ -262,8 +271,10 @@ export const useWebDAV = () => {
   });
 
   /** Upload the metadata index (all tracks' CachedMetadata) to the server.
-   *  Fire-and-forget — caller should not await this. */
+   *  Fire-and-forget — caller should not await this.
+   *  Only active when provider supports metadata index (e.g. 123云盘). */
   const uploadMetadataIndex = async (): Promise<void> => {
+    if (!providerConfig.useMetadataIndex) return;
     const allEntries = await loadMetadataCache();
     if (allEntries.size === 0) return;
     const indexData: Record<string, CachedMetadata> = {};
@@ -309,8 +320,9 @@ export const useWebDAV = () => {
       // Check unchanged files for missing meta.json on the server.
       // On first connection (no meta.json files deployed), this ensures every
       // cached file gets re-parsed once so a meta.json is uploaded for future fast loads.
+      // Only relevant when the provider supports auto-upload (e.g. 123云盘).
       let missingMetaFiles: WebDAVFile[] = [];
-      if (diff.unchanged.length > 0) {
+      if (providerConfig.autoUploadMetaJson && diff.unchanged.length > 0) {
         const metaPaths = await webdavClient.listMetaJsonPaths('/');
         const audioFileMap = new Map(audioFiles.map(f => [f.path, f]));
         for (const path of diff.unchanged) {
@@ -438,7 +450,8 @@ export const useWebDAV = () => {
     setWebdavTracks(placeholderTracks);
 
     // Try loading from server-side metadata index (single request for all tracks)
-    const indexEntries = await webdavClient.fetchIndex();
+    // Only for providers that support it (e.g. 123云盘)
+    const indexEntries = providerConfig.useMetadataIndex ? await webdavClient.fetchIndex() : null;
     if (indexEntries) {
       logger.info('[useWebDAV] loadFullMode: loaded metadata index with', Object.keys(indexEntries).length, 'entries');
     }
@@ -469,8 +482,9 @@ export const useWebDAV = () => {
       }
     }
 
-    // Check cached files for missing meta.json on the server
-    if (toFetch.length < audioFiles.length) {
+    // Check cached files for missing meta.json on the server.
+    // Only relevant when the provider supports auto-upload (otherwise re-parsing is wasted).
+    if (providerConfig.autoUploadMetaJson && toFetch.length < audioFiles.length) {
       const metaPaths = await webdavClient.listMetaJsonPaths('/');
       for (let i = 0; i < audioFiles.length; i++) {
         if (toFetch.some(tf => tf.index === i)) continue;
