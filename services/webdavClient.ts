@@ -25,6 +25,7 @@ interface CdnCacheEntry {
 }
 
 const AUDIO_EXTENSIONS = ['.flac', '.mp3', '.m4a', '.wav', '.ogg', '.aac'];
+const INDEX_FILE_NAME = '_metadata_index.json';
 
 class WebDAVClient {
   private config: WebDAVConfig | null = null;
@@ -308,6 +309,43 @@ class WebDAVClient {
   async uploadMetaJson(audioPath: string, meta: import('../types').MetaJson): Promise<{ success: boolean; error?: string }> {
     const metaPath = this.getMetaJsonPath(audioPath);
     return this.uploadTextFile(metaPath, JSON.stringify(meta));
+  }
+
+  /** Path for the single metadata index file on the server */
+  getIndexPath(): string {
+    return '/' + INDEX_FILE_NAME;
+  }
+
+  /**
+   * Download the metadata index file containing all tracks' metadata.
+   * Single-request bulk load for cold starts.
+   */
+  async fetchIndex(): Promise<Record<string, any> | null> {
+    const text = await this.fetchTextFile(this.getIndexPath());
+    if (!text) return null;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.version === 1 && parsed?.entries) {
+        return parsed.entries;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Upload the metadata index file (fire-and-forget friendly).
+   * Contains all tracks' CachedMetadata keyed by file path.
+   */
+  async uploadIndex(entries: Record<string, any>): Promise<boolean> {
+    const data = JSON.stringify({
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      entries,
+    });
+    const result = await this.uploadTextFile(this.getIndexPath(), data);
+    return result.success;
   }
 
   async fetchFileRange(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {

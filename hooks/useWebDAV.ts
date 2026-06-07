@@ -261,6 +261,18 @@ export const useWebDAV = () => {
     syncedLyrics: meta.syncedLyrics,
   });
 
+  /** Upload the metadata index (all tracks' CachedMetadata) to the server.
+   *  Fire-and-forget — caller should not await this. */
+  const uploadMetadataIndex = async (): Promise<void> => {
+    const allEntries = await loadMetadataCache();
+    if (allEntries.size === 0) return;
+    const indexData: Record<string, CachedMetadata> = {};
+    for (const [path, meta] of allEntries) {
+      indexData[path] = meta;
+    }
+    webdavClient.uploadIndex(indexData);
+  };
+
   const loadWebDAVFiles = useCallback(async (): Promise<WebDAVDiffResult> => {
     if (!webdavClient.hasConfig()) {
       setError('WebDAV not configured');
@@ -361,6 +373,7 @@ export const useWebDAV = () => {
           newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
         }
         await indexedDBStorage.setFileListSnapshot(newSnapshot);
+        uploadMetadataIndex(); // fire-and-forget
         return { type: 'diff', added: addedTracks, removed: removedIds, updated: updatedTracks };
       }
 
@@ -394,6 +407,7 @@ export const useWebDAV = () => {
       }
 
       await saveMetadataCache(metadataCache);
+      uploadMetadataIndex(); // fire-and-forget
 
       const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
       for (const file of audioFiles) {
@@ -423,12 +437,30 @@ export const useWebDAV = () => {
     const placeholderTracks = audioFiles.map(fileToPlaceholderTrack);
     setWebdavTracks(placeholderTracks);
 
+    // Try loading from server-side metadata index (single request for all tracks)
+    const indexEntries = await webdavClient.fetchIndex();
+    if (indexEntries) {
+      logger.info('[useWebDAV] loadFullMode: loaded metadata index with', Object.keys(indexEntries).length, 'entries');
+    }
+
     const metadataCache = await loadMetadataCache();
     const toFetch: { file: WebDAVFile; index: number }[] = [];
 
     for (let i = 0; i < audioFiles.length; i++) {
       const file = audioFiles[i];
       if (!file) continue;
+
+      // 1. Check server-side index first (bulk fast path — 1 request for all)
+      if (indexEntries) {
+        const entry = indexEntries[file.path];
+        if (entry && entry.fileSize === file.size && entry.lastModified === file.lastModified) {
+          metadataCache.set(file.path, entry);
+          placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, entry);
+          continue;
+        }
+      }
+
+      // 2. Then check local IndexedDB cache
       const cached = metadataCache.get(file.path);
       if (cached && isCacheValid(cached, file)) {
         placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
@@ -457,6 +489,8 @@ export const useWebDAV = () => {
       setWebdavTracks(finalTracks);
       setIsLoading(false);
       setLoadProgress(null);
+      await saveMetadataCache(metadataCache);
+      uploadMetadataIndex(); // fire-and-forget
       const snapshot: Record<string, { size: number; lastModified: string }> = {};
       for (const file of audioFiles) {
         snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
@@ -496,6 +530,7 @@ export const useWebDAV = () => {
     }
 
     await saveMetadataCache(metadataCache);
+    uploadMetadataIndex(); // fire-and-forget
 
     const snapshot: Record<string, { size: number; lastModified: string }> = {};
     for (const file of audioFiles) {
