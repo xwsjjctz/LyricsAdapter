@@ -274,10 +274,13 @@ class WebDAVClient {
   async fetchTextFile(filePath: string): Promise<string | null> {
     const api = await getDesktopAPI();
     if (!api) return null;
-    const cdnUrl = await this.getCdnUrl(filePath);
-    if (!cdnUrl) return null;
-    // Fetch the full file content (pass -1, -1 to omit Range header)
-    const result = await api.webdavGetRange(cdnUrl, '', -1, -1);
+    // Fetch directly from the WebDAV server URL, not via CDN.
+    // meta.json files are small text files (even with cover ~200KB), so CDN
+    // redirect is unnecessary and often fails (cloud storage CDNs typically
+    // only redirect known media types: audio/video/images).
+    const url = this.buildUrl(filePath);
+    // Use auth header, pass -1,-1 to omit Range header → full file download
+    const result = await api.webdavGetRange(url, this.buildAuthHeader(), -1, -1);
     if (!result.success || !result.data) return null;
     const decoder = new TextDecoder();
     return decoder.decode(result.data);
