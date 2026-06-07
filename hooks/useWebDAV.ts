@@ -148,17 +148,17 @@ export const useWebDAV = () => {
 
   const fetchMetadata = async (file: WebDAVFile): Promise<CachedMetadata> => {
     // Try meta.json sidecar first (fast path)
-    const metaJson = await webdavClient.fetchMetaJson(file.path);
-    if (metaJson && isMetaJsonValid(metaJson, file)) {
+    const sidecarMeta = await webdavClient.fetchMetaJson(file.path);
+    if (sidecarMeta && isMetaJsonValid(sidecarMeta, file)) {
       logger.info('[useWebDAV] meta.json hit for', file.name);
       return {
-        title: metaJson.title,
-        artist: metaJson.artist,
-        album: metaJson.album,
-        coverUrl: '', // cover loaded lazily
-        duration: metaJson.duration,
-        ...(metaJson.lyrics != null && { lyrics: metaJson.lyrics }),
-        ...(metaJson.syncedLyrics != null && { syncedLyrics: metaJson.syncedLyrics }),
+        title: sidecarMeta.title,
+        artist: sidecarMeta.artist,
+        album: sidecarMeta.album,
+        coverUrl: sidecarMeta.coverUrl || '',
+        duration: sidecarMeta.duration,
+        ...(sidecarMeta.lyrics != null && { lyrics: sidecarMeta.lyrics }),
+        ...(sidecarMeta.syncedLyrics != null && { syncedLyrics: sidecarMeta.syncedLyrics }),
         fileSize: file.size,
         lastModified: file.lastModified,
       };
@@ -169,8 +169,15 @@ export const useWebDAV = () => {
     logger.info('[useWebDAV] fetchFileRange for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null');
     if (!buffer) {
       logger.warn('[useWebDAV] fetchFileRange returned null for', file.name, '- falling back to filename');
+      const { artist, title } = parseArtistTitleFromFilename(file.name);
+      // Upload filename-based meta.json (fire-and-forget, better than nothing on next load)
+      const fallbackMeta: MetaJson = {
+        title, artist, album: 'Unknown Album', duration: 0,
+        fileSize: file.size, fileName: file.name, lastModified: file.lastModified,
+      };
+      webdavClient.uploadMetaJson(file.path, fallbackMeta);
       return {
-        ...parseArtistTitleFromFilename(file.name),
+        artist, title,
         album: 'Unknown Album',
         coverUrl: '',
         duration: 0,
@@ -211,11 +218,30 @@ export const useWebDAV = () => {
       }
     }
 
+    // Convert cover to data URL for persistence in meta.json and IndexedDB
+    const finalCoverUrl = await blobUrlToDataUrl(coverUrl);
+    const reusableCoverUrl = finalCoverUrl.startsWith('data:') ? finalCoverUrl : '';
+
+    // Upload meta.json to server for future fast loading (fire-and-forget)
+    const metaJson: MetaJson = {
+      title: parsed.title || title,
+      artist: parsed.artist || artist,
+      album: parsed.album || 'Unknown Album',
+      duration: parsed.duration || 0,
+      fileSize: file.size,
+      fileName: file.name,
+      lastModified: file.lastModified,
+      ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
+      ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
+      ...(reusableCoverUrl ? { coverUrl: reusableCoverUrl } : {}),
+    };
+    webdavClient.uploadMetaJson(file.path, metaJson);
+
     return {
       title: parsed.title || title,
       artist: parsed.artist || artist,
       album: parsed.album || 'Unknown Album',
-      coverUrl: await blobUrlToDataUrl(coverUrl),
+      coverUrl: finalCoverUrl,
       duration: parsed.duration || 0,
       ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
       ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
@@ -268,7 +294,26 @@ export const useWebDAV = () => {
 
       logger.info('[useWebDAV] Diff result: added=' + diff.added.length + ' removed=' + diff.removed.length + ' changed=' + diff.changed.length + ' unchanged=' + diff.unchanged.length);
 
-      if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) {
+      // Check unchanged files for missing meta.json on the server.
+      // On first connection (no meta.json files deployed), this ensures every
+      // cached file gets re-parsed once so a meta.json is uploaded for future fast loads.
+      let missingMetaFiles: WebDAVFile[] = [];
+      if (diff.unchanged.length > 0) {
+        const metaPaths = await webdavClient.listMetaJsonPaths('/');
+        const audioFileMap = new Map(audioFiles.map(f => [f.path, f]));
+        for (const path of diff.unchanged) {
+          const metaPath = webdavClient.getMetaJsonPath(path);
+          if (!metaPaths.has(metaPath)) {
+            const file = audioFileMap.get(path);
+            if (file) missingMetaFiles.push(file);
+          }
+        }
+        if (missingMetaFiles.length > 0) {
+          logger.info('[useWebDAV] Found', missingMetaFiles.length, 'unchanged files missing meta.json, will re-parse');
+        }
+      }
+
+      if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0 && missingMetaFiles.length === 0) {
         setIsLoading(false);
         const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
         for (const file of audioFiles) {
@@ -278,7 +323,7 @@ export const useWebDAV = () => {
         return { type: 'diff', added: [], removed: [], updated: [] };
       }
 
-      const filesToFetch: WebDAVFile[] = [...diff.added, ...diff.changed];
+      const filesToFetch: WebDAVFile[] = [...diff.added, ...diff.changed, ...missingMetaFiles];
       const newPlaceholderMap = new Map<string, Track>();
       for (const file of filesToFetch) {
         newPlaceholderMap.set(file.path, fileToPlaceholderTrack(file));
@@ -291,7 +336,9 @@ export const useWebDAV = () => {
       for (const file of filesToFetch) {
         const cached = metadataCache.get(file.path);
         const placeholder = newPlaceholderMap.get(file.path)!;
-        if (cached && isCacheValid(cached, file)) {
+        // Force re-parse for files missing meta.json (triggers upload), even if cached
+        const needsReParse = missingMetaFiles.some(f => f.path === file.path);
+        if (!needsReParse && cached && isCacheValid(cached, file)) {
           const enriched = enrichTrack(placeholder, cached);
           enrichedNewTracks.push(enriched);
         } else {
@@ -304,7 +351,10 @@ export const useWebDAV = () => {
       if (toFetch.length === 0) {
         setLoadProgress(null);
         setIsLoading(false);
-        const updatedTracks = enrichedNewTracks.filter(t => diff.changed.some(f => f.path === (t.webdavPath || '')));
+        const updatedTracks = enrichedNewTracks.filter(t =>
+          diff.changed.some(f => f.path === (t.webdavPath || '')) ||
+          missingMetaFiles.some(f => f.path === (t.webdavPath || ''))
+        );
         const addedTracks = enrichedNewTracks.filter(t => diff.added.some(f => f.path === (t.webdavPath || '')));
         const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
         for (const file of audioFiles) {
@@ -354,7 +404,10 @@ export const useWebDAV = () => {
       setLoadProgress(null);
       setIsLoading(false);
 
-      const updatedTracks = enrichedNewTracks.filter(t => diff.changed.some(f => f.path === (t.webdavPath || '')));
+      const updatedTracks = enrichedNewTracks.filter(t =>
+        diff.changed.some(f => f.path === (t.webdavPath || '')) ||
+        missingMetaFiles.some(f => f.path === (t.webdavPath || ''))
+      );
       const addedTracks = enrichedNewTracks.filter(t => diff.added.some(f => f.path === (t.webdavPath || '')));
       return { type: 'diff', added: addedTracks, removed: removedIds, updated: updatedTracks };
     } catch (e: any) {
@@ -381,6 +434,21 @@ export const useWebDAV = () => {
         placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
       } else {
         toFetch.push({ file, index: i });
+      }
+    }
+
+    // Check cached files for missing meta.json on the server
+    if (toFetch.length < audioFiles.length) {
+      const metaPaths = await webdavClient.listMetaJsonPaths('/');
+      for (let i = 0; i < audioFiles.length; i++) {
+        if (toFetch.some(tf => tf.index === i)) continue;
+        const file = audioFiles[i];
+        if (!file) continue;
+        const metaPath = webdavClient.getMetaJsonPath(file.path);
+        if (!metaPaths.has(metaPath)) {
+          toFetch.push({ file, index: i });
+          logger.info('[useWebDAV] loadFullMode: cached file missing meta.json:', file.name);
+        }
       }
     }
 

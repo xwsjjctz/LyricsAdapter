@@ -197,6 +197,38 @@ class WebDAVClient {
     return files;
   }
 
+  /**
+   * List all .meta.json file paths on the server via PROPFIND.
+   * Used to detect audio files that are missing a sidecar meta.json.
+   * This is one extra PROPFIND request (depth 1) regardless of file count.
+   */
+  async listMetaJsonPaths(dirPath: string = '/'): Promise<Set<string>> {
+    if (!this.hasConfig()) return new Set();
+    const api = await getDesktopAPI();
+    if (!api) return new Set();
+    const url = this.buildUrl(dirPath);
+    const result = await api.webdavPropfind(url, this.buildAuthHeader(), '1');
+    if (!result.success || !result.xml) return new Set();
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(result.xml, 'application/xml');
+    const responses = doc.querySelectorAll('response');
+    const paths = new Set<string>();
+
+    for (const resp of responses) {
+      const hrefEl = resp.querySelector('href');
+      if (!hrefEl) continue;
+      const href = hrefEl.textContent || '';
+      if (!href.endsWith('.meta.json')) continue;
+      const decoded = decodeURIComponent(href);
+      const basePath = this.config!.serverUrl.replace(/\/+$/, '');
+      const filePath = decoded.startsWith(basePath) ? decoded.slice(basePath.length) : decoded;
+      paths.add(filePath);
+    }
+
+    return paths;
+  }
+
   async getCdnUrl(filePath: string): Promise<string | null> {
     const cached = this.cdnCache.get(filePath);
     if (cached && cached.expiry > Date.now()) {
@@ -244,7 +276,8 @@ class WebDAVClient {
     if (!api) return null;
     const cdnUrl = await this.getCdnUrl(filePath);
     if (!cdnUrl) return null;
-    const result = await api.webdavGetRange(cdnUrl, '', 0, 65536);
+    // Fetch the full file content (pass -1, -1 to omit Range header)
+    const result = await api.webdavGetRange(cdnUrl, '', -1, -1);
     if (!result.success || !result.data) return null;
     const decoder = new TextDecoder();
     return decoder.decode(result.data);
