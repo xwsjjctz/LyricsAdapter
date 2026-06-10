@@ -20,7 +20,7 @@ async function defaultFn(context) {
   if (electronPlatformName === 'darwin') {
     cleanMacOS(appOutDir)
   } else {
-    cleanWinLinux(appOutDir)
+    cleanWinLinux(appOutDir, electronPlatformName)
   }
 }
 
@@ -64,7 +64,7 @@ function cleanMacOS(appOutDir) {
   console.warn(`[cleanLocales] No Resources directory found in ${appOutDir}`)
 }
 
-function cleanWinLinux(appOutDir) {
+function cleanWinLinux(appOutDir, electronPlatformName) {
   const localesDir = path.join(appOutDir, 'locales')
   if (!fs.existsSync(localesDir)) {
     console.warn(`[cleanLocales] No locales dir at ${localesDir}`)
