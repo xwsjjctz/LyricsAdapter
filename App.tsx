@@ -482,6 +482,11 @@ const App: React.FC = () => {
     window.electron?.onDownloadProgress?.(handler);
     return () => { window.electron?.offDownloadProgress?.(handler); };
   }, []);
+  // 启动时清除持久化的 CDN URL 缓存，避免使用可能已过期的预签名 URL
+  useEffect(() => {
+    webdavClient.clearCdnCache();
+  }, []);
+
   useEffect(() => {
     const initDesktopAPI = async () => {
       logger.debug('[App] Initializing Desktop API...');

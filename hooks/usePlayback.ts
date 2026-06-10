@@ -457,6 +457,28 @@ export function usePlayback({
       if (currentTrack.source === 'webdav') {
         logger.warn('[Playback] CDN URL not supported, retrying with fresh URL');
         webdavClient.clearCdnCache();
+
+        const currentTimeBeforeError = audio.currentTime || currentTime;
+        (async () => {
+          try {
+            if (!currentTrack.webdavPath || !audioRef.current) return;
+            const freshCdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
+            if (!freshCdnUrl || !audioRef.current) return;
+            logger.info('[Playback] WebDAV recovery: got fresh CDN URL, resuming playback');
+
+            audioRef.current.src = freshCdnUrl;
+            audioUrlReadyRef.current = true;
+            shouldAutoPlayRef.current = true;
+            waitingForCanPlayRef.current = true;
+
+            if (currentTimeBeforeError > 0) {
+              hasRestoredRef.current = false;
+              restoredTimeRef.current = currentTimeBeforeError;
+            }
+          } catch (e) {
+            logger.error('[Playback] WebDAV recovery failed:', e);
+          }
+        })();
       } else {
         logger.warn('[Playback] Blob URL revoked, re-loading audio file');
         setTracks(prev => {

@@ -114,6 +114,13 @@ class WebDAVClient {
     logger.info('[WebDAV] CDN cache cleared');
   }
 
+  clearCdnEntry(filePath: string): void {
+    if (this.cdnCache.delete(filePath)) {
+      this.saveCdnCache();
+      logger.info('[WebDAV] CDN cache entry cleared for:', filePath);
+    }
+  }
+
   async testConnection(): Promise<{ success: boolean; message: string }> {
     if (!this.hasConfig()) {
       return { success: false, message: 'WebDAV not configured' };
