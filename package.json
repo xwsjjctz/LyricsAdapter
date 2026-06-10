@@ -19,17 +19,14 @@
     "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.18",
     "flac-metadata": "^0.1.1",
     "idb": "^8.0.3",
     "music-metadata": "^11.11.0",
     "node-id3": "^0.2.9",
-    "probe-image-size": "^7.2.3",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "tailwindcss": "^4.1.18"
+    "probe-image-size": "^7.2.3"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^22.14.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
@@ -37,6 +34,9 @@
     "cross-env": "^7.0.3",
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-electron": "^0.29.0",
@@ -51,10 +51,7 @@
     "icon": "app-icon.png",
     "compression": "maximum",
     "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "!**/node_modules/lightningcss-darwin-arm64/**",
-      "!**/node_modules/@tailwindcss/oxide-darwin-arm64/**"
+      "dist-electron/**/*"
     ],
     "extraResources": [
       {
@@ -73,6 +70,7 @@
       }
     ],
     "asar": true,
+    "afterPack": "scripts/cleanLocales.cjs",
     "win": {
       "target": [
         "nsis"
