@@ -43,6 +43,7 @@ export function usePlayback({
   const restoredTimeRef = useRef<number>(0);
   const hasRestoredRef = useRef<boolean>(false);
   const lastTrackIdRef = useRef<string | undefined>(undefined);
+  const loadedTrackIdRef = useRef<string | undefined>(undefined);
 
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
@@ -281,6 +282,12 @@ export function usePlayback({
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
+
+    // 跳过同曲目（id 相同）的重复加载，避免元数据刷新等操作中断正在播放的音频
+    if (currentTrack.id === loadedTrackIdRef.current) {
+      return;
+    }
+    loadedTrackIdRef.current = currentTrack.id;
 
     logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex, 'source:', currentTrack.source);
 
