@@ -94,3 +94,4 @@ problems.md
 /binaries/*
 /docs
 /docs/*
+/.playwright-mcp

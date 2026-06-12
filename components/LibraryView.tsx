@@ -231,6 +231,79 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       },
       'Scan WebDAV audio files, parse metadata from 1MB header, generate missing meta.json'
     );
+
+    registerCommand(
+      'webdav_meta_update',
+      async () => {
+        if (!webdavClient.hasConfig()) {
+          logger.warn('[webdav_meta_update] WebDAV not configured');
+          return;
+        }
+        logger.info('[webdav_meta_update] Listing WebDAV files...');
+        const files = await webdavClient.listFiles('/');
+        const audioFiles = files.filter(f => !f.isDirectory);
+        logger.info(`[webdav_meta_update] Found ${audioFiles.length} audio files`);
+
+        let updated = 0;
+        let skipped = 0;
+        let failed = 0;
+        const RANGE_SIZE = 1048576; // 1MB
+
+        for (const file of audioFiles) {
+          const existingMeta = await webdavClient.fetchMetaJson(file.path);
+          if (existingMeta && existingMeta.duration > 0) {
+            skipped++;
+            logger.debug(`[webdav_meta_update] Skip (duration OK): ${file.name} duration=${existingMeta.duration}`);
+            continue;
+          }
+
+          const reason = existingMeta
+            ? `duration=${existingMeta.duration || 0}`
+            : 'no meta.json';
+          logger.info(`[webdav_meta_update] Re-parsing: ${file.name} (${reason})...`);
+
+          try {
+            const buffer = await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+            if (!buffer) {
+              logger.warn(`[webdav_meta_update] Failed to fetch range for: ${file.name}`);
+              failed++;
+              continue;
+            }
+
+            const parsed = parseMetadataFromBuffer(buffer, file.name);
+            const track: Track = {
+              id: `webdav-${file.path}`,
+              title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
+              artist: parsed.artist || 'Unknown Artist',
+              album: parsed.album || 'Unknown Album',
+              duration: parsed.duration || 0,
+              audioUrl: '',
+              source: 'webdav',
+              webdavPath: file.path,
+              fileName: file.name,
+              fileSize: file.size,
+            };
+
+            const metaJson = generateMetaJson(track);
+            await webdavClient.uploadMetaJson(file.path, metaJson);
+            updated++;
+            logger.info(`[webdav_meta_update] ✓ ${file.name} — ${metaJson.title} / ${metaJson.artist} / duration=${metaJson.duration}`);
+          } catch (err: any) {
+            logger.error(`[webdav_meta_update] ✗ ${file.name} — ${err.message}`);
+            failed++;
+          }
+        }
+
+        logger.info(`[webdav_meta_update] Done: updated=${updated} skipped=${skipped} failed=${failed}`);
+
+        if (updated > 0) {
+          logger.info('[webdav_meta_update] Reloading cloud tracks...');
+          const result = await loadWebDAVFiles();
+          applyDiffResult(result);
+        }
+      },
+      'Re-parse all WebDAV audio metadata and upload updated meta.json (fixes missing duration)'
+    );
   }, []);
 
   const displayTracks = tracks;
@@ -1518,7 +1591,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       )}
 
       {/* Floating locate button - shows when current track is out of viewport or in a different slot */}
-      {(showLocateButton && currentTrackInFilteredIndex >= 0) || (dataSource !== activeSlotId && currentTrackId) && (
+      {((showLocateButton && currentTrackInFilteredIndex >= 0) || (dataSource !== activeSlotId && currentTrackId)) && (
         <button
           onClick={handleLocateToCurrentTrack}
           className="absolute bottom-6 right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-20 animate-fadeIn"

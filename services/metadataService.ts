@@ -373,7 +373,98 @@ function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Pars
     }
   }
 
+  // If duration not found via TLEN frame, try Xing/Info header (VBR/CBR fallback)
+  if (!result.duration && size > 0) {
+    const xingDuration = parseXingDuration(buffer, size + 10);
+    if (xingDuration) {
+      result.duration = xingDuration;
+    }
+  }
+
   return result;
+}
+
+/**
+ * MPEG audio duration estimation via Xing/Info header.
+ *
+ * LAME and many other encoders embed a Xing/Info header in the first MPEG frame
+ * side information area, containing the total number of audio frames.
+ * Duration = numFrames * samplesPerFrame / sampleRate.
+ *
+ * This is the standard fallback when the ID3v2 TLEN frame is absent.
+ *
+ * @param buffer - Audio file header buffer (must contain the first MPEG frame)
+ * @param audioOffset - Byte offset where the first MPEG frame starts (after ID3v2 tag)
+ * @returns Duration in seconds, or undefined if Xing header not found
+ */
+function parseXingDuration(buffer: ArrayBuffer, audioOffset: number): number | undefined {
+  const view = new DataView(buffer);
+
+  if (audioOffset + 4 > buffer.byteLength) return undefined;
+
+  // Search for MPEG sync word (0xFFF) starting from audioOffset
+  let offset = audioOffset;
+  while (offset + 4 <= buffer.byteLength) {
+    if ((view.getUint16(offset, false) & 0xFFE0) === 0xFFE0) {
+      break;
+    }
+    offset++;
+  }
+  if (offset + 4 > buffer.byteLength) return undefined;
+
+  const header = view.getUint32(offset, false);
+  const version = (header >> 19) & 0x03;     // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
+  const layer = (header >> 17) & 0x03;       // 1=Layer III, 2=Layer II, 3=Layer I
+  const sampleRateIndex = (header >> 10) & 0x03;
+  const channelMode = (header >> 6) & 0x03;  // 3=mono, 0-2=stereo/joint/dual
+
+  // Validate: version==1 and sampleRateIndex==3 are reserved
+  if (version === 1 || sampleRateIndex === 3) return undefined;
+  if (layer === 0) return undefined; // reserved
+
+  // Samples per frame by version and layer
+  const SAMPLES_PER_FRAME: Record<number, Record<number, number>> = {
+    3: { 1: 384, 2: 1152, 3: 1152 },  // MPEG 1
+    2: { 1: 384, 2: 1152, 3: 576  },  // MPEG 2
+    0: { 1: 384, 2: 1152, 3: 576  },  // MPEG 2.5
+  };
+  const samplesPerFrame = SAMPLES_PER_FRAME[version]?.[layer];
+  if (!samplesPerFrame) return undefined;
+
+  // Sample rate lookup: [version][sampleRateIndex]
+  const SAMPLE_RATES: Record<number, number[]> = {
+    3: [44100, 48000, 32000],
+    2: [22050, 24000, 16000],
+    0: [11025, 12000,  8000],
+  };
+  const sampleRate = SAMPLE_RATES[version]?.[sampleRateIndex];
+  if (!sampleRate) return undefined;
+
+  // Xing header offset within the first MPEG frame (side information area)
+  // MPEG 1:  32 bytes into frame (mono) / 36 bytes (stereo)
+  // MPEG 2/2.5: 17 bytes (mono) / 21 bytes (stereo)
+  const xingOffset = offset + (version === 3
+    ? (channelMode === 3 ? 32 : 36)
+    : (channelMode === 3 ? 17 : 21));
+
+  if (xingOffset + 8 > buffer.byteLength) return undefined;
+
+  const signature = getStringFromView(view, xingOffset, 4);
+  if (signature !== 'Xing' && signature !== 'Info') return undefined;
+
+  // Flags field (4 bytes): bit 0 = frames count present
+  const flags = view.getUint32(xingOffset + 4, false);
+  if (!(flags & 0x01)) return undefined;
+
+  const numFramesOffset = xingOffset + 8;
+  if (numFramesOffset + 4 > buffer.byteLength) return undefined;
+
+  const numFrames = view.getUint32(numFramesOffset, false);
+  if (numFrames > 0) {
+    return numFrames * samplesPerFrame / sampleRate;
+  }
+
+  return undefined;
 }
 
 // Parse SYLT (Synchronized Lyrics/Text) frame

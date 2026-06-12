@@ -154,8 +154,8 @@ export const useWebDAV = () => {
   const fetchMetadata = async (file: WebDAVFile): Promise<CachedMetadata> => {
     // Try meta.json sidecar first (fast path)
     const sidecarMeta = await webdavClient.fetchMetaJson(file.path);
-    if (sidecarMeta && isMetaJsonValid(sidecarMeta, file)) {
-      logger.info('[useWebDAV] meta.json hit for', file.name);
+    if (sidecarMeta && isMetaJsonValid(sidecarMeta, file) && sidecarMeta.duration > 0) {
+      logger.info('[useWebDAV] meta.json hit for', file.name, 'duration:', sidecarMeta.duration);
       return {
         title: sidecarMeta.title,
         artist: sidecarMeta.artist,
@@ -362,7 +362,7 @@ export const useWebDAV = () => {
         const placeholder = newPlaceholderMap.get(file.path)!;
         // Force re-parse for files missing meta.json (triggers upload), even if cached
         const needsReParse = missingMetaFiles.some(f => f.path === file.path);
-        if (!needsReParse && cached && isCacheValid(cached, file)) {
+        if (!needsReParse && cached && isCacheValid(cached, file) && cached.duration > 0) {
           const enriched = enrichTrack(placeholder, cached);
           enrichedNewTracks.push(enriched);
         } else {
@@ -466,7 +466,7 @@ export const useWebDAV = () => {
       // 1. Check server-side index first (bulk fast path — 1 request for all)
       if (indexEntries) {
         const entry = indexEntries[file.path];
-        if (entry && entry.fileSize === file.size && entry.lastModified === file.lastModified) {
+        if (entry && entry.fileSize === file.size && entry.lastModified === file.lastModified && entry.duration > 0) {
           metadataCache.set(file.path, entry);
           placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, entry);
           continue;
@@ -475,7 +475,7 @@ export const useWebDAV = () => {
 
       // 2. Then check local IndexedDB cache
       const cached = metadataCache.get(file.path);
-      if (cached && isCacheValid(cached, file)) {
+      if (cached && isCacheValid(cached, file) && cached.duration > 0) {
         placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
       } else {
         toFetch.push({ file, index: i });
