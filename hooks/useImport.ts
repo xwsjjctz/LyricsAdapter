@@ -29,7 +29,6 @@ interface UseImportOptions {
   currentTrack: Track | null;
   volume: number;
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
-  currentTime: number;
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
   getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
@@ -42,7 +41,6 @@ export function useImport({
   currentTrack,
   volume,
   playbackMode,
-  currentTime,
   createTrackedBlobUrl,
   persistedTimeRef,
   getPersistenceData,
@@ -59,11 +57,11 @@ export function useImport({
       volume,
       currentTrackIndex,
       currentTrackId: currentTrack?.id,
-      currentTime: persistedTimeRef.current || currentTime,
+      currentTime: persistedTimeRef.current,
       isPlaying,
       playbackMode,
     };
-  }, [getPersistenceData, volume, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode]);
+  }, [getPersistenceData, volume, currentTrackIndex, currentTrack, isPlaying, playbackMode]);
 
   useEffect(() => {
     tracksCountRef.current = tracks.length;
@@ -399,7 +397,6 @@ export function useImport({
     }
   }, [
     createTracksMap,
-    currentTime,
     currentTrack,
     currentTrackIndex,
     isPlaying,
@@ -528,7 +525,6 @@ export function useImport({
     tracks,
     currentTrackIndex,
     currentTrack,
-    currentTime,
     isPlaying,
     playbackMode,
     volume,
@@ -607,7 +603,6 @@ export function useImport({
     tracks,
     currentTrackIndex,
     currentTrack,
-    currentTime,
     isPlaying,
     playbackMode,
     volume,
@@ -679,7 +674,7 @@ export function useImport({
 
     setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, currentTime, isPlaying, playbackMode, volume, persistedTimeRef]);
+  }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
 
   return {
     fileInputRef,

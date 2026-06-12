@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { ViewMode } from '../types';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
@@ -31,7 +31,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSlotChange,
   localTrackCount,
   cloudTrackCount,
-  floating = false,
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isSettingsView = currentView === ViewMode.SETTINGS;
@@ -61,21 +60,30 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Get theme-aware styles
   const colors = currentTheme.colors;
   const isDark = currentTheme.isDark;
-  
+
   // Text colors based on theme
-  const textPrimary = colors.textPrimary;
   const textSecondary = colors.textSecondary;
-  const libraryItems = [
+
+  const handleSlotClick = useCallback((slotId: 'local' | 'cloud') => {
+    if (slotId === 'cloud') {
+      if (!webdavClient.hasConfig()) {
+        notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
+        onNavigate(ViewMode.SETTINGS);
+        return;
+      }
+    }
+    if (!isLibraryView) onNavigate(ViewMode.PLAYER);
+    onSlotChange(slotId);
+  }, [isLibraryView, onNavigate, onSlotChange]);
+
+  const libraryItems = useMemo(() => [
     {
       key: 'local' as const,
       icon: 'hard_drive',
       label: i18n.t('sidebar.local'),
       count: localTrackCount,
       active: isLibraryView && activeSlotId === 'local',
-      onClick: () => {
-        if (!isLibraryView) onNavigate(ViewMode.PLAYER);
-        onSlotChange('local');
-      },
+      onClick: () => handleSlotClick('local'),
     },
     {
       key: 'cloud' as const,
@@ -83,29 +91,21 @@ const Sidebar: React.FC<SidebarProps> = ({
       label: i18n.t('sidebar.cloud'),
       count: cloudTrackCount,
       active: isLibraryView && activeSlotId === 'cloud',
-      onClick: () => {
-        if (!webdavClient.hasConfig()) {
-          notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
-          onNavigate(ViewMode.SETTINGS);
-          return;
-        }
-        if (!isLibraryView) onNavigate(ViewMode.PLAYER);
-        onSlotChange('cloud');
-      },
+      onClick: () => handleSlotClick('cloud'),
     },
-  ];
+  ], [localTrackCount, cloudTrackCount, isLibraryView, activeSlotId, handleSlotClick]);
 
-  const SidebarContent = () => (
+  return (
     <>
       {/* LIBRARY 容器 */}
       <div
         className="rounded-2xl p-2 shadow-xl"
         style={{
-          backgroundColor: colors.primaryLight,
-          border: `1px solid ${colors.borderLight}`,
+          backgroundColor: 'var(--theme-primary-light)',
+          border: '1px solid var(--theme-border-light)',
         }}
       >
-        <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: colors.textMuted }}>
+        <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
           {i18n.t('sidebar.library')}
         </div>
         <div className="flex flex-col gap-1">
@@ -113,23 +113,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.key}
               onClick={item.onClick}
-              className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-all w-full text-left"
+              className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-colors w-full text-left ${
+                item.active
+                  ? ''
+                  : 'bg-transparent text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card)] hover:text-[var(--theme-text-primary)]'
+              }`}
               style={{
-                backgroundColor: item.active ? `${colors.primary}29` : 'transparent',
-                color: item.active ? colors.primary : textSecondary,
-                boxShadow: item.active ? `0 10px 24px -16px ${colors.glowColor}` : 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (!item.active) {
-                  e.currentTarget.style.backgroundColor = `${colors.backgroundCard}`;
-                  e.currentTarget.style.color = textPrimary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!item.active) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = textSecondary;
-                }
+                ...(item.active ? { backgroundColor: `${colors.primary}29`, color: colors.primary } : {}),
+                boxShadow: item.active ? '0 10px 24px -16px var(--theme-glow-color)' : 'none',
               }}
             >
               <span
@@ -150,14 +141,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 分隔 */}
-      <div className="my-1 mx-4 border-t" style={{ borderColor: colors.borderLight }} />
+      <div className="my-1 mx-4 border-t" style={{ borderColor: 'var(--theme-border-light)' }} />
 
       <button
         onClick={onImportClick}
-        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-2 border border-dashed group"
+        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
-          color: textSecondary,
-          borderColor: colors.borderLight,
+          borderColor: 'var(--theme-border-light)',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = `${colors.primary}1a`;
@@ -176,23 +166,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
           onClick={() => onNavigate(ViewMode.SETTINGS)}
-          className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
+          className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
+            isSettingsView
+              ? ''
+              : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
+          }`}
           style={{
-            backgroundColor: isSettingsView ? `${colors.primary}33` : colors.backgroundCard,
-            color: isSettingsView ? colors.primary : textSecondary,
-            boxShadow: isSettingsView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
-          }}
-          onMouseEnter={(e) => {
-            if (!isSettingsView) {
-              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-              e.currentTarget.style.color = textPrimary;
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isSettingsView) {
-              e.currentTarget.style.backgroundColor = colors.backgroundCard;
-              e.currentTarget.style.color = textSecondary;
-            }
+            ...(isSettingsView ? { backgroundColor: `${colors.primary}33`, color: colors.primary } : {}),
+            boxShadow: isSettingsView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
           }}
         >
           <span className={`material-symbols-outlined text-[22px] ${isSettingsView ? 'fill-1' : ''}`}>settings</span>
@@ -200,23 +181,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           onClick={() => onNavigate(ViewMode.THEME)}
-          className="flex items-center justify-center px-4 py-3.5 rounded-xl transition-all"
+          className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
+            isThemeView
+              ? ''
+              : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
+          }`}
           style={{
-            backgroundColor: isThemeView ? `${colors.primary}33` : colors.backgroundCard,
-            color: isThemeView ? colors.primary : textSecondary,
-            boxShadow: isThemeView ? `0 0 20px ${colors.glowColor}` : `0 4px 16px -6px ${colors.glowColor}`,
-          }}
-          onMouseEnter={(e) => {
-            if (!isThemeView) {
-              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-              e.currentTarget.style.color = textPrimary;
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isThemeView) {
-              e.currentTarget.style.backgroundColor = colors.backgroundCard;
-              e.currentTarget.style.color = textSecondary;
-            }
+            ...(isThemeView ? { backgroundColor: `${colors.primary}33`, color: colors.primary } : {}),
+            boxShadow: isThemeView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
           }}
         >
           <span className={`material-symbols-outlined text-[22px] ${isThemeView ? 'fill-1' : ''}`}>checkroom</span>
@@ -226,9 +198,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       {hasUnavailableTracks && onReloadFiles && (
         <button
           onClick={onReloadFiles}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all border border-dashed group"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors border border-dashed group text-[var(--theme-warning)]"
           style={{
-            color: isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706',
             borderColor: isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(217, 119, 6, 0.3)',
           }}
           onMouseEnter={(e) => {
@@ -247,54 +218,64 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
     </>
   );
+};
 
-  return floating ? (
-    <div
-      className="w-56 flex flex-col flex-shrink-0"
-      style={{
-        backgroundColor: 'transparent',
-      }}
-    >
-      <aside
-        className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 rounded-lg overflow-hidden"
+const MemoizedSidebar = memo(Sidebar);
+
+const SidebarWrapper: React.FC<SidebarProps> = (props) => {
+  const { floating } = props;
+
+  if (floating) {
+    return (
+      <div
+        className="w-56 flex flex-col flex-shrink-0"
         style={{
-          backgroundColor: colors.backgroundSidebar,
-          filter: `drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45))`,
+          backgroundColor: 'transparent',
         }}
       >
-        {/* 面板延伸到 TitleBar 下层，此 spacer 确保内容避开 TitleBar 交互区域 */}
-        <div className="h-[28px] flex-shrink-0" />
+        <aside
+          className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 rounded-lg overflow-hidden"
+          style={{
+            backgroundColor: 'var(--theme-background-sidebar)',
+            filter: `drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45))`,
+          }}
+        >
+          {/* 面板延伸到 TitleBar 下层，此 spacer 确保内容避开 TitleBar 交互区域 */}
+          <div className="h-[28px] flex-shrink-0" />
 
-        <div className="px-4 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">
-          <div>
-            <nav className="flex flex-col gap-2">
-              {SidebarContent()}
-            </nav>
+          <div className="px-4 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">
+            <div>
+              <nav className="flex flex-col gap-2">
+                <MemoizedSidebar {...props} />
+              </nav>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-auto p-8" style={{ opacity: 0.2 }}>
-          <p
-            className="text-[9px] font-bold uppercase tracking-[0.3em] text-center"
-            style={{ color: textPrimary }}
-          >
-            Lyrics Adapter
-          </p>
-        </div>
-      </aside>
-    </div>
-  ) : (
+          <div className="mt-auto p-8" style={{ opacity: 0.2 }}>
+            <p
+              className="text-[9px] font-bold uppercase tracking-[0.3em] text-center"
+              style={{ color: 'var(--theme-text-primary)' }}
+            >
+              Lyrics Adapter
+            </p>
+          </div>
+        </aside>
+      </div>
+    );
+  }
+
+  return (
     <aside
       className="w-56 flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
-        backgroundColor: colors.backgroundSidebar,
-        borderRight: `1px solid ${colors.borderLight}`,
+        backgroundColor: 'var(--theme-background-sidebar)',
+        borderRight: '1px solid var(--theme-border-light)',
       }}
     >
       <div className="px-6 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">
         <div>
           <nav className="flex flex-col gap-2">
-            <SidebarContent />
+            <MemoizedSidebar {...props} />
           </nav>
         </div>
       </div>
@@ -302,7 +283,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="mt-auto p-8" style={{ opacity: 0.2 }}>
         <p
           className="text-[9px] font-bold uppercase tracking-[0.3em] text-center"
-          style={{ color: textPrimary }}
+          style={{ color: 'var(--theme-text-primary)' }}
         >
           Lyrics Adapter
         </p>
@@ -311,4 +292,4 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
-export default memo(Sidebar);
+export default SidebarWrapper;

@@ -170,7 +170,6 @@ const App: React.FC = () => {
     currentTrack,
     volume,
     playbackMode,
-    currentTime,
     createTrackedBlobUrl,
     persistedTimeRef,
     getPersistenceData,
