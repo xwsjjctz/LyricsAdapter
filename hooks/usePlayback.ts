@@ -339,6 +339,22 @@ export function usePlayback({
           }
           return newTracks;
         });
+
+        // 懒加载完成后直接播放，绕过 loadedTrackIdRef 守卫
+        // （该守卫会拦截后续的 effect 重入，导致 play() 永远不被调用）
+        if (audioRef.current && updatedTrack.audioUrl) {
+          audioRef.current.src = updatedTrack.audioUrl;
+          audioUrlReadyRef.current = true;
+          if (shouldAutoPlayRef.current) {
+            audioRef.current.play().then(() => {
+              shouldAutoPlayRef.current = false;
+              setIsPlaying(true);
+            }).catch((e) => {
+              logger.debug('[Playback] Lazy-load play failed, waiting for canplay:', e);
+              waitingForCanPlayRef.current = true;
+            });
+          }
+        }
       });
       return;
     }
