@@ -1029,6 +1029,22 @@ const translations: Translations = {
     de: 'Minimal',
     fr: 'Minimaliste'
   },
+  'theme.tag.minimalist': {
+    zh: '简约',
+    en: 'Minimalist',
+    ja: 'シンプル',
+    ko: '미니멀리스트',
+    de: 'Minimalistisch',
+    fr: 'Minimaliste'
+  },
+  'theme.tag.warmColor': {
+    zh: '暖色',
+    en: 'Warm Tone',
+    ja: '暖色',
+    ko: '따뜻한 색',
+    de: 'Warme Farbe',
+    fr: 'Teinte chaude'
+  },
   'theme.tag.light': {
     zh: '浅色',
     en: 'Light',

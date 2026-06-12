@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
-import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
+import { ThemeConfig, ThemeId } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
 
 const ThemeView: React.FC = () => {
@@ -82,14 +82,9 @@ const ThemeView: React.FC = () => {
     root.style.setProperty('--theme-radius-xl', theme.borderRadius.xl);
     root.style.setProperty('--theme-radius-full', theme.borderRadius.full);
 
-    // Add/remove cute theme class for font
-    if (theme.id === THEME_IDS.CUTE) {
-      root.classList.add('theme-cute');
-      document.body.classList.add('theme-cute');
-    } else {
-      root.classList.remove('theme-cute');
-      document.body.classList.remove('theme-cute');
-    }
+    // Clean up any legacy theme classes
+    root.classList.remove('theme-cute');
+    document.body.classList.remove('theme-cute');
   };
 
   const getThemeNameKey = (themeId: string): string => {
@@ -123,6 +118,9 @@ const ThemeView: React.FC = () => {
       '浅色': 'theme.tag.light',
       '冷色': 'theme.tag.cool',
       '现代': 'theme.tag.modern',
+      '极简': 'theme.tag.minimal',
+      '暖色': 'theme.tag.warmColor',
+      '简约': 'theme.tag.minimalist',
       'Default': 'theme.tag.default',
       'Classic': 'theme.tag.classic',
       'Business': 'theme.tag.business',
@@ -144,6 +142,9 @@ const ThemeView: React.FC = () => {
       'Light': 'theme.tag.light',
       'Cool': 'theme.tag.cool',
       'Modern': 'theme.tag.modern',
+      'Minimalist': 'theme.tag.minimalist',
+      'Warm Color': 'theme.tag.warmColor',
+      'Warm Tone': 'theme.tag.warmColor',
     };
     return tagMap[tag] || '';
   };
