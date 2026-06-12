@@ -194,7 +194,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               continue;
             }
 
-            const parsed = parseMetadataFromBuffer(buffer, file.name);
+            const parsed = parseMetadataFromBuffer(buffer, file.name, file.size);
             const track: Track = {
               id: `webdav-${file.path}`,
               title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
@@ -270,7 +270,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               continue;
             }
 
-            const parsed = parseMetadataFromBuffer(buffer, file.name);
+            const parsed = parseMetadataFromBuffer(buffer, file.name, file.size);
             const track: Track = {
               id: `webdav-${file.path}`,
               title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),

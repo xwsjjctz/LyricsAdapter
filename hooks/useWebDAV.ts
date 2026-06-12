@@ -193,7 +193,7 @@ export const useWebDAV = () => {
       };
     }
 
-    const parsed = parseMetadataFromBuffer(buffer, file.name);
+    const parsed = parseMetadataFromBuffer(buffer, file.name, file.size);
     logger.info('[useWebDAV] parseMetadataFromBuffer for', file.name, '→ album:', parsed.album, 'lyrics:', parsed.lyrics ? 'found' : 'none', 'vcTruncated:', !!parsed.vorbisCommentNeededRange);
     const { artist, title } = parseArtistTitleFromFilename(file.name);
 

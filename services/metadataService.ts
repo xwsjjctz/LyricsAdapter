@@ -132,12 +132,10 @@ function getStringFromView(view: DataView, offset: number, length: number): stri
 
 // Decode synchsafe integer (7 bits per byte, used in ID3v2)
 function decodeSynchsafe(value: number): number {
-  const out = [];
-  out.push(value & 0x7F);
-  out.push((value >> 8) & 0x7F);
-  out.push((value >> 16) & 0x7F);
-  out.push((value >> 24) & 0x7F);
-  return (out[0]! << 21) | (out[1]! << 14) | (out[2]! << 7) | out[3]!;
+  return ((value >> 24) & 0x7F) << 21 |
+         ((value >> 16) & 0x7F) << 14 |
+         ((value >> 8) & 0x7F) << 7 |
+         (value & 0x7F);
 }
 
 // Decode text frame with proper encoding handling
@@ -269,7 +267,7 @@ function decodePictureFrame(buffer: ArrayBuffer): { coverUrl: string; imageDataO
 }
 
 // Simple ID3v2 parser for MP3 files
-function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<ParsedMetadata> {
+function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext, fileSize?: number): Partial<ParsedMetadata> {
   const view = new DataView(buffer);
   const result: Partial<ParsedMetadata> = {};
 
@@ -375,7 +373,7 @@ function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Pars
 
   // If duration not found via TLEN frame, try Xing/Info header (VBR/CBR fallback)
   if (!result.duration && size > 0) {
-    const xingDuration = parseXingDuration(buffer, size + 10);
+    const xingDuration = parseXingDuration(buffer, size + 10, fileSize);
     if (xingDuration) {
       result.duration = xingDuration;
     }
@@ -385,19 +383,18 @@ function parseID3v2(buffer: ArrayBuffer, ctx?: BufferParseContext): Partial<Pars
 }
 
 /**
- * MPEG audio duration estimation via Xing/Info header.
+ * MPEG audio duration estimation via Xing/Info header, with bitrate-based fallback.
  *
- * LAME and many other encoders embed a Xing/Info header in the first MPEG frame
- * side information area, containing the total number of audio frames.
- * Duration = numFrames * samplesPerFrame / sampleRate.
- *
- * This is the standard fallback when the ID3v2 TLEN frame is absent.
+ * Strategy:
+ * 1. Xing/Info header → precise frame-count based duration
+ * 2. Bitrate × fileSize → estimated duration for CBR files without Xing/Info
  *
  * @param buffer - Audio file header buffer (must contain the first MPEG frame)
  * @param audioOffset - Byte offset where the first MPEG frame starts (after ID3v2 tag)
- * @returns Duration in seconds, or undefined if Xing header not found
+ * @param fileSize - Total file size in bytes (for bitrate-based fallback)
+ * @returns Duration in seconds, or undefined if estimation not possible
  */
-function parseXingDuration(buffer: ArrayBuffer, audioOffset: number): number | undefined {
+function parseXingDuration(buffer: ArrayBuffer, audioOffset: number, fileSize?: number): number | undefined {
   const view = new DataView(buffer);
 
   if (audioOffset + 4 > buffer.byteLength) return undefined;
@@ -415,6 +412,7 @@ function parseXingDuration(buffer: ArrayBuffer, audioOffset: number): number | u
   const header = view.getUint32(offset, false);
   const version = (header >> 19) & 0x03;     // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
   const layer = (header >> 17) & 0x03;       // 1=Layer III, 2=Layer II, 3=Layer I
+  const bitrateIndex = (header >> 12) & 0x0F;
   const sampleRateIndex = (header >> 10) & 0x03;
   const channelMode = (header >> 6) & 0x03;  // 3=mono, 0-2=stereo/joint/dual
 
@@ -423,10 +421,11 @@ function parseXingDuration(buffer: ArrayBuffer, audioOffset: number): number | u
   if (layer === 0) return undefined; // reserved
 
   // Samples per frame by version and layer
+  // MPEG raw layer bits: 01=Layer III, 10=Layer II, 11=Layer I
   const SAMPLES_PER_FRAME: Record<number, Record<number, number>> = {
-    3: { 1: 384, 2: 1152, 3: 1152 },  // MPEG 1
-    2: { 1: 384, 2: 1152, 3: 576  },  // MPEG 2
-    0: { 1: 384, 2: 1152, 3: 576  },  // MPEG 2.5
+    3: { 1: 1152, 2: 1152, 3: 384 },  // MPEG 1
+    2: { 1: 576,  2: 1152, 3: 384 },  // MPEG 2
+    0: { 1: 576,  2: 1152, 3: 384 },  // MPEG 2.5
   };
   const samplesPerFrame = SAMPLES_PER_FRAME[version]?.[layer];
   if (!samplesPerFrame) return undefined;
@@ -447,21 +446,48 @@ function parseXingDuration(buffer: ArrayBuffer, audioOffset: number): number | u
     ? (channelMode === 3 ? 32 : 36)
     : (channelMode === 3 ? 17 : 21));
 
-  if (xingOffset + 8 > buffer.byteLength) return undefined;
+  if (xingOffset + 8 <= buffer.byteLength) {
+    const signature = getStringFromView(view, xingOffset, 4);
+    if (signature === 'Xing' || signature === 'Info') {
+      // Flags field (4 bytes): bit 0 = frames count present
+      const flags = view.getUint32(xingOffset + 4, false);
+      if (flags & 0x01) {
+        const numFramesOffset = xingOffset + 8;
+        if (numFramesOffset + 4 <= buffer.byteLength) {
+          const numFrames = view.getUint32(numFramesOffset, false);
+          if (numFrames > 0) {
+            return numFrames * samplesPerFrame / sampleRate;
+          }
+        }
+      }
+    }
+  }
 
-  const signature = getStringFromView(view, xingOffset, 4);
-  if (signature !== 'Xing' && signature !== 'Info') return undefined;
-
-  // Flags field (4 bytes): bit 0 = frames count present
-  const flags = view.getUint32(xingOffset + 4, false);
-  if (!(flags & 0x01)) return undefined;
-
-  const numFramesOffset = xingOffset + 8;
-  if (numFramesOffset + 4 > buffer.byteLength) return undefined;
-
-  const numFrames = view.getUint32(numFramesOffset, false);
-  if (numFrames > 0) {
-    return numFrames * samplesPerFrame / sampleRate;
+  // Fallback: bitrate-based duration estimation for CBR files without Xing/Info
+  if (fileSize && fileSize > audioOffset && bitrateIndex > 0) {
+    const BITRATES: Record<number, Record<number, number[]>> = {
+      // version → layer → [bitrate by index]
+      3: { // MPEG 1
+        1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],   // Layer III
+        2: [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384],   // Layer II
+        3: [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448], // Layer I
+      },
+      2: { // MPEG 2
+        1: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],         // Layer III
+        2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],         // Layer II
+        3: [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],    // Layer I
+      },
+      0: { // MPEG 2.5
+        1: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],         // Layer III
+        2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],         // Layer II
+        3: [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],    // Layer I
+      },
+    };
+    const bitrate = BITRATES[version]?.[layer]?.[bitrateIndex];
+    if (bitrate && bitrate > 0) {
+      const audioDataSize = fileSize - audioOffset;
+      return audioDataSize * 8 / (bitrate * 1000);
+    }
   }
 
   return undefined;
@@ -873,12 +899,12 @@ function getAudioDuration(file: File): Promise<number> {
   });
 }
 
-export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange | undefined; vorbisCommentNeededRange?: CoverNeededRange | undefined } {
+export function parseMetadataFromBuffer(buffer: ArrayBuffer, fileName: string, fileSize?: number): Partial<ParsedMetadata> & { coverNeededRange?: CoverNeededRange | undefined; vorbisCommentNeededRange?: CoverNeededRange | undefined } {
   const ctx: BufferParseContext = { bufferOffset: 0 };
   const lowerName = fileName.toLowerCase();
   let result: Partial<ParsedMetadata> = {};
   if (lowerName.endsWith('.mp3')) {
-    result = parseID3v2(buffer, ctx);
+    result = parseID3v2(buffer, ctx, fileSize);
   } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
     result = parseMP4(buffer);
   } else if (lowerName.endsWith('.flac')) {
