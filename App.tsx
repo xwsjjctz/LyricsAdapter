@@ -218,6 +218,13 @@ const App: React.FC = () => {
     lastScrollPositionRef.current = position;
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: position }));
   }, [viewSlot, updateSlot]);
+  const handleImportClick = useCallback(() => {
+    if (isDesktop()) {
+      handleDesktopImport();
+    } else {
+      fileInputRef.current?.click();
+    }
+  }, [handleDesktopImport]);
   const handleNavigate = useCallback((mode: ViewMode) => {
     if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
       setPendingNavigation(mode);
@@ -599,13 +606,7 @@ const App: React.FC = () => {
         />
         <div className="flex flex-1">
           <Sidebar
-          onImportClick={() => {
-            if (isDesktop()) {
-              handleDesktopImport();
-            } else {
-              fileInputRef.current?.click();
-            }
-          }}
+          onImportClick={handleImportClick}
           onNavigate={handleNavigate}
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
