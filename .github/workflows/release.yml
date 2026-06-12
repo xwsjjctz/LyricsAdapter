@@ -9,14 +9,16 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     strategy:
       matrix:
         include:
           - os: macos-latest
             build_cmd: npm run electron:build:mac
+            artifact: dmg
           - os: windows-latest
             build_cmd: npm run electron:build:win
+            artifact: exe
 
     runs-on: ${{ matrix.os }}
 
@@ -37,6 +39,34 @@ jobs:
         run: ${{ matrix.build_cmd }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact }}
+          path: |
+            release/*.dmg
+            release/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dmg
+          path: release/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-exe
+          path: release/
+
+      - name: List release files
+        run: ls -la release/
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
