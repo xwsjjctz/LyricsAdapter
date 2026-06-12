@@ -31,6 +31,8 @@ interface LibraryViewProps {
   autoLocateToken?: number;
   importProgress?: { loaded: number; total: number } | null;
   dataSource: 'local' | 'cloud';
+  activeSlotId: 'local' | 'cloud';
+  onSwitchSlot: (slotId: 'local' | 'cloud') => void;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
@@ -58,6 +60,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   autoLocateToken = 0,
   importProgress,
   dataSource,
+  activeSlotId,
+  onSwitchSlot,
   filterType,
   categorySelection,
   onFilterTypeChange,
@@ -643,7 +647,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setScrollTop(newScrollTop);
     // Notify parent of scroll position change
     onScrollPositionChange?.(newScrollTop);
-    
+
     // Check if current playing track is visible (only if it's in filtered results)
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
     if (currentTrackInFilteredIndex >= 0 && targetTracks.length > 0) {
@@ -653,15 +657,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         const itemBottom = itemTop + baseRowHeight;
         const viewportTop = newScrollTop;
         const viewportBottom = newScrollTop + container.clientHeight;
-        
+
         // Show locate button if current track is out of viewport
         const isVisible = itemBottom >= viewportTop && itemTop <= viewportBottom;
         setShowLocateButton(!isVisible);
       }
+    } else if (dataSource !== activeSlotId && currentTrackId) {
+      // Cross-slot: keep locate button visible regardless of scroll
+      setShowLocateButton(true);
     } else {
       setShowLocateButton(false);
     }
-  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType]);
+  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId]);
 
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -872,22 +879,28 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Handle locate to current playing track
   const handleLocateToCurrentTrack = useCallback(() => {
+    if (dataSource !== activeSlotId) {
+      // Cross-slot: switch view to the playing slot
+      onSwitchSlot(activeSlotId);
+      return;
+    }
+    // Same slot: scroll to current track
     if (currentTrackInFilteredIndex < 0 || !scrollContainerRef.current) return;
-    
+
     const container = scrollContainerRef.current;
     const itemTop = currentTrackInFilteredIndex * rowStride;
     const itemBottom = itemTop + baseRowHeight;
     const targetTop = itemBottom - container.clientHeight / 2; // Center the track
     const maxTop = Math.max(0, totalHeight - container.clientHeight);
     const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
-    
+
     container.scrollTo({
       top: clampedTop,
       behavior: 'smooth'
     });
     setShowLocateButton(false);
     logger.debug(`[LibraryView] Located to current track ${currentTrackIndex + 1} (filtered index: ${currentTrackInFilteredIndex})`);
-  }, [currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight]);
+  }, [dataSource, activeSlotId, onSwitchSlot, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight]);
 
   // Hide locate button when current track becomes visible (e.g., after clicking a new track to play)
   useEffect(() => {
@@ -1504,8 +1517,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
       )}
 
-      {/* Floating locate button - shows when current track is out of viewport */}
-      {showLocateButton && currentTrackInFilteredIndex >= 0 && (
+      {/* Floating locate button - shows when current track is out of viewport or in a different slot */}
+      {(showLocateButton && currentTrackInFilteredIndex >= 0) || (dataSource !== activeSlotId && currentTrackId) && (
         <button
           onClick={handleLocateToCurrentTrack}
           className="absolute bottom-6 right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-20 animate-fadeIn"

@@ -76,7 +76,6 @@ const App: React.FC = () => {
   const {
     slots,
     activeSlotId,
-    activeSlot,
     activeTracks,
     activeTrackIndex,
     switchTo,
@@ -84,9 +83,6 @@ const App: React.FC = () => {
     setActiveTrackIndex,
     setActiveTracks,
     setActiveCurrentTime,
-    setActiveScrollPosition,
-    setActiveFilterType,
-    setActiveCategorySelection,
     loadCloudTracks,
     mergeCloudTracks,
     updateLocalTracks,
@@ -95,6 +91,7 @@ const App: React.FC = () => {
   } = useLibrarySlots();
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
+  const [viewSlot, setViewSlot] = useState<'local' | 'cloud'>('local');
   const [restoreTime, setRestoreTime] = useState(0);
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -136,7 +133,6 @@ const App: React.FC = () => {
     selectTrack,
     persistedTimeRef,
     shouldAutoPlayRef,
-    waitingForCanPlayRef,
   } = playback;
   const prevSlotIdRef = useRef(activeSlotId);
   useEffect(() => {
@@ -206,32 +202,33 @@ const App: React.FC = () => {
       if (restoredSlotId) {
         setRestoreTime(restoredTime ?? 0);
         switchTo(restoredSlotId);
+        setViewSlot(restoredSlotId);
       }
     },
   });
   const lastScrollPositionRef = useRef<number>(0);
   const handleSwitchSlot = useCallback((targetSlot: 'local' | 'cloud') => {
-    if (targetSlot === activeSlotId) return;
-    setActiveScrollPosition(lastScrollPositionRef.current);
-    if (audioRef.current) {
-      const time = audioRef.current.currentTime || 0;
-      if (time > 0) {
-        setActiveCurrentTime(time);
-      }
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    }
-    shouldAutoPlayRef.current = false;
-    waitingForCanPlayRef.current = false;
-    setRestoreTime(slotsRef.current[targetSlot].currentTime);
-    switchTo(targetSlot);
-  }, [activeSlotId, isPlaying, audioRef, setIsPlaying, switchTo, setActiveScrollPosition, setActiveCurrentTime]);
+    if (targetSlot === viewSlot) return;
+    // Save current view's scroll position before switching
+    updateSlot(viewSlot, s => ({ ...s, scrollPosition: lastScrollPositionRef.current }));
+    // Switch view only — playback continues uninterrupted
+    setViewSlot(targetSlot);
+  }, [viewSlot, updateSlot]);
   const handleLibraryScrollPositionChange = useCallback((position: number) => {
     lastScrollPositionRef.current = position;
-    setActiveScrollPosition(position);
-  }, [setActiveScrollPosition]);
+    updateSlot(viewSlot, s => ({ ...s, scrollPosition: position }));
+  }, [viewSlot, updateSlot]);
+  const handleNavigate = useCallback((mode: ViewMode) => {
+    if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
+      setPendingNavigation(mode);
+      return;
+    }
+    setViewMode(mode);
+    setIsFocusMode(false);
+    if (viewMode !== ViewMode.BROWSE && mode === ViewMode.BROWSE) {
+      isFirstLibraryLoadRef.current = false;
+    }
+  }, [viewMode, setViewMode, setIsFocusMode]);
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
@@ -279,31 +276,50 @@ const App: React.FC = () => {
     const targetTracks = targetSlot === 'local' ? slots.local.tracks : slots.cloud.tracks;
     const idx = targetTracks.findIndex(t => t.id === track.id);
     if (idx < 0) return;
-    if (targetSlot === activeSlotId) {
-      // Same slot: simple track selection
+    if (targetSlot === activeSlotId && targetSlot === viewSlot) {
+      // Same slot, same view: simple track selection
       selectTrack(idx);
       return;
     }
-    // Cross-slot: save current state, update target slot directly, then switch
-    setActiveScrollPosition(lastScrollPositionRef.current);
-    if (audioRef.current) {
-      const time = audioRef.current.currentTime || 0;
-      if (time > 0) setActiveCurrentTime(time);
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
+    // Cross-slot or cross-view: save playing slot's time, update target, switch
+    if (targetSlot !== activeSlotId) {
+      updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+      updateSlot(targetSlot, s => ({ ...s, currentTrackIndex: idx }));
+      setRestoreTime(0);
+      switchTo(targetSlot);
+      shouldAutoPlayRef.current = true;
+      setIsPlaying(true);
+    } else {
+      // Same slot, different view: just select track (view will sync below)
+      selectTrack(idx);
     }
-    shouldAutoPlayRef.current = false;
-    waitingForCanPlayRef.current = false;
-    // Set target track index on target slot (bypass stale activeSlotId in setActiveTrackIndex)
-    updateSlot(targetSlot, s => ({ ...s, currentTrackIndex: idx }));
-    setRestoreTime(0);
-    switchTo(targetSlot);
-    // Trigger auto-play for the new track
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-  }, [activeSlotId, slots.local.tracks, slots.cloud.tracks, selectTrack, setActiveScrollPosition, audioRef, isPlaying, setIsPlaying, setActiveCurrentTime, updateSlot, switchTo]);
+    // Sync view to match the playing slot
+    setViewSlot(targetSlot);
+  }, [activeSlotId, viewSlot, slots.local.tracks, slots.cloud.tracks, selectTrack, audioRef, updateSlot, switchTo, setIsPlaying]);
+  // Track selection handler that handles cross-slot selection
+  // When viewing a different slot than what's playing, clicking a track
+  // switches the active slot to the view slot without pausing audio.
+  const handleTrackSelect = useCallback((trackIndex: number) => {
+    if (viewSlot !== activeSlotId) {
+      // Cross-slot: save playing slot's time, switch active slot, then play
+      updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+      updateSlot(viewSlot, s => ({ ...s, currentTrackIndex: trackIndex }));
+      setRestoreTime(0);
+      handleTrackSwitch();
+      switchTo(viewSlot);
+      shouldAutoPlayRef.current = true;
+      setIsPlaying(true);
+    } else {
+      selectTrack(trackIndex);
+    }
+  }, [viewSlot, activeSlotId, selectTrack, updateSlot, switchTo, setIsPlaying, audioRef, handleTrackSwitch]);
+  // Filter/category change handlers — save to viewSlot instead of activeSlotId
+  const handleFilterTypeChange = useCallback((filterType: 'default' | 'album' | 'artist') => {
+    updateSlot(viewSlot, s => ({ ...s, filterType }));
+  }, [viewSlot, updateSlot]);
+  const handleCategoryChange = useCallback((selection: string | null) => {
+    updateSlot(viewSlot, s => ({ ...s, categorySelection: selection }));
+  }, [viewSlot, updateSlot]);
   // Helper: fetch lyrics via IPC first, fallback to direct API
   const fetchLyrics = async (songmid: string, cookie: string): Promise<string | undefined> => {
     if (window.electron?.getQQMusicLyrics) {
@@ -590,22 +606,12 @@ const App: React.FC = () => {
               fileInputRef.current?.click();
             }
           }}
-          onNavigate={(mode) => {
-            if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
-              setPendingNavigation(mode);
-              return;
-            }
-            setViewMode(mode);
-            setIsFocusMode(false);
-            if (viewMode !== ViewMode.BROWSE && mode === ViewMode.BROWSE) {
-              isFirstLibraryLoadRef.current = false;
-            }
-          }}
+          onNavigate={handleNavigate}
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
           currentView={viewMode}
           viewMode={viewMode}
-          activeSlotId={activeSlotId}
+          activeSlotId={viewSlot}
           onSlotChange={handleSwitchSlot}
           localTrackCount={slots.local.tracks.length}
           cloudTrackCount={slots.cloud.tracks.length}
@@ -661,27 +667,29 @@ const App: React.FC = () => {
               <ThemeView />
             ) : (
               <LibraryView
-                tracks={activeTracks}
-                currentTrackIndex={activeTrackIndex}
+                tracks={slots[viewSlot].tracks}
+                currentTrackIndex={slots[viewSlot].currentTrackIndex}
                 {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
-                onTrackSelect={selectTrack}
+                onTrackSelect={handleTrackSelect}
                 onRemoveTrack={handleRemoveTrack}
                 onRemoveMultipleTracks={handleRemoveMultipleTracks}
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleDropFilePaths}
                 onReorderTracks={handleReorderTracks}
-                onUpdateTrack={(track) => setActiveTracks(prev => prev.map(t => t.id === track.id ? track : t))}
+                onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
                 isFocusMode={isFocusMode}
-                savedScrollPosition={activeSlot.scrollPosition}
+                savedScrollPosition={slots[viewSlot].scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
                 isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
                 importProgress={importProgress}
-                dataSource={activeSlotId}
-                filterType={activeSlot.filterType}
-                categorySelection={activeSlot.categorySelection}
-                onFilterTypeChange={setActiveFilterType}
-                onCategoryChange={setActiveCategorySelection}
+                dataSource={viewSlot}
+                activeSlotId={activeSlotId}
+                onSwitchSlot={handleSwitchSlot}
+                filterType={slots[viewSlot].filterType}
+                categorySelection={slots[viewSlot].categorySelection}
+                onFilterTypeChange={handleFilterTypeChange}
+                onCategoryChange={handleCategoryChange}
                 onLoadCloudTracks={loadCloudTracks}
                 onMergeCloudTracks={mergeCloudTracks}
 	                searchBox={

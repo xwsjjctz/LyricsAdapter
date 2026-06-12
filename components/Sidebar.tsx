@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { ViewMode } from '../types';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
@@ -268,7 +268,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="px-4 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">
           <div>
             <nav className="flex flex-col gap-2">
-              <SidebarContent />
+              {SidebarContent()}
             </nav>
           </div>
         </div>
@@ -311,4 +311,4 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
-export default Sidebar;
+export default memo(Sidebar);
