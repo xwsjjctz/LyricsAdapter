@@ -14,10 +14,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            build_cmd: npm run electron:build:mac
+            build_cmd: npm run electron:build:mac -- --publish never
             artifact: dmg
           - os: windows-latest
-            build_cmd: npm run electron:build:win
+            build_cmd: npm run electron:build:win -- --publish never
             artifact: exe
 
     runs-on: ${{ matrix.os }}
@@ -37,8 +37,6 @@ jobs:
 
       - name: Build & package
         run: ${{ matrix.build_cmd }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -46,7 +44,11 @@ jobs:
           name: release-${{ matrix.artifact }}
           path: |
             release/*.dmg
+            release/*.dmg.blockmap
             release/*.exe
+            release/*.exe.blockmap
+            release/latest.yml
+            release/latest-mac.yml
 
   release:
     needs: build
@@ -83,7 +85,10 @@ jobs:
           done
           # 创建新的 release（v0.* 自动标记为 Pre-release）
           if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
-          gh release create "$TAG" release/*.dmg release/*.exe \
+          gh release create "$TAG" \
+            release/*.dmg release/*.dmg.blockmap \
+            release/*.exe release/*.exe.blockmap \
+            release/latest.yml release/latest-mac.yml \
             --title "$TAG" \
             --generate-notes \
             $PRE
