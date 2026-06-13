@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cookieManager } from '../services/cookieManager';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 
 interface CookieDialogProps {
   isOpen: boolean;
@@ -15,24 +14,9 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  useI18n();
+  const currentTheme = useTheme();
   const colors = currentTheme.colors;
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -61,11 +45,14 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
       // Validate cookie
       const status = await cookieManager.validateCookie();
 
-      if (status.valid) {
+      if (status.state === 'valid') {
         logger.debug('[CookieDialog] Cookie validated successfully');
         onClose(true);
+      } else if (status.state === 'network_error') {
+        logger.warn('[CookieDialog] Cookie saved but network validation failed:', status.message);
+        onClose(true);
       } else {
-        setError(status.message || i18n.t('cookieDialog.validateFailed'));
+        setError(status.state === 'not_set' ? i18n.t('cookieDialog.validateFailed') : status.message);
         cookieManager.clearCookie();
       }
     } catch (err) {

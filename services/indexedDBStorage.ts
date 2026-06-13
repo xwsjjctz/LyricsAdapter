@@ -407,27 +407,8 @@ class IndexedDBStorageService {
   // ========== Library Operations ==========
 
   /**
-   * @deprecated Browser mode only - use libraryStorage.saveLibrary() for Electron
-   */
-  async loadLibrary(): Promise<LibraryData | LibraryIndexData | null> {
-    await this.ensureInitialized();
-    if (!this.db) return null;
-
-    try {
-      const result = await this.db.get('library', 'main');
-      if (result) {
-        logger.debug('[IndexedDB] ✓ Loaded library from IndexedDB');
-        return result as LibraryData | LibraryIndexData;
-      }
-      return null;
-    } catch (error) {
-      logger.error('[IndexedDB] Failed to load library:', error);
-      return null;
-    }
-  }
-
-  /**
-   * @deprecated Browser mode only - use libraryStorage.saveLibrary() for Electron
+   * Browser mode only - Electron uses libraryStorage.saveLibrary() (via IPC → file system).
+   * Called only from useImport under `if (!isDesktop())` branches.
    */
   async saveLibrary(library: LibraryData | LibraryIndexData): Promise<void> {
     await this.ensureInitialized();
@@ -440,41 +421,6 @@ class IndexedDBStorageService {
       logger.debug('[IndexedDB] ✓ Saved library to IndexedDB');
     } catch (error) {
       logger.error('[IndexedDB] Failed to save library:', error);
-    }
-  }
-
-  // ========== Utility Operations ==========
-
-  /**
-   * Get database storage estimate
-   */
-  async getStorageEstimate(): Promise<{ usage: number; quota: number } | null> {
-    if ('storage' in navigator && 'estimate' in navigator.storage) {
-      try {
-        const estimate = await navigator.storage.estimate();
-        return {
-          usage: estimate.usage || 0,
-          quota: estimate.quota || 0,
-        };
-      } catch (error) {
-        logger.error('[IndexedDB] Failed to get storage estimate:', error);
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Clear all data (metadata + covers)
-   */
-  async clearAll(): Promise<void> {
-    await this.ensureInitialized();
-    if (!this.db) return;
-
-    try {
-      await this.db.clear('metadata');
-      logger.debug('[IndexedDB] ✓ Cleared all metadata');
-    } catch (error) {
-      logger.error('[IndexedDB] Failed to clear all data:', error);
     }
   }
 

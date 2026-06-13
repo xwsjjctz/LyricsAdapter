@@ -3,8 +3,7 @@ import { Track } from '../types';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { notify } from '../services/notificationService';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 import TrackCover from './TrackCover';
 
 interface MetadataEditorPopupProps {
@@ -18,15 +17,9 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpda
   const [saving, setSaving] = useState(false);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [pendingCoverDataUrl, setPendingCoverDataUrl] = useState<string | null>(null);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const [, setLangVersion] = useState(0);
+  useI18n();
+  const currentTheme = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const u1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    const u2 = i18n.subscribe(() => setLangVersion(v => v + 1));
-    return () => { u1(); u2(); };
-  }, []);
 
   const colors = currentTheme.colors;
 

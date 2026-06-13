@@ -1,9 +1,8 @@
 
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 
 interface MainPlayerProps {
   track: Track | null;
@@ -13,24 +12,9 @@ interface MainPlayerProps {
 }
 
 const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlaying, onTogglePlay }) => {
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  useI18n();
+  const currentTheme = useTheme();
   const colors = currentTheme.colors;
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   if (!isVisible) return null;
 

@@ -3,8 +3,7 @@ import { Track } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
 import { parseMetadataFromBuffer } from '../services/metadataService';
@@ -78,7 +77,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
   // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  useI18n();
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -319,23 +318,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
 
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
   // Subscribe to theme changes
   const [showEditDropdown, setShowEditDropdown] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
+  const currentTheme = useTheme();
 
   // Track if animation has already played for current tracks
 

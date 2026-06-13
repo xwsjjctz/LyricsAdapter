@@ -45,14 +45,6 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('check-file-exists', async (_event, filePath) => {
-    try {
-      return fs.existsSync(filePath);
-    } catch {
-      return false;
-    }
-  });
-
   ipcMain.handle('select-folder', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections']

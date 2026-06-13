@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useMemo, useCallback, memo } from 'react';
 import { ViewMode } from '../types';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 
@@ -36,26 +35,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isSettingsView = currentView === ViewMode.SETTINGS;
   const isThemeView = currentView === ViewMode.THEME;
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
-  // Track current theme for styling
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  // Subscribe to theme changes
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
+  useI18n();
+  const currentTheme = useTheme();
 
   // Get theme-aware styles
   const colors = currentTheme.colors;

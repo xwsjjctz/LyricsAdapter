@@ -1,8 +1,7 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 
 interface ControlsProps {
   track: Track | null;
@@ -47,27 +46,13 @@ const Controls: React.FC<ControlsProps> = memo(({
   playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter: _forceUpdateCounter, audioRef: _audioRef,
   floating = false
 }) => {
-  const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
+  useI18n();
+  const currentTheme = useTheme();
 
 // Use audio element's currentTime directly for progress calculation
   // This ensures we show the actual audio playback position
   const actualCurrentTime = _audioRef?.current ? _audioRef.current.currentTime : currentTime;
-  
+
   // Calculate progress percentage
   const progress = track ? (actualCurrentTime / track.duration) * 100 : 0;
 

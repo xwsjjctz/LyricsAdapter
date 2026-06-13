@@ -2,8 +2,7 @@ import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -45,9 +44,8 @@ interface TitleBarProps {
 const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode }) => {
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  useI18n();
+  const currentTheme = useTheme();
 
   // Window focus state (for focus button styling)
   const [isWindowFocused, setIsWindowFocused] = useState(true);
@@ -64,20 +62,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
 
   // Mouse hover state for the button
   const [isButtonHovered, setIsButtonHovered] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   const colors = currentTheme.colors;
 

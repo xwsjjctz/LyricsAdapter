@@ -79,6 +79,19 @@ export function useImport({
     );
   }, [tracks]);
 
+  // Shared "save metadata cache + persist library to disk/IndexedDB" — called after every import path
+  const persistAfterImport = useCallback(async (finalTracks: Track[]) => {
+    await metadataCacheService.save();
+    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
+    if (isDesktop()) {
+      await libraryStorage.saveLibrary(libraryData);
+      logger.debug('[Import] ✓ Library saved to disk');
+    } else {
+      await indexedDBStorage.saveLibrary(libraryData);
+      logger.debug('[Import] ✓ Library saved to IndexedDB');
+    }
+  }, [buildImportSettings]);
+
   // Process file paths directly (new path-based import - no file copying)
   const processDesktopFilePathBatch = useCallback(async (
     filePaths: { path: string; name: string }[],
@@ -386,10 +399,7 @@ export function useImport({
       }
 
       logger.debug('[Import] Manually triggering library save after import...');
-      logger.debug(`[Import] Saving ${tracks.length} tracks to disk...`);
-      const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
-      await libraryStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Manual library save completed');
+      await persistAfterImport(finalTracks);
       setImportProgress(null);
     } catch (error) {
       logger.error('[Import] Failed to import files:', error);
@@ -401,6 +411,7 @@ export function useImport({
     currentTrackIndex,
     isPlaying,
     playbackMode,
+    persistAfterImport,
     processDesktopFileBatch,
     tracks,
     volume,
@@ -494,11 +505,7 @@ export function useImport({
     setTracks(finalTracks);
 
     // Save metadata cache and library
-    await metadataCacheService.save();
-
-    logger.debug('[Import] Saving library after drop import...');
-    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
-    await libraryStorage.saveLibrary(libraryData);
+    await persistAfterImport(finalTracks);
     logger.debug('[Import] ✓ Drop import with persistence completed');
 
     logger.debug(`[Import] ===== Import Summary =====`);
@@ -520,6 +527,7 @@ export function useImport({
     setImportProgress(null);
   }, [
     createTracksMap,
+    persistAfterImport,
     processDesktopFilePathBatch,
     setTracks,
     tracks,
@@ -582,22 +590,14 @@ export function useImport({
     }
     const finalTracks = Array.from(trackMap.values());
     setTracks(finalTracks);
-    
-    // Save library - use disk storage in Electron, IndexedDB in web
-    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
-    
-    if (isDesktop()) {
-      await libraryStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to disk');
-    } else {
-      await indexedDBStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to IndexedDB');
-    }
+
+    await persistAfterImport(finalTracks);
 
     logger.debug('[Import] ✓ All files imported successfully');
     setImportProgress(null);
   }, [
     createTracksMap,
+    persistAfterImport,
     processWebFileBatch,
     setTracks,
     tracks,
@@ -664,17 +664,15 @@ export function useImport({
 
     logger.debug('[Import] ✓ All files imported successfully');
 
-    // Save to IndexedDB in browser mode
+    // Browser-mode save (Electron mode handled separately in the dialog/drop paths above)
     if (!isDesktop()) {
       const finalTracks = [...tracks, ...allNewTracks];
-      const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
-      await indexedDBStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to IndexedDB');
+      await persistAfterImport(finalTracks);
     }
 
     setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
+  }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef, persistAfterImport]);
 
   return {
     fileInputRef,

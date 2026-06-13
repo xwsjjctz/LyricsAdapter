@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { i18n } from '../services/i18n';
+import { useTheme } from '../hooks/useServices';
 import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
 
 interface ShortcutsSettingsProps {}
 
@@ -11,15 +10,8 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
   const [editingAction, setEditingAction] = useState<ShortcutAction | null>(null);
   const [conflictAction, setConflictAction] = useState<ShortcutAction | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const currentTheme = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   const colors = currentTheme.colors;
 

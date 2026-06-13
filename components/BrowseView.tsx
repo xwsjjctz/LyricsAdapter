@@ -7,8 +7,7 @@ import { notify } from '../services/notificationService';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 import { Track } from '../types';
 import { webdavClient } from '../services/webdavClient';
 import { generateMetaJson } from '../services/webdavMetaService';
@@ -92,17 +91,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
   const [uploadProgress, setUploadProgress] = useState<DownloadProgress>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [, setLanguageVersion] = useState(0);
+  useI18n();
   const cookiePromptShown = sessionStorage.getItem('cookiePromptShown') === 'true';
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const currentTheme = useTheme();
   const colors = currentTheme.colors;
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -115,20 +107,12 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
   // Check cookie on mount
   useEffect(() => {
     const checkCookie = async () => {
       if (!cookieManager.hasCookie() || cookieManager.shouldCheckCookie()) {
         const status = await cookieManager.validateCookie();
-        if (!status.valid && !cookiePromptShown) {
+        if ((status.state === 'invalid' || status.state === 'not_set') && !cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
           notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
           onNavigateToSettings?.();

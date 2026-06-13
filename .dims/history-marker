@@ -1,0 +1,31 @@
+# DVA History Analysis Marker
+last_commit: cc5759ee602c47bb07450d574b66df4a34614d48
+analyzed_at: 2026-06-14
+
+# Top-touched files (last 6 months, by commit count)
+# 85  App.tsx                              — 状态中枢：异变速率最高
+# 70  components/LibraryView.tsx           — UI 迭代最频繁的视图
+# 38  components/FocusMode.tsx             — 沉浸式视图迭代频繁
+# 31  electron/main.ts                     — IPC 注册持续膨胀
+# 31  components/TitleBar.tsx
+# 30  components/Sidebar.tsx
+# 27  services/desktopAdapter.ts
+# 27  hooks/usePlayback.ts                 — 播放逻辑持续修 bug
+# 26  components/BrowseView.tsx
+# 22  services/i18n.ts                     — 翻译键随功能增长
+# 20  electron/preload.ts                  — IPC API 持续膨胀
+# 19  services/metadataService.ts          — 元数据解析反复调整
+# 18  services/libraryStorage.ts
+# 18  hooks/useWebDAV.ts                   — WebDAV 功能持续扩张
+# 17  hooks/useLibraryLoad.ts
+# 17  hooks/useImport.ts
+# 15  services/indexedDBStorage.ts         — 标 deprecated 但仍在用
+# 15  components/SearchBox.tsx
+# 15  components/Controls.tsx
+# 14  services/webdavClient.ts
+# 11  services/workers/metadataWorker.ts
+# 10  types.ts
+# 10  components/SettingsDialog.tsx        — 似乎已被 SettingsView 取代
+
+# Historical signal: src-tauri/ 曾尝试 Tauri 移植（9 commits 后删除）
+# 意味着: Electron 不是终点，但短期内不切换

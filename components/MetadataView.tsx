@@ -7,8 +7,7 @@ import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
 import { coverArtService } from '../services/coverArtService';
 import TrackCover from './TrackCover';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 
 interface MetadataViewProps {
   libraryTracks: Track[];
@@ -35,25 +34,11 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
   const [pendingCoverDataUrl, setPendingCoverDataUrl] = useState<string | null>(null);
   const [stashedMetadata, setStashedMetadata] = useState<Record<string, Partial<Track>>>({});
   const [pendingTrackSwitch, setPendingTrackSwitch] = useState<Track | null>(null);
-  const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  useI18n();
+  const currentTheme = useTheme();
   const colors = currentTheme.colors;
   const autoSelectedRef = useRef(false);
   const originalTrackRef = useRef<Track | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     if (selectedTrack) {

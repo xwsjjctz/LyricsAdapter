@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
+import { useI18n, useTheme } from '../hooks/useServices';
 import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
-import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 
 // Decode HTML entities in lyrics text
@@ -58,22 +56,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const isLinux = getDesktopAPI()?.platform === 'linux';
 
   // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
+  useI18n();
+  const currentTheme = useTheme();
 
   const lyricsRef = useRef<HTMLDivElement>(null);
   const lyricListRef = useRef<HTMLDivElement>(null);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { i18n } from '../services/i18n';
+import { useI18n } from '../hooks/useServices';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, ThemeId } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
@@ -7,9 +8,9 @@ import { predefinedThemes } from '../services/themes/predefinedThemes';
 const ThemeView: React.FC = () => {
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [previewTheme, setPreviewTheme] = useState<ThemeConfig | null>(null);
-  const [, setLanguageVersion] = useState(0);
+  useI18n();
 
-  // Subscribe to theme changes
+  // Subscribe to theme changes (with custom side-effects — keep manual)
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
       setCurrentThemeId(themeId);
@@ -17,14 +18,6 @@ const ThemeView: React.FC = () => {
       // Re-apply current theme styles when theme changes
       const currentTheme = themeManager.getCurrentTheme();
       applyThemeStyles(currentTheme);
-    });
-    return unsubscribe;
-  }, []);
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
     });
     return unsubscribe;
   }, []);

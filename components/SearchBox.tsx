@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track } from '../types';
-import { QQMusicSong, qqMusicApi } from '../services/qqMusicApi';
+import { QQMusicSong } from '../services/qqMusicApi';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
+import { useI18n, useTheme } from '../hooks/useServices';
+import { useQQSearch } from '../hooks/useQQSearch';
 import { ThemeConfig } from '../types/theme';
-import { logger } from '../services/logger';
 import TrackCover from './TrackCover';
 
-const QQ_DEBOUNCE_MS = 300;
 const MAX_RESULTS = 8;
 
 const qualityOptions = [
@@ -37,67 +36,20 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [qqResults, setQqResults] = useState<QQMusicSong[]>([]);
-  const [qqLoading, setQqLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [openQualityId, setOpenQualityId] = useState<string | null>(null);
   const [openUploadQualityId, setOpenUploadQualityId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const [, setLangVersion] = useState(0);
-
-  useEffect(() => {
-    const u1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    const u2 = i18n.subscribe(() => setLangVersion(v => v + 1));
-    return () => { u1(); u2(); };
-  }, []);
+  useI18n();
+  const currentTheme = useTheme();
 
   const colors = currentTheme.colors;
   const isExpanded = isFocused && query.trim().length > 0;
 
-  // Filter local/cloud tracks
-  const filteredLocal = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return localTracks.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.artist.toLowerCase().includes(q) ||
-      t.album.toLowerCase().includes(q)
-    ).slice(0, MAX_RESULTS);
-  }, [localTracks, query]);
-
-  const filteredCloud = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return cloudTracks.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.artist.toLowerCase().includes(q) ||
-      t.album.toLowerCase().includes(q)
-    ).slice(0, MAX_RESULTS);
-  }, [cloudTracks, query]);
-
-  // QQ Music search (debounced)
-  useEffect(() => {
-    if (!query.trim() || !isExpanded) {
-      setQqResults([]);
-      setQqLoading(false);
-      return;
-    }
-    setQqLoading(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const results = await qqMusicApi.searchMusic(query.trim(), MAX_RESULTS);
-        setQqResults(results);
-      } catch (err) {
-        logger.warn('[SearchBox] QQ Music search failed:', err);
-        setQqResults([]);
-      } finally { setQqLoading(false); }
-    }, QQ_DEBOUNCE_MS);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, isExpanded]);
+  const { filteredLocal, filteredCloud, qqResults, qqLoading } = useQQSearch({
+    query, localTracks, cloudTracks, active: isExpanded, maxResults: MAX_RESULTS,
+  });
 
   // Reset selections
   useEffect(() => { setSelectedIndex(-1); setOpenQualityId(null); setOpenUploadQualityId(null); }, [query]);

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { useI18n, useTheme } from '../hooks/useServices';
 import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
@@ -12,16 +11,17 @@ import ShortcutsSettings from './ShortcutsSettings';
 interface SettingsViewProps {}
 
 const SettingsView: React.FC<SettingsViewProps> = () => {
-  const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
+  useI18n();
+  const currentLang = i18n.getLanguage();
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const currentTheme = useTheme();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [cookie, setCookie] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveMessageType, setSaveMessageType] = useState<'success' | 'error' | null>(null);
+  const [saveMessageType, setSaveMessageType] = useState<'success' | 'error' | 'warning' | null>(null);
 
   const [webdavServerUrl, setWebdavServerUrl] = useState('');
   const [webdavUsername, setWebdavUsername] = useState('');
@@ -68,20 +68,6 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [bgBlurTrans]);
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe((lang) => {
-      setCurrentLang(lang);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
 
   // 订阅应用版本号 + 自动更新状态
   useEffect(() => {
@@ -133,12 +119,16 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
       if (cookie.trim()) {
         cookieManager.setCookie(cookie.trim());
         const status = await cookieManager.validateCookie();
-        if (!status.valid) {
+        if (status.state === 'invalid' || status.state === 'not_set') {
           setSaveMessage(i18n.t('settingsDialog.cookieInvalid'));
           setSaveMessageType('error');
           cookieManager.clearCookie();
           setIsSaving(false);
           return;
+        }
+        if (status.state === 'network_error') {
+          setSaveMessage(status.message);
+          setSaveMessageType('warning');
         }
       }
 
@@ -238,11 +228,13 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
         <div className={`mb-4 p-3 rounded-xl text-sm ${
           saveMessageType === 'success'
             ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+            : saveMessageType === 'warning'
+            ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400'
             : 'bg-red-500/10 border border-red-500/30 text-red-400'
         }`}>
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">
-              {saveMessageType === 'success' ? 'check' : 'error'}
+              {saveMessageType === 'success' ? 'check' : saveMessageType === 'warning' ? 'warning' : 'error'}
             </span>
             {saveMessage}
           </div>

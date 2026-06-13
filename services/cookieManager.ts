@@ -5,10 +5,11 @@ const COOKIE_STORAGE_KEY = 'qq_music_cookie';
 const COOKIE_CHECK_TIME_KEY = 'qq_music_cookie_last_check';
 const COOKIE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-export interface CookieStatus {
-  valid: boolean;
-  message?: string;
-}
+export type CookieStatus =
+  | { state: 'valid' }
+  | { state: 'invalid'; message: string }
+  | { state: 'not_set' }
+  | { state: 'network_error'; message: string };
 
 class CookieManager {
   private cookie: string = '';
@@ -97,7 +98,7 @@ class CookieManager {
 
   async validateCookie(): Promise<CookieStatus> {
     if (!this.cookie) {
-      return { valid: false, message: 'Cookie not set' };
+      return { state: 'not_set' };
     }
 
     // Electron environment: Can make network requests
@@ -137,22 +138,21 @@ class CookieManager {
       );
 
       if (!testResponse.ok) {
-        return { valid: false, message: 'Network error during validation' };
+        return { state: 'network_error', message: `HTTP ${testResponse.status}: 网络验证失败，Cookie 已保存，使用时若失败请重新设置` };
       }
 
       const data = await testResponse.json();
 
       // Check if API returns error code indicating invalid cookie
       if (data.code === 500001) {
-        return { valid: false, message: 'Cookie expired or invalid' };
+        return { state: 'invalid', message: 'Cookie 已过期或无效' };
       }
 
       await this.updateCheckTime();
-      return { valid: true };
+      return { state: 'valid' };
     } catch (error) {
       logger.error('[CookieManager] Cookie validation failed:', error);
-      // In case of network error, still allow saving but warn user
-      return { valid: true, message: '网络验证失败，但Cookie已保存，使用时如失败请重新设置' };
+      return { state: 'network_error', message: '网络验证失败，Cookie 已保存，使用时若失败请重新设置' };
     }
   }
 
