@@ -662,6 +662,80 @@ const translations: Translations = {
     fr: 'À propos'
   },
 
+  // Auto-updater
+  'updater.check': {
+    zh: '检查更新',
+    en: 'Check for updates',
+    ja: '更新を確認',
+    ko: '업데이트 확인',
+    de: 'Nach Updates suchen',
+    fr: 'Vérifier les mises à jour'
+  },
+  'updater.checking': {
+    zh: '正在检查更新…',
+    en: 'Checking for updates…',
+    ja: '更新を確認中…',
+    ko: '업데이트 확인 중…',
+    de: 'Suche nach Updates…',
+    fr: 'Recherche de mises à jour…'
+  },
+  'updater.upToDate': {
+    zh: '已是最新版本',
+    en: 'You are up to date',
+    ja: '最新です',
+    ko: '최신 버전입니다',
+    de: 'Sie sind auf dem neuesten Stand',
+    fr: 'Vous êtes à jour'
+  },
+  'updater.available': {
+    zh: '发现新版本',
+    en: 'New version available',
+    ja: '新バージョンがあります',
+    ko: '새 버전이 있습니다',
+    de: 'Neue Version verfügbar',
+    fr: 'Nouvelle version disponible'
+  },
+  'updater.downloading': {
+    zh: '正在下载更新',
+    en: 'Downloading update',
+    ja: '更新をダウンロード中',
+    ko: '업데이트 다운로드 중',
+    de: 'Update wird heruntergeladen',
+    fr: 'Téléchargement de la mise à jour'
+  },
+  'updater.downloaded': {
+    zh: '下载完成',
+    en: 'Download complete',
+    ja: 'ダウンロード完了',
+    ko: '다운로드 완료',
+    de: 'Download abgeschlossen',
+    fr: 'Téléchargement terminé'
+  },
+  'updater.restart': {
+    zh: '重启并安装',
+    en: 'Restart to install',
+    ja: '再起動してインストール',
+    ko: '재시작하여 설치',
+    de: 'Neustarten und installieren',
+    fr: 'Redémarrer pour installer'
+  },
+  'updater.failed': {
+    zh: '更新失败',
+    en: 'Update failed',
+    ja: '更新に失敗しました',
+    ko: '업데이트 실패',
+    de: 'Update fehlgeschlagen',
+    fr: 'Échec de la mise à jour'
+  },
+  'updater.devOnly': {
+    zh: '开发模式下不可用',
+    en: 'Unavailable in dev mode',
+    ja: '開発モードでは利用できません',
+    ko: '개발 모드에서는 사용할 수 없습니다',
+    de: 'Im Entwicklungsmodus nicht verfügbar',
+    fr: 'Indisponible en mode développement'
+  },
+
   // Theme View
   'theme.title': {
     zh: '主题',

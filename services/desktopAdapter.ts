@@ -6,6 +6,33 @@
 import { parseAudioFile as parseAudioFileSync } from './metadataService';
 import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 import { logger } from './logger';
+import { APP } from '../constants/config';
+
+/** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
+export interface UpdateInfo {
+  version: string;
+  releaseName?: string;
+  releaseDate?: string;
+}
+
+/** 下载进度信息。 */
+export interface UpdateProgress {
+  total: number;
+  delta: number;
+  transferred: number;
+  percent: number;
+  bytesPerSecond: number;
+}
+
+/** 自动更新状态机（与 electron/updater.ts 保持一致）。 */
+export type UpdaterState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'not-available' }
+  | { status: 'available'; info: UpdateInfo }
+  | { status: 'downloading'; info: UpdateInfo; progress: UpdateProgress | null }
+  | { status: 'downloaded'; info: UpdateInfo }
+  | { status: 'error'; message: string };
 
 export interface DesktopAPI {
   platform: string;
@@ -51,6 +78,12 @@ export interface DesktopAPI {
   webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
   webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
+  // Auto-updater APIs
+  checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
+  quitAndInstall?: () => Promise<{ ok: boolean }>;
+  getAppVersion?: () => Promise<string>;
+  onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
+  offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -341,6 +374,41 @@ class ElectronAdapter implements DesktopAPI {
     }
     logger.warn('[DesktopAPI] runStartupCleanup not available');
     return { success: false, error: 'Not available' };
+  }
+
+  async checkForUpdates(): Promise<{ ok: boolean; reason?: string }> {
+    if (typeof this.api.checkForUpdates === 'function') {
+      return this.api.checkForUpdates();
+    }
+    // 浏览器 / 不可用环境：返回不可用，reason 供渲染层决定是否提示
+    return { ok: false, reason: 'browser' };
+  }
+
+  async quitAndInstall(): Promise<{ ok: boolean }> {
+    if (typeof this.api.quitAndInstall === 'function') {
+      return this.api.quitAndInstall();
+    }
+    return { ok: false };
+  }
+
+  async getAppVersion(): Promise<string> {
+    if (typeof this.api.getAppVersion === 'function') {
+      return this.api.getAppVersion();
+    }
+    // 浏览器 fallback：使用打包期已知的版本常量
+    return APP.VERSION;
+  }
+
+  onUpdaterEvent(cb: (state: UpdaterState) => void): void {
+    if (typeof this.api.onUpdaterEvent === 'function') {
+      this.api.onUpdaterEvent(cb);
+    }
+  }
+
+  offUpdaterEvent(cb: (state: UpdaterState) => void): void {
+    if (typeof this.api.offUpdaterEvent === 'function') {
+      this.api.offUpdaterEvent(cb);
+    }
   }
 
 }

@@ -1,6 +1,7 @@
 // Secure preload script using contextBridge
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
+const updaterEventListenerMap = new Map();
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -231,5 +232,41 @@ contextBridge.exposeInMainWorld('electron', {
   // Run startup resource cleanup
   runStartupCleanup: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);
+  },
+
+  // ---- Auto-updater (electron-updater) ----
+  // Check for updates manually
+  checkForUpdates: async () => {
+    return ipcRenderer.invoke('updater:check');
+  },
+
+  // Quit and install a downloaded update
+  quitAndInstall: async () => {
+    return ipcRenderer.invoke('updater:quit-and-install');
+  },
+
+  // Get current app version
+  getAppVersion: async () => {
+    return ipcRenderer.invoke('app:get-version');
+  },
+
+  // Listen for updater state changes
+  onUpdaterEvent: (callback: (state: unknown) => void) => {
+    const existing = updaterEventListenerMap.get(callback);
+    if (existing) {
+      ipcRenderer.removeListener('updater-event', existing);
+    }
+    const wrapped = (_event: unknown, state: unknown) => callback(state);
+    updaterEventListenerMap.set(callback, wrapped);
+    ipcRenderer.on('updater-event', wrapped);
+  },
+
+  // Remove updater state listener
+  offUpdaterEvent: (callback: (state: unknown) => void) => {
+    const wrapped = updaterEventListenerMap.get(callback);
+    if (wrapped) {
+      ipcRenderer.removeListener('updater-event', wrapped);
+      updaterEventListenerMap.delete(callback);
+    }
   }
 });

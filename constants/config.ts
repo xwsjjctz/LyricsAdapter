@@ -113,7 +113,7 @@ export const APP = {
   NAME: 'LyricsAdapter',
 
   /** Application version */
-  VERSION: '1.0.0',
+  VERSION: '0.1.0',
 
   /** Electron app ID */
   APP_ID: 'com.lyricsadapter.app',

@@ -13,6 +13,7 @@ import {
 } from './ipc/handlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
+import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
@@ -33,6 +34,10 @@ app.whenReady().then(async () => {
   registerQQMusicHandlers();
   registerWebDAVHandlers();
   registerCleanupHandlers();
+
+  initUpdater();
+  registerVersionIpc();
+  scheduleStartupCheck(5000);
 
   logger.info('[Main] All IPC handlers registered');
 });
