@@ -6,6 +6,7 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
+import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
@@ -847,113 +848,29 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 )}
                 {visibleTracks.map((track, idx) => {
                   const filteredIndex = startIndex + idx;
-                  const isUnavailable = track.available === false;
-                  const isSelected = selectedIds.has(track.id);
                   const isCurrentTrack = track.id === currentTrackId;
                   const isDragged = draggedIndex === filteredIndex;
-                  const canDrag = isEditMode && !isUnavailable;
-                  // Only apply animation when shouldShowAnimation is true
-                  const animationStyle = shouldShowAnimation
-                    ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
-                    : undefined;
-
                   return (
-                    <div
+                    <LibraryTrackRow
                       key={track.id}
-                      ref={idx === 0 ? rowMeasureRef : undefined}
-                        data-track-index={filteredIndex}
-                        draggable={canDrag}
-                        onDragStart={(e) => handleTrackDragStart(e, filteredIndex)}
-                        onDragOver={(e) => handleTrackDragOver(e, filteredIndex)}
-                        onDragEnd={handleTrackDragEnd}
-                        onClick={() => {
-                          if (isEditMode || isUnavailable) return;
-                          const realIndex = displayTracks.findIndex(t => t.id === track.id);
-                          if (realIndex >= 0) onTrackSelect(realIndex);
-                        }}
-                        style={{
-                          ...animationStyle,
-                          backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
-                         border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
-                       }}
-                       className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
-                           isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
-                         }`}
-                       onMouseEnter={e => {
-                         if (!isDragged && !isUnavailable && !isSelected && !isCurrentTrack) {
-                           e.currentTarget.style.backgroundColor = colors.backgroundCard;
-                         }
-                       }}
-                       onMouseLeave={e => {
-                         if (!isDragged && !isUnavailable && !isSelected && !isCurrentTrack) {
-                           e.currentTarget.style.backgroundColor = 'transparent';
-                         }
-                       }}
-                     >
-                      <div className="text-sm font-medium" style={{ opacity: 0.5, color: isCurrentTrack ? colors.primary : colors.textSecondary }}>
-                        {isEditMode && !isUnavailable ? (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectOne(track.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 rounded cursor-pointer"
-                            style={{ accentColor: colors.primary }}
-                          />
-                        ) : (
-                          filteredIndex + 1
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <TrackCover
-                          trackId={track.id}
-                          filePath={track.filePath}
-                          fallbackUrl={track.coverUrl}
-                          className="size-10 rounded-lg object-cover"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary }}>
-                            {track.title}
-                            {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{i18n.t('library.needReimport')}</span>}
-                          </p>
-                          <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
-                        </div>
-                      </div>
-                      <div className="text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
-                      {isEditMode ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingTrack(track);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-                            style={{ color: colors.textMuted }}
-                            title={i18n.t('sidebar.metadata')}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
-                          >
-                            <span className="material-symbols-outlined text-lg">description</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              confirmDelete(track.id);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-                            style={{ color: colors.error }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${colors.error}1a`; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                          >
-                            <span className="material-symbols-outlined text-lg">delete</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
-                          {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
-                        </div>
-                      )}
-                    </div>
+                      track={track}
+                      filteredIndex={filteredIndex}
+                      isCurrentTrack={isCurrentTrack}
+                      isEditMode={isEditMode}
+                      isSelected={selectedIds.has(track.id)}
+                      isDragged={isDragged}
+                      shouldShowAnimation={shouldShowAnimation}
+                      colors={colors}
+                      measureRef={idx === 0 ? rowMeasureRef : undefined}
+                      realTrackIndex={displayTracks.findIndex(t => t.id === track.id)}
+                      onTrackSelect={onTrackSelect}
+                      onToggleSelect={toggleSelectOne}
+                      onEditMetadata={setEditingTrack}
+                      onDelete={confirmDelete}
+                      onDragStart={handleTrackDragStart}
+                      onDragOver={handleTrackDragOver}
+                      onDragEnd={handleTrackDragEnd}
+                    />
                   );
                 })}
               </div>
