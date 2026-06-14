@@ -94,12 +94,6 @@
           "arch": [
             "arm64"
           ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64"
-          ]
         }
       ],
       "category": "public.app-category.music",
@@ -109,7 +103,7 @@
       "entitlementsInherit": "entitlements.mac.plist"
     },
     "dmg": {
-      "writeUpdateInfo": true
+      "writeUpdateInfo": false
     },
     "linux": {
       "target": [
