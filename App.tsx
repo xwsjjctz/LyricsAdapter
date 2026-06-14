@@ -48,7 +48,6 @@ const App: React.FC = () => {
   const isWindowFocused = useWindowFocus();
   const floatingPanel = useFloatingPanel();
   const metadataViewRef = useRef<MetadataViewHandle>(null);
-  const isFirstLibraryLoadRef = useRef(true);
   // QQ Music download/upload progress
   const {
     slots,
@@ -210,9 +209,6 @@ const App: React.FC = () => {
     }
     setViewMode(mode);
     setIsFocusMode(false);
-    if (viewMode !== ViewMode.BROWSE && mode === ViewMode.BROWSE) {
-      isFirstLibraryLoadRef.current = false;
-    }
   }, [viewMode, setViewMode, setIsFocusMode]);
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
@@ -425,7 +421,6 @@ const App: React.FC = () => {
                 isFocusMode={isFocusMode}
                 savedScrollPosition={slots[viewSlot].scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
-                isFirstLoad={isFirstLibraryLoadRef.current}
                 autoLocateToken={autoLocateToken}
                 importProgress={importProgress}
                 dataSource={viewSlot}
