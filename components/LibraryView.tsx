@@ -8,6 +8,7 @@ import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
+import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -88,9 +89,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   });
 
   const displayTracks = tracks;
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const [rowHeight, setRowHeight] = useState(0);
-  const [rowGap, setRowGap] = useState(8);
   const [showLocateButton, setShowLocateButton] = useState(false);
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -176,10 +174,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const previousTrackIndexRef = useRef<number>(-1);
   const lastHandledAutoLocateTokenRef = useRef<number>(autoLocateToken);
   const highlightUpdateIdRef = useRef(0);
-  const overscan = 6;
-
-  const baseRowHeight = rowHeight || 64;
-  const rowStride = baseRowHeight + rowGap;
 
   // Theme colors
   const colors = currentTheme.colors;
@@ -187,51 +181,28 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
 
-  const totalHeight = activeTracks.length > 0
-    ? (activeTracks.length - 1) * rowStride + baseRowHeight
-    : 0;
-  const shouldVirtualize = activeTracks.length > 200 && viewportHeight > 0;
-  const startIndex = shouldVirtualize
-    ? Math.max(0, Math.floor(scrollTop / rowStride) - overscan)
-    : 0;
-  const endIndex = shouldVirtualize
-    ? Math.min(activeTracks.length, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
-    : activeTracks.length;
+  const {
+    baseRowHeight,
+    rowStride,
+    totalHeight,
+    startIndex,
+    endIndex,
+    paddingTop,
+    paddingBottom,
+    rowMeasureRef,
+  } = useLibraryVirtualScroll({
+    itemCount: activeTracks.length,
+    scrollTop,
+    scrollContainerRef,
+    listRef,
+    isEditMode,
+  });
+
+  const shouldVirtualize = endIndex > startIndex || startIndex > 0;
   const visibleTracks = shouldVirtualize ? activeTracks.slice(startIndex, endIndex) : activeTracks;
-  const visibleCount = visibleTracks.length;
-  const paddingTop = shouldVirtualize ? startIndex * rowStride : 0;
-  const visibleHeight = visibleCount > 0
-    ? (visibleCount - 1) * rowStride + baseRowHeight
-    : 0;
-  const paddingBottom = shouldVirtualize
-    ? Math.max(0, totalHeight - paddingTop - visibleHeight)
-    : 0;
 
   // Animation is disabled for better performance
   const shouldShowAnimation = false;
-
-  const rowMeasureRef = useCallback((node: HTMLDivElement | null) => {
-    if (!node) return;
-    const nextHeight = node.getBoundingClientRect().height;
-    if (nextHeight > 0 && nextHeight !== rowHeight) {
-      setRowHeight(nextHeight);
-    }
-  }, [rowHeight]);
-
-  // Initialize viewport size
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const update = () => {
-      setViewportHeight(container.clientHeight || 0);
-    };
-
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, []);
 
   // Handle scroll position restoration and scroll to playing track on first load
   useEffect(() => {
@@ -283,20 +254,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       }
     };
   }, [onScrollPositionChange, dataSource]);
-
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const style = window.getComputedStyle(list);
-    const gapValue = parseFloat(style.rowGap || style.gap || '0');
-    if (!Number.isNaN(gapValue) && gapValue !== rowGap) {
-      setRowGap(gapValue);
-    }
-  }, [isEditMode, rowGap, tracks.length]);
-
-  useEffect(() => {
-    setRowHeight(0);
-  }, [isEditMode]);
 
   // Get the index of current track in filtered list
   const currentTrackInFilteredIndex = useMemo(() => {
