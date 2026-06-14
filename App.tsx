@@ -12,6 +12,7 @@ import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useImport } from './hooks/useImport';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
+import { useWindowFocus } from './hooks/useWindowFocus';
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
@@ -44,7 +45,7 @@ const App: React.FC = () => {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
-  const [isWindowFocused, setIsWindowFocused] = useState(true);
+  const isWindowFocused = useWindowFocus();
   const [floatingPanel, setFloatingPanel] = useState(() => settingsManager.getFloatingPanel());
 
   // Subscribe to floating panel changes from other components
@@ -56,16 +57,6 @@ const App: React.FC = () => {
   }, []);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
-  useEffect(() => {
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
   // QQ Music download/upload progress
   const {
     slots,
