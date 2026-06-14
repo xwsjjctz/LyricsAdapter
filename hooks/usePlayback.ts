@@ -44,7 +44,6 @@ export function usePlayback({
   const hasRestoredRef = useRef<boolean>(false);
   const lastTrackIdRef = useRef<string | undefined>(undefined);
   const loadedTrackIdRef = useRef<string | undefined>(undefined);
-
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
   }, [tracks, currentTrackIndex]);
