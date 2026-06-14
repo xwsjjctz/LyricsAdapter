@@ -82,7 +82,7 @@ export function initUpdater(): void {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = true; // 0.x 阶段所有 release 都是 pre-release
-  // 差量（blockmap）更新默认开启，无需额外配置。
+  autoUpdater.disableDifferentialDownload = true; // 走全量下载，避免生成 blockmap 拖慢打包
 
   try {
     // publish 配置已被 electron-builder 写入 app-update.yml，autoUpdater 会自动读取；

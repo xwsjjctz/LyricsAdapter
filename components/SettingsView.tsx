@@ -4,7 +4,7 @@ import { useI18n, useTheme } from '../hooks/useServices';
 import { cookieManager } from '../services/cookieManager';
 import { settingsManager } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
-import { getDesktopAPI, type UpdaterState } from '../services/desktopAdapter';
+import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
 
@@ -33,7 +33,6 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
 
   const [appVersion, setAppVersion] = useState<string>('');
-  const [updaterState, setUpdaterState] = useState<UpdaterState>({ status: 'idle' });
 
   useEffect(() => {
     (async () => {
@@ -69,32 +68,12 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
     return () => clearTimeout(timer);
   }, [bgBlurTrans]);
 
-  // 订阅应用版本号 + 自动更新状态
+  // 获取应用版本号
   useEffect(() => {
-    const api = getDesktopAPI();
-    api?.getAppVersion?.()
+    getDesktopAPI()?.getAppVersion?.()
       .then(v => setAppVersion(v))
       .catch(e => logger.error('[SettingsView] getAppVersion failed:', e));
-    const handler = (s: UpdaterState) => setUpdaterState(s);
-    api?.onUpdaterEvent?.(handler);
-    return () => api?.offUpdaterEvent?.(handler);
   }, []);
-
-  const handleCheckUpdate = () => {
-    setUpdaterState({ status: 'checking' });
-    getDesktopAPI()?.checkForUpdates?.()
-      .then(res => {
-        if (!res.ok && res.reason === 'dev') {
-          setUpdaterState({ status: 'error', message: i18n.t('updater.devOnly') });
-        }
-      })
-      .catch(e => logger.error('[SettingsView] checkForUpdates failed:', e));
-  };
-
-  const handleRestartToUpdate = () => {
-    getDesktopAPI()?.quitAndInstall?.()
-      .catch(e => logger.error('[SettingsView] quitAndInstall failed:', e));
-  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -288,86 +267,13 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
               </div>
 
               <div className="rounded-lg p-4 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
-                    <div className="min-w-0">
-                      <span className="text-sm" style={{ color: colors.textPrimary }}>{i18n.t('settings.about')}</span>
-                      <span className="text-xs ml-2" style={{ color: colors.textMuted }}>v{appVersion || '…'}</span>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
+                  <div className="min-w-0">
+                    <span className="text-sm" style={{ color: colors.textPrimary }}>{i18n.t('settings.about')}</span>
+                    <span className="text-xs ml-2" style={{ color: colors.textMuted }}>v{appVersion || '…'}</span>
                   </div>
-                  {/* 检查更新按钮（版本号右侧） */}
-                  {(updaterState.status === 'idle' || updaterState.status === 'not-available' || updaterState.status === 'error') && (
-                    <button
-                      onClick={handleCheckUpdate}
-                      title={i18n.t('updater.check')}
-                      className="material-symbols-outlined text-lg p-1 rounded transition-colors"
-                      style={{ color: colors.textSecondary }}
-                      onMouseEnter={e => { e.currentTarget.style.color = colors.primary; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
-                    >
-                      refresh
-                    </button>
-                  )}
-                  {updaterState.status === 'checking' && (
-                    <span
-                      className="material-symbols-outlined text-lg animate-spin p-1"
-                      style={{ color: colors.textSecondary }}
-                      title={i18n.t('updater.checking')}
-                    >
-                      progress_activity
-                    </span>
-                  )}
                 </div>
-
-                {/* 状态行 */}
-                <div className="mt-2 text-xs flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                  {updaterState.status === 'not-available' && (
-                    <>
-                      <span className="material-symbols-outlined text-sm" style={{ color: colors.primary }}>check</span>
-                      {i18n.t('updater.upToDate')}
-                    </>
-                  )}
-                  {(updaterState.status === 'available' || updaterState.status === 'downloading' || updaterState.status === 'downloaded') && (
-                    <>
-                      <span className="material-symbols-outlined text-sm" style={{ color: colors.primary }}>download</span>
-                      {i18n.t('updater.available') + ' v' + updaterState.info.version}
-                    </>
-                  )}
-                  {updaterState.status === 'error' && (
-                    <>
-                      <span className="material-symbols-outlined text-sm" style={{ color: '#e53935' }}>error</span>
-                      {updaterState.message || i18n.t('updater.failed')}
-                    </>
-                  )}
-                  {updaterState.status === 'downloading' && updaterState.progress && (
-                    <span className="tabular-nums ml-auto">{Math.round(updaterState.progress.percent)}%</span>
-                  )}
-                </div>
-
-                {/* 进度条 */}
-                {updaterState.status === 'downloading' && updaterState.progress && (
-                  <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.borderLight }}>
-                    <div
-                      className="h-full transition-all"
-                      style={{ width: `${updaterState.progress.percent}%`, backgroundColor: colors.primary }}
-                    />
-                  </div>
-                )}
-
-                {/* 下载完成：重启安装按钮 */}
-                {updaterState.status === 'downloaded' && (
-                  <button
-                    onClick={handleRestartToUpdate}
-                    className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-xs transition-all"
-                    style={{ backgroundColor: colors.primary, color: '#fff' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-                  >
-                    <span className="material-symbols-outlined text-sm">rocket_launch</span>
-                    {i18n.t('updater.restart')}
-                  </button>
-                )}
               </div>
             </div>
           </section>

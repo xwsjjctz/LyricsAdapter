@@ -35,21 +35,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # macOS 代码签名 + 公证：electron-builder 原生读取 CSC_LINK / CSC_KEY_PASSWORD
-      # 以及 APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID，自动签名、notarize、staple。
-      # Windows 暂不签名（NSIS 差量更新不签名也可用，SmartScreen 警告为可接受代价）。
-      - name: Build & package (macOS)
-        if: runner.os == 'macOS'
+      # macOS 构建：已移除 Apple 签名 & 公证，走全量下载更新。
+      # Windows 构建：NSIS 安装包，差量更新不签名也可用。
+      - name: Build & package
         env:
-          CSC_LINK: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: ${{ matrix.build_cmd }}
-
-      - name: Build & package (Windows)
-        if: runner.os == 'Windows'
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: ${{ matrix.build_cmd }}
 
       - name: Upload build artifacts
@@ -58,11 +48,8 @@ jobs:
           name: release-${{ matrix.artifact }}
           path: |
             release/*.dmg
-            release/*.dmg.blockmap
             release/*.zip
-            release/*.zip.blockmap
             release/*.exe
-            release/*.exe.blockmap
             release/latest.yml
             release/latest-mac.yml
 
@@ -102,9 +89,9 @@ jobs:
           # 创建新的 release（v0.* 自动标记为 Pre-release）
           if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
           gh release create "$TAG" \
-            release/*.dmg release/*.dmg.blockmap \
-            release/*.zip release/*.zip.blockmap \
-            release/*.exe release/*.exe.blockmap \
+            release/*.dmg \
+            release/*.zip \
+            release/*.exe \
             release/latest.yml release/latest-mac.yml \
             --title "$TAG" \
             --generate-notes \
