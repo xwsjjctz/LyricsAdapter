@@ -179,6 +179,8 @@ const App: React.FC = () => {
         setRestoreTime(restoredTime ?? 0);
         switchTo(restoredSlotId);
         setViewSlot(restoredSlotId);
+        // 触发 LibraryView 自动定位到当前曲目
+        handleTrackSwitch();
       }
     },
   });
