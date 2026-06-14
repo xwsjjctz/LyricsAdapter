@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
-import { getDesktopAPIAsync, getDesktopAPI, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPI, isDesktop } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
@@ -12,7 +12,6 @@ import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useImport } from './hooks/useImport';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
-import { themeManager } from './services/themeManager';
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
@@ -26,8 +25,8 @@ import SearchBox from './components/SearchBox';
 import ErrorBoundary from './components/ErrorBoundary';
 import { i18n } from './services/i18n';
 import { settingsManager } from './services/settingsManager';
-import { webdavClient } from './services/webdavClient';
 import { useQQMusicIntegration } from './hooks/useQQMusicIntegration';
+import { useAppLifecycle } from './hooks/useAppLifecycle';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -349,91 +348,7 @@ const App: React.FC = () => {
     currentTime,
     duration: currentTrack?.duration || 0
   });
-  // 启动时清除持久化的 CDN URL 缓存，避免使用可能已过期的预签名 URL
-  useEffect(() => {
-    webdavClient.clearCdnCache();
-  }, []);
-
-  useEffect(() => {
-    const initDesktopAPI = async () => {
-      logger.debug('[App] Initializing Desktop API...');
-      try {
-        const api = await getDesktopAPIAsync();
-        if (api) {
-          logger.debug('[App] ✓ Desktop API initialized, platform:', api.platform);
-        } else {
-          logger.debug('[App] No Desktop API available (running in browser)');
-        }
-      } catch (error) {
-        logger.error('[App] Failed to initialize Desktop API:', error);
-      }
-    };
-    initDesktopAPI();
-    return () => {
-      logger.debug('[App] Cleaning up', activeBlobUrlsRef.current.size, 'blob URLs...');
-      activeBlobUrlsRef.current.forEach(blobUrl => {
-        try {
-          URL.revokeObjectURL(blobUrl);
-        } catch {
-          // Ignore errors during cleanup
-        }
-      });
-      activeBlobUrlsRef.current.clear();
-      logger.debug('[App] ✓ All blob URLs revoked');
-      metadataCacheService.revokeAllBlobUrls();
-    };
-  }, [activeBlobUrlsRef]);
-  useEffect(() => {
-    const theme = themeManager.getCurrentTheme();
-    const root = document.documentElement;
-    const colors = theme.colors;
-    const fonts = theme.fonts;
-    const radius = theme.borderRadius;
-    root.style.setProperty('--theme-primary', colors.primary);
-    root.style.setProperty('--theme-primary-hover', colors.primaryHover);
-    root.style.setProperty('--theme-primary-light', colors.primaryLight);
-    root.style.setProperty('--theme-background-dark', colors.backgroundDark);
-    root.style.setProperty('--theme-background-gradient-start', colors.backgroundGradientStart);
-    root.style.setProperty('--theme-background-gradient-end', colors.backgroundGradientEnd);
-    root.style.setProperty('--theme-background-sidebar', colors.backgroundSidebar);
-    root.style.setProperty('--theme-background-card', colors.backgroundCard);
-    root.style.setProperty('--theme-background-card-hover', colors.backgroundCardHover);
-    root.style.setProperty('--theme-text-primary', colors.textPrimary);
-    root.style.setProperty('--theme-text-secondary', colors.textSecondary);
-    root.style.setProperty('--theme-text-muted', colors.textMuted);
-    root.style.setProperty('--theme-border-light', colors.borderLight);
-    root.style.setProperty('--theme-border-hover', colors.borderHover);
-    root.style.setProperty('--theme-accent', colors.accent);
-    root.style.setProperty('--theme-accent-hover', colors.accentHover);
-    root.style.setProperty('--theme-success', colors.success);
-    root.style.setProperty('--theme-warning', colors.warning);
-    root.style.setProperty('--theme-error', colors.error);
-    root.style.setProperty('--theme-info', colors.info);
-    root.style.setProperty('--theme-shadow-color', colors.shadowColor);
-    root.style.setProperty('--theme-glow-color', colors.glowColor);
-    root.style.setProperty('--theme-font-main', fonts.main);
-    root.style.setProperty('--theme-radius-sm', radius.sm);
-    root.style.setProperty('--theme-radius-md', radius.md);
-    root.style.setProperty('--theme-radius-lg', radius.lg);
-    root.style.setProperty('--theme-radius-xl', radius.xl);
-    root.style.setProperty('--theme-radius-full', radius.full);
-    root.style.fontFamily = fonts.main;
-    if (theme.isDark) {
-      root.classList.add('theme-dark');
-      root.classList.remove('theme-light');
-    } else {
-      root.classList.add('theme-light');
-      root.classList.remove('theme-dark');
-    }
-    logger.debug('[App] Theme initialized:', themeManager.getCurrentThemeId());
-  }, []);
-  // Linux 透明窗口圆角：body 透明，由根 div 提供背景和圆角裁剪
-  useEffect(() => {
-    const api = getDesktopAPI();
-    if (api?.platform === 'linux') {
-      document.body.style.backgroundColor = 'transparent';
-    }
-  }, []);
+  useAppLifecycle({ activeBlobUrlsRef });
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
