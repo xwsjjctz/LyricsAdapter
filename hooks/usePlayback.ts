@@ -31,6 +31,7 @@ export function usePlayback({
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState<number>(UI.DEFAULT_VOLUME);
   const [playbackMode, setPlaybackMode] = useState<'order' | 'shuffle' | 'repeat-one'>('order');
+  const [reloadToken, setReloadToken] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const shouldAutoPlayRef = useRef<boolean>(false);
@@ -44,6 +45,7 @@ export function usePlayback({
   const hasRestoredRef = useRef<boolean>(false);
   const lastTrackIdRef = useRef<string | undefined>(undefined);
   const loadedTrackIdRef = useRef<string | undefined>(undefined);
+  const skipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
   }, [tracks, currentTrackIndex]);
@@ -68,6 +70,15 @@ export function usePlayback({
   useEffect(() => {
     currentTrackIndexRef.current = currentTrackIndex;
   }, [currentTrackIndex]);
+
+  // 清除延迟播放定时器（组件卸载时）
+  useEffect(() => {
+    return () => {
+      if (skipTimerRef.current !== null) {
+        clearTimeout(skipTimerRef.current);
+      }
+    };
+  }, []);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
     if (length <= 1) return exclude;
@@ -215,18 +226,50 @@ export function usePlayback({
 
   const skipForward = useCallback(() => {
     if (tracks.length === 0) return;
-    shouldAutoPlayRef.current = true;
+
+    // 清除之前的延迟定时器（快速连按时的防抖）
+    if (skipTimerRef.current !== null) {
+      clearTimeout(skipTimerRef.current);
+    }
+
+    // 先更新索引（视觉切换），但不触发音频加载
+    shouldAutoPlayRef.current = false;
     onTrackSwitch?.();
     const nextIndex = getNextTrackIndex('forward');
     setCurrentTrackIndex(nextIndex);
+
+    // 延迟触发自动播放：快速连按时只有最后一次会生效
+    skipTimerRef.current = setTimeout(() => {
+      skipTimerRef.current = null;
+      shouldAutoPlayRef.current = true;
+      // 清除已加载标记，强制 effect 重新加载当前曲目
+      loadedTrackIdRef.current = undefined;
+      setReloadToken(t => t + 1);
+    }, 150);
   }, [tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const skipBackward = useCallback(() => {
     if (tracks.length === 0) return;
-    shouldAutoPlayRef.current = true;
+
+    // 清除之前的延迟定时器（快速连按时的防抖）
+    if (skipTimerRef.current !== null) {
+      clearTimeout(skipTimerRef.current);
+    }
+
+    // 先更新索引（视觉切换），但不触发音频加载
+    shouldAutoPlayRef.current = false;
     onTrackSwitch?.();
     const nextIndex = getNextTrackIndex('backward');
     setCurrentTrackIndex(nextIndex);
+
+    // 延迟触发自动播放：快速连按时只有最后一次会生效
+    skipTimerRef.current = setTimeout(() => {
+      skipTimerRef.current = null;
+      shouldAutoPlayRef.current = true;
+      // 清除已加载标记，强制 effect 重新加载当前曲目
+      loadedTrackIdRef.current = undefined;
+      setReloadToken(t => t + 1);
+    }, 150);
   }, [tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const handleSeek = useCallback((time: number) => {
@@ -286,6 +329,16 @@ export function usePlayback({
     if (currentTrack.id === loadedTrackIdRef.current) {
       return;
     }
+
+    // 防抖/快速切歌模式：仅在防抖定时器活跃时跳过音频加载
+    // 避免在初始加载（启动恢复等场景）时也阻塞加载
+    if (skipTimerRef.current !== null && !shouldAutoPlayRef.current) {
+      // 不标记 loadedTrackIdRef，等定时器到期后 effect 重新执行
+      loadedTrackIdRef.current = undefined;
+      logger.debug('[Playback] Deferred play mode, skip audio load for:', currentTrack.title);
+      return;
+    }
+
     loadedTrackIdRef.current = currentTrack.id;
 
     logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex, 'source:', currentTrack.source);
@@ -330,6 +383,7 @@ export function usePlayback({
       logger.debug('[Playback] Lazy loading audio for:', currentTrack.title);
 
       loadAudioFileForTrack(currentTrack).then(updatedTrack => {
+        // 先更新 tracks 数组，缓存 audioUrl 以便后续直接播放
         setTracks(prev => {
           const newTracks = [...prev];
           const idx = newTracks.findIndex(t => t.id === updatedTrack.id);
@@ -338,6 +392,12 @@ export function usePlayback({
           }
           return newTracks;
         });
+
+        // 防止过期异步回调：如果当前已经切到其他曲目，不设置 src 和播放
+        if (loadedTrackIdRef.current !== updatedTrack.id) {
+          logger.debug('[Playback] Stale async load ignored for:', updatedTrack.title);
+          return;
+        }
 
         // 懒加载完成后直接播放，绕过 loadedTrackIdRef 守卫
         // （该守卫会拦截后续的 effect 重入，导致 play() 永远不被调用）
@@ -380,7 +440,7 @@ export function usePlayback({
         });
       }
     }
-  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, setTracks]);
+  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, setTracks, reloadToken]);
 
   useEffect(() => {
     if (!currentTrack) return;
