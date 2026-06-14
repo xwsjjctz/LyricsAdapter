@@ -94,22 +94,13 @@
           "arch": [
             "arm64"
           ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64"
-          ]
         }
       ],
       "category": "public.app-category.music",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.plist"
+      "hardenedRuntime": false
     },
     "dmg": {
-      "writeUpdateInfo": true
+      "writeUpdateInfo": false
     },
     "linux": {
       "target": [
