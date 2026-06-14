@@ -16,7 +16,7 @@
     "electron:build:win": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --x64",
     "electron:build:win:arm64": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --arm64",
     "electron:build:mac": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --mac",
-    "electron:build:mac:dev": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_OPTIONS=--no-deprecation electron-builder --mac --dir --arm64",
+    "electron:build:mac:dev": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_OPTIONS=--no-deprecation electron-builder --mac --dir",
     "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux"
   },
   "dependencies": {
@@ -92,14 +92,12 @@
         {
           "target": "dmg",
           "arch": [
-            "x64",
             "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64",
             "arm64"
           ]
         }
