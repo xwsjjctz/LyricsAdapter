@@ -37,7 +37,6 @@ export type UpdaterState =
 export interface DesktopAPI {
   platform: string;
   readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
-  checkFileExists: (filePath: string) => Promise<boolean>;
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
   loadLibrary: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibrary: (library: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -101,10 +100,6 @@ class ElectronAdapter implements DesktopAPI {
 
   async readFile(filePath: string): Promise<{ success: boolean; data: ArrayBuffer; error?: string }> {
     return this.api.readFile(filePath);
-  }
-
-  async checkFileExists(filePath: string): Promise<boolean> {
-    return this.api.checkFileExists(filePath);
   }
 
   async selectFiles(): Promise<{ canceled: boolean; filePaths: string[] }> {
