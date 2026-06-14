@@ -330,9 +330,9 @@ export function usePlayback({
       return;
     }
 
-    // 防抖/快速切歌模式：shouldAutoPlayRef 为 false 时不加载音频，节省 I/O
-    // 后续由防抖定时器触发 setReloadToken + shouldAutoPlayRef=true 来真正播放
-    if (!shouldAutoPlayRef.current) {
+    // 防抖/快速切歌模式：仅在防抖定时器活跃时跳过音频加载
+    // 避免在初始加载（启动恢复等场景）时也阻塞加载
+    if (skipTimerRef.current !== null && !shouldAutoPlayRef.current) {
       // 不标记 loadedTrackIdRef，等定时器到期后 effect 重新执行
       loadedTrackIdRef.current = undefined;
       logger.debug('[Playback] Deferred play mode, skip audio load for:', currentTrack.title);
