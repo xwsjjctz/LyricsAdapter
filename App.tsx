@@ -25,9 +25,9 @@ import FocusMode from './components/FocusMode';
 import SearchBox from './components/SearchBox';
 import ErrorBoundary from './components/ErrorBoundary';
 import { i18n } from './services/i18n';
-import { settingsManager } from './services/settingsManager';
 import { useQQMusicIntegration } from './hooks/useQQMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
+import { useFloatingPanel } from './hooks/useFloatingPanel';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -46,15 +46,7 @@ const App: React.FC = () => {
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
   const isWindowFocused = useWindowFocus();
-  const [floatingPanel, setFloatingPanel] = useState(() => settingsManager.getFloatingPanel());
-
-  // Subscribe to floating panel changes from other components
-  useEffect(() => {
-    const unsubscribe = settingsManager.subscribe(() => {
-      setFloatingPanel(settingsManager.getFloatingPanel());
-    });
-    return unsubscribe;
-  }, []);
+  const floatingPanel = useFloatingPanel();
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isFirstLibraryLoadRef = useRef(true);
   // QQ Music download/upload progress
