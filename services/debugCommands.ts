@@ -37,13 +37,3 @@ export function unregisterCommand(name: string): void {
   delete w[name];
   syncToWindow();
 }
-
-export function clearAllCommands(): void {
-  const w = window as any;
-  commands.forEach((_, name) => {
-    delete w[name];
-  });
-  commands.clear();
-  delete w.__debug_commands;
-  delete w.help;
-}

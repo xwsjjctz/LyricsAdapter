@@ -33,21 +33,3 @@ function hashString(str: string): string {
   }
   return Math.abs(hash).toString(16);
 }
-
-export function metaJsonToTrack(meta: MetaJson, audioPath: string): Track {
-  return {
-    id: `webdav-${audioPath}`,
-    title: meta.title,
-    artist: meta.artist,
-    album: meta.album,
-    duration: meta.duration,
-    audioUrl: '',
-    source: 'webdav',
-    webdavPath: audioPath,
-    fileName: meta.fileName,
-    fileSize: meta.fileSize,
-    ...(meta.lyrics != null && { lyrics: meta.lyrics }),
-    ...(meta.syncedLyrics != null && { syncedLyrics: meta.syncedLyrics }),
-    ...(meta.coverUrl != null && { coverUrl: meta.coverUrl }),
-  };
-}

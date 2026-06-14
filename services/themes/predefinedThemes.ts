@@ -93,11 +93,6 @@ export const predefinedThemes: ThemeConfig[] = [
   },
 ];
 
-// Helper function to get a theme by ID
-export function getThemeById(id: string): ThemeConfig | undefined {
-  return predefinedThemes.find(theme => theme.id === id);
-}
-
 // Helper function to get the default theme
 export function getDefaultTheme(): ThemeConfig {
   return predefinedThemes.find(theme => theme.id === THEME_IDS.DEFAULT)!;

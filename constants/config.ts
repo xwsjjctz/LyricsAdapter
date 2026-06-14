@@ -6,20 +6,6 @@
  */
 
 /**
- * Audio preloading configuration
- */
-export const PRELOAD = {
-  /** Maximum file size for preloading in bytes (50MB) */
-  MAX_SIZE_BYTES: 50 * 1024 * 1024,
-
-  /** Delay before preloading adjacent tracks in milliseconds */
-  DELAY_MS: 500,
-
-  /** Number of adjacent tracks to preload (before and after) */
-  ADJACENT_COUNT: 1,
-} as const;
-
-/**
  * Storage limits and configuration
  */
 export const STORAGE = {
@@ -51,58 +37,6 @@ export const UI = {
 
   /** Seek step when clicking progress bar (0-1) */
   SEEK_STEP: 0.05,
-} as const;
-
-/**
- * File format constants
- */
-export const FORMATS = {
-  /** Supported audio file extensions */
-  AUDIO_EXTENSIONS: ['.flac', '.mp3', '.m4a', '.wav'],
-
-  /** MIME types for audio files */
-  AUDIO_MIME_TYPES: [
-    'audio/flac',
-    'audio/mpeg',
-    'audio/mp3',
-    'audio/mp4',
-    'audio/x-m4a',
-    'audio/wav',
-    'audio/wave',
-  ],
-
-  /** Cover art MIME types */
-  IMAGE_MIME_TYPES: [
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'image/webp',
-  ],
-} as const;
-
-/**
- * Playback configuration
- */
-export const PLAYBACK = {
-  /** Time in seconds before track end to trigger next track preload */
-  PRELOAD_THRESHOLD: 30,
-
-  /** Maximum restore time offset from end in seconds */
-  MAX_RESTORE_OFFSET: 0.5,
-} as const;
-
-/**
- * API configuration
- */
-export const API = {
-  /** Request timeout in milliseconds */
-  REQUEST_TIMEOUT: 10000,
-
-  /** Maximum retry attempts for failed requests */
-  MAX_RETRIES: 3,
-
-  /** Delay between retries in milliseconds */
-  RETRY_DELAY: 1000,
 } as const;
 
 /**

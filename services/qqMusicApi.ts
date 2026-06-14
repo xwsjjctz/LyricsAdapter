@@ -11,11 +11,6 @@ export interface QQMusicSong {
   coverUrl?: string | undefined;
 }
 
-export interface QQMusicSearchResult {
-  list: QQMusicSong[];
-  total: number;
-}
-
 export interface QQMusicUrlResult {
   url: string;
   bitrate: string;

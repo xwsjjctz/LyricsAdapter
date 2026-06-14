@@ -16,7 +16,7 @@ const qualityOptions = [
   { value: 'flac' as const, label: 'FLAC' },
 ];
 
-export interface GlobalSearchProps {
+interface GlobalSearchProps {
   query: string;
   isOpen: boolean;
   onClose: () => void;

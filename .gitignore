@@ -95,3 +95,5 @@ problems.md
 /docs
 /docs/*
 /.playwright-mcp
+
+/.codegraph
