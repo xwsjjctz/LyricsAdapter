@@ -48,6 +48,10 @@ class ThemeManagerClass {
     return predefinedThemes.find(t => t.id === this.currentThemeId) || getDefaultTheme();
   }
 
+  applyCurrentTheme(): void {
+    this.applyTheme(this.getCurrentTheme());
+  }
+
   setTheme(themeId: ThemeId): void {
     const theme = predefinedThemes.find(t => t.id === themeId);
     if (!theme) {
@@ -78,7 +82,7 @@ class ThemeManagerClass {
     this.listeners.forEach(listener => listener(this.currentThemeId));
   }
 
-  private applyTheme(theme: ThemeConfig): void {
+  applyTheme(theme: ThemeConfig): void {
     const root = document.documentElement;
     const colors = theme.colors;
     const fonts = theme.fonts;
