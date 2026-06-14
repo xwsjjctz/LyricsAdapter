@@ -26,7 +26,6 @@ interface LibraryViewProps {
   isFocusMode?: boolean;
   savedScrollPosition?: number;
   onScrollPositionChange?: (position: number) => void;
-  isFirstLoad?: boolean;
   autoLocateToken?: number;
   importProgress?: { loaded: number; total: number } | null;
   dataSource: 'local' | 'cloud';
@@ -55,7 +54,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   isFocusMode = false,
   savedScrollPosition = 0,
   onScrollPositionChange,
-  isFirstLoad = false,
   autoLocateToken = 0,
   importProgress,
   dataSource,
@@ -117,10 +115,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     });
     return unsubscribe;
   }, []);
-
-  // Track if animation has already played for current tracks
-
-  const isInitialMountRef = useRef(true);
 
   const filteredTracks = displayTracks;
 
@@ -206,38 +200,34 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Animation is disabled for better performance
   const shouldShowAnimation = false;
 
+  // Track whether we've already auto-located to the playing track
+  const hasAutoLocatedToTrackRef = useRef(false);
+
   // Handle scroll position restoration and scroll to playing track on first load
   useEffect(() => {
-    if (!isInitialMountRef.current) return;
-    
-    // Defer to after render when row height is known
+    // 已经定位过，或没有有效曲目时跳过
+    if (hasAutoLocatedToTrackRef.current) return;
+    if (currentTrackIndex < 0 || tracks.length === 0) return;
+
+    // 首次定位：等待 row height 计算完毕
     const timer = setTimeout(() => {
       if (!scrollContainerRef.current) return;
-      
-      if (isFirstLoad && currentTrackIndex >= 0 && currentTrackIndex < tracks.length) {
-        // First app load: scroll to the currently playing track
-        const container = scrollContainerRef.current;
-        const itemTop = currentTrackIndex * rowStride;
-        const itemBottom = itemTop + baseRowHeight;
-        const targetTop = itemBottom - container.clientHeight / 2; // Center the track
-        const maxTop = Math.max(0, totalHeight - container.clientHeight);
-        const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
-        
-        container.scrollTop = clampedTop;
-        setScrollTop(clampedTop);
-        logger.debug(`[LibraryView] First load - scrolled to playing track ${currentTrackIndex + 1} at position ${clampedTop}`);
-      } else if (savedScrollPosition > 0) {
-        // From other view: restore saved scroll position
-        scrollContainerRef.current.scrollTop = savedScrollPosition;
-        setScrollTop(savedScrollPosition);
-        logger.debug(`[LibraryView] Returned from other view - restored scroll position: ${savedScrollPosition}`);
-      }
 
-      isInitialMountRef.current = false;
-    }, 50); // Small delay to ensure row height is calculated
+      const container = scrollContainerRef.current;
+      const itemTop = currentTrackIndex * rowStride;
+      const itemBottom = itemTop + baseRowHeight;
+      const targetTop = itemBottom - container.clientHeight / 2; // Center the track
+      const maxTop = Math.max(0, totalHeight - container.clientHeight);
+      const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+
+      container.scrollTop = clampedTop;
+      setScrollTop(clampedTop);
+      hasAutoLocatedToTrackRef.current = true;
+      logger.debug(`[LibraryView] Auto-located to playing track ${currentTrackIndex + 1} at position ${clampedTop}`);
+    }, 50);
 
     return () => clearTimeout(timer);
-  }, [isFirstLoad, currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, savedScrollPosition]);
+  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight]);
 
   // Restore scroll position when switching between local/cloud
   useEffect(() => {
