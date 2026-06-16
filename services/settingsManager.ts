@@ -3,6 +3,7 @@ import { logger } from './logger';
 const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
+const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 
 type Listener = () => void;
 
@@ -10,6 +11,7 @@ class SettingsManager {
   private downloadPath: string = '';
   private floatingPanel: boolean = false;
   private bgBlurTrans: number = 1.0;
+  private qqMusicEnabled: boolean = false;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -29,6 +31,8 @@ class SettingsManager {
           this.bgBlurTrans = parsed;
         }
       }
+
+      this.qqMusicEnabled = localStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -97,6 +101,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] bgBlurTrans set to: ${this.bgBlurTrans}`);
+  }
+
+  // --- QQ Music Enabled ---
+
+  getQqMusicEnabled(): boolean {
+    return this.qqMusicEnabled;
+  }
+
+  setQqMusicEnabled(enabled: boolean): void {
+    this.qqMusicEnabled = enabled;
+    try {
+      localStorage.setItem(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save QQ Music enabled:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] QQ Music enabled set to: ${enabled}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

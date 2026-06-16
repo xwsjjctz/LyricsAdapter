@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { QQMusicSong, qqMusicApi } from '../services/qqMusicApi';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
+import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
 import TrackCover from './TrackCover';
@@ -78,9 +79,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     ).slice(0, MAX_RESULTS);
   }, [cloudTracks, query]);
 
-  // QQ Music search (debounced)
+  // QQ Music search (debounced) — only when experimental toggle is on
   useEffect(() => {
-    if (!query.trim() || !isExpanded) {
+    if (!query.trim() || !isExpanded || !settingsManager.getQqMusicEnabled()) {
       setQqResults([]);
       setQqLoading(false);
       return;
@@ -143,7 +144,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
   const hasLocal = filteredLocal.length > 0;
   const hasCloud = filteredCloud.length > 0;
-  const hasQQ = qqResults.length > 0 || qqLoading;
+  const qqEnabled = settingsManager.getQqMusicEnabled();
+  const hasQQ = qqEnabled && (qqResults.length > 0 || qqLoading);
   const hasAny = hasLocal || hasCloud || hasQQ;
   let resultOffset = 0;
 
