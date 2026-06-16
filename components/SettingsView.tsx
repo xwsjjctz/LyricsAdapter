@@ -31,6 +31,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
   const [floatingPanel, setFloatingPanel] = useState(false);
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
+  const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
 
   const [appVersion, setAppVersion] = useState<string>('');
 
@@ -48,6 +49,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
       }
       setFloatingPanel(settingsManager.getFloatingPanel());
       setBgBlurTrans(settingsManager.getBgBlurTrans());
+      setQqMusicEnabled(settingsManager.getQqMusicEnabled());
     })();
   }, []);
 
@@ -56,6 +58,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
     const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setFloatingPanel(settingsManager.getFloatingPanel());
+      setQqMusicEnabled(settingsManager.getQqMusicEnabled());
     });
     return unsubscribe;
   }, []);
@@ -286,7 +289,8 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
             </div>
           </section>
 
-          {/* QQ Music */}
+          {/* QQ Music — only visible when experimental toggle is enabled */}
+          {qqMusicEnabled && (
           <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
               <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
@@ -349,6 +353,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
               </div>
             </div>
           </section>
+          )}
 
           {/* WebDAV */}
           <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -468,6 +473,29 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
                   }}
                 />
               </div>
+            </div>
+
+            {/* 第三方音源开关 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
+              <button
+                onClick={() => {
+                  const newValue = !qqMusicEnabled;
+                  setQqMusicEnabled(newValue);
+                  settingsManager.setQqMusicEnabled(newValue);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
+                style={{
+                  backgroundColor: qqMusicEnabled ? colors.primary : colors.borderLight,
+                }}
+              >
+                <span
+                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
+                  style={{
+                    transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
+                  }}
+                />
+              </button>
             </div>
           </section>
 

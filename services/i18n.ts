@@ -1863,6 +1863,15 @@ const translations: Translations = {
     fr: 'Panneau flottant'
   },
 
+  'settings.qqMusicEnabled': {
+    zh: '添加第三方音源',
+    en: 'Add Third-Party Music Source',
+    ja: 'サードパーティ音源を追加',
+    ko: '타사 음원 추가',
+    de: 'Drittanbieter-Musikquelle hinzufügen',
+    fr: 'Ajouter une source musicale tierce'
+  },
+
   'settings.shortcuts.title': {
     zh: '快捷键',
     en: 'Keyboard Shortcuts',
