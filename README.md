@@ -34,7 +34,7 @@
 - [开发文档](#-开发文档)
 - [构建部署](#-构建部署)
 - [常见问题](#-常见问题)
-- [贡献指南](#-贡献指南)
+- [贡献指南](CONTRIBUTOR.md)
 - [许可证](#-许可证)
 - [致谢](#-致谢)
 
@@ -71,11 +71,9 @@
 ## 🎬 界面预览
 
 ### 主界面
-简洁优雅的曲库管理界面，支持批量导入、搜索、编辑和拖拽排序
+简洁优雅的曲库管理界面，双列表（本地/云端）独立播放上下文，支持批量导入、搜索、编辑和拖拽排序
 
 ![库界面](resource/LibraryView.png)
-![浏览界面](resource/BrowseView.png)
-![设置界面](resource/SettingsView.png)
 
 ### 沉浸式歌词模式
 全屏沉浸体验，动态背景跟随封面色调，歌词实时同步滚动
@@ -316,16 +314,21 @@ npm run electron:build
 ```
 LyricsAdapter/
 ├── components/              # React 组件
-│   ├── BrowseView.tsx       # 在线浏览视图
+│   ├── BrowseView.tsx       # 在线浏览与下载视图
 │   ├── Controls.tsx         # 播放控制器（进度条、播放控制、音量）
 │   ├── CookieDialog.tsx     # Cookie 配置对话框
 │   ├── ErrorBoundary.tsx    # 错误边界组件
-│   ├── FocusMode.tsx        # 沉浸式歌词模式
-│   ├── LibraryView.tsx      # 音乐库视图（歌曲列表、编辑模式）
+│   ├── FocusMode.tsx        # 沉浸式歌词模式（Canvas 动态背景、LRC 同步）
+│   ├── GlobalSearch.tsx     # 全局搜索弹窗
+│   ├── LibraryToolbar.tsx   # 音乐库工具栏（筛选、排序、编辑模式）
+│   ├── LibraryTrackRow.tsx  # 音乐库单曲行组件
+│   ├── LibraryView.tsx      # 音乐库视图（列表、分类筛选、编辑模式）
 │   ├── LyricsOverlay.tsx    # 歌词浮层组件
 │   ├── MainPlayer.tsx       # 主播放器界面
+│   ├── MetadataEditorPopup.tsx # 元数据内联编辑弹窗
 │   ├── MetadataView.tsx     # 元数据编辑视图
 │   ├── QueuePanel.tsx       # 播放队列面板
+│   ├── SearchBox.tsx        # 全局搜索框
 │   ├── SettingsDialog.tsx   # 设置对话框
 │   ├── SettingsView.tsx     # 设置视图
 │   ├── ShortcutsSettings.tsx# 快捷键设置组件
@@ -334,34 +337,45 @@ LyricsAdapter/
 │   ├── TitleBar.tsx         # 自定义窗口标题栏
 │   └── TrackCover.tsx       # 封面显示组件
 ├── hooks/                   # 自定义 React Hooks
-│   ├── useBlobUrls.ts       # Blob URL 管理
-│   ├── useImport.ts         # 文件导入逻辑
-│   ├── useLibraryActions.ts # 音乐库操作（删除、重载）
+│   ├── useAppLifecycle.ts   # 应用生命周期管理
+│   ├── useBlobUrls.ts       # Blob URL 管理（自动释放）
+│   ├── useFloatingPanel.ts  # 浮动面板状态
+│   ├── useImport.ts         # 文件导入逻辑（桌面+浏览器）
+│   ├── useLibraryActions.ts # 音乐库操作（删除、重载、排序）
+│   ├── useLibraryCloudSync.ts # 云端库同步
 │   ├── useLibraryLoad.ts    # 音乐库加载/保存
 │   ├── useLibrarySlots.ts   # 库槽管理（本地/云端独立播放上下文）
+│   ├── useLibraryVirtualScroll.ts # 虚拟滚动
 │   ├── usePlayback.ts       # 播放控制逻辑
+│   ├── useQQMusicIntegration.ts # QQ 音乐集成
 │   ├── useShortcuts.ts      # 快捷键处理
 │   ├── useWebDAV.ts         # WebDAV 客户端集成
-│   └── useWindowControls.ts # 窗口控制
+│   ├── useWindowControls.ts # 窗口控制
+│   └── useWindowFocus.ts    # 窗口焦点检测
 ├── services/                # 业务逻辑服务
 │   ├── cookieManager.ts     # Cookie 管理
-│   ├── coverArtService.ts   # 封面服务
+│   ├── coverArtService.ts   # 封面服务（提取、缓存）
 │   ├── dataValidator.ts     # 数据验证
+│   ├── debugCommands.ts     # 调试命令注册
 │   ├── desktopAdapter.ts    # Electron API 适配器
+│   ├── i18n.ts              # 国际化（6 种语言）
 │   ├── indexedDBStorage.ts  # IndexedDB 存储（已弃用）
 │   ├── librarySerializer.ts # 音乐库序列化
-│   ├── libraryStorage.ts    # 音乐库存储
-│   ├── logger.ts            # 日志服务
+│   ├── libraryStorage.ts    # 音乐库存储（文件系统）
+│   ├── logger.ts            # 日志服务（分级、作用域）
 │   ├── metadataCacheService.ts # 元数据缓存
-│   ├── metadataService.ts   # 音频元数据解析服务
+│   ├── metadataService.ts   # 音频元数据解析
 │   ├── notificationService.ts # 系统通知服务
-│   ├── qqMusicApi.ts
+│   ├── qqMusicApi.ts        # QQ 音乐 API 集成
 │   ├── settingsManager.ts   # 应用设置管理
 │   ├── shortcuts.ts         # 快捷键管理
 │   ├── themeManager.ts      # 主题管理
 │   ├── webdavClient.ts      # WebDAV 客户端
-│   └── themes/              # 主题配置
-│       └── predefinedThemes.ts
+│   ├── webdavMetaService.ts # WebDAV 元数据服务
+│   ├── themes/              # 主题配置
+│   │   └── predefinedThemes.ts
+│   ├── webdav/              # WebDAV 子模块
+│   └── workers/             # Web Workers
 ├── electron/                # Electron 主进程
 │   ├── main.ts              # 主进程入口
 │   └── preload.ts           # 预加载脚本
@@ -620,59 +634,6 @@ interface DesktopAPI {
 
 ---
 
-## 📦 构建部署
-
-### 构建命令
-
-```bash
-# 构建当前平台版本
-npm run electron:build
-
-# 构建 Windows x64 版本
-npm run electron:build:win
-
-# 构建 Windows ARM64 版本
-npm run electron:build:win:arm64
-
-# 构建 macOS 版本
-npm run electron:build:mac
-
-# 构建 Linux 版本
-npm run electron:build:linux
-```
-
-### 构建产物
-
-构建完成后，产物位于 `release/` 目录：
-
-- **Windows**: `.exe` 安装包（NSIS）
-- **macOS**: `.dmg` 磁盘映像
-- **Linux**: `.AppImage` 可执行文件
-
-### 应用签名
-
-#### macOS
-
-需要 Apple Developer 证书：
-
-```bash
-export CSC_LINK=/path/to/certificate.p12
-export CSC_KEY_PASSWORD=your_password
-npm run electron:build:mac
-```
-
-#### Windows
-
-需要代码签名证书：
-
-```bash
-export WIN_CSC_LINK=/path/to/certificate.pfx
-export WIN_CSC_KEY_PASSWORD=your_password
-npm run electron:build:win
-```
-
----
-
 ## ❓ 常见问题
 
 ### 1. 如何批量导入音乐？
@@ -684,13 +645,12 @@ npm run electron:build:win
 ### 2. 应用数据存储在哪里？
 
 **存储位置**：
-- **macOS**: `~/Library/Application Support/LyricsAdapter/`
-- **Windows**: `%APPDATA%/LyricsAdapter/`
-- **Linux**: `~/.config/LyricsAdapter/`
+- **macOS**: `~/Library/Application Support/lyrics-adapter/`
+- **Windows**: `%APPDATA%/lyrics-adapter/`
+- **Linux**: `~/.config/lyrics-adapter/`
 
 **包含内容**：
-- `library.json` - 音乐库数据
-- `library-index.json` - 音乐库索引
+- `library-index.json` - 音乐库索引以及webdav端的covers，这里处理的有问题未来会抽出来
 - `covers/` - 封面缓存
 
 ### 3. 如何迁移音乐库？
@@ -722,6 +682,7 @@ npm run electron:build:win
 ## 📄 许可证
 
 本项目采用 GPL 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+项目内APP图标使用 CC BY 4.0 授权 - 查看 [app-icon-LICENSE](app-icon-LICENSE) 文件了解详情
 
 ---
 
