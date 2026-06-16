@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="app-icon.png" width="120" height="120" alt="LyricsAdapter logo">
+
 # LyricsAdapter
 
 **一款功能丰富的 Electron 桌面音乐播放器，专注于歌词同步显示和沉浸式播放体验**
