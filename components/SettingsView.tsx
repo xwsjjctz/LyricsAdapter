@@ -477,10 +477,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
 
             {/* 第三方音源开关 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <div>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>QQ Music</p>
-              </div>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
               <button
                 onClick={() => {
                   const newValue = !qqMusicEnabled;
