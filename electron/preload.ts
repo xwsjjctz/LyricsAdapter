@@ -250,6 +250,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('app:get-version');
   },
 
+  // Show a system notification via main process (Notification API)
+  showNotification: async (title: string, body: string, options?: { silent?: boolean }) => {
+    return ipcRenderer.invoke('notification:show', { title, body, silent: options?.silent });
+  },
+
   // Listen for updater state changes
   onUpdaterEvent: (callback: (state: unknown) => void) => {
     const existing = updaterEventListenerMap.get(callback);
