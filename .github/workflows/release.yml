@@ -86,13 +86,17 @@ jobs:
             echo "Deleting existing release: $r"
             gh release delete "$r" --yes --cleanup-tag=false || true
           done
+          # 构建存在的 release artifacts 列表
+          shopt -s nullglob
+          FILES=(release/*.dmg release/*.zip release/*.exe)
+          # 始终包含更新元数据（如果存在）
+          for f in release/latest.yml release/latest-mac.yml; do
+            [ -f "$f" ] && FILES+=("$f")
+          done
+          echo "Uploading: ${FILES[*]}"
           # 创建新的 release（v0.* 自动标记为 Pre-release）
           if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
-          gh release create "$TAG" \
-            release/*.dmg \
-            release/*.zip \
-            release/*.exe \
-            release/latest.yml release/latest-mac.yml \
+          gh release create "$TAG" "${FILES[@]}" \
             --title "$TAG" \
             --generate-notes \
             $PRE
