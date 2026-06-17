@@ -39,9 +39,6 @@
 
 ### 🌐 Online Features
 
-- **Multi-quality downloads** — 128kbps, 320kbps, and FLAC lossless
-- **Auto metadata write** — Automatically embed lyrics, cover art, and other info after download
-- **Song recommendations** — Smart recommendations based on trending charts
 - **WebDAV support** — Browse and play music files from WebDAV servers
 - **Cloud playback** — Stream remote audio files on-demand, no download required
 
