@@ -581,9 +581,15 @@ export function usePlayback({
 
   const selectTrack = useCallback((idx: number) => {
     shouldAutoPlayRef.current = true;
+    if (idx === currentTrackIndex) {
+      // 选中同一首曲目：直接恢复播放（switchToTrackIndex 会跳过同 index 的切换）
+      setIsPlaying(true);
+      audioRef.current?.play().catch(e => logger.error('[Playback] Resume playback failed', e));
+      return;
+    }
     switchToTrackIndex(idx);
     setIsPlaying(true);
-  }, [switchToTrackIndex]);
+  }, [switchToTrackIndex, currentTrackIndex]);
 
   return {
     audioRef,
