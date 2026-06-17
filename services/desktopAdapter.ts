@@ -83,6 +83,8 @@ export interface DesktopAPI {
   getAppVersion?: () => Promise<string>;
   onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
+  // System notification API (main process Notification)
+  showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -404,6 +406,14 @@ class ElectronAdapter implements DesktopAPI {
     if (typeof this.api.offUpdaterEvent === 'function') {
       this.api.offUpdaterEvent(cb);
     }
+  }
+
+  async showNotification(title: string, body: string, options?: { silent?: boolean }): Promise<{ ok: boolean; reason?: string }> {
+    if (typeof this.api.showNotification === 'function') {
+      return this.api.showNotification(title, body, options);
+    }
+    logger.warn('[DesktopAPI] showNotification not available');
+    return { ok: false, reason: 'not available' };
   }
 
 }
