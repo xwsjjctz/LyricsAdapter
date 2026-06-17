@@ -313,6 +313,14 @@ const translations: Translations = {
     de: 'Möchten Sie {count} ausgewählte Titel wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
     fr: 'Êtes-vous sûr de vouloir supprimer {count} titres sélectionnés ? Cette action ne peut pas être annulée.'
   },
+  'library.deleteFileOption': {
+    zh: '同时删除本地音频文件',
+    en: 'Also delete the local audio file',
+    ja: 'ローカル音声ファイルも削除する',
+    ko: '로컬 오디오 파일도 삭제',
+    de: 'Lokale Audiodatei ebenfalls löschen',
+    fr: 'Supprimer également le fichier audio local'
+  },
   'library.dropFiles': {
     zh: '拖放音频文件到这里',
     en: 'Drop audio files here',

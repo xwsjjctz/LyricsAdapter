@@ -29,14 +29,26 @@ export function useLibraryActions({
   revokeBlobUrl,
   audioRef,
 }: UseLibraryActionsOptions) {
-  // Note: cleanupOrphanAudio is no longer needed since we only store paths
-  // Files are not copied to app directory anymore
-  const cleanupOrphanAudio = useCallback(async (_remainingTracks: Track[]) => {
-    // No-op: we don't manage physical files anymore
-    logger.debug('[LibraryActions] cleanupOrphanAudio: skipped (path-only mode)');
-  }, []);
+  const handleRemoveTrack = useCallback(async (trackId: string, deleteFile = false) => {
+    const trackToRemove = tracks.find(t => t.id === trackId);
 
-  const handleRemoveTrack = useCallback(async (trackId: string) => {
+    // 删除本地物理音频文件（仅当显式要求且存在路径时；cloud/WebDAV 由 UI 层保证不触发）
+    if (deleteFile && trackToRemove?.filePath) {
+      const desktopAPI = await getDesktopAPIAsync();
+      if (desktopAPI?.deleteAudioFile) {
+        try {
+          const result = await desktopAPI.deleteAudioFile(trackToRemove.filePath);
+          if (result.success && result.deleted) {
+            logger.debug(`[LibraryActions] ✓ Deleted audio file: ${trackToRemove.filePath}`);
+          } else if (!result.success) {
+            logger.warn(`[LibraryActions] Failed to delete audio file: ${trackToRemove.filePath}`, result.error);
+          }
+        } catch (error) {
+          logger.warn('[LibraryActions] deleteAudioFile error:', error);
+        }
+      }
+    }
+
     setTracks(prev => {
       const newTracks = prev.filter(t => t.id !== trackId);
       const removedIndex = prev.findIndex(t => t.id === trackId);
@@ -97,16 +109,34 @@ export function useLibraryActions({
       };
 
       cleanupCover();
-      cleanupOrphanAudio(newTracks);
 
       return newTracks;
     });
-  }, [currentTrackIndex, isPlaying, audioRef, revokeBlobUrl, setCurrentTrackIndex, setIsPlaying, setTracks, cleanupOrphanAudio]);
+  }, [tracks, currentTrackIndex, isPlaying, audioRef, revokeBlobUrl, setCurrentTrackIndex, setIsPlaying, setTracks]);
 
-  const handleRemoveMultipleTracks = useCallback(async (trackIds: string[]) => {
+  const handleRemoveMultipleTracks = useCallback(async (trackIds: string[], deleteFile = false) => {
     logger.debug(`[LibraryActions] Batch removing ${trackIds.length} tracks...`);
 
     const tracksToRemove = tracks.filter(t => trackIds.includes(t.id));
+
+    const desktopAPI = await getDesktopAPIAsync();
+
+    // 删除本地物理音频文件（仅当显式要求时）
+    if (deleteFile && desktopAPI?.deleteAudioFile) {
+      for (const track of tracksToRemove) {
+        if (!track.filePath) continue;
+        try {
+          const result = await desktopAPI.deleteAudioFile(track.filePath);
+          if (result.success && result.deleted) {
+            logger.debug(`[LibraryActions] ✓ Deleted audio file: ${track.filePath}`);
+          } else if (!result.success) {
+            logger.warn(`[LibraryActions] Failed to delete audio file: ${track.filePath}`, result.error);
+          }
+        } catch (error) {
+          logger.warn('[LibraryActions] deleteAudioFile error:', error);
+        }
+      }
+    }
 
     for (const track of tracksToRemove) {
       if (track.audioUrl && track.audioUrl.startsWith('blob:')) {
@@ -117,17 +147,13 @@ export function useLibraryActions({
       }
     }
 
-    // Note: We no longer delete physical files since we only store paths
-    // Only delete cover thumbnails (which are managed by the app)
-    const desktopAPI = await getDesktopAPIAsync();
-    if (desktopAPI) {
+    // 删除封面缩略图（由 app 管理）
+    if (desktopAPI?.deleteCoverThumbnail) {
       for (const track of tracksToRemove) {
-        if (desktopAPI.deleteCoverThumbnail) {
-          try {
-            await desktopAPI.deleteCoverThumbnail(track.id);
-          } catch (error) {
-            logger.warn(`Failed to delete cover thumbnail for ${track.title}:`, error);
-          }
+        try {
+          await desktopAPI.deleteCoverThumbnail(track.id);
+        } catch (error) {
+          logger.warn(`Failed to delete cover thumbnail for ${track.title}:`, error);
         }
       }
     }
@@ -171,12 +197,11 @@ export function useLibraryActions({
         return newIndex;
       });
 
-      cleanupOrphanAudio(newTracks);
       return newTracks;
     });
 
     logger.debug(`[LibraryActions] ✓ Batch removal complete: ${trackIds.length} tracks removed`);
-  }, [tracks, revokeBlobUrl, cleanupOrphanAudio, audioRef, setCurrentTrackIndex, setIsPlaying, setTracks]);
+  }, [tracks, revokeBlobUrl, audioRef, setCurrentTrackIndex, setIsPlaying, setTracks]);
 
   const handleReloadFiles = useCallback(async () => {
     const desktopAPI = await getDesktopAPIAsync();

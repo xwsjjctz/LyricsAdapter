@@ -17,8 +17,8 @@ interface LibraryViewProps {
   currentTrackIndex: number;
   currentTrackId?: string;
   onTrackSelect: (index: number) => void;
-  onRemoveTrack: (trackId: string) => void;
-  onRemoveMultipleTracks?: (trackIds: string[]) => void;
+  onRemoveTrack: (trackId: string, deleteFile?: boolean) => void;
+  onRemoveMultipleTracks?: (trackIds: string[], deleteFile?: boolean) => void;
   onDropFiles?: (files: File[]) => void;
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
   onReorderTracks?: (fromIndex: number, toIndex: number) => void;
@@ -93,6 +93,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [deleteFileOption, setDeleteFileOption] = useState(true);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
@@ -587,18 +588,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const confirmDelete = useCallback((trackId: string) => {
     setTrackToDelete(trackId);
+    setDeleteFileOption(true);
     setShowDeleteConfirm(true);
   }, []);
 
   const handleConfirmDelete = useCallback(async () => {
     if (trackToDelete) {
-      await onRemoveTrack(trackToDelete);
+      await onRemoveTrack(trackToDelete, dataSource === 'local' && deleteFileOption);
       setShowDeleteConfirm(false);
       setTrackToDelete(null);
     }
-  }, [trackToDelete, onRemoveTrack]);
+  }, [trackToDelete, onRemoveTrack, dataSource, deleteFileOption]);
 
   const confirmBatchDelete = useCallback(() => {
+    setDeleteFileOption(true);
     setShowBatchDeleteConfirm(true);
   }, []);
 
@@ -607,15 +610,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     logger.debug(`[LibraryView] Removing ${idsToRemove.length} tracks...`);
 
+    const shouldDeleteFile = dataSource === 'local' && deleteFileOption;
+
     if (onRemoveMultipleTracks) {
-      await onRemoveMultipleTracks(idsToRemove);
+      await onRemoveMultipleTracks(idsToRemove, shouldDeleteFile);
       logger.debug('[LibraryView] ✓ Batch removal complete');
     } else {
       logger.debug('[LibraryView] Using sequential removal (fallback)...');
       for (let i = 0; i < idsToRemove.length; i++) {
         const id = idsToRemove[i]!;
         logger.debug(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
-        await onRemoveTrack(id);
+        await onRemoveTrack(id, shouldDeleteFile);
       }
       logger.debug('[LibraryView] Sequential removal complete');
     }
@@ -1114,7 +1119,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
             <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
-            <p className="mb-6" style={{ color: colors.textSecondary }}>{i18n.t('library.deleteConfirmMessage')}</p>
+            <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('library.deleteConfirmMessage')}</p>
+            {dataSource === 'local' && (
+              <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" style={{ color: colors.textSecondary }}>
+                <input
+                  type="checkbox"
+                  checked={deleteFileOption}
+                  onChange={(e) => setDeleteFileOption(e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded cursor-pointer"
+                  style={{ accentColor: colors.error }}
+                />
+                <span className="text-sm">{i18n.t('library.deleteFileOption')}</span>
+              </label>
+            )}
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
@@ -1145,9 +1163,22 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
             <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
-            <p className="mb-6" style={{ color: colors.textSecondary }}>
+            <p className="mb-4" style={{ color: colors.textSecondary }}>
               {i18n.t('library.deleteSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
             </p>
+            {dataSource === 'local' && (
+              <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" style={{ color: colors.textSecondary }}>
+                <input
+                  type="checkbox"
+                  checked={deleteFileOption}
+                  onChange={(e) => setDeleteFileOption(e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded cursor-pointer"
+                  style={{ accentColor: colors.error }}
+                />
+                <span className="text-sm">{i18n.t('library.deleteFileOption')}</span>
+              </label>
+            )}
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowBatchDeleteConfirm(false)}
