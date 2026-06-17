@@ -37,6 +37,7 @@ interface LibraryViewProps {
   onCategoryChange: (selection: string | null) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
+  onLocateTrack?: () => void;
   searchBox?: React.ReactNode;
 }
 
@@ -65,6 +66,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onCategoryChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
+  onLocateTrack,
   searchBox,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -688,8 +690,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Handle locate to current playing track
   const handleLocateToCurrentTrack = useCallback(() => {
     if (dataSource !== activeSlotId) {
-      // Cross-slot: switch view to the playing slot
+      // Cross-slot: switch view to the playing slot and trigger auto-locate
       onSwitchSlot(activeSlotId);
+      onLocateTrack?.();
       return;
     }
     // Same slot: scroll to current track
@@ -708,7 +711,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     });
     setShowLocateButton(false);
     logger.debug(`[LibraryView] Located to current track ${currentTrackIndex + 1} (filtered index: ${currentTrackInFilteredIndex})`);
-  }, [dataSource, activeSlotId, onSwitchSlot, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight]);
+  }, [dataSource, activeSlotId, onSwitchSlot, onLocateTrack, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight]);
 
   // Hide locate button when current track becomes visible (e.g., after clicking a new track to play)
   useEffect(() => {

@@ -426,6 +426,7 @@ const App: React.FC = () => {
                 dataSource={viewSlot}
                 activeSlotId={activeSlotId}
                 onSwitchSlot={handleSwitchSlot}
+                onLocateTrack={handleTrackSwitch}
                 filterType={slots[viewSlot].filterType}
                 categorySelection={slots[viewSlot].categorySelection}
                 onFilterTypeChange={handleFilterTypeChange}
