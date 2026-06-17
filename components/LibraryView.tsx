@@ -93,7 +93,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
-  const [deleteFileOption, setDeleteFileOption] = useState(true);
+  const [deleteFileOption, setDeleteFileOption] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
@@ -588,7 +588,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const confirmDelete = useCallback((trackId: string) => {
     setTrackToDelete(trackId);
-    setDeleteFileOption(true);
+    setDeleteFileOption(false);
     setShowDeleteConfirm(true);
   }, []);
 
@@ -601,7 +601,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [trackToDelete, onRemoveTrack, dataSource, deleteFileOption]);
 
   const confirmBatchDelete = useCallback(() => {
-    setDeleteFileOption(true);
+    setDeleteFileOption(false);
     setShowBatchDeleteConfirm(true);
   }, []);
 
