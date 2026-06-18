@@ -375,6 +375,26 @@ class WebDAVClient {
 
     return result.data ?? null;
   }
+
+  /**
+   * 直连服务器读取文件部分数据（不走 CDN 重定向）。
+   * 用于文件头读取等小范围请求，避免 CDN 重定向的额外开销。
+   * 对并发受限的厂家（如 123pan）可显著减少首载请求数。
+   */
+  async fetchFileRangeDirect(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {
+    const api = await getDesktopAPI();
+    if (!api) return null;
+
+    const url = this.buildUrl(filePath);
+    const result = await api.webdavGetRange(url, this.buildAuthHeader(), start, end);
+
+    if (!result.success) {
+      logger.warn('[WebDAV] Direct range fetch failed for', filePath, 'falling back to CDN path');
+      return null;
+    }
+
+    return result.data ?? null;
+  }
 }
 
 export const webdavClient = new WebDAVClient();
