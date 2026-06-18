@@ -419,10 +419,12 @@ export const useWebDAV = () => {
           lastModified: meta.lastModified,
           ...(meta.lyrics !== undefined && { lyrics: meta.lyrics }),
           ...(meta.syncedLyrics !== undefined && { syncedLyrics: meta.syncedLyrics }),
+          // 保留已有的 coverHash/coverMime（来自之前解析或 IndexedDB 缓存）
+          ...(meta.coverHash ? { coverHash: meta.coverHash, coverMime: meta.coverMime || 'image/jpeg' } : {}),
         };
 
-        // 上传封面到 _covers/ 并记录 hash
-        if (meta.coverUrl) {
+        // 有 coverUrl 但没有 coverHash：上传封面到 _covers/ 并记录 hash
+        if (meta.coverUrl && !meta.coverHash) {
           coverUploads.push(
             metadataFolderService.uploadCover(meta.coverUrl).then(result => {
               if (result) {
@@ -436,10 +438,10 @@ export const useWebDAV = () => {
               }
             })
           );
-          // 用已 promise 占位，后续覆盖
           continue;
         }
 
+        // 已有 coverHash 或无需上传封面
         folderEntries[path] = entry;
       }
 
