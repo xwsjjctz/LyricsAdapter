@@ -159,6 +159,31 @@ export const useWebDAV = () => {
     return cached.fileSize === file.size && cached.lastModified === file.lastModified;
   };
 
+  /** 带重试的文件头读取（网络抖动时自动重试，最多 2 次） */
+  const fetchHeaderWithRetry = async (file: WebDAVFile, offset: number, length: number): Promise<ArrayBuffer | null> => {
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const buffer = providerConfig.skipCdnForHeaderRead
+          ? await webdavClient.fetchFileRangeDirect(file.path, offset, offset + length)
+          : await webdavClient.fetchFileRange(file.path, offset, offset + length);
+        if (buffer) return buffer;
+      } catch (err) {
+        logger.warn(`[useWebDAV] Header fetch failed for ${file.name} (attempt ${attempt + 1}/${MAX_RETRIES + 1}):`, err);
+      }
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+    return null;
+  };
+
+  /** 文件名降级兜底：从文件名解析 artist/title，返回 duration=0 的 CachedMetadata */
+  const fallbackToFilename = (file: WebDAVFile): CachedMetadata => {
+    const { artist, title } = parseArtistTitleFromFilename(file.name);
+    return { artist, title, album: 'Unknown Album', duration: 0, fileSize: file.size, lastModified: file.lastModified };
+  };
+
   /**
    * 只读阶段：解析元数据（含封面），不上传服务端缓存。
    * - 封面一并拉取（通常在首 1MB buffer 内，额外 Range 仅极少数大封面）
@@ -186,14 +211,11 @@ export const useWebDAV = () => {
     }
 
     // Fallback: parse audio header
-    const buffer = providerConfig.skipCdnForHeaderRead
-      ? await webdavClient.fetchFileRangeDirect(file.path, 0, RANGE_SIZE)
-      : await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+    const buffer = await fetchHeaderWithRetry(file, 0, RANGE_SIZE);
     logger.info('[useWebDAV] fetch header for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null', 'via', providerConfig.skipCdnForHeaderRead ? 'direct' : 'cdn');
     if (!buffer) {
       logger.warn('[useWebDAV] Header fetch returned null for', file.name, '- falling back to filename');
-      const { artist, title } = parseArtistTitleFromFilename(file.name);
-      return { artist, title, album: 'Unknown Album', duration: 0, ...resultBase };
+      return fallbackToFilename(file);
     }
 
     const parsed = parseMetadataFromBuffer(buffer, file.name, file.size);
@@ -204,9 +226,7 @@ export const useWebDAV = () => {
     if (parsed.vorbisCommentNeededRange) {
       const { offset: vcOffset, length: vcLength } = parsed.vorbisCommentNeededRange;
       logger.info('[useWebDAV] VORBIS_COMMENT truncated, fetching range:', vcOffset, '-', vcOffset + vcLength);
-      const vcBuffer = providerConfig.skipCdnForHeaderRead
-        ? await webdavClient.fetchFileRangeDirect(file.path, vcOffset, vcOffset + vcLength)
-        : await webdavClient.fetchFileRange(file.path, vcOffset, vcOffset + vcLength);
+      const vcBuffer = await fetchHeaderWithRetry(file, vcOffset, vcLength);
       if (vcBuffer) {
         logger.info('[useWebDAV] VORBIS_COMMENT refetch got', vcBuffer.byteLength, 'bytes');
         const vcResult = parseVorbisComment(vcBuffer);
@@ -226,9 +246,7 @@ export const useWebDAV = () => {
     if (!coverUrl && parsed.coverNeededRange) {
       const { offset: coverOffset, length: coverLength } = parsed.coverNeededRange;
       logger.info('[useWebDAV] Cover truncated, fetching range:', coverOffset, '-', coverOffset + coverLength);
-      const coverBuffer = providerConfig.skipCdnForHeaderRead
-        ? await webdavClient.fetchFileRangeDirect(file.path, coverOffset, coverOffset + coverLength)
-        : await webdavClient.fetchFileRange(file.path, coverOffset, coverOffset + coverLength);
+      const coverBuffer = await fetchHeaderWithRetry(file, coverOffset, coverLength);
       if (coverBuffer) {
         coverUrl = parseCoverFromRange(coverBuffer, file.name, coverOffset);
       }
@@ -294,9 +312,7 @@ export const useWebDAV = () => {
       }
 
       // 回退：拉取文件头重新解析封面
-      const buffer = providerConfig.skipCdnForHeaderRead
-        ? await webdavClient.fetchFileRangeDirect(file.path, 0, RANGE_SIZE)
-        : await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+      const buffer = await fetchHeaderWithRetry(file, 0, RANGE_SIZE);
       if (!buffer) return undefined;
 
       const parsed = parseMetadataFromBuffer(buffer, file.name, file.size);
@@ -304,9 +320,7 @@ export const useWebDAV = () => {
 
       if (!coverUrl && parsed.coverNeededRange) {
         const { offset, length } = parsed.coverNeededRange;
-        const coverBuffer = providerConfig.skipCdnForHeaderRead
-          ? await webdavClient.fetchFileRangeDirect(file.path, offset, offset + length)
-          : await webdavClient.fetchFileRange(file.path, offset, offset + length);
+        const coverBuffer = await fetchHeaderWithRetry(file, offset, length);
         if (coverBuffer) coverUrl = parseCoverFromRange(coverBuffer, file.name, offset);
       }
 
@@ -495,9 +509,16 @@ export const useWebDAV = () => {
         const batchItems = toFetch.slice(batch, batch + BATCH_SIZE);
         const results = await Promise.allSettled(
           batchItems.map(async (file) => {
-            const meta = await fetchTextMetadata(file);
-            metadataCache.set(file.path, meta);
-            return { file, meta };
+            try {
+              const meta = await fetchTextMetadata(file);
+              metadataCache.set(file.path, meta);
+              return { file, meta };
+            } catch (err) {
+              logger.error(`[useWebDAV] Failed to parse ${file.name}, falling back to filename:`, err);
+              const fallback = fallbackToFilename(file);
+              metadataCache.set(file.path, fallback);
+              return { file, meta: fallback };
+            }
           })
         );
 
@@ -617,9 +638,16 @@ export const useWebDAV = () => {
       const batchItems = toFetch.slice(batch, batch + BATCH_SIZE);
       const results = await Promise.allSettled(
         batchItems.map(async ({ file, index }) => {
-          const meta = await fetchTextMetadata(file);
-          metadataCache.set(file.path, meta);
-          return { index, meta };
+          try {
+            const meta = await fetchTextMetadata(file);
+            metadataCache.set(file.path, meta);
+            return { index, meta };
+          } catch (err) {
+            logger.error(`[useWebDAV] Failed to parse ${file.name}, falling back to filename:`, err);
+            const fallback = fallbackToFilename(file);
+            metadataCache.set(file.path, fallback);
+            return { index, meta: fallback };
+          }
         })
       );
 
@@ -653,6 +681,7 @@ export const useWebDAV = () => {
     } catch (e) {
       logger.warn('[useWebDAV] Failed to clear IndexedDB cache:', e);
     }
+    metadataFolderService.clearCache();
     webdavClient.clearCdnCache();
     setWebdavTracks([]);
     logger.info('[useWebDAV] Cache cleared');

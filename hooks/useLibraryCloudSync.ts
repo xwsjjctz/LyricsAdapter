@@ -122,9 +122,19 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           }
 
           logger.info(`[scan/meta] ${forceAll ? 'Scan' : 'Re-parse'}: ${file.name}...`);
-          const buffer = skipCdn
-            ? await webdavClient.fetchFileRangeDirect(file.path, 0, RANGE_SIZE)
-            : await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+          // 带重试的文件头读取（最多 3 次，退避 1s/2s）
+          let buffer: ArrayBuffer | null = null;
+          for (let attempt = 0; attempt <= 2; attempt++) {
+            try {
+              buffer = skipCdn
+                ? await webdavClient.fetchFileRangeDirect(file.path, 0, RANGE_SIZE)
+                : await webdavClient.fetchFileRange(file.path, 0, RANGE_SIZE);
+              if (buffer) break;
+            } catch (err) {
+              logger.warn(`[scan/meta] Header fetch failed for ${file.name} (attempt ${attempt + 1}/3):`, err);
+            }
+            if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          }
           if (!buffer) {
             logger.warn(`[scan/meta] Failed to fetch header: ${file.name}`);
             return null;
@@ -138,9 +148,19 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           let coverBlob = parsed.coverUrl || '';
           if (!coverBlob && parsed.coverNeededRange) {
             const { offset, length } = parsed.coverNeededRange;
-            const coverBuffer = skipCdn
-              ? await webdavClient.fetchFileRangeDirect(file.path, offset, offset + length)
-              : await webdavClient.fetchFileRange(file.path, offset, offset + length);
+            // 封面拉取也带重试
+            let coverBuffer: ArrayBuffer | null = null;
+            for (let attempt = 0; attempt <= 2; attempt++) {
+              try {
+                coverBuffer = skipCdn
+                  ? await webdavClient.fetchFileRangeDirect(file.path, offset, offset + length)
+                  : await webdavClient.fetchFileRange(file.path, offset, offset + length);
+                if (coverBuffer) break;
+              } catch (err) {
+                logger.warn(`[scan/meta] Cover fetch failed for ${file.name} (attempt ${attempt + 1}/3):`, err);
+              }
+              if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
             if (coverBuffer) coverBlob = parseCoverFromRange(coverBuffer, file.name, offset);
           }
           if (coverBlob) {
@@ -238,17 +258,14 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
   useEffect(() => {
     registerCommand(
       'clear_webdav_cache',
-      () => {
+      async () => {
         const { clearWebdavCache, onLoadCloudTracks, loadWebDAVFiles, applyDiffResult } = debugActionsRef.current;
-        clearWebdavCache();
+        await clearWebdavCache();
         onLoadCloudTracks([]);
-        setTimeout(() => {
-          if (webdavClient.hasConfig()) {
-            loadWebDAVFiles().then(result => {
-              applyDiffResult(result);
-            });
-          }
-        }, 50);
+        if (webdavClient.hasConfig()) {
+          const result = await loadWebDAVFiles();
+          applyDiffResult(result);
+        }
       },
       'Clear WebDAV cache and reload cloud tracks'
     );
