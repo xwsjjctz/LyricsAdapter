@@ -159,6 +159,55 @@ export const useWebDAV = () => {
     return cached.fileSize === file.size && cached.lastModified === file.lastModified;
   };
 
+  /**
+   * 从 Metadata/_covers/ 补全 tracks 的封面。
+   * 当通过服务器索引加载时（本地无缓存），track 有 coverHash 但无 coverUrl，
+   * 此函数在后台拉取封面并更新 track 状态。
+   */
+  const populateCoversFromServer = async (
+    tracks: Track[],
+    cache: Map<string, CachedMetadata>
+  ): Promise<void> => {
+    if (!providerConfig.useMetadataFolder) return;
+
+    const toPopulate: { trackIndex: number; path: string }[] = [];
+    for (let i = 0; i < tracks.length; i++) {
+      const path = tracks[i]?.webdavPath;
+      if (!path) continue;
+      const entry = cache.get(path);
+      if (entry?.coverHash && entry?.coverMime && !entry.coverUrl) {
+        toPopulate.push({ trackIndex: i, path });
+      }
+    }
+    if (toPopulate.length === 0) return;
+
+    logger.info('[useWebDAV] Populating covers for', toPopulate.length, 'tracks from Metadata/_covers/');
+
+    for (let batch = 0; batch < toPopulate.length; batch += BATCH_SIZE) {
+      const batchItems = toPopulate.slice(batch, batch + BATCH_SIZE);
+      let updated = false;
+      await Promise.allSettled(
+        batchItems.map(async ({ trackIndex, path }) => {
+          const entry = cache.get(path);
+          if (!entry?.coverHash || !entry?.coverMime) return;
+          const dataUrl = await metadataFolderService.fetchCover(entry.coverHash, entry.coverMime);
+          if (!dataUrl) return;
+          entry.coverUrl = dataUrl;
+          if (tracks[trackIndex]) {
+            tracks[trackIndex] = { ...tracks[trackIndex]!, coverUrl: dataUrl };
+            updated = true;
+          }
+        })
+      );
+      if (updated) {
+        setWebdavTracks([...tracks]);
+      }
+    }
+
+    await saveMetadataCache(cache);
+    logger.info('[useWebDAV] Cover population done for', toPopulate.length, 'tracks');
+  };
+
   /** 带重试的文件头读取（网络抖动时自动重试，最多 2 次） */
   const fetchHeaderWithRetry = async (file: WebDAVFile, offset: number, length: number): Promise<ArrayBuffer | null> => {
     const MAX_RETRIES = 2;
@@ -623,7 +672,8 @@ export const useWebDAV = () => {
       setIsLoading(false);
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
-      uploadMetadataIndex(); // fire-and-forget（自动包含已删除文件的清理）
+      uploadMetadataIndex();
+      populateCoversFromServer(placeholderTracks, metadataCache);
       return { type: 'full', tracks: [...placeholderTracks] };
     }
 
@@ -670,6 +720,8 @@ export const useWebDAV = () => {
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];
     setWebdavTracks(finalTracks);
+    // 后台补充封面（从 Metadata/_covers/ 拉取）
+    populateCoversFromServer(finalTracks, metadataCache);
     return { type: 'full', tracks: finalTracks };
   };
 
