@@ -70,12 +70,8 @@ interface CachedMetadata {
   title: string;
   artist: string;
   album: string;
-  /** 封面 data URL（从文件头解析得到或从 Metadata/_covers/ 拉取） */
+  /** 封面 data URL（从文件头解析得到） */
   coverUrl?: string;
-  /** 封面内容 hash（用于 Metadata/_covers/ 中的文件名，仅服务端缓存用） */
-  coverHash?: string;
-  /** 封面 MIME 类型 */
-  coverMime?: string;
   duration: number;
   lyrics?: string;
   syncedLyrics?: { time: number; text: string }[];
@@ -157,55 +153,6 @@ export const useWebDAV = () => {
 
   const isCacheValid = (cached: CachedMetadata, file: WebDAVFile): boolean => {
     return cached.fileSize === file.size && cached.lastModified === file.lastModified;
-  };
-
-  /**
-   * 从 Metadata/_covers/ 补全 tracks 的封面。
-   * 当通过服务器索引加载时（本地无缓存），track 有 coverHash 但无 coverUrl，
-   * 此函数在后台拉取封面并更新 track 状态。
-   */
-  const populateCoversFromServer = async (
-    tracks: Track[],
-    cache: Map<string, CachedMetadata>
-  ): Promise<void> => {
-    if (!providerConfig.useMetadataFolder) return;
-
-    const toPopulate: { trackIndex: number; path: string }[] = [];
-    for (let i = 0; i < tracks.length; i++) {
-      const path = tracks[i]?.webdavPath;
-      if (!path) continue;
-      const entry = cache.get(path);
-      if (entry?.coverHash && entry?.coverMime && !entry.coverUrl) {
-        toPopulate.push({ trackIndex: i, path });
-      }
-    }
-    if (toPopulate.length === 0) return;
-
-    logger.info('[useWebDAV] Populating covers for', toPopulate.length, 'tracks from Metadata/_covers/');
-
-    for (let batch = 0; batch < toPopulate.length; batch += BATCH_SIZE) {
-      const batchItems = toPopulate.slice(batch, batch + BATCH_SIZE);
-      let updated = false;
-      await Promise.allSettled(
-        batchItems.map(async ({ trackIndex, path }) => {
-          const entry = cache.get(path);
-          if (!entry?.coverHash || !entry?.coverMime) return;
-          const dataUrl = await metadataFolderService.fetchCover(entry.coverHash, entry.coverMime);
-          if (!dataUrl) return;
-          entry.coverUrl = dataUrl;
-          if (tracks[trackIndex]) {
-            tracks[trackIndex] = { ...tracks[trackIndex]!, coverUrl: dataUrl };
-            updated = true;
-          }
-        })
-      );
-      if (updated) {
-        setWebdavTracks([...tracks]);
-      }
-    }
-
-    await saveMetadataCache(cache);
-    logger.info('[useWebDAV] Cover population done for', toPopulate.length, 'tracks');
   };
 
   /** 带重试的文件头读取（网络抖动时自动重试，最多 2 次） */
@@ -301,29 +248,10 @@ export const useWebDAV = () => {
       }
     }
 
-    // 转 data URL 以便持久化到 IndexedDB，同时计算 coverHash 供 Metadata/ _covers/ 引用
-    let coverHash: string | undefined;
-    let coverMime: string | undefined;
+    // 转 data URL 以便持久化到 IndexedDB 和内联进 Metadata/_metadata.json
     if (coverUrl) {
       const dataUrl = await blobUrlToDataUrl(coverUrl);
-      if (dataUrl.startsWith('data:')) {
-        coverUrl = dataUrl;
-        // 从 data URL 提取 MIME 并计算 hash
-        const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          coverMime = match[1]!;
-          const b64 = match[2]!;
-          let hash = 0;
-          const len = Math.min(b64.length, 8192);
-          for (let i = 0; i < len; i++) {
-            hash = ((hash << 5) - hash) + b64.charCodeAt(i);
-            hash |= 0;
-          }
-          coverHash = Math.abs(hash).toString(16);
-        }
-      } else {
-        coverUrl = '';
-      }
+      coverUrl = dataUrl.startsWith('data:') ? dataUrl : '';
     }
 
     return {
@@ -331,7 +259,7 @@ export const useWebDAV = () => {
       artist: parsed.artist || artist,
       album: parsed.album || 'Unknown Album',
       duration: parsed.duration || 0,
-      ...(coverUrl ? { coverUrl, coverHash: coverHash!, coverMime: coverMime! } : {}),
+      ...(coverUrl ? { coverUrl } : {}),
       ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
       ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
       ...resultBase,
@@ -340,10 +268,7 @@ export const useWebDAV = () => {
 
   /**
    * 补充封面加载（兜底）：为 IndexedDB 中缺少 coverUrl 的曲目补充封面。
-   * 按优先级：
-   * 1. IndexedDB 已有 coverUrl → 直接返回
-   * 2. 有 coverHash（来自 Metadata/ 文件夹）→ 从 _covers/ 拉取
-   * 3. 回退：拉取文件头重新解析封面
+   * 拉取文件头重新解析封面。
    */
   const lazyLoadCover = useCallback(async (file: WebDAVFile): Promise<string | undefined> => {
     try {
@@ -351,16 +276,6 @@ export const useWebDAV = () => {
       const cached = await indexedDBStorage.getWebdavMetadata(file.path);
       if (cached?.coverUrl) return cached.coverUrl;
 
-      // 有 coverHash → 从 Metadata/ 文件夹拉取封面
-      if (cached?.coverHash && cached?.coverMime) {
-        const dataUrl = await metadataFolderService.fetchCover(cached.coverHash, cached.coverMime);
-        if (dataUrl) {
-          await indexedDBStorage.setWebdavMetadata(file.path, { ...cached, coverUrl: dataUrl });
-          return dataUrl;
-        }
-      }
-
-      // 回退：拉取文件头重新解析封面
       const buffer = await fetchHeaderWithRetry(file, 0, RANGE_SIZE);
       if (!buffer) return undefined;
 
@@ -398,71 +313,33 @@ export const useWebDAV = () => {
 
   /** 上传服务端缓存（fire-and-forget）。
    *  根据厂家配置，选择上传到 Metadata/ 文件夹或根目录索引。 */
+  /** 上传服务端缓存（fire-and-forget）。
+   *  把 IndexedDB 全部条目（含封面 data URL）打包上传到 Metadata/_metadata.json。
+   *  封面内联进索引，不再有独立的 _covers/ 文件夹。 */
   const uploadMetadataIndex = async (): Promise<void> => {
-    if (!providerConfig.autoUploadMetaJson && !providerConfig.useMetadataFolder) return;
+    if (!providerConfig.useMetadataFolder) return;
     const allEntries = await loadMetadataCache();
     if (allEntries.size === 0) return;
 
-    if (providerConfig.useMetadataFolder) {
-      // 上传到 Metadata/ 文件夹
-      const folderEntries: Record<string, MetadataFolderEntry> = {};
-      const coverUploads: Promise<void>[] = [];
-
-      for (const [path, meta] of allEntries) {
-        const entry: MetadataFolderEntry = {
-          title: meta.title,
-          artist: meta.artist,
-          album: meta.album || 'Unknown Album',
-          duration: meta.duration || 0,
-          fileSize: meta.fileSize,
-          fileName: path.split('/').pop() || 'audio.flac',
-          lastModified: meta.lastModified,
-          ...(meta.lyrics !== undefined && { lyrics: meta.lyrics }),
-          ...(meta.syncedLyrics !== undefined && { syncedLyrics: meta.syncedLyrics }),
-          // 保留已有的 coverHash/coverMime（来自之前解析或 IndexedDB 缓存）
-          ...(meta.coverHash ? { coverHash: meta.coverHash, coverMime: meta.coverMime || 'image/jpeg' } : {}),
-        };
-
-        // 有 coverUrl 但没有 coverHash：上传封面到 _covers/ 并记录 hash
-        if (meta.coverUrl && !meta.coverHash) {
-          coverUploads.push(
-            metadataFolderService.uploadCover(meta.coverUrl).then(result => {
-              if (result) {
-                folderEntries[path] = {
-                  ...entry,
-                  coverHash: result.hash,
-                  coverMime: result.mime,
-                };
-              } else {
-                folderEntries[path] = entry;
-              }
-            })
-          );
-          continue;
-        }
-
-        // 已有 coverHash 或无需上传封面
-        folderEntries[path] = entry;
-      }
-
-      // 等待封面上传完成
-      await Promise.allSettled(coverUploads);
-
-      // 上传索引
-      await metadataFolderService.saveIndex(folderEntries);
-      logger.info('[useWebDAV] Metadata/ folder cache uploaded:', Object.keys(folderEntries).length, 'entries');
+    const folderEntries: Record<string, MetadataFolderEntry> = {};
+    for (const [path, meta] of allEntries) {
+      folderEntries[path] = {
+        title: meta.title,
+        artist: meta.artist,
+        album: meta.album || 'Unknown Album',
+        duration: meta.duration || 0,
+        fileSize: meta.fileSize,
+        fileName: path.split('/').pop() || 'audio.flac',
+        lastModified: meta.lastModified,
+        // 封面 data URL 内联进索引
+        ...(meta.coverUrl ? { coverUrl: meta.coverUrl } : {}),
+        ...(meta.lyrics !== undefined && { lyrics: meta.lyrics }),
+        ...(meta.syncedLyrics !== undefined && { syncedLyrics: meta.syncedLyrics }),
+      };
     }
 
-    // 旧方式：根目录 _metadata_index.json（兼容非 MetadataFolder 厂家）
-    if (providerConfig.useMetadataIndex) {
-      const indexData: Record<string, CachedMetadata> = {};
-      for (const [path, meta] of allEntries) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { coverUrl: _cover, ...textMeta } = meta;
-        indexData[path] = textMeta;
-      }
-      webdavClient.uploadIndex(indexData);
-    }
+    await metadataFolderService.saveIndex(folderEntries);
+    logger.info('[useWebDAV] Metadata/_metadata.json uploaded:', Object.keys(folderEntries).length, 'entries');
   };
 
   const loadWebDAVFiles = useCallback(async (): Promise<WebDAVDiffResult> => {
@@ -616,15 +493,14 @@ export const useWebDAV = () => {
     const placeholderTracks = audioFiles.map(fileToPlaceholderTrack);
     setWebdavTracks(placeholderTracks);
 
-    // 加载服务端缓存，作为比对基准
+    // 加载服务端缓存（Metadata/_metadata.json），作为比对基准
     let metadataFolderEntries: Record<string, MetadataFolderEntry> | null = null;
     if (providerConfig.useMetadataFolder) {
       metadataFolderEntries = await metadataFolderService.loadIndex();
       if (metadataFolderEntries) {
-        logger.info('[useWebDAV] loadFullMode: loaded Metadata/ folder index with', Object.keys(metadataFolderEntries).length, 'entries');
+        logger.info('[useWebDAV] loadFullMode: loaded Metadata/ index with', Object.keys(metadataFolderEntries).length, 'entries');
       }
     }
-    const indexEntries = !metadataFolderEntries && providerConfig.useMetadataIndex ? await webdavClient.fetchIndex() : null;
 
     // 计算被删除的文件（在 index 中但不在 PROPFIND 结果中）
     const audioPaths = new Set(audioFiles.map(f => f.path));
@@ -647,8 +523,8 @@ export const useWebDAV = () => {
       const file = audioFiles[i];
       if (!file) continue;
 
-      // 1. 服务端缓存（1 请求恢复全部）
-      const serverEntry = metadataFolderEntries?.[file.path] ?? indexEntries?.[file.path];
+      // 1. 服务端缓存（1 请求恢复全部，含内联封面）
+      const serverEntry = metadataFolderEntries?.[file.path];
       if (serverEntry && serverEntry.fileSize === file.size && serverEntry.lastModified === file.lastModified && serverEntry.duration > 0) {
         metadataCache.set(file.path, serverEntry);
         placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, serverEntry);
@@ -675,7 +551,6 @@ export const useWebDAV = () => {
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
       uploadMetadataIndex();
-      populateCoversFromServer(placeholderTracks, metadataCache);
       return { type: 'full', tracks: [...placeholderTracks] };
     }
 
@@ -722,8 +597,6 @@ export const useWebDAV = () => {
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];
     setWebdavTracks(finalTracks);
-    // 后台补充封面（从 Metadata/_covers/ 拉取）
-    populateCoversFromServer(finalTracks, metadataCache);
     return { type: 'full', tracks: finalTracks };
   };
 

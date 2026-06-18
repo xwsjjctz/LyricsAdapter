@@ -80,9 +80,14 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
   }
 
   /**
-   * 扫描 / 更新元数据的通用逻辑。
+   * 扫描 / 更新元数据的通用逻辑（增量合并版）。
+   *
    * forceAll=true  -> 强制解析所有文件（scan_webdav_audio）
-   * forceAll=false -> 只解析缺少有效时长或缓存的（webdav_meta_update）
+   * forceAll=false -> 只解析缺失/无效的（webdav_meta_update）：
+   *                   无 existing / duration<=0 / size|lastModified 变化 / 缺 coverUrl
+   *
+   * 关键：Metadata/ 模式下，解析结果与 existingIndex 合并后再整体上传，
+   *       未变化的条目保留，不再被覆盖。同时用 PROPFIND 清理已删文件。
    */
   async function runScanOrMetaUpdate({ forceAll }: { forceAll: boolean }) {
     const davConfig = webdavClient.getConfig();
@@ -95,7 +100,8 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
     logger.info(`[scan/meta] Listing WebDAV files...`);
     const files = await webdavClient.listFiles('/');
     const audioFiles = files.filter(f => !f.isDirectory);
-    logger.info(`[scan/meta] Found ${audioFiles.length} audio files, useMetadataFolder=${useFolder}`);
+    const audioPaths = new Set(audioFiles.map(f => f.path));
+    logger.info(`[scan/meta] Found ${audioFiles.length} audio files, useMetadataFolder=${useFolder}, forceAll=${forceAll}`);
 
     // === DEBUG: PROPFIND 获取的音频文件列表 ===
     logger.info('========== PROPFIND Audio Files ==========');
@@ -104,73 +110,60 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
     }
     logger.info(`========== PROPFIND Total: ${audioFiles.length} ==========`);
 
-    // === DEBUG: Metadata/_metadata.json 列表 + 封面映射 ===
-    let existingIndex: Record<string, import('../services/webdav/metadataFolderService').MetadataFolderEntry> | null = null;
+    // 加载现有 index（作为增量基准）
+    const existingIndex = useFolder ? (await metadataFolderService.loadIndex()) : null;
     if (useFolder) {
-      existingIndex = await metadataFolderService.loadIndex();
       if (existingIndex) {
         logger.info(`[INDEX] Loaded ${Object.keys(existingIndex).length} entries from Metadata/_metadata.json`);
-
         logger.info('========== Metadata/_metadata.json Entries ==========');
+        let withCover = 0;
+        let withoutCover = 0;
         for (const [path, entry] of Object.entries(existingIndex)) {
-          const cover = entry.coverHash ? `cover=${entry.coverHash.substring(0, 8)}` : 'NO_COVER';
-          logger.info(`[INDEX] ${path} | ${entry.title} / ${entry.artist} | duration=${entry.duration} | ${cover}`);
+          const hasCover = !!entry.coverUrl;
+          if (hasCover) withCover++; else withoutCover++;
+          logger.info(`[INDEX] ${path} | ${entry.title} / ${entry.artist} | duration=${entry.duration} | ${hasCover ? 'HAS_COVER' : 'NO_COVER'}`);
         }
-        logger.info(`========== INDEX Total: ${Object.keys(existingIndex).length} ==========`);
-
-        logger.info('========== Cover → Songs Mapping ==========');
-        const coverToSongs = new Map<string, string[]>();
-        for (const [path, entry] of Object.entries(existingIndex)) {
-          if (entry.coverHash) {
-            const songs = coverToSongs.get(entry.coverHash) || [];
-            songs.push(path);
-            coverToSongs.set(entry.coverHash, songs);
-          }
-        }
-        for (const [hash, songs] of coverToSongs) {
-          logger.info(`[COVER] ${hash.substring(0, 12)} → ${songs.length} songs: ${songs.map(s => s.split('/').pop()).join(', ')}`);
-        }
-        logger.info(`========== Unique Covers: ${coverToSongs.size} ==========`);
-
-        if (!forceAll) {
-          logger.info('[scan/meta] webdav_meta_update mode: will skip entries that are valid + have cover');
-        }
+        logger.info(`========== INDEX Total: ${Object.keys(existingIndex).length} (withCover=${withCover}, withoutCover=${withoutCover}) ==========`);
       } else {
         logger.info('[INDEX] No Metadata/_metadata.json found, will parse all files');
       }
     }
 
-    // 收集所有解析结果，统一上传
-    const parsedEntries: Record<string, {
+    // 决定哪些文件需要解析
+    type ParsedEntry = {
       meta: { title: string; artist: string; album: string; duration: number; fileSize: number; fileName: string; lastModified: string; lyrics?: string; syncedLyrics?: { time: number; text: string }[] };
       coverUrl?: string;
-    }> = {};
+    };
+    const parsedEntries: Record<string, ParsedEntry> = {};
+
+    const needsParse = (file: { path: string; size: number; lastModified: string }): boolean => {
+      if (forceAll) return true;
+      if (useFolder && existingIndex) {
+        const existing = existingIndex[file.path];
+        if (!existing) return true;                                       // 新文件
+        if (!(existing.duration > 0)) return true;                        // 时长无效
+        if (existing.fileSize !== file.size) return true;                 // 大小变化
+        if (existing.lastModified !== file.lastModified) return true;     // 修改时间变化
+        if (!existing.coverUrl) return true;                              // 缺封面（含旧版 coverHash 迁移）
+        return false;                                                     // 完整，跳过
+      }
+      return true; // 旧模式/无 index，全部解析
+    };
 
     let processed = 0;
     let skipped = 0;
+    const toParse = audioFiles.filter(needsParse);
+    logger.info(`[scan/meta] Need to parse: ${toParse.length} / ${audioFiles.length} (skipping ${audioFiles.length - toParse.length})`);
 
-    for (let i = 0; i < audioFiles.length; i += batchSize) {
-      const batch = audioFiles.slice(i, i + batchSize);
+    for (let i = 0; i < toParse.length; i += batchSize) {
+      const batch = toParse.slice(i, i + batchSize);
       const results = await Promise.allSettled(
         batch.map(async (file) => {
-          // webdav_meta_update + Metadata/ 模式：检查现有 index
-          if (!forceAll && existingIndex) {
-            const existing = existingIndex[file.path];
-            if (existing && existing.duration > 0 && existing.fileSize === file.size && existing.lastModified === file.lastModified) {
-              if (existing.coverHash) {
-                skipped++;
-                return null;
-              }
-              // 缺封面，继续解析
-            }
-          }
-
-          // 旧模式：检查 .meta.json
+          // 旧模式且非强制：检查 .meta.json 是否已有有效时长
           if (!forceAll && !useFolder) {
             const existing = await webdavClient.fetchMetaJson(file.path);
             if (existing && existing.duration > 0) {
-              skipped++;
-              return null;
+              return { file, existingMetaJson: existing };
             }
           }
 
@@ -190,7 +183,7 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           }
           if (!buffer) {
             logger.warn(`[scan/meta] Failed to fetch header: ${file.name}`);
-            return null;
+            return { file, bufferFailed: true as const };
           }
 
           const parsed = parseMetadataFromBuffer(buffer, file.name, file.size);
@@ -201,7 +194,6 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           let coverBlob = parsed.coverUrl || '';
           if (!coverBlob && parsed.coverNeededRange) {
             const { offset, length } = parsed.coverNeededRange;
-            // 封面拉取也带重试
             let coverBuffer: ArrayBuffer | null = null;
             for (let attempt = 0; attempt <= 2; attempt++) {
               try {
@@ -222,44 +214,67 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           }
 
           return {
-            path: file.path,
-            meta: {
-              title: parsed.title || nameFallback,
-              artist: parsed.artist || 'Unknown Artist',
-              album: parsed.album || 'Unknown Album',
-              duration: parsed.duration || 0,
-              fileSize: file.size,
-              fileName: file.name,
-              lastModified: file.lastModified,
-              ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
-              ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
-            },
-            ...(coverUrl ? { coverUrl } : {}),
+            file,
+            parsed: {
+              meta: {
+                title: parsed.title || nameFallback,
+                artist: parsed.artist || 'Unknown Artist',
+                album: parsed.album || 'Unknown Album',
+                duration: parsed.duration || 0,
+                fileSize: file.size,
+                fileName: file.name,
+                lastModified: file.lastModified,
+                ...(parsed.lyrics !== undefined && { lyrics: parsed.lyrics }),
+                ...(parsed.syncedLyrics !== undefined && { syncedLyrics: parsed.syncedLyrics }),
+              },
+              ...(coverUrl ? { coverUrl } : {}),
+            } as ParsedEntry,
           };
         })
       );
 
       for (const r of results) {
-        if (r.status === 'fulfilled' && r.value) {
-          parsedEntries[r.value.path] = r.value;
+        if (r.status !== 'fulfilled' || !r.value) continue;
+        const { file, parsed, bufferFailed, existingMetaJson } = r.value as {
+          file: { path: string; size: number; lastModified: string; name: string };
+          parsed?: ParsedEntry;
+          bufferFailed?: boolean;
+          existingMetaJson?: { title: string; artist: string; album: string; duration: number };
+        };
+        if (bufferFailed) {
+          skipped++;
+          continue;
+        }
+        if (parsed) {
+          parsedEntries[file.path] = parsed;
           processed++;
+        } else if (existingMetaJson) {
+          // 旧模式：.meta.json 已有，跳过解析
+          skipped++;
         }
       }
     }
 
-    logger.info(`[scan/meta] Parsed: processed=${processed} skipped=${skipped} total=${audioFiles.length}`);
-
-    if (processed === 0) {
-      logger.info(`[scan/meta] Nothing to update`);
-      return;
-    }
+    logger.info(`[scan/meta] Parsed: processed=${processed} skipped=${skipped}`);
 
     if (useFolder) {
-      // Metadata/ 文件夹模式：上传封面 + 索引
-      const folderEntries: Record<string, import('../services/webdav/metadataFolderService').MetadataFolderEntry> = {};
+      // Metadata/ 模式：合并 existingIndex + parsedEntries，用 PROPFIND 清理已删文件
+      const merged: Record<string, import('../services/webdav/metadataFolderService').MetadataFolderEntry> = {};
 
+      // 1. 先铺底：existingIndex 中仍在服务器上的条目（未变化的保留原样，含 coverUrl）
+      if (existingIndex) {
+        for (const [path, entry] of Object.entries(existingIndex)) {
+          if (audioPaths.has(path)) {
+            merged[path] = entry;
+          } else {
+            logger.info(`[scan/meta] Removing stale entry from index: ${path}`);
+          }
+        }
+      }
+
+      // 2. 覆盖：本次解析的条目（含最新 coverUrl）
       for (const [path, entry] of Object.entries(parsedEntries)) {
-        const baseEntry = {
+        merged[path] = {
           title: entry.meta.title,
           artist: entry.meta.artist,
           album: entry.meta.album,
@@ -267,26 +282,19 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           fileSize: entry.meta.fileSize,
           fileName: entry.meta.fileName,
           lastModified: entry.meta.lastModified,
+          ...(entry.coverUrl ? { coverUrl: entry.coverUrl } : {}),
           ...(entry.meta.lyrics !== undefined && { lyrics: entry.meta.lyrics }),
           ...(entry.meta.syncedLyrics !== undefined && { syncedLyrics: entry.meta.syncedLyrics }),
         };
-
-        if (entry.coverUrl) {
-          const result = await metadataFolderService.uploadCover(entry.coverUrl);
-          folderEntries[path] = result
-            ? { ...baseEntry, coverHash: result.hash, coverMime: result.mime }
-            : baseEntry;
-        } else {
-          folderEntries[path] = baseEntry;
-        }
       }
 
-      await metadataFolderService.saveIndex(folderEntries);
+      const coverCount = Object.values(merged).filter(e => e.coverUrl).length;
+      await metadataFolderService.saveIndex(merged);
       metadataFolderService.clearCache();
-      logger.info(`[scan/meta] ✓ Uploaded ${Object.keys(folderEntries).length} entries to Metadata/ folder`);
+      logger.info(`[scan/meta] ✓ Uploaded Metadata/_metadata.json: ${Object.keys(merged).length} entries (withCover=${coverCount})`);
     } else {
       // 旧模式（通用 WebDAV）：逐个上传 .meta.json
-      for (const [, entry] of Object.entries(parsedEntries)) {
+      for (const [path, entry] of Object.entries(parsedEntries)) {
         const metaJson = {
           title: entry.meta.title,
           artist: entry.meta.artist,
@@ -298,11 +306,7 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           ...(entry.meta.lyrics !== undefined && { lyrics: entry.meta.lyrics }),
           ...(entry.meta.syncedLyrics !== undefined && { syncedLyrics: entry.meta.syncedLyrics }),
         };
-        // 提取路径中最后一个音频文件的路径对应的 .meta.json 路径
-        const audioPath = Object.keys(parsedEntries).find(k => parsedEntries[k] === entry);
-        if (audioPath) {
-          await webdavClient.uploadMetaJson(audioPath, metaJson);
-        }
+        await webdavClient.uploadMetaJson(path, metaJson);
       }
       logger.info(`[scan/meta] ✓ Uploaded ${Object.keys(parsedEntries).length} meta.json files`);
     }

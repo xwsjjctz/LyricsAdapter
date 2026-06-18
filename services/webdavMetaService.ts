@@ -20,16 +20,5 @@ export function generateMetaJson(track: Track): MetaJson {
     ...(track.lyrics != null && { lyrics: track.lyrics }),
     ...(syncedLyrics != null && { syncedLyrics }),
     ...(track.coverUrl != null && { coverUrl: track.coverUrl }),
-    ...(track.coverUrl != null && { coverHash: hashString(track.coverUrl) }),
   };
-}
-
-function hashString(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(16);
 }

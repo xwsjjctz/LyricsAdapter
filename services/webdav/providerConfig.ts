@@ -12,11 +12,9 @@ export interface WebDAVProviderConfig {
   name: string;
   /** 是否允许写入操作（PUT） */
   allowWrite: boolean;
-  /** 慢路径解析后自动上传 .meta.json 副产物文件（已废弃，替代为 useMetadataFolder） */
+  /** 慢路径解析后自动上传 .meta.json 副产物文件（仅通用 WebDAV sidecar 模式用） */
   autoUploadMetaJson: boolean;
-  /** 是否使用 _metadata_index.json 单请求批量加载（已废弃，替代为 useMetadataFolder） */
-  useMetadataIndex: boolean;
-  /** 使用 Metadata/ 文件夹统一缓存元数据+封面（替代零散的 .meta.json 和根目录 index） */
+  /** 使用 Metadata/ 文件夹统一缓存元数据+封面（替代零散的 .meta.json） */
   useMetadataFolder: boolean;
   /** 文件头 Range 读取是否直连服务器（不走 CDN 重定向），减少首载请求数 */
   skipCdnForHeaderRead: boolean;
@@ -29,8 +27,7 @@ const PROVIDER_CONFIGS: Record<string, WebDAVProviderConfig> = {
     name: '123云盘',
     allowWrite: true,
     autoUploadMetaJson: false,
-    useMetadataIndex: false,
-    useMetadataFolder: true,          // 统一使用 Metadata/ 文件夹缓存
+    useMetadataFolder: true,          // 统一使用 Metadata/ 文件夹缓存（含内联封面）
     skipCdnForHeaderRead: true,       // 文件头读取直连服务器，不走 CDN 重定向
     batchSize: 4,                     // 123pan 并发极低，设小并发避免请求排队超时
   },
@@ -40,7 +37,6 @@ const GENERIC_CONFIG: WebDAVProviderConfig = {
   name: '通用 WebDAV',
   allowWrite: false,
   autoUploadMetaJson: false,
-  useMetadataIndex: false,
   useMetadataFolder: false,
   skipCdnForHeaderRead: false,
   batchSize: 10,
@@ -72,7 +68,6 @@ export function getEffectiveConfig(
       ...base,
       allowWrite: false,
       autoUploadMetaJson: false,
-      useMetadataIndex: false,
       useMetadataFolder: false,
     };
   }
