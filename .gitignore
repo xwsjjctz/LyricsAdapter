@@ -96,4 +96,5 @@ problems.md
 /docs/*
 /.playwright-mcp
 
-/.codegraph_metadata.json
+/.codegraph
+_metadata.json
