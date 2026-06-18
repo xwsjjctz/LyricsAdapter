@@ -79,8 +79,6 @@ export interface MetaJson {
   lyrics?: string;
   syncedLyrics?: SyncedLyricLine[];
   coverUrl?: string;
-  coverHash?: string;
-  coverMime?: string;
 }
 
 export enum ViewMode {

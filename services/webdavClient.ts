@@ -26,7 +26,6 @@ interface CdnCacheEntry {
 }
 
 const AUDIO_EXTENSIONS = ['.flac', '.mp3', '.m4a', '.wav', '.ogg', '.aac'];
-const INDEX_FILE_NAME = '_metadata_index.json';
 
 class WebDAVClient {
   private config: WebDAVConfig | null = null;
@@ -206,38 +205,6 @@ class WebDAVClient {
     return files;
   }
 
-  /**
-   * List all .meta.json file paths on the server via PROPFIND.
-   * Used to detect audio files that are missing a sidecar meta.json.
-   * This is one extra PROPFIND request (depth 1) regardless of file count.
-   */
-  async listMetaJsonPaths(dirPath: string = '/'): Promise<Set<string>> {
-    if (!this.hasConfig()) return new Set();
-    const api = await getDesktopAPI();
-    if (!api) return new Set();
-    const url = this.buildUrl(dirPath);
-    const result = await api.webdavPropfind(url, this.buildAuthHeader(), '1');
-    if (!result.success || !result.xml) return new Set();
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(result.xml, 'application/xml');
-    const responses = doc.querySelectorAll('response');
-    const paths = new Set<string>();
-
-    for (const resp of responses) {
-      const hrefEl = resp.querySelector('href');
-      if (!hrefEl) continue;
-      const href = hrefEl.textContent || '';
-      if (!href.endsWith('.meta.json')) continue;
-      const decoded = decodeURIComponent(href);
-      const basePath = this.config!.serverUrl.replace(/\/+$/, '');
-      const filePath = decoded.startsWith(basePath) ? decoded.slice(basePath.length) : decoded;
-      paths.add(filePath);
-    }
-
-    return paths;
-  }
-
   async getCdnUrl(filePath: string): Promise<string | null> {
     const cached = this.cdnCache.get(filePath);
     if (cached && cached.expiry > Date.now()) {
@@ -319,43 +286,6 @@ class WebDAVClient {
     return this.uploadTextFile(metaPath, JSON.stringify(meta));
   }
 
-  /** Path for the single metadata index file on the server */
-  getIndexPath(): string {
-    return '/' + INDEX_FILE_NAME;
-  }
-
-  /**
-   * Download the metadata index file containing all tracks' metadata.
-   * Single-request bulk load for cold starts.
-   */
-  async fetchIndex(): Promise<Record<string, any> | null> {
-    const text = await this.fetchTextFile(this.getIndexPath());
-    if (!text) return null;
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed?.version === 1 && parsed?.entries) {
-        return parsed.entries;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Upload the metadata index file (fire-and-forget friendly).
-   * Contains all tracks' CachedMetadata keyed by file path.
-   */
-  async uploadIndex(entries: Record<string, any>): Promise<boolean> {
-    const data = JSON.stringify({
-      version: 1,
-      generatedAt: new Date().toISOString(),
-      entries,
-    });
-    const result = await this.uploadTextFile(this.getIndexPath(), data);
-    return result.success;
-  }
-
   async fetchFileRange(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {
     const api = await getDesktopAPI();
     if (!api) return null;
@@ -370,6 +300,26 @@ class WebDAVClient {
 
     if (!result.success) {
       logger.error('[WebDAV] Range fetch failed:', result.error, 'path:', filePath, 'range:', `${start}-${end}`);
+      return null;
+    }
+
+    return result.data ?? null;
+  }
+
+  /**
+   * 直连服务器读取文件部分数据（不走 CDN 重定向）。
+   * 用于文件头读取等小范围请求，避免 CDN 重定向的额外开销。
+   * 对并发受限的厂家（如 123pan）可显著减少首载请求数。
+   */
+  async fetchFileRangeDirect(filePath: string, start: number, end: number): Promise<ArrayBuffer | null> {
+    const api = await getDesktopAPI();
+    if (!api) return null;
+
+    const url = this.buildUrl(filePath);
+    const result = await api.webdavGetRange(url, this.buildAuthHeader(), start, end);
+
+    if (!result.success) {
+      logger.warn('[WebDAV] Direct range fetch failed for', filePath, 'falling back to CDN path');
       return null;
     }
 
