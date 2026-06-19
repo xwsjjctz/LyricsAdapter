@@ -133,11 +133,15 @@ class MetadataFolderService {
   }
 
   /**
-   * 加载 manifest（含 v2→v3 一次性迁移）。缓存结果。
-   * 顺序：① GET _manifest.json → v3 返回；② 否则 GET _metadata.json → v2 迁移；
+   * 加载 manifest。缓存结果。
+   * 顺序：① GET _manifest.json → v3 返回；
+   * ② 否则（且 allowMigrate）GET _metadata.json → v2 迁移；
    * ③ 都没有 → null（冷启动）。
+   *
+   * allowMigrate：是否执行 v2→v3 迁移（迁移要写文件）。只读模式传 false，
+   * 遇到 v2 旧文件不迁移，直接当无 manifest 处理（逐首解析存本地）。
    */
-  async loadManifest(): Promise<Manifest | null> {
+  async loadManifest(allowMigrate = true): Promise<Manifest | null> {
     if (this.manifestCache) return this.manifestCache;
     if (this.migrating) return null;
 
@@ -155,9 +159,11 @@ class MetadataFolderService {
       }
     }
 
-    // ② 尝试 v2 单文件迁移
-    const migrated = await this.migrateFromV2();
-    if (migrated) return migrated;
+    // ② 尝试 v2 单文件迁移（仅可写时，迁移要写文件）
+    if (allowMigrate) {
+      const migrated = await this.migrateFromV2();
+      if (migrated) return migrated;
+    }
 
     return null;
   }

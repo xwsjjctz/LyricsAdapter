@@ -64,11 +64,13 @@ export function getEffectiveConfig(
 ): WebDAVProviderConfig {
   const base: WebDAVProviderConfig = detectProvider(serverUrl);
   if (userReadonly) {
+    // 只读模式：禁止写入（allowWrite=false），但保留 manifest 方案的**读取**能力
+    // （useMetadataFolder 不变）——只读用户也能利用服务端 manifest 加速列表加载。
+    // 迁移和上传由 allowWrite 守卫，只读时自动跳过。
     return {
       ...base,
       allowWrite: false,
       autoUploadMetaJson: false,
-      useMetadataFolder: false,
     };
   }
   return base;

@@ -419,7 +419,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
    * - PROPFIND 过滤：不在 audioPathSet 的（已删）→ 从 manifest 删除
    */
   const uploadManifestAndChunks = async (audioPathSet?: Set<string>): Promise<void> => {
-    if (!providerConfig.useMetadataFolder) return;
+    // 写入需要 allowWrite（只读模式跳过上传，但仍可读 manifest）
+    if (!providerConfig.allowWrite || !providerConfig.useMetadataFolder) return;
     const allEntries = await loadMetadataCache();
 
     const existingManifest = await metadataFolderService.loadManifest();
@@ -526,9 +527,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
 
       const snapshotRaw = await indexedDBStorage.getFileListSnapshot();
-      const currentTracks = webdavTracks;
 
-      if (!snapshotRaw || currentTracks.length === 0) {
+      // 无 snapshot（首次启动/清缓存后）→ 冷启动 loadFullMode
+      if (!snapshotRaw) {
         return await loadFullMode(audioFiles);
       }
 
@@ -550,14 +551,28 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         uploadManifestAndChunks(audioPaths);
       }
 
+      // 三方（PROPFIND/snapshot/IndexedDB）全都对得上：从缓存构建列表，零网络请求
       if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) {
-        setIsLoading(false);
-        const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
+        const metaCache = await loadMetadataCache();
+        const cachedTracks: Track[] = [];
+        let allCached = true;
         for (const file of audioFiles) {
-          newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+          const cached = metaCache.get(file.path);
+          if (cached && cached.duration > 0) {
+            cachedTracks.push(enrichTrack(fileToPlaceholderTrack(file), cached));
+          } else {
+            allCached = false;
+            break;
+          }
         }
-        await indexedDBStorage.setFileListSnapshot(newSnapshot);
-        return { type: 'diff', added: [], removed: [], updated: [] };
+        if (allCached) {
+          setWebdavTracks(cachedTracks);
+          setIsLoading(false);
+          setLoadProgress(null);
+          return { type: 'full', tracks: cachedTracks };
+        }
+        // 缓存不完整 → 走 loadFullMode 重新加载 manifest + chunk
+        return await loadFullMode(audioFiles);
       }
 
       const filesToFetch: WebDAVFile[] = [...diff.added, ...diff.changed];
@@ -667,10 +682,10 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     const audioPaths = new Set(audioFiles.map(f => f.path));
 
-    // 加载服务端 manifest（含 v2→v3 迁移）
+    // 加载服务端 manifest（含 v2→v3 迁移；只读模式不迁移，只读 v3）
     let manifest: Manifest | null = null;
     if (providerConfig.useMetadataFolder) {
-      manifest = await metadataFolderService.loadManifest();
+      manifest = await metadataFolderService.loadManifest(providerConfig.allowWrite);
       if (manifest) {
         logger.info('[useWebDAV] loadFullMode: loaded manifest with', Object.keys(manifest.entries).length, 'entries');
       }
