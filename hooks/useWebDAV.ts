@@ -737,6 +737,11 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
       uploadManifestAndChunks(audioPaths);
+      const snapshot: Record<string, { size: number; lastModified: string }> = {};
+      for (const file of audioFiles) {
+        snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+      }
+      await indexedDBStorage.setFileListSnapshot(snapshot);
       // 后台补全封面/歌词（从 chunks 饥饿式拉取）
       if (manifest) populateDetailsFromChunks(placeholderTracks, manifest, metadataCache);
       return { type: 'full', tracks: [...placeholderTracks] };
@@ -785,6 +790,11 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];
     setWebdavTracks(finalTracks);
+    const snapshot: Record<string, { size: number; lastModified: string }> = {};
+    for (const file of audioFiles) {
+      snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+    }
+    await indexedDBStorage.setFileListSnapshot(snapshot);
     // 后台补全封面/歌词（对 manifest 命中但缺封面的曲目）
     if (manifest) populateDetailsFromChunks(finalTracks, manifest, metadataCache);
     return { type: 'full', tracks: finalTracks };
