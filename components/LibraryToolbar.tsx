@@ -16,6 +16,8 @@ interface LibraryToolbarProps {
   setShowEditDropdown: (v: boolean) => void;
   onToggleEditMode: () => void;
   onBatchDelete: () => void;
+  onRefreshCloud?: () => void;
+  isRefreshing?: boolean;
   filterType: 'default' | 'album' | 'artist';
   onFilterTypeChange: (t: 'default' | 'album' | 'artist') => void;
   onCategoryChange: (s: string | null) => void;
@@ -40,6 +42,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   setShowEditDropdown,
   onToggleEditMode,
   onBatchDelete,
+  onRefreshCloud,
+  isRefreshing = false,
   filterType,
   onFilterTypeChange,
   onCategoryChange,
@@ -83,88 +87,115 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
       </div>
       <div className="flex items-center gap-2">
         {searchBox}
-        <div
-          className="relative"
-          onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
-          onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
-        >
+        {dataSource === 'cloud' ? (
+          /* Cloud：刷新按钮（替换编辑按钮） */
           <button
-            onClick={onToggleEditMode}
-            className="w-10 h-10 flex items-center justify-center relative shadow-xl"
+            onClick={onRefreshCloud}
+            disabled={isRefreshing}
+            className="w-10 h-10 flex items-center justify-center shadow-xl"
             style={{
-              backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
-              color: isEditMode ? '#fff' : colors.textSecondary,
-              boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
-              borderRadius: showEditDropdown ? '12px 12px 0 0' : '12px',
-              transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease',
+              backgroundColor: colors.backgroundCard,
+              color: colors.textSecondary,
+              borderRadius: '12px',
+              transition: 'background-color 0.2s ease',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
             }}
+            onMouseEnter={e => { if (!isRefreshing) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+            title={i18n.t('library.refresh')}
           >
-            <span className="material-symbols-outlined absolute"
-              style={{
-                opacity: isEditMode ? 1 : 0,
-                transform: isEditMode ? 'scale(1)' : 'scale(0.4)',
-                transition: 'opacity 0.2s ease, transform 0.25s ease',
-              }}
+            <span
+              className={`material-symbols-outlined${isRefreshing ? ' animate-spin' : ''}`}
+              style={{ fontSize: '22px' }}
             >
-              check
-            </span>
-            <span className="material-symbols-outlined absolute"
-              style={{
-                opacity: isEditMode ? 0 : 1,
-                transform: isEditMode ? 'scale(0.4)' : 'scale(1)',
-                transition: 'opacity 0.2s ease, transform 0.25s ease',
-              }}
-            >
-              edit
+              refresh
             </span>
           </button>
-
-          {/* 下拉菜单：删除选中 */}
+        ) : (
+          /* Local：编辑按钮 + 下拉删除菜单 */
           <div
-            className="overflow-hidden"
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 'calc(100% - 2px)',
-              zIndex: 50,
-              width: 40,
-              transform: showEditDropdown ? 'scaleY(1)' : 'scaleY(0)',
-              transformOrigin: 'top center',
-              opacity: showEditDropdown ? 1 : 0,
-              transition: 'transform 0.25s ease, opacity 0.2s ease',
-              background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
-              backdropFilter: 'blur(20px)',
-              borderRadius: '0 0 12px 12px',
-              boxShadow: showEditDropdown ? `0 8px 24px rgba(0,0,0,0.18)` : 'none',
-              pointerEvents: showEditDropdown ? 'auto' : 'none',
-            }}
+            className="relative"
+            onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
+            onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
           >
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowEditDropdown(false);
-                onBatchDelete();
-              }}
-              disabled={selectedCount === 0}
-              className="w-10 h-10 flex items-center justify-center rounded-b-xl transition-all"
+              onClick={onToggleEditMode}
+              className="w-10 h-10 flex items-center justify-center relative shadow-xl"
               style={{
-                backgroundColor: selectedCount > 0 ? colors.error : colors.backgroundCard,
-                color: selectedCount > 0 ? '#fff' : colors.textMuted,
-                opacity: selectedCount > 0 ? 1 : 0.4,
-                cursor: selectedCount > 0 ? 'pointer' : 'not-allowed',
-                boxShadow: selectedCount > 0 ? `0 0 16px ${colors.error}60` : 'none',
-              }}
-              onMouseEnter={e => {
-                if (selectedCount > 0) e.currentTarget.style.backgroundColor = `${colors.error}dd`;
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.backgroundColor = selectedCount > 0 ? colors.error : colors.backgroundCard;
+                backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
+                color: isEditMode ? '#fff' : colors.textSecondary,
+                boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
+                borderRadius: showEditDropdown ? '12px 12px 0 0' : '12px',
+                transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease',
               }}
             >
-              <span className="material-symbols-outlined text-lg">delete</span>
+              <span className="material-symbols-outlined absolute"
+                style={{
+                  opacity: isEditMode ? 1 : 0,
+                  transform: isEditMode ? 'scale(1)' : 'scale(0.4)',
+                  transition: 'opacity 0.2s ease, transform 0.25s ease',
+                }}
+              >
+                check
+              </span>
+              <span className="material-symbols-outlined absolute"
+                style={{
+                  opacity: isEditMode ? 0 : 1,
+                  transform: isEditMode ? 'scale(0.4)' : 'scale(1)',
+                  transition: 'opacity 0.2s ease, transform 0.25s ease',
+                }}
+              >
+                edit
+              </span>
             </button>
+
+            {/* 下拉菜单：删除选中 */}
+            <div
+              className="overflow-hidden"
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 'calc(100% - 2px)',
+                zIndex: 50,
+                width: 40,
+                transform: showEditDropdown ? 'scaleY(1)' : 'scaleY(0)',
+                transformOrigin: 'top center',
+                opacity: showEditDropdown ? 1 : 0,
+                transition: 'transform 0.25s ease, opacity 0.2s ease',
+                background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
+                backdropFilter: 'blur(20px)',
+                borderRadius: '0 0 12px 12px',
+                boxShadow: showEditDropdown ? `0 8px 24px rgba(0,0,0,0.18)` : 'none',
+                pointerEvents: showEditDropdown ? 'auto' : 'none',
+              }}
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowEditDropdown(false);
+                  onBatchDelete();
+                }}
+                disabled={selectedCount === 0}
+                className="w-10 h-10 flex items-center justify-center rounded-b-xl transition-all"
+                style={{
+                  backgroundColor: selectedCount > 0 ? colors.error : colors.backgroundCard,
+                  color: selectedCount > 0 ? '#fff' : colors.textMuted,
+                  opacity: selectedCount > 0 ? 1 : 0.4,
+                  cursor: selectedCount > 0 ? 'pointer' : 'not-allowed',
+                  boxShadow: selectedCount > 0 ? `0 0 16px ${colors.error}60` : 'none',
+                }}
+                onMouseEnter={e => {
+                  if (selectedCount > 0) e.currentTarget.style.backgroundColor = `${colors.error}dd`;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = selectedCount > 0 ? colors.error : colors.backgroundCard;
+                }}
+              >
+                <span className="material-symbols-outlined text-lg">delete</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-center rounded-xl border shadow-xl" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
           <button
             onClick={() => {

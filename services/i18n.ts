@@ -289,6 +289,14 @@ const translations: Translations = {
     de: 'Zur aktuellen Wiedergabe springen',
     fr: 'Aller à la lecture actuelle'
   },
+  'library.refresh': {
+    zh: '刷新',
+    en: 'Refresh',
+    ja: '更新',
+    ko: '새로고침',
+    de: 'Aktualisieren',
+    fr: 'Actualiser'
+  },
   'library.deleteConfirmTitle': {
     zh: '确认删除',
     en: 'Confirm Delete',

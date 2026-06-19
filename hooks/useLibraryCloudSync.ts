@@ -428,5 +428,20 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
     );
   }, []);
 
-  return { loadProgress };
+  /**
+   * 手动刷新 Cloud 列表：增量式重新加载 WebDAV 文件列表。
+   * 复用 loadWebDAVFiles 的 PROPFIND → diff → 缓存策略，
+   * 只拉取有变化的文件（新增/变更/删除），无变化的从缓存直接返回。
+   */
+  const refreshCloudTracks = useCallback(async () => {
+    if (!webdavClient.hasConfig()) return;
+    try {
+      const result = await loadWebDAVFiles();
+      applyDiffResult(result);
+    } catch (err) {
+      logger.warn('[LibraryView] Cloud refresh failed:', err);
+    }
+  }, [loadWebDAVFiles, applyDiffResult]);
+
+  return { loadProgress, refreshCloudTracks };
 }
