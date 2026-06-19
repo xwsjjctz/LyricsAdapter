@@ -24,7 +24,10 @@ interface UseLibraryCloudSyncParams {
  * internals (loadWebDAVFiles, clearWebdavCache, applyDiffResult) stay private.
  */
 export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeCloudTracks }: UseLibraryCloudSyncParams) {
-  const { loadProgress, loadWebDAVFiles, clearWebdavCache } = useWebDAV();
+  const { loadProgress, loadWebDAVFiles, clearWebdavCache } = useWebDAV({
+    // 封面/歌词从 chunk 异步补全后，回传完整 tracks 重新设置 cloud slot
+    onTracksUpdated: (tracks) => onLoadCloudTracks(tracks),
+  });
 
   const applyDiffResult = useCallback((result: WebDAVDiffResult) => {
     if (result.type === 'full') {

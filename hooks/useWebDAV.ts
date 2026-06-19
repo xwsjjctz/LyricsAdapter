@@ -117,7 +117,13 @@ function fileToPlaceholderTrack(file: WebDAVFile): Track {
   };
 }
 
-export const useWebDAV = () => {
+interface UseWebDAVOptions {
+  /** 当异步补全（封面/歌词从 chunk 拉取完成）后，把更新后的 tracks 回传上层。
+   *  解决：loadWebDAVFiles 返回占位列表后，chunk 异步补的封面无法触达上层的问题。 */
+  onTracksUpdated?: (tracks: Track[]) => void;
+}
+
+export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
   const [webdavTracks, setWebdavTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -389,7 +395,11 @@ export const useWebDAV = () => {
           }
         }
       }
-      if (updated) setWebdavTracks([...tracks]);
+      if (updated) {
+        setWebdavTracks([...tracks]);
+        // 逐批回传：封面分批出现，视觉更友好
+        onTracksUpdated?.(tracks);
+      }
     }
 
     await saveMetadataCache(cache);
