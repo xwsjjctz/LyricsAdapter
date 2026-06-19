@@ -569,6 +569,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           setWebdavTracks(cachedTracks);
           setIsLoading(false);
           setLoadProgress(null);
+          // 如果缓存中没有封面，触发后台补全（manifest 命中时 IndexedDB 只有纯文本）
+          const needsCover = cachedTracks.some(t => !t.coverUrl || !t.coverUrl.startsWith('data:'));
+          if (needsCover && providerConfig.useMetadataFolder) {
+            const manifest = await metadataFolderService.loadManifest(false);
+            if (manifest) populateDetailsFromChunks(cachedTracks, manifest, metaCache);
+          }
           return { type: 'full', tracks: cachedTracks };
         }
         // 缓存不完整 → 走 loadFullMode 重新加载 manifest + chunk
@@ -737,6 +743,11 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
       uploadManifestAndChunks(audioPaths);
+      const snapshot: Record<string, { size: number; lastModified: string }> = {};
+      for (const file of audioFiles) {
+        snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+      }
+      await indexedDBStorage.setFileListSnapshot(snapshot);
       // 后台补全封面/歌词（从 chunks 饥饿式拉取）
       if (manifest) populateDetailsFromChunks(placeholderTracks, manifest, metadataCache);
       return { type: 'full', tracks: [...placeholderTracks] };
@@ -785,6 +796,11 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];
     setWebdavTracks(finalTracks);
+    const snapshot: Record<string, { size: number; lastModified: string }> = {};
+    for (const file of audioFiles) {
+      snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+    }
+    await indexedDBStorage.setFileListSnapshot(snapshot);
     // 后台补全封面/歌词（对 manifest 命中但缺封面的曲目）
     if (manifest) populateDetailsFromChunks(finalTracks, manifest, metadataCache);
     return { type: 'full', tracks: finalTracks };
