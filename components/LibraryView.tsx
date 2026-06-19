@@ -84,11 +84,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     opacity: 0
   });
   const [scrollTop, setScrollTop] = useState(0);
-  const { loadProgress } = useLibraryCloudSync({
+  const { loadProgress, refreshCloudTracks } = useLibraryCloudSync({
     dataSource,
     onLoadCloudTracks,
     onMergeCloudTracks,
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefreshCloud = useCallback(async () => {
+    if (!refreshCloudTracks || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refreshCloudTracks();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshCloudTracks, isRefreshing]);
 
   const displayTracks = tracks;
   const [showLocateButton, setShowLocateButton] = useState(false);
@@ -760,6 +770,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           }
         }}
         onBatchDelete={confirmBatchDelete}
+        {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         filterType={filterType}
         onFilterTypeChange={onFilterTypeChange}
         onCategoryChange={onCategoryChange}
