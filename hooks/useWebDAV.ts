@@ -569,6 +569,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           setWebdavTracks(cachedTracks);
           setIsLoading(false);
           setLoadProgress(null);
+          // 如果缓存中没有封面，触发后台补全（manifest 命中时 IndexedDB 只有纯文本）
+          const needsCover = cachedTracks.some(t => !t.coverUrl || !t.coverUrl.startsWith('data:'));
+          if (needsCover && providerConfig.useMetadataFolder) {
+            const manifest = await metadataFolderService.loadManifest(false);
+            if (manifest) populateDetailsFromChunks(cachedTracks, manifest, metaCache);
+          }
           return { type: 'full', tracks: cachedTracks };
         }
         // 缓存不完整 → 走 loadFullMode 重新加载 manifest + chunk
