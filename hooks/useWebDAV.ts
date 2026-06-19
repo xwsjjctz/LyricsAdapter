@@ -419,7 +419,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
    * - PROPFIND 过滤：不在 audioPathSet 的（已删）→ 从 manifest 删除
    */
   const uploadManifestAndChunks = async (audioPathSet?: Set<string>): Promise<void> => {
-    if (!providerConfig.useMetadataFolder) return;
+    // 写入需要 allowWrite（只读模式跳过上传，但仍可读 manifest）
+    if (!providerConfig.allowWrite || !providerConfig.useMetadataFolder) return;
     const allEntries = await loadMetadataCache();
 
     const existingManifest = await metadataFolderService.loadManifest();
@@ -667,10 +668,10 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     const audioPaths = new Set(audioFiles.map(f => f.path));
 
-    // 加载服务端 manifest（含 v2→v3 迁移）
+    // 加载服务端 manifest（含 v2→v3 迁移；只读模式不迁移，只读 v3）
     let manifest: Manifest | null = null;
     if (providerConfig.useMetadataFolder) {
-      manifest = await metadataFolderService.loadManifest();
+      manifest = await metadataFolderService.loadManifest(providerConfig.allowWrite);
       if (manifest) {
         logger.info('[useWebDAV] loadFullMode: loaded manifest with', Object.keys(manifest.entries).length, 'entries');
       }
