@@ -527,9 +527,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
 
       const snapshotRaw = await indexedDBStorage.getFileListSnapshot();
-      const currentTracks = webdavTracks;
 
-      if (!snapshotRaw || currentTracks.length === 0) {
+      // 无 snapshot（首次启动/清缓存后）→ 冷启动 loadFullMode
+      if (!snapshotRaw) {
         return await loadFullMode(audioFiles);
       }
 
@@ -551,14 +551,28 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         uploadManifestAndChunks(audioPaths);
       }
 
+      // 三方（PROPFIND/snapshot/IndexedDB）全都对得上：从缓存构建列表，零网络请求
       if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) {
-        setIsLoading(false);
-        const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
+        const metaCache = await loadMetadataCache();
+        const cachedTracks: Track[] = [];
+        let allCached = true;
         for (const file of audioFiles) {
-          newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+          const cached = metaCache.get(file.path);
+          if (cached && cached.duration > 0) {
+            cachedTracks.push(enrichTrack(fileToPlaceholderTrack(file), cached));
+          } else {
+            allCached = false;
+            break;
+          }
         }
-        await indexedDBStorage.setFileListSnapshot(newSnapshot);
-        return { type: 'diff', added: [], removed: [], updated: [] };
+        if (allCached) {
+          setWebdavTracks(cachedTracks);
+          setIsLoading(false);
+          setLoadProgress(null);
+          return { type: 'full', tracks: cachedTracks };
+        }
+        // 缓存不完整 → 走 loadFullMode 重新加载 manifest + chunk
+        return await loadFullMode(audioFiles);
       }
 
       const filesToFetch: WebDAVFile[] = [...diff.added, ...diff.changed];
