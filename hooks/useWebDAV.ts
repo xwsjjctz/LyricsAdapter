@@ -5,7 +5,7 @@ import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from
 import { logger } from '../services/logger';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
-import { metadataFolderService, MetadataFolderEntry } from '../services/webdav/metadataFolderService';
+import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE } from '../services/webdav/metadataFolderService';
 
 const RANGE_SIZE = 1048576;
 
@@ -70,13 +70,15 @@ interface CachedMetadata {
   title: string;
   artist: string;
   album: string;
-  /** 封面 data URL（从文件头解析得到） */
+  /** 封面 data URL（从文件头解析得到或从 chunk 拉取） */
   coverUrl?: string;
   duration: number;
   lyrics?: string;
   syncedLyrics?: { time: number; text: string }[];
   fileSize: number;
   lastModified: string;
+  /** 详情所在 chunkId（恢复时记录，增量上传时保留分配） */
+  chunkId?: string;
 }
 
 function isMetaJsonValid(meta: MetaJson, file: WebDAVFile): boolean {
@@ -311,19 +313,129 @@ export const useWebDAV = () => {
     syncedLyrics: meta.syncedLyrics,
   });
 
-  /** 上传服务端缓存（fire-and-forget）。
-   *  根据厂家配置，选择上传到 Metadata/ 文件夹或根目录索引。 */
-  /** 上传服务端缓存（fire-and-forget）。
-   *  把 IndexedDB 全部条目（含封面 data URL）打包上传到 Metadata/_metadata.json。
-   *  封面内联进索引，不再有独立的 _covers/ 文件夹。 */
-  const uploadMetadataIndex = async (): Promise<void> => {
+  /** 从 manifest entry 丰富 track（无封面，列表展示用，秒出）。 */
+  const enrichFromManifest = (track: Track, entry: ManifestEntry): Track => ({
+    ...track,
+    title: entry.title,
+    artist: entry.artist,
+    album: entry.album,
+    duration: entry.duration,
+    // 封面留占位（manifest 不含），待 chunk 拉取后用 enrichFromChunk 补
+  });
+
+  /** 从 chunk entry 补全封面/歌词。manifest entry 提供 chunkId 关联。 */
+  const enrichFromChunk = (track: Track, chunkEntry: ChunkEntry): Track => ({
+    ...track,
+    coverUrl: chunkEntry.coverUrl ?? track.coverUrl,
+    lyrics: chunkEntry.lyrics ?? track.lyrics,
+    syncedLyrics: chunkEntry.syncedLyrics ?? track.syncedLyrics,
+  });
+
+  /**
+   * 饥饿式分批从 chunks 拉取封面/歌词，补全 tracks。
+   * manifest 命中但缺 coverUrl 的曲目，按 chunkId 分组，受 BATCH_SIZE 限制并发拉取。
+   * 每批到齐后更新 React 状态 + IndexedDB。
+   */
+  const populateDetailsFromChunks = async (
+    tracks: Track[],
+    manifest: Manifest,
+    cache: Map<string, CachedMetadata>,
+  ): Promise<void> => {
+    // 收集需要补详情的 (trackIndex, path, chunkId)
+    const needDetails: { trackIndex: number; path: string; chunkId: string }[] = [];
+    for (let i = 0; i < tracks.length; i++) {
+      const path = tracks[i]?.webdavPath;
+      if (!path) continue;
+      const entry = manifest.entries[path];
+      if (!entry) continue;
+      // 只补还有意义的（有封面/歌词的）
+      if (!entry.hasCover && !entry.hasLyrics && !entry.hasSyncedLyrics) continue;
+      needDetails.push({ trackIndex: i, path, chunkId: entry.chunkId });
+    }
+    if (needDetails.length === 0) return;
+
+    logger.info('[useWebDAV] Populating details from chunks for', needDetails.length, 'tracks');
+
+    // 按 chunkId 去重，逐批拉取
+    const chunkIds = [...new Set(needDetails.map(d => d.chunkId))];
+    for (let bi = 0; bi < chunkIds.length; bi += BATCH_SIZE) {
+      const batchIds = chunkIds.slice(bi, bi + BATCH_SIZE);
+      const chunkResults = await Promise.allSettled(
+        batchIds.map(async (cid) => ({ cid, chunk: await metadataFolderService.loadChunk(cid) }))
+      );
+
+      // 应用本批 chunk 的详情
+      let updated = false;
+      for (const r of chunkResults) {
+        if (r.status !== 'fulfilled' || !r.value.chunk) continue;
+        const { cid, chunk } = r.value;
+        for (const d of needDetails) {
+          if (d.chunkId !== cid) continue;
+          const chunkEntry = chunk.entries[d.path];
+          if (!chunkEntry) continue;
+          if (tracks[d.trackIndex]) {
+            tracks[d.trackIndex] = enrichFromChunk(tracks[d.trackIndex]!, chunkEntry);
+            updated = true;
+          }
+          // 更新 IndexedDB cache 条目
+          const cached = cache.get(d.path);
+          if (cached) {
+            cache.set(d.path, {
+              ...cached,
+              ...(chunkEntry.coverUrl ? { coverUrl: chunkEntry.coverUrl } : {}),
+              ...(chunkEntry.lyrics ? { lyrics: chunkEntry.lyrics } : {}),
+              ...(chunkEntry.syncedLyrics ? { syncedLyrics: chunkEntry.syncedLyrics } : {}),
+            });
+          }
+        }
+      }
+      if (updated) setWebdavTracks([...tracks]);
+    }
+
+    await saveMetadataCache(cache);
+    logger.info('[useWebDAV] Detail population done');
+  };
+
+  /**
+   * 上传服务端缓存（fire-and-forget）：manifest + chunks。
+   *
+   * 语义：把 IndexedDB 中**比服务端 manifest 更新的条目**合并进服务端，
+   * 服务端已有的条目（含 hasCover 标志）保留不动，避免恢复过程中 IndexedDB
+   * 状态不完整（封面待补）导致 hasCover 被误清。
+   *
+   * - 服务端 manifest 中存在且 IndexedDB 无更新 → 保留服务端条目原样
+   * - IndexedDB 有 coverUrl（新解析/已补全） → 更新该条目 + 其 chunk
+   * - IndexedDB 无 coverUrl 但服务端 hasCover=true → 保留服务端（封面在 chunk，IndexedDB 待补）
+   * - PROPFIND 过滤：不在 audioPathSet 的（已删）→ 从 manifest 删除
+   */
+  const uploadManifestAndChunks = async (audioPathSet?: Set<string>): Promise<void> => {
     if (!providerConfig.useMetadataFolder) return;
     const allEntries = await loadMetadataCache();
-    if (allEntries.size === 0) return;
 
-    const folderEntries: Record<string, MetadataFolderEntry> = {};
+    const existingManifest = await metadataFolderService.loadManifest();
+    const chunkSize = existingManifest?.chunkSize ?? DEFAULT_CHUNK_SIZE;
+
+    // 最终 manifest entries：以服务端为基线
+    const manifestEntries: Record<string, ManifestEntry> = {};
+    if (existingManifest) {
+      for (const [path, e] of Object.entries(existingManifest.entries)) {
+        if (audioPathSet && !audioPathSet.has(path)) continue; // bug 3：已删，丢弃
+        manifestEntries[path] = e;
+      }
+    }
+
+    // IndexedDB 中有更新（含 coverUrl）的条目覆盖基线；新条目分配 chunkId
+    const affectedChunkIds = new Set<string>();
+    const heavyUpdates: Record<string, { chunkId: string; entry: ChunkEntry; manifest: ManifestEntry }> = {};
     for (const [path, meta] of allEntries) {
-      folderEntries[path] = {
+      if (audioPathSet && !audioPathSet.has(path)) continue;
+      const priorChunkId = manifestEntries[path]?.chunkId;
+      const chunkId = priorChunkId ?? assignChunkId(path, existingManifest, chunkSize);
+      const hasCover = !!meta.coverUrl;
+      const hasLyrics = !!meta.lyrics;
+      const hasSynced = !!(meta.syncedLyrics && meta.syncedLyrics.length > 0);
+
+      manifestEntries[path] = {
         title: meta.title,
         artist: meta.artist,
         album: meta.album || 'Unknown Album',
@@ -331,15 +443,55 @@ export const useWebDAV = () => {
         fileSize: meta.fileSize,
         fileName: path.split('/').pop() || 'audio.flac',
         lastModified: meta.lastModified,
-        // 封面 data URL 内联进索引
-        ...(meta.coverUrl ? { coverUrl: meta.coverUrl } : {}),
-        ...(meta.lyrics !== undefined && { lyrics: meta.lyrics }),
-        ...(meta.syncedLyrics !== undefined && { syncedLyrics: meta.syncedLyrics }),
+        chunkId,
+        hasCover,
+        hasLyrics,
+        hasSyncedLyrics: hasSynced,
       };
+
+      // 有重量数据 → 记录为该 chunk 的更新
+      if (meta.coverUrl || meta.lyrics || meta.syncedLyrics) {
+        heavyUpdates[path] = {
+          chunkId,
+          entry: {
+            ...(meta.coverUrl ? { coverUrl: meta.coverUrl } : {}),
+            ...(meta.lyrics ? { lyrics: meta.lyrics } : {}),
+            ...(meta.syncedLyrics ? { syncedLyrics: meta.syncedLyrics } : {}),
+          },
+          manifest: manifestEntries[path]!,
+        };
+        affectedChunkIds.add(chunkId);
+      }
     }
 
-    await metadataFolderService.saveIndex(folderEntries);
-    logger.info('[useWebDAV] Metadata/_metadata.json uploaded:', Object.keys(folderEntries).length, 'entries');
+    if (Object.keys(existingManifest?.entries ?? {}).length > 0 && affectedChunkIds.size === 0) {
+      // 服务端已有数据且无更新 → 不重传
+      return;
+    }
+
+    // 构建受影响 chunk：拉取现有 chunk，合并 heavyUpdates 后完整重写
+    const chunksToSave: Map<string, Chunk> = new Map();
+    for (const chunkId of affectedChunkIds) {
+      const existingChunk = await metadataFolderService.loadChunk(chunkId);
+      const mergedEntries: Record<string, ChunkEntry> = { ...(existingChunk?.entries ?? {}) };
+      for (const [path, upd] of Object.entries(heavyUpdates)) {
+        if (upd.chunkId === chunkId) mergedEntries[path] = upd.entry;
+      }
+      chunksToSave.set(chunkId, { chunkId, entries: mergedEntries });
+    }
+
+    const manifest: Manifest = {
+      version: 3,
+      generatedAt: new Date().toISOString(),
+      chunkSize,
+      entries: manifestEntries,
+    };
+
+    const ok = await metadataFolderService.saveChunksAndManifest(chunksToSave, manifest);
+    const coverCount = Object.values(manifestEntries).filter(e => e.hasCover).length;
+    if (ok) {
+      logger.info(`[useWebDAV] Metadata/ uploaded: ${Object.keys(manifestEntries).length} entries, ${chunksToSave.size} chunks (withCover=${coverCount})`);
+    }
   };
 
   const loadWebDAVFiles = useCallback(async (): Promise<WebDAVDiffResult> => {
@@ -375,8 +527,18 @@ export const useWebDAV = () => {
 
       logger.info('[useWebDAV] Diff result: added=' + diff.added.length + ' removed=' + diff.removed.length + ' changed=' + diff.changed.length + ' unchanged=' + diff.unchanged.length);
 
-      // 无需逐个检查 .meta.json 文件——依赖聚合索引 _metadata_index.json
-      // 仅在 loadFullMode 中尝试拉取索引，此处不做重复检查
+      const audioPaths = new Set(audioFiles.map(f => f.path));
+
+      // bug 3 修复：清理已删歌曲（即使 added/changed 为空，removed 也要处理）
+      if (diff.removed.length > 0) {
+        const metaCacheForCleanup = await loadMetadataCache();
+        for (const path of diff.removed) {
+          metaCacheForCleanup.delete(path);
+        }
+        await saveMetadataCache(metaCacheForCleanup);
+        // 让服务端 manifest 也清理这些条目（孤儿 chunk 无害，不清理）
+        uploadManifestAndChunks(audioPaths);
+      }
 
       if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) {
         setIsLoading(false);
@@ -423,7 +585,7 @@ export const useWebDAV = () => {
           newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
         }
         await indexedDBStorage.setFileListSnapshot(newSnapshot);
-        uploadMetadataIndex(); // fire-and-forget
+        uploadManifestAndChunks(audioPaths);
         return { type: 'diff', added: addedTracks, removed: removedIds, updated: updatedTracks };
       }
 
@@ -464,7 +626,7 @@ export const useWebDAV = () => {
       }
 
       await saveMetadataCache(metadataCache);
-      uploadMetadataIndex(); // fire-and-forget
+      uploadManifestAndChunks(audioPaths);
 
       const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
       for (const file of audioFiles) {
@@ -493,26 +655,14 @@ export const useWebDAV = () => {
     const placeholderTracks = audioFiles.map(fileToPlaceholderTrack);
     setWebdavTracks(placeholderTracks);
 
-    // 加载服务端缓存（Metadata/_metadata.json），作为比对基准
-    let metadataFolderEntries: Record<string, MetadataFolderEntry> | null = null;
-    if (providerConfig.useMetadataFolder) {
-      metadataFolderEntries = await metadataFolderService.loadIndex();
-      if (metadataFolderEntries) {
-        logger.info('[useWebDAV] loadFullMode: loaded Metadata/ index with', Object.keys(metadataFolderEntries).length, 'entries');
-      }
-    }
-
-    // 计算被删除的文件（在 index 中但不在 PROPFIND 结果中）
     const audioPaths = new Set(audioFiles.map(f => f.path));
-    const removedFromIndex: string[] = [];
-    if (metadataFolderEntries) {
-      for (const path of Object.keys(metadataFolderEntries)) {
-        if (!audioPaths.has(path)) {
-          removedFromIndex.push(path);
-        }
-      }
-      if (removedFromIndex.length > 0) {
-        logger.info('[useWebDAV] loadFullMode:', removedFromIndex.length, 'files removed from server, will clean up index');
+
+    // 加载服务端 manifest（含 v2→v3 迁移）
+    let manifest: Manifest | null = null;
+    if (providerConfig.useMetadataFolder) {
+      manifest = await metadataFolderService.loadManifest();
+      if (manifest) {
+        logger.info('[useWebDAV] loadFullMode: loaded manifest with', Object.keys(manifest.entries).length, 'entries');
       }
     }
 
@@ -523,15 +673,24 @@ export const useWebDAV = () => {
       const file = audioFiles[i];
       if (!file) continue;
 
-      // 1. 服务端缓存（1 请求恢复全部，含内联封面）
-      const serverEntry = metadataFolderEntries?.[file.path];
+      // 1. 服务端 manifest 命中（指纹匹配 + duration>0）→ 秒出列表（无封面）
+      const serverEntry = manifest?.entries[file.path];
       if (serverEntry && serverEntry.fileSize === file.size && serverEntry.lastModified === file.lastModified && serverEntry.duration > 0) {
-        metadataCache.set(file.path, serverEntry);
-        placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, serverEntry);
+        // 记录到 cache（封面待 chunk 补全）
+        metadataCache.set(file.path, {
+          title: serverEntry.title,
+          artist: serverEntry.artist,
+          album: serverEntry.album,
+          duration: serverEntry.duration,
+          fileSize: serverEntry.fileSize,
+          lastModified: serverEntry.lastModified,
+          chunkId: serverEntry.chunkId,
+        });
+        placeholderTracks[i] = enrichFromManifest(placeholderTracks[i]!, serverEntry);
         continue;
       }
 
-      // 2. 本地 IndexedDB 缓存
+      // 2. 本地 IndexedDB 缓存（含已补全的封面）
       const cached = metadataCache.get(file.path);
       if (cached && isCacheValid(cached, file) && cached.duration > 0) {
         placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
@@ -540,9 +699,11 @@ export const useWebDAV = () => {
       }
     }
 
-    // 从 IndexedDB 中清理已删除文件的条目
-    for (const path of removedFromIndex) {
-      metadataCache.delete(path);
+    // 从 IndexedDB 清理已删文件（在 manifest 中但不在 PROPFIND 结果中）
+    if (manifest) {
+      for (const path of Object.keys(manifest.entries)) {
+        if (!audioPaths.has(path)) metadataCache.delete(path);
+      }
     }
 
     if (toFetch.length === 0) {
@@ -550,7 +711,9 @@ export const useWebDAV = () => {
       setIsLoading(false);
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
-      uploadMetadataIndex();
+      uploadManifestAndChunks(audioPaths);
+      // 后台补全封面/歌词（从 chunks 饥饿式拉取）
+      if (manifest) populateDetailsFromChunks(placeholderTracks, manifest, metadataCache);
       return { type: 'full', tracks: [...placeholderTracks] };
     }
 
@@ -592,11 +755,13 @@ export const useWebDAV = () => {
     }
 
     await saveMetadataCache(metadataCache);
-    uploadMetadataIndex(); // fire-and-forget，包含已删除文件的清理
+    uploadManifestAndChunks(audioPaths);
 
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];
     setWebdavTracks(finalTracks);
+    // 后台补全封面/歌词（对 manifest 命中但缺封面的曲目）
+    if (manifest) populateDetailsFromChunks(finalTracks, manifest, metadataCache);
     return { type: 'full', tracks: finalTracks };
   };
 

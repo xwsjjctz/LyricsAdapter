@@ -4,7 +4,7 @@ import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
 import { parseMetadataFromBuffer, parseCoverFromRange } from '../services/metadataService';
-import { metadataFolderService } from '../services/webdav/metadataFolderService';
+import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE } from '../services/webdav/metadataFolderService';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { registerCommand } from '../services/debugCommands';
 
@@ -110,22 +110,22 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
     }
     logger.info(`========== PROPFIND Total: ${audioFiles.length} ==========`);
 
-    // 加载现有 index（作为增量基准）
-    const existingIndex = useFolder ? (await metadataFolderService.loadIndex()) : null;
+    // 加载现有 manifest（作为增量基准，含 v2→v3 迁移）
+    const existingManifest = useFolder ? (await metadataFolderService.loadManifest()) : null;
     if (useFolder) {
-      if (existingIndex) {
-        logger.info(`[INDEX] Loaded ${Object.keys(existingIndex).length} entries from Metadata/_metadata.json`);
-        logger.info('========== Metadata/_metadata.json Entries ==========');
+      if (existingManifest) {
+        const entries = existingManifest.entries;
+        logger.info(`[INDEX] Loaded ${Object.keys(entries).length} entries from manifest (chunkSize=${existingManifest.chunkSize})`);
+        logger.info('========== Manifest Entries ==========');
         let withCover = 0;
         let withoutCover = 0;
-        for (const [path, entry] of Object.entries(existingIndex)) {
-          const hasCover = !!entry.coverUrl;
-          if (hasCover) withCover++; else withoutCover++;
-          logger.info(`[INDEX] ${path} | ${entry.title} / ${entry.artist} | duration=${entry.duration} | ${hasCover ? 'HAS_COVER' : 'NO_COVER'}`);
+        for (const [path, entry] of Object.entries(entries)) {
+          if (entry.hasCover) withCover++; else withoutCover++;
+          logger.info(`[INDEX] ${path} | ${entry.title} / ${entry.artist} | duration=${entry.duration} | chunk=${entry.chunkId} | ${entry.hasCover ? 'HAS_COVER' : 'NO_COVER'}`);
         }
-        logger.info(`========== INDEX Total: ${Object.keys(existingIndex).length} (withCover=${withCover}, withoutCover=${withoutCover}) ==========`);
+        logger.info(`========== INDEX Total: ${Object.keys(entries).length} (withCover=${withCover}, withoutCover=${withoutCover}) ==========`);
       } else {
-        logger.info('[INDEX] No Metadata/_metadata.json found, will parse all files');
+        logger.info('[INDEX] No manifest found, will parse all files');
       }
     }
 
@@ -138,16 +138,15 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
 
     const needsParse = (file: { path: string; size: number; lastModified: string }): boolean => {
       if (forceAll) return true;
-      if (useFolder && existingIndex) {
-        const existing = existingIndex[file.path];
+      if (useFolder && existingManifest) {
+        const existing = existingManifest.entries[file.path];
         if (!existing) return true;                                       // 新文件
         if (!(existing.duration > 0)) return true;                        // 时长无效
         if (existing.fileSize !== file.size) return true;                 // 大小变化
         if (existing.lastModified !== file.lastModified) return true;     // 修改时间变化
-        if (!existing.coverUrl) return true;                              // 缺封面（含旧版 coverHash 迁移）
-        return false;                                                     // 完整，跳过
+        return false;                                                     // 完整，跳过（封面有无是结果，不作为重解析依据；想重解析封面用 forceAll）
       }
-      return true; // 旧模式/无 index，全部解析
+      return true; // 旧模式/无 manifest，全部解析
     };
 
     let processed = 0;
@@ -258,23 +257,33 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
     logger.info(`[scan/meta] Parsed: processed=${processed} skipped=${skipped}`);
 
     if (useFolder) {
-      // Metadata/ 模式：合并 existingIndex + parsedEntries，用 PROPFIND 清理已删文件
-      const merged: Record<string, import('../services/webdav/metadataFolderService').MetadataFolderEntry> = {};
+      // manifest + chunks 模式：合并 existingManifest + parsedEntries，PROPFIND 清理已删
+      const chunkSize = existingManifest?.chunkSize ?? DEFAULT_CHUNK_SIZE;
 
-      // 1. 先铺底：existingIndex 中仍在服务器上的条目（未变化的保留原样，含 coverUrl）
-      if (existingIndex) {
-        for (const [path, entry] of Object.entries(existingIndex)) {
+      // 1. 铺底 manifest entries：existingManifest 中仍在服务器上的（保留原 chunkId）
+      const mergedManifestEntries: Record<string, ManifestEntry> = {};
+      if (existingManifest) {
+        for (const [path, entry] of Object.entries(existingManifest.entries)) {
           if (audioPaths.has(path)) {
-            merged[path] = entry;
+            mergedManifestEntries[path] = entry;
           } else {
-            logger.info(`[scan/meta] Removing stale entry from index: ${path}`);
+            logger.info(`[scan/meta] Removing stale entry from manifest: ${path}`);
           }
         }
       }
 
-      // 2. 覆盖：本次解析的条目（含最新 coverUrl）
+      // 2. 覆盖：本次解析的条目（更新文本字段 + 重算 hasCover，保留/分配 chunkId）
+      //    已有路径保留原 chunkId（原地更新该 chunk），新路径 assignChunkId
+      const affectedChunkIds = new Set<string>();
+      const parsedHeavy: Record<string, { coverUrl?: string; lyrics?: string; syncedLyrics?: { time: number; text: string }[] }> = {};
       for (const [path, entry] of Object.entries(parsedEntries)) {
-        merged[path] = {
+        const priorChunkId = existingManifest?.entries[path]?.chunkId;
+        const chunkId = priorChunkId ?? assignChunkId(path, existingManifest, chunkSize);
+        const hasCover = !!entry.coverUrl;
+        const hasLyrics = !!entry.meta.lyrics;
+        const hasSynced = !!(entry.meta.syncedLyrics && entry.meta.syncedLyrics.length > 0);
+
+        mergedManifestEntries[path] = {
           title: entry.meta.title,
           artist: entry.meta.artist,
           album: entry.meta.album,
@@ -282,16 +291,56 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           fileSize: entry.meta.fileSize,
           fileName: entry.meta.fileName,
           lastModified: entry.meta.lastModified,
-          ...(entry.coverUrl ? { coverUrl: entry.coverUrl } : {}),
-          ...(entry.meta.lyrics !== undefined && { lyrics: entry.meta.lyrics }),
-          ...(entry.meta.syncedLyrics !== undefined && { syncedLyrics: entry.meta.syncedLyrics }),
+          chunkId,
+          hasCover,
+          hasLyrics,
+          hasSyncedLyrics: hasSynced,
         };
+
+        // 重量数据：本次解析的封面/歌词
+        parsedHeavy[path] = {
+          ...(entry.coverUrl ? { coverUrl: entry.coverUrl } : {}),
+          ...(entry.meta.lyrics ? { lyrics: entry.meta.lyrics } : {}),
+          ...(entry.meta.syncedLyrics ? { syncedLyrics: entry.meta.syncedLyrics } : {}),
+        };
+        affectedChunkIds.add(chunkId);
       }
 
-      const coverCount = Object.values(merged).filter(e => e.coverUrl).length;
-      await metadataFolderService.saveIndex(merged);
+      // 3. 构建受影响 chunk：从服务端拉取现有 chunk，合并本次 parsedHeavy 后完整重写
+      const chunksToSave: Map<string, Chunk> = new Map();
+      for (const chunkId of affectedChunkIds) {
+        let mergedEntries: Record<string, ChunkEntry> = {};
+        // 拉现有 chunk 保留未变化的条目（孤儿/仍有效的旧 ChunkEntry）
+        const existingChunk = await metadataFolderService.loadChunk(chunkId);
+        if (existingChunk) {
+          mergedEntries = { ...existingChunk.entries };
+        }
+        // 覆盖本次解析的条目
+        for (const [path, heavy] of Object.entries(parsedHeavy)) {
+          if (mergedManifestEntries[path]?.chunkId === chunkId) {
+            mergedEntries[path] = heavy;
+          }
+        }
+        chunksToSave.set(chunkId, { chunkId, entries: mergedEntries });
+      }
+
+      // 4. forceAll 重建：manifest 中未被 parsedEntries 覆盖的 chunk 也需写回（保证完整）
+      //    实际上铺底已保留，这里只需写受影响的 chunk。forceAll 时所有路径都被解析，
+      //    affectedChunkIds 覆盖所有有效 chunk，足够。
+
+      const manifest: Manifest = {
+        version: 3,
+        generatedAt: new Date().toISOString(),
+        chunkSize,
+        entries: mergedManifestEntries,
+      };
+
+      const ok = await metadataFolderService.saveChunksAndManifest(chunksToSave, manifest);
       metadataFolderService.clearCache();
-      logger.info(`[scan/meta] ✓ Uploaded Metadata/_metadata.json: ${Object.keys(merged).length} entries (withCover=${coverCount})`);
+      const coverCount = Object.values(mergedManifestEntries).filter(e => e.hasCover).length;
+      if (ok) {
+        logger.info(`[scan/meta] ✓ Uploaded manifest: ${Object.keys(mergedManifestEntries).length} entries, ${chunksToSave.size} chunks (withCover=${coverCount})`);
+      }
     } else {
       // 旧模式（通用 WebDAV）：逐个上传 .meta.json
       for (const [path, entry] of Object.entries(parsedEntries)) {
