@@ -1888,6 +1888,87 @@ const translations: Translations = {
     fr: 'Ajouter une source musicale tierce'
   },
 
+  'settings.clearCache': {
+    zh: '清理缓存',
+    en: 'Clear Cache',
+    ja: 'キャッシュをクリア',
+    ko: '캐시 지우기',
+    de: 'Cache leeren',
+    fr: 'Vider le cache'
+  },
+  'settings.clearCacheDesc': {
+    zh: '清理已移除歌曲的残留元数据和封面缓存',
+    en: 'Clean up orphaned metadata and cover cache for removed tracks',
+    ja: '削除した曲の残留メタデータとカバーキャッシュをクリア',
+    ko: '제거된 곡의 잔여 메타데이터 및 커버 캐시 정리',
+    de: 'Lösche verwaiste Metadaten und Cover-Cache entfernter Titel',
+    fr: 'Nettoyer les métadonnées et caches de pochettes des pistes supprimées'
+  },
+  'settings.clearCacheConfirmTitle': {
+    zh: '确认清理缓存？',
+    en: 'Clear cache?',
+    ja: 'キャッシュをクリアしますか？',
+    ko: '캐시를 지우시겠습니까?',
+    de: 'Cache leeren?',
+    fr: 'Vider le cache ?'
+  },
+  'settings.clearCacheConfirmBody': {
+    zh: '将清理已从音乐库中移除的歌曲残留的元数据和封面缓存。你的个人设置和歌库中的歌曲数据不会受到影响。',
+    en: 'This will remove orphaned metadata and cover cache for tracks no longer in your library. Your personal settings and existing track data will not be affected.',
+    ja: 'ライブラリから削除された曲の残留メタデータとカバーキャッシュをクリアします。個人設定や既存の曲データは影響を受けません。',
+    ko: '라이브러리에서 제거된 곡의 잔여 메타데이터와 커버 캐시를 정리합니다. 개인 설정 및 기존 곡 데이터는 영향을 받지 않습니다.',
+    de: 'Entfernt verwaiste Metadaten und Cover-Cache für nicht mehr in der Bibliothek befindliche Titel. Persönliche Einstellungen und vorhandene Titeldaten bleiben erhalten.',
+    fr: 'Supprime les métadonnées et caches de pochettes orphelins des pistes qui ne sont plus dans votre bibliothèque. Vos paramètres personnels et les données des pistes existantes ne seront pas affectés.'
+  },
+  'settings.clearCacheConfirmNote': {
+    zh: '此操作不可撤销。',
+    en: 'This action cannot be undone.',
+    ja: 'この操作は元に戻せません。',
+    ko: '이 작업은 취소할 수 없습니다.',
+    de: 'Diese Aktion kann nicht rückgängig gemacht werden.',
+    fr: 'Cette action est irréversible.'
+  },
+  'settings.confirmClearCache': {
+    zh: '确认清理',
+    en: 'Clear',
+    ja: 'クリア',
+    ko: '지우기',
+    de: 'Leeren',
+    fr: 'Vider'
+  },
+  'settings.cancel': {
+    zh: '取消',
+    en: 'Cancel',
+    ja: 'キャンセル',
+    ko: '취소',
+    de: 'Abbrechen',
+    fr: 'Annuler'
+  },
+  'settings.clearing': {
+    zh: '清理中...',
+    en: 'Clearing...',
+    ja: 'クリア中...',
+    ko: '지우는 중...',
+    de: 'Lösche...',
+    fr: 'Nettoyage...'
+  },
+  'settings.clearCacheDone': {
+    zh: '清理完成：',
+    en: 'Cache cleared: ',
+    ja: 'クリア完了：',
+    ko: '캐시 정리 완료: ',
+    de: 'Cache geleert: ',
+    fr: 'Cache vidé : '
+  },
+  'settings.clearCacheFailed': {
+    zh: '清理缓存失败',
+    en: 'Failed to clear cache',
+    ja: 'キャッシュのクリアに失敗しました',
+    ko: '캐시 지우기에 실패했습니다',
+    de: 'Fehler beim Leeren des Caches',
+    fr: 'Échec du vidage du cache'
+  },
+
   'settings.shortcuts.title': {
     zh: '快捷键',
     en: 'Keyboard Shortcuts',

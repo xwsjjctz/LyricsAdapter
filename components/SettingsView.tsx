@@ -9,9 +9,11 @@ import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
 
-interface SettingsViewProps {}
+interface SettingsViewProps {
+  onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
+}
 
-const SettingsView: React.FC<SettingsViewProps> = () => {
+const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -34,6 +36,10 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
 
   const [appVersion, setAppVersion] = useState<string>('');
+  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [cacheClearMessage, setCacheClearMessage] = useState<string | null>(null);
+  const [cacheClearMessageType, setCacheClearMessageType] = useState<'success' | 'error' | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -191,7 +197,7 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
   };
 
   return (
-    <div className="w-full flex flex-col h-full">
+    <><div className="w-full flex flex-col h-full">
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
@@ -497,6 +503,41 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
                 />
               </button>
             </div>
+
+            {/* 清理孤儿缓存按钮 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <div>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCache')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.clearCacheDesc')}</p>
+              </div>
+              <button
+                onClick={() => setShowClearCacheConfirm(true)}
+                disabled={isClearingCache}
+                className="px-3 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
+                style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.25)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
+              >
+                <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                {i18n.t('settings.clearCache')}
+              </button>
+            </div>
+
+            {/* 清理结果提示 */}
+            {cacheClearMessage && (
+              <div className={`mt-2 p-2 rounded-lg text-xs ${
+                cacheClearMessageType === 'success'
+                  ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                  : 'bg-red-500/10 border border-red-500/30 text-red-400'
+              }`}>
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-xs">
+                    {cacheClearMessageType === 'success' ? 'check' : 'error'}
+                  </span>
+                  {cacheClearMessage}
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Shortcuts */}
@@ -507,6 +548,82 @@ const SettingsView: React.FC<SettingsViewProps> = () => {
         </div>
       </div>
     </div>
+
+    {/* 清理缓存二次确认弹窗 */}
+    {showClearCacheConfirm && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+        onClick={() => setShowClearCacheConfirm(false)}
+      >
+        <div
+          className="rounded-xl p-6 mx-4 max-w-sm w-full shadow-2xl border"
+          style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-xl" style={{ color: '#ef4444' }}>warning</span>
+            <h3 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
+          </div>
+          <p className="text-sm mb-1" style={{ color: colors.textSecondary }}>
+            {i18n.t('settings.clearCacheConfirmBody')}
+          </p>
+          <p className="text-xs mb-4" style={{ color: colors.textMuted }}>
+            {i18n.t('settings.clearCacheConfirmNote')}
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowClearCacheConfirm(false)}
+              disabled={isClearingCache}
+              className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50"
+              style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}` }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
+            >
+              {i18n.t('settings.cancel')}
+            </button>
+            <button
+              onClick={async () => {
+                if (!onClearOrphanCache) return;
+                setIsClearingCache(true);
+                setCacheClearMessage(null);
+                try {
+                  const result = await onClearOrphanCache();
+                  if (result.errors.length > 0) {
+                    setCacheClearMessage(`${i18n.t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers (${result.errors.length} errors)`);
+                    setCacheClearMessageType('error');
+                  } else {
+                    setCacheClearMessage(`${i18n.t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers`);
+                    setCacheClearMessageType('success');
+                  }
+                } catch (error) {
+                  setCacheClearMessage(i18n.t('settings.clearCacheFailed'));
+                  setCacheClearMessageType('error');
+                } finally {
+                  setIsClearingCache(false);
+                  setShowClearCacheConfirm(false);
+                }
+              }}
+              disabled={isClearingCache || !onClearOrphanCache}
+              className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50 flex items-center gap-1.5"
+              style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.35)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
+            >
+              {isClearingCache ? (
+                <>
+                  <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                  {i18n.t('settings.clearing')}
+                </>
+              ) : (
+                i18n.t('settings.confirmClearCache')
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

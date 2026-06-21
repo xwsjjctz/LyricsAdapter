@@ -77,6 +77,7 @@ export interface DesktopAPI {
   webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
   webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
+  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; error?: string }>;
   // Auto-updater APIs
   checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall?: () => Promise<{ ok: boolean }>;
@@ -371,6 +372,14 @@ class ElectronAdapter implements DesktopAPI {
     }
     logger.warn('[DesktopAPI] runStartupCleanup not available');
     return { success: false, error: 'Not available' };
+  }
+
+  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; error?: string }> {
+    if (typeof this.api.cleanupOrphanCovers === 'function') {
+      return this.api.cleanupOrphanCovers(activeTrackIds);
+    }
+    logger.warn('[DesktopAPI] cleanupOrphanCovers not available');
+    return { success: false, error: 'Not available', removed: 0, errors: 0 };
   }
 
   async checkForUpdates(): Promise<{ ok: boolean; reason?: string }> {

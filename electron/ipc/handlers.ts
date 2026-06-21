@@ -379,6 +379,46 @@ export function registerCoverHandlers(): void {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  // 清理孤儿封面文件：删除 covers/ 目录中不属于 activeTrackIds 的文件
+  ipcMain.handle('cleanup-orphan-covers', async (_event, activeTrackIds: string[]) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const coverDir = path.join(userDataPath, 'covers');
+
+      if (!fs.existsSync(coverDir)) {
+        return { success: true, removed: 0 };
+      }
+
+      const activeSet = new Set(activeTrackIds.map(id => sanitizeTrackId(id)));
+      const exts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+      let removed = 0;
+      let errors = 0;
+
+      const files = fs.readdirSync(coverDir);
+      for (const file of files) {
+        const ext = path.extname(file).toLowerCase();
+        if (!exts.has(ext)) continue;
+
+        const trackId = path.basename(file, ext);
+        if (!activeSet.has(trackId)) {
+          try {
+            fs.unlinkSync(path.join(coverDir, file));
+            removed++;
+          } catch (e) {
+            errors++;
+            logger.warn(`[Cleanup] Failed to delete orphan cover: ${file}`, e);
+          }
+        }
+      }
+
+      logger.info(`[Cleanup] Orphan covers cleanup: ${removed} removed, ${errors} errors`);
+      return { success: true, removed, errors };
+    } catch (error) {
+      logger.error('[Cleanup] Failed to cleanup orphan covers:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }
 
 export function registerWindowControls(win: BrowserWindow | null): void {

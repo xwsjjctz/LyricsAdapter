@@ -234,6 +234,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);
   },
 
+  // Cleanup orphan cover files (covers for tracks no longer in library)
+  cleanupOrphanCovers: async (activeTrackIds: string[]) => {
+    return ipcRenderer.invoke('cleanup-orphan-covers', activeTrackIds);
+  },
+
   // ---- Auto-updater (electron-updater) ----
   // Check for updates manually
   checkForUpdates: async () => {
