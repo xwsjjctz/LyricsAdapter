@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
-import { getDesktopAPI, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
+import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
+import { coverArtService } from './services/coverArtService';
 import { useBlobUrls } from './hooks/useBlobUrls';
 import { usePlayback } from './hooks/usePlayback';
 import { useLibrarySlots } from './hooks/useLibrarySlots';
@@ -150,7 +152,7 @@ const App: React.FC = () => {
     persistedTimeRef,
     getPersistenceData,
   });
-  const { handleRemoveTrack, handleRemoveMultipleTracks, handleReloadFiles } = useLibraryActions({
+  const { handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
     setTracks: setActiveTracks,
     currentTrackIndex: activeTrackIndex,
@@ -161,6 +163,148 @@ const App: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
+  // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
+  // This ensures deletion works correctly when browsing a different slot than the one playing.
+  const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
+    const slotTracks = slotsRef.current[viewSlot].tracks;
+    const trackToRemove = slotTracks.find(t => t.id === trackId);
+
+    // Delete physical audio file if requested
+    if (deleteFile && trackToRemove?.filePath) {
+      const desktopAPI = await getDesktopAPIAsync();
+      if (desktopAPI?.deleteAudioFile) {
+        try {
+          const result = await desktopAPI.deleteAudioFile(trackToRemove.filePath);
+          if (result.success && result.deleted) {
+            logger.debug(`[App] ✓ Deleted audio file: ${trackToRemove.filePath}`);
+          } else if (!result.success) {
+            logger.warn(`[App] Failed to delete audio file: ${trackToRemove.filePath}`, result.error);
+          }
+        } catch (error) {
+          logger.warn('[App] deleteAudioFile error:', error);
+        }
+      }
+    }
+
+    // Update the view slot's tracks and currentTrackIndex atomically
+    updateSlot(viewSlot, (slot) => {
+      const newTracks = slot.tracks.filter(t => t.id !== trackId);
+      const removedIndex = slot.tracks.findIndex(t => t.id === trackId);
+      const removedTrack = slot.tracks[removedIndex];
+      let newIndex = slot.currentTrackIndex;
+
+      if (newTracks.length === 0) {
+        newIndex = -1;
+        if (viewSlot === activeSlotId) {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+          }
+          setIsPlaying(false);
+        }
+      } else if (removedIndex >= 0) {
+        if (removedIndex < slot.currentTrackIndex) {
+          newIndex = Math.max(0, slot.currentTrackIndex - 1);
+        } else if (removedIndex === slot.currentTrackIndex) {
+          newIndex = Math.min(slot.currentTrackIndex, newTracks.length - 1);
+        }
+      }
+
+      if (removedTrack) {
+        if (removedTrack.audioUrl?.startsWith('blob:')) revokeBlobUrl(removedTrack.audioUrl);
+        if (removedTrack.coverUrl?.startsWith('blob:')) revokeBlobUrl(removedTrack.coverUrl);
+      }
+
+      return { ...slot, tracks: newTracks, currentTrackIndex: newIndex };
+    });
+
+    // Clean up cover and metadata (trackId-based, independent of slot)
+    try {
+      await coverArtService.deleteCover(trackId);
+      await indexedDBStorage.deleteMetadata(trackId);
+      logger.debug(`[App] ✅ Resources cleaned up for track: ${trackToRemove?.title || trackId}`);
+    } catch (error) {
+      logger.warn('[App] Failed to cleanup resources for track:', error);
+    }
+  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying]);
+
+  const handleRemoveMultipleTracksFromView = useCallback(async (trackIds: string[], deleteFile = false) => {
+    const slotTracks = slotsRef.current[viewSlot].tracks;
+    const tracksToRemove = slotTracks.filter(t => trackIds.includes(t.id));
+
+    const desktopAPI = await getDesktopAPIAsync();
+
+    // Delete physical audio files
+    if (deleteFile && desktopAPI?.deleteAudioFile) {
+      for (const track of tracksToRemove) {
+        if (!track.filePath) continue;
+        try {
+          const result = await desktopAPI.deleteAudioFile(track.filePath);
+          if (result.success && result.deleted) {
+            logger.debug(`[App] ✓ Deleted audio file: ${track.filePath}`);
+          } else if (!result.success) {
+            logger.warn(`[App] Failed to delete audio file: ${track.filePath}`, result.error);
+          }
+        } catch (error) {
+          logger.warn('[App] deleteAudioFile error:', error);
+        }
+      }
+    }
+
+    // Revoke blob URLs and clean up cover thumbnails & metadata
+    for (const track of tracksToRemove) {
+      if (track.audioUrl?.startsWith('blob:')) revokeBlobUrl(track.audioUrl);
+      if (track.coverUrl?.startsWith('blob:')) revokeBlobUrl(track.coverUrl);
+    }
+
+    if (desktopAPI?.deleteCoverThumbnail) {
+      for (const track of tracksToRemove) {
+        try {
+          await desktopAPI.deleteCoverThumbnail(track.id);
+        } catch (error) {
+          logger.warn(`[App] Failed to delete cover thumbnail for ${track.title}:`, error);
+        }
+      }
+    }
+
+    for (const trackId of trackIds) {
+      try {
+        await indexedDBStorage.deleteMetadata(trackId);
+      } catch (error) {
+        logger.warn(`[App] Failed to delete metadata for ${trackId}:`, error);
+      }
+    }
+
+    // Update the view slot's tracks and currentTrackIndex atomically
+    updateSlot(viewSlot, (slot) => {
+      const newTracks = slot.tracks.filter(t => !trackIds.includes(t.id));
+
+      let newIndex = slot.currentTrackIndex;
+      if (newTracks.length === 0) {
+        newIndex = -1;
+        if (viewSlot === activeSlotId) {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+          }
+          setIsPlaying(false);
+        }
+      } else {
+        const removedBeforeCurrent = trackIds.filter(id => {
+          const idx = slot.tracks.findIndex(t => t.id === id);
+          return idx >= 0 && idx < slot.currentTrackIndex;
+        }).length;
+        newIndex = slot.currentTrackIndex - removedBeforeCurrent;
+        if (newIndex >= newTracks.length) newIndex = Math.max(0, newTracks.length - 1);
+        if (newIndex < 0) newIndex = 0;
+      }
+
+      return { ...slot, tracks: newTracks, currentTrackIndex: newIndex };
+    });
+
+    logger.debug(`[App] ✓ Batch removal complete: ${trackIds.length} tracks removed from ${viewSlot}`);
+  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying]);
+
   useLibraryLoad({
     restoreFromPersistence,
     getPersistenceData,
@@ -330,6 +474,77 @@ const App: React.FC = () => {
     duration: currentTrack?.duration || 0
   });
   useAppLifecycle({ activeBlobUrlsRef });
+
+  // 清理孤儿缓存：删除已不在库中的曲目残留的元数据、封面等缓存
+  const handleClearOrphanCache = useCallback(async (): Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }> => {
+    const errors: string[] = [];
+    const allTrackIds = new Set<string>();
+    const allWebdavPaths = new Set<string>();
+
+    // 收集所有活跃的 track ID 和 WebDAV 路径
+    for (const track of slots.local.tracks) {
+      allTrackIds.add(track.id);
+    }
+    for (const track of slots.cloud.tracks) {
+      allTrackIds.add(track.id);
+      if (track.webdavPath) {
+        allWebdavPaths.add(track.webdavPath);
+      }
+    }
+
+    let metadataDeleted = 0;
+    let coversDeleted = 0;
+
+    // 1. 清理 IndexedDB 中孤儿元数据条目
+    try {
+      metadataDeleted = await indexedDBStorage.deleteOrphanMetadata(allTrackIds);
+    } catch (error) {
+      errors.push(`Failed to cleanup metadata: ${(error as Error).message}`);
+      logger.error('[App] Orphan metadata cleanup error:', error);
+    }
+
+    // 2. 清理 IndexedDB 中孤儿 WebDAV 元数据
+    try {
+      const webdavDeleted = await indexedDBStorage.deleteOrphanWebdavMetadata(allWebdavPaths);
+      metadataDeleted += webdavDeleted;
+    } catch (error) {
+      errors.push(`Failed to cleanup WebDAV metadata: ${(error as Error).message}`);
+      logger.error('[App] Orphan WebDAV metadata cleanup error:', error);
+    }
+
+    // 3. 清理 WebDAV 文件列表快照（可重新生成）
+    try {
+      await indexedDBStorage.clearFileListSnapshot();
+    } catch (error) {
+      errors.push(`Failed to clear WebDAV snapshot: ${(error as Error).message}`);
+    }
+
+    // 4. 清理封面文件
+    const desktopAPI = await getDesktopAPIAsync();
+    if (desktopAPI?.cleanupOrphanCovers) {
+      try {
+        const coverResult = await desktopAPI.cleanupOrphanCovers(Array.from(allTrackIds));
+        if (coverResult.success) {
+          coversDeleted = coverResult.removed || 0;
+        } else {
+          errors.push(coverResult.error || 'Cover cleanup failed');
+        }
+      } catch (error) {
+        errors.push(`Cover cleanup error: ${(error as Error).message}`);
+      }
+    }
+
+    // 5. 清除内存缓存
+    metadataCacheService.clear();
+
+    logger.info(`[App] Cache cleanup complete: ${metadataDeleted} metadata entries, ${coversDeleted} covers deleted`);
+    if (errors.length > 0) {
+      logger.warn('[App] Cache cleanup errors:', errors.join(', '));
+    }
+
+    return { metadataDeleted, coversDeleted, errors };
+  }, [slots]);
+
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
@@ -403,7 +618,7 @@ const App: React.FC = () => {
                 }}
               />
             ) : viewMode === ViewMode.SETTINGS ? (
-              <SettingsView />
+              <SettingsView onClearOrphanCache={handleClearOrphanCache} />
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView />
             ) : (
@@ -412,8 +627,8 @@ const App: React.FC = () => {
                 currentTrackIndex={slots[viewSlot].currentTrackIndex}
                 {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
                 onTrackSelect={handleTrackSelect}
-                onRemoveTrack={handleRemoveTrack}
-                onRemoveMultipleTracks={handleRemoveMultipleTracks}
+                onRemoveTrack={handleRemoveTrackFromView}
+                onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleDropFilePaths}
                 onReorderTracks={handleReorderTracks}

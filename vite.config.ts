@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -62,6 +63,21 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           external: mode === 'production' ? ['electron'] : []
         }
-      }
+      },
+      test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: ['./test/setup.ts'],
+        include: ['test/**/*.test.{ts,tsx}'],
+        coverage: {
+          provider: 'v8',
+          include: [
+            'services/**/*.ts',
+            'hooks/**/*.ts',
+            'components/**/*.tsx',
+            'electron/utils/**/*.ts',
+          ],
+        },
+      },
     };
 });
