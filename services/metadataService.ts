@@ -76,10 +76,30 @@ function getMetadataWorker(): Worker | null {
         pending.reject(event);
       }
       metadataWorkerPending.clear();
+      const oldWorker = metadataWorker;
       metadataWorker = null;
+      oldWorker?.terminate();
     };
   }
   return metadataWorker;
+}
+
+/**
+ * 终止 metadata worker 并清理所有待处理请求
+ * 页面卸载前调用，防止后台线程泄漏
+ */
+export function terminateMetadataWorker(): void {
+  if (metadataWorker) {
+    metadataWorker.terminate();
+    metadataWorker = null;
+  }
+  for (const [, pending] of metadataWorkerPending) {
+    pending.reject(new Error('Worker terminated'));
+  }
+  metadataWorkerPending.clear();
+  metadataWorkerCache.clear();
+  metadataWorkerInFlight.clear();
+  logger.debug('[MetadataService] Worker terminated');
 }
 
 async function parseMetadataInWorker(file: File): Promise<WorkerMetadataResult | null> {

@@ -3,6 +3,7 @@ import { getDesktopAPIAsync, getDesktopAPI } from '../services/desktopAdapter';
 import { themeManager } from '../services/themeManager';
 import { webdavClient } from '../services/webdavClient';
 import { metadataCacheService } from '../services/metadataCacheService';
+import { terminateMetadataWorker } from '../services/metadataService';
 import { logger } from '../services/logger';
 
 interface UseAppLifecycleParams {
@@ -52,6 +53,7 @@ export function useAppLifecycle({ activeBlobUrlsRef }: UseAppLifecycleParams): v
       activeBlobUrlsRef.current.clear();
       logger.debug('[App] ✓ All blob URLs revoked');
       metadataCacheService.revokeAllBlobUrls();
+      terminateMetadataWorker();
     };
   }, [activeBlobUrlsRef]);
 
