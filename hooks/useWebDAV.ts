@@ -164,6 +164,29 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     return cached.fileSize === file.size && cached.lastModified === file.lastModified;
   };
 
+  /** 迁移旧 data: 封面到本地磁盘，返回 cover:// URL */
+  const migrateCoverToDisk = async (meta: CachedMetadata, webdavPath: string): Promise<CachedMetadata> => {
+    if (!meta.coverUrl?.startsWith('data:')) return meta;
+    try {
+      const desktopAPI = await getDesktopAPIAsync();
+      if (!desktopAPI?.saveCoverThumbnail) return meta;
+      const mimeMatch = meta.coverUrl.match(/^data:(\w+\/\w+);base64,/);
+      const base64Match = meta.coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
+      if (!mimeMatch || !base64Match) return meta;
+      const result = await desktopAPI.saveCoverThumbnail({
+        id: webdavPath,
+        data: base64Match[1]!,
+        mime: mimeMatch[1]!,
+      });
+      if (result?.success && result.coverUrl) {
+        return { ...meta, coverUrl: result.coverUrl };
+      }
+    } catch (error) {
+      logger.warn('[useWebDAV] Failed to migrate data: cover to disk:', error);
+    }
+    return meta;
+  };
+
   /** 带重试的文件头读取（网络抖动时自动重试，最多 2 次） */
   const fetchHeaderWithRetry = async (file: WebDAVFile, offset: number, length: number): Promise<ArrayBuffer | null> => {
     const MAX_RETRIES = 2;
@@ -619,7 +642,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         const cached = metadataCache.get(file.path);
         const placeholder = newPlaceholderMap.get(file.path)!;
         if (cached && isCacheValid(cached, file) && cached.duration > 0) {
-          const enriched = enrichTrack(placeholder, cached);
+          // 迁移旧 data: 封面到磁盘，换成 cover:// URL
+          const migrated = cached.coverUrl?.startsWith('data:')
+            ? await migrateCoverToDisk(cached, file.path)
+            : cached;
+          if (migrated !== cached) metadataCache.set(file.path, migrated);
+          const enriched = enrichTrack(placeholder, migrated);
           enrichedNewTracks.push(enriched);
         } else {
           toFetch.push(file);
@@ -748,7 +776,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       // 2. 本地 IndexedDB 缓存（含已补全的封面）
       const cached = metadataCache.get(file.path);
       if (cached && isCacheValid(cached, file) && cached.duration > 0) {
-        placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
+        // 迁移旧 data: 封面到磁盘
+        const migrated = cached.coverUrl?.startsWith('data:')
+          ? await migrateCoverToDisk(cached, file.path)
+          : cached;
+        if (migrated !== cached) metadataCache.set(file.path, migrated);
+        placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, migrated);
       } else {
         toFetch.push({ file, index: i });
       }
