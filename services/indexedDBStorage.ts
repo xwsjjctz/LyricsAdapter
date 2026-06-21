@@ -296,6 +296,64 @@ class IndexedDBStorageService {
     }
   }
 
+  /**
+   * 删除孤儿元数据：删除 metadata 表中不属于 activeTrackIds 的条目
+   * @param activeTrackIds 当前库中所有活跃的 track ID 集合
+   * @returns 被删除的条目数量
+   */
+  async deleteOrphanMetadata(activeTrackIds: Set<string>): Promise<number> {
+    await this.ensureInitialized();
+    if (!this.db) return 0;
+
+    try {
+      const allKeys = await this.db.getAllKeys('metadata');
+      let deleted = 0;
+
+      for (const key of allKeys) {
+        if (!activeTrackIds.has(key as string)) {
+          await this.db.delete('metadata', key);
+          deleted++;
+        }
+      }
+
+      if (deleted > 0) {
+        logger.debug(`[IndexedDB] ✓ Deleted ${deleted} orphan metadata entries`);
+      }
+      return deleted;
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to delete orphan metadata:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 删除孤儿 WebDAV 元数据：删除 webdavMetadata 表中不属于 activeWebdavPaths 的条目
+   */
+  async deleteOrphanWebdavMetadata(activeWebdavPaths: Set<string>): Promise<number> {
+    await this.ensureInitialized();
+    if (!this.db) return 0;
+
+    try {
+      const allKeys = await this.db.getAllKeys('webdavMetadata');
+      let deleted = 0;
+
+      for (const key of allKeys) {
+        if (!activeWebdavPaths.has(key as string)) {
+          await this.db.delete('webdavMetadata', key);
+          deleted++;
+        }
+      }
+
+      if (deleted > 0) {
+        logger.debug(`[IndexedDB] ✓ Deleted ${deleted} orphan WebDAV metadata entries`);
+      }
+      return deleted;
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to delete orphan WebDAV metadata:', error);
+      return 0;
+    }
+  }
+
   // ========== WebDAV Metadata Operations ==========
 
   async getWebdavMetadata(filePath: string): Promise<any | null> {

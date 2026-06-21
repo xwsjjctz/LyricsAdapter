@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
-import { getDesktopAPI, isDesktop } from './services/desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
+import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
@@ -330,6 +331,77 @@ const App: React.FC = () => {
     duration: currentTrack?.duration || 0
   });
   useAppLifecycle({ activeBlobUrlsRef });
+
+  // 清理孤儿缓存：删除已不在库中的曲目残留的元数据、封面等缓存
+  const handleClearOrphanCache = useCallback(async (): Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }> => {
+    const errors: string[] = [];
+    const allTrackIds = new Set<string>();
+    const allWebdavPaths = new Set<string>();
+
+    // 收集所有活跃的 track ID 和 WebDAV 路径
+    for (const track of slots.local.tracks) {
+      allTrackIds.add(track.id);
+    }
+    for (const track of slots.cloud.tracks) {
+      allTrackIds.add(track.id);
+      if (track.webdavPath) {
+        allWebdavPaths.add(track.webdavPath);
+      }
+    }
+
+    let metadataDeleted = 0;
+    let coversDeleted = 0;
+
+    // 1. 清理 IndexedDB 中孤儿元数据条目
+    try {
+      metadataDeleted = await indexedDBStorage.deleteOrphanMetadata(allTrackIds);
+    } catch (error) {
+      errors.push(`Failed to cleanup metadata: ${(error as Error).message}`);
+      logger.error('[App] Orphan metadata cleanup error:', error);
+    }
+
+    // 2. 清理 IndexedDB 中孤儿 WebDAV 元数据
+    try {
+      const webdavDeleted = await indexedDBStorage.deleteOrphanWebdavMetadata(allWebdavPaths);
+      metadataDeleted += webdavDeleted;
+    } catch (error) {
+      errors.push(`Failed to cleanup WebDAV metadata: ${(error as Error).message}`);
+      logger.error('[App] Orphan WebDAV metadata cleanup error:', error);
+    }
+
+    // 3. 清理 WebDAV 文件列表快照（可重新生成）
+    try {
+      await indexedDBStorage.clearFileListSnapshot();
+    } catch (error) {
+      errors.push(`Failed to clear WebDAV snapshot: ${(error as Error).message}`);
+    }
+
+    // 4. 清理封面文件
+    const desktopAPI = await getDesktopAPIAsync();
+    if (desktopAPI?.cleanupOrphanCovers) {
+      try {
+        const coverResult = await desktopAPI.cleanupOrphanCovers(Array.from(allTrackIds));
+        if (coverResult.success) {
+          coversDeleted = coverResult.removed || 0;
+        } else {
+          errors.push(coverResult.error || 'Cover cleanup failed');
+        }
+      } catch (error) {
+        errors.push(`Cover cleanup error: ${(error as Error).message}`);
+      }
+    }
+
+    // 5. 清除内存缓存
+    metadataCacheService.clear();
+
+    logger.info(`[App] Cache cleanup complete: ${metadataDeleted} metadata entries, ${coversDeleted} covers deleted`);
+    if (errors.length > 0) {
+      logger.warn('[App] Cache cleanup errors:', errors.join(', '));
+    }
+
+    return { metadataDeleted, coversDeleted, errors };
+  }, [slots]);
+
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
@@ -403,7 +475,7 @@ const App: React.FC = () => {
                 }}
               />
             ) : viewMode === ViewMode.SETTINGS ? (
-              <SettingsView />
+              <SettingsView onClearOrphanCache={handleClearOrphanCache} />
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView />
             ) : (

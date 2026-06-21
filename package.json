@@ -17,7 +17,10 @@
     "electron:build:win:arm64": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --arm64",
     "electron:build:mac": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --mac",
     "electron:build:mac:dev": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_OPTIONS=--no-deprecation electron-builder --mac --dir",
-    "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux"
+    "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
@@ -29,6 +32,9 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.14.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
@@ -36,13 +42,16 @@
     "cross-env": "^7.0.3",
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^25.0.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-electron": "^0.29.0",
-    "vite-plugin-electron-renderer": "^0.14.6"
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^3.2.6"
   },
   "build": {
     "appId": "com.lyricsadapter.app",
