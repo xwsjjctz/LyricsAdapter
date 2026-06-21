@@ -300,9 +300,16 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
               mime: mimeMatch[1]!,
             });
             if (result?.success && result.coverUrl) {
+              logger.info('[useWebDAV] ✓ Cover saved to disk:', result.coverUrl, 'for', file.name);
               coverUrl = result.coverUrl; // data: → cover://
+            } else {
+              logger.warn('[useWebDAV] saveCoverThumbnail failed:', result?.error, 'for', file.name);
             }
+          } else {
+            logger.warn('[useWebDAV] Cover regex did not match for', file.name, 'mime:', mimeMatch, 'base64:', !!base64Match);
           }
+        } else {
+          logger.warn('[useWebDAV] saveCoverThumbnail not available');
         }
       } catch (error) {
         logger.warn('[useWebDAV] Failed to save cover to disk:', error);
@@ -426,6 +433,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           if (d.chunkId !== cid) continue;
           const chunkEntry = chunk.entries[d.path];
           if (!chunkEntry) continue;
+          if (chunkEntry.coverUrl?.startsWith('data:')) {
+            logger.info('[useWebDAV] Chunk cover still data: for', d.path, '- will convert when enriched');
+          }
           if (tracks[d.trackIndex]) {
             tracks[d.trackIndex] = enrichFromChunk(tracks[d.trackIndex]!, chunkEntry);
             updated = true;
