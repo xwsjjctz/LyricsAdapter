@@ -12,8 +12,6 @@ function serializeTrack(track: Track): any {
     artist: track.artist,
     album: track.album,
     duration: track.duration,
-    lyrics: track.lyrics,
-    syncedLyrics: track.syncedLyrics,
     audioUrl: '',
     coverUrl,
     filePath: track.filePath || '',

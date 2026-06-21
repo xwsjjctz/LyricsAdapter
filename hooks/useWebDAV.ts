@@ -4,6 +4,7 @@ import { webdavClient, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
 import { indexedDBStorage } from '../services/indexedDBStorage';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE } from '../services/webdav/metadataFolderService';
 
@@ -256,10 +257,33 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
     }
 
-    // 转 data URL 以便持久化到 IndexedDB 和内联进 Metadata/_metadata.json
+    // 转 data URL 以便持久化到 IndexedDB
     if (coverUrl) {
       const dataUrl = await blobUrlToDataUrl(coverUrl);
       coverUrl = dataUrl.startsWith('data:') ? dataUrl : '';
+    }
+
+    // 将封面保存到本地磁盘，后续通过 cover:// 协议懒加载，避免 data: URL 常驻内存
+    if (coverUrl && coverUrl.startsWith('data:')) {
+      try {
+        const desktopAPI = await getDesktopAPIAsync();
+        if (desktopAPI?.saveCoverThumbnail) {
+          const mimeMatch = coverUrl.match(/^data:(\w+\/\w+);base64,/);
+          const base64Match = coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
+          if (mimeMatch && base64Match) {
+            const result = await desktopAPI.saveCoverThumbnail({
+              id: file.path,
+              data: base64Match[1]!,
+              mime: mimeMatch[1]!,
+            });
+            if (result?.success && result.coverUrl) {
+              coverUrl = result.coverUrl; // data: → cover://
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn('[useWebDAV] Failed to save cover to disk:', error);
+      }
     }
 
     return {
