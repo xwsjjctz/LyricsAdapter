@@ -431,10 +431,17 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         const { cid, chunk } = r.value;
         for (const d of needDetails) {
           if (d.chunkId !== cid) continue;
-          const chunkEntry = chunk.entries[d.path];
-          if (!chunkEntry) continue;
+          const rawChunkEntry = chunk.entries[d.path];
+          if (!rawChunkEntry) continue;
+          let chunkEntry: ChunkEntry = rawChunkEntry;
           if (chunkEntry.coverUrl?.startsWith('data:')) {
-            logger.info('[useWebDAV] Chunk cover still data: for', d.path, '- will convert when enriched');
+            const migrated = await migrateCoverToDisk(
+              { coverUrl: chunkEntry.coverUrl } as CachedMetadata,
+              d.path
+            );
+            if (migrated.coverUrl !== chunkEntry.coverUrl) {
+              chunkEntry = { ...chunkEntry, coverUrl: migrated.coverUrl! };
+            }
           }
           if (tracks[d.trackIndex]) {
             tracks[d.trackIndex] = enrichFromChunk(tracks[d.trackIndex]!, chunkEntry);
