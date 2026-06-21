@@ -160,12 +160,6 @@ class MetadataCacheService {
     return cached.fileName === fileName;
   }
 
-  /**
-   * Revoke all cached blob URLs (call before app unmount)
-   */
-  revokeAllBlobUrls(): void {
-    logger.debug('[MetadataCache] ✓ Cleanup complete');
-  }
 }
 
 export const metadataCacheService = new MetadataCacheService();
