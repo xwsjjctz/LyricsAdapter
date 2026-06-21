@@ -200,7 +200,9 @@ export function usePlayback({
     // This avoids loading the entire file into memory via IPC readFile.
     // The browser's <audio> element will issue Range requests as needed.
     if (track.source !== 'webdav') {
-      const audioUrl = `audio://${encodeURI(track.filePath)}`;
+      // Use localhost as host to ensure URL is parsed correctly.
+      // Format: audio://localhost/absolute/path/to/file.flac
+      const audioUrl = `audio://localhost${encodeURI(track.filePath)}`;
       logger.debug('[Playback] Using audio:// for:', track.title);
       return { ...track, audioUrl };
     }

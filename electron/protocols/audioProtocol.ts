@@ -87,8 +87,9 @@ export function registerAudioProtocol(): void {
   app.whenReady().then(() => {
     protocol.handle('audio', async (request) => {
       try {
-        const url = request.url.slice('audio://'.length);
-        const decodedPath = decodeURIComponent(url);
+        // Parse URL to extract path: audio://localhost/absolute/path
+        const parsedUrl = new URL(request.url);
+        const decodedPath = decodeURIComponent(parsedUrl.pathname);
         const resolvedPath = path.resolve(decodedPath);
 
         // Path traversal protection: ensure resolved path is an actual file
@@ -106,6 +107,13 @@ export function registerAudioProtocol(): void {
         const contentType = MIME_TYPES[ext] || 'application/octet-stream';
         const fileSize = stat.size;
         const rangeHeader = request.headers.get('range');
+
+        // Debug: log Range requests to verify streaming is working
+        if (rangeHeader) {
+          logger.debug(`[AudioProtocol] Range: ${rangeHeader} (${path.basename(resolvedPath)})`);
+        } else {
+          logger.debug(`[AudioProtocol] Full request: ${path.basename(resolvedPath)} (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+        }
 
         // Handle Range request (for seeking/timeline scrubbing)
         if (rangeHeader) {
