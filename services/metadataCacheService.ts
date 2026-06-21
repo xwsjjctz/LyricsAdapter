@@ -13,9 +13,23 @@ import { logger } from './logger';
 interface CachedMetadata extends ValidatedMetadata {
 }
 
+const MAX_CACHE_SIZE = 300;
+
 class MetadataCacheService {
   private cache: Map<string, CachedMetadata> = new Map();
   private initialized = false;
+
+  /**
+   * 确保缓存不超过上限：超出时删除最旧的条目（FIFO 淘汰）
+   */
+  private enforceCacheLimit(): void {
+    while (this.cache.size > MAX_CACHE_SIZE) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.cache.delete(oldestKey);
+      logger.debug(`[MetadataCache] Evicted oldest entry: ${oldestKey}, cache size: ${this.cache.size}`);
+    }
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -38,6 +52,7 @@ class MetadataCacheService {
       logger.debug('[MetadataCache] Loading metadata from IndexedDB...');
       const entries = await indexedDBStorage.getAllMetadata();
       this.cache = new Map(Object.entries(entries));
+      this.enforceCacheLimit();
       logger.debug(`[MetadataCache] ✓ Loaded ${this.cache.size} entries from IndexedDB`);
     } catch (error) {
       logger.warn('[MetadataCache] ⚠️ Failed to load from IndexedDB:', error);
@@ -75,7 +90,13 @@ class MetadataCacheService {
   }
 
   get(songId: string): CachedMetadata | undefined {
-    return this.cache.get(songId);
+    if (!this.cache.has(songId)) return undefined;
+
+    // Touch entry for LRU: delete + re-set puts it at the end of the Map
+    const entry = this.cache.get(songId)!;
+    this.cache.delete(songId);
+    this.cache.set(songId, entry);
+    return entry;
   }
 
   set(songId: string, metadata: CachedMetadata): void {
@@ -87,6 +108,7 @@ class MetadataCacheService {
     }
 
     this.cache.set(songId, validated as CachedMetadata);
+    this.enforceCacheLimit();
 
     // Persist to IndexedDB asynchronously (don't await)
     indexedDBStorage.setMetadata(songId, validated).catch(error => {
