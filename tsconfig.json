@@ -34,5 +34,6 @@
     "noPropertyAccessFromIndexSignature": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  "exclude": ["test"]
 }
