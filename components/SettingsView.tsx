@@ -551,36 +551,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
 
     {/* 清理缓存二次确认弹窗 */}
     {showClearCacheConfirm && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-        onClick={() => setShowClearCacheConfirm(false)}
-      >
-        <div
-          className="rounded-xl p-6 mx-4 max-w-sm w-full shadow-2xl border"
-          style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <span className="material-symbols-outlined text-xl" style={{ color: '#ef4444' }}>warning</span>
-            <h3 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
-          </div>
-          <p className="text-sm mb-1" style={{ color: colors.textSecondary }}>
-            {i18n.t('settings.clearCacheConfirmBody')}
-          </p>
-          <p className="text-xs mb-4" style={{ color: colors.textMuted }}>
-            {i18n.t('settings.clearCacheConfirmNote')}
-          </p>
-          <div className="flex justify-end gap-2">
+      <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
+          <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCacheConfirmBody')}</p>
+          <div className="flex justify-end gap-3">
             <button
               onClick={() => setShowClearCacheConfirm(false)}
               disabled={isClearingCache}
-              className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50"
-              style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}` }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
+              className="px-4 py-2 rounded-lg transition-all"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
-              {i18n.t('settings.cancel')}
+              {i18n.t('common.cancel')}
             </button>
             <button
               onClick={async () => {
@@ -605,10 +589,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
                 }
               }}
               disabled={isClearingCache || !onClearOrphanCache}
-              className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50 flex items-center gap-1.5"
-              style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)' }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.35)'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
+              className="px-4 py-2 rounded-lg transition-all flex items-center gap-1.5"
+              style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
             >
               {isClearingCache ? (
                 <>
