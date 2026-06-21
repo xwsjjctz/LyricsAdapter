@@ -1,6 +1,7 @@
 import { protocol, app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { logger } from '../logger';
 
 export function registerCoverProtocol(): void {
   protocol.registerSchemesAsPrivileged([
@@ -18,6 +19,8 @@ export function registerCoverProtocol(): void {
 
   app.whenReady().then(() => {
     const coverDir = path.join(app.getPath('userData'), 'covers');
+    logger.info('Cover protocol coverDir:', coverDir);
+
     protocol.handle('cover', (request) => {
       const url = request.url.slice('cover://'.length);
       const decodedUrl = decodeURIComponent(url);
@@ -25,11 +28,14 @@ export function registerCoverProtocol(): void {
 
       const resolvedPath = path.resolve(coverPath);
       const resolvedCoverDir = path.resolve(coverDir);
+
       if (!resolvedPath.startsWith(resolvedCoverDir)) {
+        logger.warn('[cover://] Forbidden path:', resolvedPath);
         return new Response('Forbidden', { status: 403 });
       }
 
       if (!fs.existsSync(resolvedPath)) {
+        logger.warn('[cover://] File not found:', resolvedPath, 'coverDir:', coverDir);
         return new Response('Not Found', { status: 404 });
       }
 
