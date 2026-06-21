@@ -15,6 +15,34 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 /**
+ * Convert a Node.js ReadStream to a web ReadableStream.
+ *
+ * Electron's protocol.handle expects a web-compatible ReadableStream
+ * for streaming responses. A type-cast (as unknown as ReadableStream)
+ * does NOT actually convert the stream — it just silences TypeScript,
+ * causing Electron to buffer the entire response body.
+ */
+function nodeStreamToWeb(stream: fs.ReadStream): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      stream.on('data', (chunk: Buffer | string) => {
+        const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+        controller.enqueue(new Uint8Array(buf));
+      });
+      stream.on('end', () => {
+        controller.close();
+      });
+      stream.on('error', (err) => {
+        controller.error(err);
+      });
+    },
+    cancel() {
+      stream.destroy();
+    },
+  });
+}
+
+/**
  * Parse Range header value.
  * Supports "bytes=start-end" format. Returns [start, end] or null.
  */
@@ -89,10 +117,10 @@ export function registerAudioProtocol(): void {
             const stream = fs.createReadStream(resolvedPath, {
               start,
               end,
-              highWaterMark: 256 * 1024, // 256KB buffer chunks
+              highWaterMark: 256 * 1024,
             });
 
-            return new Response(stream as unknown as ReadableStream, {
+            return new Response(nodeStreamToWeb(stream), {
               status: 206,
               headers: {
                 'Content-Type': contentType,
@@ -109,7 +137,7 @@ export function registerAudioProtocol(): void {
           highWaterMark: 256 * 1024,
         });
 
-        return new Response(stream as unknown as ReadableStream, {
+        return new Response(nodeStreamToWeb(stream), {
           status: 200,
           headers: {
             'Content-Type': contentType,
