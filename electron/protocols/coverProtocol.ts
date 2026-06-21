@@ -19,8 +19,6 @@ export function registerCoverProtocol(): void {
 
   app.whenReady().then(() => {
     const coverDir = path.join(app.getPath('userData'), 'covers');
-    logger.info('Cover protocol coverDir:', coverDir);
-
     protocol.handle('cover', (request) => {
       const fullPath = request.url.slice('cover://'.length);
       // Strip query params (used for cache busting: cover://file.jpg?_=1)
@@ -30,9 +28,7 @@ export function registerCoverProtocol(): void {
 
       const resolvedPath = path.resolve(coverPath);
       const resolvedCoverDir = path.resolve(coverDir);
-
       if (!resolvedPath.startsWith(resolvedCoverDir)) {
-        logger.warn('[cover://] Forbidden path:', resolvedPath);
         return new Response('Forbidden', { status: 403 });
       }
 
