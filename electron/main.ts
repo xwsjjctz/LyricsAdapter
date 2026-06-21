@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { logger } from './logger';
 import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
+import { registerAudioProtocol } from './protocols/audioProtocol';
 import {
   registerFileHandlers,
   registerLibraryHandlers,
@@ -21,6 +22,7 @@ app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 app.commandLine.appendSwitch('log-level', '3');
 
 registerCoverProtocol();
+registerAudioProtocol();
 
 app.whenReady().then(async () => {
   await createWindow();

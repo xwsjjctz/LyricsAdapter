@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Track } from '../types';
-import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
@@ -11,7 +10,6 @@ interface UsePlaybackOptions {
   setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   currentTrackIndex: number;
   setCurrentTrackIndex: (index: number | ((prev: number) => number)) => void;
-  createTrackedBlobUrl: (blob: Blob | File) => string;
   revokeBlobUrl: (blobUrl: string) => void;
   onTrackSwitch?: () => void;
   initialCurrentTime?: number;
@@ -22,7 +20,6 @@ export function usePlayback({
   setTracks,
   currentTrackIndex,
   setCurrentTrackIndex,
-  createTrackedBlobUrl,
   revokeBlobUrl,
   onTrackSwitch,
   initialCurrentTime = 0
@@ -194,35 +191,22 @@ export function usePlayback({
   }, [playbackMode, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
-    const desktopAPI = await getDesktopAPIAsync();
-    if (!desktopAPI || !track.filePath || track.audioUrl) {
+    // If already has an audioUrl (from a previous load), skip
+    if (!track.filePath || track.audioUrl) {
       return track;
     }
 
-    try {
-      logger.debug('[Playback] Loading audio file for:', track.title);
-      const readResult = await desktopAPI.readFile(track.filePath);
-
-      if (readResult.success && readResult.data.byteLength > 0) {
-        const fileName = track.fileName || 'audio.flac';
-        const file = new File([readResult.data], fileName, { type: 'audio/flac' });
-        const audioUrl = createTrackedBlobUrl(file);
-
-        logger.debug('[Playback] ✓ Audio loaded, size:', (readResult.data.byteLength / 1024 / 1024).toFixed(2), 'MB');
-
-        return {
-          ...track,
-          audioUrl: audioUrl
-        };
-      }
-
-      logger.error('[Playback] Failed to load audio file:', readResult.error);
-      return track;
-    } catch (error) {
-      logger.error('[Playback] Failed to load audio file:', error);
-      return track;
+    // Local file: use audio:// custom protocol for streaming
+    // This avoids loading the entire file into memory via IPC readFile.
+    // The browser's <audio> element will issue Range requests as needed.
+    if (track.source !== 'webdav') {
+      const audioUrl = `audio://${encodeURI(track.filePath)}`;
+      logger.debug('[Playback] Using audio:// for:', track.title);
+      return { ...track, audioUrl };
     }
-  }, [createTrackedBlobUrl]);
+
+    return track;
+  }, []);
 
   const skipForward = useCallback(() => {
     if (tracks.length === 0) return;
