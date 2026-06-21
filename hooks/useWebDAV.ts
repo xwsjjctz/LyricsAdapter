@@ -132,8 +132,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
   // Detect WebDAV provider strategy from server URL
   const davConfig = webdavClient.getConfig();
-  const providerConfig = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
-  const BATCH_SIZE = providerConfig.batchSize;
+  const provider = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
+  const BATCH_SIZE = provider.batchSize();
 
   const loadMetadataCache = async (): Promise<Map<string, CachedMetadata>> => {
     try {
@@ -168,7 +168,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const buffer = providerConfig.skipCdnForHeaderRead
+        const buffer = provider.useDirectHeaderRead()
           ? await webdavClient.fetchFileRangeDirect(file.path, offset, offset + length)
           : await webdavClient.fetchFileRange(file.path, offset, offset + length);
         if (buffer) return buffer;
@@ -198,7 +198,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     const resultBase = { fileSize: file.size, lastModified: file.lastModified };
 
     // Try meta.json sidecar first (fast path)
-    if (providerConfig.autoUploadMetaJson) {
+    if (provider.autoUploadMetaJson()) {
       const sidecarMeta = await webdavClient.fetchMetaJson(file.path);
       if (sidecarMeta && isMetaJsonValid(sidecarMeta, file) && sidecarMeta.duration > 0) {
         logger.info('[useWebDAV] meta.json hit for', file.name, 'duration:', sidecarMeta.duration);
@@ -216,7 +216,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     // Fallback: parse audio header
     const buffer = await fetchHeaderWithRetry(file, 0, RANGE_SIZE);
-    logger.info('[useWebDAV] fetch header for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null', 'via', providerConfig.skipCdnForHeaderRead ? 'direct' : 'cdn');
+    logger.info('[useWebDAV] fetch header for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null', 'via', provider.useDirectHeaderRead() ? 'direct' : 'cdn');
     if (!buffer) {
       logger.warn('[useWebDAV] Header fetch returned null for', file.name, '- falling back to filename');
       return fallbackToFilename(file);
@@ -306,7 +306,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       logger.warn('[useWebDAV] lazyLoadCover failed for', file.name, e);
       return undefined;
     }
-  }, [providerConfig]);
+  }, [provider]);
 
   const enrichTrack = (track: Track, meta: CachedMetadata): Track => ({
     ...track,
@@ -420,7 +420,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
    */
   const uploadManifestAndChunks = async (audioPathSet?: Set<string>): Promise<void> => {
     // 写入需要 allowWrite（只读模式跳过上传，但仍可读 manifest）
-    if (!providerConfig.allowWrite || !providerConfig.useMetadataFolder) return;
+    if (!provider.allowWrite() || !provider.useMetadataFolder()) return;
     const allEntries = await loadMetadataCache();
 
     const existingManifest = await metadataFolderService.loadManifest();
@@ -571,7 +571,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           setLoadProgress(null);
           // 如果缓存中没有封面，触发后台补全（manifest 命中时 IndexedDB 只有纯文本）
           const needsCover = cachedTracks.some(t => !t.coverUrl || !t.coverUrl.startsWith('data:'));
-          if (needsCover && providerConfig.useMetadataFolder) {
+          if (needsCover && provider.useMetadataFolder()) {
             const manifest = await metadataFolderService.loadManifest(false);
             if (manifest) populateDetailsFromChunks(cachedTracks, manifest, metaCache);
           }
@@ -690,8 +690,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     // 加载服务端 manifest（含 v2→v3 迁移；只读模式不迁移，只读 v3）
     let manifest: Manifest | null = null;
-    if (providerConfig.useMetadataFolder) {
-      manifest = await metadataFolderService.loadManifest(providerConfig.allowWrite);
+    if (provider.useMetadataFolder()) {
+      manifest = await metadataFolderService.loadManifest(provider.allowWrite());
       if (manifest) {
         logger.info('[useWebDAV] loadFullMode: loaded manifest with', Object.keys(manifest.entries).length, 'entries');
       }

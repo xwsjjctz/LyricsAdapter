@@ -2,56 +2,32 @@
  * WebDAV 云存储厂家策略配置
  *
  * 不同云存储的 WebDAV 实现有各自的行为差异（CDN 重定向策略、写入权限、限制等）。
- * 本模块按域名自动检测并返回对应的策略配置，方便按需启用优化功能。
+ * 本模块按域名自动检测并返回对应的 Provider 实例，方便按需启用优化功能。
  *
- * 拓展方式：在 PROVIDER_CONFIGS 中新增条目，detectProvider 中增加域名匹配。
+ * 拓展方式：在 providers/ 目录下新增文件实现 WebDAVProvider 接口，
+ * 在本文件的 PROVIDER_MAP 中注册。
  */
 
-export interface WebDAVProviderConfig {
-  /** 厂家显示名称 */
-  name: string;
-  /** 是否允许写入操作（PUT） */
-  allowWrite: boolean;
-  /** 慢路径解析后自动上传 .meta.json 副产物文件（仅通用 WebDAV sidecar 模式用） */
-  autoUploadMetaJson: boolean;
-  /** 使用 Metadata/ 文件夹统一缓存元数据+封面（替代零散的 .meta.json） */
-  useMetadataFolder: boolean;
-  /** 文件头 Range 读取是否直连服务器（不走 CDN 重定向），减少首载请求数 */
-  skipCdnForHeaderRead: boolean;
-  /** 批量拉取文件头的并发数 */
-  batchSize: number;
-}
+import { WebDAVProvider } from './baseProvider';
+import { createGenericProvider } from './providers/generic';
+import { createPan123Provider } from './providers/pan123';
 
-const PROVIDER_CONFIGS: Record<string, WebDAVProviderConfig> = {
-  '123pan': {
-    name: '123云盘',
-    allowWrite: true,
-    autoUploadMetaJson: false,
-    useMetadataFolder: true,          // 统一使用 Metadata/ 文件夹缓存（含内联封面）
-    skipCdnForHeaderRead: true,       // 文件头读取直连服务器，不走 CDN 重定向
-    batchSize: 4,                     // 123pan 并发极低，设小并发避免请求排队超时
-  },
-};
+const GENERIC_PROVIDER = createGenericProvider();
 
-const GENERIC_CONFIG: WebDAVProviderConfig = {
-  name: '通用 WebDAV',
-  allowWrite: false,
-  autoUploadMetaJson: false,
-  useMetadataFolder: false,
-  skipCdnForHeaderRead: false,
-  batchSize: 10,
+const PROVIDER_MAP: Record<string, () => WebDAVProvider> = {
+  '123pan': () => createPan123Provider(),
 };
 
 /**
- * 根据服务器 URL 检测云存储厂家，返回对应策略配置。
- * 未匹配的 URL 返回通用只读配置，安全兜底。
+ * 根据服务器 URL 检测云存储厂家，返回对应 Provider 实例。
+ * 未匹配的 URL 返回通用 Provider，安全兜底。
  */
-export function detectProvider(serverUrl: string): WebDAVProviderConfig {
+export function detectProvider(serverUrl: string): WebDAVProvider {
   const url = serverUrl.toLowerCase();
   if (url.includes('123pan.cn')) {
-    return { ...PROVIDER_CONFIGS['123pan']! } as WebDAVProviderConfig;
+    return PROVIDER_MAP['123pan']!();
   }
-  return { ...GENERIC_CONFIG } as WebDAVProviderConfig;
+  return GENERIC_PROVIDER;
 }
 
 /**
@@ -61,16 +37,13 @@ export function detectProvider(serverUrl: string): WebDAVProviderConfig {
 export function getEffectiveConfig(
   serverUrl: string,
   userReadonly: boolean | undefined,
-): WebDAVProviderConfig {
-  const base: WebDAVProviderConfig = detectProvider(serverUrl);
+): WebDAVProvider {
+  const base = detectProvider(serverUrl);
   if (userReadonly) {
-    // 只读模式：禁止写入（allowWrite=false），但保留 manifest 方案的**读取**能力
-    // （useMetadataFolder 不变）——只读用户也能利用服务端 manifest 加速列表加载。
-    // 迁移和上传由 allowWrite 守卫，只读时自动跳过。
     return {
       ...base,
-      allowWrite: false,
-      autoUploadMetaJson: false,
+      allowWrite: () => false,
+      autoUploadMetaJson: () => false,
     };
   }
   return base;

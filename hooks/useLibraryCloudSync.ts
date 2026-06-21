@@ -94,15 +94,15 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
    */
   async function runScanOrMetaUpdate({ forceAll }: { forceAll: boolean }) {
     const davConfig = webdavClient.getConfig();
-    const providerConfig = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
+    const provider = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
     // 只读模式无法上传解析结果，此命令无意义——只读模式靠 loadFullMode 自动逐首解析存本地
-    if (!providerConfig.allowWrite) {
+    if (!provider.allowWrite()) {
       logger.warn('[scan/meta] 只读模式不支持元数据更新命令（无法上传），请用可写账号或在列表加载时自动解析');
       return;
     }
-    const useFolder = providerConfig.useMetadataFolder;
-    const skipCdn = providerConfig.skipCdnForHeaderRead;
-    const batchSize = providerConfig.batchSize;
+    const useFolder = provider.useMetadataFolder();
+    const skipCdn = provider.useDirectHeaderRead();
+    const batchSize = provider.batchSize();
     const RANGE_SIZE = 1048576;
 
     logger.info(`[scan/meta] Listing WebDAV files...`);
