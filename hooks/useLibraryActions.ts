@@ -102,6 +102,7 @@ export function useLibraryActions({
         try {
           await coverArtService.deleteCover(trackId);
           await indexedDBStorage.deleteMetadata(trackId);
+          metadataCacheService.clear();
           logger.debug(`✅ Resources cleaned up for track: ${trackToRemove?.title || trackId}`);
         } catch (error) {
           logger.warn('Failed to cleanup resources for track:', error);
@@ -165,6 +166,9 @@ export function useLibraryActions({
         logger.warn(`Failed to delete metadata for ${trackId}:`, error);
       }
     }
+
+    // 清除内存中的元数据缓存，避免脏数据残留
+    metadataCacheService.clear();
 
     setTracks(prev => {
       const newTracks = prev.filter(t => !trackIds.includes(t.id));
