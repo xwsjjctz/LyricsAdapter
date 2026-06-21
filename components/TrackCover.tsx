@@ -60,10 +60,15 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
     return <img src={PLACEHOLDER_SVG} className={className} alt="" />;
   }
 
+  // Add retry index as query param to bust any potential Electron protocol caching
+  const cacheBustSrc = fallbackUrl.startsWith('cover://') && retryKey > 0
+    ? `${fallbackUrl}?_=${retryKey}`
+    : fallbackUrl;
+
   return (
     <img
       key={retryKey}
-      src={fallbackUrl}
+      src={cacheBustSrc}
       className={className}
       alt=""
       loading="lazy"
