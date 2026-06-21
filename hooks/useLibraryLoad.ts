@@ -68,8 +68,9 @@ export function useLibraryLoad({
 
     restoreFromPersistence(settings, loadedTracks);
 
+    let restoredCloudTracks: Track[] = [];
     if (libraryData.cloudSongs && libraryData.cloudSongs.length > 0) {
-      const restoredCloudTracks: Track[] = libraryData.cloudSongs.map((song: any) => {
+      restoredCloudTracks = libraryData.cloudSongs.map((song: any) => {
         const fileName = song.fileName || '';
         const fallbackTitle = song.title || fileName.replace(/\.[^/.]+$/, '');
         return {
@@ -118,7 +119,11 @@ export function useLibraryLoad({
 
     const desktopAPI = await getDesktopAPIAsync();
     if (desktopAPI?.runStartupCleanup) {
-      desktopAPI.runStartupCleanup(loadedTracks.map(t => t.id)).catch(err => {
+      const ids = [
+        ...loadedTracks.map(t => t.id),
+        ...restoredCloudTracks.map(t => t.id),
+      ];
+      desktopAPI.runStartupCleanup(ids).catch(err => {
         logger.warn('[LibraryLoad] Startup cleanup failed:', err);
       });
     }

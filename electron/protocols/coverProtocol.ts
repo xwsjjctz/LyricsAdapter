@@ -1,6 +1,7 @@
 import { protocol, app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { logger } from '../logger';
 
 export function registerCoverProtocol(): void {
   protocol.registerSchemesAsPrivileged([
@@ -19,7 +20,9 @@ export function registerCoverProtocol(): void {
   app.whenReady().then(() => {
     const coverDir = path.join(app.getPath('userData'), 'covers');
     protocol.handle('cover', (request) => {
-      const url = request.url.slice('cover://'.length);
+      const fullPath = request.url.slice('cover://'.length);
+      // Strip query params (used for cache busting: cover://file.jpg?_=1)
+      const url = fullPath.split('?')[0]!;
       const decodedUrl = decodeURIComponent(url);
       const coverPath = path.join(coverDir, decodedUrl);
 
@@ -30,6 +33,7 @@ export function registerCoverProtocol(): void {
       }
 
       if (!fs.existsSync(resolvedPath)) {
+        logger.warn('[cover://] File not found:', resolvedPath);
         return new Response('Not Found', { status: 404 });
       }
 
