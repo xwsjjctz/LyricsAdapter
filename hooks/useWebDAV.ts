@@ -4,6 +4,7 @@ import { webdavClient, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
 import { indexedDBStorage } from '../services/indexedDBStorage';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE } from '../services/webdav/metadataFolderService';
 
@@ -132,8 +133,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
   // Detect WebDAV provider strategy from server URL
   const davConfig = webdavClient.getConfig();
-  const providerConfig = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
-  const BATCH_SIZE = providerConfig.batchSize;
+  const provider = getEffectiveConfig(davConfig?.serverUrl || '', davConfig?.readonly);
+  const BATCH_SIZE = provider.batchSize();
 
   const loadMetadataCache = async (): Promise<Map<string, CachedMetadata>> => {
     try {
@@ -163,12 +164,36 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     return cached.fileSize === file.size && cached.lastModified === file.lastModified;
   };
 
+  /** 迁移旧 data: 封面到本地磁盘，返回 cover:// URL */
+  const migrateCoverToDisk = async (meta: CachedMetadata, webdavPath: string): Promise<CachedMetadata> => {
+    if (!meta.coverUrl?.startsWith('data:')) return meta;
+    try {
+      const desktopAPI = await getDesktopAPIAsync();
+      if (!desktopAPI?.saveCoverThumbnail) return meta;
+      const mimeMatch = meta.coverUrl.match(/^data:(\w+\/\w+);base64,/);
+      const base64Match = meta.coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
+      if (!mimeMatch || !base64Match) return meta;
+      const pathHash = Math.abs([...webdavPath].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
+      const result = await desktopAPI.saveCoverThumbnail({
+        id: `${pathHash}-${webdavPath}`,
+        data: base64Match[1]!,
+        mime: mimeMatch[1]!,
+      });
+      if (result?.success && result.coverUrl) {
+        return { ...meta, coverUrl: result.coverUrl };
+      }
+    } catch (error) {
+      logger.warn('[useWebDAV] Failed to migrate data: cover to disk:', error);
+    }
+    return meta;
+  };
+
   /** 带重试的文件头读取（网络抖动时自动重试，最多 2 次） */
   const fetchHeaderWithRetry = async (file: WebDAVFile, offset: number, length: number): Promise<ArrayBuffer | null> => {
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const buffer = providerConfig.skipCdnForHeaderRead
+        const buffer = provider.useDirectHeaderRead()
           ? await webdavClient.fetchFileRangeDirect(file.path, offset, offset + length)
           : await webdavClient.fetchFileRange(file.path, offset, offset + length);
         if (buffer) return buffer;
@@ -198,7 +223,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     const resultBase = { fileSize: file.size, lastModified: file.lastModified };
 
     // Try meta.json sidecar first (fast path)
-    if (providerConfig.autoUploadMetaJson) {
+    if (provider.autoUploadMetaJson()) {
       const sidecarMeta = await webdavClient.fetchMetaJson(file.path);
       if (sidecarMeta && isMetaJsonValid(sidecarMeta, file) && sidecarMeta.duration > 0) {
         logger.info('[useWebDAV] meta.json hit for', file.name, 'duration:', sidecarMeta.duration);
@@ -216,7 +241,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     // Fallback: parse audio header
     const buffer = await fetchHeaderWithRetry(file, 0, RANGE_SIZE);
-    logger.info('[useWebDAV] fetch header for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null', 'via', providerConfig.skipCdnForHeaderRead ? 'direct' : 'cdn');
+    logger.info('[useWebDAV] fetch header for', file.name, '→ buffer:', buffer ? `${buffer.byteLength} bytes` : 'null', 'via', provider.useDirectHeaderRead() ? 'direct' : 'cdn');
     if (!buffer) {
       logger.warn('[useWebDAV] Header fetch returned null for', file.name, '- falling back to filename');
       return fallbackToFilename(file);
@@ -256,10 +281,45 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
     }
 
-    // 转 data URL 以便持久化到 IndexedDB 和内联进 Metadata/_metadata.json
+    // 转 data URL 以便持久化到 IndexedDB
     if (coverUrl) {
       const dataUrl = await blobUrlToDataUrl(coverUrl);
       coverUrl = dataUrl.startsWith('data:') ? dataUrl : '';
+    }
+
+    // 将封面保存到本地磁盘，后续通过 cover:// 协议懒加载，避免 data: URL 常驻内存
+    if (coverUrl && coverUrl.startsWith('data:')) {
+      try {
+        const desktopAPI = await getDesktopAPIAsync();
+        if (desktopAPI?.saveCoverThumbnail) {
+          const mimeMatch = coverUrl.match(/^data:(\w+\/\w+);base64,/);
+          const base64Match = coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
+          if (mimeMatch && base64Match) {
+            // Prefix path with a hash to guarantee unique cover filenames.
+            // sanitizeTrackId strips non-alphanumeric chars, which can cause
+            // different paths to collide (e.g. "/a/1" and "/a1" → both "a1").
+            // The hash is preserved since it only contains [0-9a-z].
+            const pathHash = Math.abs([...file.path].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
+            const result = await desktopAPI.saveCoverThumbnail({
+              id: `${pathHash}-${file.path}`,
+              data: base64Match[1]!,
+              mime: mimeMatch[1]!,
+            });
+            if (result?.success && result.coverUrl) {
+              logger.info('[useWebDAV] ✓ Cover saved to disk:', result.coverUrl, 'for', file.name);
+              coverUrl = result.coverUrl; // data: → cover://
+            } else {
+              logger.warn('[useWebDAV] saveCoverThumbnail failed:', result?.error, 'for', file.name);
+            }
+          } else {
+            logger.warn('[useWebDAV] Cover regex did not match for', file.name, 'mime:', mimeMatch, 'base64:', !!base64Match);
+          }
+        } else {
+          logger.warn('[useWebDAV] saveCoverThumbnail not available');
+        }
+      } catch (error) {
+        logger.warn('[useWebDAV] Failed to save cover to disk:', error);
+      }
     }
 
     return {
@@ -306,7 +366,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       logger.warn('[useWebDAV] lazyLoadCover failed for', file.name, e);
       return undefined;
     }
-  }, [providerConfig]);
+  }, [provider]);
 
   const enrichTrack = (track: Track, meta: CachedMetadata): Track => ({
     ...track,
@@ -377,8 +437,18 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         const { cid, chunk } = r.value;
         for (const d of needDetails) {
           if (d.chunkId !== cid) continue;
-          const chunkEntry = chunk.entries[d.path];
-          if (!chunkEntry) continue;
+          const rawChunkEntry = chunk.entries[d.path];
+          if (!rawChunkEntry) continue;
+          let chunkEntry: ChunkEntry = rawChunkEntry;
+          if (chunkEntry.coverUrl?.startsWith('data:')) {
+            const migrated = await migrateCoverToDisk(
+              { coverUrl: chunkEntry.coverUrl } as CachedMetadata,
+              d.path
+            );
+            if (migrated.coverUrl !== chunkEntry.coverUrl) {
+              chunkEntry = { ...chunkEntry, coverUrl: migrated.coverUrl! };
+            }
+          }
           if (tracks[d.trackIndex]) {
             tracks[d.trackIndex] = enrichFromChunk(tracks[d.trackIndex]!, chunkEntry);
             updated = true;
@@ -420,7 +490,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
    */
   const uploadManifestAndChunks = async (audioPathSet?: Set<string>): Promise<void> => {
     // 写入需要 allowWrite（只读模式跳过上传，但仍可读 manifest）
-    if (!providerConfig.allowWrite || !providerConfig.useMetadataFolder) return;
+    if (!provider.allowWrite() || !provider.useMetadataFolder()) return;
     const allEntries = await loadMetadataCache();
 
     const existingManifest = await metadataFolderService.loadManifest();
@@ -571,7 +641,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           setLoadProgress(null);
           // 如果缓存中没有封面，触发后台补全（manifest 命中时 IndexedDB 只有纯文本）
           const needsCover = cachedTracks.some(t => !t.coverUrl || !t.coverUrl.startsWith('data:'));
-          if (needsCover && providerConfig.useMetadataFolder) {
+          if (needsCover && provider.useMetadataFolder()) {
             const manifest = await metadataFolderService.loadManifest(false);
             if (manifest) populateDetailsFromChunks(cachedTracks, manifest, metaCache);
           }
@@ -595,7 +665,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         const cached = metadataCache.get(file.path);
         const placeholder = newPlaceholderMap.get(file.path)!;
         if (cached && isCacheValid(cached, file) && cached.duration > 0) {
-          const enriched = enrichTrack(placeholder, cached);
+          // 迁移旧 data: 封面到磁盘，换成 cover:// URL
+          const migrated = cached.coverUrl?.startsWith('data:')
+            ? await migrateCoverToDisk(cached, file.path)
+            : cached;
+          if (migrated !== cached) metadataCache.set(file.path, migrated);
+          const enriched = enrichTrack(placeholder, migrated);
           enrichedNewTracks.push(enriched);
         } else {
           toFetch.push(file);
@@ -690,8 +765,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     // 加载服务端 manifest（含 v2→v3 迁移；只读模式不迁移，只读 v3）
     let manifest: Manifest | null = null;
-    if (providerConfig.useMetadataFolder) {
-      manifest = await metadataFolderService.loadManifest(providerConfig.allowWrite);
+    if (provider.useMetadataFolder()) {
+      manifest = await metadataFolderService.loadManifest(provider.allowWrite());
       if (manifest) {
         logger.info('[useWebDAV] loadFullMode: loaded manifest with', Object.keys(manifest.entries).length, 'entries');
       }
@@ -724,7 +799,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       // 2. 本地 IndexedDB 缓存（含已补全的封面）
       const cached = metadataCache.get(file.path);
       if (cached && isCacheValid(cached, file) && cached.duration > 0) {
-        placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, cached);
+        // 迁移旧 data: 封面到磁盘
+        const migrated = cached.coverUrl?.startsWith('data:')
+          ? await migrateCoverToDisk(cached, file.path)
+          : cached;
+        if (migrated !== cached) metadataCache.set(file.path, migrated);
+        placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, migrated);
       } else {
         toFetch.push({ file, index: i });
       }

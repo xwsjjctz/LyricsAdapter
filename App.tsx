@@ -80,7 +80,6 @@ const App: React.FC = () => {
     setTracks: setActiveTracks,
     currentTrackIndex: activeTrackIndex,
     setCurrentTrackIndex: setActiveTrackIndex,
-    createTrackedBlobUrl,
     revokeBlobUrl,
     onTrackSwitch: handleTrackSwitch,
     initialCurrentTime: restoreTime,

@@ -13,7 +13,10 @@ export function sanitizeFileName(fileName: string): string {
 }
 
 export function sanitizeTrackId(trackId: string): string {
-  const cleaned = trackId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  // Replace non-alphanumeric chars with '_' to prevent collisions.
+  // Pure removal (old behavior) could make distinct paths generate the
+  // same ID (e.g. "/path1/file" and "/path/1file" → both "path1file").
+  const cleaned = trackId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
   if (cleaned.length >= 6) {
     return cleaned;
   }
