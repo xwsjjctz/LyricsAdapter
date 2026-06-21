@@ -89,7 +89,7 @@ describe('buildLibraryIndexData', () => {
     expect(s.duration).toBe(200);
     expect(s.playCount).toBe(5);
     expect(s.lastPlayed).toBe('2025-06-01T00:00:00.000Z');
-    expect(s.syncedLyrics).toBeUndefined();
+    expect(s.syncedLyrics).toEqual([{ time: 1.0, text: 'line1' }]);
     expect(s.audioUrl).toBe('');
     expect(s.source).toBe('local');
   });
