@@ -7,7 +7,6 @@ import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
-import { indexedDBStorage } from './services/indexedDBStorage';
 import { useBlobUrls } from './hooks/useBlobUrls';
 import { usePlayback } from './hooks/usePlayback';
 import { useLibrarySlots } from './hooks/useLibrarySlots';
