@@ -173,8 +173,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       const mimeMatch = meta.coverUrl.match(/^data:(\w+\/\w+);base64,/);
       const base64Match = meta.coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
       if (!mimeMatch || !base64Match) return meta;
+      const pathHash = Math.abs([...webdavPath].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
       const result = await desktopAPI.saveCoverThumbnail({
-        id: webdavPath,
+        id: `${pathHash}-${webdavPath}`,
         data: base64Match[1]!,
         mime: mimeMatch[1]!,
       });
@@ -294,8 +295,13 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           const mimeMatch = coverUrl.match(/^data:(\w+\/\w+);base64,/);
           const base64Match = coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
           if (mimeMatch && base64Match) {
+            // Prefix path with a hash to guarantee unique cover filenames.
+            // sanitizeTrackId strips non-alphanumeric chars, which can cause
+            // different paths to collide (e.g. "/a/1" and "/a1" → both "a1").
+            // The hash is preserved since it only contains [0-9a-z].
+            const pathHash = Math.abs([...file.path].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
             const result = await desktopAPI.saveCoverThumbnail({
-              id: file.path,
+              id: `${pathHash}-${file.path}`,
               data: base64Match[1]!,
               mime: mimeMatch[1]!,
             });
