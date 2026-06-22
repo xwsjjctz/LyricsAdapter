@@ -39,6 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Force re-render when language changes
   const [languageVersion, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const [isImportHovered, setIsImportHovered] = useState(false);
 
   // Subscribe to language changes
   useEffect(() => {
@@ -144,17 +145,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <button
         onClick={onImportClick}
+        onMouseEnter={() => setIsImportHovered(true)}
+        onMouseLeave={() => setIsImportHovered(false)}
         className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
+          backgroundColor: isImportHovered ? `${colors.primary}1a` : 'transparent',
           borderColor: 'var(--theme-border-light)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = `${colors.primary}1a`;
-          e.currentTarget.style.color = colors.primary;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent';
-          e.currentTarget.style.color = textSecondary;
+          color: isImportHovered ? colors.primary : undefined,
         }}
       >
         <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
