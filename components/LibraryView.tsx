@@ -183,6 +183,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const previousTrackIndexRef = useRef<number>(-1);
   const lastHandledAutoLocateTokenRef = useRef<number>(autoLocateToken);
   const highlightUpdateIdRef = useRef(0);
+  // 跨槽定位时，跳过 restore scroll 并使用即时滚动定位
+  const instantLocateRef = useRef(false);
 
   // Theme colors
   const colors = currentTheme.colors;
@@ -245,6 +247,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Restore scroll position when switching between local/cloud
   useEffect(() => {
     if (!scrollContainerRef.current) return;
+    // 如果即将有定位操作，跳过恢复，由 auto-locate effect 处理
+    if (instantLocateRef.current) return;
     scrollContainerRef.current.scrollTop = savedScrollPosition;
     setScrollTop(savedScrollPosition);
   }, [dataSource]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -295,6 +299,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         logger.debug(`[LibraryView] Track ${currentTrackInFilteredIndex + 1} is already visible, no auto-locate needed`);
         previousTrackIndexRef.current = currentTrackInFilteredIndex;
         setShowLocateButton(false);
+        instantLocateRef.current = false;
         return;
       }
 
@@ -311,7 +316,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
 
       logger.debug(`[LibraryView] Auto-locating to track ${currentTrackInFilteredIndex + 1}`);
-      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
+      if (instantLocateRef.current) {
+        // 跨槽定位：直接跳转，避免先恢复旧位置再平滑滚动的长动画
+        container.scrollTop = clampedTop;
+        instantLocateRef.current = false;
+      } else {
+        container.scrollTo({ top: clampedTop, behavior: 'smooth' });
+      }
       previousTrackIndexRef.current = currentTrackInFilteredIndex;
       setShowLocateButton(false);
     }, 0);
@@ -701,6 +712,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const handleLocateToCurrentTrack = useCallback(() => {
     if (dataSource !== activeSlotId) {
       // Cross-slot: switch view to the playing slot and trigger auto-locate
+      // 标记跨槽定位，使 restore scroll effect 跳过、auto-locate 使用即时滚动
+      instantLocateRef.current = true;
       onSwitchSlot(activeSlotId);
       onLocateTrack?.();
       return;

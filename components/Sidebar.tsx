@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isThemeView = currentView === ViewMode.THEME;
 
   // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const [languageVersion, setLanguageVersion] = useState(0);
   // Track current theme for styling
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
@@ -93,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       active: isLibraryView && activeSlotId === 'cloud',
       onClick: () => handleSlotClick('cloud'),
     },
-  ], [localTrackCount, cloudTrackCount, isLibraryView, activeSlotId, handleSlotClick]);
+  ], [localTrackCount, cloudTrackCount, isLibraryView, activeSlotId, handleSlotClick, languageVersion, currentTheme]);
 
   return (
     <>
