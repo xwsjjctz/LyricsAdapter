@@ -96,6 +96,7 @@ class ThemeManagerClass {
 
     // Derived alpha-tinted primary variants so tinted backgrounds can be used
     // as CSS variables (auto-refresh on theme switch) instead of inline RGB.
+    root.style.setProperty('--theme-primary-08', hexToRgba(colors.primary, 0.08));
     root.style.setProperty('--theme-primary-10', hexToRgba(colors.primary, 0.10));
     root.style.setProperty('--theme-primary-13', hexToRgba(colors.primary, 0.13));
     root.style.setProperty('--theme-primary-16', hexToRgba(colors.primary, 0.16));

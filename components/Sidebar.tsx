@@ -113,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                 style={{
-                  backgroundColor: item.active ? 'var(--theme-primary-13)' : 'var(--theme-background-card)',
+                  backgroundColor: item.active ? 'var(--theme-primary-13)' : 'var(--theme-primary-08)',
                   color: item.active ? 'var(--theme-primary)' : 'var(--theme-text-secondary)',
                 }}
               >
