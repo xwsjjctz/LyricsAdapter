@@ -185,6 +185,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const highlightUpdateIdRef = useRef(0);
   // 跨槽定位时，跳过 restore scroll 并使用即时滚动定位
   const instantLocateRef = useRef(false);
+  // 实时记录 scrollTop，cleanup 时读此 ref 而非 DOM（避免 DOM 切换后 scrollTop 被 clamp）
+  const lastScrollTopRef = useRef(0);
 
   // Theme colors
   const colors = currentTheme.colors;
@@ -256,11 +258,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Save scroll position on unmount
   useEffect(() => {
     return () => {
-      if (scrollContainerRef.current) {
-        const finalScrollPosition = scrollContainerRef.current.scrollTop;
-        onScrollPositionChange?.(finalScrollPosition);
-        logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition} (${dataSource})`);
-      }
+      // 用 ref 中记录的值而非 DOM scrollTop —— 此时 DOM 可能已切到新列表导致 scrollTop 被 clamp
+      const finalScrollPosition = lastScrollTopRef.current;
+      onScrollPositionChange?.(finalScrollPosition);
+      logger.debug(`[LibraryView] Saved scroll position on unmount: ${finalScrollPosition} (${dataSource})`);
     };
   }, [onScrollPositionChange, dataSource]);
 
@@ -471,6 +472,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const newScrollTop = e.currentTarget.scrollTop;
+    lastScrollTopRef.current = newScrollTop;
     setScrollTop(newScrollTop);
     // Notify parent of scroll position change
     onScrollPositionChange?.(newScrollTop);

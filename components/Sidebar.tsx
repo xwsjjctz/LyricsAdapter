@@ -38,7 +38,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // Force re-render when language changes
   const [languageVersion, setLanguageVersion] = useState(0);
-  // Track current theme for styling
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   // Subscribe to language changes
@@ -49,10 +48,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     return unsubscribe;
   }, []);
 
-  // Subscribe to theme changes
+  // Subscribe to theme changes — spread creates new reference to force re-render
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
+      setCurrentTheme({ ...themeManager.getCurrentTheme() });
     });
     return unsubscribe;
   }, []);
