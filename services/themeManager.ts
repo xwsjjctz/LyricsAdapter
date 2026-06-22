@@ -6,6 +6,7 @@
 import { logger } from './logger';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
+import { hexToRgba } from './colorUtils';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
@@ -93,6 +94,14 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-primary-hover', colors.primaryHover);
     root.style.setProperty('--theme-primary-light', colors.primaryLight);
 
+    // Derived alpha-tinted primary variants so tinted backgrounds can be used
+    // as CSS variables (auto-refresh on theme switch) instead of inline RGB.
+    root.style.setProperty('--theme-primary-08', hexToRgba(colors.primary, 0.08));
+    root.style.setProperty('--theme-primary-10', hexToRgba(colors.primary, 0.10));
+    root.style.setProperty('--theme-primary-13', hexToRgba(colors.primary, 0.13));
+    root.style.setProperty('--theme-primary-16', hexToRgba(colors.primary, 0.16));
+    root.style.setProperty('--theme-primary-20', hexToRgba(colors.primary, 0.20));
+
     root.style.setProperty('--theme-background-dark', colors.backgroundDark);
     root.style.setProperty('--theme-background-gradient-start', colors.backgroundGradientStart);
     root.style.setProperty('--theme-background-gradient-end', colors.backgroundGradientEnd);
@@ -112,6 +121,8 @@ class ThemeManagerClass {
 
     root.style.setProperty('--theme-success', colors.success);
     root.style.setProperty('--theme-warning', colors.warning);
+    root.style.setProperty('--theme-warning-10', hexToRgba(colors.warning, 0.10));
+    root.style.setProperty('--theme-warning-20', hexToRgba(colors.warning, 0.20));
     root.style.setProperty('--theme-error', colors.error);
     root.style.setProperty('--theme-info', colors.info);
 
@@ -139,6 +150,10 @@ class ThemeManagerClass {
       root.classList.add('theme-light');
       root.classList.remove('theme-dark');
     }
+
+    // Clean up legacy theme classes
+    root.classList.remove('theme-cute');
+    document.body.classList.remove('theme-cute');
 
     logger.debug('[ThemeManager] Theme applied:', theme.name);
   }

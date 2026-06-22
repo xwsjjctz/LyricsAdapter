@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { ViewMode } from '../types';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 
@@ -37,9 +35,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isThemeView = currentView === ViewMode.THEME;
 
   // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
-  // Track current theme for styling
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const [languageVersion, setLanguageVersion] = useState(0);
+  const [isImportHovered, setIsImportHovered] = useState(false);
+  const [isReloadHovered, setIsReloadHovered] = useState(false);
 
   // Subscribe to language changes
   useEffect(() => {
@@ -49,20 +47,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     return unsubscribe;
   }, []);
 
-  // Subscribe to theme changes
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
-
-  // Get theme-aware styles
-  const colors = currentTheme.colors;
-  const isDark = currentTheme.isDark;
-
-  // Text colors based on theme
-  const textSecondary = colors.textSecondary;
+  // Note: theme colors are driven entirely by CSS variables (var(--theme-*)),
+  // which the browser re-resolves on theme switch — no React state or
+  // re-render needed here.
 
   const handleSlotClick = useCallback((slotId: 'local' | 'cloud') => {
     if (slotId === 'cloud') {
@@ -93,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       active: isLibraryView && activeSlotId === 'cloud',
       onClick: () => handleSlotClick('cloud'),
     },
-  ], [localTrackCount, cloudTrackCount, isLibraryView, activeSlotId, handleSlotClick]);
+  ], [localTrackCount, cloudTrackCount, isLibraryView, activeSlotId, handleSlotClick, languageVersion]);
 
   return (
     <>
@@ -119,15 +106,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                   : 'bg-transparent text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card)] hover:text-[var(--theme-text-primary)]'
               }`}
               style={{
-                ...(item.active ? { backgroundColor: `${colors.primary}29`, color: colors.primary } : {}),
+                ...(item.active ? { backgroundColor: 'var(--theme-primary-16)', color: 'var(--theme-primary)' } : {}),
                 boxShadow: item.active ? '0 10px 24px -16px var(--theme-glow-color)' : 'none',
               }}
             >
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                 style={{
-                  backgroundColor: item.active ? `${colors.primary}22` : `${colors.backgroundCard}cc`,
-                  color: item.active ? colors.primary : textSecondary,
+                  backgroundColor: item.active ? 'var(--theme-primary-13)' : 'var(--theme-primary-08)',
+                  color: item.active ? 'var(--theme-primary)' : 'var(--theme-text-secondary)',
                 }}
               >
                 <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
@@ -145,17 +132,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <button
         onClick={onImportClick}
+        onMouseEnter={() => setIsImportHovered(true)}
+        onMouseLeave={() => setIsImportHovered(false)}
         className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
+          backgroundColor: isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
           borderColor: 'var(--theme-border-light)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = `${colors.primary}1a`;
-          e.currentTarget.style.color = colors.primary;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent';
-          e.currentTarget.style.color = textSecondary;
+          color: isImportHovered ? 'var(--theme-primary)' : undefined,
         }}
       >
         <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
@@ -172,7 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
           }`}
           style={{
-            ...(isSettingsView ? { backgroundColor: `${colors.primary}33`, color: colors.primary } : {}),
+            ...(isSettingsView ? { backgroundColor: 'var(--theme-primary-20)', color: 'var(--theme-primary)' } : {}),
             boxShadow: isSettingsView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
           }}
         >
@@ -187,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
           }`}
           style={{
-            ...(isThemeView ? { backgroundColor: `${colors.primary}33`, color: colors.primary } : {}),
+            ...(isThemeView ? { backgroundColor: 'var(--theme-primary-20)', color: 'var(--theme-primary)' } : {}),
             boxShadow: isThemeView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
           }}
         >
@@ -198,17 +181,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       {hasUnavailableTracks && onReloadFiles && (
         <button
           onClick={onReloadFiles}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors border border-dashed group text-[var(--theme-warning)]"
+          onMouseEnter={() => setIsReloadHovered(true)}
+          onMouseLeave={() => setIsReloadHovered(false)}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors border border-dashed group"
           style={{
-            borderColor: isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(217, 119, 6, 0.3)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = isDark ? 'rgba(234, 179, 8, 0.1)' : 'rgba(217, 119, 6, 0.1)';
-            e.currentTarget.style.color = isDark ? '#facc15' : '#b45309';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent';
-            e.currentTarget.style.color = isDark ? 'rgba(250, 204, 21, 0.8)' : '#d97706';
+            backgroundColor: isReloadHovered ? 'var(--theme-warning-10)' : 'transparent',
+            borderColor: 'var(--theme-warning-20)',
+            color: 'var(--theme-warning)',
           }}
           title="Reload unavailable tracks"
         >

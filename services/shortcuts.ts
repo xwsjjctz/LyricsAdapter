@@ -214,11 +214,7 @@ class ShortcutManager {
   }
 
   /** Platform-specific key overrides to avoid OS shortcut conflicts */
-  private static PLATFORM_DEFAULTS: Partial<Record<ShortcutAction, Record<string, string>>> = {
-    togglePlaybackMode: {
-      darwin: 'Alt+Tab', // macOS: Option+Tab doesn't conflict with Cmd+Tab
-    }
-  };
+  private static PLATFORM_DEFAULTS: Partial<Record<ShortcutAction, Record<string, string>>> = {};
 
   private getPlatform(): string {
     const p = navigator.platform;

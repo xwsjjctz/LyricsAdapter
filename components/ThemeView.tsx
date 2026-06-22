@@ -50,41 +50,11 @@ const ThemeView: React.FC = () => {
     applyThemeStyles(currentTheme);
   };
 
+  // Delegate to themeManager so theme CSS variables (including derived
+  // alpha-tinted variants) have a single source of truth. Accepts an arbitrary
+  // theme so it can preview a theme without selecting it.
   const applyThemeStyles = (theme: ThemeConfig) => {
-    const root = document.documentElement;
-    const colors = theme.colors;
-
-    root.style.setProperty('--theme-primary', colors.primary);
-    root.style.setProperty('--theme-primary-hover', colors.primaryHover);
-    root.style.setProperty('--theme-primary-light', colors.primaryLight);
-    root.style.setProperty('--theme-background-dark', colors.backgroundDark);
-    root.style.setProperty('--theme-background-gradient-start', colors.backgroundGradientStart);
-    root.style.setProperty('--theme-background-gradient-end', colors.backgroundGradientEnd);
-    root.style.setProperty('--theme-background-sidebar', colors.backgroundSidebar);
-    root.style.setProperty('--theme-background-card', colors.backgroundCard);
-    root.style.setProperty('--theme-background-card-hover', colors.backgroundCardHover);
-    root.style.setProperty('--theme-text-primary', colors.textPrimary);
-    root.style.setProperty('--theme-text-secondary', colors.textSecondary);
-    root.style.setProperty('--theme-text-muted', colors.textMuted);
-    root.style.setProperty('--theme-border-light', colors.borderLight);
-    root.style.setProperty('--theme-border-hover', colors.borderHover);
-    root.style.setProperty('--theme-accent', colors.accent);
-    root.style.setProperty('--theme-accent-hover', colors.accentHover);
-    root.style.setProperty('--theme-success', colors.success);
-    root.style.setProperty('--theme-warning', colors.warning);
-    root.style.setProperty('--theme-error', colors.error);
-    root.style.setProperty('--theme-info', colors.info);
-    root.style.setProperty('--theme-shadow-color', colors.shadowColor);
-    root.style.setProperty('--theme-glow-color', colors.glowColor);
-    root.style.setProperty('--theme-radius-sm', theme.borderRadius.sm);
-    root.style.setProperty('--theme-radius-md', theme.borderRadius.md);
-    root.style.setProperty('--theme-radius-lg', theme.borderRadius.lg);
-    root.style.setProperty('--theme-radius-xl', theme.borderRadius.xl);
-    root.style.setProperty('--theme-radius-full', theme.borderRadius.full);
-
-    // Clean up any legacy theme classes
-    root.classList.remove('theme-cute');
-    document.body.classList.remove('theme-cute');
+    themeManager.applyTheme(theme);
   };
 
   const getThemeNameKey = (themeId: string): string => {
