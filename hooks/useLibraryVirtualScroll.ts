@@ -47,7 +47,9 @@ export function useLibraryVirtualScroll({
   const totalHeight = itemCount > 0
     ? (itemCount - 1) * rowStride + baseRowHeight
     : 0;
-  const shouldVirtualize = itemCount > 200 && viewportHeight > 0;
+  // 阈值降到 40：避免中小曲库（≤200）全量渲染所有行，减少 DOM 节点与封面解码后的 GPU 纹理占用。
+  // 虚拟化下首行始终渲染，rowMeasure 高度测量不受影响。
+  const shouldVirtualize = itemCount > 40 && viewportHeight > 0;
   const startIndex = shouldVirtualize
     ? Math.max(0, Math.floor(scrollTop / rowStride) - overscan)
     : 0;
