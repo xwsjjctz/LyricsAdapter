@@ -15,15 +15,6 @@ function decodeHtmlEntities(text: string): string {
   return textarea.value;
 }
 
-// 把 cover:// 封面 URL 转成缩略图 URL（仅 cover:// 协议支持 ?size=，见 coverProtocol.ts）。
-// 背景 blur 后分辨率不可见，用小尺寸即可；左侧显示用 2x 尺寸保证清晰。
-// 远程/blob URL 原样返回（不经过本地协议，无法缩放）。
-function toCoverThumb(url: string | undefined, size: number): string | undefined {
-  if (!url || !url.startsWith('cover://')) return url;
-  const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}size=${size}`;
-}
-
 const hexToRgb = (hex: string): string => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (result) {
@@ -31,10 +22,6 @@ const hexToRgb = (hex: string): string => {
   }
   return '255, 255, 255';
 };
-
-// NOTE: 背景模糊半径统一为 40px（原 80px）。80px 在全屏 canvas 上会被栅格化成巨大的
-// GPU 纹理，是 FocusMode GPU 内存占用的主因之一；40px 视觉几乎无差异，但纹理尺寸大幅缩小。
-// 如需调整，全文搜索 blur(40px)。
 
 // FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
 const FOCUS_MODE_COLORS = {
@@ -719,7 +706,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       const canvas = canvasRef.current;
       if (canvas) {
         // Set initial brightness to 0.3 when fading in
-        canvas.style.filter = `blur(40px) saturate(1.5) brightness(0.3)`;
+        canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.3)`;
       }
     }
   }, [bgImage1, canvasOpacity]);
@@ -761,7 +748,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         const canvas = canvasRef.current;
         if (canvas && isVisible) {
           // Set initial brightness to 0.3
-          canvas.style.filter = `blur(40px) saturate(1.5) brightness(0.3)`;
+          canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.3)`;
 
           const startTime = performance.now();
           const duration = 700; // 700ms animation
@@ -772,7 +759,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
             // Brightness fade-in: 0.3 -> 0.55
             const breathingBrightness = 0.3 + 0.25 * progress;
-            canvas.style.filter = `blur(40px) saturate(1.5) brightness(${breathingBrightness})`;
+            canvas.style.filter = `blur(80px) saturate(1.5) brightness(${breathingBrightness})`;
 
             if (progress < 1) {
               requestAnimationFrame(animateFirstLoad);
@@ -783,7 +770,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           requestAnimationFrame(animateFirstLoad);
         } else if (canvas) {
           // If not visible, just set to normal values
-          canvas.style.filter = `blur(40px) saturate(1.5) brightness(0.55)`;
+          canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.55)`;
         }
         return;
       }
@@ -808,7 +795,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         // Directly update canvas filter for immediate effect
         const canvas = canvasRef.current;
         if (canvas) {
-          canvas.style.filter = `blur(40px) saturate(1.5) brightness(${breathingBrightness})`;
+          canvas.style.filter = `blur(80px) saturate(1.5) brightness(${breathingBrightness})`;
         }
 
         if (progress < 1) {
@@ -823,7 +810,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
           // Reset filter to normal
           if (canvas) {
-            canvas.style.filter = `blur(40px) saturate(1.5) brightness(0.55)`;
+            canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.55)`;
           }
 
           if (animationFrameRef.current) {
@@ -850,8 +837,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setIsTransitioning(false);
     };
 
-    // 背景经 blur(40px) 重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
-    img.src = toCoverThumb(track.coverUrl, 256)!;
+    img.src = track.coverUrl;
   }, [track?.id, track?.coverUrl]);
 
   // Render canvas when transitioning or when bgImage1 loads
@@ -889,7 +875,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             left: '-100px',
             width: 'calc(100% + 200px)',
             height: 'calc(100% + 200px)',
-            filter: 'blur(40px) saturate(1.5) brightness(0.55)',
+            filter: 'blur(80px) saturate(1.5) brightness(0.55)',
             transition: 'filter 700ms ease-in-out'
           }}
         />
@@ -907,7 +893,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
             <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
               <img
-                src={toCoverThumb(track?.coverUrl, 512)}
+                src={track?.coverUrl}
                 className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
                 alt="album cover"
               />
