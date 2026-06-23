@@ -153,6 +153,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpda
                 filePath={edited.filePath}
                 fallbackUrl={pendingCoverDataUrl || edited.coverUrl}
                 className="w-32 h-32 rounded-2xl object-cover shadow-xl"
+                thumbSize={256}
               />
               <button onClick={handleCoverImport}
                 className="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">

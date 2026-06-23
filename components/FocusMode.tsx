@@ -7,21 +7,13 @@ import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
+import { toCoverThumb } from '../services/coverUrl';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
   const textarea = document.createElement('textarea');
   textarea.innerHTML = text;
   return textarea.value;
-}
-
-// 把 cover:// 封面 URL 转成缩略图 URL（仅 cover:// 协议支持 ?size=，见 coverProtocol.ts）。
-// 背景 blur 后分辨率不可见，用小尺寸即可；左侧显示用 2x 尺寸保证清晰。
-// 远程/blob URL 原样返回（不经过本地协议，无法缩放）。
-function toCoverThumb(url: string | undefined, size: number): string | undefined {
-  if (!url || !url.startsWith('cover://')) return url;
-  const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}size=${size}`;
 }
 
 const hexToRgb = (hex: string): string => {

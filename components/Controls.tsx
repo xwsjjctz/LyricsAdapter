@@ -2,6 +2,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
+import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 
 interface ControlsProps {
@@ -99,7 +100,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             className="flex items-center gap-4 cursor-pointer group"
           >
             <div className="relative size-14 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-transform">
-              <img src={track.coverUrl} className="size-full object-cover" />
+              <img src={toCoverThumb(track.coverUrl, 128)} className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>open_in_full</span>
               </div>

@@ -4,6 +4,7 @@ import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
+import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
 import LibraryTrackRow from './LibraryTrackRow';
@@ -939,7 +940,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   >
                     {artist.coverUrl && (
                       <img
-                        src={artist.coverUrl}
+                        src={toCoverThumb(artist.coverUrl, 128)}
                         alt=""
                         className="w-10 h-10 rounded-lg object-cover"
                       />
@@ -962,7 +963,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   >
                     {album.coverUrl && (
                       <img
-                        src={album.coverUrl}
+                        src={toCoverThumb(album.coverUrl, 128)}
                         alt=""
                         className="w-10 h-10 rounded-lg object-cover"
                       />

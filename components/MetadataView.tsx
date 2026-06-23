@@ -564,6 +564,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
                     {...(selectedTrack.filePath != null && { filePath: selectedTrack.filePath })}
                     {...((pendingCoverDataUrl || selectedTrack.coverUrl) != null && { fallbackUrl: pendingCoverDataUrl || selectedTrack.coverUrl })}
                     className="w-32 h-32 rounded-2xl object-cover shadow-2xl"
+                  thumbSize={256}
                   />
                   {pendingCoverDataUrl && (
                     <button
