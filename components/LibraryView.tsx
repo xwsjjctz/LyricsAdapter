@@ -101,6 +101,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [refreshCloudTracks, isRefreshing]);
 
   const displayTracks = tracks;
+  // 预计算 id→index 映射，避免在行渲染的 map 内每行调用 displayTracks.findIndex，
+  // 把整体渲染从 O(n²) 降到 O(n)。tracks 变化时重建。
+  const displayIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < displayTracks.length; i++) {
+      map.set(displayTracks[i]!.id, i);
+    }
+    return map;
+  }, [displayTracks]);
   const [showLocateButton, setShowLocateButton] = useState(false);
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -886,7 +895,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       shouldShowAnimation={shouldShowAnimation}
                       colors={colors}
                       measureRef={idx === 0 ? rowMeasureRef : undefined}
-                      realTrackIndex={displayTracks.findIndex(t => t.id === track.id)}
+                      realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
                       onToggleSelect={toggleSelectOne}
                       onEditMetadata={setEditingTrack}
@@ -1038,7 +1047,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              data-track-index={filteredIndex}
   onClick={() => {
                              if (isEditMode || isUnavailable) return;
-                             const realIndex = displayTracks.findIndex(t => t.id === track.id);
+                             const realIndex = displayIndexMap.get(track.id) ?? -1;
                              if (realIndex >= 0) onTrackSelect(realIndex);
                            }}
                              className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px]"
