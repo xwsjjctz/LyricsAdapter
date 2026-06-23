@@ -15,6 +15,15 @@ function decodeHtmlEntities(text: string): string {
   return textarea.value;
 }
 
+// 把 cover:// 封面 URL 转成缩略图 URL（仅 cover:// 协议支持 ?size=，见 coverProtocol.ts）。
+// 背景 blur 后分辨率不可见，用小尺寸即可；左侧显示用 2x 尺寸保证清晰。
+// 远程/blob URL 原样返回（不经过本地协议，无法缩放）。
+function toCoverThumb(url: string | undefined, size: number): string | undefined {
+  if (!url || !url.startsWith('cover://')) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}size=${size}`;
+}
+
 const hexToRgb = (hex: string): string => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (result) {
@@ -837,7 +846,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setIsTransitioning(false);
     };
 
-    img.src = track.coverUrl;
+    // 背景经 blur(80px) 重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
+    img.src = toCoverThumb(track.coverUrl, 256)!;
   }, [track?.id, track?.coverUrl]);
 
   // Render canvas when transitioning or when bgImage1 loads
@@ -893,7 +903,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
             <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
               <img
-                src={track?.coverUrl}
+                src={toCoverThumb(track?.coverUrl, 512)}
                 className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
                 alt="album cover"
               />
