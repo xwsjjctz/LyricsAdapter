@@ -341,98 +341,47 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return () => clearTimeout(timer);
   }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode]);
 
-  // Update sliding highlight position when current track changes
+  // 高亮覆盖层（"滑块"）的位置与可见性。
+  // default 模式用纯计算 index*rowStride 定位，绝不查询 DOM：当前播放行被虚拟滚动
+  // 卸载时高亮也不会丢失，滚动时 scrollTop 变化触发重渲染、transform 自动跟随。
+  // （此前用 querySelector 取行元素，行被卸载后返回 null 会把 opacity 置 0，且 effect
+  // 依赖不含 scrollTop，滚回该行后无法恢复，表现为"滑块消失"。）
+  // category（专辑/艺术家）模式列表不按全局索引布局，保留 DOM 查找 + 重试。
   useEffect(() => {
     if (isEditMode || !currentTrackId || displayTracks.length === 0) {
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
       return;
     }
 
-    const updateHighlight = () => {
-      let currentTrackElement: HTMLElement | null = null;
-
-      if (filterType === 'default') {
-        currentTrackElement = listRef.current?.querySelector(
-          `[data-track-index="${currentTrackInDisplayIndex}"]`
-        ) as HTMLElement | null;
-      } else {
-        const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrackId);
-        if (isCurrentInCategory && listRef.current) {
-          const element = listRef.current.querySelector(
-            `[data-track-index="${currentTrackInDisplayIndex}"]`
-          ) as HTMLElement | null;
-          if (element) {
-            currentTrackElement = element;
-          }
-        }
-      }
-
-      if (currentTrackElement) {
-        setHighlightStyle({
-          top: currentTrackElement.offsetTop,
-          height: currentTrackElement.offsetHeight,
-          opacity: 1
-        });
+    if (filterType === 'default') {
+      if (currentTrackInDisplayIndex < 0) {
+        setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
         return;
       }
-
-      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-    };
-
-    const timer = setTimeout(() => {
-      requestAnimationFrame(updateHighlight);
-    }, filterType !== 'default' ? 150 : 0);
-
-    return () => clearTimeout(timer);
-  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isEditMode, rowStride, baseRowHeight, filterType, categoryFilteredTracks]);
-
-  // Hide highlight immediately when leaving default view
-  useEffect(() => {
-    if (filterType !== 'default') {
-      logger.debug(`[LibraryView] Filter type changed to ${filterType}, hiding highlight temporarily`);
-      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-    } else {
-    }
-  }, [filterType]);
-
-  // Update sliding highlight position when current track changes
-  useEffect(() => {
-    if (isEditMode || !currentTrackId || displayTracks.length === 0) {
-      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+      setHighlightStyle({
+        top: currentTrackInDisplayIndex * rowStride,
+        height: baseRowHeight,
+        opacity: 1,
+      });
       return;
     }
 
-    // Increment the update ID
+    // category 模式：等 DOM 渲染后查找当前行（带 updateId 防竞态、带重试）
     const currentUpdateId = ++highlightUpdateIdRef.current;
 
     const updateHighlight = (retryCount = 0) => {
-      // Check if this is still the latest update
       if (currentUpdateId !== highlightUpdateIdRef.current) {
         return;
       }
 
       let currentTrackElement: HTMLElement | null = null;
-
-      if (filterType === 'default') {
-        // Default mode: use listRef
-        currentTrackElement = listRef.current?.querySelector(
+      const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrackId);
+      if (isCurrentInCategory && scrollContainerRef.current) {
+        currentTrackElement = scrollContainerRef.current.querySelector(
           `[data-track-index="${currentTrackInDisplayIndex}"]`
         ) as HTMLElement | null;
-      } else {
-        // Album/Artist mode: search in scrollContainer instead
-        const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrackId);
-        if (isCurrentInCategory && scrollContainerRef.current) {
-          // Search in scrollContainer instead of listRef
-          const element = scrollContainerRef.current.querySelector(
-            `[data-track-index="${currentTrackInDisplayIndex}"]`
-          ) as HTMLElement | null;
-          if (element) {
-            currentTrackElement = element;
-          }
-        }
       }
 
-      // Double-check this is still the latest update before setting state
       if (currentUpdateId !== highlightUpdateIdRef.current) {
         return;
       }
@@ -441,13 +390,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         setHighlightStyle({
           top: currentTrackElement.offsetTop,
           height: currentTrackElement.offsetHeight,
-          opacity: 1
+          opacity: 1,
         });
         return;
       }
 
-      // If not found and in category mode, try again after a delay
-      if (filterType !== 'default' && retryCount < 30) {
+      if (retryCount < 30) {
         const nextRetry = retryCount + 1;
         const delay = 50 * nextRetry;
         setTimeout(() => {
@@ -458,16 +406,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       }
     };
 
-    // Delay execution to ensure DOM is ready
-    const delay = filterType !== 'default' ? 150 : 0;
     const timer = setTimeout(() => {
       requestAnimationFrame(() => updateHighlight(0));
-    }, delay);
+    }, 150);
 
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isEditMode, filterType, categoryFilteredTracks]);
+    return () => clearTimeout(timer);
+  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isEditMode, filterType, categoryFilteredTracks, rowStride, baseRowHeight]);
+
+  // 切到非 default 视图时立即隐藏高亮（category 列表布局不同，避免错位闪烁）
+  useEffect(() => {
+    if (filterType !== 'default') {
+      logger.debug(`[LibraryView] Filter type changed to ${filterType}, hiding highlight temporarily`);
+      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+    }
+  }, [filterType]);
 
   // Check if current track is visible in viewport
   const isCurrentTrackVisible = useCallback(() => {
