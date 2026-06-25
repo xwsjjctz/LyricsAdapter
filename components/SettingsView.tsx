@@ -8,12 +8,17 @@ import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
+import { useFrostedHeader } from '../hooks/useFrostedHeader';
 
 interface SettingsViewProps {
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
+  onHeaderHeightChange?: (height: number) => void;
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeaderHeightChange }) => {
+  // Reuse the local `glassUI` toggle state below for className branches; the hook
+  // only needs to own the band measurement + report height upstream.
+  const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -200,7 +205,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
   };
 
   return (
-    <><div className="w-full flex flex-col h-full">
+    <><div className="w-full flex flex-col h-full relative">
+      {/* Header band: in glass mode it overlays the top (z-30) while the body
+          scrolls under the App-level frosted band; its measured height pads the
+          scroll content down so it starts below the band. */}
+      <div ref={headerBandRef} className={glassUI ? 'relative z-30 flex-shrink-0' : 'flex-shrink-0'}>
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
@@ -239,9 +248,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
           </div>
         </div>
       )}
+      </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto no-scrollbar space-y-4">
+      <div className={glassUI ? 'absolute inset-0 overflow-hidden' : 'flex-1 overflow-hidden'}>
+        <div
+          className="h-full overflow-y-auto no-scrollbar space-y-4"
+          style={glassUI ? { paddingTop: headerBandHeight } : undefined}
+        >
 
           <section>
             <div className="grid grid-cols-2 gap-3">

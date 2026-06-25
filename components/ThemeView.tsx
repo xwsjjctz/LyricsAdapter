@@ -3,8 +3,14 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, ThemeId } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
+import { useFrostedHeader } from '../hooks/useFrostedHeader';
 
-const ThemeView: React.FC = () => {
+interface ThemeViewProps {
+  onHeaderHeightChange?: (height: number) => void;
+}
+
+const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
+  const { ref: headerBandRef, headerHeight: headerBandHeight, glassUI } = useFrostedHeader(onHeaderHeightChange);
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [previewTheme, setPreviewTheme] = useState<ThemeConfig | null>(null);
   const [, setLanguageVersion] = useState(0);
@@ -129,7 +135,11 @@ const ThemeView: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex flex-col h-full">
+    <div className="w-full flex flex-col h-full relative">
+      {/* Header band: in glass mode it overlays the top (z-30) while the grid
+          scrolls under the App-level frosted band; measured height pads the
+          grid down so it starts below the band. */}
+      <div ref={headerBandRef} className={glassUI ? 'relative z-30 flex-shrink-0' : 'flex-shrink-0'}>
       {/* Header */}
       <div className="mb-6 flex-shrink-0 flex items-center justify-between">
         <div>
@@ -175,8 +185,13 @@ const ThemeView: React.FC = () => {
         </div>
       </div>
 
+      </div>
+
       {/* Theme Grid - Each card shows its own theme colors (not CSS variables) */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div
+        className={glassUI ? 'absolute inset-0 overflow-y-auto no-scrollbar' : 'flex-1 overflow-y-auto no-scrollbar'}
+        style={glassUI ? { paddingTop: headerBandHeight } : undefined}
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {predefinedThemes.map((theme) => {
             const isCurrent = theme.id === currentThemeId;

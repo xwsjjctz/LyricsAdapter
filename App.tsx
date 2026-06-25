@@ -585,10 +585,10 @@ const App: React.FC = () => {
               but above the song list (z-10), so the list scrolls under it blurred.
               The toolbar/colHeader content (z-30 inside LibraryView) sits above
               this band and stays crisp. */}
-          {glassUI && viewMode === ViewMode.PLAYER && headerHeight > 0 && (
+          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS || viewMode === ViewMode.THEME) && headerHeight > 0 && (
             <div
               className="frosted-header absolute top-0 left-0 right-0 z-20"
-              style={{ height: 40 + headerHeight }}
+              style={{ height: 40 + headerHeight + 120 }}
             />
           )}
           {currentTrack && (
@@ -631,9 +631,9 @@ const App: React.FC = () => {
                 }}
               />
             ) : viewMode === ViewMode.SETTINGS ? (
-              <SettingsView onClearOrphanCache={handleClearOrphanCache} />
+              <SettingsView onClearOrphanCache={handleClearOrphanCache} onHeaderHeightChange={setHeaderHeight} />
             ) : viewMode === ViewMode.THEME ? (
-              <ThemeView />
+              <ThemeView onHeaderHeightChange={setHeaderHeight} />
             ) : (
               <LibraryView
                 tracks={slots[viewSlot].tracks}

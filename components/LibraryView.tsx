@@ -347,8 +347,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     const container = scrollContainerRef.current;
     const timer = setTimeout(() => {
-      const viewTop = container.scrollTop;
-      const viewBottom = viewTop + container.clientHeight;
+      // Effective viewport excludes the frosted header (topInset) and ControlBar
+      // (bottomInset); locating must land the track where it isn't occluded.
+      const viewTop = container.scrollTop + topInset;
+      const viewBottom = container.scrollTop + container.clientHeight - bottomInset;
       const itemTop = rowTop(currentTrackInFilteredIndex);
       const itemBottom = itemTop + baseRowHeight;
 
@@ -364,9 +366,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       let targetTop: number;
 
       if (isFocusMode) {
-        targetTop = itemTop < viewTop ? itemTop : itemBottom - container.clientHeight;
+        targetTop = itemTop < viewTop ? itemTop - topInset : itemBottom - (container.clientHeight - bottomInset);
       } else {
-        targetTop = isNext ? itemBottom - container.clientHeight : itemTop;
+        targetTop = isNext ? itemBottom - (container.clientHeight - bottomInset) : itemTop - topInset;
       }
 
       const maxTop = maxScrollTop(container.clientHeight);
@@ -385,7 +387,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode, topInset]);
+  }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode, topInset, bottomInset]);
 
   // 高亮覆盖层（"滑块"）的位置与可见性。
   // default 模式用纯计算 index*rowStride 定位，绝不查询 DOM：当前播放行被虚拟滚动
@@ -468,15 +470,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [filterType]);
 
   // Check if current track is visible in viewport
+  // Account for the frosted header (topInset) and overlaid ControlBar (bottomInset):
+  // a track sitting within the scroll viewport but occluded by either glass band
+  // must still count as "not visible" so the locate button stays on screen.
   const isCurrentTrackVisible = useCallback(() => {
     if (currentTrackInFilteredIndex < 0 || !scrollContainerRef.current) return false;
     const container = scrollContainerRef.current;
     const itemTop = rowTop(currentTrackInFilteredIndex);
     const itemBottom = itemTop + baseRowHeight;
-    const viewportTop = scrollTop;
-    const viewportBottom = scrollTop + container.clientHeight;
+    const viewportTop = scrollTop + topInset;
+    const viewportBottom = scrollTop + container.clientHeight - bottomInset;
     return itemBottom >= viewportTop && itemTop <= viewportBottom;
-  }, [currentTrackInFilteredIndex, rowStride, baseRowHeight, scrollTop, topInset]);
+  }, [currentTrackInFilteredIndex, rowStride, baseRowHeight, scrollTop, topInset, bottomInset]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const newScrollTop = e.currentTarget.scrollTop;
@@ -492,8 +497,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       if (container) {
         const itemTop = rowTop(currentTrackInFilteredIndex);
         const itemBottom = itemTop + baseRowHeight;
-        const viewportTop = newScrollTop;
-        const viewportBottom = newScrollTop + container.clientHeight;
+        // Effective viewport excludes the frosted header (top) and ControlBar (bottom);
+        // a track covered by either band is treated as out of view.
+        const viewportTop = newScrollTop + topInset;
+        const viewportBottom = newScrollTop + container.clientHeight - bottomInset;
 
         // Show locate button if current track is out of viewport
         const isVisible = itemBottom >= viewportTop && itemTop <= viewportBottom;
@@ -505,7 +512,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       setShowLocateButton(false);
     }
-  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset]);
+  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
 
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -1151,12 +1158,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
       )}
 
-      {/* Floating locate button - shows when current track is out of viewport or in a different slot */}
+      {/* Floating locate button - shows when current track is out of viewport or in a different slot.
+          In glass mode the ControlBar overlays the bottom of <main> (absolute, z-40), so the button
+          must sit above it (bottomInset + margin) instead of being occluded. */}
       {((showLocateButton && currentTrackInFilteredIndex >= 0) || (dataSource !== activeSlotId && currentTrackId)) && (
         <button
           onClick={handleLocateToCurrentTrack}
-          className="absolute bottom-6 right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
-          style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary }}
+          className="absolute right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
+          style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary, bottom: glassUI ? bottomInset + 24 : 24 }}
           title={i18n.t('library.locateToCurrent')}
           onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
