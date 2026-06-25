@@ -94,4 +94,5 @@ problems.md
 /.playwright-mcp
 
 /.codegraph
-_metadata.json
+/_metadata.json
+/package-lock.json
