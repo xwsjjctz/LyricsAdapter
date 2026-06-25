@@ -188,7 +188,13 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
       if (result.success) {
         logger.info(`[MetadataView] Saved all metadata for track ${selectedTrack.id}`);
         await coverArtService.deleteCover(selectedTrack.id);
-        
+
+        // 保存成功后重新解析写入的 LRC 文本，重建 syncedLyrics。
+        // 否则编辑歌词后 syncedLyrics 残留为 undefined，FocusMode 无法滚动。
+        const nextSynced = lyricsToSave
+          ? parseLRCLyrics(lyricsToSave).syncedLyrics
+          : selectedTrack.syncedLyrics;
+
         let newCoverUrl = selectedTrack.coverUrl;
         if (pendingCoverDataUrl) {
           const cachedCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
@@ -196,8 +202,8 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
             newCoverUrl = cachedCoverUrl;
           }
         }
-        
-        const updatedTrack = { ...selectedTrack, coverUrl: newCoverUrl };
+
+        const updatedTrack = { ...selectedTrack, syncedLyrics: nextSynced, coverUrl: newCoverUrl };
         setSelectedTrack(updatedTrack);
         setOriginalTrack(updatedTrack);
         if (onUpdateTrack) {
