@@ -30,10 +30,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # macOS 构建：已移除 Apple 签名 & 公证，走全量下载更新。
       # Windows 构建：NSIS 安装包，差量更新不签名也可用。

@@ -7,6 +7,7 @@ import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
+import { toCoverThumb } from '../services/coverUrl';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -283,7 +284,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     // Fall back to plain text lyrics
     if (track?.lyrics) {
       const plainLines = track.lyrics.split(/\r?\n/)
-        .map(line => line.trim())
+        .map(line => line.trim().replace(/^\[\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?\]/, ''))
         .filter(line => line.length > 0 && line !== '//');
       // Convert to synced lyrics format with even distribution
       return plainLines.map((text, _idx) => ({
@@ -837,7 +838,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setIsTransitioning(false);
     };
 
-    img.src = track.coverUrl;
+    // 背景经 blur(80px) 重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
+    img.src = toCoverThumb(track.coverUrl, 256)!;
   }, [track?.id, track?.coverUrl]);
 
   // Render canvas when transitioning or when bgImage1 loads
@@ -893,7 +895,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
             <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
               <img
-                src={track?.coverUrl}
+                src={toCoverThumb(track?.coverUrl, 512)}
                 className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
                 alt="album cover"
               />

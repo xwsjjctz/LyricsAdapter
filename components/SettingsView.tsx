@@ -8,12 +8,17 @@ import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
+import { useFrostedHeader } from '../hooks/useFrostedHeader';
 
 interface SettingsViewProps {
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
+  onHeaderHeightChange?: (height: number) => void;
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeaderHeightChange }) => {
+  // Reuse the local `glassUI` toggle state below for className branches; the hook
+  // only needs to own the band measurement + report height upstream.
+  const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -34,6 +39,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
   const [floatingPanel, setFloatingPanel] = useState(false);
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
+  const [glassUI, setGlassUI] = useState(false);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -56,6 +62,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
       setFloatingPanel(settingsManager.getFloatingPanel());
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
+      setGlassUI(settingsManager.getGlassUI());
     })();
   }, []);
 
@@ -65,6 +72,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setFloatingPanel(settingsManager.getFloatingPanel());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
+      setGlassUI(settingsManager.getGlassUI());
     });
     return unsubscribe;
   }, []);
@@ -197,7 +205,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
   };
 
   return (
-    <><div className="w-full flex flex-col h-full">
+    <><div className="w-full flex flex-col h-full relative">
+      {/* Header band: in glass mode it overlays the top (z-30) while the body
+          scrolls under the App-level frosted band; its measured height pads the
+          scroll content down so it starts below the band. */}
+      <div ref={headerBandRef} className={glassUI ? 'relative z-30 flex-shrink-0' : 'flex-shrink-0'}>
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
@@ -236,9 +248,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
           </div>
         </div>
       )}
+      </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto no-scrollbar space-y-4">
+      <div className={glassUI ? 'absolute inset-0 overflow-hidden' : 'flex-1 overflow-hidden'}>
+        <div
+          className="h-full overflow-y-auto no-scrollbar space-y-4"
+          style={glassUI ? { paddingTop: headerBandHeight } : undefined}
+        >
 
           <section>
             <div className="grid grid-cols-2 gap-3">
@@ -499,6 +515,32 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache }) => {
                   className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
                   style={{
                     transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
+                  }}
+                />
+              </button>
+            </div>
+
+            {/* 玻璃质感开关 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <div className="min-w-0 mr-3">
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.glassUI')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.glassUIDesc')}</p>
+              </div>
+              <button
+                onClick={() => {
+                  const newValue = !glassUI;
+                  setGlassUI(newValue);
+                  settingsManager.setGlassUI(newValue);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0`}
+                style={{
+                  backgroundColor: glassUI ? colors.primary : colors.borderLight,
+                }}
+              >
+                <span
+                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
+                  style={{
+                    transform: glassUI ? 'translateX(22px)' : 'translateX(2px)',
                   }}
                 />
               </button>

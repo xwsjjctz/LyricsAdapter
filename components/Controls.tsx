@@ -2,7 +2,9 @@ import React, { memo, useEffect, useState } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
+import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
+import { useGlassUI } from '../hooks/useGlassUI';
 
 interface ControlsProps {
   track: Track | null;
@@ -49,6 +51,7 @@ const Controls: React.FC<ControlsProps> = memo(({
 }) => {
   const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const glassUI = useGlassUI();
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
@@ -78,7 +81,7 @@ const Controls: React.FC<ControlsProps> = memo(({
     <div
       className={floating
         ? `mx-2 mb-2 rounded-lg h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
-        : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
+        : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${glassUI ? 'frosted-bar absolute bottom-0 left-0 right-0' : ''} ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       }
       style={floating ? {
         backgroundColor: colors.backgroundSidebar,
@@ -88,7 +91,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         boxShadow: `0 4px 16px rgba(0, 0, 0, 0.2)`,
       } : {
         borderColor: colors.borderLight,
-        backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.4)`,
+        backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, ${glassUI ? 0.6 : 0.4})`,
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
@@ -99,7 +102,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             className="flex items-center gap-4 cursor-pointer group"
           >
             <div className="relative size-14 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-transform">
-              <img src={track.coverUrl} className="size-full object-cover" />
+              <img src={toCoverThumb(track.coverUrl, 128)} className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>open_in_full</span>
               </div>

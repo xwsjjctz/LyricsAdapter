@@ -4,6 +4,7 @@ const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
+const GLASS_UI_KEY = 'la_glass_ui';
 
 type Listener = () => void;
 
@@ -12,6 +13,7 @@ class SettingsManager {
   private floatingPanel: boolean = false;
   private bgBlurTrans: number = 1.0;
   private qqMusicEnabled: boolean = false;
+  private glassUI: boolean = false;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -33,6 +35,8 @@ class SettingsManager {
       }
 
       this.qqMusicEnabled = localStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
+
+      this.glassUI = localStorage.getItem(GLASS_UI_KEY) === 'true';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -118,6 +122,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] QQ Music enabled set to: ${enabled}`);
+  }
+
+  // --- Glass UI (frosted header & control bar) ---
+
+  getGlassUI(): boolean {
+    return this.glassUI;
+  }
+
+  setGlassUI(enabled: boolean): void {
+    this.glassUI = enabled;
+    try {
+      localStorage.setItem(GLASS_UI_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save glass UI:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Glass UI set to: ${enabled}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

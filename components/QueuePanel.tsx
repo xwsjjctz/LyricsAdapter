@@ -3,6 +3,7 @@ import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
+import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 
 interface QueuePanelProps {
@@ -57,7 +58,7 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
               >
                 <div 
                   className="size-12 rounded-lg bg-cover bg-center shrink-0 shadow-md group-hover:scale-105 transition-transform" 
-                  style={{backgroundImage: `url('${track.coverUrl}')`}}
+                  style={{backgroundImage: `url('${toCoverThumb(track.coverUrl, 128)}')`}}
                 ></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate transition-colors" style={{ color: index === currentTrackIndex ? colors.primary : colors.textPrimary }}>
