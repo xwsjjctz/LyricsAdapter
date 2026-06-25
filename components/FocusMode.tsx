@@ -284,7 +284,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     // Fall back to plain text lyrics
     if (track?.lyrics) {
       const plainLines = track.lyrics.split(/\r?\n/)
-        .map(line => line.trim())
+        .map(line => line.trim().replace(/^\[\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?\]/, ''))
         .filter(line => line.length > 0 && line !== '//');
       // Convert to synced lyrics format with even distribution
       return plainLines.map((text, _idx) => ({

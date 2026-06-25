@@ -6,6 +6,7 @@ import { notify } from '../services/notificationService';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
+import { parseLRCLyrics } from '../services/metadataService';
 
 interface MetadataEditorPopupProps {
   track: Track;
@@ -66,8 +67,8 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpda
     if (!hasChanges) return;
     setSaving(true);
     try {
+      const lyrics = edited.lyrics;
       if (edited.filePath && window.electron?.writeAudioMetadata) {
-        const lyrics = edited.lyrics;
         const coverUrl = pendingCoverDataUrl || edited.coverUrl;
         const result = await window.electron.writeAudioMetadata(edited.filePath, {
           title: edited.title || undefined,
@@ -79,8 +80,13 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpda
         if (!result.success) throw new Error(result.error || 'Write failed');
       }
 
+      // 保存成功后重新解析歌词文本，重建 syncedLyrics。
+      // 否则编辑歌词后 syncedLyrics 残留为 undefined，FocusMode 无法滚动。
+      const nextSynced = lyrics != null ? parseLRCLyrics(lyrics).syncedLyrics : edited.syncedLyrics;
+
       const finalTrack = {
         ...edited,
+        syncedLyrics: nextSynced,
         coverUrl: pendingCoverDataUrl || edited.coverUrl,
       };
       onUpdateTrack(finalTrack);
