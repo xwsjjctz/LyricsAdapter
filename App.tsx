@@ -580,15 +580,13 @@ const App: React.FC = () => {
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}
         >
-          {/* Frosted header band — full width of <main>, covering pt-8 gap and
-              toolbar+colHeader area. Positioned behind the fixed TitleBar (z-[160])
-              but above the song list (z-10), so the list scrolls under it blurred.
-              The toolbar/colHeader content (z-30 inside LibraryView) sits above
-              this band and stays crisp. */}
+          {/* Frosted header band — clipped to each view's measured header bottom.
+              For LibraryView this ends at the song-list column divider; for
+              Settings/Theme it ends at their header container bottom. */}
           {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS || viewMode === ViewMode.THEME) && headerHeight > 0 && (
             <div
               className="frosted-header absolute top-0 left-0 right-0 z-20"
-              style={{ height: 40 + headerHeight + 120 }}
+              style={{ height: 40 + headerHeight }}
             />
           )}
           {currentTrack && (
