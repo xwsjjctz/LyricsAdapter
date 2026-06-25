@@ -6,6 +6,7 @@ interface UseLibraryVirtualScrollParams {
   scrollContainerRef: React.RefObject<HTMLDivElement>;
   listRef: React.RefObject<HTMLDivElement>;
   isEditMode: boolean;
+  topInset?: number;
 }
 
 interface UseLibraryVirtualScrollResult {
@@ -35,6 +36,7 @@ export function useLibraryVirtualScroll({
   scrollContainerRef,
   listRef,
   isEditMode,
+  topInset = 0,
 }: UseLibraryVirtualScrollParams): UseLibraryVirtualScrollResult {
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
@@ -50,19 +52,23 @@ export function useLibraryVirtualScroll({
   // 阈值降到 40：避免中小曲库（≤200）全量渲染所有行，减少 DOM 节点与封面解码后的 GPU 纹理占用。
   // 虚拟化下首行始终渲染，rowMeasure 高度测量不受影响。
   const shouldVirtualize = itemCount > 40 && viewportHeight > 0;
+  // topInset offsets the list content below the frosted header band. Windowing is
+  // computed against the offset-adjusted scroll position so the rendered slice and
+  // the visual content stay in sync (rows scroll under the band).
+  const effectiveScroll = Math.max(0, scrollTop - topInset);
   const startIndex = shouldVirtualize
-    ? Math.max(0, Math.floor(scrollTop / rowStride) - overscan)
+    ? Math.max(0, Math.floor(effectiveScroll / rowStride) - overscan)
     : 0;
   const endIndex = shouldVirtualize
-    ? Math.min(itemCount, Math.ceil((scrollTop + viewportHeight) / rowStride) + overscan)
+    ? Math.min(itemCount, Math.ceil((effectiveScroll + viewportHeight) / rowStride) + overscan)
     : itemCount;
   const visibleCount = shouldVirtualize ? endIndex - startIndex : itemCount;
-  const paddingTop = shouldVirtualize ? startIndex * rowStride : 0;
+  const paddingTop = (shouldVirtualize ? startIndex * rowStride : 0) + topInset;
   const visibleHeight = visibleCount > 0
     ? (visibleCount - 1) * rowStride + baseRowHeight
     : 0;
   const paddingBottom = shouldVirtualize
-    ? Math.max(0, totalHeight - paddingTop - visibleHeight)
+    ? Math.max(0, totalHeight - (paddingTop - topInset) - visibleHeight)
     : 0;
 
   const rowMeasureRef = useCallback((node: HTMLDivElement | null) => {

@@ -1888,6 +1888,24 @@ const translations: Translations = {
     fr: 'Ajouter une source musicale tierce'
   },
 
+  'settings.glassUI': {
+    zh: '玻璃质感',
+    en: 'Frosted Glass',
+    ja: 'すりガラス質感',
+    ko: '서리 유리 질감',
+    de: 'Mattglas-Effekt',
+    fr: 'Verre dépoli'
+  },
+
+  'settings.glassUIDesc': {
+    zh: '歌曲库表头与底部控制栏变为半透明毛玻璃，列表可从其后透出',
+    en: 'Frosted translucent header & control bar; the list shows through behind them',
+    ja: 'ライブラリのヘッダーと下部コントロールバーがすりガラスになり、リストが透けて見えます',
+    ko: '라이브러리 헤더와 하단 컨트롤 바가 서리 유리가 되어 리스트가 비쳐 보입니다',
+    de: 'Header und Steuerleiste werden zu mattem Glas; die Liste schimmert hindurch',
+    fr: 'En-tête et barre de contrôle en verre dépoli ; la liste transparaît'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',

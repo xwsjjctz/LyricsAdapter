@@ -30,6 +30,7 @@ import { i18n } from './services/i18n';
 import { useQQMusicIntegration } from './hooks/useQQMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useFloatingPanel } from './hooks/useFloatingPanel';
+import { useGlassUI } from './hooks/useGlassUI';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -49,6 +50,8 @@ const App: React.FC = () => {
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
   const isWindowFocused = useWindowFocus();
   const floatingPanel = useFloatingPanel();
+  const glassUI = useGlassUI();
+  const [headerHeight, setHeaderHeight] = useState(0);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   // QQ Music download/upload progress
   const {
@@ -577,6 +580,17 @@ const App: React.FC = () => {
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}
         >
+          {/* Frosted header band — full width of <main>, covering pt-8 gap and
+              toolbar+colHeader area. Positioned behind the fixed TitleBar (z-[160])
+              but above the song list (z-10), so the list scrolls under it blurred.
+              The toolbar/colHeader content (z-30 inside LibraryView) sits above
+              this band and stays crisp. */}
+          {glassUI && viewMode === ViewMode.PLAYER && headerHeight > 0 && (
+            <div
+              className="frosted-header absolute top-0 left-0 right-0 z-20"
+              style={{ height: 40 + headerHeight }}
+            />
+          )}
           {currentTrack && (
             <audio
               ref={setAudioRef}
@@ -645,6 +659,7 @@ const App: React.FC = () => {
                 categorySelection={slots[viewSlot].categorySelection}
                 onFilterTypeChange={handleFilterTypeChange}
                 onCategoryChange={handleCategoryChange}
+                onHeaderHeightChange={setHeaderHeight}
                 onLoadCloudTracks={loadCloudTracks}
                 onMergeCloudTracks={mergeCloudTracks}
 	                searchBox={
