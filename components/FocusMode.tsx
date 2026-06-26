@@ -107,6 +107,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   // Global background transparency control for debugging
   const [bgBlurTrans, setBgBlurTrans] = useState(() => settingsManager.getBgBlurTrans());
   const [bgBlurRadius, setBgBlurRadius] = useState(() => settingsManager.getFocusBgBlurRadius());
+  const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -116,6 +117,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       const radius = settingsManager.getFocusBgBlurRadius();
       bgBlurRadiusRef.current = radius;
       setBgBlurRadius(radius);
+      setInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
     });
     return unsubscribe;
   }, []);
@@ -954,7 +956,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                           ? 'active-lyric transition-all duration-300' 
                           : ''
                       } ${hasTimestamp ? 'cursor-pointer' : ''}`}
-                      style={{ color: isActive ? focusColors.textPrimary : focusColors.textMuted }}
+                      style={{
+                        color: isActive ? focusColors.textPrimary : focusColors.textMuted,
+                        filter: isActive ? 'none' : `blur(${inactiveLyricBlur}px)`,
+                      }}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = focusColors.textMuted; }}

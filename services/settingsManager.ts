@@ -7,6 +7,7 @@ const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
+const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
 
 type Listener = () => void;
 
@@ -19,6 +20,7 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
+  private focusInactiveLyricBlur: number = 0;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -50,6 +52,14 @@ class SettingsManager {
         const parsed = parseFloat(blurRadius);
         if (!isNaN(parsed)) {
           this.focusBgBlurRadius = Math.max(40, Math.min(80, parsed));
+        }
+      }
+
+      const inactiveLyricBlur = localStorage.getItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY);
+      if (inactiveLyricBlur) {
+        const parsed = parseFloat(inactiveLyricBlur);
+        if (!isNaN(parsed)) {
+          this.focusInactiveLyricBlur = Math.max(0, Math.min(12, parsed));
         }
       }
     } catch (error) {
@@ -188,6 +198,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode blur radius set to: ${this.focusBgBlurRadius}`);
+  }
+
+  // --- Focus Mode Inactive Lyric Blur ---
+
+  getFocusInactiveLyricBlur(): number {
+    return this.focusInactiveLyricBlur;
+  }
+
+  setFocusInactiveLyricBlur(value: number): void {
+    this.focusInactiveLyricBlur = Math.max(0, Math.min(12, value));
+    try {
+      localStorage.setItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur));
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save Focus Mode inactive lyric blur:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---
