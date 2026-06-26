@@ -33,6 +33,7 @@ import { useFloatingPanel } from './hooks/useFloatingPanel';
 import { useGlassUI } from './hooks/useGlassUI';
 import { useGsapButtonBounce } from './hooks/useGsapButtonBounce';
 import { useGsapPageTransition } from './hooks/useGsapPageTransition';
+import { useGsapSlotTransition } from './hooks/useGsapSlotTransition';
 import GsapModal from './components/GsapModal';
 declare global {
   interface Window {
@@ -78,6 +79,7 @@ const App: React.FC = () => {
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
   const [viewSlot, setViewSlot] = useState<'local' | 'cloud'>('local');
+  const { containerRef: libraryContentRef, switchSlot: transitionToSlot } = useGsapSlotTransition(viewSlot, setViewSlot);
   const [restoreTime, setRestoreTime] = useState(0);
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -335,13 +337,13 @@ const App: React.FC = () => {
     },
   });
   const lastScrollPositionRef = useRef<number>(0);
-  const handleSwitchSlot = useCallback((targetSlot: 'local' | 'cloud') => {
+  const handleSwitchSlot = useCallback(async (targetSlot: 'local' | 'cloud') => {
     if (targetSlot === viewSlot) return;
     // Save current view's scroll position before switching
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: lastScrollPositionRef.current }));
-    // Switch view only — playback continues uninterrupted
-    setViewSlot(targetSlot);
-  }, [viewSlot, updateSlot]);
+    // Switch view only — playback continues uninterrupted.
+    await transitionToSlot(targetSlot);
+  }, [viewSlot, updateSlot, transitionToSlot]);
   const handleLibraryScrollPositionChange = useCallback((position: number) => {
     lastScrollPositionRef.current = position;
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: position }));
@@ -638,6 +640,7 @@ const App: React.FC = () => {
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView onHeaderHeightChange={setHeaderHeight} />
             ) : (
+              <div ref={libraryContentRef} className="h-full">
               <LibraryView
                 tracks={slots[viewSlot].tracks}
                 currentTrackIndex={slots[viewSlot].currentTrackIndex}
@@ -675,8 +678,9 @@ const App: React.FC = () => {
 	                    onQQMusicUpload={handleQQMusicUpload}
 	                    qqProgress={qqProgress}
 	                  />
-	                }
+                }
               />
+              </div>
             )}
           </div>
           <Controls

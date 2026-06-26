@@ -33,7 +33,7 @@ interface LibraryViewProps {
   importProgress?: { loaded: number; total: number } | null;
   dataSource: 'local' | 'cloud';
   activeSlotId: 'local' | 'cloud';
-  onSwitchSlot: (slotId: 'local' | 'cloud') => void;
+  onSwitchSlot: (slotId: 'local' | 'cloud') => Promise<void>;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
@@ -733,12 +733,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [draggedIndex, originalIndex, insertPosition, onReorderTracks]);
 
   // Handle locate to current playing track
-  const handleLocateToCurrentTrack = useCallback(() => {
+  const handleLocateToCurrentTrack = useCallback(async () => {
     if (dataSource !== activeSlotId) {
       // Cross-slot: switch view to the playing slot and trigger auto-locate
       // 标记跨槽定位，使 restore scroll effect 跳过、auto-locate 使用即时滚动
       instantLocateRef.current = true;
-      onSwitchSlot(activeSlotId);
+      await onSwitchSlot(activeSlotId);
       onLocateTrack?.();
       return;
     }
