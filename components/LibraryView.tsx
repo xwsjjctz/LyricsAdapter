@@ -94,6 +94,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     height: 0,
     opacity: 0
   });
+  const [isHighlightTransitionSuppressed, setIsHighlightTransitionSuppressed] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const glassUI = useGlassUI();
   // Measured height of the frosted header band (toolbar + column header) when glass UI is on.
@@ -354,6 +355,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     // The following normal effect must not restore the saved scroll position.
     skipNextScrollRestoreRef.current = true;
+    setIsHighlightTransitionSuppressed(true);
+    setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+    let releaseFrame: number | undefined;
     const frame = requestAnimationFrame(() => {
       const container = scrollContainerRef.current;
       if (container && currentTrackInFilteredIndex >= 0) {
@@ -366,12 +370,23 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         setScrollTop(clampedTop);
         hasAutoLocatedToTrackRef.current = true;
       }
+      if (filterType === 'default' && currentTrackInDisplayIndex >= 0) {
+        setHighlightStyle({
+          top: rowTop(currentTrackInDisplayIndex),
+          height: baseRowHeight,
+          opacity: 1,
+        });
+      }
       onPendingLocatePrepared?.(pendingLocateToken);
       onSlotContentReady?.(dataSource);
+      releaseFrame = requestAnimationFrame(() => setIsHighlightTransitionSuppressed(false));
     });
 
-    return () => cancelAnimationFrame(frame);
-  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
+    return () => {
+      cancelAnimationFrame(frame);
+      if (releaseFrame !== undefined) cancelAnimationFrame(releaseFrame);
+    };
+  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, currentTrackInDisplayIndex, filterType, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
 
   // Auto-locate only when a track-switch action occurs.
   useEffect(() => {
@@ -892,7 +907,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <div className="absolute inset-0 pointer-events-none">
             {highlightStyle.opacity > 0 && (
               <div
-                className="absolute rounded-xl pointer-events-none transition-[transform,height] duration-150 ease-out shadow-xl"
+                className={`absolute rounded-xl pointer-events-none shadow-xl ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
                 style={{
                   transform: `translateY(${highlightStyle.top - scrollTop}px)`,
                   height: `${highlightStyle.height}px`,
@@ -1060,7 +1075,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                <div className="absolute inset-0 pointer-events-none">
                  {highlightStyle.opacity > 0 && (
                    <div
-                     className="absolute rounded-xl pointer-events-none transition-[transform,height] duration-150 ease-out shadow-xl"
+                    className={`absolute rounded-xl pointer-events-none shadow-xl ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
                      style={{
                        transform: `translateY(${highlightStyle.top - scrollTop}px)`,
                        height: `${highlightStyle.height}px`,
