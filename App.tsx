@@ -31,6 +31,7 @@ import { useQQMusicIntegration } from './hooks/useQQMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useFloatingPanel } from './hooks/useFloatingPanel';
 import { useGlassUI } from './hooks/useGlassUI';
+import { useGsapButtonBounce } from './hooks/useGsapButtonBounce';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -44,6 +45,7 @@ declare global {
   }
 }
 const App: React.FC = () => {
+  useGsapButtonBounce();
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);

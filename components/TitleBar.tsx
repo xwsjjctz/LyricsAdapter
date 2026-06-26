@@ -106,6 +106,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         <div className="h-full flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag', visibility: isFullScreen ? 'hidden' : 'visible' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
+            data-no-gsap-bounce
             className="w-12 h-12 flex items-center justify-center"
             aria-label={isFocusMode ? i18n.t('titleBar.exitFocusMode') : i18n.t('titleBar.enterFocusMode')}
             onMouseEnter={() => setIsButtonHovered(true)}
@@ -161,6 +162,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         >
           <button
             onClick={onToggleFocusMode}
+            data-no-gsap-bounce
             className="w-[46px] h-full flex items-center justify-center transition-colors"
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
@@ -173,6 +175,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           </button>
           <button
             onClick={minimize}
+            data-no-gsap-bounce
             className="w-[46px] h-full flex items-center justify-center transition-colors"
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
@@ -183,6 +186,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           </button>
           <button
             onClick={maximize}
+            data-no-gsap-bounce
             className="w-[46px] h-full flex items-center justify-center transition-colors"
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
@@ -193,6 +197,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           </button>
           <button
             onClick={close}
+            data-no-gsap-bounce
             className="w-[46px] h-full flex items-center justify-center transition-colors"
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.backgroundColor = '#c42b1c'; }}
