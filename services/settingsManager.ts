@@ -7,6 +7,7 @@ const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
+const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 
 type Listener = () => void;
 
@@ -19,6 +20,7 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
+  private focusLyricsFontSize: number = 24;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -50,6 +52,14 @@ class SettingsManager {
         const parsed = parseFloat(blurRadius);
         if (!isNaN(parsed)) {
           this.focusBgBlurRadius = Math.max(40, Math.min(80, parsed));
+        }
+      }
+
+      const lyricFontSize = localStorage.getItem(FOCUS_LYRICS_FONT_SIZE_KEY);
+      if (lyricFontSize) {
+        const parsed = parseFloat(lyricFontSize);
+        if (!isNaN(parsed)) {
+          this.focusLyricsFontSize = Math.max(16, Math.min(40, parsed));
         }
       }
     } catch (error) {
@@ -188,6 +198,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode blur radius set to: ${this.focusBgBlurRadius}`);
+  }
+
+  // --- Focus Mode Lyric Font Size ---
+
+  getFocusLyricsFontSize(): number {
+    return this.focusLyricsFontSize;
+  }
+
+  setFocusLyricsFontSize(value: number): void {
+    this.focusLyricsFontSize = Math.max(16, Math.min(40, value));
+    try {
+      localStorage.setItem(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize));
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save Focus Mode lyric font size:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Focus Mode lyric font size set to: ${this.focusLyricsFontSize}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

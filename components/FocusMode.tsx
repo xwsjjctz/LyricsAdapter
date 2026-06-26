@@ -107,6 +107,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   // Global background transparency control for debugging
   const [bgBlurTrans, setBgBlurTrans] = useState(() => settingsManager.getBgBlurTrans());
   const [bgBlurRadius, setBgBlurRadius] = useState(() => settingsManager.getFocusBgBlurRadius());
+  const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -116,6 +117,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       const radius = settingsManager.getFocusBgBlurRadius();
       bgBlurRadiusRef.current = radius;
       setBgBlurRadius(radius);
+      setLyricsFontSize(settingsManager.getFocusLyricsFontSize());
     });
     return unsubscribe;
   }, []);
@@ -506,6 +508,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const currentOffsetRef = useRef(0);
   const lyricAnimationRef = useRef<number | null>(null);
   const preScrolledIndexRef = useRef<number>(-1);
+
+  // Recenter the active lyric after its measured height changes with the font size.
+  useEffect(() => {
+    preScrolledIndexRef.current = -1;
+  }, [lyricsFontSize]);
   
   // Pre-scroll offset: start scrolling 0.1s before next lyric
   const PRE_SCROLL_TIME = 0.1;
@@ -607,7 +614,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     };
 
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [activeCurrentTime, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines, activeIndex]);
+  }, [activeCurrentTime, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines, activeIndex, lyricsFontSize]);
 
   // Manual scroll mode: directly apply offset without auto-position
   useEffect(() => {
@@ -949,12 +956,15 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                   return (
                     <p
                       key={idx}
-                      className={`text-xl lg:text-2xl font-bold leading-tight cursor-default ${
+                      className={`font-bold leading-tight cursor-default ${
                         isActive 
                           ? 'active-lyric transition-all duration-300' 
                           : ''
                       } ${hasTimestamp ? 'cursor-pointer' : ''}`}
-                      style={{ color: isActive ? focusColors.textPrimary : focusColors.textMuted }}
+                      style={{
+                        color: isActive ? focusColors.textPrimary : focusColors.textMuted,
+                        fontSize: `${lyricsFontSize}px`,
+                      }}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = focusColors.textMuted; }}
