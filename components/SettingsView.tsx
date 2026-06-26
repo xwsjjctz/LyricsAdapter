@@ -45,6 +45,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(28);
+  const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(0);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -72,6 +73,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
+      setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
     })();
   }, []);
 
@@ -86,6 +88,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
+      setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
     });
     return unsubscribe;
   }, []);
@@ -577,6 +580,30 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
                   style={{
                     background: `linear-gradient(to right, ${colors.primary} ${((focusLyricLineSpacing - 12) / 36) * 100}%, ${colors.borderLight} ${((focusLyricLineSpacing - 12) / 36) * 100}%)`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Focus Mode 非当前歌词模糊 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusInactiveLyricBlur')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusInactiveLyricBlur}px</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="12"
+                  step="1"
+                  value={focusInactiveLyricBlur}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setFocusInactiveLyricBlur(value);
+                    settingsManager.setFocusInactiveLyricBlur(value);
+                  }}
+                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, ${colors.primary} ${(focusInactiveLyricBlur / 12) * 100}%, ${colors.borderLight} ${(focusInactiveLyricBlur / 12) * 100}%)`,
                   }}
                 />
               </div>

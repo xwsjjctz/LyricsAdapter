@@ -9,6 +9,7 @@ const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
+const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
 
 type Listener = () => void;
 
@@ -23,6 +24,7 @@ class SettingsManager {
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 24;
   private focusLyricLineSpacing: number = 28;
+  private focusInactiveLyricBlur: number = 0;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -70,6 +72,14 @@ class SettingsManager {
         const parsed = parseFloat(lyricLineSpacing);
         if (!isNaN(parsed)) {
           this.focusLyricLineSpacing = Math.max(12, Math.min(48, parsed));
+        }
+      }
+
+      const inactiveLyricBlur = localStorage.getItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY);
+      if (inactiveLyricBlur) {
+        const parsed = parseFloat(inactiveLyricBlur);
+        if (!isNaN(parsed)) {
+          this.focusInactiveLyricBlur = Math.max(0, Math.min(12, parsed));
         }
       }
     } catch (error) {
@@ -242,6 +252,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric line spacing set to: ${this.focusLyricLineSpacing}`);
+  }
+
+  // --- Focus Mode Inactive Lyric Blur ---
+
+  getFocusInactiveLyricBlur(): number {
+    return this.focusInactiveLyricBlur;
+  }
+
+  setFocusInactiveLyricBlur(value: number): void {
+    this.focusInactiveLyricBlur = Math.max(0, Math.min(12, value));
+    try {
+      localStorage.setItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur));
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save Focus Mode inactive lyric blur:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

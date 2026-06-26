@@ -109,6 +109,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgBlurRadius, setBgBlurRadius] = useState(() => settingsManager.getFocusBgBlurRadius());
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
+  const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -120,6 +121,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setBgBlurRadius(radius);
       setLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
+      setInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
     });
     return unsubscribe;
   }, []);
@@ -967,6 +969,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                       style={{
                         color: isActive ? focusColors.textPrimary : focusColors.textMuted,
                         fontSize: `${lyricsFontSize}px`,
+                         filter: isActive ? 'none' : `blur(${inactiveLyricBlur}px)`,
                       }}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}

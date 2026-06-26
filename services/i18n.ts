@@ -1951,6 +1951,15 @@ const translations: Translations = {
     fr: 'Espacement des lignes de paroles défilantes'
   },
 
+  'settings.focusInactiveLyricBlur': {
+    zh: 'Focus Mode 非当前歌词模糊',
+    en: 'Focus Mode Inactive Lyric Blur',
+    ja: 'Focus Mode の非アクティブ歌詞ぼかし',
+    ko: 'Focus Mode 비활성 가사 흐림',
+    de: 'Unschärfe inaktiver Focus-Mode-Texte',
+    fr: 'Flou des paroles inactives en mode Focus'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',
