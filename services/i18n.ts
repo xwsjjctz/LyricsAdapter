@@ -1933,6 +1933,33 @@ const translations: Translations = {
     fr: 'Flou d’arrière-plan du mode Focus'
   },
 
+  'settings.focusLyricsFontSize': {
+    zh: 'Focus Mode 滚动歌词字号',
+    en: 'Focus Mode Lyric Font Size',
+    ja: 'Focus Mode の歌詞サイズ',
+    ko: 'Focus Mode 가사 글자 크기',
+    de: 'Schriftgröße der Focus-Mode-Texte',
+    fr: 'Taille des paroles du mode Focus'
+  },
+
+  'settings.focusLyricLineSpacing': {
+    zh: '滚动歌词行间距',
+    en: 'Scrolling Lyric Line Spacing',
+    ja: 'スクロール歌詞の行間',
+    ko: '스크롤 가사 줄 간격',
+    de: 'Zeilenabstand für scrollende Liedtexte',
+    fr: 'Espacement des lignes de paroles défilantes'
+  },
+
+  'settings.focusInactiveLyricBlur': {
+    zh: 'Focus Mode 非当前歌词模糊',
+    en: 'Focus Mode Inactive Lyric Blur',
+    ja: 'Focus Mode の非アクティブ歌詞ぼかし',
+    ko: 'Focus Mode 비활성 가사 흐림',
+    de: 'Unschärfe inaktiver Focus-Mode-Texte',
+    fr: 'Flou des paroles inactives en mode Focus'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',

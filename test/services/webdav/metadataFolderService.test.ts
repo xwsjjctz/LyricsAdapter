@@ -29,7 +29,7 @@ describe('assignChunkId', () => {
       chunkSize: DEFAULT_CHUNK_SIZE,
       entries: {},
     };
-    const chunkId = assignChunkId('/music/song.flac', manifest);
+    const chunkId = assignChunkId('/music/song.flac', manifest, DEFAULT_CHUNK_SIZE);
     expect(chunkId).toBe('0001');
   });
 
@@ -81,7 +81,7 @@ describe('assignChunkId', () => {
       entries,
     };
 
-    const chunkId = assignChunkId('/music/song.flac', manifest);
+    const chunkId = assignChunkId('/music/song.flac', manifest, DEFAULT_CHUNK_SIZE);
     expect(chunkId).toBe('0001');
   });
 });
