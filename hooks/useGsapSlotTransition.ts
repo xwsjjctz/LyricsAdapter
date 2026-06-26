@@ -18,7 +18,7 @@ export const useGsapSlotTransition = (
 ): GsapSlotTransition => {
   const containerRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef(slot);
-  const enterDirectionRef = useRef<number | null>(null);
+  const shouldEnterRef = useRef(false);
   const resolveTransitionRef = useRef<(() => void) | null>(null);
   slotRef.current = slot;
 
@@ -37,28 +37,25 @@ export const useGsapSlotTransition = (
       return;
     }
 
-    // Cloud is visually to the right of Local in the sidebar.
-    const exitX = nextSlot === 'cloud' ? -16 : 16;
     gsap.killTweensOf(container);
     resolveTransitionRef.current?.();
     resolveTransitionRef.current = resolve;
     gsap.to(container, {
       autoAlpha: 0,
-      x: exitX,
-      duration: 0.12,
+      y: -8,
+      duration: 0.14,
       ease: 'power1.in',
       overwrite: true,
       onComplete: () => {
-        enterDirectionRef.current = exitX;
+        shouldEnterRef.current = true;
         setSlot(nextSlot);
       },
     });
   }), [setSlot]);
 
   useEffect(() => {
-    const exitX = enterDirectionRef.current;
-    if (exitX === null) return;
-    enterDirectionRef.current = null;
+    if (!shouldEnterRef.current) return;
+    shouldEnterRef.current = false;
     const container = containerRef.current;
     if (!container || prefersReducedMotion()) {
       resolveTransitionRef.current?.();
@@ -66,12 +63,12 @@ export const useGsapSlotTransition = (
       return;
     }
 
-    gsap.set(container, { autoAlpha: 0, x: -exitX });
+    gsap.set(container, { autoAlpha: 0, y: 10 });
     const animationFrame = requestAnimationFrame(() => {
       gsap.to(container, {
         autoAlpha: 1,
-        x: 0,
-        duration: 0.2,
+        y: 0,
+        duration: 0.26,
         ease: 'power2.out',
         overwrite: true,
         onComplete: () => {
