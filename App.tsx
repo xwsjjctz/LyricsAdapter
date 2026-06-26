@@ -31,6 +31,10 @@ import { useQQMusicIntegration } from './hooks/useQQMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useFloatingPanel } from './hooks/useFloatingPanel';
 import { useGlassUI } from './hooks/useGlassUI';
+import { useGsapButtonBounce } from './hooks/useGsapButtonBounce';
+import { useGsapPageTransition } from './hooks/useGsapPageTransition';
+import { useGsapSlotTransition } from './hooks/useGsapSlotTransition';
+import GsapModal from './components/GsapModal';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -44,7 +48,9 @@ declare global {
   }
 }
 const App: React.FC = () => {
+  useGsapButtonBounce();
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
+  const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(viewMode, setViewMode);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
@@ -73,6 +79,9 @@ const App: React.FC = () => {
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
   const [viewSlot, setViewSlot] = useState<'local' | 'cloud'>('local');
+  const { containerRef: libraryContentRef, switchSlot: transitionToSlot, completeEnter: completeSlotEnter } = useGsapSlotTransition(viewSlot, setViewSlot);
+  const [pendingSlotLocate, setPendingSlotLocate] = useState<{ token: number; slot: 'local' | 'cloud' } | null>(null);
+  const slotLocateTokenRef = useRef(0);
   const [restoreTime, setRestoreTime] = useState(0);
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -330,13 +339,22 @@ const App: React.FC = () => {
     },
   });
   const lastScrollPositionRef = useRef<number>(0);
-  const handleSwitchSlot = useCallback((targetSlot: 'local' | 'cloud') => {
+  const handleSwitchSlot = useCallback(async (targetSlot: 'local' | 'cloud', options?: { locateCurrentTrack?: boolean }) => {
     if (targetSlot === viewSlot) return;
     // Save current view's scroll position before switching
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: lastScrollPositionRef.current }));
-    // Switch view only — playback continues uninterrupted
-    setViewSlot(targetSlot);
-  }, [viewSlot, updateSlot]);
+    if (options?.locateCurrentTrack) {
+      setPendingSlotLocate({ token: ++slotLocateTokenRef.current, slot: targetSlot });
+    }
+    // Switch view only — playback continues uninterrupted.
+    await transitionToSlot(targetSlot);
+  }, [viewSlot, updateSlot, transitionToSlot]);
+  const handleSlotContentReady = useCallback((slot: 'local' | 'cloud') => {
+    completeSlotEnter(slot);
+  }, [completeSlotEnter]);
+  const handleSlotLocatePrepared = useCallback((token: number) => {
+    setPendingSlotLocate(current => current?.token === token ? null : current);
+  }, []);
   const handleLibraryScrollPositionChange = useCallback((position: number) => {
     lastScrollPositionRef.current = position;
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: position }));
@@ -353,9 +371,9 @@ const App: React.FC = () => {
       setPendingNavigation(mode);
       return;
     }
-    setViewMode(mode);
+    transitionToView(mode);
     setIsFocusMode(false);
-  }, [viewMode, setViewMode, setIsFocusMode]);
+  }, [viewMode, transitionToView, setIsFocusMode]);
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
@@ -609,11 +627,11 @@ const App: React.FC = () => {
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <div className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
+          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 onDownloadComplete={handleDownloadComplete}
-                onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
+                onNavigateToSettings={() => transitionToView(ViewMode.SETTINGS)}
               />
             ) : viewMode === ViewMode.METADATA ? (
               <MetadataView
@@ -633,6 +651,7 @@ const App: React.FC = () => {
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView onHeaderHeightChange={setHeaderHeight} />
             ) : (
+              <div ref={libraryContentRef} className="h-full">
               <LibraryView
                 tracks={slots[viewSlot].tracks}
                 currentTrackIndex={slots[viewSlot].currentTrackIndex}
@@ -652,7 +671,10 @@ const App: React.FC = () => {
                 dataSource={viewSlot}
                 activeSlotId={activeSlotId}
                 onSwitchSlot={handleSwitchSlot}
-                onLocateTrack={handleTrackSwitch}
+                pendingLocateSlot={pendingSlotLocate?.slot}
+                pendingLocateToken={pendingSlotLocate?.token}
+                onPendingLocatePrepared={handleSlotLocatePrepared}
+                onSlotContentReady={handleSlotContentReady}
                 filterType={slots[viewSlot].filterType}
                 categorySelection={slots[viewSlot].categorySelection}
                 onFilterTypeChange={handleFilterTypeChange}
@@ -670,8 +692,9 @@ const App: React.FC = () => {
 	                    onQQMusicUpload={handleQQMusicUpload}
 	                    qqProgress={qqProgress}
 	                  />
-	                }
+                }
               />
+              </div>
             )}
           </div>
           <Controls
@@ -713,9 +736,15 @@ const App: React.FC = () => {
         />
         </div>
       </div>
-      {pendingNavigation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
-          <div className="rounded-2xl p-6 w-96 shadow-2xl" style={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}>
+      <GsapModal
+        isOpen={pendingNavigation !== null}
+        overlayClassName="z-50"
+        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+        panelClassName="rounded-2xl p-6 w-96 shadow-2xl"
+        panelStyle={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}
+      >
+        {pendingNavigation && (
+          <>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
               {i18n.t('metadataView.unsavedTitle')}
             </h3>
@@ -735,7 +764,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   metadataViewRef.current?.stashAll();
-                  setViewMode(pendingNavigation);
+                  transitionToView(pendingNavigation);
                   setIsFocusMode(false);
                   setPendingNavigation(null);
                 }}
@@ -749,7 +778,7 @@ const App: React.FC = () => {
               <button
                 onClick={async () => {
                   await metadataViewRef.current?.saveAll();
-                  setViewMode(pendingNavigation);
+                  transitionToView(pendingNavigation);
                   setIsFocusMode(false);
                   setPendingNavigation(null);
                 }}
@@ -761,9 +790,9 @@ const App: React.FC = () => {
                 {i18n.t('metadataView.saveChanges')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </GsapModal>
     </ErrorBoundary>
   );
 };

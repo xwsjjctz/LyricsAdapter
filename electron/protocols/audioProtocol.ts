@@ -89,7 +89,17 @@ export function registerAudioProtocol(): void {
       try {
         // Parse URL to extract path: audio://localhost/absolute/path
         const parsedUrl = new URL(request.url);
-        const decodedPath = decodeURIComponent(parsedUrl.pathname);
+        let decodedPath = decodeURIComponent(parsedUrl.pathname);
+
+        // On Windows, URL pathname starts with / before the drive letter:
+        //   audio://localhost/C:/Users/... → pathname = "/C:/Users/..."
+        // path.resolve("/C:/Users/...") would treat the leading / as
+        // "root of current drive", producing C:\C:\Users\... (double drive).
+        // Strip the leading / so path.resolve produces C:\Users\...
+        if (process.platform === 'win32') {
+          decodedPath = decodedPath.replace(/^\/([a-zA-Z]:)/, '$1');
+        }
+
         const resolvedPath = path.resolve(decodedPath);
 
         // Path traversal protection: ensure resolved path is an actual file

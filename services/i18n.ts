@@ -1906,6 +1906,33 @@ const translations: Translations = {
     fr: 'En-tête et barre de contrôle en verre dépoli ; la liste transparaît'
   },
 
+  'settings.buttonBounce': {
+    zh: '按钮回弹动画',
+    en: 'Button Bounce Animation',
+    ja: 'ボタンのバウンスアニメーション',
+    ko: '버튼 바운스 애니메이션',
+    de: 'Button-Rückfederung',
+    fr: 'Animation rebond des boutons'
+  },
+
+  'settings.buttonBounceDesc': {
+    zh: '点击按钮时的 GSAP 回弹反馈',
+    en: 'GSAP press-and-release feedback for buttons',
+    ja: 'ボタン操作時の GSAP による押下・反発フィードバック',
+    ko: '버튼 클릭 시 GSAP 누름·반동 피드백',
+    de: 'GSAP-Feedback beim Drücken und Loslassen von Buttons',
+    fr: 'Retour GSAP à la pression et au relâchement des boutons'
+  },
+
+  'settings.focusBgBlurRadius': {
+    zh: 'Focus Mode 背景模糊',
+    en: 'Focus Mode Background Blur',
+    ja: 'Focus Mode の背景ぼかし',
+    ko: 'Focus Mode 배경 흐림',
+    de: 'Focus-Mode-Hintergrundunschärfe',
+    fr: 'Flou d’arrière-plan du mode Focus'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',

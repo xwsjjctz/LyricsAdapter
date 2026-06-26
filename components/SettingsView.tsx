@@ -8,6 +8,7 @@ import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
+import GsapModal from './GsapModal';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
 
 interface SettingsViewProps {
@@ -40,6 +41,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
+  const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
+  const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -63,6 +66,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
+      setGsapButtonBounce(settingsManager.getGsapButtonBounce());
+      setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
     })();
   }, []);
 
@@ -73,6 +78,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFloatingPanel(settingsManager.getFloatingPanel());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
+      setGsapButtonBounce(settingsManager.getGsapButtonBounce());
+      setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
     });
     return unsubscribe;
   }, []);
@@ -497,6 +504,30 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               </div>
             </div>
 
+            {/* Focus Mode 背景模糊半径 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusBgBlurRadius')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusBgBlurRadius}px</span>
+                <input
+                  type="range"
+                  min="40"
+                  max="80"
+                  step="1"
+                  value={focusBgBlurRadius}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setFocusBgBlurRadius(value);
+                    settingsManager.setFocusBgBlurRadius(value);
+                  }}
+                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, ${colors.primary} ${((focusBgBlurRadius - 40) / 40) * 100}%, ${colors.borderLight} ${((focusBgBlurRadius - 40) / 40) * 100}%)`,
+                  }}
+                />
+              </div>
+            </div>
+
             {/* 第三方音源开关 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
               <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
@@ -542,6 +573,30 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   style={{
                     transform: glassUI ? 'translateX(22px)' : 'translateX(2px)',
                   }}
+                />
+              </button>
+            </div>
+
+            {/* 按钮回弹开关 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <div className="min-w-0 mr-3">
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.buttonBounce')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.buttonBounceDesc')}</p>
+              </div>
+              <button
+                onClick={() => {
+                  const newValue = !gsapButtonBounce;
+                  setGsapButtonBounce(newValue);
+                  settingsManager.setGsapButtonBounce(newValue);
+                }}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+                style={{ backgroundColor: gsapButtonBounce ? colors.primary : colors.borderLight }}
+                aria-label={i18n.t('settings.buttonBounce')}
+                aria-pressed={gsapButtonBounce}
+              >
+                <span
+                  className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                  style={{ transform: gsapButtonBounce ? 'translateX(22px)' : 'translateX(2px)' }}
                 />
               </button>
             </div>
@@ -592,9 +647,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     </div>
 
     {/* 清理缓存二次确认弹窗 */}
-    {showClearCacheConfirm && (
-      <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+    <GsapModal
+      isOpen={showClearCacheConfirm}
+      overlayClassName="z-50"
+      overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+      panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
+    >
           <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
           <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCacheConfirmBody')}</p>
           <div className="flex justify-end gap-3">
@@ -644,9 +703,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               )}
             </button>
           </div>
-        </div>
-      </div>
-    )}
+    </GsapModal>
     </>
   );
 };

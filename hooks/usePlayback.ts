@@ -200,9 +200,14 @@ export function usePlayback({
     // This avoids loading the entire file into memory via IPC readFile.
     // The browser's <audio> element will issue Range requests as needed.
     if (track.source !== 'webdav') {
-      // Use localhost as host to ensure URL is parsed correctly.
       // Format: audio://localhost/absolute/path/to/file.flac
-      const audioUrl = `audio://localhost${encodeURI(track.filePath)}`;
+      // Normalize Windows drive-letter paths (C:\Users\...) so the URL parser
+      // sees localhost as the host and a proper pathname starting with /.
+      // Without this, encodeURI("C:\\...") → "C%3A%5C..." producing
+      // audio://localhostC%3A... — the whole thing becomes the hostname.
+      const normalizedPath = track.filePath.replace(/\\/g, '/');
+      const urlPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
+      const audioUrl = `audio://localhost${encodeURI(urlPath)}`;
       logger.debug('[Playback] Using audio:// for:', track.title);
       return { ...track, audioUrl };
     }
