@@ -8,6 +8,8 @@ beforeEach(() => {
   (settingsManager as any).floatingPanel = false;
   (settingsManager as any).bgBlurTrans = 1.0;
   (settingsManager as any).qqMusicEnabled = false;
+  (settingsManager as any).glassUI = false;
+  (settingsManager as any).gsapButtonBounce = true;
 });
 
 describe('downloadPath', () => {
@@ -94,6 +96,18 @@ describe('qqMusicEnabled', () => {
   it('should persist to localStorage', () => {
     settingsManager.setQqMusicEnabled(true);
     expect(localStorage.getItem('la_qq_music_enabled')).toBe('true');
+  });
+});
+
+describe('gsapButtonBounce', () => {
+  it('should default to true to preserve the existing interaction', () => {
+    expect(settingsManager.getGsapButtonBounce()).toBe(true);
+  });
+
+  it('should set and persist the disabled state', () => {
+    settingsManager.setGsapButtonBounce(false);
+    expect(settingsManager.getGsapButtonBounce()).toBe(false);
+    expect(localStorage.getItem('la_gsap_button_bounce')).toBe('false');
   });
 });
 

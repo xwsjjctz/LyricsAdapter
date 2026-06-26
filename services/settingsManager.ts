@@ -5,6 +5,7 @@ const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const GLASS_UI_KEY = 'la_glass_ui';
+const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 
 type Listener = () => void;
 
@@ -14,6 +15,8 @@ class SettingsManager {
   private bgBlurTrans: number = 1.0;
   private qqMusicEnabled: boolean = false;
   private glassUI: boolean = false;
+  // Keep the interaction enabled for existing installations after this setting ships.
+  private gsapButtonBounce: boolean = true;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -37,6 +40,8 @@ class SettingsManager {
       this.qqMusicEnabled = localStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
 
       this.glassUI = localStorage.getItem(GLASS_UI_KEY) === 'true';
+
+      this.gsapButtonBounce = localStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -139,6 +144,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Glass UI set to: ${enabled}`);
+  }
+
+  // --- GSAP Button Bounce ---
+
+  getGsapButtonBounce(): boolean {
+    return this.gsapButtonBounce;
+  }
+
+  setGsapButtonBounce(enabled: boolean): void {
+    this.gsapButtonBounce = enabled;
+    try {
+      localStorage.setItem(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save GSAP button bounce:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] GSAP button bounce set to: ${enabled}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

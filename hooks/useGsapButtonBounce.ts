@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
+import { settingsManager } from '../services/settingsManager';
 
 /**
  * Gives ordinary buttons a brief press-and-release bounce without coupling
@@ -7,6 +8,7 @@ import { gsap } from 'gsap';
  */
 export function useGsapButtonBounce(): void {
   const pressedButtonRef = useRef<HTMLButtonElement | null>(null);
+  const enabledRef = useRef(settingsManager.getGsapButtonBounce());
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -17,6 +19,10 @@ export function useGsapButtonBounce(): void {
 
       pressedButtonRef.current = null;
       gsap.killTweensOf(button);
+      if (!enabledRef.current) {
+        gsap.set(button, { scale: 1 });
+        return;
+      }
       gsap.to(button, {
         scale: 1,
         duration: 0.42,
@@ -26,7 +32,7 @@ export function useGsapButtonBounce(): void {
     };
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || reducedMotion.matches) return;
+      if (event.button !== 0 || reducedMotion.matches || !enabledRef.current) return;
 
       const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
         'button:not([data-no-gsap-bounce])',
@@ -44,12 +50,18 @@ export function useGsapButtonBounce(): void {
       });
     };
 
+    const unsubscribe = settingsManager.subscribe(() => {
+      enabledRef.current = settingsManager.getGsapButtonBounce();
+      if (!enabledRef.current) release();
+    });
+
     document.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointerup', release);
     window.addEventListener('pointercancel', release);
     window.addEventListener('blur', release);
 
     return () => {
+      unsubscribe();
       document.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', release);
       window.removeEventListener('pointercancel', release);
