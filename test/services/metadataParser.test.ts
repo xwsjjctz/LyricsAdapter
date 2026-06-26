@@ -300,7 +300,7 @@ function buildStreamInfoBlock(sampleRate: number, totalSamples: number): Buffer 
   // Reader: byte13 low nibble = totalSamples >> 32, bytes 14-17 = totalSamples low 32
   // NOTE: JS >>32 === >>0 (mod 32), so use Math.floor for >32-bit shift
   const totalHigh = Math.floor(totalSamples / 0x100000000) & 0x0F;
-  buf[13] = (buf[13] & 0xF0) | totalHigh;
+  buf[13] = ((buf[13]!) & 0xF0) | totalHigh;
   buf.writeUInt32BE(totalSamples >>> 0, 14);
 
   return buf;

@@ -109,6 +109,9 @@ export function assignChunkId(
     if (!isNaN(n) && n > maxNum) maxNum = n;
   }
 
+  // manifest 有定义但无有效 chunkId（空或非数值）时从 1 开始
+  if (maxNum === 0) return padChunkId(1);
+
   const maxId = padChunkId(maxNum);
   const maxCount = counts.get(maxId) ?? 0;
   if (maxCount < chunkSize) return maxId;        // 开放 chunk 还有空位
