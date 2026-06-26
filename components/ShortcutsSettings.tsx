@@ -3,6 +3,7 @@ import { i18n } from '../services/i18n';
 import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
+import GsapModal from './GsapModal';
 
 interface ShortcutsSettingsProps {}
 
@@ -258,9 +259,13 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       </div>
 
       {/* Reset All Confirmation Modal */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="rounded-xl p-5 max-w-sm w-full mx-4 border" style={{ backgroundColor: colors.backgroundDark, borderColor: colors.borderLight }}>
+      <GsapModal
+        isOpen={showResetConfirm}
+        overlayClassName="z-50"
+        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+        panelClassName="rounded-xl p-5 max-w-sm w-full mx-4 border"
+        panelStyle={{ backgroundColor: colors.backgroundDark, borderColor: colors.borderLight }}
+      >
             <h4 className="text-base font-medium mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.shortcuts.resetAllConfirm')}</h4>
             <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.shortcuts.resetAllDesc')}</p>
             <div className="flex gap-3 justify-end">
@@ -281,9 +286,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
                 {i18n.t('settings.shortcuts.resetAll')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </GsapModal>
     </section>
   );
 };

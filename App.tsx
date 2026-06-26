@@ -32,6 +32,8 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useFloatingPanel } from './hooks/useFloatingPanel';
 import { useGlassUI } from './hooks/useGlassUI';
 import { useGsapButtonBounce } from './hooks/useGsapButtonBounce';
+import { useGsapPageTransition } from './hooks/useGsapPageTransition';
+import GsapModal from './components/GsapModal';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -47,6 +49,7 @@ declare global {
 const App: React.FC = () => {
   useGsapButtonBounce();
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
+  const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(viewMode, setViewMode);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
@@ -355,9 +358,9 @@ const App: React.FC = () => {
       setPendingNavigation(mode);
       return;
     }
-    setViewMode(mode);
+    transitionToView(mode);
     setIsFocusMode(false);
-  }, [viewMode, setViewMode, setIsFocusMode]);
+  }, [viewMode, transitionToView, setIsFocusMode]);
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
@@ -611,11 +614,11 @@ const App: React.FC = () => {
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <div className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
+          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 onDownloadComplete={handleDownloadComplete}
-                onNavigateToSettings={() => setViewMode(ViewMode.SETTINGS)}
+                onNavigateToSettings={() => transitionToView(ViewMode.SETTINGS)}
               />
             ) : viewMode === ViewMode.METADATA ? (
               <MetadataView
@@ -715,9 +718,15 @@ const App: React.FC = () => {
         />
         </div>
       </div>
-      {pendingNavigation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
-          <div className="rounded-2xl p-6 w-96 shadow-2xl" style={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}>
+      <GsapModal
+        isOpen={pendingNavigation !== null}
+        overlayClassName="z-50"
+        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+        panelClassName="rounded-2xl p-6 w-96 shadow-2xl"
+        panelStyle={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}
+      >
+        {pendingNavigation && (
+          <>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
               {i18n.t('metadataView.unsavedTitle')}
             </h3>
@@ -737,7 +746,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   metadataViewRef.current?.stashAll();
-                  setViewMode(pendingNavigation);
+                  transitionToView(pendingNavigation);
                   setIsFocusMode(false);
                   setPendingNavigation(null);
                 }}
@@ -751,7 +760,7 @@ const App: React.FC = () => {
               <button
                 onClick={async () => {
                   await metadataViewRef.current?.saveAll();
-                  setViewMode(pendingNavigation);
+                  transitionToView(pendingNavigation);
                   setIsFocusMode(false);
                   setPendingNavigation(null);
                 }}
@@ -763,9 +772,9 @@ const App: React.FC = () => {
                 {i18n.t('metadataView.saveChanges')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </GsapModal>
     </ErrorBoundary>
   );
 };
