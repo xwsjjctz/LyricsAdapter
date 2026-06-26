@@ -14,6 +14,7 @@ import {
 } from './ipc/handlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
+import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 
@@ -35,6 +36,7 @@ app.whenReady().then(async () => {
   registerDownloadHandlers();
   registerMetadataHandlers();
   registerQQMusicHandlers();
+  registerNetEaseHandlers();
   registerWebDAVHandlers();
   registerCleanupHandlers();
   registerNotificationHandlers();

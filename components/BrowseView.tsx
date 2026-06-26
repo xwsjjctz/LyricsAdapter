@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { QQMusicSong, qqMusicApi } from '../services/qqMusicApi';
-import { cookieManager } from '../services/cookieManager';
+import {
+  getOnlineProvider,
+  getActiveCookieManager,
+  type OnlineMusicProvider,
+  type OnlineSong,
+} from '../services/onlineMusicProvider';
 import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
@@ -80,7 +84,7 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time
 }
 
 const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateToSettings }) => {
-  const [songs, setSongs] = useState<QQMusicSong[]>([]);
+  const [songs, setSongs] = useState<OnlineSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
@@ -123,21 +127,22 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     return unsubscribe;
   }, []);
 
-  // Check cookie on mount
+  // Check cookie on mount — only sources that require login (e.g. QQ Music).
+  // NetEase search works anonymously, so it skips straight to loading recommendations.
   useEffect(() => {
     const checkCookie = async () => {
-      if (!cookieManager.hasCookie() || cookieManager.shouldCheckCookie()) {
-        const status = await cookieManager.validateCookie();
+      const provider = getOnlineProvider();
+      const cookieStore = getActiveCookieManager();
+      if (provider.requiresCookie() && (!cookieStore.hasCookie() || cookieStore.shouldCheckCookie())) {
+        const status = await cookieStore.validateCookie();
         if (!status.valid && !cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
           notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
           onNavigateToSettings?.();
-        } else {
-          loadRecommendations();
+          return;
         }
-      } else {
-        loadRecommendations();
       }
+      loadRecommendations();
     };
     checkCookie();
   }, []);
@@ -153,7 +158,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
 
       if (searchQuery.trim()) {
         const doSearch = async () => {
-          if (!cookieManager.hasCookie() && !cookiePromptShown) {
+          const provider = getOnlineProvider();
+          if (provider.requiresCookie() && !provider.hasCookie() && !cookiePromptShown) {
             sessionStorage.setItem('cookiePromptShown', 'true');
             notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
             onNavigateToSettings?.();
@@ -165,7 +171,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
           setHasSearched(true);
 
           try {
-            const results = await qqMusicApi.searchMusic(searchQuery, 30);
+            const results = await provider.searchMusic(searchQuery, 30);
             setSongs(results);
           } catch (err: any) {
             logger.error('[BrowseView] Search failed:', err);
@@ -201,7 +207,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
   }, [searchQuery]);
 
   const loadRecommendations = useCallback(async () => {
-    if (!cookieManager.hasCookie()) {
+    const provider = getOnlineProvider();
+    if (provider.requiresCookie() && !provider.hasCookie()) {
       setError(i18n.t('browse.pleaseSetCookie'));
       if (!cookiePromptShown) {
         sessionStorage.setItem('cookiePromptShown', 'true');
@@ -210,13 +217,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       }
       return;
     }
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       logger.debug('[BrowseView] Loading recommendations...');
-      const songs = await qqMusicApi.getRecommendedSongs();
+      const songs = await provider.getRecommendedSongs();
       logger.debug('[BrowseView] Got songs:', songs.length);
       
       if (!songs || songs.length === 0) {
@@ -247,7 +254,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
   const createTrackFromDownloadedFile = async (
     filePath: string,
     fileName: string,
-    song: QQMusicSong,
+    song: OnlineSong,
     lyrics?: string
   ): Promise<Track | null> => {
     try {
@@ -280,14 +287,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       const trackId = Math.random().toString(36).substr(2, 9);
       const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
 
-      // Build cover URL from albummid
-      const coverUrl = song.albummid
-        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
-        : `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+      // Build cover URL from the active provider (QQ album crop / NetEase picUrl)
+      const coverUrl = getOnlineProvider().getCoverUrl(song)
+        || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
 
       // Save cover thumbnail if possible
       let finalCoverUrl = coverUrl;
-      if (song.albummid && desktopAPI.saveCoverThumbnail) {
+      if (coverUrl && desktopAPI.saveCoverThumbnail) {
         try {
           // Fetch cover image and convert to base64
           const coverResponse = await fetch(coverUrl);
@@ -355,7 +361,31 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     }
   };
 
-  const handleDownload = async (song: QQMusicSong, quality: 'm4a' | '128' | '320' | 'flac' = '128') => {
+  // Lyrics: QQ prefers the dedicated IPC channel, then falls back to the
+  // provider; NetEase resolves entirely through its provider (IPC weapi).
+  const fetchSongLyrics = async (
+    song: OnlineSong,
+    provider: OnlineMusicProvider,
+    rawCookie: string
+  ): Promise<string | undefined> => {
+    if (provider.id === 'qq' && window.electron?.getQQMusicLyrics) {
+      try {
+        const r = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
+        if (r?.success && r.lyrics) return r.lyrics;
+      } catch (e) {
+        logger.warn('[BrowseView] Failed to get lyrics via main process:', e);
+      }
+    }
+    try {
+      return (await provider.getLyrics(song.songmid)) || undefined;
+    } catch (e) {
+      logger.warn('[BrowseView] Failed to get lyrics via renderer API:', e);
+      return undefined;
+    }
+  };
+
+  const handleDownload = async (song: OnlineSong, quality: 'm4a' | '128' | '320' | 'flac' = '128') => {
+    const provider = getOnlineProvider();
     // Prevent re-download if already downloading or completed
     const currentStatus = downloadProgress[song.songmid]?.status;
     if (currentStatus === 'downloading' || currentStatus === 'completed') return;
@@ -386,7 +416,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       const singerForFileName = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
 
       // Get download URL first
-      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const { url } = await provider.getMusicUrl(song.songmid, quality);
       logger.debug('[BrowseView] Got download URL:', url);
 
       logger.debug('[BrowseView] Download path:', downloadPath);
@@ -404,30 +434,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       const fullPath = downloadPath + separator + fileName;
       logger.debug('[BrowseView] Downloading directly to:', fullPath);
 
-      const rawCookie = cookieManager.getCookie();
-      const coverUrl = song.albummid
-        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
-        : song.coverUrl;
+      const rawCookie = provider.getRawCookie();
+      const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
 
-      const lyricsPromise = (async (): Promise<string | undefined> => {
-        try {
-          if (window.electron?.getQQMusicLyrics) {
-            const lyricResult = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
-            if (lyricResult?.success && lyricResult.lyrics) {
-              return lyricResult.lyrics;
-            }
-          }
-        } catch (error) {
-          logger.warn('[BrowseView] Failed to get lyrics via main process:', error);
-        }
-
-        try {
-          return (await qqMusicApi.getLyrics(song.songmid)) || undefined;
-        } catch (error) {
-          logger.warn('[BrowseView] Failed to get lyrics via renderer API:', error);
-          return undefined;
-        }
-      })();
+      const lyricsPromise = fetchSongLyrics(song, provider, rawCookie);
 
       // Download and save via Electron main process
       try {
@@ -553,13 +563,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     }
   };
 
-  const handleUploadToWebdav = async (song: QQMusicSong, quality: 'm4a' | '128' | '320' | 'flac' = 'flac') => {
+  const handleUploadToWebdav = async (song: OnlineSong, quality: 'm4a' | '128' | '320' | 'flac' = 'flac') => {
     if (!webdavClient.hasConfig()) {
       notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
       onNavigateToSettings?.();
       return;
     }
 
+    const provider = getOnlineProvider();
     const currentStatus = uploadProgress[song.songmid]?.status;
     if (currentStatus === 'downloading' || currentStatus === 'completed') return;
 
@@ -574,30 +585,16 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
       const singerForFileName = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
 
-      const { url } = await qqMusicApi.getMusicUrl(song.songmid, quality);
+      const { url } = await provider.getMusicUrl(song.songmid, quality);
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const safeSinger = sanitizeDownloadFileName(singerForFileName);
       const safeSongName = sanitizeDownloadFileName(song.songname);
       const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
 
-      const rawCookie = cookieManager.getCookie();
-      const coverUrl = song.albummid
-        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${song.albummid}.jpg`
-        : song.coverUrl;
+      const rawCookie = provider.getRawCookie();
+      const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
 
-      const lyricsPromise = (async (): Promise<string | undefined> => {
-        try {
-          if (window.electron?.getQQMusicLyrics) {
-            const lyricResult = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
-            if (lyricResult?.success && lyricResult.lyrics) return lyricResult.lyrics;
-          }
-        } catch { /* fall through */ }
-        try {
-          return (await qqMusicApi.getLyrics(song.songmid)) || undefined;
-        } catch {
-          return undefined;
-        }
-      })();
+      const lyricsPromise = fetchSongLyrics(song, provider, rawCookie);
 
       // Download via Electron
       const downloadPath = settingsManager.getDownloadPath();

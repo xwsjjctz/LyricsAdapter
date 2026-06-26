@@ -4,12 +4,16 @@ const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
+const ONLINE_SOURCE_KEY = 'la_online_source';
 const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
+
+/** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
+export type OnlineSource = 'qq' | 'netease';
 
 type Listener = () => void;
 
@@ -18,6 +22,7 @@ class SettingsManager {
   private floatingPanel: boolean = false;
   private bgBlurTrans: number = 1.0;
   private qqMusicEnabled: boolean = false;
+  private onlineSource: OnlineSource = 'qq';
   private glassUI: boolean = false;
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
@@ -46,6 +51,9 @@ class SettingsManager {
       }
 
       this.qqMusicEnabled = localStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
+
+      const storedSource = localStorage.getItem(ONLINE_SOURCE_KEY);
+      this.onlineSource = storedSource === 'netease' ? 'netease' : 'qq';
 
       this.glassUI = localStorage.getItem(GLASS_UI_KEY) === 'true';
 
@@ -167,6 +175,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] QQ Music enabled set to: ${enabled}`);
+  }
+
+  // --- Online Source (QQ Music / NetEase Cloud Music) ---
+
+  getOnlineSource(): OnlineSource {
+    return this.onlineSource;
+  }
+
+  setOnlineSource(source: OnlineSource): void {
+    this.onlineSource = source;
+    try {
+      localStorage.setItem(ONLINE_SOURCE_KEY, source);
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save online source:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Online source set to: ${source}`);
   }
 
   // --- Glass UI (frosted header & control bar) ---
