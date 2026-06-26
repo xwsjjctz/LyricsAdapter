@@ -6,15 +6,18 @@ import { notify } from '../services/notificationService';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
+import GsapModal from './GsapModal';
 import { parseLRCLyrics } from '../services/metadataService';
 
 interface MetadataEditorPopupProps {
   track: Track;
+  isOpen: boolean;
   onUpdateTrack: (track: Track) => void;
   onClose: () => void;
+  onExited: () => void;
 }
 
-const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpdateTrack, onClose }) => {
+const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen, onUpdateTrack, onClose, onExited }) => {
   const [edited, setEdited] = useState<Track>({ ...track });
   const [saving, setSaving] = useState(false);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
@@ -132,12 +135,15 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpda
   const lyricsChanged = lyricsValue !== (track.lyrics || '');
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
-      <div
-        className="rounded-2xl shadow-2xl w-[520px] max-h-[85vh] flex flex-col overflow-hidden"
-        style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
-        onClick={e => e.stopPropagation()}
-      >
+    <GsapModal
+      isOpen={isOpen}
+      onExited={onExited}
+      onBackdropClick={onClose}
+      overlayClassName="z-[200]"
+      overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+      panelClassName="rounded-2xl shadow-2xl w-[520px] max-h-[85vh] flex flex-col overflow-hidden"
+      panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
+    >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
           <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.title')}</h2>
@@ -214,8 +220,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, onUpda
             {saving ? '...' : i18n.t('common.save')}
           </button>
         </div>
-      </div>
-    </div>
+    </GsapModal>
   );
 };
 

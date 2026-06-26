@@ -8,6 +8,7 @@ import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
+import GsapModal from './GsapModal';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
 
 interface SettingsViewProps {
@@ -646,9 +647,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     </div>
 
     {/* 清理缓存二次确认弹窗 */}
-    {showClearCacheConfirm && (
-      <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+    <GsapModal
+      isOpen={showClearCacheConfirm}
+      overlayClassName="z-50"
+      overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+      panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
+    >
           <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
           <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCacheConfirmBody')}</p>
           <div className="flex justify-end gap-3">
@@ -698,9 +703,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               )}
             </button>
           </div>
-        </div>
-      </div>
-    )}
+    </GsapModal>
     </>
   );
 };

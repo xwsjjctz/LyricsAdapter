@@ -10,6 +10,7 @@ import TrackCover from './TrackCover';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
 import MetadataEditorPopup from './MetadataEditorPopup';
+import GsapModal from './GsapModal';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { useGlassUI } from '../hooks/useGlassUI';
@@ -32,7 +33,7 @@ interface LibraryViewProps {
   importProgress?: { loaded: number; total: number } | null;
   dataSource: 'local' | 'cloud';
   activeSlotId: 'local' | 'cloud';
-  onSwitchSlot: (slotId: 'local' | 'cloud') => void;
+  onSwitchSlot: (slotId: 'local' | 'cloud') => Promise<void>;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
@@ -125,6 +126,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const [deleteFileOption, setDeleteFileOption] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
@@ -632,6 +634,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setShowDeleteConfirm(true);
   }, []);
 
+  const openMetadataEditor = useCallback((track: Track) => {
+    setEditingTrack(track);
+    setIsMetadataEditorOpen(true);
+  }, []);
+
   const handleConfirmDelete = useCallback(async () => {
     if (trackToDelete) {
       await onRemoveTrack(trackToDelete, dataSource === 'local' && deleteFileOption);
@@ -726,12 +733,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [draggedIndex, originalIndex, insertPosition, onReorderTracks]);
 
   // Handle locate to current playing track
-  const handleLocateToCurrentTrack = useCallback(() => {
+  const handleLocateToCurrentTrack = useCallback(async () => {
     if (dataSource !== activeSlotId) {
       // Cross-slot: switch view to the playing slot and trigger auto-locate
       // 标记跨槽定位，使 restore scroll effect 跳过、auto-locate 使用即时滚动
       instantLocateRef.current = true;
-      onSwitchSlot(activeSlotId);
+      await onSwitchSlot(activeSlotId);
       onLocateTrack?.();
       return;
     }
@@ -915,7 +922,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
                       onToggleSelect={toggleSelectOne}
-                      onEditMetadata={setEditingTrack}
+                      onEditMetadata={openMetadataEditor}
                       onDelete={confirmDelete}
                       onDragStart={handleTrackDragStart}
                       onDragOver={handleTrackDragOver}
@@ -1117,7 +1124,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                <button
                                  onClick={(e) => {
                                    e.stopPropagation();
-                                   setEditingTrack(track);
+                                   openMetadataEditor(track);
                                  }}
                                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                                  style={{ color: colors.textMuted }}
@@ -1175,9 +1182,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       )}
 
       {/* Delete confirmation dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+      <GsapModal
+        isOpen={showDeleteConfirm}
+        overlayClassName="z-50"
+        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+        panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+        panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
+      >
             <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
             <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('library.deleteConfirmMessage')}</p>
             {dataSource === 'local' && (
@@ -1214,14 +1225,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 {i18n.t('common.delete')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </GsapModal>
 
       {/* Batch delete confirmation dialog */}
-      {showBatchDeleteConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+      <GsapModal
+        isOpen={showBatchDeleteConfirm}
+        overlayClassName="z-50"
+        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+        panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+        panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
+      >
             <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
             <p className="mb-4" style={{ color: colors.textSecondary }}>
               {i18n.t('library.deleteSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
@@ -1257,19 +1270,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 {i18n.t('common.delete')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </GsapModal>
 
       {/* Metadata editor popup */}
       {editingTrack && (
         <MetadataEditorPopup
           track={editingTrack}
+          isOpen={isMetadataEditorOpen}
           onUpdateTrack={(updatedTrack) => {
             onUpdateTrack?.(updatedTrack);
-            setEditingTrack(null);
           }}
-          onClose={() => setEditingTrack(null)}
+          onClose={() => setIsMetadataEditorOpen(false)}
+          onExited={() => setEditingTrack(null)}
         />
       )}
     </div>
