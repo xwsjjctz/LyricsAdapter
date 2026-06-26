@@ -1933,6 +1933,15 @@ const translations: Translations = {
     fr: 'Flou d’arrière-plan du mode Focus'
   },
 
+  'settings.focusLyricsFontSize': {
+    zh: 'Focus Mode 滚动歌词字号',
+    en: 'Focus Mode Lyric Font Size',
+    ja: 'Focus Mode の歌詞サイズ',
+    ko: 'Focus Mode 가사 글자 크기',
+    de: 'Schriftgröße der Focus-Mode-Texte',
+    fr: 'Taille des paroles du mode Focus'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',
