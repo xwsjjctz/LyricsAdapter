@@ -1313,6 +1313,54 @@ const translations: Translations = {
     de: 'QQ Music',
     fr: 'QQ Music'
   },
+  'settingsDialog.onlineMusicTitle': {
+    zh: '在线音乐',
+    en: 'Online Music',
+    ja: 'オンライン音楽',
+    ko: '온라인 음악',
+    de: 'Online-Musik',
+    fr: 'Musique en ligne'
+  },
+  'settingsDialog.onlineSource': {
+    zh: '音源',
+    en: 'Source',
+    ja: '音源',
+    ko: '음원',
+    de: 'Quelle',
+    fr: 'Source'
+  },
+  'settingsDialog.onlineSourceQq': {
+    zh: 'QQ音乐',
+    en: 'QQ Music',
+    ja: 'QQ音楽',
+    ko: 'QQ 뮤직',
+    de: 'QQ Music',
+    fr: 'QQ Music'
+  },
+  'settingsDialog.onlineSourceNetease': {
+    zh: '网易云音乐',
+    en: 'NetEase Music',
+    ja: 'NetEase音楽',
+    ko: 'NetEase 뮤직',
+    de: 'NetEase Music',
+    fr: 'NetEase Music'
+  },
+  'settingsDialog.neteaseCookieLabel': {
+    zh: '网易云 Cookie（可选）',
+    en: 'NetEase Cookie (optional)',
+    ja: 'NetEase Cookie（任意）',
+    ko: 'NetEase Cookie (선택)',
+    de: 'NetEase-Cookie (optional)',
+    fr: 'Cookie NetEase (facultatif)'
+  },
+  'settingsDialog.neteaseCookieHint': {
+    zh: '仅用于下载 VIP / 高品质歌曲；不填也可匿名搜索与试听',
+    en: 'Only needed for VIP / high-quality downloads; search & preview work without it',
+    ja: 'VIP / 高音質ダウンロードにのみ必要。未入力でも検索・試聴可能',
+    ko: 'VIP / 고음질 다운로드에만 필요. 입력 안 해도 검색·미리듣기 가능',
+    de: 'Nur für VIP-/HQ-Downloads nötig; Suche & Vorschau funktionieren auch ohne',
+    fr: 'Uniquement pour les téléchargements VIP/HQ ; recherche et aperçu fonctionnent sans'
+  },
 
   // Player Controls
   'controls.playlist': {

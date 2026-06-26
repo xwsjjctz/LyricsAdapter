@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track } from '../types';
-import { QQMusicSong, qqMusicApi } from '../services/qqMusicApi';
+import { getOnlineProvider, type OnlineSong } from '../services/onlineMusicProvider';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -23,8 +23,8 @@ interface GlobalSearchProps {
   localTracks: Track[];
   cloudTracks: Track[];
   onNavigateToTrack: (track: Track) => void;
-  onQQMusicDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-  onQQMusicUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
 }
 
 const GlobalSearch: React.FC<GlobalSearchProps> = ({
@@ -34,10 +34,10 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
   localTracks,
   cloudTracks,
   onNavigateToTrack,
-  onQQMusicDownload,
-  onQQMusicUpload,
+  onOnlineDownload,
+  onOnlineUpload,
 }) => {
-  const [qqResults, setQqResults] = useState<QQMusicSong[]>([]);
+  const [qqResults, setQqResults] = useState<OnlineSong[]>([]);
   const [qqLoading, setQqLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [openQualityId, setOpenQualityId] = useState<string | null>(null);
@@ -84,10 +84,11 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const results = await qqMusicApi.searchMusic(query.trim(), MAX_RESULTS_PER_SECTION);
+        const provider = getOnlineProvider();
+        const results = await provider.searchMusic(query.trim(), MAX_RESULTS_PER_SECTION);
         setQqResults(results);
       } catch (err) {
-        logger.warn('[GlobalSearch] QQ Music search failed:', err);
+        logger.warn('[GlobalSearch] online search failed:', err);
         setQqResults([]);
       } finally {
         setQqLoading(false);
@@ -164,6 +165,9 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
   const hasCloud = filteredCloud.length > 0;
   const hasQQ = qqResults.length > 0 || qqLoading;
   const hasAny = hasLocal || hasCloud || hasQQ;
+  const activeSourceId = getOnlineProvider().id;
+  const sourceLabel = activeSourceId === 'netease' ? '网易云' : 'QQ Music';
+  const badgeLabel = activeSourceId === 'netease' ? '网易' : 'QQ';
   let resultOffset = 0;
 
   if (!isOpen) return null;
@@ -241,12 +245,12 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
             )}
             {(() => { resultOffset += filteredCloud.length; return null; })()}
 
-            {/* QQ Music results */}
+            {/* Online music results (QQ Music / NetEase) */}
             {hasQQ && (
               <div>
                 <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-xs">language</span>
-                  QQ Music
+                  {sourceLabel}
                   {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                 </div>
                 {qqResults.length === 0 && qqLoading ? (
@@ -258,12 +262,13 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
                       song={song}
                       isSelected={selectedIndex === resultOffset + index}
                       colors={colors}
+                      badgeLabel={badgeLabel}
                       openQualityId={openQualityId}
                       openUploadQualityId={openUploadQualityId}
                       onToggleQuality={(id) => setOpenQualityId(prev => prev === id ? null : id)}
                       onToggleUploadQuality={(id) => setOpenUploadQualityId(prev => prev === id ? null : id)}
-                      onDownload={(song, q) => { onQQMusicDownload(song, q); setOpenQualityId(null); }}
-                      onUpload={(song, q) => { onQQMusicUpload(song, q); setOpenUploadQualityId(null); }}
+                      onDownload={(song, q) => { onOnlineDownload(song, q); setOpenQualityId(null); }}
+                      onUpload={(song, q) => { onOnlineUpload(song, q); setOpenUploadQualityId(null); }}
                     />
                   ))
                 )}
@@ -326,18 +331,19 @@ const SearchResultRow: React.FC<{
   </div>
 );
 
-// Sub-component for QQ Music search results
+// Sub-component for online music search results (QQ Music / NetEase)
 const QQResultRow: React.FC<{
-  song: QQMusicSong;
+  song: OnlineSong;
   isSelected: boolean;
   colors: ThemeConfig['colors'];
+  badgeLabel: string;
   openQualityId: string | null;
   openUploadQualityId: string | null;
   onToggleQuality: (id: string) => void;
   onToggleUploadQuality: (id: string) => void;
-  onDownload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-  onUpload: (song: QQMusicSong, quality: '128' | '320' | 'flac') => void;
-}> = ({ song, isSelected, colors, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
+  onDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+}> = ({ song, isSelected, colors, badgeLabel, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
   <div
     className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border"
     style={{
@@ -362,7 +368,7 @@ const QQResultRow: React.FC<{
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>{song.songname}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ backgroundColor: `${colors.warning}20`, color: colors.warning }}>
-          QQ
+          {badgeLabel}
         </span>
       </div>
       <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
