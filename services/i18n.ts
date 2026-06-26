@@ -1924,6 +1924,15 @@ const translations: Translations = {
     fr: 'Retour GSAP à la pression et au relâchement des boutons'
   },
 
+  'settings.focusBgBlurRadius': {
+    zh: 'Focus Mode 背景模糊',
+    en: 'Focus Mode Background Blur',
+    ja: 'Focus Mode の背景ぼかし',
+    ko: 'Focus Mode 배경 흐림',
+    de: 'Focus-Mode-Hintergrundunschärfe',
+    fr: 'Flou d’arrière-plan du mode Focus'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',

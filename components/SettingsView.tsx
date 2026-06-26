@@ -41,6 +41,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
+  const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -65,6 +66,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
+      setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
     })();
   }, []);
 
@@ -76,6 +78,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
+      setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
     });
     return unsubscribe;
   }, []);
@@ -495,6 +498,30 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
                   style={{
                     background: `linear-gradient(to right, ${colors.primary} ${bgBlurTrans * 100}%, ${colors.borderLight} ${bgBlurTrans * 100}%)`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Focus Mode 背景模糊半径 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusBgBlurRadius')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusBgBlurRadius}px</span>
+                <input
+                  type="range"
+                  min="40"
+                  max="80"
+                  step="1"
+                  value={focusBgBlurRadius}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setFocusBgBlurRadius(value);
+                    settingsManager.setFocusBgBlurRadius(value);
+                  }}
+                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, ${colors.primary} ${((focusBgBlurRadius - 40) / 40) * 100}%, ${colors.borderLight} ${((focusBgBlurRadius - 40) / 40) * 100}%)`,
                   }}
                 />
               </div>

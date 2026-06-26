@@ -106,11 +106,16 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   // Global background transparency control for debugging
   const [bgBlurTrans, setBgBlurTrans] = useState(() => settingsManager.getBgBlurTrans());
+  const [bgBlurRadius, setBgBlurRadius] = useState(() => settingsManager.getFocusBgBlurRadius());
+  const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
   useEffect(() => {
     const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
+      const radius = settingsManager.getFocusBgBlurRadius();
+      bgBlurRadiusRef.current = radius;
+      setBgBlurRadius(radius);
     });
     return unsubscribe;
   }, []);
@@ -707,10 +712,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       const canvas = canvasRef.current;
       if (canvas) {
         // Set initial brightness to 0.3 when fading in
-        canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.3)`;
+        canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.3)`;
       }
     }
-  }, [bgImage1, canvasOpacity]);
+  }, [bgImage1, canvasOpacity, bgBlurRadius]);
 
   // Preload background image when track changes (before entering focus mode)
   useEffect(() => {
@@ -749,7 +754,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         const canvas = canvasRef.current;
         if (canvas && isVisible) {
           // Set initial brightness to 0.3
-          canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.3)`;
+          canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.3)`;
 
           const startTime = performance.now();
           const duration = 700; // 700ms animation
@@ -760,7 +765,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
             // Brightness fade-in: 0.3 -> 0.55
             const breathingBrightness = 0.3 + 0.25 * progress;
-            canvas.style.filter = `blur(80px) saturate(1.5) brightness(${breathingBrightness})`;
+            canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(${breathingBrightness})`;
 
             if (progress < 1) {
               requestAnimationFrame(animateFirstLoad);
@@ -771,7 +776,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           requestAnimationFrame(animateFirstLoad);
         } else if (canvas) {
           // If not visible, just set to normal values
-          canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.55)`;
+          canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.55)`;
         }
         return;
       }
@@ -796,7 +801,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         // Directly update canvas filter for immediate effect
         const canvas = canvasRef.current;
         if (canvas) {
-          canvas.style.filter = `blur(80px) saturate(1.5) brightness(${breathingBrightness})`;
+          canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(${breathingBrightness})`;
         }
 
         if (progress < 1) {
@@ -811,7 +816,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
           // Reset filter to normal
           if (canvas) {
-            canvas.style.filter = `blur(80px) saturate(1.5) brightness(0.55)`;
+            canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.55)`;
           }
 
           if (animationFrameRef.current) {
@@ -838,7 +843,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setIsTransitioning(false);
     };
 
-    // 背景经 blur(80px) 重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
+    // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
     img.src = toCoverThumb(track.coverUrl, 256)!;
   }, [track?.id, track?.coverUrl]);
 
@@ -877,7 +882,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             left: '-100px',
             width: 'calc(100% + 200px)',
             height: 'calc(100% + 200px)',
-            filter: 'blur(80px) saturate(1.5) brightness(0.55)',
+            filter: `blur(${bgBlurRadius}px) saturate(1.5) brightness(0.55)`,
             transition: 'filter 700ms ease-in-out'
           }}
         />

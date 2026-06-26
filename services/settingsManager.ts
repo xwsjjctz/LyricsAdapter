@@ -6,6 +6,7 @@ const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
+const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 
 type Listener = () => void;
 
@@ -17,6 +18,7 @@ class SettingsManager {
   private glassUI: boolean = false;
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
+  private focusBgBlurRadius: number = 80;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -42,6 +44,14 @@ class SettingsManager {
       this.glassUI = localStorage.getItem(GLASS_UI_KEY) === 'true';
 
       this.gsapButtonBounce = localStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
+
+      const blurRadius = localStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
+      if (blurRadius) {
+        const parsed = parseFloat(blurRadius);
+        if (!isNaN(parsed)) {
+          this.focusBgBlurRadius = Math.max(40, Math.min(80, parsed));
+        }
+      }
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -161,6 +171,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] GSAP button bounce set to: ${enabled}`);
+  }
+
+  // --- Focus Mode Background Blur Radius ---
+
+  getFocusBgBlurRadius(): number {
+    return this.focusBgBlurRadius;
+  }
+
+  setFocusBgBlurRadius(value: number): void {
+    this.focusBgBlurRadius = Math.max(40, Math.min(80, value));
+    try {
+      localStorage.setItem(FOCUS_BG_BLUR_RADIUS_KEY, String(this.focusBgBlurRadius));
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save Focus Mode blur radius:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Focus Mode blur radius set to: ${this.focusBgBlurRadius}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

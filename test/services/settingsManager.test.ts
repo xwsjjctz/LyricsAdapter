@@ -10,6 +10,7 @@ beforeEach(() => {
   (settingsManager as any).qqMusicEnabled = false;
   (settingsManager as any).glassUI = false;
   (settingsManager as any).gsapButtonBounce = true;
+  (settingsManager as any).focusBgBlurRadius = 80;
 });
 
 describe('downloadPath', () => {
@@ -108,6 +109,21 @@ describe('gsapButtonBounce', () => {
     settingsManager.setGsapButtonBounce(false);
     expect(settingsManager.getGsapButtonBounce()).toBe(false);
     expect(localStorage.getItem('la_gsap_button_bounce')).toBe('false');
+  });
+});
+
+describe('focusBgBlurRadius', () => {
+  it('should default to 80px', () => {
+    expect(settingsManager.getFocusBgBlurRadius()).toBe(80);
+  });
+
+  it('should clamp and persist within the 40px–80px range', () => {
+    settingsManager.setFocusBgBlurRadius(25);
+    expect(settingsManager.getFocusBgBlurRadius()).toBe(40);
+
+    settingsManager.setFocusBgBlurRadius(96);
+    expect(settingsManager.getFocusBgBlurRadius()).toBe(80);
+    expect(localStorage.getItem('la_focus_bg_blur_radius')).toBe('80');
   });
 });
 
