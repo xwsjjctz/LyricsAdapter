@@ -872,6 +872,12 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   return (
     <div className={`fixed inset-0 z-[120] transition-all duration-600 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}${isLinux ? ' rounded-lg overflow-hidden' : ''}`}>
+      {/* Keep canvas transparency inside Focus Mode on entry, but reveal the
+          Main View through the glass background while tracks cross-fade. */}
+      <div
+        className={`absolute inset-0 bg-[#080808] transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+        aria-hidden="true"
+      />
       {/* Canvas-based Color Gradient Background */}
       {bgImage1 && (
         <canvas
