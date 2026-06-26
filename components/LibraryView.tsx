@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -33,7 +33,7 @@ interface LibraryViewProps {
   importProgress?: { loaded: number; total: number } | null;
   dataSource: 'local' | 'cloud';
   activeSlotId: 'local' | 'cloud';
-  onSwitchSlot: (slotId: 'local' | 'cloud') => Promise<void>;
+  onSwitchSlot: (slotId: 'local' | 'cloud', options?: { locateCurrentTrack?: boolean }) => Promise<void>;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
@@ -41,7 +41,10 @@ interface LibraryViewProps {
   onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
-  onLocateTrack?: () => void;
+  pendingLocateSlot?: 'local' | 'cloud' | undefined;
+  pendingLocateToken?: number | undefined;
+  onPendingLocatePrepared?: (token: number) => void;
+  onSlotContentReady?: (slot: 'local' | 'cloud') => void;
   searchBox?: React.ReactNode;
 }
 
@@ -71,7 +74,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onHeaderHeightChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
-  onLocateTrack,
+  pendingLocateSlot,
+  pendingLocateToken,
+  onPendingLocatePrepared,
+  onSlotContentReady,
   searchBox,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -224,8 +230,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const previousTrackIndexRef = useRef<number>(-1);
   const lastHandledAutoLocateTokenRef = useRef<number>(autoLocateToken);
   const highlightUpdateIdRef = useRef(0);
-  // 跨槽定位时，跳过 restore scroll 并使用即时滚动定位
-  const instantLocateRef = useRef(false);
+  // A cross-slot locate prepares the target scroll position before its entrance.
+  const skipNextScrollRestoreRef = useRef(false);
   // 实时记录 scrollTop，cleanup 时读此 ref 而非 DOM（避免 DOM 切换后 scrollTop 被 clamp）
   const lastScrollTopRef = useRef(0);
 
@@ -281,7 +287,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // Handle scroll position restoration and scroll to playing track on first load
   useEffect(() => {
     // 已经定位过，或没有有效曲目时跳过
-    if (hasAutoLocatedToTrackRef.current) return;
+    if (hasAutoLocatedToTrackRef.current || pendingLocateSlot === dataSource) return;
     if (currentTrackIndex < 0 || tracks.length === 0) return;
 
     // 首次定位：等待 row height 计算完毕
@@ -302,13 +308,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, topInset]);
+  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, topInset, pendingLocateSlot, dataSource]);
 
   // Restore scroll position when switching between local/cloud
   useEffect(() => {
     if (!scrollContainerRef.current) return;
-    // 如果即将有定位操作，跳过恢复，由 auto-locate effect 处理
-    if (instantLocateRef.current) return;
+    if (skipNextScrollRestoreRef.current) {
+      skipNextScrollRestoreRef.current = false;
+      return;
+    }
     scrollContainerRef.current.scrollTop = savedScrollPosition;
     setScrollTop(savedScrollPosition);
   }, [dataSource]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -336,6 +344,35 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return displayTracks.findIndex(t => t.id === currentTrackId);
   }, [currentTrackId, displayTracks]);
 
+  // When locating across slots, prepare the target list while its wrapper is
+  // invisible. This deliberately happens before the GSAP entrance begins.
+  useLayoutEffect(() => {
+    if (pendingLocateSlot !== dataSource || pendingLocateToken == null) {
+      onSlotContentReady?.(dataSource);
+      return;
+    }
+
+    // The following normal effect must not restore the saved scroll position.
+    skipNextScrollRestoreRef.current = true;
+    const frame = requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (container && currentTrackInFilteredIndex >= 0) {
+        const itemTop = rowTop(currentTrackInFilteredIndex);
+        const itemBottom = itemTop + baseRowHeight;
+        const targetTop = itemBottom - container.clientHeight / 2;
+        const clampedTop = Math.max(0, Math.min(targetTop, maxScrollTop(container.clientHeight)));
+        container.scrollTop = clampedTop;
+        lastScrollTopRef.current = clampedTop;
+        setScrollTop(clampedTop);
+        hasAutoLocatedToTrackRef.current = true;
+      }
+      onPendingLocatePrepared?.(pendingLocateToken);
+      onSlotContentReady?.(dataSource);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
+
   // Auto-locate only when a track-switch action occurs.
   useEffect(() => {
     if (lastHandledAutoLocateTokenRef.current === autoLocateToken) {
@@ -360,7 +397,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         logger.debug(`[LibraryView] Track ${currentTrackInFilteredIndex + 1} is already visible, no auto-locate needed`);
         previousTrackIndexRef.current = currentTrackInFilteredIndex;
         setShowLocateButton(false);
-        instantLocateRef.current = false;
         return;
       }
 
@@ -377,13 +413,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
 
       logger.debug(`[LibraryView] Auto-locating to track ${currentTrackInFilteredIndex + 1}`);
-      if (instantLocateRef.current) {
-        // 跨槽定位：直接跳转，避免先恢复旧位置再平滑滚动的长动画
-        container.scrollTop = clampedTop;
-        instantLocateRef.current = false;
-      } else {
-        container.scrollTo({ top: clampedTop, behavior: 'smooth' });
-      }
+      container.scrollTo({ top: clampedTop, behavior: 'smooth' });
       previousTrackIndexRef.current = currentTrackInFilteredIndex;
       setShowLocateButton(false);
     }, 0);
@@ -736,10 +766,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const handleLocateToCurrentTrack = useCallback(async () => {
     if (dataSource !== activeSlotId) {
       // Cross-slot: switch view to the playing slot and trigger auto-locate
-      // 标记跨槽定位，使 restore scroll effect 跳过、auto-locate 使用即时滚动
-      instantLocateRef.current = true;
-      await onSwitchSlot(activeSlotId);
-      onLocateTrack?.();
+      await onSwitchSlot(activeSlotId, { locateCurrentTrack: true });
       return;
     }
     // Same slot: scroll to current track
@@ -758,7 +785,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     });
     setShowLocateButton(false);
     logger.debug(`[LibraryView] Located to current track ${currentTrackIndex + 1} (filtered index: ${currentTrackInFilteredIndex})`);
-  }, [dataSource, activeSlotId, onSwitchSlot, onLocateTrack, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight, topInset]);
+  }, [dataSource, activeSlotId, onSwitchSlot, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight, topInset]);
 
   // Hide locate button when current track becomes visible (e.g., after clicking a new track to play)
   useEffect(() => {

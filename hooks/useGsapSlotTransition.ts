@@ -6,6 +6,7 @@ type SlotId = 'local' | 'cloud';
 interface GsapSlotTransition {
   containerRef: RefObject<HTMLDivElement>;
   switchSlot: (nextSlot: SlotId) => Promise<void>;
+  completeEnter: (slot: SlotId) => void;
 }
 
 /**
@@ -19,6 +20,7 @@ export const useGsapSlotTransition = (
   const containerRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef(slot);
   const shouldEnterRef = useRef(false);
+  const pendingSlotRef = useRef<SlotId | null>(null);
   const resolveTransitionRef = useRef<(() => void) | null>(null);
   slotRef.current = slot;
 
@@ -48,14 +50,16 @@ export const useGsapSlotTransition = (
       overwrite: true,
       onComplete: () => {
         shouldEnterRef.current = true;
+        pendingSlotRef.current = nextSlot;
         setSlot(nextSlot);
       },
     });
   }), [setSlot]);
 
-  useEffect(() => {
-    if (!shouldEnterRef.current) return;
+  const completeEnter = useCallback((readySlot: SlotId) => {
+    if (!shouldEnterRef.current || pendingSlotRef.current !== readySlot) return;
     shouldEnterRef.current = false;
+    pendingSlotRef.current = null;
     const container = containerRef.current;
     if (!container || prefersReducedMotion()) {
       resolveTransitionRef.current?.();
@@ -78,12 +82,12 @@ export const useGsapSlotTransition = (
       });
     });
     return () => cancelAnimationFrame(animationFrame);
-  }, [slot]);
+  }, []);
 
   useEffect(() => () => {
     if (containerRef.current) gsap.killTweensOf(containerRef.current);
     resolveTransitionRef.current?.();
   }, []);
 
-  return { containerRef, switchSlot };
+  return { containerRef, switchSlot, completeEnter };
 };

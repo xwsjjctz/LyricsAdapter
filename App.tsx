@@ -79,7 +79,9 @@ const App: React.FC = () => {
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
   const [viewSlot, setViewSlot] = useState<'local' | 'cloud'>('local');
-  const { containerRef: libraryContentRef, switchSlot: transitionToSlot } = useGsapSlotTransition(viewSlot, setViewSlot);
+  const { containerRef: libraryContentRef, switchSlot: transitionToSlot, completeEnter: completeSlotEnter } = useGsapSlotTransition(viewSlot, setViewSlot);
+  const [pendingSlotLocate, setPendingSlotLocate] = useState<{ token: number; slot: 'local' | 'cloud' } | null>(null);
+  const slotLocateTokenRef = useRef(0);
   const [restoreTime, setRestoreTime] = useState(0);
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const handleTrackSwitch = useCallback(() => {
@@ -337,13 +339,22 @@ const App: React.FC = () => {
     },
   });
   const lastScrollPositionRef = useRef<number>(0);
-  const handleSwitchSlot = useCallback(async (targetSlot: 'local' | 'cloud') => {
+  const handleSwitchSlot = useCallback(async (targetSlot: 'local' | 'cloud', options?: { locateCurrentTrack?: boolean }) => {
     if (targetSlot === viewSlot) return;
     // Save current view's scroll position before switching
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: lastScrollPositionRef.current }));
+    if (options?.locateCurrentTrack) {
+      setPendingSlotLocate({ token: ++slotLocateTokenRef.current, slot: targetSlot });
+    }
     // Switch view only — playback continues uninterrupted.
     await transitionToSlot(targetSlot);
   }, [viewSlot, updateSlot, transitionToSlot]);
+  const handleSlotContentReady = useCallback((slot: 'local' | 'cloud') => {
+    completeSlotEnter(slot);
+  }, [completeSlotEnter]);
+  const handleSlotLocatePrepared = useCallback((token: number) => {
+    setPendingSlotLocate(current => current?.token === token ? null : current);
+  }, []);
   const handleLibraryScrollPositionChange = useCallback((position: number) => {
     lastScrollPositionRef.current = position;
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: position }));
@@ -660,7 +671,10 @@ const App: React.FC = () => {
                 dataSource={viewSlot}
                 activeSlotId={activeSlotId}
                 onSwitchSlot={handleSwitchSlot}
-                onLocateTrack={handleTrackSwitch}
+                pendingLocateSlot={pendingSlotLocate?.slot}
+                pendingLocateToken={pendingSlotLocate?.token}
+                onPendingLocatePrepared={handleSlotLocatePrepared}
+                onSlotContentReady={handleSlotContentReady}
                 filterType={slots[viewSlot].filterType}
                 categorySelection={slots[viewSlot].categorySelection}
                 onFilterTypeChange={handleFilterTypeChange}
