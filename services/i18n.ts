@@ -1942,6 +1942,15 @@ const translations: Translations = {
     fr: 'Taille des paroles du mode Focus'
   },
 
+  'settings.focusLyricLineSpacing': {
+    zh: '滚动歌词行间距',
+    en: 'Scrolling Lyric Line Spacing',
+    ja: 'スクロール歌詞の行間',
+    ko: '스크롤 가사 줄 간격',
+    de: 'Zeilenabstand für scrollende Liedtexte',
+    fr: 'Espacement des lignes de paroles défilantes'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',
