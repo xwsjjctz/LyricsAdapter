@@ -349,6 +349,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // invisible. This deliberately happens before the GSAP entrance begins.
   useLayoutEffect(() => {
     if (pendingLocateSlot !== dataSource || pendingLocateToken == null) {
+      // A completed or cancelled cross-slot preparation must never leave the
+      // normal track-switch slider without its transition class.
+      setIsHighlightTransitionSuppressed(false);
       onSlotContentReady?.(dataSource);
       return;
     }
@@ -357,7 +360,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     skipNextScrollRestoreRef.current = true;
     setIsHighlightTransitionSuppressed(true);
     setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-    let releaseFrame: number | undefined;
+    let restoreTransitionFrame: number | undefined;
+    let enterFrame: number | undefined;
     const frame = requestAnimationFrame(() => {
       const container = scrollContainerRef.current;
       if (container && currentTrackInFilteredIndex >= 0) {
@@ -377,14 +381,23 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           opacity: 1,
         });
       }
-      onPendingLocatePrepared?.(pendingLocateToken);
-      onSlotContentReady?.(dataSource);
-      releaseFrame = requestAnimationFrame(() => setIsHighlightTransitionSuppressed(false));
+      // Keep the list wrapper hidden until React has committed the final
+      // highlight position, then restore the regular track-switch transition
+      // before starting the wrapper entrance. Clearing pending state earlier
+      // would rerun this effect and cancel the restoration frame.
+      restoreTransitionFrame = requestAnimationFrame(() => {
+        setIsHighlightTransitionSuppressed(false);
+        enterFrame = requestAnimationFrame(() => {
+          onPendingLocatePrepared?.(pendingLocateToken);
+          onSlotContentReady?.(dataSource);
+        });
+      });
     });
 
     return () => {
       cancelAnimationFrame(frame);
-      if (releaseFrame !== undefined) cancelAnimationFrame(releaseFrame);
+      if (restoreTransitionFrame !== undefined) cancelAnimationFrame(restoreTransitionFrame);
+      if (enterFrame !== undefined) cancelAnimationFrame(enterFrame);
     };
   }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, currentTrackInDisplayIndex, filterType, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
 
