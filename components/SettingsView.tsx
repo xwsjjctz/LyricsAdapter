@@ -43,6 +43,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [glassUI, setGlassUI] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
+  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(28);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -68,6 +69,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
+      setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
     })();
   }, []);
 
@@ -80,6 +82,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
+      setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
     });
     return unsubscribe;
   }, []);
@@ -523,6 +526,30 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
                   style={{
                     background: `linear-gradient(to right, ${colors.primary} ${((focusBgBlurRadius - 40) / 40) * 100}%, ${colors.borderLight} ${((focusBgBlurRadius - 40) / 40) * 100}%)`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Focus Mode 滚动歌词行间距 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusLyricLineSpacing')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricLineSpacing}px</span>
+                <input
+                  type="range"
+                  min="12"
+                  max="48"
+                  step="1"
+                  value={focusLyricLineSpacing}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setFocusLyricLineSpacing(value);
+                    settingsManager.setFocusLyricLineSpacing(value);
+                  }}
+                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricLineSpacing - 12) / 36) * 100}%, ${colors.borderLight} ${((focusLyricLineSpacing - 12) / 36) * 100}%)`,
                   }}
                 />
               </div>

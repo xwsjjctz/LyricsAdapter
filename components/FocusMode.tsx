@@ -107,6 +107,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   // Global background transparency control for debugging
   const [bgBlurTrans, setBgBlurTrans] = useState(() => settingsManager.getBgBlurTrans());
   const [bgBlurRadius, setBgBlurRadius] = useState(() => settingsManager.getFocusBgBlurRadius());
+  const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -116,6 +117,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       const radius = settingsManager.getFocusBgBlurRadius();
       bgBlurRadiusRef.current = radius;
       setBgBlurRadius(radius);
+      setLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
     });
     return unsubscribe;
   }, []);
@@ -339,7 +341,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const lineElements = Array.from(lyricList.children) as HTMLElement[];
     if (lineElements.length === 0) return { min: -Infinity, max: Infinity };
 
-    const GAP = 28;
+    const GAP = lyricLineSpacing;
     
     // Calculate total content height
     let totalContentHeight = 0;
@@ -361,7 +363,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const maxOffset = containerHeight * 0.2 - lastLineHeight / 2;
 
     return { min: minOffset, max: maxOffset };
-  }, []);
+  }, [lyricLineSpacing]);
 
   // Handle wheel scroll - manual scrolling with momentum
   // Using native event listener with passive: false to allow preventDefault
@@ -506,6 +508,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const currentOffsetRef = useRef(0);
   const lyricAnimationRef = useRef<number | null>(null);
   const preScrolledIndexRef = useRef<number>(-1);
+
+  useEffect(() => {
+    // The current line needs a fresh position when the gap changes.
+    preScrolledIndexRef.current = -1;
+  }, [lyricLineSpacing]);
   
   // Pre-scroll offset: start scrolling 0.1s before next lyric
   const PRE_SCROLL_TIME = 0.1;
@@ -557,7 +564,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     if (!lineElements[targetIndex]) return;
 
     // Calculate cumulative offset to the target line
-    const GAP = 28;
+    const GAP = lyricLineSpacing;
     let offsetToTarget = 0;
     for (let i = 0; i < targetIndex; i++) {
       offsetToTarget += lineElements[i]!.offsetHeight + GAP;
@@ -607,7 +614,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     };
 
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [activeCurrentTime, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines, activeIndex]);
+  }, [activeCurrentTime, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines, activeIndex, lyricLineSpacing]);
 
   // Manual scroll mode: directly apply offset without auto-position
   useEffect(() => {
@@ -937,9 +944,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           >
             <div
               ref={lyricListRef}
-              className="flex flex-col gap-5 lg:gap-7 py-36 px-8 will-change-transform"
+              className="flex flex-col py-36 px-8 will-change-transform"
               style={{
                 transform: `translateY(${lyricOffsetY}px)`,
+                gap: `${lyricLineSpacing}px`,
               }}
             >
               {lyricsLines.length > 0 ? (

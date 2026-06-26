@@ -7,6 +7,7 @@ const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
+const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 
 type Listener = () => void;
 
@@ -19,6 +20,7 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
+  private focusLyricLineSpacing: number = 28;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -50,6 +52,14 @@ class SettingsManager {
         const parsed = parseFloat(blurRadius);
         if (!isNaN(parsed)) {
           this.focusBgBlurRadius = Math.max(40, Math.min(80, parsed));
+        }
+      }
+
+      const lyricLineSpacing = localStorage.getItem(FOCUS_LYRIC_LINE_SPACING_KEY);
+      if (lyricLineSpacing) {
+        const parsed = parseFloat(lyricLineSpacing);
+        if (!isNaN(parsed)) {
+          this.focusLyricLineSpacing = Math.max(12, Math.min(48, parsed));
         }
       }
     } catch (error) {
@@ -188,6 +198,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode blur radius set to: ${this.focusBgBlurRadius}`);
+  }
+
+  // --- Focus Mode Lyric Line Spacing ---
+
+  getFocusLyricLineSpacing(): number {
+    return this.focusLyricLineSpacing;
+  }
+
+  setFocusLyricLineSpacing(value: number): void {
+    this.focusLyricLineSpacing = Math.max(12, Math.min(48, value));
+    try {
+      localStorage.setItem(FOCUS_LYRIC_LINE_SPACING_KEY, String(this.focusLyricLineSpacing));
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save Focus Mode lyric line spacing:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Focus Mode lyric line spacing set to: ${this.focusLyricLineSpacing}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---
