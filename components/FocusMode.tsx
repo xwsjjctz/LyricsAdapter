@@ -134,10 +134,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const updateCanvasOpacity = useCallback(() => {
     const canvas = canvasRef.current;
     if (canvas) {
-      const finalOpacity = bgBlurTrans * canvasOpacityRef.current;
-      canvas.style.opacity = String(finalOpacity);
+      // Transparency is driven by the draw alpha (globalAlpha in renderCanvas),
+      // which always repaints. Pin CSS opacity to 1 so the compositor always
+      // shows the latest frame — driving it via CSS opacity stopped repainting
+      // once the opaque #080808 backing layer was removed.
+      canvas.style.opacity = '1';
     }
-  }, [bgBlurTrans]);
+  }, []);
 
   useEffect(() => {
     if (enterExitAnimRef.current) {
@@ -274,18 +277,18 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     ctx.clearRect(0, 0, width, height);
 
     if (bgImage2 && bgImage2.complete && bgImage2.naturalWidth > 0) {
-      ctx.globalAlpha = 1 - progress;
+      ctx.globalAlpha = (1 - progress) * bgBlurTrans;
       drawImageCover(ctx, bgImage1, width, height);
 
-      ctx.globalAlpha = progress;
+      ctx.globalAlpha = progress * bgBlurTrans;
       drawImageCover(ctx, bgImage2, width, height);
     } else {
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = bgBlurTrans;
       drawImageCover(ctx, bgImage1, width, height);
     }
 
     ctx.globalAlpha = 1.0;
-  }, [bgImage1, bgImage2]);
+  }, [bgImage1, bgImage2, bgBlurTrans]);
 
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
   const lyricsLines = useMemo(() => {
@@ -883,17 +886,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   return (
     <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
-      {/* Background layer (#080808 base + canvas + gradient) slides in via the
-          outer container's translate-y with NO opacity fade, so it is fully
-          opaque from frame 1 — the dark blurred backdrop arrives in sync with
-          the entry instead of flashing in when the slide completes.
-          The #080808 base is intentionally always rendered: it is the opaque
-          backing the blurred canvas needs in order to repaint its opacity
-          (i.e. the BG Opacity slider). */}
-      <div
-        className={`absolute inset-0 bg-[#080808] transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
-        aria-hidden="true"
-      />
+      {/* Background layer (canvas + gradient) slides in via the outer
+          container's translate-y with NO opacity fade, so it is fully present
+          from frame 1 — the blurred backdrop arrives in sync with the entry
+          instead of flashing in when the slide completes. There is no opaque
+          backing layer: the canvas's transparency is baked into its draw alpha
+          (globalAlpha in renderCanvas), which always repaints reliably
+          regardless of backdrop (CSS opacity on a filtered element does not). */}
       {/* Canvas-based Color Gradient Background */}
       {bgImage1 && (
         <canvas
