@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track } from '../types';
-import { parseAudioFile, libraryStorage } from '../services/metadataService';
+import { parseAudioFile, parseLRCLyrics, libraryStorage } from '../services/metadataService';
 import { webdavClient, webdavCoverId } from '../services/webdavClient';
 
 interface ParsedAudioMetadata {
@@ -764,6 +764,14 @@ export function useImport({
           }
 
           // 5. 组装云 Track 并合并
+          // 解析同步歌词：优先 SYLT（meta.syncedLyrics）；缺失则把 LRC 文本歌词
+          // （USLT 里存了 [mm:ss.xx] 标记）解析成时间戳数组。保证上传后立即逐行显示，
+          // 与刷新后扫描结果一致——否则 FocusMode 会把原始歌词当纯文本渲染（无时间戳）。
+          let syncedLyrics = meta?.syncedLyrics;
+          if (!syncedLyrics && meta?.lyrics) {
+            const parsed = parseLRCLyrics(meta.lyrics);
+            if (parsed.syncedLyrics) syncedLyrics = parsed.syncedLyrics;
+          }
           added.push({
             id: `webdav-${webdavPath}`,
             title: meta?.title || fileName.replace(/\.[^/.]+$/, ''),
@@ -776,6 +784,7 @@ export function useImport({
             fileName,
             fileSize: meta?.fileSize || readResult.data.byteLength,
             ...(meta?.lyrics != null && { lyrics: meta.lyrics }),
+            ...(syncedLyrics != null && { syncedLyrics }),
             coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
           } as Track);
           logger.debug(`[Import] ✓ Uploaded to WebDAV: ${fileName}`);
