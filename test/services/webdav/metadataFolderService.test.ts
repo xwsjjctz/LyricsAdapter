@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   assignChunkId,
   DEFAULT_CHUNK_SIZE,
+  filterManifestEntries,
   Manifest,
   ManifestEntry,
+  manifestEntriesEqual,
 } from '../../../services/webdav/metadataFolderService';
 
 const makeEntry = (overrides: Partial<ManifestEntry> = {}): ManifestEntry => ({
@@ -19,6 +21,13 @@ const makeEntry = (overrides: Partial<ManifestEntry> = {}): ManifestEntry => ({
   hasLyrics: false,
   hasSyncedLyrics: false,
   ...overrides,
+});
+
+const makeManifest = (entries: Record<string, ManifestEntry> = {}): Manifest => ({
+  version: 3,
+  generatedAt: '2025-01-01T00:00:00.000Z',
+  chunkSize: DEFAULT_CHUNK_SIZE,
+  entries,
 });
 
 describe('assignChunkId', () => {
@@ -83,6 +92,39 @@ describe('assignChunkId', () => {
 
     const chunkId = assignChunkId('/music/song.flac', manifest, DEFAULT_CHUNK_SIZE);
     expect(chunkId).toBe('0001');
+  });
+});
+
+describe('manifest entry helpers', () => {
+  it('detects pruned entries when filtering manifest paths', () => {
+    const manifest = makeManifest({
+      '/music/keep.flac': makeEntry({ title: 'Keep', chunkId: '0001' }),
+      '/music/delete.flac': makeEntry({ title: 'Delete', chunkId: '0001' }),
+    });
+
+    const result = filterManifestEntries(manifest, new Set(['/music/keep.flac']));
+
+    expect(result.changed).toBe(true);
+    expect(Object.keys(result.entries)).toEqual(['/music/keep.flac']);
+  });
+
+  it('does not report changes when all manifest paths are still present', () => {
+    const manifest = makeManifest({
+      '/music/keep.flac': makeEntry({ title: 'Keep', chunkId: '0001' }),
+    });
+
+    const result = filterManifestEntries(manifest, new Set(['/music/keep.flac']));
+
+    expect(result.changed).toBe(false);
+    expect(result.entries).toEqual(manifest.entries);
+  });
+
+  it('compares manifest entries field by field', () => {
+    const entry = makeEntry({ title: 'Before', chunkId: '0001' });
+
+    expect(manifestEntriesEqual(entry, { ...entry })).toBe(true);
+    expect(manifestEntriesEqual(entry, { ...entry, title: 'After' })).toBe(false);
+    expect(manifestEntriesEqual(undefined, entry)).toBe(false);
   });
 });
 

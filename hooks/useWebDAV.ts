@@ -6,7 +6,7 @@ import { logger } from '../services/logger';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
-import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE } from '../services/webdav/metadataFolderService';
+import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE, filterManifestEntries, manifestEntriesEqual } from '../services/webdav/metadataFolderService';
 
 const RANGE_SIZE = 1048576;
 
@@ -492,14 +492,10 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     const existingManifest = await metadataFolderService.loadManifest();
     const chunkSize = existingManifest?.chunkSize ?? DEFAULT_CHUNK_SIZE;
 
-    // 最终 manifest entries：以服务端为基线
-    const manifestEntries: Record<string, ManifestEntry> = {};
-    if (existingManifest) {
-      for (const [path, e] of Object.entries(existingManifest.entries)) {
-        if (audioPathSet && !audioPathSet.has(path)) continue; // bug 3：已删，丢弃
-        manifestEntries[path] = e;
-      }
-    }
+    // 最终 manifest entries：以服务端为基线，并记录仅裁剪 manifest 的变化
+    const filteredManifest = filterManifestEntries(existingManifest, audioPathSet);
+    const manifestEntries: Record<string, ManifestEntry> = filteredManifest.entries;
+    let manifestChanged = filteredManifest.changed;
 
     // IndexedDB 中有更新（含 coverUrl）的条目覆盖基线；新条目分配 chunkId
     const affectedChunkIds = new Set<string>();
@@ -512,7 +508,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       const hasLyrics = !!meta.lyrics;
       const hasSynced = !!(meta.syncedLyrics && meta.syncedLyrics.length > 0);
 
-      manifestEntries[path] = {
+      const nextEntry: ManifestEntry = {
         title: meta.title,
         artist: meta.artist,
         album: meta.album || 'Unknown Album',
@@ -525,6 +521,11 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         hasLyrics,
         hasSyncedLyrics: hasSynced,
       };
+
+      if (!manifestEntriesEqual(manifestEntries[path], nextEntry)) {
+        manifestChanged = true;
+      }
+      manifestEntries[path] = nextEntry;
 
       // 有重量数据 → 记录为该 chunk 的更新
       if (meta.coverUrl || meta.lyrics || meta.syncedLyrics) {
@@ -541,7 +542,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
     }
 
-    if (Object.keys(existingManifest?.entries ?? {}).length > 0 && affectedChunkIds.size === 0) {
+    if (Object.keys(existingManifest?.entries ?? {}).length > 0 && affectedChunkIds.size === 0 && !manifestChanged) {
       // 服务端已有数据且无更新 → 不重传
       return;
     }
