@@ -16,7 +16,7 @@ interface ParsedAudioMetadata {
 }
 import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexData } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
@@ -33,6 +33,7 @@ interface UseImportOptions {
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
   getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
+  cloudTracks?: Track[];
   /** 云列表导入：上传到 WebDAV 后合并进 cloud slot。未提供则禁用云导入。 */
   mergeCloudTracks?: (added: Track[], removedIds: string[], updated: Track[]) => void;
 }
@@ -60,6 +61,7 @@ export function useImport({
   createTrackedBlobUrl,
   persistedTimeRef,
   getPersistenceData,
+  cloudTracks = [],
   mergeCloudTracks,
 }: UseImportOptions) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -404,7 +406,7 @@ export function useImport({
 
       logger.debug('[Import] Manually triggering library save after import...');
       logger.debug(`[Import] Saving ${tracks.length} tracks to disk...`);
-      const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
+      const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
       await libraryStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Manual library save completed');
       setImportProgress(null);
@@ -420,6 +422,7 @@ export function useImport({
     playbackMode,
     processDesktopFileBatch,
     tracks,
+    cloudTracks,
     volume,
     persistedTimeRef
   ]);
@@ -514,7 +517,7 @@ export function useImport({
     await metadataCacheService.save();
 
     logger.debug('[Import] Saving library after drop import...');
-    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
+    const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[Import] ✓ Drop import with persistence completed');
 
@@ -540,6 +543,7 @@ export function useImport({
     processDesktopFilePathBatch,
     setTracks,
     tracks,
+    cloudTracks,
     currentTrackIndex,
     currentTrack,
     isPlaying,
@@ -601,7 +605,7 @@ export function useImport({
     setTracks(finalTracks);
     
     // Save library - use disk storage in Electron, IndexedDB in web
-    const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
+    const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
     
     if (isDesktop()) {
       await libraryStorage.saveLibrary(libraryData);
@@ -618,6 +622,7 @@ export function useImport({
     processWebFileBatch,
     setTracks,
     tracks,
+    cloudTracks,
     currentTrackIndex,
     currentTrack,
     isPlaying,
@@ -684,14 +689,14 @@ export function useImport({
     // Save to IndexedDB in browser mode
     if (!isDesktop()) {
       const finalTracks = [...tracks, ...allNewTracks];
-      const libraryData = buildLibraryIndexData(finalTracks, buildImportSettings());
+      const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
       await indexedDBStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Library saved to IndexedDB');
     }
 
     setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
+  }, [createTracksMap, processWebFileBatch, setTracks, tracks, cloudTracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
 
   /**
    * 云列表导入：选择本地音频 → 上传到 WebDAV 根目录 → 合并进 cloud slot。

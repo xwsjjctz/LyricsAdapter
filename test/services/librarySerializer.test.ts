@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildLibraryIndexData } from '@/services/librarySerializer';
+import { buildLibraryIndexData, buildLibraryIndexDataForSlots } from '@/services/librarySerializer';
 import type { Track } from '@/types';
 
 function makeTrack(overrides: Partial<Track> = {}): Track {
@@ -60,6 +60,18 @@ describe('buildLibraryIndexData', () => {
     expect(result.songs[0]!.id).toBe('local-1');
     expect(result.cloudSongs).toHaveLength(1);
     expect(result.cloudSongs![0]!.id).toBe('cloud-1');
+  });
+
+  it('should preserve cloudSongs for slot-aware manual saves', () => {
+    const localTracks = [makeTrack({ id: 'local-imported', title: 'New Local Track' })];
+    const cloudTracks = [makeTrack({ id: 'cloud-existing', source: 'webdav', webdavPath: '/cloud.flac' })];
+    const result = buildLibraryIndexDataForSlots(localTracks, cloudTracks, settings);
+
+    expect(result.songs).toHaveLength(1);
+    expect(result.songs[0]!.id).toBe('local-imported');
+    expect(result.cloudSongs).toHaveLength(1);
+    expect(result.cloudSongs![0]!.id).toBe('cloud-existing');
+    expect(result.cloudSongs![0]!.webdavPath).toBe('/cloud.flac');
   });
 
   it('should omit cloudSongs when cloudTracks is empty', () => {
