@@ -169,11 +169,35 @@ export function useLibrarySlots() {
       });
 
       const existingIds = new Set(filtered.map(t => t.id));
-      const newAdded = added.filter(t => !existingIds.has(t.id));
+
+      // webdav 同名去重（修复刷新重复追加）：
+      // 上传构造的曲目 id = webdav-/<fileName>；扫描构造的 id = webdav-<PROPFIND path>。
+      // 当服务器返回路径型 href（不含 host）时，path 含 baseSegment（如 /dav/Song.mp3），
+      // 与上传用的 /<fileName> 不同 → 两条 id 不一致 → 精确去重失败 → 同一首被当新曲追加（重复）。
+      // WebDAV 根目录文件名唯一，故按 fileName 把「扫描版」原地替换掉「上传版」：
+      // 保留位置（仍在末尾）、采用 canonical id/path/元数据，消除重复；后续刷新扫描版 id 已在列表，精确命中不再追加。
+      const webdavNameIndex = new Map<string, number>();
+      filtered.forEach((t, i) => {
+        if (t.source === 'webdav' && t.fileName) webdavNameIndex.set(t.fileName, i);
+      });
+      const replacements = new Map<number, Track>(); // filtered 下标 → 用以替换的扫描版
+      const newAdded: Track[] = [];
+      const seenIds = new Set(existingIds);
+      for (const t of added) {
+        if (seenIds.has(t.id)) continue; // 精确命中：已在列表
+        const sameNameIdx = t.source === 'webdav' && t.fileName ? webdavNameIndex.get(t.fileName) : undefined;
+        if (sameNameIdx !== undefined && !replacements.has(sameNameIdx)) {
+          replacements.set(sameNameIdx, t); // 原地替换上传版
+          seenIds.add(t.id);
+          continue;
+        }
+        newAdded.push(t);
+      }
+      const merged = filtered.map((t, i) => replacements.get(i) ?? t);
 
       return {
         ...prev,
-        cloud: { ...cloud, tracks: [...filtered, ...newAdded] },
+        cloud: { ...cloud, tracks: [...merged, ...newAdded] },
       };
     });
   }, []);
