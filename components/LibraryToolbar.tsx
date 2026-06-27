@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { i18n } from '../services/i18n';
 import { ThemeColors } from '../types/theme';
+import { useLiquidGlass } from '../hooks/useLiquidGlass';
 
 interface UniqueCategory {
   name: string;
@@ -54,6 +55,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   loadProgress,
   searchBox,
 }) => {
+  const liquidGlass = useLiquidGlass();
   return (
     <div className="mb-4 flex-shrink-0 flex items-center justify-between">
       <div>
@@ -89,18 +91,21 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         {searchBox}
         {dataSource === 'cloud' ? (
           /* Cloud：刷新按钮（替换编辑按钮） */
-          <div className="lg-layer">
+          <div className={liquidGlass ? 'lg-layer' : ''}>
             <button
               onClick={onRefreshCloud}
               disabled={isRefreshing}
-              className="lg-glass w-10 h-10 flex items-center justify-center"
+              className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center`}
               style={{
                 borderRadius: '12px',
                 color: colors.textSecondary,
+                backgroundColor: liquidGlass ? undefined : colors.backgroundCard,
                 cursor: isRefreshing ? 'not-allowed' : 'pointer',
                 opacity: isRefreshing ? 0.7 : 1,
                 transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
               }}
+              onMouseEnter={liquidGlass || isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
+              onMouseLeave={liquidGlass ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; })}
               title={i18n.t('library.refresh')}
             >
               <span
@@ -118,14 +123,16 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
             onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
           >
-            <div className="lg-layer">
+            <div className={liquidGlass ? 'lg-layer' : ''}>
               <button
                 onClick={onToggleEditMode}
-                className="lg-glass w-10 h-10 flex items-center justify-center relative"
+                className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center relative`}
                 style={{
                   borderRadius: showEditDropdown ? '12px 12px 0 0' : '12px',
-                  color: isEditMode ? colors.success : colors.textSecondary,
-                  backgroundColor: isEditMode ? `${colors.success}33` : undefined,
+                  color: isEditMode ? (liquidGlass ? colors.success : '#fff') : colors.textSecondary,
+                  backgroundColor: isEditMode
+                    ? (liquidGlass ? `${colors.success}33` : colors.success)
+                    : (liquidGlass ? undefined : colors.backgroundCard),
                   boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
                   transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
                 }}
@@ -198,8 +205,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             </div>
           </div>
         )}
-        <div className="lg-layer">
-        <div className="lg-glass flex items-center rounded-xl">
+        <div className={liquidGlass ? 'lg-layer' : ''}>
+        <div className={`${liquidGlass ? 'lg-glass' : 'border shadow-xl'} flex items-center rounded-xl`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
           <button
             onClick={() => {
               onFilterTypeChange('default');
@@ -207,9 +214,9 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             }}
             className="w-10 h-[38px] rounded-l-lg text-sm transition-all flex items-center justify-center"
             style={{
-              backgroundColor: filterType === 'default' ? `${colors.primary}40` : 'transparent',
-              color: filterType === 'default' ? colors.textPrimary : colors.textSecondary,
-              boxShadow: filterType === 'default' ? `0 0 16px ${colors.glowColor}` : 'none',
+              backgroundColor: filterType === 'default' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
+              color: filterType === 'default' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
+              boxShadow: filterType === 'default' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
             }}
           >
             <span className="material-symbols-outlined text-xl">list</span>
@@ -221,9 +228,9 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             }}
             className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
             style={{
-              backgroundColor: filterType === 'album' ? `${colors.primary}40` : 'transparent',
-              color: filterType === 'album' ? colors.textPrimary : colors.textSecondary,
-              boxShadow: filterType === 'album' ? `0 0 16px ${colors.glowColor}` : 'none',
+              backgroundColor: filterType === 'album' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
+              color: filterType === 'album' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
+              boxShadow: filterType === 'album' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
             }}
           >
             <span className="material-symbols-outlined text-xl">album</span>
@@ -235,9 +242,9 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             }}
             className="w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center"
             style={{
-              backgroundColor: filterType === 'artist' ? `${colors.primary}40` : 'transparent',
-              color: filterType === 'artist' ? colors.textPrimary : colors.textSecondary,
-              boxShadow: filterType === 'artist' ? `0 0 16px ${colors.glowColor}` : 'none',
+              backgroundColor: filterType === 'artist' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
+              color: filterType === 'artist' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
+              boxShadow: filterType === 'artist' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
             }}
           >
             <span className="material-symbols-outlined text-xl">artist</span>

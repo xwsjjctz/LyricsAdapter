@@ -59,11 +59,15 @@
    inset edges, a dark inner ring (::before) for depth, and a diagonal
    gloss highlight (::after). isolation keeps the ring behind content
    without forcing a position on the children.
-   Tune intensity via --lg-contrast / --lg-blur on the layer.
+   Tune intensity via --lg-contrast / --lg-blur (defined on :root so the
+   filter can also be applied inline, e.g. on the Focus Mode player wrapper).
    ===================================================================== */
-.lg-layer {
+:root {
   --lg-contrast: 1.8;
   --lg-blur: 3px;
+}
+
+.lg-layer {
   display: inline-flex;
   filter: contrast(var(--lg-contrast));
 }

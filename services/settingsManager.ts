@@ -11,6 +11,7 @@ const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
+const LIQUID_GLASS_KEY = 'la_liquid_glass';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
 export type OnlineSource = 'qq' | 'netease';
@@ -30,6 +31,8 @@ class SettingsManager {
   private focusLyricsFontSize: number = 24;
   private focusLyricLineSpacing: number = 32;
   private focusInactiveLyricBlur: number = 2;
+  // Liquid Glass (纯CSS液态玻璃) — toolbar buttons + Focus Mode player console.
+  private liquidGlass: boolean = true;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -90,6 +93,9 @@ class SettingsManager {
           this.focusInactiveLyricBlur = Math.max(0, Math.min(12, parsed));
         }
       }
+
+      // Default to ON; only disable when explicitly stored as 'false'.
+      this.liquidGlass = localStorage.getItem(LIQUID_GLASS_KEY) !== 'false';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -300,6 +306,23 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
+  }
+
+  // --- Liquid Glass (纯CSS液态玻璃) ---
+
+  getLiquidGlass(): boolean {
+    return this.liquidGlass;
+  }
+
+  setLiquidGlass(enabled: boolean): void {
+    this.liquidGlass = enabled;
+    try {
+      localStorage.setItem(LIQUID_GLASS_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save liquid glass:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] Liquid glass set to: ${enabled}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---
