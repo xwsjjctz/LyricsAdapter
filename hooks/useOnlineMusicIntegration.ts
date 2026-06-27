@@ -13,6 +13,7 @@ import { notify } from '../services/notificationService';
 import { parseLRCLyrics } from '../services/metadataService';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
+import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
 
 interface UseOnlineMusicIntegrationParams {
   setViewMode: (mode: ViewMode) => void;
@@ -77,14 +78,14 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
       const ext = quality === 'flac' ? 'flac' : 'mp3';
-      const fileName = `${singer} - ${song.songname}.${ext}`;
+      const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song);
       const [lyrics, { url }] = await Promise.all([
         fetchLyrics(song, provider),
         provider.getMusicUrl(song.songmid, quality),
       ]);
-      const fullPath = `${downloadPath}/${fileName}`;
+      const fullPath = joinDownloadPath(downloadPath, fileName);
       const result = await window.electron?.downloadAndSave?.(url, cookie, fullPath);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
@@ -118,7 +119,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
       const ext = quality === 'flac' ? 'flac' : 'mp3';
-      const fileName = `${singer} - ${song.songname}.${ext}`;
+      const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song);
       const [lyrics, { url }, coverBase64] = await Promise.all([
@@ -126,7 +127,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
         provider.getMusicUrl(song.songmid, quality),
         coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
       ]);
-      const fullPath = `${downloadPath}/${fileName}`;
+      const fullPath = joinDownloadPath(downloadPath, fileName);
       const dlResult = await window.electron?.downloadAndSave?.(url, cookie, fullPath);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 35 } }));
