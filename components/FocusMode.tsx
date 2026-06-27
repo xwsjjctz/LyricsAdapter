@@ -252,7 +252,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const startTime = performance.now();
     const animate = (now: number) => {
       const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION, 1);
-      const eased = 1 - Math.pow(1 - p, 3); // ease-out-cubic
+      // Entry (target 1): ease-in → alpha ramps up LATE, once more of the page
+      //   is on screen, so the brightening is easier to perceive.
+      // Exit (target 0): ease-out → alpha drops EARLY, before the page slides
+      //   away, so the dimming is visible.
+      const eased = target === 1 ? Math.pow(p, 3) : 1 - Math.pow(1 - p, 3);
       canvasOpacityRef.current = from + (target - from) * eased;
       const render = renderCanvas(1);
       render();
