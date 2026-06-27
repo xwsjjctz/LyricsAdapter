@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { logger } from '../logger';
+import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../utils/webdavRange';
 
 export function registerWebDAVHandlers(): void {
 
@@ -68,12 +69,19 @@ export function registerWebDAVHandlers(): void {
         redirect: 'follow',
       });
 
-      if (!response.ok && response.status !== 206) {
-        logger.error('[WebDAV IPC] Range fetch failed:', response.status, response.statusText, 'URL:', url.substring(0, 100));
-        return { success: false, error: `Range fetch failed: ${response.status}` };
+      const validation = validateWebDAVRangeResponse(
+        response.status,
+        response.headers.get('content-range'),
+        response.headers.get('content-length'),
+        start,
+        end,
+      );
+      if (!validation.success) {
+        logger.error('[WebDAV IPC] Range fetch rejected:', validation.error, 'URL:', url.substring(0, 100));
+        return { success: false, error: validation.error };
       }
 
-      const arrayBuffer = await response.arrayBuffer();
+      const arrayBuffer = await readArrayBufferWithLimit(response, validation.maxBytes);
       logger.info('[WebDAV IPC] Range fetch success:', url.substring(0, 80), 'range:', `${start}-${end}`, 'got', arrayBuffer.byteLength, 'bytes');
       return { success: true, data: arrayBuffer };
     } catch (e: any) {
