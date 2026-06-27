@@ -884,7 +884,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg overflow-hidden' : ''}`}>
+    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       {/* Background layer (#080808 base + canvas + gradient) slides in via the
           outer container's translate-y with NO opacity fade, so it is fully
           opaque from frame 1 — the dark blurred backdrop arrives in sync with
