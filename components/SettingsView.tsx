@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
-import { cookieManager } from '../services/cookieManager';
-import { settingsManager } from '../services/settingsManager';
+import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
+import { settingsManager, type OnlineSource } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
@@ -17,8 +17,10 @@ interface SettingsViewProps {
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeaderHeightChange }) => {
-  // Reuse the local `glassUI` toggle state below for className branches; the hook
+  // Reuse the local `glassUI` state below for className branches; the hook
   // only needs to own the band measurement + report height upstream.
+  // NOTE: Frosted Glass UI is shelved (no longer toggleable), so `glassUI` is
+  // effectively always false here — the branches are retained for future use.
   const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
@@ -26,6 +28,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [cookie, setCookie] = useState('');
+  const [neteaseCookie, setNeteaseCookie] = useState('');
+  const [onlineSource, setOnlineSource] = useState<OnlineSource>('qq');
   const [downloadPath, setDownloadPath] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -37,15 +41,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [isTestingWebdav, setIsTestingWebdav] = useState(false);
   const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
-  const [floatingPanel, setFloatingPanel] = useState(false);
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
-  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(28);
-  const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(0);
+  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
+  const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -56,8 +59,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   useEffect(() => {
     (async () => {
       await cookieManager.ensureLoaded();
+      await neteaseCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
       setCookie(cookieManager.getCookie());
+      setNeteaseCookie(neteaseCookieManager.getCookie());
+      setOnlineSource(settingsManager.getOnlineSource());
       setDownloadPath(settingsManager.getDownloadPath());
       const webdavConfig = webdavClient.getConfig();
       if (webdavConfig) {
@@ -65,7 +71,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         setWebdavUsername(webdavConfig.username);
         setWebdavPassword(webdavConfig.password);
       }
-      setFloatingPanel(settingsManager.getFloatingPanel());
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
@@ -81,7 +86,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   useEffect(() => {
     const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
-      setFloatingPanel(settingsManager.getFloatingPanel());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
@@ -142,17 +146,23 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     setSaveMessage(null);
 
     try {
-      if (cookie.trim()) {
-        cookieManager.setCookie(cookie.trim());
-        const status = await cookieManager.validateCookie();
+      // Persist the active source choice immediately.
+      settingsManager.setOnlineSource(onlineSource);
+
+      const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
+      const cookieValue = (onlineSource === 'netease' ? neteaseCookie : cookie).trim();
+      if (cookieValue) {
+        await cookieStore.setCookie(cookieValue);
+        const status = await cookieStore.validateCookie();
         if (!status.valid) {
           setSaveMessage(i18n.t('settingsDialog.cookieInvalid'));
           setSaveMessageType('error');
-          cookieManager.clearCookie();
+          await cookieStore.clearCookie();
           setIsSaving(false);
           return;
         }
       }
+      // NetEase cookie is optional — empty is valid (anonymous search).
 
       settingsManager.setDownloadPath(downloadPath.trim());
 
@@ -327,21 +337,57 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             </div>
           </section>
 
-          {/* QQ Music — only visible when experimental toggle is enabled */}
+          {/* Online Music — only visible when experimental toggle is enabled */}
           {qqMusicEnabled && (
           <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
               <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-              {i18n.t('settingsDialog.qqMusicTitle')}
+              {i18n.t('settingsDialog.onlineMusicTitle')}
             </h3>
             <div className="space-y-3">
+              {/* Source selector (QQ Music / NetEase) */}
               <div>
                 <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {i18n.t('settingsDialog.cookie')}
+                  {i18n.t('settingsDialog.onlineSource')}
+                </label>
+                <div className="flex gap-2">
+                  {(['qq', 'netease'] as OnlineSource[]).map((src) => {
+                    const active = onlineSource === src;
+                    return (
+                      <button
+                        key={src}
+                        type="button"
+                        onClick={() => {
+                          setOnlineSource(src);
+                          settingsManager.setOnlineSource(src);
+                        }}
+                        className="flex-1 px-3 py-2 rounded-xl text-xs font-medium transition-all"
+                        style={{
+                          backgroundColor: active ? colors.primary : colors.backgroundCard,
+                          color: active ? colors.textPrimary : colors.textSecondary,
+                          border: `1px solid ${active ? colors.primary : colors.borderLight}`,
+                        }}
+                      >
+                        {src === 'netease' ? i18n.t('settingsDialog.onlineSourceNetease') : i18n.t('settingsDialog.onlineSourceQq')}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
+              <div>
+                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                  {onlineSource === 'netease'
+                    ? i18n.t('settingsDialog.neteaseCookieLabel')
+                    : i18n.t('settingsDialog.cookie')}
                 </label>
                 <textarea
-                  value={cookie}
-                  onChange={(e) => setCookie(e.target.value)}
+                  value={onlineSource === 'netease' ? neteaseCookie : cookie}
+                  onChange={(e) =>
+                    onlineSource === 'netease'
+                      ? setNeteaseCookie(e.target.value)
+                      : setCookie(e.target.value)
+                  }
                   placeholder={i18n.t('settingsDialog.pasteCookie')}
                   className="w-full h-20 rounded-xl p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
                   style={inputStyle}
@@ -349,6 +395,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   onBlur={inputBlur}
                   disabled={isSaving}
                 />
+                {onlineSource === 'netease' && (
+                  <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
+                    {i18n.t('settingsDialog.neteaseCookieHint')}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
@@ -465,27 +516,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
               {i18n.t('settings.experimental')}
             </h3>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.floatingPanel')}</span>
-              <button
-                onClick={() => {
-                  const newValue = !floatingPanel;
-                  setFloatingPanel(newValue);
-                  settingsManager.setFloatingPanel(newValue);
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
-                style={{
-                  backgroundColor: floatingPanel ? colors.primary : colors.borderLight,
-                }}
-              >
-                <span
-                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
-                  style={{
-                    transform: floatingPanel ? 'translateX(22px)' : 'translateX(2px)',
-                  }}
-                />
-              </button>
-            </div>
 
             {/* 背景模糊透明度滑块 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
@@ -627,32 +657,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
                   style={{
                     transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
-                  }}
-                />
-              </button>
-            </div>
-
-            {/* 玻璃质感开关 */}
-            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <div className="min-w-0 mr-3">
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.glassUI')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.glassUIDesc')}</p>
-              </div>
-              <button
-                onClick={() => {
-                  const newValue = !glassUI;
-                  setGlassUI(newValue);
-                  settingsManager.setGlassUI(newValue);
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0`}
-                style={{
-                  backgroundColor: glassUI ? colors.primary : colors.borderLight,
-                }}
-              >
-                <span
-                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
-                  style={{
-                    transform: glassUI ? 'translateX(22px)' : 'translateX(2px)',
                   }}
                 />
               </button>

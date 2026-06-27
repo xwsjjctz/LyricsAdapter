@@ -101,7 +101,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
   const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
-  const canvasOpacityRef = useRef(1);
+  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
+  const canvasOpacityRef = useRef(0);
   const enterExitAnimRef = useRef<number | null>(null);
 
   // Global background transparency control for debugging
@@ -125,69 +126,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     });
     return unsubscribe;
   }, []);
-
-  const CANVAS_REST_OPACITY = 1.0;
-  const CANVAS_ENTER_DELAY = 700;
-  const CANVAS_OPACITY_DURATION = 500;
-
-  // Helper to update canvas opacity with bgBlurTrans applied
-  const updateCanvasOpacity = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const finalOpacity = bgBlurTrans * canvasOpacityRef.current;
-      canvas.style.opacity = String(finalOpacity);
-    }
-  }, [bgBlurTrans]);
-
-  useEffect(() => {
-    if (enterExitAnimRef.current) {
-      cancelAnimationFrame(enterExitAnimRef.current);
-      enterExitAnimRef.current = null;
-    }
-
-    if (isVisible) {
-      canvasOpacityRef.current = 1;
-      updateCanvasOpacity();
-
-      const delayTimer = setTimeout(() => {
-        const start = performance.now();
-        const from = 1;
-        const to = CANVAS_REST_OPACITY;
-
-        const animate = (now: number) => {
-          const elapsed = now - start;
-          const p = Math.min(elapsed / CANVAS_OPACITY_DURATION, 1);
-          const eased = 1 - Math.pow(1 - p, 3);
-          const val = from + (to - from) * eased;
-          canvasOpacityRef.current = val;
-          updateCanvasOpacity();
-          if (p < 1) {
-            enterExitAnimRef.current = requestAnimationFrame(animate);
-          }
-        };
-        enterExitAnimRef.current = requestAnimationFrame(animate);
-      }, CANVAS_ENTER_DELAY);
-
-      return () => clearTimeout(delayTimer);
-    } else {
-      const start = performance.now();
-      const from = canvasOpacityRef.current;
-      const to = 1;
-
-      const animate = (now: number) => {
-        const elapsed = now - start;
-        const p = Math.min(elapsed / CANVAS_OPACITY_DURATION, 1);
-        const eased = 1 - Math.pow(1 - p, 3);
-        const val = from + (to - from) * eased;
-        canvasOpacityRef.current = val;
-        updateCanvasOpacity();
-        if (p < 1) {
-          enterExitAnimRef.current = requestAnimationFrame(animate);
-        }
-      };
-      enterExitAnimRef.current = requestAnimationFrame(animate);
-    }
-  }, [isVisible, updateCanvasOpacity]);
 
   // Theme colors
   const colors = currentTheme.colors;
@@ -273,19 +211,71 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
     ctx.clearRect(0, 0, width, height);
 
+    // Effective backdrop alpha: 0.3 at the dim end (factor 0) up to bgBlurTrans
+    // at full visibility (factor 1). canvasOpacityRef is animated on enter/exit.
+    const alpha = 0.3 + (bgBlurTrans - 0.3) * canvasOpacityRef.current;
     if (bgImage2 && bgImage2.complete && bgImage2.naturalWidth > 0) {
-      ctx.globalAlpha = 1 - progress;
+      ctx.globalAlpha = (1 - progress) * alpha;
       drawImageCover(ctx, bgImage1, width, height);
 
-      ctx.globalAlpha = progress;
+      ctx.globalAlpha = progress * alpha;
       drawImageCover(ctx, bgImage2, width, height);
     } else {
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = alpha;
       drawImageCover(ctx, bgImage1, width, height);
     }
 
     ctx.globalAlpha = 1.0;
-  }, [bgImage1, bgImage2]);
+  }, [bgImage1, bgImage2, bgBlurTrans]);
+
+  // Duration of the canvas backdrop alpha fade on enter/exit (matches the
+  // Focus Mode slide). Entry: alpha 0.3 → bgBlurTrans; exit: bgBlurTrans → 0.3.
+  const CANVAS_ALPHA_DURATION = 600;
+
+  // Animate the backdrop alpha on enter/exit. canvasOpacityRef is a 0..1 factor
+  // baked into the draw alpha by renderCanvas; we redraw each frame so the fade
+  // always repaints. Declared after renderCanvas so it can reference it.
+  useEffect(() => {
+    if (enterExitAnimRef.current) {
+      cancelAnimationFrame(enterExitAnimRef.current);
+      enterExitAnimRef.current = null;
+    }
+
+    const target = isVisible ? 1 : 0;
+    const from = canvasOpacityRef.current;
+    if (from === target) {
+      const render = renderCanvas(1);
+      render();
+      return;
+    }
+
+    const startTime = performance.now();
+    const animate = (now: number) => {
+      const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION, 1);
+      // Entry (target 1): ease-in → alpha ramps up LATE, once more of the page
+      //   is on screen, so the brightening is easier to perceive.
+      // Exit (target 0): ease-out → alpha drops EARLY, before the page slides
+      //   away, so the dimming is visible.
+      const eased = target === 1 ? Math.pow(p, 3) : 1 - Math.pow(1 - p, 3);
+      canvasOpacityRef.current = from + (target - from) * eased;
+      const render = renderCanvas(1);
+      render();
+      if (p < 1) {
+        enterExitAnimRef.current = requestAnimationFrame(animate);
+      } else {
+        canvasOpacityRef.current = target;
+        enterExitAnimRef.current = null;
+      }
+    };
+    enterExitAnimRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (enterExitAnimRef.current) {
+        cancelAnimationFrame(enterExitAnimRef.current);
+        enterExitAnimRef.current = null;
+      }
+    };
+  }, [isVisible, renderCanvas]);
 
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
   const lyricsLines = useMemo(() => {
@@ -882,13 +872,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-all duration-600 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}${isLinux ? ' rounded-lg overflow-hidden' : ''}`}>
-      {/* Keep canvas transparency inside Focus Mode on entry, but reveal the
-          Main View through the glass background while tracks cross-fade. */}
-      <div
-        className={`absolute inset-0 bg-[#080808] transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
-        aria-hidden="true"
-      />
+    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+      {/* Background layer (canvas + gradient) slides in via the outer
+          container's translate-y with NO opacity fade, so it is fully present
+          from frame 1 — the blurred backdrop arrives in sync with the entry
+          instead of flashing in when the slide completes. There is no opaque
+          backing layer: the canvas's transparency is baked into its draw alpha
+          (globalAlpha in renderCanvas), which always repaints reliably
+          regardless of backdrop (CSS opacity on a filtered element does not). */}
       {/* Canvas-based Color Gradient Background */}
       {bgImage1 && (
         <canvas
@@ -906,7 +897,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       )}
       <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
 
-      <div className="relative h-full flex flex-col z-10 overflow-hidden">
+      <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" />
 

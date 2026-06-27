@@ -1,46 +1,19 @@
 import { logger } from './logger';
 import { cookieManager } from './cookieManager';
+import type {
+  OnlineMusicProvider,
+  OnlineQuality,
+  OnlineSong,
+  OnlineUrlResult,
+} from './onlineMusicProvider';
 
-export interface QQMusicSong {
-  songmid: string;
-  songname: string;
-  singer: { name: string; mid?: string }[];
-  albumname?: string | undefined;
-  albummid?: string | undefined;
-  interval?: number | undefined;
-  coverUrl?: string | undefined;
-}
+// Back-compat aliases — `OnlineSong` / `OnlineUrlResult` are the canonical
+// shapes shared with the NetEase provider (see onlineMusicProvider.ts).
+export type QQMusicSong = OnlineSong;
+export type QQMusicUrlResult = OnlineUrlResult;
 
-export interface QQMusicUrlResult {
-  url: string;
-  bitrate: string;
-}
-
-// Extended Electron API for QQ Music-specific operations
-interface QQMusicElectronAPI {
-  getQQMusicUrl?: (reqData: Record<string, unknown>, cookie: string) => Promise<unknown>;
-  getQQMusicLyrics?: (songmid: string, cookie: string) => Promise<{ success: boolean; lyrics?: string; error?: string }>;
-  downloadAudioFile?: (url: string, cookie: string) => Promise<{ success: boolean; data?: number[] | ArrayBuffer; error?: string }>;
-  downloadAndSave?: (url: string, cookie: string, filePath: string) => Promise<{ success: boolean; filePath?: string; size?: number; error?: string }>;
-  saveFileToPath?: (dirPath: string, fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; error?: string }>;
-  writeAudioMetadata?: (
-    filePath: string,
-    metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }
-  ) => Promise<{ success: boolean; error?: string }>;
-  onDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
-  offDownloadProgress?: (callback: (progress: { downloaded: number; total: number; progress: number }) => void) => void;
-  fetchCoverBase64?: (coverUrl: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
-}
-
-declare global {
-  interface Window {
-    electron?: import('./desktopAdapter').DesktopAPI & QQMusicElectronAPI;
-  }
-}
-
-
-
-class QQMusicAPI {
+class QQMusicAPI implements OnlineMusicProvider {
+  readonly id = 'qq' as const;
   private baseHeaders = {
     'Accept': '*/*',
     'Accept-Encoding': 'gzip, deflate, br',
@@ -233,7 +206,7 @@ class QQMusicAPI {
   /**
    * Get music URL for playback/download
    */
-  async getMusicUrl(songmid: string, quality: 'm4a' | '128' | '320' | 'flac' = '128'): Promise<QQMusicUrlResult> {
+  async getMusicUrl(songmid: string, quality: OnlineQuality = '128'): Promise<QQMusicUrlResult> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -588,6 +561,26 @@ class QQMusicAPI {
    */
   getSongCoverUrl(songmid: string, size: number = 300): string {
     return `https://y.gtimg.cn/music/photo_new/T002R${size}x${size}M000${songmid}.jpg`;
+  }
+
+  // ---- OnlineMusicProvider conformance ----
+
+  /** Full-size cover URL for metadata embedding (QQ uses an 800px album crop). */
+  getCoverUrl(song: OnlineSong): string {
+    return song.albummid ? this.getAlbumCoverUrl(song.albummid, 800) : song.coverUrl || '';
+  }
+
+  getRawCookie(): string {
+    return cookieManager.getCookie();
+  }
+
+  hasCookie(): boolean {
+    return cookieManager.hasCookie();
+  }
+
+  /** QQ Music requires a cookie for every operation (search throws without one). */
+  requiresCookie(): boolean {
+    return true;
   }
 
   private normalizeSong(song: any): QQMusicSong {

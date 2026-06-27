@@ -164,6 +164,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('get-qq-music-lyrics', songmid, cookieString);
   },
 
+  // NetEase Cloud Music generic weapi request (encryption runs in main process)
+  neteaseRequest: async (channel: string, params: any, cookieString?: string) => {
+    return ipcRenderer.invoke('netease-request', channel, params, cookieString);
+  },
+
   fetchCoverBase64: async (coverUrl: string) => {
     return ipcRenderer.invoke('fetch-cover-base64', coverUrl);
   },

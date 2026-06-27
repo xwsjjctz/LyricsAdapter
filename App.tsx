@@ -27,7 +27,7 @@ import FocusMode from './components/FocusMode';
 import SearchBox from './components/SearchBox';
 import ErrorBoundary from './components/ErrorBoundary';
 import { i18n } from './services/i18n';
-import { useQQMusicIntegration } from './hooks/useQQMusicIntegration';
+import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useFloatingPanel } from './hooks/useFloatingPanel';
 import { useGlassUI } from './hooks/useGlassUI';
@@ -465,7 +465,7 @@ const App: React.FC = () => {
   const handleCategoryChange = useCallback((selection: string | null) => {
     updateSlot(viewSlot, s => ({ ...s, categorySelection: selection }));
   }, [viewSlot, updateSlot]);
-  const { qqProgress, handleQQMusicDownload, handleQQMusicUpload } = useQQMusicIntegration({
+  const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
     setViewMode,
     mergeCloudTracks,
   });
@@ -688,9 +688,9 @@ const App: React.FC = () => {
 	                    localTracks={slots.local.tracks}
 	                    cloudTracks={slots.cloud.tracks}
 	                    onNavigateToTrack={handleSearchNavigate}
-	                    onQQMusicDownload={handleQQMusicDownload}
-	                    onQQMusicUpload={handleQQMusicUpload}
-	                    qqProgress={qqProgress}
+	                    onOnlineDownload={handleOnlineDownload}
+	                    onOnlineUpload={handleOnlineUpload}
+	                    onlineProgress={onlineProgress}
 	                  />
                 }
               />
