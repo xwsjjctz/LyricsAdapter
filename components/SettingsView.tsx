@@ -49,7 +49,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
-  const [focusBlackBase, setFocusBlackBase] = useState(true);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -80,7 +79,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
-      setFocusBlackBase(settingsManager.getFocusBlackBase());
     })();
   }, []);
 
@@ -95,7 +93,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
-      setFocusBlackBase(settingsManager.getFocusBlackBase());
     });
     return unsubscribe;
   }, []);
@@ -519,29 +516,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
               {i18n.t('settings.experimental')}
             </h3>
-            {/* Focus Mode 黑色底板开关 */}
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 mr-3">
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusBlackBase')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.focusBlackBaseDesc')}</p>
-              </div>
-              <button
-                onClick={() => {
-                  const newValue = !focusBlackBase;
-                  setFocusBlackBase(newValue);
-                  settingsManager.setFocusBlackBase(newValue);
-                }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                style={{ backgroundColor: focusBlackBase ? colors.primary : colors.borderLight }}
-                aria-label={i18n.t('settings.focusBlackBase')}
-                aria-pressed={focusBlackBase}
-              >
-                <span
-                  className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                  style={{ transform: focusBlackBase ? 'translateX(22px)' : 'translateX(2px)' }}
-                />
-              </button>
-            </div>
 
             {/* 背景模糊透明度滑块 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>

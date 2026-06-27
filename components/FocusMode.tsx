@@ -110,7 +110,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
-  const [focusBlackBase, setFocusBlackBase] = useState(() => settingsManager.getFocusBlackBase());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -123,7 +122,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
-      setFocusBlackBase(settingsManager.getFocusBlackBase());
     });
     return unsubscribe;
   }, []);
@@ -889,13 +887,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           outer container's translate-y with NO opacity fade, so it is fully
           opaque from frame 1 — the dark blurred backdrop arrives in sync with
           the entry instead of flashing in when the slide completes.
-          The solid #080808 base can be hidden via the experimental toggle. */}
-      {focusBlackBase && (
-        <div
-          className={`absolute inset-0 bg-[#080808] transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
-          aria-hidden="true"
-        />
-      )}
+          The #080808 base is intentionally always rendered: it is the opaque
+          backing the blurred canvas needs in order to repaint its opacity
+          (i.e. the BG Opacity slider). */}
+      <div
+        className={`absolute inset-0 bg-[#080808] transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+        aria-hidden="true"
+      />
       {/* Canvas-based Color Gradient Background */}
       {bgImage1 && (
         <canvas

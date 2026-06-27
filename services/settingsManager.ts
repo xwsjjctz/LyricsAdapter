@@ -11,7 +11,6 @@ const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
-const FOCUS_BLACK_BASE_KEY = 'la_focus_black_base';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
 export type OnlineSource = 'qq' | 'netease';
@@ -31,7 +30,6 @@ class SettingsManager {
   private focusLyricsFontSize: number = 24;
   private focusLyricLineSpacing: number = 32;
   private focusInactiveLyricBlur: number = 2;
-  private focusBlackBase: boolean = true;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -92,9 +90,6 @@ class SettingsManager {
           this.focusInactiveLyricBlur = Math.max(0, Math.min(12, parsed));
         }
       }
-
-      // Default true; only an explicit 'false' disables it.
-      this.focusBlackBase = localStorage.getItem(FOCUS_BLACK_BASE_KEY) !== 'false';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -305,23 +300,6 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
-  }
-
-  // --- Focus Mode Black Base (#080808 backing) ---
-
-  getFocusBlackBase(): boolean {
-    return this.focusBlackBase;
-  }
-
-  setFocusBlackBase(enabled: boolean): void {
-    this.focusBlackBase = enabled;
-    try {
-      localStorage.setItem(FOCUS_BLACK_BASE_KEY, enabled ? 'true' : 'false');
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save Focus Mode black base:', error);
-    }
-    this.notify();
-    logger.debug(`[SettingsManager] Focus Mode black base set to: ${enabled}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---
