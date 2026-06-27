@@ -8,6 +8,38 @@
   --font-family-sans: var(--theme-font-main, 'Inter', sans-serif);
 }
 
+:root {
+  --theme-app-background: #070c13;
+  --theme-main-background: linear-gradient(135deg, #08101a 0%, #111f30 55%, #1c3348 100%);
+  --theme-surface: rgba(17, 31, 48, 0.78);
+  --theme-surface-elevated: rgba(25, 42, 61, 0.94);
+  --theme-surface-muted: rgba(255, 255, 255, 0.045);
+  --theme-surface-subtle: rgba(255, 255, 255, 0.028);
+  --theme-control: rgba(255, 255, 255, 0.075);
+  --theme-control-hover: rgba(255, 255, 255, 0.12);
+  --theme-control-active: rgba(78, 161, 255, 0.22);
+  --theme-overlay: rgba(2, 7, 12, 0.70);
+  --theme-input-background: rgba(4, 10, 17, 0.42);
+  --theme-selection-background: rgba(78, 161, 255, 0.28);
+  --theme-text-on-primary: #07111d;
+  --theme-divider: rgba(210, 229, 252, 0.10);
+  --theme-focus-ring: rgba(78, 161, 255, 0.46);
+}
+
+html,
+body {
+  background: var(--theme-app-background);
+}
+
+body {
+  transition: background-color 200ms ease;
+}
+
+::selection {
+  background: var(--theme-selection-background);
+  color: var(--theme-text-primary);
+}
+
 /* Fade in animation for floating locate button */
 @keyframes fadeIn {
   from {

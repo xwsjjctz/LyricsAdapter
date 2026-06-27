@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, ThemeId } from '../types/theme';
@@ -9,313 +9,318 @@ interface ThemeViewProps {
   onHeaderHeightChange?: (height: number) => void;
 }
 
+const tagKeys: Record<string, string> = {
+  '默认': 'theme.tag.default',
+  '经典': 'theme.tag.classic',
+  '商务': 'theme.tag.business',
+  '神秘': 'theme.tag.mysterious',
+  '紫色': 'theme.tag.purple',
+  '优雅': 'theme.tag.elegant',
+  '浅色': 'theme.tag.light',
+  '暖色': 'theme.tag.warmColor',
+  '简约': 'theme.tag.minimalist',
+  '自然': 'theme.tag.natural',
+  '绿色': 'theme.tag.green',
+  '清新': 'theme.tag.fresh',
+};
+
+function tThemeName(themeId: string): string {
+  return i18n.t(`theme.name.${themeId}`);
+}
+
+function tThemeDescription(themeId: string): string {
+  return i18n.t(`theme.desc.${themeId}`);
+}
+
+function tTag(tag: string): string {
+  const key = tagKeys[tag];
+  if (!key) return tag;
+  const translated = i18n.t(key);
+  return translated === key ? tag : translated;
+}
+
+function ThemeMiniPreview({ theme }: { theme: ThemeConfig }) {
+  const colors = theme.colors;
+
+  return (
+    <div
+      className="h-48 rounded-xl overflow-hidden border shadow-inner"
+      style={{
+        background: colors.mainBackground,
+        borderColor: colors.borderLight,
+        boxShadow: `inset 0 1px 0 ${colors.borderLight}`,
+      }}
+    >
+      <div className="flex h-full">
+        <div
+          className="w-20 p-3 border-r"
+          style={{
+            backgroundColor: colors.backgroundSidebar,
+            borderColor: colors.divider,
+          }}
+        >
+          <div className="h-3 w-10 rounded-full mb-5" style={{ backgroundColor: colors.textMuted }} />
+          <div className="space-y-2">
+            <div className="h-8 rounded-lg" style={{ backgroundColor: colors.controlActive }} />
+            <div className="h-8 rounded-lg" style={{ backgroundColor: colors.control }} />
+          </div>
+        </div>
+        <div className="flex-1 p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-3 w-24 rounded-full mb-2" style={{ backgroundColor: colors.textPrimary }} />
+              <div className="h-2 w-16 rounded-full" style={{ backgroundColor: colors.textMuted }} />
+            </div>
+            <div className="h-8 w-8 rounded-lg" style={{ backgroundColor: colors.control }} />
+          </div>
+          <div
+            className="flex-1 rounded-xl border p-3"
+            style={{
+              backgroundColor: colors.surface,
+              borderColor: colors.borderLight,
+              boxShadow: `0 18px 44px -30px ${colors.shadowColor}`,
+            }}
+          >
+            <div className="h-8 rounded-lg mb-3" style={{ backgroundColor: colors.surfaceElevated }} />
+            <div className="grid grid-cols-[32px_1fr_48px] gap-3 items-center">
+              <div className="h-8 w-8 rounded-md" style={{ backgroundColor: colors.primary }} />
+              <div className="space-y-2">
+                <div className="h-2.5 rounded-full" style={{ backgroundColor: colors.textSecondary }} />
+                <div className="h-2 w-2/3 rounded-full" style={{ backgroundColor: colors.textMuted }} />
+              </div>
+              <div className="h-2 rounded-full" style={{ backgroundColor: colors.accent }} />
+            </div>
+          </div>
+          <div
+            className="h-9 rounded-xl border flex items-center gap-2 px-3"
+            style={{
+              backgroundColor: colors.control,
+              borderColor: colors.borderLight,
+            }}
+          >
+            <div className="h-5 w-5 rounded-full" style={{ backgroundColor: colors.textPrimary }} />
+            <div className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: colors.borderHover }}>
+              <div className="h-full w-2/5 rounded-full" style={{ backgroundColor: colors.primary }} />
+            </div>
+            <div className="h-2 w-8 rounded-full" style={{ backgroundColor: colors.textMuted }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
   const { ref: headerBandRef, headerHeight: headerBandHeight, glassUI } = useFrostedHeader(onHeaderHeightChange);
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [previewTheme, setPreviewTheme] = useState<ThemeConfig | null>(null);
+  const previewThemeRef = useRef<ThemeConfig | null>(null);
   const [, setLanguageVersion] = useState(0);
 
-  // Subscribe to theme changes
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
       setCurrentThemeId(themeId);
       setPreviewTheme(null);
-      // Re-apply current theme styles when theme changes
-      const currentTheme = themeManager.getCurrentTheme();
-      applyThemeStyles(currentTheme);
     });
     return unsubscribe;
   }, []);
 
-  // Subscribe to language changes
   useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
+    const unsubscribe = i18n.subscribe(() => setLanguageVersion(v => v + 1));
     return unsubscribe;
   }, []);
 
-  // Apply current theme CSS variables on mount
   useEffect(() => {
-    const currentTheme = themeManager.getCurrentTheme();
-    applyThemeStyles(currentTheme);
+    themeManager.applyCurrentTheme();
   }, []);
+
+  useEffect(() => {
+    previewThemeRef.current = previewTheme;
+  }, [previewTheme]);
+
+  useEffect(() => {
+    return () => {
+      if (previewThemeRef.current) {
+        themeManager.applyCurrentTheme();
+      }
+    };
+  }, []);
+
+  const currentTheme = useMemo(
+    () => predefinedThemes.find(theme => theme.id === currentThemeId) || predefinedThemes[0]!,
+    [currentThemeId]
+  );
+  const displayedTheme = previewTheme || currentTheme;
+
+  const handlePreviewTheme = (theme: ThemeConfig) => {
+    setPreviewTheme(theme.id === currentThemeId ? null : theme);
+    themeManager.applyTheme(theme);
+  };
 
   const handleApplyTheme = (themeId: ThemeId) => {
     themeManager.setTheme(themeId);
   };
 
-  const handlePreviewTheme = (theme: ThemeConfig) => {
-    setPreviewTheme(theme);
-    applyThemeStyles(theme);
-  };
-
   const handleResetTheme = () => {
     setPreviewTheme(null);
-    const currentTheme = themeManager.getCurrentTheme();
-    applyThemeStyles(currentTheme);
-  };
-
-  // Delegate to themeManager so theme CSS variables (including derived
-  // alpha-tinted variants) have a single source of truth. Accepts an arbitrary
-  // theme so it can preview a theme without selecting it.
-  const applyThemeStyles = (theme: ThemeConfig) => {
-    themeManager.applyTheme(theme);
-  };
-
-  const getThemeNameKey = (themeId: string): string => {
-    return `theme.name.${themeId}`;
-  };
-
-  const getThemeDescKey = (themeId: string): string => {
-    return `theme.desc.${themeId}`;
-  };
-
-  const getThemeTagKey = (tag: string): string => {
-    const tagMap: Record<string, string> = {
-      '默认': 'theme.tag.default',
-      '经典': 'theme.tag.classic',
-      '商务': 'theme.tag.business',
-      '可爱': 'theme.tag.cute',
-      '甜美': 'theme.tag.sweet',
-      '粉色': 'theme.tag.pink',
-      '海洋': 'theme.tag.ocean',
-      '蓝色': 'theme.tag.blue',
-      '深邃': 'theme.tag.deep',
-      '温暖': 'theme.tag.warm',
-      '橙色': 'theme.tag.orange',
-      '舒适': 'theme.tag.cozy',
-      '自然': 'theme.tag.natural',
-      '绿色': 'theme.tag.green',
-      '清新': 'theme.tag.fresh',
-      '神秘': 'theme.tag.mysterious',
-      '紫色': 'theme.tag.purple',
-      '优雅': 'theme.tag.elegant',
-      '浅色': 'theme.tag.light',
-      '冷色': 'theme.tag.cool',
-      '现代': 'theme.tag.modern',
-      '极简': 'theme.tag.minimal',
-      '暖色': 'theme.tag.warmColor',
-      '简约': 'theme.tag.minimalist',
-      'Default': 'theme.tag.default',
-      'Classic': 'theme.tag.classic',
-      'Business': 'theme.tag.business',
-      'Cute': 'theme.tag.cute',
-      'Sweet': 'theme.tag.sweet',
-      'Pink': 'theme.tag.pink',
-      'Ocean': 'theme.tag.ocean',
-      'Blue': 'theme.tag.blue',
-      'Deep': 'theme.tag.deep',
-      'Warm': 'theme.tag.warm',
-      'Orange': 'theme.tag.orange',
-      'Cozy': 'theme.tag.cozy',
-      'Natural': 'theme.tag.natural',
-      'Green': 'theme.tag.green',
-      'Fresh': 'theme.tag.fresh',
-      'Mysterious': 'theme.tag.mysterious',
-      'Purple': 'theme.tag.purple',
-      'Elegant': 'theme.tag.elegant',
-      'Light': 'theme.tag.light',
-      'Cool': 'theme.tag.cool',
-      'Modern': 'theme.tag.modern',
-      'Minimalist': 'theme.tag.minimalist',
-      'Warm Color': 'theme.tag.warmColor',
-      'Warm Tone': 'theme.tag.warmColor',
-    };
-    return tagMap[tag] || '';
-  };
-
-  const translateTag = (tag: string): string => {
-    const key = getThemeTagKey(tag);
-    if (key) {
-      const translated = i18n.t(key);
-      return translated !== key ? translated : tag;
-    }
-    return tag;
+    themeManager.applyTheme(currentTheme);
   };
 
   return (
     <div className="w-full flex flex-col h-full relative">
-      {/* Header band: in glass mode it overlays the top (z-30) while the grid
-          scrolls under the App-level frosted band; measured height pads the
-          grid down so it starts below the band. */}
       <div ref={headerBandRef} className={glassUI ? 'relative z-30 flex-shrink-0' : 'flex-shrink-0'}>
-      {/* Header */}
-      <div className="mb-6 flex-shrink-0 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-            {i18n.t('theme.title')}
-          </h1>
-          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-            {i18n.t('theme.description')}
-          </p>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary)' }}>
+              {i18n.t('theme.title')}
+            </h1>
+            <p className="mt-1" style={{ color: 'var(--theme-text-muted)' }}>
+              {i18n.t('theme.description')}
+            </p>
+          </div>
+          {previewTheme && (
+            <button
+              onClick={handleResetTheme}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors"
+              style={{
+                backgroundColor: 'var(--theme-control)',
+                borderColor: 'var(--theme-border-light)',
+                color: 'var(--theme-text-primary)',
+              }}
+            >
+              {i18n.t('common.cancel')}
+            </button>
+          )}
         </div>
-        {previewTheme && (
-          <button
-            onClick={handleResetTheme}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-80"
+
+        <div
+          className="mb-5 rounded-xl border p-4 flex items-center gap-4"
+          style={{
+            backgroundColor: 'var(--theme-surface)',
+            borderColor: 'var(--theme-border-light)',
+            boxShadow: '0 18px 50px -34px var(--theme-shadow-color)',
+          }}
+        >
+          <div
+            className="size-11 rounded-xl flex items-center justify-center"
             style={{
-              backgroundColor: 'var(--theme-background-card, rgba(255,255,255,0.05))',
-              border: '1px solid var(--theme-border-light, rgba(255,255,255,0.1))',
-              color: 'var(--theme-text-primary, #fff)',
+              backgroundColor: 'var(--theme-control-active)',
+              color: 'var(--theme-primary)',
             }}
           >
-            {i18n.t('common.cancel')}
-          </button>
-        )}
-      </div>
-
-      {/* Current Theme Info - Uses CSS variables to reflect current theme */}
-      <div className="mb-6 p-4 rounded-xl" style={{
-        backgroundColor: 'var(--theme-background-card, rgba(255,255,255,0.05))',
-        border: '1px solid var(--theme-border-light, rgba(255,255,255,0.1))',
-      }}>
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-2xl" style={{ color: 'var(--theme-primary, #2b8cee)' }}>
-            checkroom
-          </span>
-          <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.7))' }}>
-              {i18n.t('theme.current')}
+            <span className="material-symbols-outlined text-[24px]">{displayedTheme.icon}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-secondary)' }}>
+              {previewTheme ? i18n.t('theme.preview') : i18n.t('theme.current')}
             </p>
-            <p className="text-lg font-bold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-              {i18n.t(getThemeNameKey(currentThemeId))}
+            <p className="text-xl font-extrabold truncate" style={{ color: 'var(--theme-text-primary)' }}>
+              {tThemeName(displayedTheme.id)}
             </p>
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            <span className="size-4 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
+            <span className="size-4 rounded-full" style={{ backgroundColor: 'var(--theme-accent)' }} />
+            <span className="size-4 rounded-full" style={{ backgroundColor: 'var(--theme-success)' }} />
           </div>
         </div>
       </div>
 
-      </div>
-
-      {/* Theme Grid - Each card shows its own theme colors (not CSS variables) */}
       <div
         className={glassUI ? 'absolute inset-0 overflow-y-auto no-scrollbar' : 'flex-1 overflow-y-auto no-scrollbar'}
         style={glassUI ? { paddingTop: headerBandHeight } : undefined}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 pb-5">
           {predefinedThemes.map((theme) => {
             const isCurrent = theme.id === currentThemeId;
             const isPreview = previewTheme?.id === theme.id;
+            const isActive = isCurrent || isPreview;
 
             return (
-              <div
+              <article
                 key={theme.id}
-                className={`relative rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group ${
-                  isPreview ? 'ring-2 ring-offset-2 ring-offset-transparent' : ''
-                }`}
+                className="rounded-xl border p-4 transition-all duration-200"
                 style={{
-                  backgroundColor: theme.colors.backgroundSidebar,
-                  boxShadow: isPreview ? `0 0 0 2px ${theme.colors.primary}` : undefined,
+                  backgroundColor: isActive ? 'var(--theme-surface-elevated)' : 'var(--theme-surface)',
+                  borderColor: isActive ? theme.colors.primary : 'var(--theme-border-light)',
+                  boxShadow: isActive
+                    ? `0 20px 56px -36px ${theme.colors.glowColor}, 0 0 0 1px ${theme.colors.focusRing}`
+                    : '0 16px 42px -34px var(--theme-shadow-color)',
                 }}
-                onClick={() => handlePreviewTheme(theme)}
               >
-                {/* Theme Preview Area - Shows theme's own colors */}
-                <div className="h-32 relative overflow-hidden">
-                  <div
-                    className="absolute inset-0 opacity-80"
-                    style={{
-                      background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
-                    }}
-                  />
-                  {/* Decorative elements */}
-                  <div
-                    className="absolute top-4 left-4 w-8 h-8 rounded-full opacity-60"
-                    style={{ backgroundColor: theme.colors.primary }}
-                  />
-                  <div
-                    className="absolute top-6 right-8 w-4 h-4 rounded-lg opacity-40"
-                    style={{ backgroundColor: theme.colors.accent }}
-                  />
-                  <div
-                    className="absolute bottom-4 right-12 w-6 h-6 rounded-full opacity-30"
-                    style={{ backgroundColor: theme.colors.success }}
-                  />
-                </div>
-
-                {/* Theme Info - Shows theme's own colors */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3
-                      className="text-lg font-bold"
-                      style={{ color: theme.colors.textPrimary }}
+                <button
+                  type="button"
+                  className="block w-full text-left"
+                  onClick={() => handlePreviewTheme(theme)}
+                  aria-pressed={isActive}
+                >
+                  <ThemeMiniPreview theme={theme} />
+                  <div className="mt-4 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-extrabold truncate" style={{ color: 'var(--theme-text-primary)' }}>
+                          {tThemeName(theme.id)}
+                        </h2>
+                        {isCurrent && (
+                          <span
+                            className="rounded-full px-2 py-1 text-xs font-semibold"
+                            style={{ backgroundColor: 'var(--theme-control-active)', color: 'var(--theme-primary)' }}
+                          >
+                            {i18n.t('theme.applied')}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm leading-6" style={{ color: 'var(--theme-text-secondary)' }}>
+                        {tThemeDescription(theme.id)}
+                      </p>
+                    </div>
+                    <span
+                      className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      style={{
+                        backgroundColor: isActive ? theme.colors.controlActive : 'var(--theme-control)',
+                        color: isActive ? theme.colors.primary : 'var(--theme-text-secondary)',
+                      }}
                     >
-                      {i18n.t(getThemeNameKey(theme.id))}
-                    </h3>
-                    {isCurrent && (
-                      <span
-                        className="px-2 py-1 rounded-full text-xs font-medium"
-                        style={{
-                          backgroundColor: theme.colors.primaryLight,
-                          color: theme.colors.primary,
-                        }}
-                      >
-                        {i18n.t('theme.applied')}
+                      <span className="material-symbols-outlined text-[22px]">
+                        {theme.isDark ? 'dark_mode' : 'light_mode'}
                       </span>
-                    )}
+                    </span>
                   </div>
+                </button>
 
-                  <p
-                    className="text-sm mb-3"
-                    style={{ color: theme.colors.textSecondary }}
-                  >
-                    {i18n.t(getThemeDescKey(theme.id))}
-                  </p>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
                     {theme.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 rounded-full text-xs"
+                        className="rounded-full px-2.5 py-1 text-xs font-semibold"
                         style={{
-                          backgroundColor: theme.colors.backgroundCardHover,
-                          color: theme.colors.textMuted,
+                          backgroundColor: 'var(--theme-surface-muted)',
+                          color: 'var(--theme-text-muted)',
                         }}
                       >
-                        {translateTag(tag)}
+                        {tTag(tag)}
                       </span>
                     ))}
                   </div>
-
-                  {/* Mode badge */}
-                  <div className="flex items-center gap-1 text-xs" style={{ color: theme.colors.textMuted }}>
-                    <span className="material-symbols-outlined text-sm">
-                      {theme.isDark ? 'dark_mode' : 'light_mode'}
-                    </span>
-                    <span>{theme.isDark ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}</span>
-                  </div>
-                </div>
-
-                {/* Apply Button Overlay */}
-                <div
-                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
-                    isPreview ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}
-                  style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    backdropFilter: 'blur(4px)',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleApplyTheme(theme.id);
-                  }}
-                >
                   <button
-                    className="px-6 py-3 rounded-full font-semibold transition-transform transform hover:scale-105"
+                    type="button"
+                    onClick={() => handleApplyTheme(theme.id)}
+                    disabled={isCurrent}
+                    className="rounded-lg px-4 py-2 text-sm font-bold transition-transform disabled:cursor-default disabled:opacity-80 enabled:hover:scale-[1.02]"
                     style={{
-                      backgroundColor: theme.colors.primary,
-                      color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                      backgroundColor: isCurrent ? 'var(--theme-control-active)' : theme.colors.primary,
+                      color: isCurrent ? 'var(--theme-primary)' : theme.colors.textOnPrimary,
                     }}
                   >
                     {isCurrent ? i18n.t('theme.applied') : i18n.t('theme.apply')}
                   </button>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
       </div>
-
     </div>
   );
 };

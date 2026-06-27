@@ -570,11 +570,14 @@ const App: React.FC = () => {
   const isLinux = platform === 'linux';
   return (
     <ErrorBoundary>
-      <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
-        background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
-      } : {
-        backgroundColor: 'var(--theme-background-dark, #101922)',
-      }}>
+      <div
+        className={`flex h-screen w-screen overflow-hidden font-sans relative transition-colors duration-300${isLinux ? ' rounded-lg' : ''}`}
+        style={{
+          background: floatingPanel
+            ? 'var(--theme-main-background, linear-gradient(135deg, #101922, #1a2533))'
+            : 'var(--theme-app-background, #101922)',
+        }}
+      >
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
@@ -593,9 +596,9 @@ const App: React.FC = () => {
           cloudTrackCount={slots.cloud.tracks.length}
           floating={floatingPanel}
         />
-        <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
+        <main className="flex-1 flex flex-col relative overflow-hidden pt-8 transition-colors duration-300"
           style={floatingPanel ? {} : {
-            background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
+            background: 'var(--theme-main-background, linear-gradient(135deg, #101922, #1a2533))',
           }}
         >
           {/* Frosted header band — clipped to each view's measured header bottom.

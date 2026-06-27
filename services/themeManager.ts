@@ -5,7 +5,7 @@
 
 import { logger } from './logger';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
-import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
+import { predefinedThemes, getDefaultTheme, getThemeById } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
 
 const THEME_STORAGE_KEY = 'app-theme';
@@ -46,7 +46,7 @@ class ThemeManagerClass {
   }
 
   getCurrentTheme(): ThemeConfig {
-    return predefinedThemes.find(t => t.id === this.currentThemeId) || getDefaultTheme();
+    return getThemeById(this.currentThemeId) || getDefaultTheme();
   }
 
   applyCurrentTheme(): void {
@@ -54,7 +54,7 @@ class ThemeManagerClass {
   }
 
   setTheme(themeId: ThemeId): void {
-    const theme = predefinedThemes.find(t => t.id === themeId);
+    const theme = getThemeById(themeId);
     if (!theme) {
       logger.warn('[ThemeManager] Attempted to set non-existent theme:', themeId);
       return;
@@ -108,13 +108,28 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-background-sidebar', colors.backgroundSidebar);
     root.style.setProperty('--theme-background-card', colors.backgroundCard);
     root.style.setProperty('--theme-background-card-hover', colors.backgroundCardHover);
+    root.style.setProperty('--theme-app-background', colors.appBackground);
+    root.style.setProperty('--theme-main-background', colors.mainBackground);
+    root.style.setProperty('--theme-surface', colors.surface);
+    root.style.setProperty('--theme-surface-elevated', colors.surfaceElevated);
+    root.style.setProperty('--theme-surface-muted', colors.surfaceMuted);
+    root.style.setProperty('--theme-surface-subtle', colors.surfaceSubtle);
+    root.style.setProperty('--theme-control', colors.control);
+    root.style.setProperty('--theme-control-hover', colors.controlHover);
+    root.style.setProperty('--theme-control-active', colors.controlActive);
+    root.style.setProperty('--theme-overlay', colors.overlay);
+    root.style.setProperty('--theme-input-background', colors.inputBackground);
+    root.style.setProperty('--theme-selection-background', colors.selectionBackground);
 
     root.style.setProperty('--theme-text-primary', colors.textPrimary);
     root.style.setProperty('--theme-text-secondary', colors.textSecondary);
     root.style.setProperty('--theme-text-muted', colors.textMuted);
+    root.style.setProperty('--theme-text-on-primary', colors.textOnPrimary);
 
     root.style.setProperty('--theme-border-light', colors.borderLight);
     root.style.setProperty('--theme-border-hover', colors.borderHover);
+    root.style.setProperty('--theme-divider', colors.divider);
+    root.style.setProperty('--theme-focus-ring', colors.focusRing);
 
     root.style.setProperty('--theme-accent', colors.accent);
     root.style.setProperty('--theme-accent-hover', colors.accentHover);
@@ -141,6 +156,9 @@ class ThemeManagerClass {
 
     // Apply font family to body
     root.style.fontFamily = fonts.main;
+    root.style.colorScheme = theme.isDark ? 'dark' : 'light';
+    root.dataset['theme'] = theme.id;
+    document.body.style.backgroundColor = colors.appBackground;
 
     // Add/remove dark mode class
     if (theme.isDark) {

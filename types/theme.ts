@@ -16,14 +16,31 @@ export interface ThemeColors {
   backgroundCard: string;
   backgroundCardHover: string;
 
+  // Semantic surfaces
+  appBackground: string;
+  mainBackground: string;
+  surface: string;
+  surfaceElevated: string;
+  surfaceMuted: string;
+  surfaceSubtle: string;
+  control: string;
+  controlHover: string;
+  controlActive: string;
+  overlay: string;
+  inputBackground: string;
+  selectionBackground: string;
+
   // Text colors
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
+  textOnPrimary: string;
 
   // Border colors
   borderLight: string;
   borderHover: string;
+  divider: string;
+  focusRing: string;
 
   // Accent colors
   accent: string;
@@ -69,13 +86,9 @@ export interface ThemeConfig {
 // Default theme IDs
 export const THEME_IDS = {
   DEFAULT: 'default',
-  CUTE: 'cute',
-  OCEAN: 'ocean',
-  SUNSET: 'sunset',
   FOREST: 'forest',
   MIDNIGHT: 'midnight',
   WARM: 'warm',
-  GLACIER: 'glacier',
 } as const;
 
 export type ThemeId = typeof THEME_IDS[keyof typeof THEME_IDS];
