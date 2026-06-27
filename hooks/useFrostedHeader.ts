@@ -12,6 +12,8 @@ import { useGlassUI } from './useGlassUI';
  *
  * @param onHeightChange optional callback (e.g. App's setHeaderHeight) kept in
  *   sync whenever the band resizes (import-progress bar, locale change, etc.).
+ *
+ * @deprecated Frosted Glass UI 已从实验性功能移除，暂时停用（glassUI 恒为 false，headerHeight 恒为 0）。后续迭代或移除。
  */
 export function useFrostedHeader(onHeightChange?: (height: number) => void) {
   const glassUI = useGlassUI();

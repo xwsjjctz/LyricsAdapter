@@ -17,8 +17,10 @@ interface SettingsViewProps {
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeaderHeightChange }) => {
-  // Reuse the local `glassUI` toggle state below for className branches; the hook
+  // Reuse the local `glassUI` state below for className branches; the hook
   // only needs to own the band measurement + report height upstream.
+  // NOTE: Frosted Glass UI is shelved (no longer toggleable), so `glassUI` is
+  // effectively always false here — the branches are retained for future use.
   const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
@@ -39,15 +41,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [isTestingWebdav, setIsTestingWebdav] = useState(false);
   const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
-  const [floatingPanel, setFloatingPanel] = useState(false);
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
-  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(28);
-  const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(0);
+  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
+  const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
+  const [focusBlackBase, setFocusBlackBase] = useState(true);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -70,7 +72,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         setWebdavUsername(webdavConfig.username);
         setWebdavPassword(webdavConfig.password);
       }
-      setFloatingPanel(settingsManager.getFloatingPanel());
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
@@ -79,6 +80,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
+      setFocusBlackBase(settingsManager.getFocusBlackBase());
     })();
   }, []);
 
@@ -86,7 +88,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   useEffect(() => {
     const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
-      setFloatingPanel(settingsManager.getFloatingPanel());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
@@ -94,6 +95,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
+      setFocusBlackBase(settingsManager.getFocusBlackBase());
     });
     return unsubscribe;
   }, []);
@@ -517,24 +519,26 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
               {i18n.t('settings.experimental')}
             </h3>
+            {/* Focus Mode 黑色底板开关 */}
             <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.floatingPanel')}</span>
+              <div className="min-w-0 mr-3">
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusBlackBase')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.focusBlackBaseDesc')}</p>
+              </div>
               <button
                 onClick={() => {
-                  const newValue = !floatingPanel;
-                  setFloatingPanel(newValue);
-                  settingsManager.setFloatingPanel(newValue);
+                  const newValue = !focusBlackBase;
+                  setFocusBlackBase(newValue);
+                  settingsManager.setFocusBlackBase(newValue);
                 }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
-                style={{
-                  backgroundColor: floatingPanel ? colors.primary : colors.borderLight,
-                }}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+                style={{ backgroundColor: focusBlackBase ? colors.primary : colors.borderLight }}
+                aria-label={i18n.t('settings.focusBlackBase')}
+                aria-pressed={focusBlackBase}
               >
                 <span
-                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
-                  style={{
-                    transform: floatingPanel ? 'translateX(22px)' : 'translateX(2px)',
-                  }}
+                  className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                  style={{ transform: focusBlackBase ? 'translateX(22px)' : 'translateX(2px)' }}
                 />
               </button>
             </div>
@@ -679,32 +683,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
                   style={{
                     transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
-                  }}
-                />
-              </button>
-            </div>
-
-            {/* 玻璃质感开关 */}
-            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <div className="min-w-0 mr-3">
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.glassUI')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.glassUIDesc')}</p>
-              </div>
-              <button
-                onClick={() => {
-                  const newValue = !glassUI;
-                  setGlassUI(newValue);
-                  settingsManager.setGlassUI(newValue);
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0`}
-                style={{
-                  backgroundColor: glassUI ? colors.primary : colors.borderLight,
-                }}
-              >
-                <span
-                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
-                  style={{
-                    transform: glassUI ? 'translateX(22px)' : 'translateX(2px)',
                   }}
                 />
               </button>

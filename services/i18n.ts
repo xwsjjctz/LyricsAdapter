@@ -2008,6 +2008,24 @@ const translations: Translations = {
     fr: 'Flou des paroles inactives en mode Focus'
   },
 
+  'settings.focusBlackBase': {
+    zh: 'Focus Mode 黑色底板',
+    en: 'Focus Mode Black Base',
+    ja: 'Focus Mode の黒ベース',
+    ko: 'Focus Mode 검은 베이스',
+    de: 'Focus-Mode schwarze Basis',
+    fr: 'Base noire du mode Focus'
+  },
+
+  'settings.focusBlackBaseDesc': {
+    zh: '显示 Focus Mode 底部的纯黑底板（关闭后封面与背景将更通透）',
+    en: 'Show the solid black base behind Focus Mode (off = more transparent look)',
+    ja: 'Focus Mode の黒ベースを表示（オフでより透明感のある見た目に）',
+    ko: 'Focus Mode 검은 베이스 표시 (끄면 더 투명한 느낌)',
+    de: 'Schwarze Basis im Focus-Mode anzeigen (aus = transparenterer Look)',
+    fr: 'Afficher la base noire du mode Focus (désactivé = look plus transparent)'
+  },
+
   'settings.clearCache': {
     zh: '清理缓存',
     en: 'Clear Cache',
