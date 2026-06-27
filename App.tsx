@@ -571,7 +571,7 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <div
-        className={`flex h-screen w-screen overflow-hidden font-sans relative transition-colors duration-300${isLinux ? ' rounded-lg' : ''}`}
+        className={`app-shell flex h-screen w-screen overflow-hidden font-sans relative transition-colors duration-300${isLinux ? ' rounded-lg' : ''}`}
         style={{
           background: floatingPanel
             ? 'var(--theme-main-background, linear-gradient(135deg, #101922, #1a2533))'
@@ -582,7 +582,7 @@ const App: React.FC = () => {
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
         />
-        <div className="flex flex-1">
+        <div className="relative z-10 flex flex-1">
           <Sidebar
           onImportClick={handleImportClick}
           onNavigate={handleNavigate}

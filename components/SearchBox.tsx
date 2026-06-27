@@ -161,19 +161,15 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     >
       {/* Input bar */}
       <div
-        className="flex items-center shrink-0 relative shadow-xl"
+        className="flex items-center shrink-0 relative border shadow-xl"
         style={{
           height: '36px',
-          background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
+          background: `linear-gradient(180deg, ${isWindowFocused ? colors.surfaceElevated : colors.surface} 0%, ${colors.surface} 100%)`,
           backdropFilter: 'blur(16px)',
-          borderTop: `1px solid ${colors.primary}66`,
-          borderLeft: `1px solid ${colors.primary}66`,
-          borderRight: `1px solid ${colors.primary}66`,
-          borderBottom: isExpanded
-            ? `1px solid ${colors.borderLight}`
-            : `1px solid ${colors.primary}66`,
+          borderColor: isFocused ? colors.focusRing : colors.borderLight,
           borderRadius: isExpanded ? '12px 12px 0 0' : '12px',
-          transition: 'border-color 0.25s ease, border-radius 0.25s ease',
+          boxShadow: isFocused ? `0 14px 32px -24px ${colors.glowColor}` : `0 12px 30px -28px ${colors.shadowColor}`,
+          transition: 'border-color 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease',
         }}
       >
         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: colors.primary }}>search</span>
@@ -214,13 +210,13 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           transformOrigin: 'top center',
           opacity: isExpanded ? 1 : 0,
           transition: 'transform 0.25s ease, opacity 0.2s ease',
-          background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
+          background: `linear-gradient(180deg, ${colors.surfaceElevated} 0%, ${colors.surface} 100%)`,
           backdropFilter: 'blur(20px)',
-          border: isExpanded ? `1px solid ${colors.primary}66` : '1px solid transparent',
+          border: isExpanded ? `1px solid ${colors.focusRing}` : '1px solid transparent',
           borderTop: 'none',
           borderRadius: '0 0 12px 12px',
           boxShadow: isExpanded
-            ? `0 6px 16px rgba(0,0,0,0.14), 0 0 12px ${colors.glowColor}`
+            ? `0 18px 44px -28px ${colors.shadowColor}, 0 0 18px ${colors.glowColor}`
             : 'none',
         }}
       >

@@ -886,7 +886,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
-          <div className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] ${glassUI ? 'mb-0' : 'mb-2'}`} style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+          <div
+            className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] ${glassUI ? 'mb-0' : 'mb-2'}`}
+            style={{
+              color: colors.textMuted,
+              borderColor: colors.borderLight,
+              backgroundColor: colors.surfaceSubtle,
+              borderRadius: glassUI ? '12px 12px 0 0' : '12px',
+            }}
+          >
             {isEditMode ? (
               <input
                 type="checkbox"
@@ -987,10 +995,27 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 })}
               </div>
             ) : (
-              <div className="py-20 text-center rounded-2xl" style={{ opacity: 0.2, color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
-                <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
-                <p className="text-xl font-medium">{i18n.t('library.noTracksImported')}</p>
-                <p className="text-sm">{i18n.t('library.useSidebarToImport')}</p>
+              <div
+                className="mx-auto mt-10 flex min-h-[320px] max-w-xl flex-col items-center justify-center rounded-2xl border px-8 py-12 text-center"
+                style={{
+                  color: colors.textMuted,
+                  borderColor: colors.borderLight,
+                  background: `linear-gradient(180deg, ${colors.surface} 0%, ${colors.surfaceSubtle} 100%)`,
+                  boxShadow: `0 20px 60px -44px ${colors.shadowColor}, inset 0 1px 0 ${colors.borderLight}`,
+                }}
+              >
+                <span
+                  className="mb-5 flex size-16 items-center justify-center rounded-2xl"
+                  style={{
+                    backgroundColor: colors.controlActive,
+                    color: colors.primary,
+                    boxShadow: `0 18px 38px -24px ${colors.glowColor}`,
+                  }}
+                >
+                  <span className="material-symbols-outlined text-4xl">library_music</span>
+                </span>
+                <p className="text-xl font-extrabold" style={{ color: colors.textPrimary }}>{i18n.t('library.noTracksImported')}</p>
+                <p className="mt-2 text-sm leading-6" style={{ color: colors.textMuted }}>{i18n.t('library.useSidebarToImport')}</p>
               </div>
             )}
           </div>
@@ -999,8 +1024,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div className="flex-1 flex gap-4 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
           {/* 左侧分类列表 */}
           <div
-            className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar"
-            style={glassUI ? { paddingBottom: bottomInset } : undefined}
+            className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar rounded-xl border p-2"
+            style={{ ...(glassUI ? { paddingBottom: bottomInset } : {}), borderColor: colors.borderLight, backgroundColor: colors.surfaceSubtle }}
           >
             <div className="text-xs font-bold uppercase tracking-widest mb-2 px-2" style={{ color: colors.textMuted }}>
               {i18n.t(filterType === 'artist' ? 'library.artistList' : 'library.albumList')}
@@ -1011,13 +1036,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={artist.name}
                     onClick={() => onCategoryChange(artist.name)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border transition-all"
                     style={{
-                      backgroundColor: selectedArtist === artist.name ? colors.backgroundCard : 'transparent',
+                      backgroundColor: selectedArtist === artist.name ? colors.controlActive : 'transparent',
                       color: selectedArtist === artist.name ? colors.textPrimary : colors.textSecondary,
+                      borderColor: selectedArtist === artist.name ? colors.focusRing : 'transparent',
                     }}
-                    onMouseEnter={e => { if (selectedArtist !== artist.name) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                    onMouseLeave={e => { if (selectedArtist !== artist.name) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    onMouseEnter={e => { if (selectedArtist !== artist.name) { e.currentTarget.style.backgroundColor = colors.control; e.currentTarget.style.borderColor = colors.borderLight; } }}
+                    onMouseLeave={e => { if (selectedArtist !== artist.name) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; } }}
                   >
                     {artist.coverUrl && (
                       <img
@@ -1034,13 +1060,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={album.name}
                     onClick={() => onCategoryChange(album.name)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border transition-all"
                     style={{
-                      backgroundColor: selectedAlbum === album.name ? colors.backgroundCard : 'transparent',
+                      backgroundColor: selectedAlbum === album.name ? colors.controlActive : 'transparent',
                       color: selectedAlbum === album.name ? colors.textPrimary : colors.textSecondary,
+                      borderColor: selectedAlbum === album.name ? colors.focusRing : 'transparent',
                     }}
-                    onMouseEnter={e => { if (selectedAlbum !== album.name) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                    onMouseLeave={e => { if (selectedAlbum !== album.name) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    onMouseEnter={e => { if (selectedAlbum !== album.name) { e.currentTarget.style.backgroundColor = colors.control; e.currentTarget.style.borderColor = colors.borderLight; } }}
+                    onMouseLeave={e => { if (selectedAlbum !== album.name) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; } }}
                   >
                     {album.coverUrl && (
                       <img
@@ -1062,7 +1089,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
            {/* 右侧歌曲列表 */}
            <div className="flex-1 flex flex-col min-w-0">
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight, backgroundColor: colors.surfaceSubtle, borderRadius: 12 }}>
                 {isEditMode ? (
                   <input
                     type="checkbox"
@@ -1136,13 +1163,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                             style={{
                               ...animationStyle,
                               opacity: isUnavailable ? 0.4 : 1,
-                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-                              border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
+                              background: isSelected ? 'rgba(239, 68, 68, 0.1)' : isCurrentTrack ? `linear-gradient(90deg, ${colors.primaryLight} 0%, ${colors.surfaceSubtle} 72%, transparent 100%)` : 'transparent',
+                              border: isSelected ? `1px solid ${colors.error}30` : isCurrentTrack ? `1px solid ${colors.focusRing}` : '1px solid transparent',
                               color: isCurrentTrack ? colors.primary : colors.textPrimary,
                               cursor: (isEditMode || isUnavailable) ? 'default' : 'pointer',
                             }}
-                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                            onMouseLeave={e => { if (!isUnavailable && !isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode && !isCurrentTrack) { e.currentTarget.style.background = colors.control; e.currentTarget.style.borderColor = colors.borderLight; } }}
+                            onMouseLeave={e => { if (!isUnavailable && !isSelected && !isCurrentTrack) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; } }}
                           >
                            <div className="text-sm font-medium opacity-50">
                              {isEditMode && !isUnavailable ? (

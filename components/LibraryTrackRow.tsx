@@ -55,6 +55,15 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   const animationStyle = shouldShowAnimation
     ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
     : undefined;
+  const rowBackground = isDragged
+    ? 'transparent'
+    : isUnavailable
+    ? 'transparent'
+    : isSelected
+    ? `${colors.error}1a`
+    : isCurrentTrack
+    ? `linear-gradient(90deg, ${colors.primaryLight} 0%, ${colors.surfaceSubtle} 70%, transparent 100%)`
+    : 'transparent';
 
   return (
     <div
@@ -71,24 +80,31 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       }}
       style={{
         ...animationStyle,
-        backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
-        border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
+        background: rowBackground,
+        border: isSelected
+          ? `1px solid ${colors.error}30`
+          : isCurrentTrack
+          ? `1px solid ${colors.focusRing}`
+          : '1px solid transparent',
+        boxShadow: isCurrentTrack ? `0 12px 30px -26px ${colors.glowColor}` : 'none',
       }}
       className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
         isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
       }`}
       onMouseEnter={e => {
         if (!isDragged && !isUnavailable && !isSelected && !isCurrentTrack) {
-          e.currentTarget.style.backgroundColor = colors.backgroundCard;
+          e.currentTarget.style.background = colors.control;
+          e.currentTarget.style.borderColor = colors.borderLight;
         }
       }}
       onMouseLeave={e => {
         if (!isDragged && !isUnavailable && !isSelected && !isCurrentTrack) {
-          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = 'transparent';
         }
       }}
     >
-      <div className="text-sm font-medium" style={{ opacity: 0.5, color: isCurrentTrack ? colors.primary : colors.textSecondary }}>
+      <div className="text-sm font-medium" style={{ opacity: isCurrentTrack ? 1 : 0.55, color: isCurrentTrack ? colors.primary : colors.textSecondary }}>
         {isEditMode && !isUnavailable ? (
           <input
             type="checkbox"
@@ -99,7 +115,11 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
             style={{ accentColor: colors.primary }}
           />
         ) : (
-          filteredIndex + 1
+          isCurrentTrack ? (
+            <span className="material-symbols-outlined text-[19px] align-middle">graphic_eq</span>
+          ) : (
+            filteredIndex + 1
+          )
         )}
       </div>
       <div className="flex items-center gap-3 min-w-0">
@@ -107,17 +127,17 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           trackId={track.id}
           filePath={track.filePath}
           fallbackUrl={track.coverUrl}
-          className="size-10 rounded-lg object-cover"
+          className="size-11 rounded-xl object-cover shadow-md"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary }}>
+          <p className="text-sm font-bold truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary }}>
             {track.title}
             {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{i18n.t('library.needReimport')}</span>}
           </p>
           <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
         </div>
       </div>
-      <div className="text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
+      <div className="text-sm truncate pl-8" style={{ color: isCurrentTrack ? colors.textSecondary : colors.textMuted }}>{track.album}</div>
       {isEditMode ? (
         <div className="flex items-center justify-end gap-2">
           <button

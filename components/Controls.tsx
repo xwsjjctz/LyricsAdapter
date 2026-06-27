@@ -75,15 +75,15 @@ const Controls: React.FC<ControlsProps> = memo(({
         : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${glassUI ? 'frosted-bar absolute bottom-0 left-0 right-0' : ''} ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       }
       style={floating ? {
-        backgroundColor: colors.surfaceElevated,
+        background: `linear-gradient(180deg, ${colors.surfaceElevated} 0%, ${colors.surface} 100%)`,
         borderTop: `1px solid ${colors.borderLight}`,
         borderRight: `1px solid ${colors.borderLight}`,
         borderBottom: `1px solid ${colors.borderLight}`,
-        boxShadow: `0 18px 42px -30px ${colors.shadowColor}`,
+        boxShadow: `0 22px 52px -34px ${colors.shadowColor}, inset 0 1px 0 ${colors.borderLight}`,
       } : {
         borderColor: colors.divider,
-        backgroundColor: glassUI ? colors.surface : colors.surfaceElevated,
-        boxShadow: `0 -18px 48px -38px ${colors.shadowColor}`,
+        background: `linear-gradient(180deg, ${glassUI ? colors.surface : colors.surfaceElevated} 0%, ${colors.surface} 100%)`,
+        boxShadow: `0 -20px 58px -42px ${colors.shadowColor}, inset 0 1px 0 ${colors.borderLight}`,
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
@@ -93,7 +93,10 @@ const Controls: React.FC<ControlsProps> = memo(({
             onClick={onToggleFocus}
             className="flex items-center gap-4 cursor-pointer group"
           >
-            <div className="relative size-14 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-transform">
+            <div
+              className="relative size-14 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-transform"
+              style={{ border: `1px solid ${colors.borderLight}`, boxShadow: `0 14px 26px -18px ${colors.shadowColor}` }}
+            >
               <img src={toCoverThumb(track.coverUrl, 128)} className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>open_in_full</span>
@@ -127,7 +130,15 @@ const Controls: React.FC<ControlsProps> = memo(({
             </div>
           </div>
         ) : (
-          <div className="text-sm italic" style={{ color: colors.textMuted }}>{i18n.t('controls.noTrackSelected')}</div>
+          <div className="flex items-center gap-3 text-sm italic" style={{ color: colors.textMuted }}>
+            <span
+              className="flex size-10 items-center justify-center rounded-xl"
+              style={{ backgroundColor: colors.control, color: colors.textSecondary }}
+            >
+              <span className="material-symbols-outlined text-[20px]">music_note</span>
+            </span>
+            {i18n.t('controls.noTrackSelected')}
+          </div>
         )}
       </div>
 
@@ -141,8 +152,8 @@ const Controls: React.FC<ControlsProps> = memo(({
           <button
             onClick={onTogglePlay}
             disabled={!track}
-            className="size-10 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-20 shadow-lg"
-            style={{ backgroundColor: colors.primary, color: colors.textOnPrimary, boxShadow: `0 10px 28px -18px ${colors.glowColor}` }}
+            className="size-11 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-20 shadow-lg"
+            style={{ backgroundColor: colors.primary, color: colors.textOnPrimary, boxShadow: `0 14px 32px -16px ${colors.glowColor}` }}
           >
             <span className="material-symbols-outlined text-2xl fill-icon">{isPlaying ? 'pause' : 'play_arrow'}</span>
           </button>
@@ -160,10 +171,10 @@ const Controls: React.FC<ControlsProps> = memo(({
               onChange={(e) => onSeek(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.divider }}>
+            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.control }}>
               <div
                 className="h-full"
-                style={{ width: `${progress}%`, backgroundColor: colors.primary }}
+                style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 16px ${colors.glowColor}` }}
                 data-progress={progress}
                 data-current-time={currentTime}
               ></div>
@@ -206,7 +217,7 @@ const Controls: React.FC<ControlsProps> = memo(({
               onChange={(e) => onVolumeChange(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.divider }}>
+            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.control }}>
               <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.accent }}></div>
             </div>
           </div>

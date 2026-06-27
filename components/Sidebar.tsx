@@ -86,13 +86,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* LIBRARY 容器 */}
       <div
-        className="rounded-2xl p-2 shadow-xl"
+        className="rounded-xl p-2 shadow-xl"
         style={{
-          backgroundColor: 'var(--theme-primary-light)',
+          background: 'linear-gradient(180deg, var(--theme-surface) 0%, var(--theme-surface-subtle) 100%)',
           border: '1px solid var(--theme-border-light)',
+          boxShadow: '0 18px 44px -34px var(--theme-shadow-color), inset 0 1px 0 var(--theme-border-light)',
         }}
       >
-        <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
+        <div className="text-[10px] font-bold uppercase tracking-[0.22em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
           {i18n.t('sidebar.library')}
         </div>
         <div className="flex flex-col gap-1">
@@ -100,20 +101,27 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.key}
               onClick={item.onClick}
-              className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-colors w-full text-left ${
+              className={`group relative flex min-h-12 items-center gap-3 rounded-lg px-3 py-2.5 transition-all w-full text-left ${
                 item.active
                   ? ''
                   : 'bg-transparent text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card)] hover:text-[var(--theme-text-primary)]'
               }`}
               style={{
-                ...(item.active ? { backgroundColor: 'var(--theme-primary-16)', color: 'var(--theme-primary)' } : {}),
-                boxShadow: item.active ? '0 10px 24px -16px var(--theme-glow-color)' : 'none',
+                ...(item.active ? { backgroundColor: 'var(--theme-control-active)', color: 'var(--theme-primary)' } : {}),
+                boxShadow: item.active ? '0 14px 30px -22px var(--theme-glow-color)' : 'none',
               }}
             >
               <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full transition-opacity"
                 style={{
-                  backgroundColor: item.active ? 'var(--theme-primary-13)' : 'var(--theme-primary-08)',
+                  backgroundColor: 'var(--theme-primary)',
+                  opacity: item.active ? 1 : 0,
+                }}
+              />
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-[1.03]"
+                style={{
+                  backgroundColor: item.active ? 'var(--theme-primary-16)' : 'var(--theme-control)',
                   color: item.active ? 'var(--theme-primary)' : 'var(--theme-text-secondary)',
                 }}
               >
@@ -121,6 +129,15 @@ const Sidebar: React.FC<SidebarProps> = ({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold leading-none">{item.label}</span>
+              </span>
+              <span
+                className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
+                style={{
+                  backgroundColor: item.active ? 'var(--theme-primary-13)' : 'var(--theme-surface-muted)',
+                  color: item.active ? 'var(--theme-primary)' : 'var(--theme-text-muted)',
+                }}
+              >
+                {item.count}
               </span>
             </button>
           ))}
@@ -134,11 +151,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         onClick={onImportClick}
         onMouseEnter={() => setIsImportHovered(true)}
         onMouseLeave={() => setIsImportHovered(false)}
-        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
+        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
           backgroundColor: isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
-          borderColor: 'var(--theme-border-light)',
+          borderColor: isImportHovered ? 'var(--theme-primary)' : 'var(--theme-border-light)',
           color: isImportHovered ? 'var(--theme-primary)' : undefined,
+          boxShadow: isImportHovered ? '0 16px 34px -26px var(--theme-glow-color)' : 'none',
         }}
       >
         <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
@@ -149,30 +167,34 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
           onClick={() => onNavigate(ViewMode.SETTINGS)}
-          className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
+          className={`flex items-center justify-center px-4 py-3.5 rounded-xl border transition-all ${
             isSettingsView
               ? ''
-              : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
+              : 'bg-[var(--theme-control)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-text-primary)]'
           }`}
           style={{
             ...(isSettingsView ? { backgroundColor: 'var(--theme-primary-20)', color: 'var(--theme-primary)' } : {}),
-            boxShadow: isSettingsView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
+            borderColor: isSettingsView ? 'var(--theme-primary)' : 'var(--theme-border-light)',
+            boxShadow: isSettingsView ? '0 12px 30px -20px var(--theme-glow-color)' : 'none',
           }}
+          title={i18n.t('settings.title')}
         >
           <span className={`material-symbols-outlined text-[22px] ${isSettingsView ? 'fill-1' : ''}`}>settings</span>
         </button>
 
         <button
           onClick={() => onNavigate(ViewMode.THEME)}
-          className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
+          className={`flex items-center justify-center px-4 py-3.5 rounded-xl border transition-all ${
             isThemeView
               ? ''
-              : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
+              : 'bg-[var(--theme-control)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-text-primary)]'
           }`}
           style={{
             ...(isThemeView ? { backgroundColor: 'var(--theme-primary-20)', color: 'var(--theme-primary)' } : {}),
-            boxShadow: isThemeView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
+            borderColor: isThemeView ? 'var(--theme-primary)' : 'var(--theme-border-light)',
+            boxShadow: isThemeView ? '0 12px 30px -20px var(--theme-glow-color)' : 'none',
           }}
+          title={i18n.t('theme.title')}
         >
           <span className={`material-symbols-outlined text-[22px] ${isThemeView ? 'fill-1' : ''}`}>checkroom</span>
         </button>
@@ -213,10 +235,11 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
         }}
       >
         <aside
-          className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 rounded-lg overflow-hidden"
+          className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 rounded-lg overflow-hidden border"
           style={{
-            backgroundColor: 'var(--theme-background-sidebar)',
-            filter: `drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45))`,
+            background: 'linear-gradient(180deg, var(--theme-background-sidebar) 0%, var(--theme-app-background) 130%)',
+            borderColor: 'var(--theme-border-light)',
+            filter: 'drop-shadow(0 18px 38px var(--theme-shadow-color))',
           }}
         >
           {/* 面板延伸到 TitleBar 下层，此 spacer 确保内容避开 TitleBar 交互区域 */}
@@ -247,8 +270,9 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
     <aside
       className="w-56 flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
-        backgroundColor: 'var(--theme-background-sidebar)',
+        background: 'linear-gradient(180deg, var(--theme-background-sidebar) 0%, var(--theme-app-background) 145%)',
         borderRight: '1px solid var(--theme-border-light)',
+        boxShadow: 'inset -1px 0 0 var(--theme-divider)',
       }}
     >
       <div className="px-6 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">

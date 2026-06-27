@@ -44,7 +44,7 @@ function ThemeMiniPreview({ theme }: { theme: ThemeConfig }) {
 
   return (
     <div
-      className="h-48 rounded-xl overflow-hidden border shadow-inner"
+      className="h-24 rounded-lg overflow-hidden border shadow-inner"
       style={{
         background: colors.mainBackground,
         borderColor: colors.borderLight,
@@ -53,56 +53,56 @@ function ThemeMiniPreview({ theme }: { theme: ThemeConfig }) {
     >
       <div className="flex h-full">
         <div
-          className="w-20 p-3 border-r"
+          className="w-12 p-2 border-r"
           style={{
             backgroundColor: colors.backgroundSidebar,
             borderColor: colors.divider,
           }}
         >
-          <div className="h-3 w-10 rounded-full mb-5" style={{ backgroundColor: colors.textMuted }} />
-          <div className="space-y-2">
-            <div className="h-8 rounded-lg" style={{ backgroundColor: colors.controlActive }} />
-            <div className="h-8 rounded-lg" style={{ backgroundColor: colors.control }} />
+          <div className="h-2 w-7 rounded-full mb-4" style={{ backgroundColor: colors.textMuted }} />
+          <div className="space-y-1.5">
+            <div className="h-6 rounded-md" style={{ backgroundColor: colors.controlActive }} />
+            <div className="h-6 rounded-md" style={{ backgroundColor: colors.control }} />
           </div>
         </div>
-        <div className="flex-1 p-4 flex flex-col gap-3">
+        <div className="flex-1 p-2.5 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div>
-              <div className="h-3 w-24 rounded-full mb-2" style={{ backgroundColor: colors.textPrimary }} />
-              <div className="h-2 w-16 rounded-full" style={{ backgroundColor: colors.textMuted }} />
+              <div className="h-2.5 w-16 rounded-full mb-1.5" style={{ backgroundColor: colors.textPrimary }} />
+              <div className="h-1.5 w-11 rounded-full" style={{ backgroundColor: colors.textMuted }} />
             </div>
-            <div className="h-8 w-8 rounded-lg" style={{ backgroundColor: colors.control }} />
+            <div className="h-6 w-6 rounded-md" style={{ backgroundColor: colors.control }} />
           </div>
           <div
-            className="flex-1 rounded-xl border p-3"
+            className="flex-1 rounded-lg border p-2"
             style={{
               backgroundColor: colors.surface,
               borderColor: colors.borderLight,
-              boxShadow: `0 18px 44px -30px ${colors.shadowColor}`,
+              boxShadow: `0 12px 30px -24px ${colors.shadowColor}`,
             }}
           >
-            <div className="h-8 rounded-lg mb-3" style={{ backgroundColor: colors.surfaceElevated }} />
-            <div className="grid grid-cols-[32px_1fr_48px] gap-3 items-center">
-              <div className="h-8 w-8 rounded-md" style={{ backgroundColor: colors.primary }} />
-              <div className="space-y-2">
-                <div className="h-2.5 rounded-full" style={{ backgroundColor: colors.textSecondary }} />
-                <div className="h-2 w-2/3 rounded-full" style={{ backgroundColor: colors.textMuted }} />
+            <div className="h-6 rounded-md mb-2" style={{ backgroundColor: colors.surfaceElevated }} />
+            <div className="grid grid-cols-[24px_1fr_34px] gap-2 items-center">
+              <div className="h-6 w-6 rounded-md" style={{ backgroundColor: colors.primary }} />
+              <div className="space-y-1.5">
+                <div className="h-1.5 rounded-full" style={{ backgroundColor: colors.textSecondary }} />
+                <div className="h-1.5 w-2/3 rounded-full" style={{ backgroundColor: colors.textMuted }} />
               </div>
-              <div className="h-2 rounded-full" style={{ backgroundColor: colors.accent }} />
+              <div className="h-1.5 rounded-full" style={{ backgroundColor: colors.accent }} />
             </div>
           </div>
           <div
-            className="h-9 rounded-xl border flex items-center gap-2 px-3"
+            className="h-5 rounded-md border flex items-center gap-1.5 px-2"
             style={{
               backgroundColor: colors.control,
               borderColor: colors.borderLight,
             }}
           >
-            <div className="h-5 w-5 rounded-full" style={{ backgroundColor: colors.textPrimary }} />
-            <div className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: colors.borderHover }}>
+            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: colors.textPrimary }} />
+            <div className="h-1 flex-1 rounded-full" style={{ backgroundColor: colors.borderHover }}>
               <div className="h-full w-2/5 rounded-full" style={{ backgroundColor: colors.primary }} />
             </div>
-            <div className="h-2 w-8 rounded-full" style={{ backgroundColor: colors.textMuted }} />
+            <div className="h-1 w-5 rounded-full" style={{ backgroundColor: colors.textMuted }} />
           </div>
         </div>
       </div>
@@ -194,15 +194,15 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
         </div>
 
         <div
-          className="mb-5 rounded-xl border p-4 flex items-center gap-4"
+          className="mb-4 rounded-xl border p-3 flex items-center gap-3"
           style={{
             backgroundColor: 'var(--theme-surface)',
             borderColor: 'var(--theme-border-light)',
-            boxShadow: '0 18px 50px -34px var(--theme-shadow-color)',
+            boxShadow: '0 14px 36px -30px var(--theme-shadow-color)',
           }}
         >
           <div
-            className="size-11 rounded-xl flex items-center justify-center"
+            className="size-10 rounded-lg flex items-center justify-center"
             style={{
               backgroundColor: 'var(--theme-control-active)',
               color: 'var(--theme-primary)',
@@ -230,7 +230,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
         className={glassUI ? 'absolute inset-0 overflow-y-auto no-scrollbar' : 'flex-1 overflow-y-auto no-scrollbar'}
         style={glassUI ? { paddingTop: headerBandHeight } : undefined}
       >
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 pb-5">
+        <div className="grid max-w-[960px] grid-cols-2 xl:grid-cols-4 gap-3 pb-24 md:pb-5">
           {predefinedThemes.map((theme) => {
             const isCurrent = theme.id === currentThemeId;
             const isPreview = previewTheme?.id === theme.id;
@@ -239,61 +239,76 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
             return (
               <article
                 key={theme.id}
-                className="rounded-xl border p-4 transition-all duration-200"
+                className="relative flex aspect-square min-h-[224px] flex-col rounded-xl border p-3 transition-all duration-200"
                 style={{
-                  backgroundColor: isActive ? 'var(--theme-surface-elevated)' : 'var(--theme-surface)',
+                  background: isActive
+                    ? `linear-gradient(180deg, ${theme.colors.primaryLight} 0%, var(--theme-surface-elevated) 46%, var(--theme-surface) 100%)`
+                    : 'var(--theme-surface)',
                   borderColor: isActive ? theme.colors.primary : 'var(--theme-border-light)',
+                  borderWidth: isActive ? 2 : 1,
                   boxShadow: isActive
-                    ? `0 20px 56px -36px ${theme.colors.glowColor}, 0 0 0 1px ${theme.colors.focusRing}`
-                    : '0 16px 42px -34px var(--theme-shadow-color)',
+                    ? `0 18px 42px -30px ${theme.colors.glowColor}, 0 0 0 3px ${theme.colors.focusRing}, inset 0 1px 0 ${theme.colors.borderLight}`
+                    : '0 14px 34px -30px var(--theme-shadow-color)',
                 }}
               >
+                {isActive && (
+                  <span
+                    className="absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-full shadow-lg"
+                    style={{
+                      backgroundColor: theme.colors.primary,
+                      color: theme.colors.textOnPrimary,
+                      boxShadow: `0 10px 24px -12px ${theme.colors.glowColor}`,
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">check</span>
+                  </span>
+                )}
                 <button
                   type="button"
-                  className="block w-full text-left"
+                  className="block w-full flex-1 text-left"
                   onClick={() => handlePreviewTheme(theme)}
                   aria-pressed={isActive}
                 >
                   <ThemeMiniPreview theme={theme} />
-                  <div className="mt-4 flex items-start justify-between gap-4">
+                  <div className="mt-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h2 className="text-xl font-extrabold truncate" style={{ color: 'var(--theme-text-primary)' }}>
+                        <h2 className="text-base font-extrabold truncate" style={{ color: 'var(--theme-text-primary)' }}>
                           {tThemeName(theme.id)}
                         </h2>
                         {isCurrent && (
                           <span
-                            className="rounded-full px-2 py-1 text-xs font-semibold"
+                            className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                             style={{ backgroundColor: 'var(--theme-control-active)', color: 'var(--theme-primary)' }}
                           >
                             {i18n.t('theme.applied')}
                           </span>
                         )}
                       </div>
-                      <p className="mt-2 text-sm leading-6" style={{ color: 'var(--theme-text-secondary)' }}>
+                      <p className="mt-1 text-xs leading-5" style={{ color: 'var(--theme-text-secondary)' }}>
                         {tThemeDescription(theme.id)}
                       </p>
                     </div>
                     <span
-                      className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                       style={{
                         backgroundColor: isActive ? theme.colors.controlActive : 'var(--theme-control)',
                         color: isActive ? theme.colors.primary : 'var(--theme-text-secondary)',
                       }}
                     >
-                      <span className="material-symbols-outlined text-[22px]">
+                      <span className="material-symbols-outlined text-[20px]">
                         {theme.isDark ? 'dark_mode' : 'light_mode'}
                       </span>
                     </span>
                   </div>
                 </button>
 
-                <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="mt-3 flex items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-2">
                     {theme.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                         style={{
                           backgroundColor: 'var(--theme-surface-muted)',
                           color: 'var(--theme-text-muted)',
@@ -307,7 +322,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     type="button"
                     onClick={() => handleApplyTheme(theme.id)}
                     disabled={isCurrent}
-                    className="rounded-lg px-4 py-2 text-sm font-bold transition-transform disabled:cursor-default disabled:opacity-80 enabled:hover:scale-[1.02]"
+                    className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-transform disabled:cursor-default disabled:opacity-100 enabled:hover:scale-[1.02]"
                     style={{
                       backgroundColor: isCurrent ? 'var(--theme-control-active)' : theme.colors.primary,
                       color: isCurrent ? 'var(--theme-primary)' : theme.colors.textOnPrimary,

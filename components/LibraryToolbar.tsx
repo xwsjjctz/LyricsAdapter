@@ -55,12 +55,26 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   searchBox,
 }) => {
   return (
-    <div className="mb-4 flex-shrink-0 flex items-center justify-between">
-      <div>
-        <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-          {i18n.t(`sidebar.${dataSource}`)}
-        </h1>
-        <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
+    <div className="mb-4 flex-shrink-0 flex items-center justify-between gap-5">
+      <div className="min-w-0">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex size-10 items-center justify-center rounded-xl"
+            style={{
+              backgroundColor: colors.controlActive,
+              color: colors.primary,
+              boxShadow: `0 14px 30px -22px ${colors.glowColor}`,
+            }}
+          >
+            <span className="material-symbols-outlined text-[22px]">{dataSource === 'cloud' ? 'cloud' : 'hard_drive'}</span>
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-extrabold tracking-tight truncate" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+              {i18n.t(`sidebar.${dataSource}`)}
+            </h1>
+          </div>
+        </div>
+        <p className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
           {importProgress ? (
             `${i18n.t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
           ) : dataSource === 'cloud' && loadProgress ? (
@@ -85,23 +99,24 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         {searchBox}
         {dataSource === 'cloud' ? (
           /* Cloud：刷新按钮（替换编辑按钮） */
           <button
             onClick={onRefreshCloud}
             disabled={isRefreshing}
-            className="w-10 h-10 flex items-center justify-center shadow-xl"
+            className="w-10 h-10 flex items-center justify-center border shadow-xl"
             style={{
-              backgroundColor: colors.backgroundCard,
+              backgroundColor: colors.control,
               color: colors.textSecondary,
+              borderColor: colors.borderLight,
               borderRadius: '12px',
-              transition: 'background-color 0.2s ease',
+              transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease',
               cursor: isRefreshing ? 'not-allowed' : 'pointer',
             }}
-            onMouseEnter={e => { if (!isRefreshing) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+            onMouseEnter={e => { if (!isRefreshing) { e.currentTarget.style.backgroundColor = colors.controlHover; e.currentTarget.style.color = colors.primary; e.currentTarget.style.borderColor = colors.borderHover; } }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.control; e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.borderColor = colors.borderLight; }}
             title={i18n.t('library.refresh')}
           >
             <span
@@ -120,13 +135,14 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           >
             <button
               onClick={onToggleEditMode}
-              className="w-10 h-10 flex items-center justify-center relative shadow-xl"
+              className="w-10 h-10 flex items-center justify-center relative border shadow-xl"
               style={{
-                backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
-                color: isEditMode ? '#fff' : colors.textSecondary,
-                boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
+                backgroundColor: isEditMode ? colors.success : colors.control,
+                color: isEditMode ? colors.textOnPrimary : colors.textSecondary,
+                borderColor: isEditMode ? colors.success : colors.borderLight,
+                boxShadow: isEditMode ? `0 14px 30px -18px ${colors.success}80` : 'none',
                 borderRadius: showEditDropdown ? '12px 12px 0 0' : '12px',
-                transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease',
+                transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
               }}
             >
               <span className="material-symbols-outlined absolute"
@@ -162,9 +178,11 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 transformOrigin: 'top center',
                 opacity: showEditDropdown ? 1 : 0,
                 transition: 'transform 0.25s ease, opacity 0.2s ease',
-                background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
+                background: `linear-gradient(180deg, ${colors.surfaceElevated} 0%, ${colors.surface} 100%)`,
                 backdropFilter: 'blur(20px)',
                 borderRadius: '0 0 12px 12px',
+                border: `1px solid ${colors.borderLight}`,
+                borderTop: 'none',
                 boxShadow: showEditDropdown ? `0 8px 24px rgba(0,0,0,0.18)` : 'none',
                 pointerEvents: showEditDropdown ? 'auto' : 'none',
               }}
@@ -179,7 +197,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 className="w-10 h-10 flex items-center justify-center rounded-b-xl transition-all"
                 style={{
                   backgroundColor: selectedCount > 0 ? colors.error : colors.backgroundCard,
-                  color: selectedCount > 0 ? '#fff' : colors.textMuted,
+                  color: selectedCount > 0 ? colors.textOnPrimary : colors.textMuted,
                   opacity: selectedCount > 0 ? 1 : 0.4,
                   cursor: selectedCount > 0 ? 'pointer' : 'not-allowed',
                   boxShadow: selectedCount > 0 ? `0 0 16px ${colors.error}60` : 'none',
@@ -196,17 +214,24 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             </div>
           </div>
         )}
-        <div className="flex items-center rounded-xl border shadow-xl" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
+        <div
+          className="flex items-center rounded-xl border p-0.5 shadow-xl"
+          style={{
+            borderColor: colors.borderLight,
+            backgroundColor: colors.control,
+            boxShadow: `0 14px 34px -30px ${colors.shadowColor}`,
+          }}
+        >
           <button
             onClick={() => {
               onFilterTypeChange('default');
               onCategoryChange(null);
             }}
-            className="w-10 h-[38px] rounded-l-lg text-sm transition-all flex items-center justify-center"
+            className="w-10 h-9 rounded-lg text-sm transition-all flex items-center justify-center"
             style={{
               backgroundColor: filterType === 'default' ? colors.primary : 'transparent',
-              color: filterType === 'default' ? '#fff' : colors.textSecondary,
-              boxShadow: filterType === 'default' ? `0 0 20px ${colors.glowColor}` : 'none',
+              color: filterType === 'default' ? colors.textOnPrimary : colors.textSecondary,
+              boxShadow: filterType === 'default' ? `0 10px 24px -14px ${colors.glowColor}` : 'none',
             }}
           >
             <span className="material-symbols-outlined text-xl">list</span>
@@ -216,11 +241,11 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               onFilterTypeChange('album');
               onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0]!.name : null);
             }}
-            className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
+            className="w-10 h-9 rounded-lg text-sm transition-all flex items-center justify-center"
             style={{
               backgroundColor: filterType === 'album' ? colors.primary : 'transparent',
-              color: filterType === 'album' ? '#fff' : colors.textSecondary,
-              boxShadow: filterType === 'album' ? `0 0 20px ${colors.glowColor}` : 'none',
+              color: filterType === 'album' ? colors.textOnPrimary : colors.textSecondary,
+              boxShadow: filterType === 'album' ? `0 10px 24px -14px ${colors.glowColor}` : 'none',
             }}
           >
             <span className="material-symbols-outlined text-xl">album</span>
@@ -230,11 +255,11 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               onFilterTypeChange('artist');
               onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0]!.name : null);
             }}
-            className="w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center"
+            className="w-10 h-9 rounded-lg text-sm transition-all flex items-center justify-center"
             style={{
               backgroundColor: filterType === 'artist' ? colors.primary : 'transparent',
-              color: filterType === 'artist' ? '#fff' : colors.textSecondary,
-              boxShadow: filterType === 'artist' ? `0 0 20px ${colors.glowColor}` : 'none',
+              color: filterType === 'artist' ? colors.textOnPrimary : colors.textSecondary,
+              boxShadow: filterType === 'artist' ? `0 10px 24px -14px ${colors.glowColor}` : 'none',
             }}
           >
             <span className="material-symbols-outlined text-xl">artist</span>

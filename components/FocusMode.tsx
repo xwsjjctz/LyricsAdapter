@@ -24,16 +24,6 @@ const hexToRgb = (hex: string): string => {
   return '255, 255, 255';
 };
 
-// FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
-const FOCUS_MODE_COLORS = {
-  textPrimary: '#ffffff',
-  textSecondary: 'rgba(255, 255, 255, 0.7)',
-  textMuted: 'rgba(255, 255, 255, 0.4)',
-  backgroundCard: 'rgba(255, 255, 255, 0.08)',
-  backgroundCardHover: 'rgba(255, 255, 255, 0.12)',
-  borderLight: 'rgba(255, 255, 255, 0.1)',
-};
-
 interface FocusModeProps {
   track: Track | null;
   isVisible: boolean;
@@ -54,7 +44,7 @@ interface FocusModeProps {
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus, audioRef
 }) => {
   const isLinux = getDesktopAPI()?.platform === 'linux';
 
@@ -129,8 +119,28 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   // Theme colors
   const colors = currentTheme.colors;
-  // FocusMode uses fixed dark colors for immersive experience (except player controls)
-  const focusColors = FOCUS_MODE_COLORS;
+  const focusColors = useMemo(() => {
+    const isDark = currentTheme.isDark;
+    return {
+      textPrimary: colors.textPrimary,
+      textSecondary: colors.textSecondary,
+      textMuted: colors.textMuted,
+      backgroundCard: isDark
+        ? `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.66)`
+        : colors.surfaceElevated,
+      backgroundCardHover: colors.controlHover,
+      borderLight: colors.borderLight,
+      backdrop: isDark
+        ? `linear-gradient(180deg, ${colors.overlay} 0%, rgba(${hexToRgb(colors.backgroundDark)}, 0.20) 44%, rgba(${hexToRgb(colors.backgroundDark)}, 0.76) 100%)`
+        : `linear-gradient(180deg, rgba(${hexToRgb(colors.backgroundGradientStart)}, 0.78) 0%, rgba(${hexToRgb(colors.backgroundGradientEnd)}, 0.58) 46%, rgba(${hexToRgb(colors.backgroundSidebar)}, 0.88) 100%)`,
+      textShadow: isDark
+        ? '0 18px 42px rgba(0, 0, 0, 0.45)'
+        : `0 14px 32px ${colors.shadowColor}`,
+      activeLyricShadow: isDark
+        ? `0 0 28px ${colors.glowColor}, 0 14px 34px rgba(0, 0, 0, 0.34)`
+        : `0 0 20px ${colors.glowColor}`,
+    };
+  }, [colors, currentTheme.isDark]);
 
   // Use RAF to get more accurate currentTime, with higher frequency for better sync
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
@@ -872,7 +882,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+    <div
+      className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}
+      style={{ background: colors.mainBackground }}
+    >
       {/* Background layer (canvas + gradient) slides in via the outer
           container's translate-y with NO opacity fade, so it is fully present
           from frame 1 — the blurred backdrop arrives in sync with the entry
@@ -895,9 +908,36 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           }}
         />
       )}
-      <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
+      <div
+        className={`fixed inset-0 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`}
+        style={{ background: focusColors.backdrop }}
+      />
 
       <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+        <button
+          type="button"
+          onClick={onToggleFocus}
+          aria-label={i18n.t('titleBar.exitFocusMode')}
+          title={i18n.t('titleBar.exitFocusMode')}
+          className="absolute right-6 top-5 z-30 flex size-11 items-center justify-center rounded-full border transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{
+            color: focusColors.textPrimary,
+            backgroundColor: focusColors.backgroundCard,
+            borderColor: focusColors.borderLight,
+            boxShadow: `0 18px 48px -28px ${colors.shadowColor}`,
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.backgroundColor = focusColors.backgroundCardHover;
+            e.currentTarget.style.borderColor = colors.borderHover;
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.backgroundColor = focusColors.backgroundCard;
+            e.currentTarget.style.borderColor = focusColors.borderLight;
+          }}
+        >
+          <span className="material-symbols-outlined text-2xl">close_fullscreen</span>
+        </button>
+
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" />
 
@@ -906,18 +946,33 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
           {/* Cover & Title */}
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
-            <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
-              <img
-                src={toCoverThumb(track?.coverUrl, 512)}
-                className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
-                alt="album cover"
-              />
+            <div
+              className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] rounded-2xl overflow-hidden group"
+              style={{ boxShadow: `0 30px 80px ${colors.shadowColor}, inset 0 1px 0 ${colors.borderLight}` }}
+            >
+              {track?.coverUrl ? (
+                <img
+                  src={toCoverThumb(track.coverUrl, 512)}
+                  className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
+                  alt="album cover"
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center"
+                  style={{ background: colors.surfaceElevated, color: colors.textMuted }}
+                >
+                  <span className="material-symbols-outlined text-6xl">music_note</span>
+                </div>
+              )}
             </div>
             <div className="mt-5 lg:mt-7 text-center w-full max-w-[340px]">
-              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2 drop-shadow-2xl" style={{ color: focusColors.textPrimary }}>
+              <h1
+                className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2"
+                style={{ color: focusColors.textPrimary, textShadow: focusColors.textShadow }}
+              >
                 {track?.title}
               </h1>
-              <p className="text-base lg:text-lg font-semibold truncate opacity-80" style={{ color: focusColors.textPrimary }}>
+              <p className="text-base lg:text-lg font-semibold truncate" style={{ color: focusColors.textSecondary }}>
                 {track?.artist}
               </p>
               <p className="text-xs lg:text-sm font-medium truncate mt-1" style={{ color: focusColors.textMuted }}>
@@ -960,7 +1015,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                       style={{
                         color: isActive ? focusColors.textPrimary : focusColors.textMuted,
                         fontSize: `${lyricsFontSize}px`,
-                         filter: isActive ? 'none' : `blur(${inactiveLyricBlur}px)`,
+                        filter: isActive ? 'none' : `blur(${inactiveLyricBlur}px)`,
+                        textShadow: isActive ? focusColors.activeLyricShadow : 'none',
+                        opacity: isActive ? 1 : 0.78,
                       }}
                       onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}
@@ -971,7 +1028,15 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                   );
                 })
               ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-3" style={{ color: focusColors.textMuted }}>
+                <div
+                  className="mx-auto flex max-w-sm flex-col items-center justify-center gap-3 rounded-2xl border px-8 py-7"
+                  style={{
+                    color: focusColors.textMuted,
+                    backgroundColor: focusColors.backgroundCard,
+                    borderColor: focusColors.borderLight,
+                    boxShadow: `0 20px 60px -40px ${colors.shadowColor}`,
+                  }}
+                >
                   <span className="material-symbols-outlined text-4xl">lyrics</span>
                   <p className="italic text-base">No lyrics found in metadata</p>
                 </div>
@@ -989,8 +1054,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             className="glass rounded-2xl p-4 flex flex-col gap-3 shadow-xl relative z-20 transition-opacity duration-500"
             style={{ 
               opacity: isPlayerVisible ? 1 : 0,
-              borderColor: colors.borderLight,
-              backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.6)`,
+              borderColor: focusColors.borderLight,
+              backgroundColor: focusColors.backgroundCard,
+              boxShadow: `0 22px 70px -36px ${colors.shadowColor}`,
             }}
           >
             {/* Progress */}
@@ -1012,7 +1078,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                 />
                 <div
                   className="absolute top-1/2 -translate-y-1/2 size-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary }}
+                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.primary }}
                 />
               </div>
               <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: colors.textMuted }}>{formatTime(track?.duration || 0)}</span>
@@ -1049,7 +1115,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                 <button
                   onClick={onTogglePlay}
                   className="size-11 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
-                  style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark }}
+                  style={{ backgroundColor: colors.primary, color: colors.textOnPrimary, boxShadow: `0 12px 28px -14px ${colors.glowColor}` }}
                 >
                   <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
                 </button>
@@ -1081,7 +1147,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                     className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
                   />
                   <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.borderLight }}>
-                    <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }}></div>
+                    <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.primary }}></div>
                   </div>
                 </div>
               </div>
