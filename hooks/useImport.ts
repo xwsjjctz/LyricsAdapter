@@ -783,6 +783,8 @@ export function useImport({
             webdavPath,
             fileName,
             fileSize: meta?.fileSize || readResult.data.byteLength,
+            // 上传时间作为排序键：刚上传=最新，排序后落在列表最底部（与刷新后扫描值一致）。
+            lastModified: Date.now(),
             ...(meta?.lyrics != null && { lyrics: meta.lyrics }),
             ...(syncedLyrics != null && { syncedLyrics }),
             coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,

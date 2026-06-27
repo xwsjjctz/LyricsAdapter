@@ -23,6 +23,36 @@ interface PersistedSlotState {
   cloudPlaybackContext?: PlaybackContext;
 }
 
+/**
+ * 云端排序键：lastModified（PROPFIND 的 getlastmodified，即「上传时间」，存为 number 毫秒）。
+ * 缺失/非法视为 0（最旧，置顶）。以单一确定性键排序，彻底消除上传版/扫描版 id 分裂导致的跳位。
+ */
+function cloudSortKey(t: Track): number {
+  const v = t.lastModified;
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+/** 云端曲目按上传时间升序排序：最新上传的在列表最底部。 */
+function sortCloudTracks(tracks: Track[]): Track[] {
+  return [...tracks].sort((a, b) => cloudSortKey(a) - cloudSortKey(b));
+}
+
+/**
+ * 排序后把 currentTrackIndex 重新指向原正在播放的曲目。
+ * 按 id 匹配；webdav 额外按 fileName 兜底（上传版/扫描版 id 不同但同一文件）。
+ * 找不到（已被删除）则置 -1。
+ */
+function reindexCurrent(cloud: LibrarySlot, newTracks: Track[]): number {
+  const cur = cloud.currentTrackIndex;
+  if (cur < 0 || cur >= cloud.tracks.length) return cur;
+  const playing = cloud.tracks[cur]!;
+  const idx = newTracks.findIndex(t =>
+    t.id === playing.id ||
+    (!!playing.fileName && t.source === 'webdav' && t.fileName === playing.fileName)
+  );
+  return idx >= 0 ? idx : -1;
+}
+
 export function useLibrarySlots() {
   const [slots, setSlots] = useState<Record<SlotId, LibrarySlot>>({
     local: createEmptySlot('local'),
@@ -116,31 +146,27 @@ export function useLibrarySlots() {
 
   const loadCloudTracks = useCallback((tracks: Track[]) => {
     setSlots(prev => {
-      const prevTracks = prev.cloud.tracks;
+      const cloud = prev.cloud;
 
-      // 首次加载（云端曲目尚未填充）：直接使用传入顺序（PROPFIND / 服务器序）。
-      // 云端曲目不持久化，故 startup 后 prev 必为空，行为与原硬替换一致。
-      if (prevTracks.length === 0) {
-        return { ...prev, cloud: { ...prev.cloud, tracks } };
-      }
-
-      // 已有曲目时做「顺序稳定合并」，避免刷新时按 PROPFIND 顺序硬重排：
-      // - incoming 定义成员（新增追加到末尾、服务器已删的剔除）
-      // - prev 定义顺序（已有曲目原地保留，数据用 incoming 刷新）
-      // 修复点：上传后追加到列表末尾的曲目，在后续 full 替换（all-cached 短路 /
-      // 封面回填 onTracksUpdated）下不再跳位。
+      // incoming（扫描结果）是云端成员基准。prev 中被同 id 或同名扫描版覆盖的剔除；
+      // 但保留 incoming 未命中的 prev 独有项（如刚上传、PROPFIND 尚未返回的竞态，避免被误删）。
+      // incoming 为空（清缓存 / 服务器无文件）时直接清空，不再保留 prev。
       const incomingIds = new Set(tracks.map(t => t.id));
-      const incomingMap = new Map(tracks.map(t => [t.id, t]));
-      const prevIds = new Set(prevTracks.map(t => t.id));
+      const incomingNames = new Set(
+        tracks.filter(t => t.source === 'webdav' && t.fileName).map(t => t.fileName!)
+      );
+      const keptFromPrev = tracks.length > 0 ? cloud.tracks.filter(t => {
+        if (incomingIds.has(t.id)) return false; // 同 id：用扫描版
+        if (t.source === 'webdav' && t.fileName && incomingNames.has(t.fileName)) return false; // 同名：用扫描版（兼容上传/扫描 id 分裂）
+        return true; // incoming 没有 → prev 独有，保留
+      }) : [];
 
-      const kept = prevTracks
-        .filter(t => incomingIds.has(t.id))
-        .map(t => incomingMap.get(t.id)!);
-      const fresh = tracks.filter(t => !prevIds.has(t.id));
+      // 按上传时间（lastModified）升序排序：最新上传的在最底部。
+      const sorted = sortCloudTracks([...tracks, ...keptFromPrev]);
 
       return {
         ...prev,
-        cloud: { ...prev.cloud, tracks: [...kept, ...fresh] },
+        cloud: { ...cloud, tracks: sorted, currentTrackIndex: reindexCurrent(cloud, sorted) },
       };
     });
   }, []);
@@ -174,8 +200,8 @@ export function useLibrarySlots() {
       // 上传构造的曲目 id = webdav-/<fileName>；扫描构造的 id = webdav-<PROPFIND path>。
       // 当服务器返回路径型 href（不含 host）时，path 含 baseSegment（如 /dav/Song.mp3），
       // 与上传用的 /<fileName> 不同 → 两条 id 不一致 → 精确去重失败 → 同一首被当新曲追加（重复）。
-      // WebDAV 根目录文件名唯一，故按 fileName 把「扫描版」原地替换掉「上传版」：
-      // 保留位置（仍在末尾）、采用 canonical id/path/元数据，消除重复；后续刷新扫描版 id 已在列表，精确命中不再追加。
+      // WebDAV 根目录文件名唯一，故按 fileName 把「扫描版」替换掉「上传版」，采用 canonical id/path/元数据，
+      // 消除重复。顺序不再依赖此处（由下方 sortCloudTracks 按上传时间统一排序）。
       const webdavNameIndex = new Map<string, number>();
       filtered.forEach((t, i) => {
         if (t.source === 'webdav' && t.fileName) webdavNameIndex.set(t.fileName, i);
@@ -187,7 +213,7 @@ export function useLibrarySlots() {
         if (seenIds.has(t.id)) continue; // 精确命中：已在列表
         const sameNameIdx = t.source === 'webdav' && t.fileName ? webdavNameIndex.get(t.fileName) : undefined;
         if (sameNameIdx !== undefined && !replacements.has(sameNameIdx)) {
-          replacements.set(sameNameIdx, t); // 原地替换上传版
+          replacements.set(sameNameIdx, t); // 用扫描版取代上传版（去重）
           seenIds.add(t.id);
           continue;
         }
@@ -195,9 +221,12 @@ export function useLibrarySlots() {
       }
       const merged = filtered.map((t, i) => replacements.get(i) ?? t);
 
+      // 按上传时间（lastModified）升序排序：最新上传的在最底部。
+      const sorted = sortCloudTracks([...merged, ...newAdded]);
+
       return {
         ...prev,
-        cloud: { ...cloud, tracks: [...merged, ...newAdded] },
+        cloud: { ...cloud, tracks: sorted, currentTrackIndex: reindexCurrent(cloud, sorted) },
       };
     });
   }, []);

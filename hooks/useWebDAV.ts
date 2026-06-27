@@ -103,6 +103,8 @@ function parseArtistTitleFromFilename(filename: string): { artist: string; title
 
 function fileToPlaceholderTrack(file: WebDAVFile): Track {
   const { artist, title } = parseArtistTitleFromFilename(file.name);
+  // lastModified 取 PROPFIND 的 getlastmodified（上传时间），作为云端排序键；解析失败记 0（置顶）。
+  const mtime = Date.parse(file.lastModified);
   return {
     id: `webdav-${file.path}`,
     title,
@@ -115,6 +117,7 @@ function fileToPlaceholderTrack(file: WebDAVFile): Track {
     webdavPath: file.path,
     fileName: file.name,
     fileSize: file.size,
+    lastModified: Number.isFinite(mtime) ? mtime : 0,
   };
 }
 
