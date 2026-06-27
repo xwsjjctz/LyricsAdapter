@@ -6,6 +6,7 @@ import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexData } from './services/librarySerializer';
+import { reorderTracks } from './services/libraryReorder';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
 import { useBlobUrls } from './hooks/useBlobUrls';
@@ -407,30 +408,34 @@ const App: React.FC = () => {
     logger.debug('[App] Library saved after download');
   }, [slots.local.tracks, updateLocalTracks, getPersistenceData]);
   const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
-    logger.debug(`[App] Reordering track from ${fromIndex} to ${toIndex}`);
-    const newTracks = [...activeTracks];
-    const [movedTrack] = newTracks.splice(fromIndex, 1);
-    if (!movedTrack) return;
-    const adjustedToIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
-    newTracks.splice(adjustedToIndex, 0, movedTrack);
-    let newCurrentTrackIndex = activeTrackIndex;
-    if (activeTrackIndex === fromIndex) {
-      newCurrentTrackIndex = adjustedToIndex;
-    } else if (activeTrackIndex > fromIndex && activeTrackIndex < toIndex) {
-      newCurrentTrackIndex = activeTrackIndex - 1;
-    } else if (activeTrackIndex < fromIndex && activeTrackIndex > toIndex) {
-      newCurrentTrackIndex = activeTrackIndex + 1;
-    }
-    setActiveTracks(newTracks);
-    setActiveTrackIndex(newCurrentTrackIndex);
+    logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
+    const sourceSlot = slots[viewSlot];
+    const result = reorderTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, fromIndex, toIndex);
+    if (!result.changed) return;
+
+    updateSlot(viewSlot, slot => ({
+      ...slot,
+      tracks: result.tracks,
+      currentTrackIndex: result.currentTrackIndex,
+    }));
+
     const persistData = getPersistenceData();
+    const slotKey = viewSlot === 'local' ? 'localSlot' : 'cloudSlot';
+    const persistDataWithReorder = {
+      ...persistData,
+      [slotKey]: {
+        ...persistData[slotKey],
+        currentTrackIndex: result.currentTrackIndex,
+      },
+    };
     const libraryData = buildLibraryIndexData(
-      activeSlotId === 'local' ? newTracks : slots.local.tracks,
-      persistData
+      viewSlot === 'local' ? result.tracks : slots.local.tracks,
+      persistDataWithReorder,
+      viewSlot === 'cloud' ? result.tracks : slots.cloud.tracks
     );
     await libraryStorage.saveLibrary(libraryData);
-    logger.debug('[App] Library saved after reordering');
-  }, [activeTracks, activeTrackIndex, setActiveTracks, setActiveTrackIndex, activeSlotId, slots.local.tracks, getPersistenceData]);
+    logger.debug(`[App] ${viewSlot} library saved after reordering`);
+  }, [viewSlot, slots, updateSlot, getPersistenceData]);
   // Global search handlers
   const handleSearchNavigate = useCallback((track: Track) => {
     const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
