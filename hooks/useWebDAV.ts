@@ -130,6 +130,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
   const [error, setError] = useState<string | null>(null);
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const abortRef = useRef(false);
+  const manifestUploadQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   // Detect WebDAV provider strategy from server URL
   const davConfig = webdavClient.getConfig();
@@ -472,8 +473,16 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     logger.info('[useWebDAV] Detail population done');
   };
 
+  const runQueuedManifestUpload = (task: () => Promise<void>): Promise<void> => {
+    const queuedUpload = manifestUploadQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    manifestUploadQueueRef.current = queuedUpload.catch(() => undefined);
+    return queuedUpload;
+  };
+
   /**
-   * 上传服务端缓存（fire-and-forget）：manifest + chunks。
+   * 上传服务端缓存（串行队列）：manifest + chunks。
    *
    * 语义：把 IndexedDB 中**比服务端 manifest 更新的条目**合并进服务端，
    * 服务端已有的条目（含 hasCover 标志）保留不动，避免恢复过程中 IndexedDB
@@ -485,89 +494,105 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
    * - PROPFIND 过滤：不在 audioPathSet 的（已删）→ 从 manifest 删除
    */
   const uploadManifestAndChunks = async (audioPathSet?: Set<string>): Promise<void> => {
-    // 写入需要 allowWrite（只读模式跳过上传，但仍可读 manifest）
-    if (!provider.allowWrite() || !provider.useMetadataFolder()) return;
-    const allEntries = await loadMetadataCache();
+    const queuedAudioPathSet = audioPathSet ? new Set(audioPathSet) : undefined;
 
-    const existingManifest = await metadataFolderService.loadManifest();
-    const chunkSize = existingManifest?.chunkSize ?? DEFAULT_CHUNK_SIZE;
+    await runQueuedManifestUpload(async () => {
+      // 写入需要 allowWrite（只读模式跳过上传，但仍可读 manifest）
+      if (!provider.allowWrite() || !provider.useMetadataFolder()) return;
+      const allEntries = await loadMetadataCache();
 
-    // 最终 manifest entries：以服务端为基线
-    const manifestEntries: Record<string, ManifestEntry> = {};
-    if (existingManifest) {
-      for (const [path, e] of Object.entries(existingManifest.entries)) {
-        if (audioPathSet && !audioPathSet.has(path)) continue; // bug 3：已删，丢弃
-        manifestEntries[path] = e;
+      const existingManifest = await metadataFolderService.loadManifest();
+      const chunkSize = existingManifest?.chunkSize ?? DEFAULT_CHUNK_SIZE;
+
+      // 最终 manifest entries：以服务端为基线
+      const manifestEntries: Record<string, ManifestEntry> = {};
+      if (existingManifest) {
+        for (const [path, e] of Object.entries(existingManifest.entries)) {
+          if (queuedAudioPathSet && !queuedAudioPathSet.has(path)) continue; // bug 3：已删，丢弃
+          manifestEntries[path] = e;
+        }
       }
-    }
 
-    // IndexedDB 中有更新（含 coverUrl）的条目覆盖基线；新条目分配 chunkId
-    const affectedChunkIds = new Set<string>();
-    const heavyUpdates: Record<string, { chunkId: string; entry: ChunkEntry; manifest: ManifestEntry }> = {};
-    for (const [path, meta] of allEntries) {
-      if (audioPathSet && !audioPathSet.has(path)) continue;
-      const priorChunkId = manifestEntries[path]?.chunkId;
-      const chunkId = priorChunkId ?? assignChunkId(path, existingManifest, chunkSize);
-      const hasCover = !!meta.coverUrl;
-      const hasLyrics = !!meta.lyrics;
-      const hasSynced = !!(meta.syncedLyrics && meta.syncedLyrics.length > 0);
+      // IndexedDB 中有更新（含 coverUrl）的条目覆盖基线；新条目分配 chunkId
+      const affectedChunkIds = new Set<string>();
+      const heavyUpdates: Record<string, { chunkId: string; entry: ChunkEntry; manifest: ManifestEntry }> = {};
+      for (const [path, meta] of allEntries) {
+        if (queuedAudioPathSet && !queuedAudioPathSet.has(path)) continue;
+        const priorChunkId = manifestEntries[path]?.chunkId;
+        const chunkId = priorChunkId ?? assignChunkId(path, existingManifest, chunkSize);
+        const hasCover = !!meta.coverUrl;
+        const hasLyrics = !!meta.lyrics;
+        const hasSynced = !!(meta.syncedLyrics && meta.syncedLyrics.length > 0);
 
-      manifestEntries[path] = {
-        title: meta.title,
-        artist: meta.artist,
-        album: meta.album || 'Unknown Album',
-        duration: meta.duration || 0,
-        fileSize: meta.fileSize,
-        fileName: path.split('/').pop() || 'audio.flac',
-        lastModified: meta.lastModified,
-        chunkId,
-        hasCover,
-        hasLyrics,
-        hasSyncedLyrics: hasSynced,
+        manifestEntries[path] = {
+          title: meta.title,
+          artist: meta.artist,
+          album: meta.album || 'Unknown Album',
+          duration: meta.duration || 0,
+          fileSize: meta.fileSize,
+          fileName: path.split('/').pop() || 'audio.flac',
+          lastModified: meta.lastModified,
+          chunkId,
+          hasCover,
+          hasLyrics,
+          hasSyncedLyrics: hasSynced,
+        };
+
+        // 有重量数据 → 记录为该 chunk 的更新
+        if (meta.coverUrl || meta.lyrics || meta.syncedLyrics) {
+          heavyUpdates[path] = {
+            chunkId,
+            entry: {
+              ...(meta.coverUrl ? { coverUrl: meta.coverUrl } : {}),
+              ...(meta.lyrics ? { lyrics: meta.lyrics } : {}),
+              ...(meta.syncedLyrics ? { syncedLyrics: meta.syncedLyrics } : {}),
+            },
+            manifest: manifestEntries[path]!,
+          };
+          affectedChunkIds.add(chunkId);
+        }
+      }
+
+      if (Object.keys(existingManifest?.entries ?? {}).length > 0 && affectedChunkIds.size === 0) {
+        // 服务端已有数据且无更新 → 不重传
+        return;
+      }
+
+      // 构建受影响 chunk：拉取现有 chunk，合并 heavyUpdates 后完整重写
+      const chunksToSave: Map<string, Chunk> = new Map();
+      for (const chunkId of affectedChunkIds) {
+        const existingChunk = await metadataFolderService.loadChunk(chunkId);
+        const mergedEntries: Record<string, ChunkEntry> = { ...(existingChunk?.entries ?? {}) };
+        for (const [path, upd] of Object.entries(heavyUpdates)) {
+          if (upd.chunkId === chunkId) mergedEntries[path] = upd.entry;
+        }
+        chunksToSave.set(chunkId, { chunkId, entries: mergedEntries });
+      }
+
+      const manifest: Manifest = {
+        version: 3,
+        generatedAt: new Date().toISOString(),
+        chunkSize,
+        entries: manifestEntries,
       };
 
-      // 有重量数据 → 记录为该 chunk 的更新
-      if (meta.coverUrl || meta.lyrics || meta.syncedLyrics) {
-        heavyUpdates[path] = {
-          chunkId,
-          entry: {
-            ...(meta.coverUrl ? { coverUrl: meta.coverUrl } : {}),
-            ...(meta.lyrics ? { lyrics: meta.lyrics } : {}),
-            ...(meta.syncedLyrics ? { syncedLyrics: meta.syncedLyrics } : {}),
-          },
-          manifest: manifestEntries[path]!,
-        };
-        affectedChunkIds.add(chunkId);
+      const ok = await metadataFolderService.saveChunksAndManifest(chunksToSave, manifest);
+      if (!ok) {
+        throw new Error('Failed to upload WebDAV Metadata manifest');
       }
-    }
 
-    if (Object.keys(existingManifest?.entries ?? {}).length > 0 && affectedChunkIds.size === 0) {
-      // 服务端已有数据且无更新 → 不重传
-      return;
-    }
-
-    // 构建受影响 chunk：拉取现有 chunk，合并 heavyUpdates 后完整重写
-    const chunksToSave: Map<string, Chunk> = new Map();
-    for (const chunkId of affectedChunkIds) {
-      const existingChunk = await metadataFolderService.loadChunk(chunkId);
-      const mergedEntries: Record<string, ChunkEntry> = { ...(existingChunk?.entries ?? {}) };
-      for (const [path, upd] of Object.entries(heavyUpdates)) {
-        if (upd.chunkId === chunkId) mergedEntries[path] = upd.entry;
-      }
-      chunksToSave.set(chunkId, { chunkId, entries: mergedEntries });
-    }
-
-    const manifest: Manifest = {
-      version: 3,
-      generatedAt: new Date().toISOString(),
-      chunkSize,
-      entries: manifestEntries,
-    };
-
-    const ok = await metadataFolderService.saveChunksAndManifest(chunksToSave, manifest);
-    const coverCount = Object.values(manifestEntries).filter(e => e.hasCover).length;
-    if (ok) {
+      const coverCount = Object.values(manifestEntries).filter(e => e.hasCover).length;
       logger.info(`[useWebDAV] Metadata/ uploaded: ${Object.keys(manifestEntries).length} entries, ${chunksToSave.size} chunks (withCover=${coverCount})`);
+    });
+  };
+
+  const persistManifestAndChunks = async (audioPathSet: Set<string>, context: string): Promise<void> => {
+    try {
+      await uploadManifestAndChunks(audioPathSet);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to upload WebDAV metadata';
+      logger.error(`[useWebDAV] ${context}:`, e);
+      setError(`WebDAV metadata upload failed: ${message}`);
     }
   };
 
@@ -614,7 +639,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         }
         await saveMetadataCache(metaCacheForCleanup);
         // 让服务端 manifest 也清理这些条目（孤儿 chunk 无害，不清理）
-        uploadManifestAndChunks(audioPaths);
+        await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after removing stale files');
       }
 
       // 三方（PROPFIND/snapshot/IndexedDB）全都对得上：从缓存构建列表，零网络请求
@@ -687,7 +712,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
         }
         await indexedDBStorage.setFileListSnapshot(newSnapshot);
-        uploadManifestAndChunks(audioPaths);
+        await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after cached diff load');
         return { type: 'diff', added: addedTracks, removed: removedIds, updated: updatedTracks };
       }
 
@@ -728,7 +753,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
 
       await saveMetadataCache(metadataCache);
-      uploadManifestAndChunks(audioPaths);
+      await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after diff load');
 
       const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
       for (const file of audioFiles) {
@@ -818,7 +843,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       setIsLoading(false);
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
-      uploadManifestAndChunks(audioPaths);
+      await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after full cache load');
       const snapshot: Record<string, { size: number; lastModified: string }> = {};
       for (const file of audioFiles) {
         snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
@@ -867,7 +892,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     }
 
     await saveMetadataCache(metadataCache);
-    uploadManifestAndChunks(audioPaths);
+    await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after full load');
 
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];

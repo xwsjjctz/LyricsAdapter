@@ -1,10 +1,33 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import {
   assignChunkId,
   DEFAULT_CHUNK_SIZE,
+  Chunk,
   Manifest,
   ManifestEntry,
+  metadataFolderService,
 } from '../../../services/webdav/metadataFolderService';
+
+const webdavMocks = vi.hoisted(() => ({
+  fetchTextFile: vi.fn(),
+  uploadTextFile: vi.fn(),
+}));
+
+vi.mock('../../../services/webdavClient', () => ({
+  webdavClient: {
+    fetchTextFile: webdavMocks.fetchTextFile,
+    uploadTextFile: webdavMocks.uploadTextFile,
+  },
+}));
+
+vi.mock('../../../services/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 const makeEntry = (overrides: Partial<ManifestEntry> = {}): ManifestEntry => ({
   title: 'Test',
@@ -19,6 +42,19 @@ const makeEntry = (overrides: Partial<ManifestEntry> = {}): ManifestEntry => ({
   hasLyrics: false,
   hasSyncedLyrics: false,
   ...overrides,
+});
+
+const makeManifest = (entries: Record<string, ManifestEntry> = {}): Manifest => ({
+  version: 3,
+  generatedAt: '2025-01-01T00:00:00.000Z',
+  chunkSize: DEFAULT_CHUNK_SIZE,
+  entries,
+});
+
+beforeEach(() => {
+  webdavMocks.fetchTextFile.mockReset();
+  webdavMocks.uploadTextFile.mockReset();
+  metadataFolderService.clearCache();
 });
 
 describe('assignChunkId', () => {
@@ -83,6 +119,76 @@ describe('assignChunkId', () => {
 
     const chunkId = assignChunkId('/music/song.flac', manifest, DEFAULT_CHUNK_SIZE);
     expect(chunkId).toBe('0001');
+  });
+});
+
+describe('metadataFolderService writes', () => {
+  it('does not cache a manifest when the remote upload fails', async () => {
+    const failedManifest = makeManifest({
+      '/music/failed.flac': makeEntry({ title: 'Failed', chunkId: '0001' }),
+    });
+    const remoteManifest = makeManifest({
+      '/music/remote.flac': makeEntry({ title: 'Remote', chunkId: '0001' }),
+    });
+
+    webdavMocks.uploadTextFile.mockResolvedValueOnce({ success: false });
+
+    await expect(metadataFolderService.saveManifest(failedManifest)).resolves.toBe(false);
+
+    webdavMocks.fetchTextFile.mockResolvedValueOnce(JSON.stringify(remoteManifest));
+    const loadedManifest = await metadataFolderService.loadManifest(false);
+
+    expect(loadedManifest).toEqual(remoteManifest);
+    expect(webdavMocks.fetchTextFile).toHaveBeenCalledWith('/Metadata/_manifest.json');
+  });
+
+  it('does not cache a chunk when the remote upload fails', async () => {
+    const failedChunk: Chunk = {
+      chunkId: '0001',
+      entries: {
+        '/music/failed.flac': { lyrics: 'failed' },
+      },
+    };
+    const remoteChunk: Chunk = {
+      chunkId: '0001',
+      entries: {
+        '/music/remote.flac': { lyrics: 'remote' },
+      },
+    };
+
+    webdavMocks.uploadTextFile.mockResolvedValueOnce({ success: false });
+
+    await expect(metadataFolderService.saveChunk('0001', failedChunk)).resolves.toBe(false);
+
+    webdavMocks.fetchTextFile.mockResolvedValueOnce(JSON.stringify(remoteChunk));
+    const loadedChunk = await metadataFolderService.loadChunk('0001');
+
+    expect(loadedChunk).toEqual(remoteChunk);
+    expect(webdavMocks.fetchTextFile).toHaveBeenCalledWith('/Metadata/_chunk_0001.json');
+  });
+
+  it('does not upload the manifest when a chunk upload fails', async () => {
+    const chunk: Chunk = {
+      chunkId: '0001',
+      entries: {
+        '/music/song.flac': { lyrics: 'lyrics' },
+      },
+    };
+    const manifest = makeManifest({
+      '/music/song.flac': makeEntry({ chunkId: '0001', hasLyrics: true }),
+    });
+
+    webdavMocks.uploadTextFile.mockResolvedValueOnce({ success: false });
+
+    await expect(
+      metadataFolderService.saveChunksAndManifest(new Map([['0001', chunk]]), manifest)
+    ).resolves.toBe(false);
+
+    expect(webdavMocks.uploadTextFile).toHaveBeenCalledTimes(1);
+    expect(webdavMocks.uploadTextFile).toHaveBeenCalledWith(
+      '/Metadata/_chunk_0001.json',
+      JSON.stringify(chunk)
+    );
   });
 });
 
