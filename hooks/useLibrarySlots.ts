@@ -115,10 +115,34 @@ export function useLibrarySlots() {
   }, [activeSlotId]);
 
   const loadCloudTracks = useCallback((tracks: Track[]) => {
-    setSlots(prev => ({
-      ...prev,
-      cloud: { ...prev.cloud, tracks },
-    }));
+    setSlots(prev => {
+      const prevTracks = prev.cloud.tracks;
+
+      // 首次加载（云端曲目尚未填充）：直接使用传入顺序（PROPFIND / 服务器序）。
+      // 云端曲目不持久化，故 startup 后 prev 必为空，行为与原硬替换一致。
+      if (prevTracks.length === 0) {
+        return { ...prev, cloud: { ...prev.cloud, tracks } };
+      }
+
+      // 已有曲目时做「顺序稳定合并」，避免刷新时按 PROPFIND 顺序硬重排：
+      // - incoming 定义成员（新增追加到末尾、服务器已删的剔除）
+      // - prev 定义顺序（已有曲目原地保留，数据用 incoming 刷新）
+      // 修复点：上传后追加到列表末尾的曲目，在后续 full 替换（all-cached 短路 /
+      // 封面回填 onTracksUpdated）下不再跳位。
+      const incomingIds = new Set(tracks.map(t => t.id));
+      const incomingMap = new Map(tracks.map(t => [t.id, t]));
+      const prevIds = new Set(prevTracks.map(t => t.id));
+
+      const kept = prevTracks
+        .filter(t => incomingIds.has(t.id))
+        .map(t => incomingMap.get(t.id)!);
+      const fresh = tracks.filter(t => !prevIds.has(t.id));
+
+      return {
+        ...prev,
+        cloud: { ...prev.cloud, tracks: [...kept, ...fresh] },
+      };
+    });
   }, []);
 
   const mergeCloudTracks = useCallback((added: Track[], removedIds: string[], updated: Track[]) => {
