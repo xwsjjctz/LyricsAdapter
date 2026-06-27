@@ -20,6 +20,24 @@ export interface WebDAVFile {
   isDirectory: boolean;
 }
 
+/** WebDAV 可写性检测结果。reason 用于 UI 文案与日志诊断。 */
+export interface WritableCheckResult {
+  writable: boolean;
+  reason?: 'not-configured' | 'readonly-config' | 'api-unavailable' | 'write-denied';
+  error?: string | undefined;
+}
+
+/**
+ * 云 Track 封面缓存的磁盘 id。
+ * 用 webdavPath 计算稳定 hash 前缀，避免 sanitizeTrackId 把不同路径折叠成同名
+ * （如 "/a/1" 与 "/a1" 都被清洗成 "a1"）。hash 仅含 [0-9a-z]，清洗后保留。
+ * 上传时立即落盘与后续扫描落盘复用同一 id，避免重复封面。
+ */
+export function webdavCoverId(webdavPath: string): string {
+  const pathHash = Math.abs([...webdavPath].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
+  return `${pathHash}-${webdavPath}`;
+}
+
 interface CdnCacheEntry {
   url: string;
   expiry: number;
@@ -30,6 +48,7 @@ const AUDIO_EXTENSIONS = ['.flac', '.mp3', '.m4a', '.wav', '.ogg', '.aac'];
 class WebDAVClient {
   private config: WebDAVConfig | null = null;
   private cdnCache: Map<string, CdnCacheEntry> = new Map();
+  private writableCache: { signature: string; result: WritableCheckResult } | null = null;
 
   constructor() {
     this.loadConfig();
@@ -100,7 +119,14 @@ class WebDAVClient {
   saveConfig(config: WebDAVConfig): void {
     this.config = config;
     localStorage.setItem(WEBDAV_CONFIG_KEY, JSON.stringify(config));
+    this.writableCache = null; // 配置变更后可写性需重新检测
     logger.info('[WebDAV] Config saved');
+  }
+
+  /** 当前配置的可写性缓存签名（变更即视为不同连接）。 */
+  private configSignature(): string {
+    if (!this.config) return '';
+    return `${this.config.serverUrl}|${this.config.username}|${this.config.readonly === true}`;
   }
 
   hasConfig(): boolean {
@@ -136,6 +162,50 @@ class WebDAVClient {
     } catch (e: any) {
       return { success: false, message: e.message || 'Connection failed' };
     }
+  }
+
+  /**
+   * 检测当前 WebDAV 连接是否可写。
+   * - 未配置 / 用户标记 readonly → 直接判定不可写，不发请求。
+   * - 其余情况：向根目录 PUT 一个隐藏探针文件再 DELETE，真实验证服务器接受写入
+   *   （通用 Provider 默认 allowWrite=false 仅是安全兜底，会误判自建可写服务器，故以探针为准）。
+   * 结果按配置签名缓存；saveConfig 或 force 参数可强制重测。
+   */
+  async checkWritable(opts?: { force?: boolean }): Promise<WritableCheckResult> {
+    if (!this.hasConfig()) return { writable: false, reason: 'not-configured' };
+    if (this.config!.readonly === true) return { writable: false, reason: 'readonly-config' };
+
+    const signature = this.configSignature();
+    if (!opts?.force && this.writableCache && this.writableCache.signature === signature) {
+      return this.writableCache.result;
+    }
+
+    const result = await this.probeWritable();
+    this.writableCache = { signature, result };
+    return result;
+  }
+
+  private async probeWritable(): Promise<WritableCheckResult> {
+    const api = await getDesktopAPI();
+    if (!api?.webdavPut || !api.webdavDelete) {
+      return { writable: false, reason: 'api-unavailable' };
+    }
+
+    const probePath = '/.lyricsadapter-writable-probe';
+    const url = this.buildUrl(probePath);
+    const probeData = new TextEncoder().encode('probe').buffer as ArrayBuffer;
+
+    const putRes = await api.webdavPut(url, this.buildAuthHeader(), probeData, 'text/plain');
+    if (!putRes.success) {
+      return { writable: false, reason: 'write-denied', error: putRes.error };
+    }
+
+    // 清理探针文件（best-effort）；失败仅告警——扫描按音频扩展名过滤，非音频探针不进列表。
+    const delRes = await api.webdavDelete(url, this.buildAuthHeader());
+    if (!delRes.success) {
+      logger.warn('[WebDAV] Writable probe cleanup (DELETE) failed:', delRes.error, '- stray probe may remain at', probePath);
+    }
+    return { writable: true };
   }
 
   async listFiles(dirPath: string = '/'): Promise<WebDAVFile[]> {

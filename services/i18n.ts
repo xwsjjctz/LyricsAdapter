@@ -87,6 +87,22 @@ const translations: Translations = {
     de: 'Importieren',
     fr: 'Importer'
   },
+  'sidebar.importReadOnly': {
+    zh: 'WebDAV 为只读，无法上传',
+    en: 'WebDAV is read-only — upload disabled',
+    ja: 'WebDAV は読み取り専用です — アップロード不可',
+    ko: 'WebDAV가 읽기 전용입니다 — 업로드 불가',
+    de: 'WebDAV ist schreibgeschützt — Upload deaktiviert',
+    fr: 'WebDAV est en lecture seule — import désactivé'
+  },
+  'sidebar.importChecking': {
+    zh: '正在检查 WebDAV 写入权限…',
+    en: 'Checking WebDAV write permission…',
+    ja: 'WebDAV の書き込み権限を確認中…',
+    ko: 'WebDAV 쓰기 권한을 확인하는 중…',
+    de: 'WebDAV-Schreibberechtigung wird geprüft…',
+    fr: 'Vérification des droits d’écriture WebDAV…'
+  },
   'sidebar.searchOnline': {
     zh: '在线搜索',
     en: 'Search online',
@@ -1970,6 +1986,24 @@ const translations: Translations = {
     ko: '버튼 클릭 시 GSAP 누름·반동 피드백',
     de: 'GSAP-Feedback beim Drücken und Loslassen von Buttons',
     fr: 'Retour GSAP à la pression et au relâchement des boutons'
+  },
+
+  'settings.liquidGlass': {
+    zh: '液态玻璃界面',
+    en: 'Liquid Glass UI',
+    ja: 'リキッドグラス UI',
+    ko: '리퀴드 글래스 UI',
+    de: 'Liquid-Glass-Oberfläche',
+    fr: 'Interface verre liquide'
+  },
+
+  'settings.liquidGlassDesc': {
+    zh: '工具栏按钮与 Focus Mode 播放台的液态玻璃效果',
+    en: 'Liquid glass effect for toolbar buttons and the Focus Mode player',
+    ja: 'ツールバーボタンと Focus Mode プレーヤーのリキッドグラス効果',
+    ko: '툴바 버튼과 Focus Mode 플레이어의 리퀴드 글래스 효과',
+    de: 'Liquid-Glass-Effekt für Toolbar-Buttons und den Focus-Mode-Player',
+    fr: 'Effet verre liquide pour les boutons et le lecteur en Focus Mode'
   },
 
   'settings.focusBgBlurRadius': {

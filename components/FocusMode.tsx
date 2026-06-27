@@ -111,6 +111,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
+  const [liquidGlass, setLiquidGlass] = useState(() => settingsManager.getLiquidGlass());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -123,6 +124,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
+      setLiquidGlass(settingsManager.getLiquidGlass());
     });
     return unsubscribe;
   }, []);
@@ -981,16 +983,18 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         </main>
 
         {/* Compact Bottom Player */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5"
+          style={liquidGlass ? { filter: 'contrast(var(--lg-contrast))' } : undefined}
+        >
           <div
             ref={playerRef}
             onMouseEnter={handlePlayerMouseEnter}
             onMouseLeave={handlePlayerMouseLeave}
-            className="glass rounded-2xl p-4 flex flex-col gap-3 shadow-xl relative z-20 transition-opacity duration-500"
-            style={{ 
+            className={`${liquidGlass ? 'lg-glass' : 'glass'} rounded-2xl p-4 flex flex-col gap-3 ${liquidGlass ? '' : 'shadow-xl'} relative z-20 transition-opacity duration-500`}
+            style={{
               opacity: isPlayerVisible ? 1 : 0,
-              borderColor: colors.borderLight,
-              backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.6)`,
+              ...(liquidGlass ? {} : { borderColor: colors.borderLight, backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.6)` }),
             }}
           >
             {/* Progress */}

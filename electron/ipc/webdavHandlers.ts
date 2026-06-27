@@ -104,5 +104,25 @@ export function registerWebDAVHandlers(): void {
     }
   });
 
+  ipcMain.handle('webdav-delete', async (_event, url: string, authHeader: string) => {
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': authHeader,
+        },
+      });
+
+      if (!response.ok) {
+        return { success: false, error: `DELETE failed: ${response.status} ${response.statusText}` };
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      logger.error('[WebDAV] DELETE error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   logger.info('[WebDAV] IPC handlers registered');
 }

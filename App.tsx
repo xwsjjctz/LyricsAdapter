@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync, isDesktop } from './services/desktopAdapter';
+import { webdavClient } from './services/webdavClient';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
@@ -147,6 +148,7 @@ const App: React.FC = () => {
   const {
     fileInputRef,
     handleDesktopImport,
+    handleCloudImport,
     handleDropFiles,
     handleDropFilePaths,
     handleFileInputChange,
@@ -162,6 +164,7 @@ const App: React.FC = () => {
     createTrackedBlobUrl,
     persistedTimeRef,
     getPersistenceData,
+    mergeCloudTracks,
   });
   const { handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
@@ -359,13 +362,26 @@ const App: React.FC = () => {
     lastScrollPositionRef.current = position;
     updateSlot(viewSlot, s => ({ ...s, scrollPosition: position }));
   }, [viewSlot, updateSlot]);
+  // 云列表的 WebDAV 可写性：null=检测中，true=可写（可上传），false=只读（导入按钮置灰）。
+  // 进入云视图时检测一次，结果在 webdavClient 内按配置签名缓存；saveConfig 自动失效。
+  const [cloudWritable, setCloudWritable] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (viewSlot !== 'cloud') return;
+    if (!webdavClient.hasConfig()) { setCloudWritable(false); return; }
+    let cancelled = false;
+    webdavClient.checkWritable().then(r => { if (!cancelled) setCloudWritable(r.writable); });
+    return () => { cancelled = true; };
+  }, [viewSlot]);
   const handleImportClick = useCallback(() => {
-    if (isDesktop()) {
+    if (viewSlot === 'cloud') {
+      // 云视图：上传本地音频到 WebDAV（按钮在不可写时已被禁用）
+      handleCloudImport();
+    } else if (isDesktop()) {
       handleDesktopImport();
     } else {
       fileInputRef.current?.click();
     }
-  }, [handleDesktopImport]);
+  }, [handleDesktopImport, handleCloudImport, viewSlot]);
   const handleNavigate = useCallback((mode: ViewMode) => {
     if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
       setPendingNavigation(mode);
@@ -591,6 +607,14 @@ const App: React.FC = () => {
           onSlotChange={handleSwitchSlot}
           localTrackCount={slots.local.tracks.length}
           cloudTrackCount={slots.cloud.tracks.length}
+          importDisabled={viewSlot === 'cloud' && cloudWritable !== true}
+          importDisabledReason={
+            viewSlot === 'cloud'
+              ? (cloudWritable === null
+                  ? i18n.t('sidebar.importChecking')
+                  : i18n.t('sidebar.importReadOnly'))
+              : undefined
+          }
           floating={floatingPanel}
         />
         <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
