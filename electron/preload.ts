@@ -234,6 +234,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('webdav-put', url, authHeader, data, contentType);
   },
 
+  // WebDAV DELETE for file removal
+  webdavDelete: async (url: string, authHeader: string) => {
+    return ipcRenderer.invoke('webdav-delete', url, authHeader);
+  },
+
   // Run startup resource cleanup
   runStartupCleanup: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);

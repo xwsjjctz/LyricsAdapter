@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track } from '../types';
 import { parseAudioFile, libraryStorage } from '../services/metadataService';
+import { webdavClient, webdavCoverId } from '../services/webdavClient';
 
 interface ParsedAudioMetadata {
   title?: string;
@@ -32,6 +33,21 @@ interface UseImportOptions {
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
   getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
+  /** 云列表导入：上传到 WebDAV 后合并进 cloud slot。未提供则禁用云导入。 */
+  mergeCloudTracks?: (added: Track[], removedIds: string[], updated: Track[]) => void;
+}
+
+/** 音频扩展名 → 上传 Content-Type。 */
+function audioMimeFor(ext: string): string {
+  switch (ext) {
+    case '.mp3': return 'audio/mpeg';
+    case '.flac': return 'audio/flac';
+    case '.m4a': return 'audio/mp4';
+    case '.wav': return 'audio/wav';
+    case '.ogg': return 'audio/ogg';
+    case '.aac': return 'audio/aac';
+    default: return 'application/octet-stream';
+  }
 }
 export function useImport({
   tracks,
@@ -44,6 +60,7 @@ export function useImport({
   createTrackedBlobUrl,
   persistedTimeRef,
   getPersistenceData,
+  mergeCloudTracks,
 }: UseImportOptions) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const tracksCountRef = useRef<number>(0);
@@ -676,9 +693,125 @@ export function useImport({
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
 
+  /**
+   * 云列表导入：选择本地音频 → 上传到 WebDAV 根目录 → 合并进 cloud slot。
+   * 仅桌面端可用。同名文件 PUT 覆盖、mergeCloudTracks 按 id 去重（与 QQ 上传一致）。
+   */
+  const handleCloudImport = useCallback(async () => {
+    logger.debug('[Import] Cloud import (upload to WebDAV) triggered');
+    if (!mergeCloudTracks) {
+      logger.warn('[Import] mergeCloudTracks not provided, cannot import to cloud');
+      return;
+    }
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI) {
+      logger.error('[Import] Desktop API not available');
+      return;
+    }
+
+    try {
+      const result = await desktopAPI.selectFiles();
+      if (result.canceled || result.filePaths.length === 0) return;
+
+      const filePaths = result.filePaths;
+      setImportProgress({ loaded: 0, total: filePaths.length });
+
+      const added: Track[] = [];
+      let failed = 0;
+
+      for (let i = 0; i < filePaths.length; i++) {
+        const filePath = filePaths[i]!;
+        const fileName = filePath.split(/[/\\]/).pop() || '';
+        try {
+          // 1. 解析元数据（标题/艺人/时长/封面/歌词）
+          let meta: ParsedAudioMetadata | undefined;
+          try {
+            const parseResult = await desktopAPI.parseAudioMetadata(filePath);
+            if (parseResult.success && parseResult.metadata) {
+              meta = parseResult.metadata as ParsedAudioMetadata;
+            }
+          } catch (err) {
+            logger.warn(`[Import] Failed to parse metadata for ${fileName}:`, err);
+          }
+
+          // 2. 读取文件字节
+          const readResult = await desktopAPI.readFile(filePath);
+          if (!readResult?.success || !readResult.data) {
+            throw new Error('Failed to read file');
+          }
+
+          // 3. 上传到 WebDAV 根目录
+          const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+          const webdavPath = `/${fileName}`;
+          const uploadRes = await webdavClient.uploadFile(webdavPath, readResult.data, audioMimeFor(ext));
+          if (!uploadRes.success) {
+            throw new Error(uploadRes.error || 'Upload failed');
+          }
+
+          // 4. 封面落盘（与云扫描复用同一 cover id，避免重复）
+          let coverUrl: string | undefined;
+          if (meta?.coverData && meta?.coverMime && desktopAPI.saveCoverThumbnail) {
+            try {
+              const coverResult = await desktopAPI.saveCoverThumbnail({
+                id: webdavCoverId(webdavPath),
+                data: meta.coverData,
+                mime: meta.coverMime,
+              });
+              if (coverResult?.success && coverResult.coverUrl) coverUrl = coverResult.coverUrl;
+            } catch (err) {
+              logger.warn(`[Import] Failed to save cover for ${fileName}:`, err);
+            }
+          }
+
+          // 5. 组装云 Track 并合并
+          added.push({
+            id: `webdav-${webdavPath}`,
+            title: meta?.title || fileName.replace(/\.[^/.]+$/, ''),
+            artist: meta?.artist || 'Unknown Artist',
+            album: meta?.album || 'Unknown Album',
+            duration: meta?.duration || 0,
+            audioUrl: '',
+            source: 'webdav',
+            webdavPath,
+            fileName,
+            fileSize: meta?.fileSize || readResult.data.byteLength,
+            ...(meta?.lyrics != null && { lyrics: meta.lyrics }),
+            coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
+          } as Track);
+          logger.debug(`[Import] ✓ Uploaded to WebDAV: ${fileName}`);
+        } catch (err) {
+          failed++;
+          logger.error(`[Import] Failed to import ${fileName} to WebDAV:`, err);
+        }
+        setImportProgress({ loaded: i + 1, total: filePaths.length });
+      }
+
+      if (added.length > 0) {
+        mergeCloudTracks(added, [], []);
+      }
+
+      if (failed > 0) {
+        notify(
+          i18n.t('notifications.uploadFailed'),
+          i18n.t('notifications.importPartialCount').replace('{success}', String(added.length)).replace('{failed}', String(failed))
+        );
+      } else if (added.length > 0) {
+        notify(
+          i18n.t('notifications.uploadComplete'),
+          i18n.t('notifications.importSuccessCount').replace('{count}', String(added.length))
+        );
+      }
+      setImportProgress(null);
+    } catch (error) {
+      logger.error('[Import] Cloud import failed:', error);
+      setImportProgress(null);
+    }
+  }, [mergeCloudTracks]);
+
   return {
     fileInputRef,
     handleDesktopImport,
+    handleCloudImport,
     handleDropFiles,
     handleDropFilePaths,
     handleFileInputChange,

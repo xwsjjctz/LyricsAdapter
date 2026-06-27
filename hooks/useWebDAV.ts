@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { Track, MetaJson } from '../types';
-import { webdavClient, WebDAVFile } from '../services/webdavClient';
+import { webdavClient, webdavCoverId, WebDAVFile } from '../services/webdavClient';
 import { parseMetadataFromBuffer, parseCoverFromRange, parseVorbisComment } from '../services/metadataService';
 import { logger } from '../services/logger';
 import { indexedDBStorage } from '../services/indexedDBStorage';
@@ -173,9 +173,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       const mimeMatch = meta.coverUrl.match(/^data:(\w+\/\w+);base64,/);
       const base64Match = meta.coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
       if (!mimeMatch || !base64Match) return meta;
-      const pathHash = Math.abs([...webdavPath].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
       const result = await desktopAPI.saveCoverThumbnail({
-        id: `${pathHash}-${webdavPath}`,
+        id: webdavCoverId(webdavPath),
         data: base64Match[1]!,
         mime: mimeMatch[1]!,
       });
@@ -295,13 +294,10 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           const mimeMatch = coverUrl.match(/^data:(\w+\/\w+);base64,/);
           const base64Match = coverUrl.match(/^data:\w+\/\w+;base64,(.+)$/);
           if (mimeMatch && base64Match) {
-            // Prefix path with a hash to guarantee unique cover filenames.
-            // sanitizeTrackId strips non-alphanumeric chars, which can cause
-            // different paths to collide (e.g. "/a/1" and "/a1" → both "a1").
-            // The hash is preserved since it only contains [0-9a-z].
-            const pathHash = Math.abs([...file.path].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
+            // Cover id 用 webdavPath 的稳定 hash 前缀，避免 sanitizeTrackId 清洗
+            // 后不同路径碰撞（如 "/a/1" 与 "/a1" 都成 "a1"）。与上传流程复用同一 id。
             const result = await desktopAPI.saveCoverThumbnail({
-              id: `${pathHash}-${file.path}`,
+              id: webdavCoverId(file.path),
               data: base64Match[1]!,
               mime: mimeMatch[1]!,
             });

@@ -76,6 +76,7 @@ export interface DesktopAPI {
   webdavGetRedirect: (url: string, authHeader: string) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
   webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
   webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
+  webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
   cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; error?: string }>;
   // Auto-updater APIs
@@ -364,6 +365,10 @@ class ElectronAdapter implements DesktopAPI {
 
   async webdavPut(url: string, authHeader: string, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
     return this.api.webdavPut(url, authHeader, data, contentType);
+  }
+
+  async webdavDelete(url: string, authHeader: string): Promise<{ success: boolean; error?: string }> {
+    return this.api.webdavDelete(url, authHeader);
   }
 
   async runStartupCleanup(activeTrackIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> {

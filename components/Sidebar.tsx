@@ -15,6 +15,8 @@ interface SidebarProps {
   onSlotChange: (slotId: 'local' | 'cloud') => void;
   localTrackCount: number;
   cloudTrackCount: number;
+  importDisabled?: boolean;
+  importDisabledReason?: string | undefined;
   floating?: boolean;
 }
 
@@ -29,6 +31,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSlotChange,
   localTrackCount,
   cloudTrackCount,
+  importDisabled = false,
+  importDisabledReason,
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isSettingsView = currentView === ViewMode.SETTINGS;
@@ -132,13 +136,17 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <button
         onClick={onImportClick}
-        onMouseEnter={() => setIsImportHovered(true)}
+        disabled={importDisabled}
+        onMouseEnter={() => !importDisabled && setIsImportHovered(true)}
         onMouseLeave={() => setIsImportHovered(false)}
+        title={importDisabled ? importDisabledReason : undefined}
         className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
-          backgroundColor: isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
+          backgroundColor: !importDisabled && isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
           borderColor: 'var(--theme-border-light)',
-          color: isImportHovered ? 'var(--theme-primary)' : undefined,
+          color: isImportHovered && !importDisabled ? 'var(--theme-primary)' : undefined,
+          opacity: importDisabled ? 0.4 : 1,
+          cursor: importDisabled ? 'not-allowed' : 'pointer',
         }}
       >
         <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
