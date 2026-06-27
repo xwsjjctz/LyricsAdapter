@@ -5,6 +5,7 @@ import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
 import { logger } from '../services/logger';
+import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[]) => void;
@@ -197,17 +198,24 @@ export function useLibraryLoad({
   }, [persistedTimeRef, audioRef]);
 
   useEffect(() => {
-    const handleBeforeUnload = async () => {
+    const flushCurrentLibrary = async () => {
       const persistData = getPersistenceData();
       const libraryData = buildLibraryIndexData(slots.local.tracks, persistData, slots.cloud.tracks);
 
-      logger.debug('[LibraryLoad] Saving library before quit');
-      await libraryStorage.saveLibrary(libraryData);
+      logger.debug('[LibraryLoad] Flushing library before close');
+      return libraryStorage.flushPendingSave(libraryData);
+    };
+
+    const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
+
+    const handleBeforeUnload = () => {
+      void flushCurrentLibrary();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      removeFlushListener();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [slots.local.tracks, slots.cloud.tracks, getPersistenceData]);
