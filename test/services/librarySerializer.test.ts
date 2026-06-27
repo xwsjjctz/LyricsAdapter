@@ -36,14 +36,16 @@ describe('buildLibraryIndexData', () => {
     expect(result.songs[0]!.coverUrl).toBe('https://example.com/cover.jpg');
   });
 
-  it('should clear blob: and file: cover URLs', () => {
+  it('should clear transient blob:, file:, and data: cover URLs', () => {
     const tracks = [
       makeTrack({ coverUrl: 'blob:some-blob-url' }),
       makeTrack({ coverUrl: 'file:///some/path.jpg' }),
+      makeTrack({ coverUrl: 'data:image/png;base64,abc123' }),
     ];
     const result = buildLibraryIndexData(tracks, settings);
     expect(result.songs[0]!.coverUrl).toBe('');
     expect(result.songs[1]!.coverUrl).toBe('');
+    expect(result.songs[2]!.coverUrl).toBe('');
   });
 
   it('should keep cover:// URLs', () => {

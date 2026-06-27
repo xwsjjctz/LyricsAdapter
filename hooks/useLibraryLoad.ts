@@ -5,6 +5,7 @@ import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexData } from '../services/librarySerializer';
 import { logger } from '../services/logger';
+import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[]) => void;
@@ -52,7 +53,7 @@ export function useLibraryLoad({
         duration: song.duration || 0,
         lyrics: song.lyrics || '',
         syncedLyrics: song.syncedLyrics,
-        coverUrl: song.coverUrl,
+        coverUrl: sanitizePersistedCoverUrl(song.coverUrl),
         audioUrl: '',
         file: undefined,
         fileName: song.fileName,
@@ -73,6 +74,7 @@ export function useLibraryLoad({
       restoredCloudTracks = libraryData.cloudSongs.map((song: any) => {
         const fileName = song.fileName || '';
         const fallbackTitle = song.title || fileName.replace(/\.[^/.]+$/, '');
+        const coverUrl = sanitizePersistedCoverUrl(song.coverUrl);
         return {
           id: song.id,
           title: fallbackTitle,
@@ -81,7 +83,7 @@ export function useLibraryLoad({
           duration: song.duration || 0,
           lyrics: song.lyrics || '',
           syncedLyrics: song.syncedLyrics,
-          coverUrl: song.coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
+          coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
           audioUrl: '',
           source: 'webdav' as const,
           webdavPath: song.webdavPath,
