@@ -21,6 +21,7 @@ import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
 import { i18n } from '../services/i18n';
+import { getDesktopImportKey, getTrackImportKeys, getUniqueWebDAVFileName, getWebFileImportKey } from '../services/importIdentity';
 
 interface UseImportOptions {
   tracks: Track[];
@@ -86,14 +87,15 @@ export function useImport({
   }, [tracks.length]);
 
   const createTracksMap = useCallback(() => {
-    return new Map(
-      tracks.map(track => {
-        const key = track.fileName
-          ? track.fileName
-          : `${track.file?.name}-${track.file?.size}`;
-        return [key, track];
-      })
-    );
+    const map = new Map<string, Track>();
+    for (const track of tracks) {
+      for (const key of getTrackImportKeys(track)) {
+        if (!map.has(key)) {
+          map.set(key, track);
+        }
+      }
+    }
+    return map;
   }, [tracks]);
 
   // Process file paths directly (new path-based import - no file copying)
@@ -104,7 +106,7 @@ export function useImport({
   ): Promise<Track[]> => {
     const results = await Promise.all(
       filePaths.map(async ({ path: filePath, name: fileName }) => {
-        const existingTrack = tracksMap.get(fileName);
+        const existingTrack = tracksMap.get(getDesktopImportKey(filePath));
         if (existingTrack) {
           logger.debug(`[Import] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
         } else {
@@ -223,8 +225,7 @@ export function useImport({
   ): Promise<Track[]> => {
     const results = await Promise.all(
       files.map(async (file) => {
-        const key = `${file.name}-${file.size}`;
-        const existingTrack = tracksMap.get(key);
+        const existingTrack = tracksMap.get(getWebFileImportKey(file));
 
         let metadata;
         try {
@@ -282,7 +283,7 @@ export function useImport({
       // Filter out already imported files
       const newFilePaths = filePaths.filter(filePath => {
         const fileName = filePath.split(/[/\\]/).pop() || '';
-        if (tracksMap.has(fileName)) {
+        if (tracksMap.has(getDesktopImportKey(filePath))) {
           logger.debug(`[Import] ⏭️ Skipping already imported file: ${fileName}`);
           return false;
         }
@@ -438,8 +439,8 @@ export function useImport({
     const tracksMap = createTracksMap();
 
     // Filter out already imported files
-    const newFilePaths = filePaths.filter(({ name }) => {
-      if (tracksMap.has(name)) {
+    const newFilePaths = filePaths.filter(({ path, name }) => {
+      if (tracksMap.has(getDesktopImportKey(path))) {
         logger.debug(`[Import] ⏭️ Skipping already imported file: ${name}`);
         return false;
       }
@@ -635,7 +636,7 @@ export function useImport({
 
     // Filter out already imported files
     const newFiles = files.filter(file => {
-      if (tracksMap.has(file.name)) {
+      if (tracksMap.has(getWebFileImportKey(file))) {
         logger.debug(`[Import] ⏭️ Skipping already imported file: ${file.name}`);
         return false;
       }
@@ -718,11 +719,20 @@ export function useImport({
 
       const added: Track[] = [];
       let failed = 0;
+      const remoteFiles = await webdavClient.listFiles('/');
+      const existingCloudNames = new Set(
+        remoteFiles
+          .filter(file => !file.isDirectory)
+          .map(file => file.name)
+      );
 
       for (let i = 0; i < filePaths.length; i++) {
         const filePath = filePaths[i]!;
         const fileName = filePath.split(/[/\\]/).pop() || '';
         try {
+          const remoteFileName = getUniqueWebDAVFileName(fileName, existingCloudNames);
+          existingCloudNames.add(remoteFileName);
+
           // 1. 解析元数据（标题/艺人/时长/封面/歌词）
           let meta: ParsedAudioMetadata | undefined;
           try {
@@ -741,8 +751,8 @@ export function useImport({
           }
 
           // 3. 上传到 WebDAV 根目录
-          const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
-          const webdavPath = `/${fileName}`;
+          const ext = remoteFileName.toLowerCase().substring(remoteFileName.lastIndexOf('.'));
+          const webdavPath = `/${remoteFileName}`;
           const uploadRes = await webdavClient.uploadFile(webdavPath, readResult.data, audioMimeFor(ext));
           if (!uploadRes.success) {
             throw new Error(uploadRes.error || 'Upload failed');
@@ -781,13 +791,13 @@ export function useImport({
             audioUrl: '',
             source: 'webdav',
             webdavPath,
-            fileName,
+            fileName: remoteFileName,
             fileSize: meta?.fileSize || readResult.data.byteLength,
             ...(meta?.lyrics != null && { lyrics: meta.lyrics }),
             ...(syncedLyrics != null && { syncedLyrics }),
-            coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
+            coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(remoteFileName)}/1000/1000`,
           } as Track);
-          logger.debug(`[Import] ✓ Uploaded to WebDAV: ${fileName}`);
+          logger.debug(`[Import] ✓ Uploaded to WebDAV: ${remoteFileName}`);
         } catch (err) {
           failed++;
           logger.error(`[Import] Failed to import ${fileName} to WebDAV:`, err);
