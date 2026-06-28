@@ -16,14 +16,6 @@ function decodeHtmlEntities(text: string): string {
   return textarea.value;
 }
 
-const hexToRgb = (hex: string): string => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (result) {
-    return `${parseInt(result[1]!, 16)}, ${parseInt(result[2]!, 16)}, ${parseInt(result[3]!, 16)}`;
-  }
-  return '255, 255, 255';
-};
-
 // FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
 const FOCUS_MODE_COLORS = {
   textPrimary: '#ffffff',
@@ -991,18 +983,19 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             ref={playerRef}
             onMouseEnter={handlePlayerMouseEnter}
             onMouseLeave={handlePlayerMouseLeave}
-            className={`${liquidGlass ? 'lg-glass' : 'glass'} rounded-2xl p-4 flex flex-col gap-3 ${liquidGlass ? '' : 'shadow-xl'} relative z-20 transition-opacity duration-500`}
+            className={`${liquidGlass ? 'lg-glass' : 'glass'} p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500`}
             style={{
               opacity: isPlayerVisible ? 1 : 0,
-              ...(liquidGlass ? {} : { borderColor: colors.borderLight, backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, 0.6)` }),
+              borderRadius: 'var(--theme-surface-radius)',
+              ...(liquidGlass ? {} : { border: `var(--theme-panel-border-width) solid ${colors.borderLight}`, backgroundColor: colors.backgroundDark, boxShadow: 'var(--theme-surface-shadow)' }),
             }}
           >
             {/* Progress */}
             <div className="w-full flex items-center gap-3">
               <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>{formatTime(activeCurrentTime)}</span>
               <div
-                className="flex-1 relative h-1 rounded-full cursor-pointer group"
-                style={{ backgroundColor: colors.borderLight }}
+                className="flex-1 relative h-1 cursor-pointer group"
+                style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const x = e.clientX - rect.left;
@@ -1011,12 +1004,12 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                 }}
               >
                 <div
-                  className="absolute top-0 left-0 h-full rounded-full transition-all duration-100"
-                  style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 15px ${colors.glowColor}` }}
+                  className="absolute top-0 left-0 h-full transition-all duration-100"
+                  style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 15px ${colors.glowColor}`, borderRadius: 'var(--theme-progress-radius)' }}
                 />
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 size-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary }}
+                  className="absolute top-1/2 -translate-y-1/2 size-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary, borderRadius: 'var(--theme-progress-radius)' }}
                 />
               </div>
               <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: colors.textMuted }}>{formatTime(track?.duration || 0)}</span>
@@ -1052,8 +1045,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                 </button>
                 <button
                   onClick={onTogglePlay}
-                  className="size-11 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
-                  style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark }}
+                  className="size-11 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+                  style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
                 >
                   <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
                 </button>
@@ -1084,7 +1077,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                     onChange={(e) => onVolumeChange(Number(e.target.value))}
                     className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
                   />
-                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.borderLight }}>
+                  <div className="w-full h-1 overflow-hidden" style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}>
                     <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }}></div>
                   </div>
                 </div>

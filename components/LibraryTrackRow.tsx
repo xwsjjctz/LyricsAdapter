@@ -72,7 +72,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       style={{
         ...animationStyle,
         backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
-        border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}30` : 'var(--theme-control-border-width) solid transparent',
+        border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}` : `var(--theme-control-border-width) solid ${colors.borderLight}`,
         borderRadius: 'var(--theme-control-radius)',
       }}
       className={`grid gap-4 px-4 py-3 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
