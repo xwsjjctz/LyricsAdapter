@@ -38,3 +38,11 @@ export function buildLibraryIndexData(
     settings
   };
 }
+
+export function buildLibraryIndexDataForSlots(
+  localTracks: Track[],
+  cloudTracks: Track[],
+  settings: LibrarySettings
+): LibraryIndexData {
+  return buildLibraryIndexData(localTracks, settings, cloudTracks);
+}
