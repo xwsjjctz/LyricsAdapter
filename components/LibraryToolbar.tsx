@@ -102,7 +102,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 color: colors.textSecondary,
                 backgroundColor: liquidGlass ? undefined : colors.backgroundCard,
                 border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-                boxShadow: liquidGlass ? undefined : 'var(--theme-control-action-shadow)',
+                boxShadow: liquidGlass ? undefined : 'var(--theme-elevated-shadow)',
                 cursor: isRefreshing ? 'not-allowed' : 'pointer',
                 opacity: isRefreshing ? 0.7 : 1,
                 transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
@@ -136,7 +136,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                   backgroundColor: isEditMode
                     ? (liquidGlass ? `${colors.success}33` : colors.success)
                     : (liquidGlass ? undefined : colors.backgroundCard),
-                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : liquidGlass ? undefined : 'var(--theme-control-action-shadow)',
+                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : liquidGlass ? undefined : 'var(--theme-elevated-shadow)',
                   border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
                   transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
                 }}
@@ -212,7 +212,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           </div>
         )}
         <div className={liquidGlass ? 'lg-layer' : ''}>
-        <div className={`${liquidGlass ? 'lg-glass' : 'border'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard, boxShadow: 'var(--theme-control-action-shadow)' }}>
+        <div className={`${liquidGlass ? 'lg-glass' : 'border'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard, boxShadow: 'var(--theme-elevated-shadow)' }}>
           <button
             onClick={() => {
               onFilterTypeChange('default');

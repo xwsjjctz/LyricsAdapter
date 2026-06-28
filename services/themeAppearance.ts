@@ -23,6 +23,7 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     panelBorderWidth: '1px',
     surfaceShadow: `0 18px 48px -28px ${colors.shadowColor}`,
     surfaceShadowHover: `0 22px 54px -30px ${colors.shadowColor}`,
+    elevatedShadow: '0 10px 24px -6px rgba(0, 0, 0, 0.2)',
     textBodyWeight: '500',
     textHeadingWeight: '800',
     textButtonWeight: '700',

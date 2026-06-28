@@ -115,6 +115,7 @@ export interface ThemeAppearanceStyles {
   panelBorderWidth: string;
   surfaceShadow: string;
   surfaceShadowHover: string;
+  elevatedShadow: string;
   textBodyWeight: string;
   textHeadingWeight: string;
   textButtonWeight: string;

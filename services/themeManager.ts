@@ -196,6 +196,7 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-list-item-border', appearance.listItemBorder);
     root.style.setProperty('--theme-surface-shadow', appearance.surfaceShadow);
     root.style.setProperty('--theme-surface-shadow-hover', appearance.surfaceShadowHover);
+    root.style.setProperty('--theme-elevated-shadow', appearance.elevatedShadow);
     root.style.setProperty('--theme-text-body-weight', appearance.textBodyWeight);
     root.style.setProperty('--theme-text-heading-weight', appearance.textHeadingWeight);
     root.style.setProperty('--theme-text-button-weight', appearance.textButtonWeight);

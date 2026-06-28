@@ -182,6 +182,7 @@ export const predefinedThemes: ThemeConfig[] = [
       panelBorderWidth: '4px',
       surfaceShadow: '6px 6px 0 #0a0a0a',
       surfaceShadowHover: '8px 8px 0 #0a0a0a',
+      elevatedShadow: '6px 6px 0 #0a0a0a',
       textBodyWeight: '700',
       textHeadingWeight: '900',
       textButtonWeight: '900',
