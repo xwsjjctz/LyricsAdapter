@@ -29,7 +29,8 @@
     "idb": "^8.0.3",
     "music-metadata": "^11.11.0",
     "node-id3": "^0.2.9",
-    "probe-image-size": "^7.2.3"
+    "probe-image-size": "^7.2.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
