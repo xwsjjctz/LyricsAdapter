@@ -68,12 +68,25 @@ export interface ValidationResult {
 class LibraryStorageService {
   private saveTimer: NodeJS.Timeout | null = null;
   private saveDelay = 1000; // 防抖延迟：1秒
+  private pendingLibrary: LibraryIndexData | null = null;
+  private saveInFlight: Promise<boolean> | null = null;
 
   clearSaveTimer(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
+    this.pendingLibrary = null;
+  }
+
+  private runSave(library: LibraryIndexData): Promise<boolean> {
+    const savePromise = this.saveLibrary(library).finally(() => {
+      if (this.saveInFlight === savePromise) {
+        this.saveInFlight = null;
+      }
+    });
+    this.saveInFlight = savePromise;
+    return savePromise;
   }
 
   /**
@@ -135,14 +148,43 @@ class LibraryStorageService {
    * 防抖保存：延迟执行保存操作，避免频繁写入
    */
   saveLibraryDebounced(library: LibraryIndexData): void {
+    this.pendingLibrary = library;
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
     }
 
     this.saveTimer = setTimeout(() => {
-      this.saveLibrary(library);
       this.saveTimer = null;
+      const pendingLibrary = this.pendingLibrary;
+      this.pendingLibrary = null;
+      if (pendingLibrary) {
+        this.runSave(pendingLibrary);
+      }
     }, this.saveDelay);
+  }
+
+  async flushPendingSave(library?: LibraryIndexData): Promise<boolean> {
+    if (library) {
+      this.pendingLibrary = library;
+    }
+
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    const pendingLibrary = this.pendingLibrary;
+    this.pendingLibrary = null;
+
+    if (pendingLibrary) {
+      return this.runSave(pendingLibrary);
+    }
+
+    if (this.saveInFlight) {
+      return this.saveInFlight;
+    }
+
+    return true;
   }
 
   /**
