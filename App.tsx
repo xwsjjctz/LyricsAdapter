@@ -416,22 +416,17 @@ const App: React.FC = () => {
     logger.debug('[App] Library saved after download');
   }, [slots.local.tracks, slots.cloud.tracks, updateLocalTracks, getPersistenceData]);
   const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
-    logger.debug(`[App] Reordering track from ${fromIndex} to ${toIndex}`);
-    const newTracks = [...activeTracks];
-    const [movedTrack] = newTracks.splice(fromIndex, 1);
-    if (!movedTrack) return;
-    const adjustedToIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
-    newTracks.splice(adjustedToIndex, 0, movedTrack);
-    let newCurrentTrackIndex = activeTrackIndex;
-    if (activeTrackIndex === fromIndex) {
-      newCurrentTrackIndex = adjustedToIndex;
-    } else if (activeTrackIndex > fromIndex && activeTrackIndex < toIndex) {
-      newCurrentTrackIndex = activeTrackIndex - 1;
-    } else if (activeTrackIndex < fromIndex && activeTrackIndex > toIndex) {
-      newCurrentTrackIndex = activeTrackIndex + 1;
-    }
-    setActiveTracks(newTracks);
-    setActiveTrackIndex(newCurrentTrackIndex);
+    logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
+    const sourceSlot = slots[viewSlot];
+    const result = reorderTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, fromIndex, toIndex);
+    if (!result.changed) return;
+
+    updateSlot(viewSlot, slot => ({
+      ...slot,
+      tracks: result.tracks,
+      currentTrackIndex: result.currentTrackIndex,
+    }));
+
     const persistData = getPersistenceData();
     const libraryData = buildLibraryIndexDataForSlots(
       activeSlotId === 'local' ? newTracks : slots.local.tracks,
