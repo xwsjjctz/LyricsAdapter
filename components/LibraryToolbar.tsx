@@ -59,7 +59,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   return (
     <div className="mb-4 flex-shrink-0 flex items-center justify-between">
       <div>
-        <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+        <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
           {i18n.t(`sidebar.${dataSource}`)}
         </h1>
         <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
@@ -76,12 +76,13 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           )}
         </p>
         {(importProgress || (dataSource === 'cloud' && loadProgress)) && (
-          <div className="mt-2 w-48 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
+          <div className="mt-2 w-48 overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)', height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)' }}>
             <div
-              className="h-full rounded-full transition-all duration-300"
+              className="h-full transition-all duration-300"
               style={{
                 width: `${((importProgress || loadProgress)!.loaded / (importProgress || loadProgress)!.total) * 100}%`,
-                backgroundColor: colors.primary,
+                backgroundColor: 'var(--theme-control-slider-fill)',
+                borderRadius: 'var(--theme-progress-radius)',
               }}
             />
           </div>
@@ -95,11 +96,13 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             <button
               onClick={onRefreshCloud}
               disabled={isRefreshing}
-              className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center`}
+              className={`${liquidGlass ? 'lg-glass' : ''} w-10 h-10 flex items-center justify-center`}
               style={{
-                borderRadius: '12px',
+                borderRadius: 'var(--theme-control-radius)',
                 color: colors.textSecondary,
                 backgroundColor: liquidGlass ? undefined : colors.backgroundCard,
+                border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                boxShadow: liquidGlass ? undefined : 'var(--theme-elevated-shadow)',
                 cursor: isRefreshing ? 'not-allowed' : 'pointer',
                 opacity: isRefreshing ? 0.7 : 1,
                 transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
@@ -126,14 +129,15 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             <div className={liquidGlass ? 'lg-layer' : ''}>
               <button
                 onClick={onToggleEditMode}
-                className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center relative`}
+                className={`${liquidGlass ? 'lg-glass' : ''} w-10 h-10 flex items-center justify-center relative`}
                 style={{
-                  borderRadius: showEditDropdown ? '12px 12px 0 0' : '12px',
+                  borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
                   color: isEditMode ? (liquidGlass ? colors.success : '#fff') : colors.textSecondary,
                   backgroundColor: isEditMode
                     ? (liquidGlass ? `${colors.success}33` : colors.success)
                     : (liquidGlass ? undefined : colors.backgroundCard),
-                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
+                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : liquidGlass ? undefined : 'var(--theme-elevated-shadow)',
+                  border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
                   transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
                 }}
               >
@@ -173,7 +177,9 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 transition: 'transform 0.25s ease, opacity 0.2s ease',
                 background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
                 backdropFilter: 'blur(20px)',
-                borderRadius: '0 0 12px 12px',
+                borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
+                border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                borderTop: 'none',
                 boxShadow: showEditDropdown ? `0 8px 24px rgba(0,0,0,0.18)` : 'none',
                 pointerEvents: showEditDropdown ? 'auto' : 'none',
               }}
@@ -185,7 +191,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                   onBatchDelete();
                 }}
                 disabled={selectedCount === 0}
-                className="w-10 h-10 flex items-center justify-center rounded-b-xl transition-all"
+                className="w-10 h-10 flex items-center justify-center transition-all"
                 style={{
                   backgroundColor: selectedCount > 0 ? colors.error : colors.backgroundCard,
                   color: selectedCount > 0 ? '#fff' : colors.textMuted,
@@ -206,14 +212,15 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           </div>
         )}
         <div className={liquidGlass ? 'lg-layer' : ''}>
-        <div className={`${liquidGlass ? 'lg-glass' : 'border shadow-xl'} flex items-center rounded-xl`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, backgroundColor: colors.backgroundCard }}>
+        <div className={`${liquidGlass ? 'lg-glass' : 'border'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard, boxShadow: 'var(--theme-elevated-shadow)' }}>
           <button
             onClick={() => {
               onFilterTypeChange('default');
               onCategoryChange(null);
             }}
-            className="w-10 h-[38px] rounded-l-lg text-sm transition-all flex items-center justify-center"
+            className="w-10 h-full text-sm transition-all flex items-center justify-center"
             style={{
+              borderRadius: 'var(--theme-control-radius) 0 0 var(--theme-control-radius)',
               backgroundColor: filterType === 'default' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
               color: filterType === 'default' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
               boxShadow: filterType === 'default' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
@@ -226,7 +233,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               onFilterTypeChange('album');
               onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0]!.name : null);
             }}
-            className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
+            className="w-10 h-full text-sm transition-all flex items-center justify-center"
             style={{
               backgroundColor: filterType === 'album' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
               color: filterType === 'album' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
@@ -240,8 +247,9 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               onFilterTypeChange('artist');
               onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0]!.name : null);
             }}
-            className="w-10 h-[38px] rounded-r-lg text-sm transition-all flex items-center justify-center"
+            className="w-10 h-full text-sm transition-all flex items-center justify-center"
             style={{
+              borderRadius: '0 var(--theme-control-radius) var(--theme-control-radius) 0',
               backgroundColor: filterType === 'artist' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
               color: filterType === 'artist' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
               boxShadow: filterType === 'artist' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',

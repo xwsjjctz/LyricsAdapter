@@ -70,6 +70,8 @@ export interface ThemeControlStyles {
   itemBackgroundActive: string;
   itemForegroundActive: string;
   itemShadowActive: string;
+  currentTrackForeground: string;
+  currentTrackBandTint: string;
 
   // Icon buttons and icon surfaces
   iconBackground: string;
@@ -102,6 +104,33 @@ export interface ThemeControlStyles {
   inputBorderActive: string;
 }
 
+export interface ThemeAppearanceStyles {
+  surfaceRadius: string;
+  controlRadius: string;
+  cardRadius: string;
+  smallRadius: string;
+  buttonRadius: string;
+  mediaRadius: string;
+  mediaRadiusSm: string;
+  progressRadius: string;
+  progressHeight: string;
+  surfaceBorderWidth: string;
+  controlBorderWidth: string;
+  panelBorderWidth: string;
+  surfaceShadow: string;
+  surfaceShadowHover: string;
+  elevatedShadow: string;
+  textBodyWeight: string;
+  textHeadingWeight: string;
+  textButtonWeight: string;
+  headingLetterSpacing: string;
+  buttonLetterSpacing: string;
+  controlTextTransform: string;
+  listItemBorder: string;
+  listItemGap: string;
+  listItemPaddingY: string;
+}
+
 export interface ThemeConfig {
   id: ThemeId;
   name: string;
@@ -111,6 +140,7 @@ export interface ThemeConfig {
   fonts: ThemeFonts;
   borderRadius: ThemeBorderRadius;
   controls?: Partial<ThemeControlStyles>;
+  appearance?: Partial<ThemeAppearanceStyles>;
   tags: string[];
   isDark: boolean;
 }
@@ -125,6 +155,7 @@ export const THEME_IDS = {
   MIDNIGHT: 'midnight',
   WARM: 'warm',
   GLACIER: 'glacier',
+  BRUTALIST: 'brutalist',
 } as const;
 
 export type ThemeId = typeof THEME_IDS[keyof typeof THEME_IDS];

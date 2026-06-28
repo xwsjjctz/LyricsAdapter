@@ -143,7 +143,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
               ref={inputRef}
               type="text"
               readOnly
-              className="w-20 px-2 py-1 rounded text-xs text-center outline-none"
+              className="w-20 px-2 py-1 r-sm text-xs text-center outline-none"
               style={{ backgroundColor: `${colors.primary}20`, border: `1px solid ${colors.primary}50`, color: colors.primary }}
               placeholder={i18n.t('settings.shortcuts.pressKey')}
               onKeyDown={(e) => handleKeyDown(e, action)}
@@ -153,7 +153,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
               }}
             />
             {conflictAction && (
-              <div className="absolute top-full right-0 mt-1 w-40 p-1.5 rounded text-xs z-10" style={{ backgroundColor: `${colors.error}20`, border: `1px solid ${colors.error}30`, color: colors.error }}>
+              <div className="absolute top-full right-0 mt-1 w-40 p-1.5 r-sm text-xs z-10" style={{ backgroundColor: `${colors.error}20`, border: `1px solid ${colors.error}30`, color: colors.error }}>
                 {i18n.t('settings.shortcuts.conflict')}: {i18n.t(shortcuts[conflictAction]?.name || '')}
               </div>
             )}
@@ -161,7 +161,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         ) : (
           <button
             onClick={() => setEditingAction(action)}
-            className="min-w-[50px] px-2 py-1 rounded text-xs font-mono transition-colors"
+            className="min-w-[50px] px-2 py-1 r-sm text-xs font-mono transition-colors"
             style={{
               backgroundColor: !config.currentKey ? colors.backgroundCard : config.currentKey !== config.defaultKey ? `${colors.primary}10` : colors.backgroundCard,
               color: !config.currentKey ? colors.textMuted : config.currentKey !== config.defaultKey ? colors.primary : colors.textSecondary,
@@ -207,7 +207,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
   );
 
   return (
-    <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+    <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       {/* Header with Reset All button */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
@@ -216,7 +216,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         </h3>
         <button
           onClick={() => setShowResetConfirm(true)}
-          className="px-2.5 py-1 text-xs rounded transition-colors"
+          className="px-2.5 py-1 text-xs r-sm transition-colors"
           style={{ color: colors.textSecondary, backgroundColor: colors.backgroundCard }}
           onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
@@ -228,7 +228,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       {/* 双列布局：播放器 + 导航 */}
       <div className="grid grid-cols-2 gap-3">
         {/* Player Shortcuts */}
-        <div className="rounded-lg overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+        <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
           <div className="px-3 py-1.5 border-b" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
             <span className="text-xs font-medium" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.playerGroup')}</span>
           </div>
@@ -240,7 +240,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         </div>
 
         {/* Navigation Shortcuts */}
-        <div className="rounded-lg overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+        <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
           <div className="px-3 py-1.5 border-b" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
             <span className="text-xs font-medium" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.navigationGroup')}</span>
           </div>
@@ -253,7 +253,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       </div>
 
       {/* 提示信息 */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border mt-3" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
+      <div className="flex items-center gap-2 px-3 py-2 r-card border mt-3" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
         <span className="material-symbols-outlined text-sm" style={{ color: colors.textMuted }}>info</span>
         <span className="text-xs" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.legend')}</span>
       </div>
@@ -263,7 +263,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         isOpen={showResetConfirm}
         overlayClassName="z-50"
         overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        panelClassName="rounded-xl p-5 max-w-sm w-full mx-4 border"
+        panelClassName="r-control p-5 max-w-sm w-full mx-4 border"
         panelStyle={{ backgroundColor: colors.backgroundDark, borderColor: colors.borderLight }}
       >
             <h4 className="text-base font-medium mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.shortcuts.resetAllConfirm')}</h4>
@@ -280,7 +280,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
               </button>
               <button
                 onClick={handleResetAll}
-                className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm r-card transition-colors"
                 style={{ backgroundColor: `${colors.primary}20`, color: colors.primary }}
               >
                 {i18n.t('settings.shortcuts.resetAll')}

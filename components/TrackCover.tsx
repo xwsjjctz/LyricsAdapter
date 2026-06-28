@@ -6,6 +6,7 @@ interface TrackCoverProps {
   filePath?: string | undefined;
   fallbackUrl?: string | undefined;
   className?: string;
+  style?: React.CSSProperties;
   /**
    * cover:// 封面的缩略图尺寸（像素边长），仅对 cover:// 协议生效。
    * 按容器显示尺寸的 ~2x 选择（DPR=2，含 hover scale 余量）：
@@ -22,6 +23,7 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
   filePath: _filePath,
   fallbackUrl,
   className = 'size-10 rounded-lg object-cover',
+  style,
   thumbSize = 128
 }) => {
   const [hasError, setHasError] = useState(false);
@@ -65,7 +67,7 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
   };
 
   if (hasError || !fallbackUrl) {
-    return <img src={PLACEHOLDER_SVG} className={className} alt="" />;
+    return <img src={PLACEHOLDER_SVG} className={className} style={style} alt="" />;
   }
 
   // 仅 cover:// 协议支持 ?size= 缩略图降采样；远程/blob URL 原样使用。
@@ -79,6 +81,7 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
       key={retryKey}
       src={cacheBustSrc}
       className={className}
+      style={style}
       alt=""
       loading="lazy"
       onError={handleError}
@@ -88,7 +91,8 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
   return prevProps.trackId === nextProps.trackId &&
          prevProps.filePath === nextProps.filePath &&
          prevProps.fallbackUrl === nextProps.fallbackUrl &&
-         prevProps.thumbSize === nextProps.thumbSize;
+         prevProps.thumbSize === nextProps.thumbSize &&
+         prevProps.style === nextProps.style;
 });
 
 TrackCover.displayName = 'TrackCover';

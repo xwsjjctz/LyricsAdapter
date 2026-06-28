@@ -8,6 +8,7 @@ import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
+import { resolveThemeAppearance } from './themeAppearance';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
@@ -90,6 +91,7 @@ class ThemeManagerClass {
     const fonts = theme.fonts;
     const radius = theme.borderRadius;
     const controls = resolveThemeControls(theme);
+    const appearance = resolveThemeAppearance(theme);
 
     // Apply CSS custom properties (CSS variables)
     root.style.setProperty('--theme-primary', colors.primary);
@@ -154,6 +156,8 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-control-item-bg-active', controls.itemBackgroundActive);
     root.style.setProperty('--theme-control-item-fg-active', controls.itemForegroundActive);
     root.style.setProperty('--theme-control-item-shadow-active', controls.itemShadowActive);
+    root.style.setProperty('--theme-control-current-track-fg', controls.currentTrackForeground);
+    root.style.setProperty('--theme-control-current-track-band-tint', controls.currentTrackBandTint);
 
     root.style.setProperty('--theme-control-icon-bg', controls.iconBackground);
     root.style.setProperty('--theme-control-icon-bg-active', controls.iconBackgroundActive);
@@ -180,6 +184,31 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-control-input-bg', controls.inputBackground);
     root.style.setProperty('--theme-control-input-border', controls.inputBorder);
     root.style.setProperty('--theme-control-input-border-active', controls.inputBorderActive);
+
+    root.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
+    root.style.setProperty('--theme-control-radius', appearance.controlRadius);
+    root.style.setProperty('--theme-card-radius', appearance.cardRadius);
+    root.style.setProperty('--theme-small-radius', appearance.smallRadius);
+    root.style.setProperty('--theme-button-radius', appearance.buttonRadius);
+    root.style.setProperty('--theme-media-radius', appearance.mediaRadius);
+    root.style.setProperty('--theme-media-radius-sm', appearance.mediaRadiusSm);
+    root.style.setProperty('--theme-progress-radius', appearance.progressRadius);
+    root.style.setProperty('--theme-progress-height', appearance.progressHeight);
+    root.style.setProperty('--theme-surface-border-width', appearance.surfaceBorderWidth);
+    root.style.setProperty('--theme-control-border-width', appearance.controlBorderWidth);
+    root.style.setProperty('--theme-panel-border-width', appearance.panelBorderWidth);
+    root.style.setProperty('--theme-list-item-border', appearance.listItemBorder);
+    root.style.setProperty('--theme-list-item-gap', appearance.listItemGap);
+    root.style.setProperty('--theme-list-item-padding-y', appearance.listItemPaddingY);
+    root.style.setProperty('--theme-surface-shadow', appearance.surfaceShadow);
+    root.style.setProperty('--theme-surface-shadow-hover', appearance.surfaceShadowHover);
+    root.style.setProperty('--theme-elevated-shadow', appearance.elevatedShadow);
+    root.style.setProperty('--theme-text-body-weight', appearance.textBodyWeight);
+    root.style.setProperty('--theme-text-heading-weight', appearance.textHeadingWeight);
+    root.style.setProperty('--theme-text-button-weight', appearance.textButtonWeight);
+    root.style.setProperty('--theme-heading-letter-spacing', appearance.headingLetterSpacing);
+    root.style.setProperty('--theme-button-letter-spacing', appearance.buttonLetterSpacing);
+    root.style.setProperty('--theme-control-text-transform', appearance.controlTextTransform);
 
     // Apply font family to body
     root.style.fontFamily = fonts.main;

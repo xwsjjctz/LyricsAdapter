@@ -29,6 +29,8 @@ export function resolveThemeControls(theme: ThemeConfig): ThemeControlStyles {
     itemBackgroundHover: colors.backgroundCard,
     itemBackgroundActive: alpha(colors.primary, 0.16),
     itemForegroundActive: colors.primary,
+    currentTrackForeground: colors.primary,
+    currentTrackBandTint: colors.primary,
     itemShadowActive: '0 10px 24px -16px var(--theme-glow-color)',
 
     iconBackground: alpha(colors.primary, 0.08),

@@ -8,6 +8,37 @@
   --font-family-sans: var(--theme-font-main, 'Inter', sans-serif);
 }
 
+:root {
+  --theme-surface-radius: 16px;
+  --theme-control-radius: 12px;
+  --theme-card-radius: 8px;
+  --theme-small-radius: 4px;
+  --theme-button-radius: 9999px;
+  --theme-media-radius: 12px;
+  --theme-media-radius-sm: 8px;
+  --theme-progress-radius: 9999px;
+  --theme-progress-height: 4px;
+  --theme-surface-border-width: 1px;
+  --theme-control-border-width: 1px;
+  --theme-panel-border-width: 1px;
+  --theme-list-item-border: transparent;
+  --theme-list-item-gap: 8px;
+  --theme-list-item-padding-y: 12px;
+  --theme-surface-shadow: 0 18px 48px -28px rgba(0, 0, 0, 0.3);
+  --theme-surface-shadow-hover: 0 22px 54px -30px rgba(0, 0, 0, 0.3);
+  --theme-elevated-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.2);
+  --theme-text-body-weight: 500;
+  --theme-text-heading-weight: 800;
+  --theme-text-button-weight: 700;
+  --theme-heading-letter-spacing: 0;
+  --theme-button-letter-spacing: 0;
+  --theme-control-text-transform: none;
+}
+
+body {
+  font-weight: var(--theme-text-body-weight);
+}
+
 /* Fade in animation for floating locate button */
 @keyframes fadeIn {
   from {
@@ -29,6 +60,13 @@
 *:focus-visible {
   outline: none;
 }
+
+/* Theme-aware radius utilities (override fixed Tailwind rounded-* so themes with
+   0px radii render sharp corners). r-card=8px, r-control=12px, r-surface=16px. */
+.r-card { border-radius: var(--theme-card-radius); }
+.r-control { border-radius: var(--theme-control-radius); }
+.r-surface { border-radius: var(--theme-surface-radius); }
+.r-sm { border-radius: var(--theme-small-radius); }
 
 /* Frosted-glass bars for the experimental "Glass UI" feature.
    Used by the library header band and the global ControlBar.

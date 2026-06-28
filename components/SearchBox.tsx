@@ -161,22 +161,18 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     >
       {/* Input bar */}
       <div
-        className="flex items-center shrink-0 relative shadow-xl"
+        className="flex items-center shrink-0 relative"
         style={{
           height: '36px',
-          background: `linear-gradient(180deg, ${isWindowFocused ? `${colors.backgroundDark}fa` : `${colors.backgroundDark}ee`} 0%, ${colors.backgroundSidebar} 100%)`,
+          background: colors.backgroundDark,
           backdropFilter: 'blur(16px)',
-          borderTop: `1px solid ${colors.primary}66`,
-          borderLeft: `1px solid ${colors.primary}66`,
-          borderRight: `1px solid ${colors.primary}66`,
-          borderBottom: isExpanded
-            ? `1px solid ${colors.borderLight}`
-            : `1px solid ${colors.primary}66`,
-          borderRadius: isExpanded ? '12px 12px 0 0' : '12px',
+          border: `var(--theme-control-border-width) solid ${colors.borderLight}`,
+          borderRadius: isExpanded ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
+          boxShadow: 'var(--theme-elevated-shadow)',
           transition: 'border-color 0.25s ease, border-radius 0.25s ease',
         }}
       >
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: colors.primary }}>search</span>
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: colors.textSecondary }}>search</span>
         <input
           ref={inputRef}
           type="text"
@@ -214,14 +210,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           transformOrigin: 'top center',
           opacity: isExpanded ? 1 : 0,
           transition: 'transform 0.25s ease, opacity 0.2s ease',
-          background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
+          background: colors.backgroundDark,
           backdropFilter: 'blur(20px)',
-          border: isExpanded ? `1px solid ${colors.primary}66` : '1px solid transparent',
+          border: isExpanded ? `var(--theme-control-border-width) solid ${colors.borderLight}` : 'var(--theme-control-border-width) solid transparent',
           borderTop: 'none',
-          borderRadius: '0 0 12px 12px',
-          boxShadow: isExpanded
-            ? `0 6px 16px rgba(0,0,0,0.14), 0 0 12px ${colors.glowColor}`
-            : 'none',
+          borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
+          boxShadow: isExpanded ? 'var(--theme-elevated-shadow)' : 'none',
         }}
       >
         <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">

@@ -5,6 +5,7 @@ import { ThemeConfig, ThemeId } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
 import { resolveThemeControls } from '../services/themeControls';
+import { resolveThemeAppearance } from '../services/themeAppearance';
 
 interface ThemeViewProps {
   onHeaderHeightChange?: (height: number) => void;
@@ -98,6 +99,9 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       '极简': 'theme.tag.minimal',
       '暖色': 'theme.tag.warmColor',
       '简约': 'theme.tag.minimalist',
+      '粗粝': 'theme.tag.brutalist',
+      '高对比': 'theme.tag.highContrast',
+      '黄色': 'theme.tag.yellow',
       'Default': 'theme.tag.default',
       'Classic': 'theme.tag.classic',
       'Business': 'theme.tag.business',
@@ -122,6 +126,9 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       'Minimalist': 'theme.tag.minimalist',
       'Warm Color': 'theme.tag.warmColor',
       'Warm Tone': 'theme.tag.warmColor',
+      'Brutalist': 'theme.tag.brutalist',
+      'High Contrast': 'theme.tag.highContrast',
+      'Yellow': 'theme.tag.yellow',
     };
     return tagMap[tag] || '';
   };
@@ -166,26 +173,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
         )}
       </div>
 
-      {/* Current Theme Info - Uses CSS variables to reflect current theme */}
-      <div className="mb-6 p-4 rounded-xl" style={{
-        backgroundColor: 'var(--theme-background-card, rgba(255,255,255,0.05))',
-        border: '1px solid var(--theme-border-light, rgba(255,255,255,0.1))',
-      }}>
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-2xl" style={{ color: 'var(--theme-primary, #2b8cee)' }}>
-            checkroom
-          </span>
-          <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.7))' }}>
-              {i18n.t('theme.current')}
-            </p>
-            <p className="text-lg font-bold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-              {i18n.t(getThemeNameKey(currentThemeId))}
-            </p>
-          </div>
-        </div>
-      </div>
-
       </div>
 
       {/* Theme Grid - Each card shows its own theme colors (not CSS variables) */}
@@ -198,16 +185,19 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
             const isCurrent = theme.id === currentThemeId;
             const isPreview = previewTheme?.id === theme.id;
             const controls = resolveThemeControls(theme);
+            const appearance = resolveThemeAppearance(theme);
 
             return (
               <div
                 key={theme.id}
-                className={`relative rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group ${
+                className={`relative overflow-hidden transition-all duration-300 cursor-pointer group ${
                   isPreview ? 'ring-2 ring-offset-2 ring-offset-transparent' : ''
                 }`}
                 style={{
                   backgroundColor: theme.colors.backgroundSidebar,
-                  boxShadow: isPreview ? `0 0 0 2px ${theme.colors.primary}` : undefined,
+                  borderRadius: appearance.surfaceRadius,
+                  border: `${appearance.surfaceBorderWidth} solid ${theme.colors.borderLight}`,
+                  boxShadow: isPreview ? appearance.surfaceShadowHover : appearance.surfaceShadow,
                 }}
                 onClick={() => handlePreviewTheme(theme)}
               >
@@ -221,48 +211,54 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                   />
                   {/* Decorative elements */}
                   <div
-                    className="absolute top-4 left-4 w-8 h-8 rounded-full opacity-60"
-                    style={{ backgroundColor: theme.colors.primary }}
+                    className="absolute top-4 left-4 w-8 h-8 opacity-60"
+                    style={{ backgroundColor: theme.colors.primary, borderRadius: appearance.buttonRadius }}
                   />
                   <div
-                    className="absolute top-6 right-8 w-4 h-4 rounded-lg opacity-40"
-                    style={{ backgroundColor: theme.colors.accent }}
+                    className="absolute top-6 right-8 w-4 h-4 opacity-40"
+                    style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.controlRadius }}
                   />
                   <div
-                    className="absolute bottom-4 right-12 w-6 h-6 rounded-full opacity-30"
-                    style={{ backgroundColor: theme.colors.success }}
+                    className="absolute bottom-4 right-12 w-6 h-6 opacity-30"
+                    style={{ backgroundColor: theme.colors.success, borderRadius: appearance.buttonRadius }}
                   />
                   <div
-                    className="absolute left-4 right-4 bottom-4 rounded-xl p-2"
+                    className="absolute left-4 right-4 bottom-4 p-2"
                     style={{
                       backgroundColor: controls.panelBackgroundGlassStrong,
-                      border: `1px solid ${controls.panelBorder}`,
+                      border: `${appearance.panelBorderWidth} solid ${controls.panelBorder}`,
+                      borderRadius: appearance.surfaceRadius,
                       boxShadow: controls.panelShadow,
                     }}
                   >
                     <div className="flex items-center gap-2">
                       <span
-                        className="flex h-7 w-7 items-center justify-center rounded-full"
+                        className="flex h-7 w-7 items-center justify-center"
                         style={{
                           backgroundColor: controls.primaryButtonBackground,
                           color: controls.primaryButtonForeground,
+                          borderRadius: appearance.buttonRadius,
                           boxShadow: controls.primaryButtonShadow,
                         }}
                       >
                         <span className="material-symbols-outlined text-[16px] fill-icon">play_arrow</span>
                       </span>
                       <div
-                        className="h-1 flex-1 overflow-hidden rounded-full"
-                        style={{ backgroundColor: controls.sliderTrack }}
+                        className="flex-1 overflow-hidden"
+                        style={{
+                          height: appearance.progressHeight,
+                          borderRadius: appearance.progressRadius,
+                          backgroundColor: controls.sliderTrack,
+                        }}
                       >
                         <div
-                          className="h-full w-2/3 rounded-full"
-                          style={{ backgroundColor: controls.sliderFill }}
+                          className="h-full w-2/3"
+                          style={{ backgroundColor: controls.sliderFill, borderRadius: appearance.progressRadius }}
                         />
                       </div>
                       <span
-                        className="h-7 w-7 rounded-lg"
-                        style={{ backgroundColor: controls.iconBackgroundActive }}
+                        className="h-7 w-7"
+                        style={{ backgroundColor: controls.iconBackgroundActive, borderRadius: appearance.controlRadius }}
                       />
                     </div>
                   </div>
@@ -272,19 +268,27 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3
-                      className="text-lg font-bold"
-                      style={{ color: theme.colors.textPrimary }}
+                      className="text-lg"
+                      style={{
+                        color: theme.colors.textPrimary,
+                        fontFamily: theme.fonts.display || theme.fonts.main,
+                        fontWeight: appearance.textHeadingWeight,
+                        letterSpacing: appearance.headingLetterSpacing,
+                      }}
                     >
                       {i18n.t(getThemeNameKey(theme.id))}
                     </h3>
                     {isCurrent && (
                       <span
-                        className="px-2 py-1 rounded-full text-xs font-medium"
+                        className="px-2 py-1 text-xs flex items-center gap-1"
                         style={{
-                          backgroundColor: theme.colors.primaryLight,
-                          color: theme.colors.primary,
+                          backgroundColor: theme.colors.primary,
+                          color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                          borderRadius: appearance.buttonRadius,
+                          fontWeight: appearance.textButtonWeight,
                         }}
                       >
+                        <span className="material-symbols-outlined text-sm">check</span>
                         {i18n.t('theme.applied')}
                       </span>
                     )}
@@ -302,10 +306,14 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     {theme.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 rounded-full text-xs"
+                        className="px-2 py-0.5 text-xs"
                         style={{
                           backgroundColor: theme.colors.backgroundCardHover,
                           color: theme.colors.textMuted,
+                          borderRadius: appearance.buttonRadius,
+                          fontWeight: appearance.textButtonWeight,
+                          letterSpacing: appearance.buttonLetterSpacing,
+                          textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
                         }}
                       >
                         {translateTag(tag)}
@@ -337,10 +345,14 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                   }}
                 >
                   <button
-                    className="px-6 py-3 rounded-full font-semibold transition-transform transform hover:scale-105"
+                    className="px-6 py-3 transition-transform transform hover:scale-105"
                     style={{
                       backgroundColor: theme.colors.primary,
                       color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                      borderRadius: appearance.buttonRadius,
+                      fontWeight: appearance.textButtonWeight,
+                      letterSpacing: appearance.buttonLetterSpacing,
+                      textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
                     }}
                   >
                     {isCurrent ? i18n.t('theme.applied') : i18n.t('theme.apply')}
