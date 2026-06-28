@@ -7,6 +7,7 @@ import { logger } from './logger';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
+import { resolveThemeControls } from './themeControls';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
@@ -88,6 +89,7 @@ class ThemeManagerClass {
     const colors = theme.colors;
     const fonts = theme.fonts;
     const radius = theme.borderRadius;
+    const controls = resolveThemeControls(theme);
 
     // Apply CSS custom properties (CSS variables)
     root.style.setProperty('--theme-primary', colors.primary);
@@ -138,6 +140,46 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-radius-lg', radius.lg);
     root.style.setProperty('--theme-radius-xl', radius.xl);
     root.style.setProperty('--theme-radius-full', radius.full);
+
+    root.style.setProperty('--theme-control-panel-bg', controls.panelBackground);
+    root.style.setProperty('--theme-control-panel-bg-glass', controls.panelBackgroundGlass);
+    root.style.setProperty('--theme-control-panel-bg-glass-strong', controls.panelBackgroundGlassStrong);
+    root.style.setProperty('--theme-control-panel-bg-floating', controls.panelFloatingBackground);
+    root.style.setProperty('--theme-control-panel-border', controls.panelBorder);
+    root.style.setProperty('--theme-control-panel-shadow', controls.panelShadow);
+
+    root.style.setProperty('--theme-control-container-bg', controls.containerBackground);
+    root.style.setProperty('--theme-control-container-border', controls.containerBorder);
+    root.style.setProperty('--theme-control-item-bg-hover', controls.itemBackgroundHover);
+    root.style.setProperty('--theme-control-item-bg-active', controls.itemBackgroundActive);
+    root.style.setProperty('--theme-control-item-fg-active', controls.itemForegroundActive);
+    root.style.setProperty('--theme-control-item-shadow-active', controls.itemShadowActive);
+
+    root.style.setProperty('--theme-control-icon-bg', controls.iconBackground);
+    root.style.setProperty('--theme-control-icon-bg-active', controls.iconBackgroundActive);
+    root.style.setProperty('--theme-control-icon-fg', controls.iconForeground);
+    root.style.setProperty('--theme-control-icon-fg-hover', controls.iconForegroundHover);
+    root.style.setProperty('--theme-control-icon-fg-active', controls.iconForegroundActive);
+
+    root.style.setProperty('--theme-control-action-bg', controls.actionBackground);
+    root.style.setProperty('--theme-control-action-bg-hover', controls.actionBackgroundHover);
+    root.style.setProperty('--theme-control-action-bg-active', controls.actionBackgroundActive);
+    root.style.setProperty('--theme-control-action-fg', controls.actionForeground);
+    root.style.setProperty('--theme-control-action-fg-hover', controls.actionForegroundHover);
+    root.style.setProperty('--theme-control-action-fg-active', controls.actionForegroundActive);
+    root.style.setProperty('--theme-control-action-shadow', controls.actionShadow);
+    root.style.setProperty('--theme-control-action-shadow-active', controls.actionShadowActive);
+
+    root.style.setProperty('--theme-control-primary-button-bg', controls.primaryButtonBackground);
+    root.style.setProperty('--theme-control-primary-button-fg', controls.primaryButtonForeground);
+    root.style.setProperty('--theme-control-primary-button-shadow', controls.primaryButtonShadow);
+    root.style.setProperty('--theme-control-slider-track', controls.sliderTrack);
+    root.style.setProperty('--theme-control-slider-fill', controls.sliderFill);
+    root.style.setProperty('--theme-control-slider-fill-secondary', controls.sliderSecondaryFill);
+
+    root.style.setProperty('--theme-control-input-bg', controls.inputBackground);
+    root.style.setProperty('--theme-control-input-border', controls.inputBorder);
+    root.style.setProperty('--theme-control-input-border-active', controls.inputBorderActive);
 
     // Apply font family to body
     root.style.fontFamily = fonts.main;

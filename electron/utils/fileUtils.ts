@@ -1,7 +1,6 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { createHash } from 'crypto';
 import { app } from 'electron';
 
 export function sanitizeFileName(fileName: string): string {
@@ -12,16 +11,9 @@ export function sanitizeFileName(fileName: string): string {
   return sanitized;
 }
 
-export function sanitizeTrackId(trackId: string): string {
-  // Replace non-alphanumeric chars with '_' to prevent collisions.
-  // Pure removal (old behavior) could make distinct paths generate the
-  // same ID (e.g. "/path1/file" and "/path/1file" → both "path1file").
-  const cleaned = trackId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
-  if (cleaned.length >= 6) {
-    return cleaned;
-  }
-  return createHash('sha1').update(trackId).digest('hex');
-}
+// sanitizeTrackId 已迁移至 ./webdavCoverId（与 fork 出去的 cleanup 子进程共享同一份逻辑，
+// 子进程不能 import electron）。此处 re-export 保持现有 `import { sanitizeTrackId } from './utils/fileUtils'` 兼容。
+export { sanitizeTrackId } from './webdavCoverId';
 
 export function expandHomeDir(inputPath: string): string {
   if (inputPath.startsWith('~/') || inputPath === '~') {

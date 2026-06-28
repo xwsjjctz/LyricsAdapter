@@ -10,7 +10,9 @@ import {
   validateSourcePath,
   coverExtFromMime
 } from '../utils/fileUtils';
+import { computeWebdavCoverId } from '../utils/webdavCoverId';
 import { writeAudioMetadata } from '../utils/metadataUtils';
+import { allowAudioPath, canReadAudioPath, isAudioPath } from './typedHandlers';
 
 function toLibraryIndex(library: any): any {
   const songs = Array.isArray(library?.songs) ? library.songs.map((song: any) => ({
@@ -37,8 +39,13 @@ function toLibraryIndex(library: any): any {
 export function registerFileHandlers(): void {
   ipcMain.handle('read-file', async (_event, filePath) => {
     try {
-      const data = fs.readFileSync(filePath);
-      return { success: true, data: data.buffer };
+      const expandedPath = expandHomeDir(filePath);
+      if (!canReadAudioPath(expandedPath)) {
+        return { success: false, error: 'Audio path is outside the selected or app-managed allowlist' };
+      }
+      const data = fs.readFileSync(expandedPath);
+      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+      return { success: true, data: arrayBuffer };
     } catch (error) {
       logger.error('Failed to read file:', error);
       return { success: false, error: (error as Error).message };
@@ -53,7 +60,13 @@ export function registerFileHandlers(): void {
         { name: 'All Files', extensions: ['*'] }
       ]
     });
-    return result;
+    for (const filePath of result.filePaths) {
+      allowAudioPath(filePath);
+    }
+    return {
+      ...result,
+      filePaths: result.filePaths.filter(isAudioPath),
+    };
   });
 
   ipcMain.handle('get-app-data-path', async () => {
@@ -93,11 +106,13 @@ export function registerFileHandlers(): void {
 
       try {
         fs.symlinkSync(sourcePath, audioFilePath);
+        allowAudioPath(audioFilePath);
         logger.info('✅ Symlink created:', audioFilePath, '→', sourcePath);
         return { success: true, filePath: audioFilePath, method: 'symlink' };
       } catch (linkError) {
         logger.warn('⚠️ Symlink failed, copying file instead:', (linkError as Error).message);
         fs.copyFileSync(sourcePath, audioFilePath);
+        allowAudioPath(audioFilePath);
         logger.info('✅ File copied:', audioFilePath);
         return { success: true, filePath: audioFilePath, method: 'copy' };
       }
@@ -121,6 +136,7 @@ export function registerFileHandlers(): void {
 
       const buffer = Buffer.from(fileData);
       fs.writeFileSync(audioFilePath, buffer);
+      allowAudioPath(audioFilePath);
 
       logger.info('✅ File saved from buffer:', audioFilePath);
       return { success: true, filePath: audioFilePath, method: 'copy' };
@@ -135,14 +151,19 @@ export function registerFileHandlers(): void {
       if (!filePath) {
         return { success: false, error: 'File path is empty' };
       }
+      const expandedPath = expandHomeDir(filePath);
 
-      if (!fs.existsSync(filePath)) {
-        logger.warn('⚠️ File does not exist, skipping deletion:', filePath);
+      if (!canReadAudioPath(expandedPath)) {
+        return { success: false, error: 'Audio path is outside the selected or app-managed allowlist' };
+      }
+
+      if (!fs.existsSync(expandedPath)) {
+        logger.warn('⚠️ File does not exist, skipping deletion:', expandedPath);
         return { success: true, deleted: false };
       }
 
-      fs.unlinkSync(filePath);
-      logger.info('✅ File/symlink deleted:', filePath);
+      fs.unlinkSync(expandedPath);
+      logger.info('✅ File/symlink deleted:', expandedPath);
       return { success: true, deleted: true };
     } catch (error) {
       logger.error('Failed to delete audio file:', error);
@@ -384,20 +405,31 @@ export function registerCoverHandlers(): void {
     }
   });
 
-  // 清理孤儿封面文件：删除 covers/ 目录中不属于 activeTrackIds 的文件
+  // 清理孤儿封面文件：删除 covers/ 目录中不属于 activeTrackIds 的文件。
+  // WebDAV 封面文件名是 `${pathHash}-${webdavPath}`（见 computeWebdavCoverId），与 trackId 的
+  // `webdav-` 字面前缀不同，活跃集必须把这两种命名都纳入，否则会把所有 WebDAV 封面误判为孤儿删除。
+  // 删除后返回剩余封面的 stem（existingCoverIds），供渲染端校验 coverUrl 是否仍指向真实文件。
   ipcMain.handle('cleanup-orphan-covers', async (_event, activeTrackIds: string[]) => {
     try {
       const userDataPath = app.getPath('userData');
       const coverDir = path.join(userDataPath, 'covers');
 
       if (!fs.existsSync(coverDir)) {
-        return { success: true, removed: 0 };
+        return { success: true, removed: 0, errors: 0, existingCoverIds: [] as string[] };
       }
 
-      const activeSet = new Set(activeTrackIds.map(id => sanitizeTrackId(id)));
+      // 活跃集同时收录两种命名：local track 的 trackId，以及 cloud track 的封面文件 id。
+      const activeSet = new Set<string>();
+      for (const id of activeTrackIds) {
+        activeSet.add(sanitizeTrackId(id));
+        const coverId = computeWebdavCoverId(id);
+        if (coverId) activeSet.add(coverId);
+      }
+
       const exts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
       let removed = 0;
       let errors = 0;
+      const existingCoverIds: string[] = [];
 
       const files = fs.readdirSync(coverDir);
       for (const file of files) {
@@ -413,11 +445,14 @@ export function registerCoverHandlers(): void {
             errors++;
             logger.warn(`[Cleanup] Failed to delete orphan cover: ${file}`, e);
           }
+        } else {
+          // 保留的封面：暴露 stem，供渲染端校验 IndexedDB 里的 coverUrl 是否仍指向真实文件
+          existingCoverIds.push(trackId);
         }
       }
 
-      logger.info(`[Cleanup] Orphan covers cleanup: ${removed} removed, ${errors} errors`);
-      return { success: true, removed, errors };
+      logger.info(`[Cleanup] Orphan covers cleanup: ${removed} removed, ${errors} errors, ${existingCoverIds.length} kept`);
+      return { success: true, removed, errors, existingCoverIds };
     } catch (error) {
       logger.error('[Cleanup] Failed to cleanup orphan covers:', error);
       return { success: false, error: (error as Error).message };
@@ -525,6 +560,7 @@ export function registerDownloadHandlers(): void {
 
       writer.end();
       await new Promise<void>(resolve => writer.on('finish', resolve));
+      allowAudioPath(expandedPath);
 
       logger.info('[Main] Download completed, size:', downloaded, 'bytes');
       return { success: true, filePath: expandedPath, size: downloaded };
@@ -634,6 +670,7 @@ export function registerDownloadHandlers(): void {
 
       const buffer = Buffer.from(fileData);
       fs.writeFileSync(fullPath, buffer);
+      allowAudioPath(fullPath);
 
       logger.info('[Main] File saved successfully, size:', buffer.length);
       return { success: true, filePath: fullPath };

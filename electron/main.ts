@@ -15,6 +15,7 @@ import {
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
+import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 
@@ -29,6 +30,7 @@ app.whenReady().then(async () => {
   await createWindow();
 
   const win = getWindow();
+  registerTypedIpcHandlers();
   registerFileHandlers();
   registerLibraryHandlers();
   registerCoverHandlers();

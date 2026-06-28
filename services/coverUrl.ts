@@ -9,6 +9,20 @@ export function isCoverUrl(url: string | undefined | null): url is string {
   return !!url && url.startsWith(COVER_PROTOCOL);
 }
 
+/**
+ * 提取 cover:// URL 对应的封面文件 id（stem）。
+ * 去掉协议前缀、查询参数（?size=…）和扩展名，得到与 covers/ 目录文件名（去扩展名）一致的 id，
+ * 用于比对封面文件是否仍然存在（如 clear cache 删除后校验 IndexedDB 里的 coverUrl 是否失效）。
+ *
+ * 非 cover:// URL 返回 null。safeId 经 sanitizeTrackId 清洗不含 '.'，故 lastIndexOf('.') 即扩展名分隔点。
+ */
+export function coverIdFromUrl(url: string | undefined | null): string | null {
+  if (!isCoverUrl(url)) return null;
+  const afterProto = url.slice(COVER_PROTOCOL.length).split('?')[0]!;
+  const dot = afterProto.lastIndexOf('.');
+  return dot > 0 ? afterProto.slice(0, dot) : afterProto;
+}
+
 export function parseCoverDataUrl(dataUrl: string | undefined | null): { mime: string; base64: string } | null {
   if (!dataUrl) return null;
   const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/);

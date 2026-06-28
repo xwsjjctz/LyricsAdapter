@@ -241,6 +241,18 @@ export function useLibrarySlots() {
     });
   }, []);
 
+  // 原地更新 cloud tracks（不做扫描合并/重排/去重），用于不改变列表顺序的细粒度更新
+  // （如 clear cache 后清空失效 coverUrl）。顺序与 currentTrackIndex 均保持不变。
+  const updateCloudTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
+    setSlots(prev => {
+      const newTracks = typeof updater === 'function' ? updater(prev.cloud.tracks) : updater;
+      return {
+        ...prev,
+        cloud: { ...prev.cloud, tracks: newTracks },
+      };
+    });
+  }, []);
+
   const getPersistenceData = useCallback(() => {
     const extractSlotData = (slot: LibrarySlot): SlotPersistenceData => ({
       currentTrackIndex: slot.currentTrackIndex,
@@ -314,6 +326,7 @@ export function useLibrarySlots() {
     setActiveCategorySelection,
     loadCloudTracks,
     mergeCloudTracks,
+    updateCloudTracks,
     updateLocalTracks,
     getPersistenceData,
     restoreFromPersistence,

@@ -35,5 +35,11 @@
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true
   },
-  "exclude": ["test"]
+  "exclude": [
+    "test",
+    "dist",
+    "dist-electron",
+    "release",
+    "node_modules"
+  ]
 }

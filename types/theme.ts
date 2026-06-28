@@ -54,6 +54,54 @@ export interface ThemeBorderRadius {
   full: string;
 }
 
+export interface ThemeControlStyles {
+  // Player / fixed panels
+  panelBackground: string;
+  panelBackgroundGlass: string;
+  panelBackgroundGlassStrong: string;
+  panelFloatingBackground: string;
+  panelBorder: string;
+  panelShadow: string;
+
+  // Grouped controls, sidebar nav, segmented controls
+  containerBackground: string;
+  containerBorder: string;
+  itemBackgroundHover: string;
+  itemBackgroundActive: string;
+  itemForegroundActive: string;
+  itemShadowActive: string;
+
+  // Icon buttons and icon surfaces
+  iconBackground: string;
+  iconBackgroundActive: string;
+  iconForeground: string;
+  iconForegroundHover: string;
+  iconForegroundActive: string;
+
+  // Action buttons
+  actionBackground: string;
+  actionBackgroundHover: string;
+  actionBackgroundActive: string;
+  actionForeground: string;
+  actionForegroundHover: string;
+  actionForegroundActive: string;
+  actionShadow: string;
+  actionShadowActive: string;
+
+  // Playback controls
+  primaryButtonBackground: string;
+  primaryButtonForeground: string;
+  primaryButtonShadow: string;
+  sliderTrack: string;
+  sliderFill: string;
+  sliderSecondaryFill: string;
+
+  // Inputs / popovers
+  inputBackground: string;
+  inputBorder: string;
+  inputBorderActive: string;
+}
+
 export interface ThemeConfig {
   id: ThemeId;
   name: string;
@@ -62,6 +110,7 @@ export interface ThemeConfig {
   colors: ThemeColors;
   fonts: ThemeFonts;
   borderRadius: ThemeBorderRadius;
+  controls?: Partial<ThemeControlStyles>;
   tags: string[];
   isDark: boolean;
 }

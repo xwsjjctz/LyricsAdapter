@@ -7,6 +7,7 @@ import { parseAudioFile as parseAudioFileSync } from './metadataService';
 import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 import { logger } from './logger';
 import { APP } from '../constants/config';
+import type { TypedElectronIPC } from '../types/typedIpc';
 
 /** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
 export interface UpdateInfo {
@@ -36,6 +37,7 @@ export type UpdaterState =
 
 export interface DesktopAPI {
   platform: string;
+  ipc?: TypedElectronIPC;
   readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
   loadLibrary: () => Promise<{ success: boolean; library: unknown; error?: string }>;
@@ -78,7 +80,7 @@ export interface DesktopAPI {
   webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
   webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
-  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; error?: string }>;
+  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }>;
   // Auto-updater APIs
   checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall?: () => Promise<{ ok: boolean }>;
@@ -103,10 +105,22 @@ class ElectronAdapter implements DesktopAPI {
   }
 
   async readFile(filePath: string): Promise<{ success: boolean; data: ArrayBuffer; error?: string }> {
+    if (this.api.ipc?.file.readAudio) {
+      const result = await this.api.ipc.file.readAudio(filePath);
+      if (result.ok) {
+        return { success: true, data: result.data.data };
+      }
+      logger.warn('[DesktopAPI] typed readAudio rejected, falling back to legacy read-file:', result.error);
+    }
     return this.api.readFile(filePath);
   }
 
   async selectFiles(): Promise<{ canceled: boolean; filePaths: string[] }> {
+    if (this.api.ipc?.file.selectAudio) {
+      const result = await this.api.ipc.file.selectAudio();
+      if (result.ok) return result.data;
+      logger.warn('[DesktopAPI] typed selectAudio failed, falling back to legacy select-folder:', result.error);
+    }
     return this.api.selectFiles();
   }
 
@@ -119,6 +133,12 @@ class ElectronAdapter implements DesktopAPI {
   }
 
   async loadLibraryIndex(): Promise<{ success: boolean; library: any; error?: string }> {
+    if (this.api.ipc?.library.loadIndex) {
+      const result = await this.api.ipc.library.loadIndex();
+      return result.ok
+        ? { success: true, library: result.data }
+        : { success: false, library: null, error: result.error };
+    }
     if (typeof this.api.loadLibraryIndex === 'function') {
       return this.api.loadLibraryIndex();
     }
@@ -126,6 +146,10 @@ class ElectronAdapter implements DesktopAPI {
   }
 
   async saveLibraryIndex(library: any): Promise<{ success: boolean; error?: string }> {
+    if (this.api.ipc?.library.saveIndex) {
+      const result = await this.api.ipc.library.saveIndex(library);
+      return result.ok ? { success: true } : { success: false, error: result.error };
+    }
     if (typeof this.api.saveLibraryIndex === 'function') {
       return this.api.saveLibraryIndex(library);
     }
@@ -352,6 +376,10 @@ class ElectronAdapter implements DesktopAPI {
   }
 
   async webdavPropfind(url: string, authHeader: string, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
+    if (this.api.ipc?.webdav.propfind) {
+      const result = await this.api.ipc.webdav.propfind({ url, authHeader, depth });
+      return result.ok ? { success: true, xml: result.data.xml } : { success: false, error: result.error };
+    }
     return this.api.webdavPropfind(url, authHeader, depth);
   }
 
@@ -360,14 +388,26 @@ class ElectronAdapter implements DesktopAPI {
   }
 
   async webdavGetRange(url: string, authHeader: string, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
+    if (this.api.ipc?.webdav.getRange) {
+      const result = await this.api.ipc.webdav.getRange({ url, authHeader, start, end });
+      return result.ok ? { success: true, data: result.data.data } : { success: false, error: result.error };
+    }
     return this.api.webdavGetRange(url, authHeader, start, end);
   }
 
   async webdavPut(url: string, authHeader: string, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
+    if (this.api.ipc?.webdav.put) {
+      const result = await this.api.ipc.webdav.put({ url, authHeader, data, contentType });
+      return result.ok ? { success: true } : { success: false, error: result.error };
+    }
     return this.api.webdavPut(url, authHeader, data, contentType);
   }
 
   async webdavDelete(url: string, authHeader: string): Promise<{ success: boolean; error?: string }> {
+    if (this.api.ipc?.webdav.delete) {
+      const result = await this.api.ipc.webdav.delete({ url, authHeader });
+      return result.ok ? { success: true } : { success: false, error: result.error };
+    }
     return this.api.webdavDelete(url, authHeader);
   }
 
@@ -379,12 +419,12 @@ class ElectronAdapter implements DesktopAPI {
     return { success: false, error: 'Not available' };
   }
 
-  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; error?: string }> {
+  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }> {
     if (typeof this.api.cleanupOrphanCovers === 'function') {
       return this.api.cleanupOrphanCovers(activeTrackIds);
     }
     logger.warn('[DesktopAPI] cleanupOrphanCovers not available');
-    return { success: false, error: 'Not available', removed: 0, errors: 0 };
+    return { success: false, error: 'Not available', removed: 0, errors: 0, existingCoverIds: [] };
   }
 
   async checkForUpdates(): Promise<{ ok: boolean; reason?: string }> {

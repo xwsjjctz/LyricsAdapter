@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  coverIdFromUrl,
   parseCoverDataUrl,
   sanitizePersistedCoverUrl,
   toCoverThumb,
@@ -36,5 +37,21 @@ describe('coverUrl helpers', () => {
 
   it('keeps thumbnail behavior for cover protocol URLs', () => {
     expect(toCoverThumb('cover://track.jpg', 128)).toBe('cover://track.jpg?size=128');
+  });
+
+  it('extracts cover id stem from cover:// URLs (Bug 2 stale-cover detection)', () => {
+    expect(coverIdFromUrl('cover://abc123-foo.jpg')).toBe('abc123-foo');
+    // 带 ?size= 查询参数时仍正确提取 stem
+    expect(coverIdFromUrl('cover://abc123-foo.jpg?size=128')).toBe('abc123-foo');
+    // sha1 兜底产生的纯 hex id（无 '-'）也能正确提取
+    expect(coverIdFromUrl('cover://0123456789abcdef.png')).toBe('0123456789abcdef');
+  });
+
+  it('returns null for non-cover:// URLs', () => {
+    expect(coverIdFromUrl('https://example.com/cover.jpg')).toBeNull();
+    expect(coverIdFromUrl('data:image/png;base64,abc')).toBeNull();
+    expect(coverIdFromUrl('blob:http://localhost/x')).toBeNull();
+    expect(coverIdFromUrl(undefined)).toBeNull();
+    expect(coverIdFromUrl('')).toBeNull();
   });
 });
