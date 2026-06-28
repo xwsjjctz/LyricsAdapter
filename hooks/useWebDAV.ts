@@ -661,6 +661,18 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           }
         }
         if (allCached) {
+          // manifest 模式：若服务端存在 hasCover=false 的条目（历史 scan 失败遗留），
+          // 转 loadFullMode 重新解析修复——常规刷新也自愈，无需手动 scan_webdav_audio。
+          if (provider.useMetadataFolder()) {
+            const repairManifest = await metadataFolderService.loadManifest(false);
+            const hasMissingCover = repairManifest && cachedTracks.some(t => {
+              const entry = repairManifest.entries[t.webdavPath || ''];
+              return !!entry && !entry.hasCover;
+            });
+            if (hasMissingCover) {
+              return await loadFullMode(audioFiles);
+            }
+          }
           setWebdavTracks(cachedTracks);
           setIsLoading(false);
           setLoadProgress(null);
@@ -804,20 +816,27 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       const file = audioFiles[i];
       if (!file) continue;
 
-      // 1. 服务端 manifest 命中（指纹匹配 + duration>0）→ 秒出列表（无封面）
+      // 1. 服务端 manifest 命中（指纹匹配 + duration>0 且有封面）→ 秒出列表（封面待 chunk 补全）
       const serverEntry = manifest?.entries[file.path];
       if (serverEntry && serverEntry.fileSize === file.size && serverEntry.lastModified === file.lastModified && serverEntry.duration > 0) {
-        // 记录到 cache（封面待 chunk 补全）
-        metadataCache.set(file.path, {
-          title: serverEntry.title,
-          artist: serverEntry.artist,
-          album: serverEntry.album,
-          duration: serverEntry.duration,
-          fileSize: serverEntry.fileSize,
-          lastModified: serverEntry.lastModified,
-          chunkId: serverEntry.chunkId,
-        });
-        placeholderTracks[i] = enrichFromManifest(placeholderTracks[i]!, serverEntry);
+        if (serverEntry.hasCover) {
+          // 记录到 cache（封面待 chunk 补全）
+          metadataCache.set(file.path, {
+            title: serverEntry.title,
+            artist: serverEntry.artist,
+            album: serverEntry.album,
+            duration: serverEntry.duration,
+            fileSize: serverEntry.fileSize,
+            lastModified: serverEntry.lastModified,
+            chunkId: serverEntry.chunkId,
+          });
+          placeholderTracks[i] = enrichFromManifest(placeholderTracks[i]!, serverEntry);
+          continue;
+        }
+        // hasCover=false：服务端明确无封面。可能是历史 scan 解析失败（封面落在文件头 1MB 之外、
+        // 二次 Range 拉取被拒等）。并入 toFetch 重新解析尝试提取封面——刷新即自愈，免去手动 scan。
+        // 真无封面的文件每次冷启动会重读一次文件头，代价可接受。
+        toFetch.push({ file, index: i });
         continue;
       }
 

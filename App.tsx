@@ -7,6 +7,7 @@ import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
+import { coverIdFromUrl } from './services/coverUrl';
 import { coverArtService } from './services/coverArtService';
 import { reorderTracks } from './services/libraryReorder';
 import { useBlobUrls } from './hooks/useBlobUrls';
@@ -74,6 +75,7 @@ const App: React.FC = () => {
     setActiveCurrentTime,
     loadCloudTracks,
     mergeCloudTracks,
+    updateCloudTracks,
     updateLocalTracks,
     getPersistenceData,
     restoreFromPersistence,
@@ -561,13 +563,15 @@ const App: React.FC = () => {
       errors.push(`Failed to clear WebDAV snapshot: ${(error as Error).message}`);
     }
 
-    // 4. 清理封面文件
+    // 4. 清理封面文件，并取得剩余封面的 id 集合
     const desktopAPI = await getDesktopAPIAsync();
+    let existingCoverIds: string[] = [];
     if (desktopAPI?.cleanupOrphanCovers) {
       try {
         const coverResult = await desktopAPI.cleanupOrphanCovers(Array.from(allTrackIds));
         if (coverResult.success) {
           coversDeleted = coverResult.removed || 0;
+          existingCoverIds = coverResult.existingCoverIds ?? [];
         } else {
           errors.push(coverResult.error || 'Cover cleanup failed');
         }
@@ -576,7 +580,34 @@ const App: React.FC = () => {
       }
     }
 
-    // 5. 清除内存缓存
+    // 5. 失效指向已删除封面文件的 cloud coverUrl，让下次列表加载重新下载。
+    //    clear cache（或历史损坏）会让 IndexedDB 里的 coverUrl 指向不存在的 cover:// 文件，
+    //    而列表加载只判断「有无 coverUrl」、不校验文件是否存在，于是永久 404。
+    //    这里把失效的 coverUrl 从 IndexedDB 与当前 track 状态中清空，触发自愈重下。
+    if (existingCoverIds.length > 0 && slots.cloud.tracks.length > 0) {
+      const existingSet = new Set(existingCoverIds);
+      const staleIds = new Set<string>();
+      for (const track of slots.cloud.tracks) {
+        const coverId = coverIdFromUrl(track.coverUrl);
+        if (!coverId || existingSet.has(coverId) || !track.webdavPath) continue;
+        const webdavPath = track.webdavPath;
+        staleIds.add(track.id);
+        try {
+          const cached = await indexedDBStorage.getWebdavMetadata(webdavPath);
+          if (cached) {
+            await indexedDBStorage.setWebdavMetadata(webdavPath, { ...cached, coverUrl: '' });
+          }
+        } catch (e) {
+          logger.warn('[App] Failed to clear stale cloud coverUrl in IndexedDB:', e);
+        }
+      }
+      if (staleIds.size > 0) {
+        updateCloudTracks(prev => prev.map(t => (staleIds.has(t.id) ? { ...t, coverUrl: undefined } : t)));
+        logger.info(`[App] Cleared ${staleIds.size} stale cloud coverUrl(s); covers will re-download on next cloud load`);
+      }
+    }
+
+    // 6. 清除内存缓存
     metadataCacheService.clear();
 
     logger.info(`[App] Cache cleanup complete: ${metadataDeleted} metadata entries, ${coversDeleted} covers deleted`);
@@ -585,7 +616,7 @@ const App: React.FC = () => {
     }
 
     return { metadataDeleted, coversDeleted, errors };
-  }, [slots]);
+  }, [slots, updateCloudTracks]);
 
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';

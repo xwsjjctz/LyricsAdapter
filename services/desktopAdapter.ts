@@ -78,7 +78,7 @@ export interface DesktopAPI {
   webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
   webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
-  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; error?: string }>;
+  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }>;
   // Auto-updater APIs
   checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall?: () => Promise<{ ok: boolean }>;
@@ -379,12 +379,12 @@ class ElectronAdapter implements DesktopAPI {
     return { success: false, error: 'Not available' };
   }
 
-  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; error?: string }> {
+  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }> {
     if (typeof this.api.cleanupOrphanCovers === 'function') {
       return this.api.cleanupOrphanCovers(activeTrackIds);
     }
     logger.warn('[DesktopAPI] cleanupOrphanCovers not available');
-    return { success: false, error: 'Not available', removed: 0, errors: 0 };
+    return { success: false, error: 'Not available', removed: 0, errors: 0, existingCoverIds: [] };
   }
 
   async checkForUpdates(): Promise<{ ok: boolean; reason?: string }> {
