@@ -647,7 +647,7 @@ const App: React.FC = () => {
             type="file"
             ref={fileInputRef}
             multiple
-            accept=".flac,.mp3,.m4a,.wav"
+            accept=".flac,.mp3"
             className="hidden"
             onChange={handleFileInputChange}
           />

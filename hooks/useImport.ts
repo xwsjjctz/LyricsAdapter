@@ -279,8 +279,19 @@ export function useImport({
       const tracksMap = createTracksMap();
       logger.debug(`[Import] Created tracksMap with ${tracksMap.size} entries`);
 
+      // Filter to supported audio formats only (MP3, FLAC)
+      const audioExtensions = ['.mp3', '.flac'];
+      const pathsFiltered = filePaths.filter(filePath => {
+        const ext = '.' + filePath.split('.').pop()?.toLowerCase();
+        if (!audioExtensions.includes(ext)) {
+          logger.debug(`[Import] ⏭️ Skipping unsupported format: ${filePath}`);
+          return false;
+        }
+        return true;
+      });
+
       // Filter out already imported files
-      const newFilePaths = filePaths.filter(filePath => {
+      const newFilePaths = pathsFiltered.filter(filePath => {
         const fileName = filePath.split(/[/\\]/).pop() || '';
         if (tracksMap.has(fileName)) {
           logger.debug(`[Import] ⏭️ Skipping already imported file: ${fileName}`);
@@ -437,8 +448,19 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
+    // Filter to supported audio formats only (MP3, FLAC)
+    const audioExtensions = ['.mp3', '.flac'];
+    const pathsFiltered = filePaths.filter(({ name }) => {
+      const ext = '.' + name.split('.').pop()?.toLowerCase();
+      if (!audioExtensions.includes(ext)) {
+        logger.debug(`[Import] ⏭️ Skipping unsupported format: ${name}`);
+        return false;
+      }
+      return true;
+    });
+
     // Filter out already imported files
-    const newFilePaths = filePaths.filter(({ name }) => {
+    const newFilePaths = pathsFiltered.filter(({ name }) => {
       if (tracksMap.has(name)) {
         logger.debug(`[Import] ⏭️ Skipping already imported file: ${name}`);
         return false;
@@ -633,8 +655,19 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
+    // Filter to supported audio formats only (MP3, FLAC)
+    const audioExtensions = ['.mp3', '.flac'];
+    const filesFiltered = files.filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!audioExtensions.includes(ext)) {
+        logger.debug(`[Import] ⏭️ Skipping unsupported format: ${file.name}`);
+        return false;
+      }
+      return true;
+    });
+
     // Filter out already imported files
-    const newFiles = files.filter(file => {
+    const newFiles = filesFiltered.filter(file => {
       if (tracksMap.has(file.name)) {
         logger.debug(`[Import] ⏭️ Skipping already imported file: ${file.name}`);
         return false;
