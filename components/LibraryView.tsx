@@ -898,7 +898,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
         <div
-          className={`${glassUI ? 'absolute inset-0 overflow-hidden relative' : 'flex-1 relative min-h-0 overflow-hidden'} ${isDragging ? 'bg-primary/5 rounded-2xl' : ''}`}
+          className={glassUI ? 'absolute inset-0 overflow-hidden relative' : 'flex-1 relative min-h-0 overflow-hidden'}
           style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
         >
           {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
@@ -1055,7 +1055,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           </div>
 
            {/* 右侧歌曲列表 */}
-           <div className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDragging ? 'bg-primary/5 rounded-2xl' : ''}`}>
+           <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
              {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
              {isDragging && (
                <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
