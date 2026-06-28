@@ -5,7 +5,7 @@ import { webdavClient } from './services/webdavClient';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
-import { buildLibraryIndexData } from './services/librarySerializer';
+import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
 import { useBlobUrls } from './hooks/useBlobUrls';
@@ -165,6 +165,7 @@ const App: React.FC = () => {
     createTrackedBlobUrl,
     persistedTimeRef,
     getPersistenceData,
+    cloudTracks: slots.cloud.tracks,
     mergeCloudTracks,
   });
   const { handleReloadFiles } = useLibraryActions({
@@ -410,10 +411,10 @@ const App: React.FC = () => {
     logger.debug('[App] Track added to library:', track.title);
     await metadataCacheService.save();
     const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexData(newTracks, persistData);
+    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData);
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
-  }, [slots.local.tracks, updateLocalTracks, getPersistenceData]);
+  }, [slots.local.tracks, slots.cloud.tracks, updateLocalTracks, getPersistenceData]);
   const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
     logger.debug(`[App] Reordering track from ${fromIndex} to ${toIndex}`);
     const newTracks = [...activeTracks];
@@ -432,13 +433,14 @@ const App: React.FC = () => {
     setActiveTracks(newTracks);
     setActiveTrackIndex(newCurrentTrackIndex);
     const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexData(
+    const libraryData = buildLibraryIndexDataForSlots(
       activeSlotId === 'local' ? newTracks : slots.local.tracks,
+      activeSlotId === 'cloud' ? newTracks : slots.cloud.tracks,
       persistData
     );
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
-  }, [activeTracks, activeTrackIndex, setActiveTracks, setActiveTrackIndex, activeSlotId, slots.local.tracks, getPersistenceData]);
+  }, [activeTracks, activeTrackIndex, setActiveTracks, setActiveTrackIndex, activeSlotId, slots.local.tracks, slots.cloud.tracks, getPersistenceData]);
   // Global search handlers
   const handleSearchNavigate = useCallback((track: Track) => {
     const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';

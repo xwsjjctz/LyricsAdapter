@@ -16,6 +16,7 @@ import { ThemeConfig } from '../types/theme';
 import { Track } from '../types';
 import { webdavClient } from '../services/webdavClient';
 import { generateMetaJson } from '../services/webdavMetaService';
+import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
 
 interface BrowseViewProps {
   onDownloadComplete?: (track: Track) => void;
@@ -39,14 +40,6 @@ const qualityOptions: QualityOption[] = [
   { value: '320', label: '320kbps' },
   { value: 'flac', label: 'FLAC' },
 ];
-
-function sanitizeDownloadFileName(input: string): string {
-  const sanitized = input
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return sanitized || 'Unknown Track';
-}
 
 function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] } {
   const lines = lrc.split(/\r?\n/);
@@ -422,16 +415,12 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       logger.debug('[BrowseView] Download path:', downloadPath);
 
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const safeSinger = sanitizeDownloadFileName(singerForFileName);
-      const safeSongName = sanitizeDownloadFileName(song.songname);
-      const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
+      const fileName = buildSafeMusicFileName(singerForFileName, song.songname, ext);
 
       let savedFilePath: string | undefined;
       let lyrics: string | undefined;
 
-      // Use Electron to download - ensure downloadPath ends with path separator
-      const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
-      const fullPath = downloadPath + separator + fileName;
+      const fullPath = joinDownloadPath(downloadPath, fileName);
       logger.debug('[BrowseView] Downloading directly to:', fullPath);
 
       const rawCookie = provider.getRawCookie();
@@ -587,9 +576,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
 
       const { url } = await provider.getMusicUrl(song.songmid, quality);
       const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const safeSinger = sanitizeDownloadFileName(singerForFileName);
-      const safeSongName = sanitizeDownloadFileName(song.songname);
-      const fileName = `${safeSinger} - ${safeSongName}.${ext}`;
+      const fileName = buildSafeMusicFileName(singerForFileName, song.songname, ext);
 
       const rawCookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
@@ -602,8 +589,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
         setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 0, status: 'error' } }));
         return;
       }
-      const separator = downloadPath.endsWith('/') || downloadPath.endsWith('\\') ? '' : '/';
-      const fullPath = downloadPath + separator + fileName;
+      const fullPath = joinDownloadPath(downloadPath, fileName);
 
       const downloadResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
       if (!downloadResult || !downloadResult.success) {

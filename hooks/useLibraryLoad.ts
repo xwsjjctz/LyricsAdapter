@@ -3,7 +3,7 @@ import { Track, LibrarySlot } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexData } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
@@ -176,7 +176,7 @@ export function useLibraryLoad({
     if (isFirstLoadRef.current) return;
 
     const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexData(slots.local.tracks, persistData, slots.cloud.tracks);
+    const libraryData = buildLibraryIndexDataForSlots(slots.local.tracks, slots.cloud.tracks, persistData);
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
@@ -202,7 +202,7 @@ export function useLibraryLoad({
   useEffect(() => {
     const flushCurrentLibrary = async () => {
       const persistData = getPersistenceData();
-      const libraryData = buildLibraryIndexData(slots.local.tracks, persistData, slots.cloud.tracks);
+      const libraryData = buildLibraryIndexDataForSlots(slots.local.tracks, slots.cloud.tracks, persistData);
 
       logger.debug('[LibraryLoad] Flushing library before close');
       return libraryStorage.flushPendingSave(libraryData);

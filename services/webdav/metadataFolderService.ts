@@ -118,6 +118,43 @@ export function assignChunkId(
   return padChunkId(maxNum + 1);                  // 开新 chunk
 }
 
+export function manifestEntriesEqual(a?: ManifestEntry, b?: ManifestEntry): boolean {
+  if (!a || !b) return a === b;
+  return (
+    a.title === b.title &&
+    a.artist === b.artist &&
+    a.album === b.album &&
+    a.duration === b.duration &&
+    a.fileSize === b.fileSize &&
+    a.fileName === b.fileName &&
+    a.lastModified === b.lastModified &&
+    a.chunkId === b.chunkId &&
+    a.hasCover === b.hasCover &&
+    a.hasLyrics === b.hasLyrics &&
+    a.hasSyncedLyrics === b.hasSyncedLyrics
+  );
+}
+
+export function filterManifestEntries(
+  manifest: Manifest | null,
+  audioPathSet?: Set<string>,
+): { entries: Record<string, ManifestEntry>; changed: boolean } {
+  const entries: Record<string, ManifestEntry> = {};
+  let changed = false;
+
+  if (!manifest) return { entries, changed };
+
+  for (const [path, entry] of Object.entries(manifest.entries)) {
+    if (audioPathSet && !audioPathSet.has(path)) {
+      changed = true;
+      continue;
+    }
+    entries[path] = entry;
+  }
+
+  return { entries, changed };
+}
+
 class MetadataFolderService {
   private manifestCache: Manifest | null = null;
   private chunkCache: Map<string, Chunk> = new Map();
@@ -267,9 +304,11 @@ class MetadataFolderService {
 
   /** 覆盖写入 manifest。调用方必须已成功写入所有引用的 chunk。 */
   async saveManifest(manifest: Manifest): Promise<boolean> {
-    this.manifestCache = manifest;
     const json = JSON.stringify(manifest);
     const result = await webdavClient.uploadTextFile(this.manifestPath, json);
+    if (result.success) {
+      this.manifestCache = manifest;
+    }
     return result.success;
   }
 
@@ -293,9 +332,11 @@ class MetadataFolderService {
 
   /** 覆盖写入 chunk。更新缓存。 */
   async saveChunk(chunkId: string, chunk: Chunk): Promise<boolean> {
-    this.chunkCache.set(chunkId, chunk);
     const json = JSON.stringify(chunk);
     const result = await webdavClient.uploadTextFile(this.chunkPath(chunkId), json);
+    if (result.success) {
+      this.chunkCache.set(chunkId, chunk);
+    }
     return result.success;
   }
 
