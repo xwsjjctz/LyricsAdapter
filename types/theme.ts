@@ -71,6 +71,7 @@ export interface ThemeControlStyles {
   itemForegroundActive: string;
   itemShadowActive: string;
   currentTrackForeground: string;
+  currentTrackBandTint: string;
 
   // Icon buttons and icon surfaces
   iconBackground: string;
@@ -107,6 +108,7 @@ export interface ThemeAppearanceStyles {
   surfaceRadius: string;
   controlRadius: string;
   cardRadius: string;
+  smallRadius: string;
   buttonRadius: string;
   mediaRadius: string;
   mediaRadiusSm: string;

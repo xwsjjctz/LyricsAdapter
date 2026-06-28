@@ -249,7 +249,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           onClick={handleSave}
           disabled={isSaving}
           className="px-5 py-2.5 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-xl"
-          style={{ backgroundColor: colors.primary, color: '#fff' }}
+          style={{ backgroundColor: colors.primary, color: '#fff', border: `var(--theme-control-border-width) solid ${colors.borderLight}` }}
           onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
           onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
         >
@@ -297,7 +297,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   <div className="relative" ref={dropdownRef}>
                     <button
                       onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm transition-all"
+                      className="flex items-center gap-1.5 px-2.5 py-1 r-sm text-sm transition-all"
                       style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}`, color: colors.textSecondary }}
                     >
                       <span>{currentLanguageOption?.nativeLabel}</span>

@@ -157,6 +157,7 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-control-item-fg-active', controls.itemForegroundActive);
     root.style.setProperty('--theme-control-item-shadow-active', controls.itemShadowActive);
     root.style.setProperty('--theme-control-current-track-fg', controls.currentTrackForeground);
+    root.style.setProperty('--theme-control-current-track-band-tint', controls.currentTrackBandTint);
 
     root.style.setProperty('--theme-control-icon-bg', controls.iconBackground);
     root.style.setProperty('--theme-control-icon-bg-active', controls.iconBackgroundActive);
@@ -187,6 +188,7 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
     root.style.setProperty('--theme-control-radius', appearance.controlRadius);
     root.style.setProperty('--theme-card-radius', appearance.cardRadius);
+    root.style.setProperty('--theme-small-radius', appearance.smallRadius);
     root.style.setProperty('--theme-button-radius', appearance.buttonRadius);
     root.style.setProperty('--theme-media-radius', appearance.mediaRadius);
     root.style.setProperty('--theme-media-radius-sm', appearance.mediaRadiusSm);

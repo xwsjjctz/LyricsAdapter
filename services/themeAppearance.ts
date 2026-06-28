@@ -14,6 +14,7 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     surfaceRadius: borderRadius.xl,
     controlRadius: borderRadius.lg,
     cardRadius: borderRadius.md,
+    smallRadius: borderRadius.sm,
     buttonRadius: borderRadius.full,
     mediaRadius: borderRadius.lg,
     mediaRadiusSm: borderRadius.md,

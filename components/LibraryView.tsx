@@ -929,6 +929,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   style={{
                     transform: `translateY(${highlightStyle.top}px)`,
                     height: `${highlightStyle.height}px`,
+                    backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
                     boxShadow: 'var(--theme-elevated-shadow)',
                     borderRadius: 'var(--theme-control-radius)',
                   }}
@@ -1115,6 +1117,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                        style={{
                          transform: `translateY(${highlightStyle.top}px)`,
                          height: `${highlightStyle.height}px`,
+                         backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                         border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
                          boxShadow: 'var(--theme-elevated-shadow)',
                          borderRadius: 'var(--theme-control-radius)',
                        }}
