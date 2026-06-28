@@ -267,9 +267,11 @@ class MetadataFolderService {
 
   /** 覆盖写入 manifest。调用方必须已成功写入所有引用的 chunk。 */
   async saveManifest(manifest: Manifest): Promise<boolean> {
-    this.manifestCache = manifest;
     const json = JSON.stringify(manifest);
     const result = await webdavClient.uploadTextFile(this.manifestPath, json);
+    if (result.success) {
+      this.manifestCache = manifest;
+    }
     return result.success;
   }
 
@@ -293,9 +295,11 @@ class MetadataFolderService {
 
   /** 覆盖写入 chunk。更新缓存。 */
   async saveChunk(chunkId: string, chunk: Chunk): Promise<boolean> {
-    this.chunkCache.set(chunkId, chunk);
     const json = JSON.stringify(chunk);
     const result = await webdavClient.uploadTextFile(this.chunkPath(chunkId), json);
+    if (result.success) {
+      this.chunkCache.set(chunkId, chunk);
+    }
     return result.success;
   }
 
