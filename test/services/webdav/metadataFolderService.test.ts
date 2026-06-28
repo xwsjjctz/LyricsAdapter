@@ -3,8 +3,10 @@ import {
   assignChunkId,
   DEFAULT_CHUNK_SIZE,
   Chunk,
+  filterManifestEntries,
   Manifest,
   ManifestEntry,
+  manifestEntriesEqual,
   metadataFolderService,
 } from '../../../services/webdav/metadataFolderService';
 
@@ -189,6 +191,39 @@ describe('metadataFolderService writes', () => {
       '/Metadata/_chunk_0001.json',
       JSON.stringify(chunk)
     );
+  });
+});
+
+describe('manifest entry helpers', () => {
+  it('detects pruned entries when filtering manifest paths', () => {
+    const manifest = makeManifest({
+      '/music/keep.flac': makeEntry({ title: 'Keep', chunkId: '0001' }),
+      '/music/delete.flac': makeEntry({ title: 'Delete', chunkId: '0001' }),
+    });
+
+    const result = filterManifestEntries(manifest, new Set(['/music/keep.flac']));
+
+    expect(result.changed).toBe(true);
+    expect(Object.keys(result.entries)).toEqual(['/music/keep.flac']);
+  });
+
+  it('does not report changes when all manifest paths are still present', () => {
+    const manifest = makeManifest({
+      '/music/keep.flac': makeEntry({ title: 'Keep', chunkId: '0001' }),
+    });
+
+    const result = filterManifestEntries(manifest, new Set(['/music/keep.flac']));
+
+    expect(result.changed).toBe(false);
+    expect(result.entries).toEqual(manifest.entries);
+  });
+
+  it('compares manifest entries field by field', () => {
+    const entry = makeEntry({ title: 'Before', chunkId: '0001' });
+
+    expect(manifestEntriesEqual(entry, { ...entry })).toBe(true);
+    expect(manifestEntriesEqual(entry, { ...entry, title: 'After' })).toBe(false);
+    expect(manifestEntriesEqual(undefined, entry)).toBe(false);
   });
 });
 
