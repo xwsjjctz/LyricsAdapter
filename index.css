@@ -8,6 +8,30 @@
   --font-family-sans: var(--theme-font-main, 'Inter', sans-serif);
 }
 
+:root {
+  --theme-surface-radius: 16px;
+  --theme-control-radius: 12px;
+  --theme-button-radius: 9999px;
+  --theme-media-radius: 12px;
+  --theme-progress-radius: 9999px;
+  --theme-progress-height: 4px;
+  --theme-surface-border-width: 1px;
+  --theme-control-border-width: 1px;
+  --theme-panel-border-width: 1px;
+  --theme-surface-shadow: 0 18px 48px -28px rgba(0, 0, 0, 0.3);
+  --theme-surface-shadow-hover: 0 22px 54px -30px rgba(0, 0, 0, 0.3);
+  --theme-text-body-weight: 500;
+  --theme-text-heading-weight: 800;
+  --theme-text-button-weight: 700;
+  --theme-heading-letter-spacing: 0;
+  --theme-button-letter-spacing: 0;
+  --theme-control-text-transform: none;
+}
+
+body {
+  font-weight: var(--theme-text-body-weight);
+}
+
 /* Fade in animation for floating locate button */
 @keyframes fadeIn {
   from {

@@ -3,6 +3,7 @@ import { themeManager } from '@/services/themeManager';
 import { THEME_IDS } from '@/types/theme';
 import { getDefaultTheme } from '@/services/themes/predefinedThemes';
 import { resolveThemeControls } from '@/services/themeControls';
+import { resolveThemeAppearance } from '@/services/themeAppearance';
 
 beforeEach(() => {
   localStorage.clear();
@@ -107,6 +108,27 @@ describe('applyTheme', () => {
     expect(root.style.getPropertyValue('--theme-primary')).toBe(theme.colors.primary);
     expect(root.style.getPropertyValue('--theme-control-action-bg')).toBe('#123456');
     expect(root.style.getPropertyValue('--theme-control-slider-fill')).toBe('#abcdef');
+  });
+
+  it('should expose theme-driven appearance custom properties', () => {
+    const theme = {
+      ...getDefaultTheme(),
+      appearance: {
+        surfaceRadius: '0px',
+        progressHeight: '8px',
+        panelBorderWidth: '4px',
+        buttonLetterSpacing: '0.12em',
+      },
+    };
+    const appearance = resolveThemeAppearance(theme);
+
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-surface-radius')).toBe(appearance.surfaceRadius);
+    expect(root.style.getPropertyValue('--theme-progress-height')).toBe('8px');
+    expect(root.style.getPropertyValue('--theme-panel-border-width')).toBe('4px');
+    expect(root.style.getPropertyValue('--theme-button-letter-spacing')).toBe('0.12em');
   });
 
   it('should set font family on root', () => {

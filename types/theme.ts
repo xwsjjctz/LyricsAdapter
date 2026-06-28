@@ -102,6 +102,26 @@ export interface ThemeControlStyles {
   inputBorderActive: string;
 }
 
+export interface ThemeAppearanceStyles {
+  surfaceRadius: string;
+  controlRadius: string;
+  buttonRadius: string;
+  mediaRadius: string;
+  progressRadius: string;
+  progressHeight: string;
+  surfaceBorderWidth: string;
+  controlBorderWidth: string;
+  panelBorderWidth: string;
+  surfaceShadow: string;
+  surfaceShadowHover: string;
+  textBodyWeight: string;
+  textHeadingWeight: string;
+  textButtonWeight: string;
+  headingLetterSpacing: string;
+  buttonLetterSpacing: string;
+  controlTextTransform: string;
+}
+
 export interface ThemeConfig {
   id: ThemeId;
   name: string;
@@ -111,6 +131,7 @@ export interface ThemeConfig {
   fonts: ThemeFonts;
   borderRadius: ThemeBorderRadius;
   controls?: Partial<ThemeControlStyles>;
+  appearance?: Partial<ThemeAppearanceStyles>;
   tags: string[];
   isDark: boolean;
 }

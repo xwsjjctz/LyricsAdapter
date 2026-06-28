@@ -90,10 +90,12 @@ const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* LIBRARY 容器 */}
       <div
-        className="rounded-2xl p-2 shadow-xl"
+        className="p-2"
         style={{
           backgroundColor: 'var(--theme-control-container-bg)',
-          border: '1px solid var(--theme-control-container-border)',
+          border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+          borderRadius: 'var(--theme-surface-radius)',
+          boxShadow: 'var(--theme-surface-shadow)',
         }}
       >
         <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
@@ -104,21 +106,25 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.key}
               onClick={item.onClick}
-              className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-colors w-full text-left ${
+              className={`flex min-h-12 items-center gap-3 px-3 py-3 transition-colors w-full text-left ${
                 item.active
                   ? ''
                   : 'bg-transparent text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-item-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
               }`}
               style={{
                 ...(item.active ? { backgroundColor: 'var(--theme-control-item-bg-active)', color: 'var(--theme-control-item-fg-active)' } : {}),
+                borderRadius: 'var(--theme-control-radius)',
                 boxShadow: item.active ? 'var(--theme-control-item-shadow-active)' : 'none',
+                textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'],
+                letterSpacing: 'var(--theme-button-letter-spacing)',
               }}
             >
               <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                className="flex h-9 w-9 shrink-0 items-center justify-center"
                 style={{
                   backgroundColor: item.active ? 'var(--theme-control-icon-bg-active)' : 'var(--theme-control-icon-bg)',
                   color: item.active ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)',
+                  borderRadius: 'var(--theme-button-radius)',
                 }}
               >
                 <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
@@ -140,10 +146,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         onMouseEnter={() => !importDisabled && setIsImportHovered(true)}
         onMouseLeave={() => setIsImportHovered(false)}
         title={importDisabled ? importDisabledReason : undefined}
-        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
+        className="flex items-center gap-3 px-4 py-3 transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
           backgroundColor: !importDisabled && isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
           borderColor: 'var(--theme-control-container-border)',
+          borderRadius: 'var(--theme-control-radius)',
+          borderWidth: 'var(--theme-control-border-width)',
           color: isImportHovered && !importDisabled ? 'var(--theme-control-action-fg-active)' : undefined,
           opacity: importDisabled ? 0.4 : 1,
           cursor: importDisabled ? 'not-allowed' : 'pointer',
@@ -157,13 +165,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
           onClick={() => onNavigate(ViewMode.SETTINGS)}
-          className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
+          className={`flex items-center justify-center px-4 py-3.5 transition-colors ${
             isSettingsView
               ? ''
               : 'bg-[var(--theme-control-action-bg)] text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-action-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
           }`}
           style={{
             ...(isSettingsView ? { backgroundColor: 'var(--theme-control-action-bg-active)', color: 'var(--theme-control-action-fg-active)' } : {}),
+            borderRadius: 'var(--theme-control-radius)',
             boxShadow: isSettingsView ? 'var(--theme-control-action-shadow-active)' : 'var(--theme-control-action-shadow)',
           }}
         >
@@ -172,13 +181,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           onClick={() => onNavigate(ViewMode.THEME)}
-          className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
+          className={`flex items-center justify-center px-4 py-3.5 transition-colors ${
             isThemeView
               ? ''
               : 'bg-[var(--theme-control-action-bg)] text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-action-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
           }`}
           style={{
             ...(isThemeView ? { backgroundColor: 'var(--theme-control-action-bg-active)', color: 'var(--theme-control-action-fg-active)' } : {}),
+            borderRadius: 'var(--theme-control-radius)',
             boxShadow: isThemeView ? 'var(--theme-control-action-shadow-active)' : 'var(--theme-control-action-shadow)',
           }}
         >
@@ -191,10 +201,12 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClick={onReloadFiles}
           onMouseEnter={() => setIsReloadHovered(true)}
           onMouseLeave={() => setIsReloadHovered(false)}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors border border-dashed group"
+          className="flex items-center gap-3 px-4 py-3 transition-colors border border-dashed group"
           style={{
             backgroundColor: isReloadHovered ? 'var(--theme-warning-10)' : 'transparent',
             borderColor: 'var(--theme-warning-20)',
+            borderRadius: 'var(--theme-control-radius)',
+            borderWidth: 'var(--theme-control-border-width)',
             color: 'var(--theme-warning)',
           }}
           title="Reload unavailable tracks"
@@ -221,9 +233,11 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
         }}
       >
         <aside
-          className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 rounded-lg overflow-hidden"
+          className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 overflow-hidden"
           style={{
             backgroundColor: 'var(--theme-background-sidebar)',
+            borderRadius: 'var(--theme-surface-radius)',
+            border: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
             filter: `drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45))`,
           }}
         >
@@ -256,7 +270,7 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
       className="w-56 flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
         backgroundColor: 'var(--theme-background-sidebar)',
-        borderRight: '1px solid var(--theme-border-light)',
+        borderRight: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
       }}
     >
       <div className="px-6 flex flex-col gap-6 pt-3 flex-1 overflow-hidden">

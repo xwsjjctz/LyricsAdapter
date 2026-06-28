@@ -35,11 +35,11 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
   const colors = currentTheme.colors;
 
   return (
-    <aside className={`w-80 glass border-l flex flex-col h-full z-20 transition-all duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full fixed right-0'}`} style={{ borderColor: colors.borderLight }}>
+    <aside className={`w-80 glass border-l flex flex-col h-full z-20 transition-all duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full fixed right-0'}`} style={{ borderColor: colors.borderLight, borderLeftWidth: 'var(--theme-panel-border-width)' }}>
       <div className="p-6 h-full flex flex-col">
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2" style={{ color: colors.textPrimary }}>
+        <h2 className="text-xl mb-6 flex items-center gap-2" style={{ color: colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
           {i18n.t('queue.upNext')}
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}>{tracks.length}</span>
+          <span className="text-xs px-2 py-0.5" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted, borderRadius: 'var(--theme-button-radius)', fontWeight: 'var(--theme-text-button-weight)' }}>{tracks.length}</span>
         </h2>
         
         <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1">
@@ -48,20 +48,22 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
               <div 
                 key={track.id}
                 onClick={() => onTrackSelect(index)}
-                className="flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group border"
+                className="flex items-center gap-3 p-3 transition-all cursor-pointer group border"
                 style={{
                   backgroundColor: index === currentTrackIndex ? `${colors.primary}20` : colors.backgroundCard,
                   borderColor: index === currentTrackIndex ? `${colors.primary}30` : 'transparent',
+                  borderWidth: 'var(--theme-control-border-width)',
+                  borderRadius: 'var(--theme-control-radius)',
                 }}
                 onMouseEnter={e => { if (index !== currentTrackIndex) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
                 onMouseLeave={e => { if (index !== currentTrackIndex) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
               >
                 <div 
-                  className="size-12 rounded-lg bg-cover bg-center shrink-0 shadow-md group-hover:scale-105 transition-transform" 
-                  style={{backgroundImage: `url('${toCoverThumb(track.coverUrl, 128)}')`}}
+                  className="size-12 bg-cover bg-center shrink-0 shadow-md group-hover:scale-105 transition-transform"
+                  style={{backgroundImage: `url('${toCoverThumb(track.coverUrl, 128)}')`, borderRadius: 'var(--theme-media-radius)' }}
                 ></div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate transition-colors" style={{ color: index === currentTrackIndex ? colors.primary : colors.textPrimary }}>
+                  <p className="text-sm truncate transition-colors" style={{ color: index === currentTrackIndex ? colors.primary : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>
                     {track.title}
                   </p>
                   <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
@@ -86,7 +88,7 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
         </div>
 
         <div className="mt-6 pt-6 border-t" style={{ borderColor: colors.borderLight }}>
-          <button className="w-full py-3 rounded-xl border transition-colors text-sm font-semibold tracking-wide" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+          <button className="w-full py-3 border transition-colors text-sm" style={{ borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', color: colors.textSecondary, fontWeight: 'var(--theme-text-button-weight)', letterSpacing: 'var(--theme-button-letter-spacing)', textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'] }}>
             {i18n.t('queue.viewFullQueue')}
           </button>
         </div>

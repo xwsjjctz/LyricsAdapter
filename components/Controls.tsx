@@ -58,18 +58,21 @@ const Controls: React.FC<ControlsProps> = memo(({
   return (
     <div
       className={floating
-        ? `mx-2 mb-2 rounded-lg h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
+        ? `mx-2 mb-2 h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
         : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${glassUI ? 'frosted-bar absolute bottom-0 left-0 right-0' : ''} ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       }
       style={floating ? {
         backgroundColor: 'var(--theme-control-panel-bg-floating)',
-        borderTop: '1px solid var(--theme-control-panel-border)',
-        borderRight: '1px solid var(--theme-control-panel-border)',
-        borderBottom: '1px solid var(--theme-control-panel-border)',
+        borderTop: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
+        borderRight: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
+        borderBottom: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
+        borderRadius: 'var(--theme-surface-radius)',
         boxShadow: 'var(--theme-control-panel-shadow)',
       } : {
         borderColor: 'var(--theme-control-panel-border)',
+        borderTopWidth: 'var(--theme-panel-border-width)',
         backgroundColor: glassUI ? 'var(--theme-control-panel-bg-glass-strong)' : 'var(--theme-control-panel-bg-glass)',
+        boxShadow: 'var(--theme-control-panel-shadow)',
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
@@ -79,7 +82,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             onClick={onToggleFocus}
             className="flex items-center gap-4 cursor-pointer group"
           >
-            <div className="relative size-14 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-transform">
+            <div className="relative size-14 overflow-hidden shadow-lg group-hover:scale-105 transition-transform" style={{ borderRadius: 'var(--theme-media-radius)' }}>
               <img src={toCoverThumb(track.coverUrl, 128)} className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>open_in_full</span>
@@ -93,7 +96,7 @@ const Controls: React.FC<ControlsProps> = memo(({
                     animation: 'scroll-left 10s linear infinite'
                   }}
                 >
-                  <p className="text-sm font-bold group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)' }}>
+                  <p className="text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: 'var(--theme-text-heading-weight)' }}>
                     {track.title + ' '}
                   </p>
                   <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
@@ -102,7 +105,7 @@ const Controls: React.FC<ControlsProps> = memo(({
                 </div>
               ) : (
                 <>
-                  <p className="text-sm font-bold truncate group-hover:text-primary transition-colors" title={track.title} style={{ color: 'var(--theme-text-primary)' }}>
+                  <p className="text-sm truncate group-hover:text-primary transition-colors" title={track.title} style={{ color: 'var(--theme-text-primary)', fontWeight: 'var(--theme-text-heading-weight)' }}>
                     {track.title}
                   </p>
                   <p className="text-xs truncate" title={track.artist} style={{ color: 'var(--theme-text-muted)' }}>
@@ -121,22 +124,23 @@ const Controls: React.FC<ControlsProps> = memo(({
       <div className="flex items-center gap-6 flex-1">
         {/* Play Controls */}
         <div className="flex items-center gap-4">
-          <button onClick={onSkipPrev} disabled={!track} className="transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}>
+          <button onClick={onSkipPrev} disabled={!track} className="size-9 flex items-center justify-center transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
             <span className="material-symbols-outlined text-2xl fill-icon">skip_previous</span>
           </button>
           <button
             onClick={onTogglePlay}
             disabled={!track}
-            className="size-10 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-20 shadow-lg"
+            className="size-10 flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-20 shadow-lg"
             style={{
               backgroundColor: 'var(--theme-control-primary-button-bg)',
               color: 'var(--theme-control-primary-button-fg)',
+              borderRadius: 'var(--theme-button-radius)',
               boxShadow: 'var(--theme-control-primary-button-shadow)',
             }}
           >
             <span className="material-symbols-outlined text-2xl fill-icon">{isPlaying ? 'pause' : 'play_arrow'}</span>
           </button>
-          <button onClick={onSkipNext} disabled={!track} className="transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}>
+          <button onClick={onSkipNext} disabled={!track} className="size-9 flex items-center justify-center transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
             <span className="material-symbols-outlined text-2xl fill-icon">skip_next</span>
           </button>
         </div>
@@ -150,7 +154,7 @@ const Controls: React.FC<ControlsProps> = memo(({
               onChange={(e) => onSeek(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)' }}>
+            <div className="w-full overflow-hidden" style={{ height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)', backgroundColor: 'var(--theme-control-slider-track)' }}>
               <div
                 className="h-full"
                 style={{ width: `${progress}%`, backgroundColor: 'var(--theme-control-slider-fill)' }}
@@ -167,10 +171,10 @@ const Controls: React.FC<ControlsProps> = memo(({
       <div className="flex items-center justify-center gap-4 w-36">
         <button
           onClick={onTogglePlaybackMode}
-          className="transition-colors relative"
-          style={{ color: 'var(--theme-control-icon-fg)', top: '3.5px' }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}
+          className="size-8 flex items-center justify-center transition-colors relative"
+          style={{ color: 'var(--theme-control-icon-fg)', top: '3.5px', borderRadius: 'var(--theme-button-radius)' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
         >
           <span className="material-symbols-outlined text-lg">
             {playbackMode === 'shuffle'
@@ -196,7 +200,7 @@ const Controls: React.FC<ControlsProps> = memo(({
               onChange={(e) => onVolumeChange(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)' }}>
+            <div className="w-full overflow-hidden" style={{ height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)', backgroundColor: 'var(--theme-control-slider-track)' }}>
               <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: 'var(--theme-control-slider-fill-secondary)' }}></div>
             </div>
           </div>

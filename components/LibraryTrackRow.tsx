@@ -72,9 +72,10 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       style={{
         ...animationStyle,
         backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
-        border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
+        border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}30` : 'var(--theme-control-border-width) solid transparent',
+        borderRadius: 'var(--theme-control-radius)',
       }}
-      className={`grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
+      className={`grid gap-4 px-4 py-3 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
         isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
       }`}
       onMouseEnter={e => {
@@ -107,10 +108,11 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           trackId={track.id}
           filePath={track.filePath}
           fallbackUrl={track.coverUrl}
-          className="size-10 rounded-lg object-cover"
+          className="size-10 object-cover"
+          style={{ borderRadius: 'var(--theme-media-radius)' }}
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary }}>
+          <p className="text-sm truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>
             {track.title}
             {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{i18n.t('library.needReimport')}</span>}
           </p>
@@ -125,8 +127,8 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
               e.stopPropagation();
               onEditMetadata(track);
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-            style={{ color: colors.textMuted }}
+            className="w-8 h-8 flex items-center justify-center transition-all"
+            style={{ color: colors.textMuted, borderRadius: 'var(--theme-button-radius)' }}
             title={i18n.t('sidebar.metadata')}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
@@ -138,8 +140,8 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
               e.stopPropagation();
               onDelete(track.id);
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-            style={{ color: colors.error }}
+            className="w-8 h-8 flex items-center justify-center transition-all"
+            style={{ color: colors.error, borderRadius: 'var(--theme-button-radius)' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${colors.error}1a`; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
