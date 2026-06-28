@@ -824,11 +824,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   return (
     <div
-      className={`w-full flex flex-col h-full relative transition-all duration-300 ${
-        isDragging
-          ? 'bg-primary/5'
-          : ''
-      }`}
+      className="w-full flex flex-col h-full relative transition-all duration-300"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -902,12 +898,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
         <div
-          className={glassUI ? 'absolute inset-0 overflow-hidden relative' : 'flex-1 relative min-h-0 overflow-hidden'}
+          className={`${glassUI ? 'absolute inset-0 overflow-hidden relative' : 'flex-1 relative min-h-0 overflow-hidden'} ${isDragging ? 'bg-primary/5 rounded-2xl' : ''}`}
           style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
         >
           {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
           {isDragging && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
+            <div className="absolute inset-y-0 left-3 right-3 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
               <div className="text-center">
                 <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
                 <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
@@ -1059,10 +1055,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           </div>
 
            {/* 右侧歌曲列表 */}
-           <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+           <div className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDragging ? 'bg-primary/5 rounded-2xl' : ''}`}>
              {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
              {isDragging && (
-               <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
+               <div className="absolute inset-y-0 left-3 right-3 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
                  <div className="text-center">
                    <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
                    <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
