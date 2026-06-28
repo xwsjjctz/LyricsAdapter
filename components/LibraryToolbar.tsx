@@ -98,7 +98,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               disabled={isRefreshing}
               className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center`}
               style={{
-                borderRadius: 'var(--theme-button-radius)',
+                borderRadius: 'var(--theme-control-radius)',
                 color: colors.textSecondary,
                 backgroundColor: liquidGlass ? undefined : colors.backgroundCard,
                 border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
@@ -130,7 +130,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 onClick={onToggleEditMode}
                 className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center relative`}
                 style={{
-                  borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-button-radius)',
+                  borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
                   color: isEditMode ? (liquidGlass ? colors.success : '#fff') : colors.textSecondary,
                   backgroundColor: isEditMode
                     ? (liquidGlass ? `${colors.success}33` : colors.success)
@@ -211,13 +211,13 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           </div>
         )}
         <div className={liquidGlass ? 'lg-layer' : ''}>
-        <div className={`${liquidGlass ? 'lg-glass' : 'border shadow-xl'} flex items-center`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard }}>
+        <div className={`${liquidGlass ? 'lg-glass' : 'border shadow-xl'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard }}>
           <button
             onClick={() => {
               onFilterTypeChange('default');
               onCategoryChange(null);
             }}
-            className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
+            className="w-10 h-full text-sm transition-all flex items-center justify-center"
             style={{
               borderRadius: 'var(--theme-control-radius) 0 0 var(--theme-control-radius)',
               backgroundColor: filterType === 'default' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
@@ -232,7 +232,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               onFilterTypeChange('album');
               onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0]!.name : null);
             }}
-            className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
+            className="w-10 h-full text-sm transition-all flex items-center justify-center"
             style={{
               backgroundColor: filterType === 'album' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
               color: filterType === 'album' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
@@ -246,7 +246,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               onFilterTypeChange('artist');
               onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0]!.name : null);
             }}
-            className="w-10 h-[38px] text-sm transition-all flex items-center justify-center"
+            className="w-10 h-full text-sm transition-all flex items-center justify-center"
             style={{
               borderRadius: '0 var(--theme-control-radius) var(--theme-control-radius) 0',
               backgroundColor: filterType === 'artist' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',

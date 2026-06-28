@@ -223,6 +223,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     backgroundColor: colors.backgroundCard,
     border: `1px solid ${colors.borderLight}`,
     color: colors.textPrimary,
+    borderRadius: 'var(--theme-control-radius)',
   };
   const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     e.currentTarget.style.backgroundColor = colors.backgroundCardHover;

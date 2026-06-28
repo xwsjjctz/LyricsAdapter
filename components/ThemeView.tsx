@@ -173,26 +173,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
         )}
       </div>
 
-      {/* Current Theme Info - Uses CSS variables to reflect current theme */}
-      <div className="mb-6 p-4 rounded-xl" style={{
-        backgroundColor: 'var(--theme-background-card, rgba(255,255,255,0.05))',
-        border: '1px solid var(--theme-border-light, rgba(255,255,255,0.1))',
-      }}>
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-2xl" style={{ color: 'var(--theme-primary, #2b8cee)' }}>
-            checkroom
-          </span>
-          <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.7))' }}>
-              {i18n.t('theme.current')}
-            </p>
-            <p className="text-lg font-bold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-              {i18n.t(getThemeNameKey(currentThemeId))}
-            </p>
-          </div>
-        </div>
-      </div>
-
       </div>
 
       {/* Theme Grid - Each card shows its own theme colors (not CSS variables) */}
@@ -300,14 +280,15 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     </h3>
                     {isCurrent && (
                       <span
-                        className="px-2 py-1 text-xs"
+                        className="px-2 py-1 text-xs flex items-center gap-1"
                         style={{
-                          backgroundColor: theme.colors.primaryLight,
-                          color: theme.colors.primary,
+                          backgroundColor: theme.colors.primary,
+                          color: theme.isDark ? '#ffffff' : '#1a1a1a',
                           borderRadius: appearance.buttonRadius,
                           fontWeight: appearance.textButtonWeight,
                         }}
                       >
+                        <span className="material-symbols-outlined text-sm">check</span>
                         {i18n.t('theme.applied')}
                       </span>
                     )}

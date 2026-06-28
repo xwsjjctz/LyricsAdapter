@@ -172,7 +172,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         <button
           onClick={onTogglePlaybackMode}
           className="size-8 flex items-center justify-center transition-colors relative"
-          style={{ color: 'var(--theme-control-icon-fg)', top: '3.5px', borderRadius: 'var(--theme-button-radius)' }}
+          style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
         >

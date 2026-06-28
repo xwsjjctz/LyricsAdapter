@@ -923,7 +923,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   left: 24,
                   right: 24,
                   backgroundColor: `${colors.primary}26`,
-                  border: `1px solid ${colors.primary}40`,
+                  border: `1px solid ${colors.primary}40`, borderRadius: 'var(--theme-control-radius)',
                 }}
               />
             )}
@@ -949,7 +949,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         : (insertPosition.index - startIndex + 1)) * rowStride,
                       opacity: insertPosition.index >= startIndex - 1 && insertPosition.index < endIndex ? 1 : 0,
                       backgroundColor: colors.primary,
-                      boxShadow: `0 0 10px ${colors.primary}`,
+                      boxShadow: `0 0 10px ${colors.primary}`, borderRadius: 'var(--theme-progress-radius)',
                     }}
                   />
                 )}
@@ -1101,7 +1101,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                        left: 24,
                        right: 24,
                        backgroundColor: `${colors.primary}26`,
-                       border: `1px solid ${colors.primary}40`,
+                       border: `1px solid ${colors.primary}40`, borderRadius: 'var(--theme-control-radius)',
                      }}
                    />
                  )}

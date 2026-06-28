@@ -90,12 +90,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* LIBRARY 容器 */}
       <div
-        className="p-2"
+        className="p-2 shadow-xl"
         style={{
           backgroundColor: 'var(--theme-control-container-bg)',
           border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
           borderRadius: 'var(--theme-surface-radius)',
-          boxShadow: 'var(--theme-surface-shadow)',
         }}
       >
         <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
@@ -124,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 style={{
                   backgroundColor: item.active ? 'var(--theme-control-icon-bg-active)' : 'var(--theme-control-icon-bg)',
                   color: item.active ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)',
-                  borderRadius: 'var(--theme-button-radius)',
+                  borderRadius: 'var(--theme-control-radius)',
                 }}
               >
                 <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
@@ -152,7 +151,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           borderColor: 'var(--theme-control-container-border)',
           borderRadius: 'var(--theme-control-radius)',
           borderWidth: 'var(--theme-control-border-width)',
-          color: isImportHovered && !importDisabled ? 'var(--theme-control-action-fg-active)' : undefined,
+          color: isImportHovered && !importDisabled ? 'var(--theme-text-primary)' : undefined,
           opacity: importDisabled ? 0.4 : 1,
           cursor: importDisabled ? 'not-allowed' : 'pointer',
         }}
