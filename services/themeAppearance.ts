@@ -13,6 +13,7 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
   const defaults: ThemeAppearanceStyles = {
     surfaceRadius: borderRadius.xl,
     controlRadius: borderRadius.lg,
+    cardRadius: borderRadius.md,
     buttonRadius: borderRadius.full,
     mediaRadius: borderRadius.lg,
     mediaRadiusSm: borderRadius.md,

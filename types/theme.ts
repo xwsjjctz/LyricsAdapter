@@ -106,6 +106,7 @@ export interface ThemeControlStyles {
 export interface ThemeAppearanceStyles {
   surfaceRadius: string;
   controlRadius: string;
+  cardRadius: string;
   buttonRadius: string;
   mediaRadius: string;
   mediaRadiusSm: string;

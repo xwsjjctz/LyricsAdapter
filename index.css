@@ -11,6 +11,7 @@
 :root {
   --theme-surface-radius: 16px;
   --theme-control-radius: 12px;
+  --theme-card-radius: 8px;
   --theme-button-radius: 9999px;
   --theme-media-radius: 12px;
   --theme-media-radius-sm: 8px;
@@ -58,6 +59,12 @@ body {
 *:focus-visible {
   outline: none;
 }
+
+/* Theme-aware radius utilities (override fixed Tailwind rounded-* so themes with
+   0px radii render sharp corners). r-card=8px, r-control=12px, r-surface=16px. */
+.r-card { border-radius: var(--theme-card-radius); }
+.r-control { border-radius: var(--theme-control-radius); }
+.r-surface { border-radius: var(--theme-surface-radius); }
 
 /* Frosted-glass bars for the experimental "Glass UI" feature.
    Used by the library header band and the global ControlBar.

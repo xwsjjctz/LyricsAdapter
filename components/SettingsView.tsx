@@ -248,7 +248,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-xl"
+          className="px-5 py-2.5 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-xl"
           style={{ backgroundColor: colors.primary, color: '#fff' }}
           onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
           onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
@@ -265,7 +265,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       </div>
 
       {saveMessage && (
-        <div className={`mb-4 p-3 rounded-xl text-sm ${
+        <div className={`mb-4 p-3 r-control text-sm ${
           saveMessageType === 'success'
             ? 'bg-green-500/10 border border-green-500/30 text-green-400'
             : 'bg-red-500/10 border border-red-500/30 text-red-400'
@@ -288,7 +288,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
           <section>
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+              <div className="r-card p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
@@ -307,7 +307,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     </button>
 
                     {isLangDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1 rounded-lg shadow-xl overflow-hidden z-50 min-w-[140px]" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
+                      <div className="absolute top-full right-0 mt-1 r-card shadow-xl overflow-hidden z-50 min-w-[140px]" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
                         {languageOptions.map((option) => (
                           <button
                             key={option.value}
@@ -329,7 +329,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 </div>
               </div>
 
-              <div className="rounded-lg p-4 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+              <div className="r-card p-4 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
                   <div className="min-w-0">
@@ -343,7 +343,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
           {/* Online Music — only visible when experimental toggle is enabled */}
           {qqMusicEnabled && (
-          <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+          <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
               <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
               {i18n.t('settingsDialog.onlineMusicTitle')}
@@ -365,7 +365,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                           setOnlineSource(src);
                           settingsManager.setOnlineSource(src);
                         }}
-                        className="flex-1 px-3 py-2 rounded-xl text-xs font-medium transition-all"
+                        className="flex-1 px-3 py-2 r-control text-xs font-medium transition-all"
                         style={{
                           backgroundColor: active ? colors.primary : colors.backgroundCard,
                           color: active ? colors.textPrimary : colors.textSecondary,
@@ -393,7 +393,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       : setCookie(e.target.value)
                   }
                   placeholder={i18n.t('settingsDialog.pasteCookie')}
-                  className="w-full h-20 rounded-xl p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
+                  className="w-full h-20 r-control p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
                   style={inputStyle}
                   onFocus={inputFocus}
                   onBlur={inputBlur}
@@ -415,7 +415,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     value={downloadPath}
                     onChange={(e) => setDownloadPath(e.target.value)}
                     placeholder={i18n.t('settingsDialog.downloadFolderPath')}
-                    className="flex-1 rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                    className="flex-1 r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                     style={inputStyle}
                     onFocus={inputFocus}
                     onBlur={inputBlur}
@@ -432,7 +432,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       }
                     }}
                     disabled={isSaving}
-                    className="px-3 py-2.5 rounded-xl transition-all disabled:opacity-50 flex items-center"
+                    className="px-3 py-2.5 r-control transition-all disabled:opacity-50 flex items-center"
                     style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}` }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
@@ -449,7 +449,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           )}
 
           {/* WebDAV */}
-          <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+          <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
               <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
               {i18n.t('settingsDialog.webdavTitle')}
@@ -460,7 +460,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 value={webdavServerUrl}
                 onChange={(e) => setWebdavServerUrl(e.target.value)}
                 placeholder="https://webdav.123pan.cn/webdav"
-                className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
                 onBlur={inputBlur}
@@ -470,7 +470,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 value={webdavUsername}
                 onChange={(e) => setWebdavUsername(e.target.value)}
                 placeholder={i18n.t('settingsDialog.webdavUsername')}
-                className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
                 onBlur={inputBlur}
@@ -480,7 +480,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 value={webdavPassword}
                 onChange={(e) => setWebdavPassword(e.target.value)}
                 placeholder={i18n.t('settingsDialog.webdavPassword')}
-                className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
                 onBlur={inputBlur}
@@ -489,7 +489,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <button
                   onClick={handleTestWebdav}
                   disabled={isTestingWebdav}
-                  className="px-4 py-2 rounded-xl text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
                   style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}` }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
@@ -515,7 +515,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           </section>
 
           {/* Experimental Features */}
-          <section className="rounded-lg p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+          <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
               <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
               {i18n.t('settings.experimental')}
@@ -723,7 +723,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               <button
                 onClick={() => setShowClearCacheConfirm(true)}
                 disabled={isClearingCache}
-                className="px-3 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
+                className="px-3 py-1.5 r-card text-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
                 style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.25)'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
@@ -735,7 +735,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
             {/* 清理结果提示 */}
             {cacheClearMessage && (
-              <div className={`mt-2 p-2 rounded-lg text-xs ${
+              <div className={`mt-2 p-2 r-card text-xs ${
                 cacheClearMessageType === 'success'
                   ? 'bg-green-500/10 border border-green-500/30 text-green-400'
                   : 'bg-red-500/10 border border-red-500/30 text-red-400'
@@ -764,7 +764,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       isOpen={showClearCacheConfirm}
       overlayClassName="z-50"
       overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+      panelClassName="r-control p-6 max-w-md w-full mx-4 shadow-2xl"
       panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
     >
           <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
@@ -773,7 +773,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             <button
               onClick={() => setShowClearCacheConfirm(false)}
               disabled={isClearingCache}
-              className="px-4 py-2 rounded-lg transition-all"
+              className="px-4 py-2 r-card transition-all"
               style={{ color: colors.textSecondary }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
@@ -803,7 +803,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 }
               }}
               disabled={isClearingCache || !onClearOrphanCache}
-              className="px-4 py-2 rounded-lg transition-all flex items-center gap-1.5"
+              className="px-4 py-2 r-card transition-all flex items-center gap-1.5"
               style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
             >
               {isClearingCache ? (

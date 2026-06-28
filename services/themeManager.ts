@@ -186,6 +186,7 @@ class ThemeManagerClass {
 
     root.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
     root.style.setProperty('--theme-control-radius', appearance.controlRadius);
+    root.style.setProperty('--theme-card-radius', appearance.cardRadius);
     root.style.setProperty('--theme-button-radius', appearance.buttonRadius);
     root.style.setProperty('--theme-media-radius', appearance.mediaRadius);
     root.style.setProperty('--theme-media-radius-sm', appearance.mediaRadiusSm);
