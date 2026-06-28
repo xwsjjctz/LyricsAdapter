@@ -6,6 +6,7 @@ import { notify } from '../services/notificationService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
 import { coverArtService } from '../services/coverArtService';
+import { getCoverUrlForMetadataWrite, getSavedTrackCoverUrl, hasPendingCoverReplacement } from '../services/metadataCoverCachePolicy';
 import TrackCover from './TrackCover';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -174,20 +175,23 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
       const lyricsToSave = selectedTrack.syncedLyrics && selectedTrack.syncedLyrics.length > 0
         ? syncedLyricsToLRC(selectedTrack.syncedLyrics)
         : selectedTrack.lyrics;
+      const shouldReplaceCover = hasPendingCoverReplacement(pendingCoverDataUrl);
 
       const metadata = {
         title: selectedTrack.title,
         artist: selectedTrack.artist,
         album: selectedTrack.album,
         ...(lyricsToSave != null && { lyrics: lyricsToSave }),
-        coverUrl: pendingCoverDataUrl || selectedTrack.coverUrl,
+        coverUrl: getCoverUrlForMetadataWrite(pendingCoverDataUrl, selectedTrack.coverUrl),
       };
 
       const result = await desktopAPI.writeAudioMetadata(selectedTrack.filePath, metadata);
 
       if (result.success) {
         logger.info(`[MetadataView] Saved all metadata for track ${selectedTrack.id}`);
-        await coverArtService.deleteCover(selectedTrack.id);
+        if (shouldReplaceCover) {
+          await coverArtService.deleteCover(selectedTrack.id);
+        }
 
         // 保存成功后重新解析写入的 LRC 文本，重建 syncedLyrics。
         // 否则编辑歌词后 syncedLyrics 残留为 undefined，FocusMode 无法滚动。
@@ -195,14 +199,12 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
           ? parseLRCLyrics(lyricsToSave).syncedLyrics
           : selectedTrack.syncedLyrics;
 
-        let newCoverUrl = selectedTrack.coverUrl;
-        if (pendingCoverDataUrl) {
-          const cachedCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
-          if (cachedCoverUrl) {
-            newCoverUrl = cachedCoverUrl;
-          }
+        let cachedReplacementCoverUrl: string | null = null;
+        if (shouldReplaceCover) {
+          cachedReplacementCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
         }
 
+        const newCoverUrl = getSavedTrackCoverUrl(selectedTrack.coverUrl, cachedReplacementCoverUrl);
         const updatedTrack = { ...selectedTrack, syncedLyrics: nextSynced, coverUrl: newCoverUrl };
         setSelectedTrack(updatedTrack);
         setOriginalTrack(updatedTrack);
