@@ -1,9 +1,7 @@
 import React, { memo, useEffect, useState } from 'react';
 import { Track } from '../types';
 import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
-import { ThemeConfig } from '../types/theme';
 import { useGlassUI } from '../hooks/useGlassUI';
 
 interface ControlsProps {
@@ -34,15 +32,6 @@ const formatTime = (seconds: number): string => {
 };
 
 
-const hexToRgb = (hex: string): string => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (result) {
-    return `${parseInt(result[1]!, 16)}, ${parseInt(result[2]!, 16)}, ${parseInt(result[3]!, 16)}`;
-  }
-  return '255, 255, 255';
-};
-
-
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
@@ -50,19 +39,11 @@ const Controls: React.FC<ControlsProps> = memo(({
   floating = false
 }) => {
   const [, setLanguageVersion] = useState(0);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const glassUI = useGlassUI();
 
   useEffect(() => {
     const unsubscribe = i18n.subscribe(() => {
       setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
     });
     return unsubscribe;
   }, []);
@@ -74,9 +55,6 @@ const Controls: React.FC<ControlsProps> = memo(({
   // Calculate progress percentage
   const progress = track ? (actualCurrentTime / track.duration) * 100 : 0;
 
-  // Theme colors
-  const colors = currentTheme.colors;
-
   return (
     <div
       className={floating
@@ -84,14 +62,14 @@ const Controls: React.FC<ControlsProps> = memo(({
         : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${glassUI ? 'frosted-bar absolute bottom-0 left-0 right-0' : ''} ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       }
       style={floating ? {
-        backgroundColor: colors.backgroundSidebar,
-        borderTop: `1px solid ${colors.borderLight}`,
-        borderRight: `1px solid ${colors.borderLight}`,
-        borderBottom: `1px solid ${colors.borderLight}`,
-        boxShadow: `0 4px 16px rgba(0, 0, 0, 0.2)`,
+        backgroundColor: 'var(--theme-control-panel-bg-floating)',
+        borderTop: '1px solid var(--theme-control-panel-border)',
+        borderRight: '1px solid var(--theme-control-panel-border)',
+        borderBottom: '1px solid var(--theme-control-panel-border)',
+        boxShadow: 'var(--theme-control-panel-shadow)',
       } : {
-        borderColor: colors.borderLight,
-        backgroundColor: `rgba(${hexToRgb(colors.backgroundSidebar)}, ${glassUI ? 0.6 : 0.4})`,
+        borderColor: 'var(--theme-control-panel-border)',
+        backgroundColor: glassUI ? 'var(--theme-control-panel-bg-glass-strong)' : 'var(--theme-control-panel-bg-glass)',
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
@@ -115,19 +93,19 @@ const Controls: React.FC<ControlsProps> = memo(({
                     animation: 'scroll-left 10s linear infinite'
                   }}
                 >
-                  <p className="text-sm font-bold group-hover:text-primary transition-colors" style={{ color: colors.textPrimary }}>
+                  <p className="text-sm font-bold group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)' }}>
                     {track.title + ' '}
                   </p>
-                  <p className="text-xs" style={{ color: colors.textMuted }}>
+                  <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                     {track.artist + ' '}
                   </p>
                 </div>
               ) : (
                 <>
-                  <p className="text-sm font-bold truncate group-hover:text-primary transition-colors" title={track.title} style={{ color: colors.textPrimary }}>
+                  <p className="text-sm font-bold truncate group-hover:text-primary transition-colors" title={track.title} style={{ color: 'var(--theme-text-primary)' }}>
                     {track.title}
                   </p>
-                  <p className="text-xs truncate" title={track.artist} style={{ color: colors.textMuted }}>
+                  <p className="text-xs truncate" title={track.artist} style={{ color: 'var(--theme-text-muted)' }}>
                     {track.artist}
                   </p>
                 </>
@@ -135,7 +113,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             </div>
           </div>
         ) : (
-          <div className="text-sm italic" style={{ color: colors.textMuted }}>{i18n.t('controls.noTrackSelected')}</div>
+          <div className="text-sm italic" style={{ color: 'var(--theme-text-muted)' }}>{i18n.t('controls.noTrackSelected')}</div>
         )}
       </div>
 
@@ -143,41 +121,45 @@ const Controls: React.FC<ControlsProps> = memo(({
       <div className="flex items-center gap-6 flex-1">
         {/* Play Controls */}
         <div className="flex items-center gap-4">
-          <button onClick={onSkipPrev} disabled={!track} className="transition-colors disabled:opacity-20" style={{ color: colors.textSecondary }} onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary} onMouseLeave={e => e.currentTarget.style.color = colors.textSecondary}>
+          <button onClick={onSkipPrev} disabled={!track} className="transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}>
             <span className="material-symbols-outlined text-2xl fill-icon">skip_previous</span>
           </button>
           <button
             onClick={onTogglePlay}
             disabled={!track}
             className="size-10 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-20 shadow-lg"
-            style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark }}
+            style={{
+              backgroundColor: 'var(--theme-control-primary-button-bg)',
+              color: 'var(--theme-control-primary-button-fg)',
+              boxShadow: 'var(--theme-control-primary-button-shadow)',
+            }}
           >
             <span className="material-symbols-outlined text-2xl fill-icon">{isPlaying ? 'pause' : 'play_arrow'}</span>
           </button>
-          <button onClick={onSkipNext} disabled={!track} className="transition-colors disabled:opacity-20" style={{ color: colors.textSecondary }} onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary} onMouseLeave={e => e.currentTarget.style.color = colors.textSecondary}>
+          <button onClick={onSkipNext} disabled={!track} className="transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}>
             <span className="material-symbols-outlined text-2xl fill-icon">skip_next</span>
           </button>
         </div>
 
         {/* Progress Bar */}
         <div className="flex items-center gap-3 flex-1">
-          <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: colors.textMuted }}>{formatTime(actualCurrentTime)}</span>
+          <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(actualCurrentTime)}</span>
           <div className="flex-1 relative h-4 group flex items-center" key={`progress-${currentTime}`}>
             <input
               type="range" min="0" max={track?.duration || 100} step="0.1" value={actualCurrentTime}
               onChange={(e) => onSeek(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.borderLight }}>
+            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)' }}>
               <div
                 className="h-full"
-                style={{ width: `${progress}%`, backgroundColor: colors.primary }}
+                style={{ width: `${progress}%`, backgroundColor: 'var(--theme-control-slider-fill)' }}
                 data-progress={progress}
                 data-current-time={currentTime}
               ></div>
             </div>
           </div>
-          <span className="text-[10px] tabular-nums w-8" style={{ color: colors.textMuted }}>{track ? formatTime(track.duration) : '0:00'}</span>
+          <span className="text-[10px] tabular-nums w-8" style={{ color: 'var(--theme-text-muted)' }}>{track ? formatTime(track.duration) : '0:00'}</span>
         </div>
       </div>
 
@@ -186,9 +168,9 @@ const Controls: React.FC<ControlsProps> = memo(({
         <button
           onClick={onTogglePlaybackMode}
           className="transition-colors relative"
-          style={{ color: colors.textSecondary, top: '3.5px' }}
-          onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-          onMouseLeave={e => e.currentTarget.style.color = colors.textSecondary}
+          style={{ color: 'var(--theme-control-icon-fg)', top: '3.5px' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}
         >
           <span className="material-symbols-outlined text-lg">
             {playbackMode === 'shuffle'
@@ -201,10 +183,10 @@ const Controls: React.FC<ControlsProps> = memo(({
         <div className="flex items-center gap-2 group">
           <span
             className="material-symbols-outlined transition-colors text-base cursor-pointer"
-            style={{ color: colors.textSecondary }}
+            style={{ color: 'var(--theme-control-icon-fg)' }}
             onClick={onToggleMute}
-            onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-            onMouseLeave={e => e.currentTarget.style.color = colors.textSecondary}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}
           >
             {volume === 0 ? 'volume_off' : 'volume_up'}
           </span>
@@ -214,8 +196,8 @@ const Controls: React.FC<ControlsProps> = memo(({
               onChange={(e) => onVolumeChange(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.borderLight }}>
-              <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }}></div>
+            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)' }}>
+              <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: 'var(--theme-control-slider-fill-secondary)' }}></div>
             </div>
           </div>
         </div>

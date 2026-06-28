@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { themeManager } from '@/services/themeManager';
 import { THEME_IDS } from '@/types/theme';
 import { getDefaultTheme } from '@/services/themes/predefinedThemes';
+import { resolveThemeControls } from '@/services/themeControls';
 
 beforeEach(() => {
   localStorage.clear();
@@ -76,6 +77,36 @@ describe('applyTheme', () => {
     expect(root.style.getPropertyValue('--theme-primary')).toBe(theme.colors.primary);
     expect(root.style.getPropertyValue('--theme-background-dark')).toBe(theme.colors.backgroundDark);
     expect(root.style.getPropertyValue('--theme-text-primary')).toBe(theme.colors.textPrimary);
+  });
+
+  it('should expose theme-driven control custom properties', () => {
+    const theme = getDefaultTheme();
+    const controls = resolveThemeControls(theme);
+
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-control-panel-bg')).toBe(controls.panelBackground);
+    expect(root.style.getPropertyValue('--theme-control-action-bg')).toBe(controls.actionBackground);
+    expect(root.style.getPropertyValue('--theme-control-primary-button-bg')).toBe(controls.primaryButtonBackground);
+    expect(root.style.getPropertyValue('--theme-control-slider-fill')).toBe(controls.sliderFill);
+  });
+
+  it('should allow themes to override control styles without changing palette tokens', () => {
+    const theme = {
+      ...getDefaultTheme(),
+      controls: {
+        actionBackground: '#123456',
+        sliderFill: '#abcdef',
+      },
+    };
+
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-primary')).toBe(theme.colors.primary);
+    expect(root.style.getPropertyValue('--theme-control-action-bg')).toBe('#123456');
+    expect(root.style.getPropertyValue('--theme-control-slider-fill')).toBe('#abcdef');
   });
 
   it('should set font family on root', () => {

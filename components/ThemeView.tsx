@@ -4,6 +4,7 @@ import { themeManager } from '../services/themeManager';
 import { ThemeConfig, ThemeId } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
+import { resolveThemeControls } from '../services/themeControls';
 
 interface ThemeViewProps {
   onHeaderHeightChange?: (height: number) => void;
@@ -196,6 +197,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
           {predefinedThemes.map((theme) => {
             const isCurrent = theme.id === currentThemeId;
             const isPreview = previewTheme?.id === theme.id;
+            const controls = resolveThemeControls(theme);
 
             return (
               <div
@@ -209,7 +211,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                 }}
                 onClick={() => handlePreviewTheme(theme)}
               >
-                {/* Theme Preview Area - Shows theme's own colors */}
+                {/* Theme Preview Area - Shows theme's own colors and control style tokens */}
                 <div className="h-32 relative overflow-hidden">
                   <div
                     className="absolute inset-0 opacity-80"
@@ -230,6 +232,40 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     className="absolute bottom-4 right-12 w-6 h-6 rounded-full opacity-30"
                     style={{ backgroundColor: theme.colors.success }}
                   />
+                  <div
+                    className="absolute left-4 right-4 bottom-4 rounded-xl p-2"
+                    style={{
+                      backgroundColor: controls.panelBackgroundGlassStrong,
+                      border: `1px solid ${controls.panelBorder}`,
+                      boxShadow: controls.panelShadow,
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="flex h-7 w-7 items-center justify-center rounded-full"
+                        style={{
+                          backgroundColor: controls.primaryButtonBackground,
+                          color: controls.primaryButtonForeground,
+                          boxShadow: controls.primaryButtonShadow,
+                        }}
+                      >
+                        <span className="material-symbols-outlined text-[16px] fill-icon">play_arrow</span>
+                      </span>
+                      <div
+                        className="h-1 flex-1 overflow-hidden rounded-full"
+                        style={{ backgroundColor: controls.sliderTrack }}
+                      >
+                        <div
+                          className="h-full w-2/3 rounded-full"
+                          style={{ backgroundColor: controls.sliderFill }}
+                        />
+                      </div>
+                      <span
+                        className="h-7 w-7 rounded-lg"
+                        style={{ backgroundColor: controls.iconBackgroundActive }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Theme Info - Shows theme's own colors */}

@@ -92,8 +92,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div
         className="rounded-2xl p-2 shadow-xl"
         style={{
-          backgroundColor: 'var(--theme-primary-light)',
-          border: '1px solid var(--theme-border-light)',
+          backgroundColor: 'var(--theme-control-container-bg)',
+          border: '1px solid var(--theme-control-container-border)',
         }}
       >
         <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
@@ -107,18 +107,18 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={`flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 transition-colors w-full text-left ${
                 item.active
                   ? ''
-                  : 'bg-transparent text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card)] hover:text-[var(--theme-text-primary)]'
+                  : 'bg-transparent text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-item-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
               }`}
               style={{
-                ...(item.active ? { backgroundColor: 'var(--theme-primary-16)', color: 'var(--theme-primary)' } : {}),
-                boxShadow: item.active ? '0 10px 24px -16px var(--theme-glow-color)' : 'none',
+                ...(item.active ? { backgroundColor: 'var(--theme-control-item-bg-active)', color: 'var(--theme-control-item-fg-active)' } : {}),
+                boxShadow: item.active ? 'var(--theme-control-item-shadow-active)' : 'none',
               }}
             >
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                 style={{
-                  backgroundColor: item.active ? 'var(--theme-primary-13)' : 'var(--theme-primary-08)',
-                  color: item.active ? 'var(--theme-primary)' : 'var(--theme-text-secondary)',
+                  backgroundColor: item.active ? 'var(--theme-control-icon-bg-active)' : 'var(--theme-control-icon-bg)',
+                  color: item.active ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)',
                 }}
               >
                 <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
@@ -143,8 +143,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
         style={{
           backgroundColor: !importDisabled && isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
-          borderColor: 'var(--theme-border-light)',
-          color: isImportHovered && !importDisabled ? 'var(--theme-primary)' : undefined,
+          borderColor: 'var(--theme-control-container-border)',
+          color: isImportHovered && !importDisabled ? 'var(--theme-control-action-fg-active)' : undefined,
           opacity: importDisabled ? 0.4 : 1,
           cursor: importDisabled ? 'not-allowed' : 'pointer',
         }}
@@ -160,11 +160,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
             isSettingsView
               ? ''
-              : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
+              : 'bg-[var(--theme-control-action-bg)] text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-action-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
           }`}
           style={{
-            ...(isSettingsView ? { backgroundColor: 'var(--theme-primary-20)', color: 'var(--theme-primary)' } : {}),
-            boxShadow: isSettingsView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
+            ...(isSettingsView ? { backgroundColor: 'var(--theme-control-action-bg-active)', color: 'var(--theme-control-action-fg-active)' } : {}),
+            boxShadow: isSettingsView ? 'var(--theme-control-action-shadow-active)' : 'var(--theme-control-action-shadow)',
           }}
         >
           <span className={`material-symbols-outlined text-[22px] ${isSettingsView ? 'fill-1' : ''}`}>settings</span>
@@ -175,11 +175,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           className={`flex items-center justify-center px-4 py-3.5 rounded-xl transition-colors ${
             isThemeView
               ? ''
-              : 'bg-[var(--theme-background-card)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-background-card-hover)] hover:text-[var(--theme-text-primary)]'
+              : 'bg-[var(--theme-control-action-bg)] text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-action-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
           }`}
           style={{
-            ...(isThemeView ? { backgroundColor: 'var(--theme-primary-20)', color: 'var(--theme-primary)' } : {}),
-            boxShadow: isThemeView ? '0 0 20px var(--theme-glow-color)' : '0 4px 16px -6px var(--theme-glow-color)',
+            ...(isThemeView ? { backgroundColor: 'var(--theme-control-action-bg-active)', color: 'var(--theme-control-action-fg-active)' } : {}),
+            boxShadow: isThemeView ? 'var(--theme-control-action-shadow-active)' : 'var(--theme-control-action-shadow)',
           }}
         >
           <span className={`material-symbols-outlined text-[22px] ${isThemeView ? 'fill-1' : ''}`}>checkroom</span>
