@@ -12,6 +12,7 @@ import {
 } from '../utils/fileUtils';
 import { computeWebdavCoverId } from '../utils/webdavCoverId';
 import { writeAudioMetadata } from '../utils/metadataUtils';
+import { allowAudioPath, canReadAudioPath, isAudioPath } from './typedHandlers';
 
 function toLibraryIndex(library: any): any {
   const songs = Array.isArray(library?.songs) ? library.songs.map((song: any) => ({
@@ -38,8 +39,13 @@ function toLibraryIndex(library: any): any {
 export function registerFileHandlers(): void {
   ipcMain.handle('read-file', async (_event, filePath) => {
     try {
-      const data = fs.readFileSync(filePath);
-      return { success: true, data: data.buffer };
+      const expandedPath = expandHomeDir(filePath);
+      if (!canReadAudioPath(expandedPath)) {
+        return { success: false, error: 'Audio path is outside the selected or app-managed allowlist' };
+      }
+      const data = fs.readFileSync(expandedPath);
+      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+      return { success: true, data: arrayBuffer };
     } catch (error) {
       logger.error('Failed to read file:', error);
       return { success: false, error: (error as Error).message };
@@ -54,7 +60,13 @@ export function registerFileHandlers(): void {
         { name: 'All Files', extensions: ['*'] }
       ]
     });
-    return result;
+    for (const filePath of result.filePaths) {
+      allowAudioPath(filePath);
+    }
+    return {
+      ...result,
+      filePaths: result.filePaths.filter(isAudioPath),
+    };
   });
 
   ipcMain.handle('get-app-data-path', async () => {
@@ -94,11 +106,13 @@ export function registerFileHandlers(): void {
 
       try {
         fs.symlinkSync(sourcePath, audioFilePath);
+        allowAudioPath(audioFilePath);
         logger.info('✅ Symlink created:', audioFilePath, '→', sourcePath);
         return { success: true, filePath: audioFilePath, method: 'symlink' };
       } catch (linkError) {
         logger.warn('⚠️ Symlink failed, copying file instead:', (linkError as Error).message);
         fs.copyFileSync(sourcePath, audioFilePath);
+        allowAudioPath(audioFilePath);
         logger.info('✅ File copied:', audioFilePath);
         return { success: true, filePath: audioFilePath, method: 'copy' };
       }
@@ -122,6 +136,7 @@ export function registerFileHandlers(): void {
 
       const buffer = Buffer.from(fileData);
       fs.writeFileSync(audioFilePath, buffer);
+      allowAudioPath(audioFilePath);
 
       logger.info('✅ File saved from buffer:', audioFilePath);
       return { success: true, filePath: audioFilePath, method: 'copy' };
@@ -136,14 +151,19 @@ export function registerFileHandlers(): void {
       if (!filePath) {
         return { success: false, error: 'File path is empty' };
       }
+      const expandedPath = expandHomeDir(filePath);
 
-      if (!fs.existsSync(filePath)) {
-        logger.warn('⚠️ File does not exist, skipping deletion:', filePath);
+      if (!canReadAudioPath(expandedPath)) {
+        return { success: false, error: 'Audio path is outside the selected or app-managed allowlist' };
+      }
+
+      if (!fs.existsSync(expandedPath)) {
+        logger.warn('⚠️ File does not exist, skipping deletion:', expandedPath);
         return { success: true, deleted: false };
       }
 
-      fs.unlinkSync(filePath);
-      logger.info('✅ File/symlink deleted:', filePath);
+      fs.unlinkSync(expandedPath);
+      logger.info('✅ File/symlink deleted:', expandedPath);
       return { success: true, deleted: true };
     } catch (error) {
       logger.error('Failed to delete audio file:', error);
@@ -540,6 +560,7 @@ export function registerDownloadHandlers(): void {
 
       writer.end();
       await new Promise<void>(resolve => writer.on('finish', resolve));
+      allowAudioPath(expandedPath);
 
       logger.info('[Main] Download completed, size:', downloaded, 'bytes');
       return { success: true, filePath: expandedPath, size: downloaded };
@@ -649,6 +670,7 @@ export function registerDownloadHandlers(): void {
 
       const buffer = Buffer.from(fileData);
       fs.writeFileSync(fullPath, buffer);
+      allowAudioPath(fullPath);
 
       logger.info('[Main] File saved successfully, size:', buffer.length);
       return { success: true, filePath: fullPath };

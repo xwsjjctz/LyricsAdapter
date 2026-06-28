@@ -27,6 +27,26 @@ contextBridge.exposeInMainWorld('electron', {
   },
   platform: process.platform,
 
+  ipc: {
+    file: {
+      selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
+      readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
+    },
+    library: {
+      loadIndex: async () => ipcRenderer.invoke('ipc:library:loadIndex'),
+      saveIndex: async (library: unknown) => ipcRenderer.invoke('ipc:library:saveIndex', library),
+    },
+    webdav: {
+      propfind: async (payload: { url: string; authHeader: string; depth: string }) => ipcRenderer.invoke('ipc:webdav:propfind', payload),
+      getRange: async (payload: { url: string; authHeader: string; start: number; end: number }) => ipcRenderer.invoke('ipc:webdav:getRange', payload),
+      put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
+      delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
+    },
+    download: {
+      audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
+    },
+  },
+
   // Read file from path
   readFile: async (filePath: string) => {
     return ipcRenderer.invoke('read-file', filePath);
@@ -146,7 +166,9 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Get real file path from File object (for drag-and-drop)
   getPathForFile: (file: File) => {
-    return webUtils.getPathForFile(file);
+    const filePath = webUtils.getPathForFile(file);
+    ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }).catch(() => {});
+    return filePath;
   },
 
   // Download audio file from URL with cookies (for QQ Music download)
