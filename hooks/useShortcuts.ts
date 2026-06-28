@@ -90,11 +90,26 @@ export const useShortcuts = ({
     // Debug log
     logger.debug('[Shortcuts] Key pressed:', event.key, 'code:', event.code, 'ctrl:', event.ctrlKey, 'meta:', event.metaKey, 'alt:', event.altKey);
     
-    // In input/textarea/contentEditable, only skip shortcuts without modifier keys
+    // In text-editing fields, only skip shortcuts without modifier keys.
+    // Non-text controls such as sliders should still allow player shortcuts;
+    // otherwise Space scrolls the settings page after dragging a range input.
     // Modifier-key combos (Cmd/Ctrl/Alt) are application-level and should still fire
     const target = event.target as HTMLElement;
+    const isTypingInput = target instanceof HTMLInputElement
+      ? ![
+          'button',
+          'checkbox',
+          'color',
+          'file',
+          'image',
+          'radio',
+          'range',
+          'reset',
+          'submit',
+        ].includes(target.type)
+      : false;
     const isInputElement =
-      target.tagName === 'INPUT' ||
+      isTypingInput ||
       target.tagName === 'TEXTAREA' ||
       target.isContentEditable;
     if (
