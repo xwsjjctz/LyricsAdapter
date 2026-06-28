@@ -354,12 +354,12 @@ const translations: Translations = {
     fr: 'Déposez les fichiers audio ici'
   },
   'library.supportFormats': {
-    zh: '支持 FLAC, MP3, M4A, WAV 格式',
-    en: 'Supports FLAC, MP3, M4A, WAV',
-    ja: 'FLAC, MP3, M4A, WAV に対応',
-    ko: 'FLAC, MP3, M4A, WAV 지원',
-    de: 'Unterstützt FLAC, MP3, M4A, WAV',
-    fr: 'Supporte FLAC, MP3, M4A, WAV'
+    zh: '支持 MP3, FLAC 格式',
+    en: 'Supports MP3, FLAC',
+    ja: 'MP3, FLAC に対応',
+    ko: 'MP3, FLAC 지원',
+    de: 'Unterstützt MP3, FLAC',
+    fr: 'Supporte MP3, FLAC'
   },
   'library.artistList': {
     zh: '歌手',

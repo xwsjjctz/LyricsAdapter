@@ -1,11 +1,9 @@
 import { Track } from '../types';
 import type { LibraryIndexData, LibrarySettings } from './libraryStorage';
+import { sanitizePersistedCoverUrl } from './coverUrl';
 
 function serializeTrack(track: Track): any {
-  let coverUrl = track.coverUrl || '';
-  if (coverUrl.startsWith('blob:') || coverUrl.startsWith('file:')) {
-    coverUrl = '';
-  }
+  const coverUrl = sanitizePersistedCoverUrl(track.coverUrl);
   return {
     id: track.id,
     title: track.title,

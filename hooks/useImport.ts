@@ -21,6 +21,7 @@ import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
 import { i18n } from '../services/i18n';
+import { getDesktopImportKey, getTrackImportKeys, getUniqueWebDAVFileName, getWebFileImportKey } from '../services/importIdentity';
 
 interface UseImportOptions {
   tracks: Track[];
@@ -86,14 +87,15 @@ export function useImport({
   }, [tracks.length]);
 
   const createTracksMap = useCallback(() => {
-    return new Map(
-      tracks.map(track => {
-        const key = track.fileName
-          ? track.fileName
-          : `${track.file?.name}-${track.file?.size}`;
-        return [key, track];
-      })
-    );
+    const map = new Map<string, Track>();
+    for (const track of tracks) {
+      for (const key of getTrackImportKeys(track)) {
+        if (!map.has(key)) {
+          map.set(key, track);
+        }
+      }
+    }
+    return map;
   }, [tracks]);
 
   // Process file paths directly (new path-based import - no file copying)
@@ -104,7 +106,7 @@ export function useImport({
   ): Promise<Track[]> => {
     const results = await Promise.all(
       filePaths.map(async ({ path: filePath, name: fileName }) => {
-        const existingTrack = tracksMap.get(fileName);
+        const existingTrack = tracksMap.get(getDesktopImportKey(filePath));
         if (existingTrack) {
           logger.debug(`[Import] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
         } else {
@@ -223,8 +225,7 @@ export function useImport({
   ): Promise<Track[]> => {
     const results = await Promise.all(
       files.map(async (file) => {
-        const key = `${file.name}-${file.size}`;
-        const existingTrack = tracksMap.get(key);
+        const existingTrack = tracksMap.get(getWebFileImportKey(file));
 
         let metadata;
         try {
@@ -279,10 +280,21 @@ export function useImport({
       const tracksMap = createTracksMap();
       logger.debug(`[Import] Created tracksMap with ${tracksMap.size} entries`);
 
+      // Filter to supported audio formats only (MP3, FLAC)
+      const audioExtensions = ['.mp3', '.flac'];
+      const pathsFiltered = filePaths.filter(filePath => {
+        const ext = '.' + filePath.split('.').pop()?.toLowerCase();
+        if (!audioExtensions.includes(ext)) {
+          logger.debug(`[Import] ⏭️ Skipping unsupported format: ${filePath}`);
+          return false;
+        }
+        return true;
+      });
+
       // Filter out already imported files
-      const newFilePaths = filePaths.filter(filePath => {
+      const newFilePaths = pathsFiltered.filter(filePath => {
         const fileName = filePath.split(/[/\\]/).pop() || '';
-        if (tracksMap.has(fileName)) {
+        if (tracksMap.has(getDesktopImportKey(filePath))) {
           logger.debug(`[Import] ⏭️ Skipping already imported file: ${fileName}`);
           return false;
         }
@@ -437,9 +449,20 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
+    // Filter to supported audio formats only (MP3, FLAC)
+    const audioExtensions = ['.mp3', '.flac'];
+    const pathsFiltered = filePaths.filter(({ name }) => {
+      const ext = '.' + name.split('.').pop()?.toLowerCase();
+      if (!audioExtensions.includes(ext)) {
+        logger.debug(`[Import] ⏭️ Skipping unsupported format: ${name}`);
+        return false;
+      }
+      return true;
+    });
+
     // Filter out already imported files
-    const newFilePaths = filePaths.filter(({ name }) => {
-      if (tracksMap.has(name)) {
+    const newFilePaths = pathsFiltered.filter(({ path, name }) => {
+      if (tracksMap.has(getDesktopImportKey(path))) {
         logger.debug(`[Import] ⏭️ Skipping already imported file: ${name}`);
         return false;
       }
@@ -633,9 +656,20 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
+    // Filter to supported audio formats only (MP3, FLAC)
+    const audioExtensions = ['.mp3', '.flac'];
+    const filesFiltered = files.filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!audioExtensions.includes(ext)) {
+        logger.debug(`[Import] ⏭️ Skipping unsupported format: ${file.name}`);
+        return false;
+      }
+      return true;
+    });
+
     // Filter out already imported files
-    const newFiles = files.filter(file => {
-      if (tracksMap.has(file.name)) {
+    const newFiles = filesFiltered.filter(file => {
+      if (tracksMap.has(getWebFileImportKey(file))) {
         logger.debug(`[Import] ⏭️ Skipping already imported file: ${file.name}`);
         return false;
       }
@@ -693,12 +727,8 @@ export function useImport({
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [createTracksMap, processWebFileBatch, setTracks, tracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
 
-  /**
-   * 云列表导入：选择本地音频 → 上传到 WebDAV 根目录 → 合并进 cloud slot。
-   * 仅桌面端可用。同名文件 PUT 覆盖、mergeCloudTracks 按 id 去重（与 QQ 上传一致）。
-   */
-  const handleCloudImport = useCallback(async () => {
-    logger.debug('[Import] Cloud import (upload to WebDAV) triggered');
+  const handleCloudDropFilePaths = useCallback(async (filePaths: { path: string; name: string }[]) => {
+    logger.debug('[Import] Cloud path import (upload to WebDAV) triggered');
     if (!mergeCloudTracks) {
       logger.warn('[Import] mergeCloudTracks not provided, cannot import to cloud');
       return;
@@ -709,20 +739,27 @@ export function useImport({
       return;
     }
 
-    try {
-      const result = await desktopAPI.selectFiles();
-      if (result.canceled || result.filePaths.length === 0) return;
+    if (filePaths.length === 0) return;
 
-      const filePaths = result.filePaths;
+    try {
       setImportProgress({ loaded: 0, total: filePaths.length });
 
       const added: Track[] = [];
       let failed = 0;
+      const remoteFiles = await webdavClient.listFiles('/');
+      const existingCloudNames = new Set(
+        remoteFiles
+          .filter(file => !file.isDirectory)
+          .map(file => file.name)
+      );
 
       for (let i = 0; i < filePaths.length; i++) {
-        const filePath = filePaths[i]!;
-        const fileName = filePath.split(/[/\\]/).pop() || '';
+        const { path: filePath, name } = filePaths[i]!;
+        const fileName = name || filePath.split(/[/\\]/).pop() || '';
         try {
+          const remoteFileName = getUniqueWebDAVFileName(fileName, existingCloudNames);
+          existingCloudNames.add(remoteFileName);
+
           // 1. 解析元数据（标题/艺人/时长/封面/歌词）
           let meta: ParsedAudioMetadata | undefined;
           try {
@@ -741,8 +778,8 @@ export function useImport({
           }
 
           // 3. 上传到 WebDAV 根目录
-          const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
-          const webdavPath = `/${fileName}`;
+          const ext = remoteFileName.toLowerCase().substring(remoteFileName.lastIndexOf('.'));
+          const webdavPath = `/${remoteFileName}`;
           const uploadRes = await webdavClient.uploadFile(webdavPath, readResult.data, audioMimeFor(ext));
           if (!uploadRes.success) {
             throw new Error(uploadRes.error || 'Upload failed');
@@ -781,13 +818,15 @@ export function useImport({
             audioUrl: '',
             source: 'webdav',
             webdavPath,
-            fileName,
+            fileName: remoteFileName,
             fileSize: meta?.fileSize || readResult.data.byteLength,
+            // 上传时间作为排序键：刚上传=最新，排序后落在列表最底部（与刷新后扫描值一致）。
+            lastModified: Date.now(),
             ...(meta?.lyrics != null && { lyrics: meta.lyrics }),
             ...(syncedLyrics != null && { syncedLyrics }),
-            coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
+            coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(remoteFileName)}/1000/1000`,
           } as Track);
-          logger.debug(`[Import] ✓ Uploaded to WebDAV: ${fileName}`);
+          logger.debug(`[Import] ✓ Uploaded to WebDAV: ${remoteFileName}`);
         } catch (err) {
           failed++;
           logger.error(`[Import] Failed to import ${fileName} to WebDAV:`, err);
@@ -812,15 +851,42 @@ export function useImport({
       }
       setImportProgress(null);
     } catch (error) {
-      logger.error('[Import] Cloud import failed:', error);
+      logger.error('[Import] Cloud path import failed:', error);
       setImportProgress(null);
     }
   }, [mergeCloudTracks]);
+
+  /**
+   * 云列表导入：选择本地音频 → 上传到 WebDAV 根目录 → 合并进 cloud slot。
+   * 仅桌面端可用。同名文件 PUT 覆盖、mergeCloudTracks 按 id 去重（与 QQ 上传一致）。
+   */
+  const handleCloudImport = useCallback(async () => {
+    logger.debug('[Import] Cloud import (upload to WebDAV) triggered');
+    const desktopAPI = await getDesktopAPIAsync();
+    if (!desktopAPI) {
+      logger.error('[Import] Desktop API not available');
+      return;
+    }
+
+    try {
+      const result = await desktopAPI.selectFiles();
+      if (result.canceled || result.filePaths.length === 0) return;
+
+      await handleCloudDropFilePaths(result.filePaths.map(filePath => ({
+        path: filePath,
+        name: filePath.split(/[/\\]/).pop() || '',
+      })));
+    } catch (error) {
+      logger.error('[Import] Cloud import failed:', error);
+      setImportProgress(null);
+    }
+  }, [handleCloudDropFilePaths]);
 
   return {
     fileInputRef,
     handleDesktopImport,
     handleCloudImport,
+    handleCloudDropFilePaths,
     handleDropFiles,
     handleDropFilePaths,
     handleFileInputChange,

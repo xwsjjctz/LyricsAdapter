@@ -338,37 +338,55 @@ class ShortcutManager {
     const needsAlt = parts.includes('Alt');
     const needsShift = parts.includes('Shift');
 
-    // Handle special keys - map config key names to event.key values
-    const keyMap: Record<string, string> = {
-      'Space': ' ',
+    // Handle special keys with both event.key and event.code so default browser
+    // scroll actions (notably Space in scrollable settings panes) are blocked reliably.
+    const keyMap: Record<string, string[]> = {
+      'Space': [' ', 'Space', 'Spacebar'],
+      'Left': ['ArrowLeft'],
+      'Right': ['ArrowRight'],
+      'Up': ['ArrowUp'],
+      'Down': ['ArrowDown'],
+      'Enter': ['Enter'],
+      'Escape': ['Escape'],
+      'Tab': ['Tab'],
+      ',': [',']
+    };
+    const codeMap: Record<string, string> = {
+      'Space': 'Space',
       'Left': 'ArrowLeft',
       'Right': 'ArrowRight',
       'Up': 'ArrowUp',
       'Down': 'ArrowDown',
       'Enter': 'Enter',
       'Escape': 'Escape',
-      ',': ','
+      'Tab': 'Tab',
+      ',': 'Comma'
     };
     
-    // Get the expected event.key value (try both original and lowercase for letters)
-    const expectedKey = keyMap[key!] || key!;
-    const expectedKeyLower = expectedKey.toLowerCase();
+    // Get the expected event.key values (try lowercase too for letter shortcuts)
+    const expectedKeys = keyMap[key!] || [key!];
+    const expectedKeysLower = expectedKeys.map(k => k.toLowerCase());
+    const expectedCode = codeMap[key!];
 
     const ctrlMatch = needsCtrl === (event.ctrlKey || event.metaKey);
     const altMatch = needsAlt === event.altKey;
     const shiftMatch = needsShift === event.shiftKey;
     
     // For letter keys, event.key can be lowercase when combined with modifiers
-    const keyMatch = event.key === expectedKey || event.key === expectedKeyLower;
+    const keyMatch =
+      expectedKeys.includes(event.key) ||
+      expectedKeysLower.includes(event.key.toLowerCase()) ||
+      (!!expectedCode && event.code === expectedCode);
     
     // Debug log for debugging
     if (needsCtrl || needsAlt) {
       logger.debug('[Shortcuts] Matching:', {
         action,
         configKey: shortcut.currentKey,
-        expectedKey,
-        expectedKeyLower,
+        expectedKeys,
+        expectedCode,
         eventKey: event.key,
+        eventCode: event.code,
         ctrl: event.ctrlKey,
         meta: event.metaKey,
         alt: event.altKey,

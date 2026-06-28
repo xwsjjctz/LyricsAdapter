@@ -164,6 +164,8 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
         webdavPath,
         fileName,
         fileSize: readResult.data.byteLength,
+        // 上传时间作为排序键：刚上传=最新，排序后落在列表最底部（与 WebDAV 上传一致）。
+        lastModified: Date.now(),
         ...(lyrics != null && { lyrics }),
         ...(lyrics != null ? (() => {
           const parsed = parseLRCLyrics(lyrics);

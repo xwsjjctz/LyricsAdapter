@@ -47,7 +47,11 @@ export function registerFileHandlers(): void {
 
   ipcMain.handle('select-folder', async () => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections']
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Audio Files', extensions: ['mp3', 'flac'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
     });
     return result;
   });

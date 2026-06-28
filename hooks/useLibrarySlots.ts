@@ -23,6 +23,36 @@ interface PersistedSlotState {
   cloudPlaybackContext?: PlaybackContext;
 }
 
+/**
+ * 云端排序键：lastModified（PROPFIND 的 getlastmodified，即「上传时间」，存为 number 毫秒）。
+ * 缺失/非法视为 0（最旧，置顶）。以单一确定性键排序，彻底消除上传版/扫描版 id 分裂导致的跳位。
+ */
+function cloudSortKey(t: Track): number {
+  const v = t.lastModified;
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+/** 云端曲目按上传时间升序排序：最新上传的在列表最底部。 */
+function sortCloudTracks(tracks: Track[]): Track[] {
+  return [...tracks].sort((a, b) => cloudSortKey(a) - cloudSortKey(b));
+}
+
+/**
+ * 排序后把 currentTrackIndex 重新指向原正在播放的曲目。
+ * 按 id 匹配；webdav 额外按 fileName 兜底（上传版/扫描版 id 不同但同一文件）。
+ * 找不到（已被删除）则置 -1。
+ */
+function reindexCurrent(cloud: LibrarySlot, newTracks: Track[]): number {
+  const cur = cloud.currentTrackIndex;
+  if (cur < 0 || cur >= cloud.tracks.length) return cur;
+  const playing = cloud.tracks[cur]!;
+  const idx = newTracks.findIndex(t =>
+    t.id === playing.id ||
+    (!!playing.fileName && t.source === 'webdav' && t.fileName === playing.fileName)
+  );
+  return idx >= 0 ? idx : -1;
+}
+
 export function useLibrarySlots() {
   const [slots, setSlots] = useState<Record<SlotId, LibrarySlot>>({
     local: createEmptySlot('local'),
@@ -115,10 +145,30 @@ export function useLibrarySlots() {
   }, [activeSlotId]);
 
   const loadCloudTracks = useCallback((tracks: Track[]) => {
-    setSlots(prev => ({
-      ...prev,
-      cloud: { ...prev.cloud, tracks },
-    }));
+    setSlots(prev => {
+      const cloud = prev.cloud;
+
+      // incoming（扫描结果）是云端成员基准。prev 中被同 id 或同名扫描版覆盖的剔除；
+      // 但保留 incoming 未命中的 prev 独有项（如刚上传、PROPFIND 尚未返回的竞态，避免被误删）。
+      // incoming 为空（清缓存 / 服务器无文件）时直接清空，不再保留 prev。
+      const incomingIds = new Set(tracks.map(t => t.id));
+      const incomingNames = new Set(
+        tracks.filter(t => t.source === 'webdav' && t.fileName).map(t => t.fileName!)
+      );
+      const keptFromPrev = tracks.length > 0 ? cloud.tracks.filter(t => {
+        if (incomingIds.has(t.id)) return false; // 同 id：用扫描版
+        if (t.source === 'webdav' && t.fileName && incomingNames.has(t.fileName)) return false; // 同名：用扫描版（兼容上传/扫描 id 分裂）
+        return true; // incoming 没有 → prev 独有，保留
+      }) : [];
+
+      // 按上传时间（lastModified）升序排序：最新上传的在最底部。
+      const sorted = sortCloudTracks([...tracks, ...keptFromPrev]);
+
+      return {
+        ...prev,
+        cloud: { ...cloud, tracks: sorted, currentTrackIndex: reindexCurrent(cloud, sorted) },
+      };
+    });
   }, []);
 
   const mergeCloudTracks = useCallback((added: Track[], removedIds: string[], updated: Track[]) => {
@@ -145,11 +195,38 @@ export function useLibrarySlots() {
       });
 
       const existingIds = new Set(filtered.map(t => t.id));
-      const newAdded = added.filter(t => !existingIds.has(t.id));
+
+      // webdav 同名去重（修复刷新重复追加）：
+      // 上传构造的曲目 id = webdav-/<fileName>；扫描构造的 id = webdav-<PROPFIND path>。
+      // 当服务器返回路径型 href（不含 host）时，path 含 baseSegment（如 /dav/Song.mp3），
+      // 与上传用的 /<fileName> 不同 → 两条 id 不一致 → 精确去重失败 → 同一首被当新曲追加（重复）。
+      // WebDAV 根目录文件名唯一，故按 fileName 把「扫描版」替换掉「上传版」，采用 canonical id/path/元数据，
+      // 消除重复。顺序不再依赖此处（由下方 sortCloudTracks 按上传时间统一排序）。
+      const webdavNameIndex = new Map<string, number>();
+      filtered.forEach((t, i) => {
+        if (t.source === 'webdav' && t.fileName) webdavNameIndex.set(t.fileName, i);
+      });
+      const replacements = new Map<number, Track>(); // filtered 下标 → 用以替换的扫描版
+      const newAdded: Track[] = [];
+      const seenIds = new Set(existingIds);
+      for (const t of added) {
+        if (seenIds.has(t.id)) continue; // 精确命中：已在列表
+        const sameNameIdx = t.source === 'webdav' && t.fileName ? webdavNameIndex.get(t.fileName) : undefined;
+        if (sameNameIdx !== undefined && !replacements.has(sameNameIdx)) {
+          replacements.set(sameNameIdx, t); // 用扫描版取代上传版（去重）
+          seenIds.add(t.id);
+          continue;
+        }
+        newAdded.push(t);
+      }
+      const merged = filtered.map((t, i) => replacements.get(i) ?? t);
+
+      // 按上传时间（lastModified）升序排序：最新上传的在最底部。
+      const sorted = sortCloudTracks([...merged, ...newAdded]);
 
       return {
         ...prev,
-        cloud: { ...cloud, tracks: [...filtered, ...newAdded] },
+        cloud: { ...cloud, tracks: sorted, currentTrackIndex: reindexCurrent(cloud, sorted) },
       };
     });
   }, []);

@@ -8,6 +8,7 @@ import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
 import GsapModal from './GsapModal';
 import { parseLRCLyrics } from '../services/metadataService';
+import { parseCoverDataUrl, sanitizePersistedCoverUrl } from '../services/coverUrl';
 
 interface MetadataEditorPopupProps {
   track: Track;
@@ -86,11 +87,30 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
       // 保存成功后重新解析歌词文本，重建 syncedLyrics。
       // 否则编辑歌词后 syncedLyrics 残留为 undefined，FocusMode 无法滚动。
       const nextSynced = lyrics != null ? parseLRCLyrics(lyrics).syncedLyrics : edited.syncedLyrics;
+      let finalCoverUrl = sanitizePersistedCoverUrl(edited.coverUrl);
+
+      if (pendingCoverDataUrl) {
+        const parsedCover = parseCoverDataUrl(pendingCoverDataUrl);
+        if (parsedCover && window.electron?.saveCoverThumbnail) {
+          const coverResult = await window.electron.saveCoverThumbnail({
+            id: edited.id,
+            data: parsedCover.base64,
+            mime: parsedCover.mime,
+          });
+          if (coverResult.success && coverResult.coverUrl) {
+            finalCoverUrl = coverResult.coverUrl;
+          } else {
+            logger.warn('[MetadataEditor] Failed to save cover thumbnail:', coverResult.error);
+          }
+        } else {
+          logger.warn('[MetadataEditor] Pending cover could not be cached');
+        }
+      }
 
       const finalTrack = {
         ...edited,
         syncedLyrics: nextSynced,
-        coverUrl: pendingCoverDataUrl || edited.coverUrl,
+        coverUrl: finalCoverUrl,
       };
       onUpdateTrack(finalTrack);
       notify(i18n.t('notifications.saveSuccess'), i18n.t('notifications.metadataSaved'), { silent: true });

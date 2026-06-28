@@ -619,8 +619,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const droppedFiles = Array.from(e.dataTransfer.files);
     logger.debug(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
 
-    // Filter for audio files only
-    const audioExtensions = ['.flac', '.mp3', '.m4a', '.wav'];
+    // Filter for supported audio files only (MP3, FLAC)
+    const audioExtensions = ['.mp3', '.flac'];
     const audioFiles = droppedFiles.filter(file => {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       return audioExtensions.includes(ext);
@@ -824,26 +824,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   return (
     <div
-      className={`w-full flex flex-col h-full relative transition-all duration-300 ${
-        isDragging
-          ? 'bg-primary/5'
-          : ''
-      }`}
+      className="w-full flex flex-col h-full relative transition-all duration-300"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* 拖放覆盖层 - 拖放时显示 */}
-      {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
-          <div className="text-center">
-            <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
-            <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
-            <p className="text-sm" style={{ color: colors.textMuted }}>{i18n.t('library.supportFormats')}</p>
-          </div>
-        </div>
-      )}
-
       {/* Header band: toolbar (+ default column header). In default mode with glass UI
           it becomes a frosted absolute overlay (list scrolls under it, height measured
           via ResizeObserver → topInset). In category mode it stays in-flow but frosted. */}
@@ -913,9 +898,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
         <div
-          className={glassUI ? 'absolute inset-0 overflow-hidden' : 'flex-1 relative min-h-0 overflow-hidden'}
+          className={glassUI ? 'absolute inset-0 overflow-hidden relative' : 'flex-1 relative min-h-0 overflow-hidden'}
           style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
         >
+          {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
+          {isDragging && (
+            <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
+              <div className="text-center">
+                <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
+                <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
+                <p className="text-sm" style={{ color: colors.textMuted }}>{i18n.t('library.supportFormats')}</p>
+              </div>
+            </div>
+          )}
           {/* Sliding highlight overlay (outside scroll clipping) */}
           <div className="absolute inset-0 pointer-events-none">
             {highlightStyle.opacity > 0 && (
@@ -1060,7 +1055,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           </div>
 
            {/* 右侧歌曲列表 */}
-           <div className="flex-1 flex flex-col min-w-0">
+           <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+             {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
+             {isDragging && (
+               <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
+                 <div className="text-center">
+                   <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
+                   <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
+                   <p className="text-sm" style={{ color: colors.textMuted }}>{i18n.t('library.supportFormats')}</p>
+                 </div>
+               </div>
+             )}
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
                <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
                 {isEditMode ? (
