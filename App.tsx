@@ -8,6 +8,7 @@ import { libraryStorage } from './services/libraryStorage';
 import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
+import { reorderTracks } from './services/libraryReorder';
 import { useBlobUrls } from './hooks/useBlobUrls';
 import { usePlayback } from './hooks/usePlayback';
 import { useLibrarySlots } from './hooks/useLibrarySlots';
@@ -429,8 +430,8 @@ const App: React.FC = () => {
 
     const persistData = getPersistenceData();
     const libraryData = buildLibraryIndexDataForSlots(
-      activeSlotId === 'local' ? newTracks : slots.local.tracks,
-      activeSlotId === 'cloud' ? newTracks : slots.cloud.tracks,
+      activeSlotId === 'local' ? result.tracks : slots.local.tracks,
+      activeSlotId === 'cloud' ? result.tracks : slots.cloud.tracks,
       persistData
     );
     await libraryStorage.saveLibrary(libraryData);
