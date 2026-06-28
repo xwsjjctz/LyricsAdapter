@@ -168,7 +168,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       </div>
 
       {/* Volume & Playback Mode */}
-      <div className="flex items-center justify-center gap-4 w-36">
+      <div className="flex items-center justify-center gap-2 w-36">
         <button
           onClick={onTogglePlaybackMode}
           className="size-8 flex items-center justify-center transition-colors relative"

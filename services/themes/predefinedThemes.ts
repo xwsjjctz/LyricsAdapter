@@ -188,6 +188,7 @@ export const predefinedThemes: ThemeConfig[] = [
       headingLetterSpacing: '0',
       buttonLetterSpacing: '0.12em',
       controlTextTransform: 'uppercase',
+      listItemBorder: '#0a0a0a',
     },
   },
 ];

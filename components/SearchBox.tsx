@@ -168,7 +168,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           backdropFilter: 'blur(16px)',
           border: `var(--theme-control-border-width) solid ${colors.borderLight}`,
           borderRadius: isExpanded ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
-          boxShadow: 'var(--theme-surface-shadow)',
+          boxShadow: 'var(--theme-control-action-shadow)',
           transition: 'border-color 0.25s ease, border-radius 0.25s ease',
         }}
       >
@@ -215,9 +215,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           border: isExpanded ? `var(--theme-control-border-width) solid ${colors.borderLight}` : 'var(--theme-control-border-width) solid transparent',
           borderTop: 'none',
           borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
-          boxShadow: isExpanded
-            ? `0 6px 16px rgba(0,0,0,0.14), 0 0 12px ${colors.glowColor}`
-            : 'none',
+          boxShadow: isExpanded ? 'var(--theme-control-action-shadow)' : 'none',
         }}
       >
         <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">

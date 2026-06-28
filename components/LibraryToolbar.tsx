@@ -96,12 +96,13 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             <button
               onClick={onRefreshCloud}
               disabled={isRefreshing}
-              className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center`}
+              className={`${liquidGlass ? 'lg-glass' : ''} w-10 h-10 flex items-center justify-center`}
               style={{
                 borderRadius: 'var(--theme-control-radius)',
                 color: colors.textSecondary,
                 backgroundColor: liquidGlass ? undefined : colors.backgroundCard,
                 border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                boxShadow: liquidGlass ? undefined : 'var(--theme-control-action-shadow)',
                 cursor: isRefreshing ? 'not-allowed' : 'pointer',
                 opacity: isRefreshing ? 0.7 : 1,
                 transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
@@ -128,14 +129,14 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             <div className={liquidGlass ? 'lg-layer' : ''}>
               <button
                 onClick={onToggleEditMode}
-                className={`${liquidGlass ? 'lg-glass' : 'shadow-xl'} w-10 h-10 flex items-center justify-center relative`}
+                className={`${liquidGlass ? 'lg-glass' : ''} w-10 h-10 flex items-center justify-center relative`}
                 style={{
                   borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
                   color: isEditMode ? (liquidGlass ? colors.success : '#fff') : colors.textSecondary,
                   backgroundColor: isEditMode
                     ? (liquidGlass ? `${colors.success}33` : colors.success)
                     : (liquidGlass ? undefined : colors.backgroundCard),
-                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : undefined,
+                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : liquidGlass ? undefined : 'var(--theme-control-action-shadow)',
                   border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
                   transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
                 }}
@@ -211,7 +212,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           </div>
         )}
         <div className={liquidGlass ? 'lg-layer' : ''}>
-        <div className={`${liquidGlass ? 'lg-glass' : 'border shadow-xl'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard }}>
+        <div className={`${liquidGlass ? 'lg-glass' : 'border'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard, boxShadow: 'var(--theme-control-action-shadow)' }}>
           <button
             onClick={() => {
               onFilterTypeChange('default');

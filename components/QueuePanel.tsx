@@ -60,7 +60,7 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
               >
                 <div 
                   className="size-12 bg-cover bg-center shrink-0 shadow-md group-hover:scale-105 transition-transform"
-                  style={{backgroundImage: `url('${toCoverThumb(track.coverUrl, 128)}')`, borderRadius: 'var(--theme-media-radius)' }}
+                  style={{backgroundImage: `url('${toCoverThumb(track.coverUrl, 128)}')`, borderRadius: 'var(--theme-media-radius-sm)' }}
                 ></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate transition-colors" style={{ color: index === currentTrackIndex ? colors.primary : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>

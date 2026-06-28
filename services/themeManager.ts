@@ -187,11 +187,13 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-control-radius', appearance.controlRadius);
     root.style.setProperty('--theme-button-radius', appearance.buttonRadius);
     root.style.setProperty('--theme-media-radius', appearance.mediaRadius);
+    root.style.setProperty('--theme-media-radius-sm', appearance.mediaRadiusSm);
     root.style.setProperty('--theme-progress-radius', appearance.progressRadius);
     root.style.setProperty('--theme-progress-height', appearance.progressHeight);
     root.style.setProperty('--theme-surface-border-width', appearance.surfaceBorderWidth);
     root.style.setProperty('--theme-control-border-width', appearance.controlBorderWidth);
     root.style.setProperty('--theme-panel-border-width', appearance.panelBorderWidth);
+    root.style.setProperty('--theme-list-item-border', appearance.listItemBorder);
     root.style.setProperty('--theme-surface-shadow', appearance.surfaceShadow);
     root.style.setProperty('--theme-surface-shadow-hover', appearance.surfaceShadowHover);
     root.style.setProperty('--theme-text-body-weight', appearance.textBodyWeight);

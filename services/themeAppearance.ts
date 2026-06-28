@@ -15,6 +15,7 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     controlRadius: borderRadius.lg,
     buttonRadius: borderRadius.full,
     mediaRadius: borderRadius.lg,
+    mediaRadiusSm: borderRadius.md,
     progressRadius: borderRadius.full,
     progressHeight: '4px',
     surfaceBorderWidth: '1px',
@@ -28,6 +29,7 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     headingLetterSpacing: '0',
     buttonLetterSpacing: '0',
     controlTextTransform: 'none',
+    listItemBorder: 'transparent',
   };
 
   return {

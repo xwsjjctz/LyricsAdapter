@@ -72,7 +72,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       style={{
         ...animationStyle,
         backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
-        border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}` : `var(--theme-control-border-width) solid ${colors.borderLight}`,
+        border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}` : `var(--theme-control-border-width) solid var(--theme-list-item-border)`,
         borderRadius: 'var(--theme-control-radius)',
       }}
       className={`grid gap-4 px-4 py-3 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
@@ -109,7 +109,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           filePath={track.filePath}
           fallbackUrl={track.coverUrl}
           className="size-10 object-cover"
-          style={{ borderRadius: 'var(--theme-media-radius)' }}
+          style={{ borderRadius: 'var(--theme-media-radius-sm)' }}
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>

@@ -107,6 +107,7 @@ export interface ThemeAppearanceStyles {
   controlRadius: string;
   buttonRadius: string;
   mediaRadius: string;
+  mediaRadiusSm: string;
   progressRadius: string;
   progressHeight: string;
   surfaceBorderWidth: string;
@@ -120,6 +121,7 @@ export interface ThemeAppearanceStyles {
   headingLetterSpacing: string;
   buttonLetterSpacing: string;
   controlTextTransform: string;
+  listItemBorder: string;
 }
 
 export interface ThemeConfig {
