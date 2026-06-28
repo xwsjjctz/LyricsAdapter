@@ -915,6 +915,14 @@ const translations: Translations = {
     de: 'Gletscherblau',
     fr: 'Bleu Glacier'
   },
+  'theme.name.brutalist': {
+    zh: '粗粝黄',
+    en: 'Brutalist Yellow',
+    ja: 'ブルータリストイエロー',
+    ko: '브루탈리스트 옐로',
+    de: 'Brutalistisches Gelb',
+    fr: 'Jaune brutaliste'
+  },
 
   // Theme descriptions
   'theme.desc.default': {
@@ -980,6 +988,14 @@ const translations: Translations = {
     ko: '상쾌하고 밝은, 모던한 쿨톤',
     de: 'Frisch und hell, moderner kühler Ton',
     fr: 'Frais et lumineux, style moderne frais'
+  },
+  'theme.desc.brutalist': {
+    zh: '高对比硬边框，海报感粗粝风格',
+    en: 'High contrast, hard borders, poster-like brutalist style',
+    ja: '高コントラスト、硬い境界線、ポスター風のブルータリストスタイル',
+    ko: '높은 대비, 단단한 테두리, 포스터 같은 브루탈리스트 스타일',
+    de: 'Hoher Kontrast, harte Kanten und posterartige Brutalistik',
+    fr: 'Contraste élevé, bords durs et style brutaliste façon affiche'
   },
 
   // Theme tags
@@ -1174,6 +1190,30 @@ const translations: Translations = {
     ko: '모던',
     de: 'Modern',
     fr: 'Moderne'
+  },
+  'theme.tag.brutalist': {
+    zh: '粗粝',
+    en: 'Brutalist',
+    ja: 'ブルータリスト',
+    ko: '브루탈리스트',
+    de: 'Brutalistisch',
+    fr: 'Brutaliste'
+  },
+  'theme.tag.highContrast': {
+    zh: '高对比',
+    en: 'High Contrast',
+    ja: '高コントラスト',
+    ko: '고대비',
+    de: 'Hoher Kontrast',
+    fr: 'Contraste élevé'
+  },
+  'theme.tag.yellow': {
+    zh: '黄色',
+    en: 'Yellow',
+    ja: 'イエロー',
+    ko: '노란색',
+    de: 'Gelb',
+    fr: 'Jaune'
   },
 
   // Settings Dialog (BrowseView)

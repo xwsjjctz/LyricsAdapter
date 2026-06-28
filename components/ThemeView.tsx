@@ -98,6 +98,9 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       '极简': 'theme.tag.minimal',
       '暖色': 'theme.tag.warmColor',
       '简约': 'theme.tag.minimalist',
+      '粗粝': 'theme.tag.brutalist',
+      '高对比': 'theme.tag.highContrast',
+      '黄色': 'theme.tag.yellow',
       'Default': 'theme.tag.default',
       'Classic': 'theme.tag.classic',
       'Business': 'theme.tag.business',
@@ -122,6 +125,9 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       'Minimalist': 'theme.tag.minimalist',
       'Warm Color': 'theme.tag.warmColor',
       'Warm Tone': 'theme.tag.warmColor',
+      'Brutalist': 'theme.tag.brutalist',
+      'High Contrast': 'theme.tag.highContrast',
+      'Yellow': 'theme.tag.yellow',
     };
     return tagMap[tag] || '';
   };
