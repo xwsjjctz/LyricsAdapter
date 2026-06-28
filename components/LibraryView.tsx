@@ -915,17 +915,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <div className="absolute inset-0 pointer-events-none">
             {highlightStyle.opacity > 0 && (
               <div
-                className={`absolute rounded-xl pointer-events-none shadow-xl ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
+                className="absolute pointer-events-none"
                 style={{
-                  transform: `translateY(${highlightStyle.top - scrollTop}px)`,
-                  height: `${highlightStyle.height}px`,
-                  opacity: highlightStyle.opacity,
                   left: 24,
                   right: 24,
-                  backgroundColor: `${colors.primary}26`,
-                  border: `1px solid ${colors.primary}40`, borderRadius: 'var(--theme-control-radius)',
+                  top: 0,
+                  opacity: highlightStyle.opacity,
+                  transform: `translateY(${-scrollTop}px)`,
                 }}
-              />
+              >
+                <div
+                  className={`pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
+                  style={{
+                    transform: `translateY(${highlightStyle.top}px)`,
+                    height: `${highlightStyle.height}px`,
+                    boxShadow: 'var(--theme-elevated-shadow)',
+                    borderRadius: 'var(--theme-control-radius)',
+                  }}
+                />
+              </div>
             )}
           </div>
 
@@ -937,8 +945,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             {filteredTracks.length > 0 ? (
               <div
                 ref={listRef}
-                className="grid gap-2 relative"
-                style={{ paddingTop, paddingBottom: paddingBottom + bottomInset }}
+                className="grid relative"
+                style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)' }}
               >
                 {insertPosition !== null && (
                   <div
@@ -1093,17 +1101,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                <div className="absolute inset-0 pointer-events-none">
                  {highlightStyle.opacity > 0 && (
                    <div
-                    className={`absolute rounded-xl pointer-events-none shadow-xl ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
+                     className="absolute pointer-events-none"
                      style={{
-                       transform: `translateY(${highlightStyle.top - scrollTop}px)`,
-                       height: `${highlightStyle.height}px`,
-                       opacity: highlightStyle.opacity,
                        left: 24,
                        right: 24,
-                       backgroundColor: `${colors.primary}26`,
-                       border: `1px solid ${colors.primary}40`, borderRadius: 'var(--theme-control-radius)',
+                       top: 0,
+                       opacity: highlightStyle.opacity,
+                       transform: `translateY(${-scrollTop}px)`,
                      }}
-                   />
+                   >
+                     <div
+                       className={`pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
+                       style={{
+                         transform: `translateY(${highlightStyle.top}px)`,
+                         height: `${highlightStyle.height}px`,
+                         boxShadow: 'var(--theme-elevated-shadow)',
+                         borderRadius: 'var(--theme-control-radius)',
+                       }}
+                     />
+                   </div>
                  )}
                </div>
 
@@ -1115,8 +1131,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                  {visibleTracks.length > 0 ? (
                    <div
                      ref={listRef}
-                     className="grid gap-2 relative"
-                     style={{ paddingTop, paddingBottom: paddingBottom + bottomInset }}
+                     className="grid relative"
+                     style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)' }}
                    >
                       {visibleTracks.map((track, idx) => {
                         const filteredIndex = idx;

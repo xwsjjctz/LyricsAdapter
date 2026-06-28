@@ -70,6 +70,7 @@ export interface ThemeControlStyles {
   itemBackgroundActive: string;
   itemForegroundActive: string;
   itemShadowActive: string;
+  currentTrackForeground: string;
 
   // Icon buttons and icon surfaces
   iconBackground: string;
@@ -123,6 +124,8 @@ export interface ThemeAppearanceStyles {
   buttonLetterSpacing: string;
   controlTextTransform: string;
   listItemBorder: string;
+  listItemGap: string;
+  listItemPaddingY: string;
 }
 
 export interface ThemeConfig {

@@ -73,9 +73,12 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         ...animationStyle,
         backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
         border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}` : `var(--theme-control-border-width) solid var(--theme-list-item-border)`,
+        borderBottom: 'none',
         borderRadius: 'var(--theme-control-radius)',
+        paddingTop: 'var(--theme-list-item-padding-y)',
+        paddingBottom: 'var(--theme-list-item-padding-y)',
       }}
-      className={`grid gap-4 px-4 py-3 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
+      className={`grid gap-4 px-4 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
         isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
       }`}
       onMouseEnter={e => {
@@ -89,7 +92,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         }
       }}
     >
-      <div className="text-sm font-medium" style={{ opacity: 0.5, color: isCurrentTrack ? colors.primary : colors.textSecondary }}>
+      <div className="text-sm font-medium" style={{ opacity: 0.5, color: isCurrentTrack ? 'var(--theme-control-current-track-fg)' : colors.textSecondary }}>
         {isEditMode && !isUnavailable ? (
           <input
             type="checkbox"
@@ -112,7 +115,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           style={{ borderRadius: 'var(--theme-media-radius-sm)' }}
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm truncate" style={{ color: isCurrentTrack ? colors.primary : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>
+          <p className="text-sm truncate" style={{ color: isCurrentTrack ? 'var(--theme-control-current-track-fg)' : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>
             {track.title}
             {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{i18n.t('library.needReimport')}</span>}
           </p>

@@ -146,6 +146,7 @@ export const predefinedThemes: ThemeConfig[] = [
       itemBackgroundHover: '#f5e642',
       itemBackgroundActive: '#0a0a0a',
       itemForegroundActive: '#f5e642',
+      currentTrackForeground: '#0a0a0a',
       itemShadowActive: '4px 4px 0 #0a0a0a',
       iconBackground: '#fffdf0',
       iconBackgroundActive: '#0a0a0a',
@@ -190,6 +191,8 @@ export const predefinedThemes: ThemeConfig[] = [
       buttonLetterSpacing: '0.12em',
       controlTextTransform: 'uppercase',
       listItemBorder: '#0a0a0a',
+      listItemGap: '0px',
+      listItemPaddingY: '16px',
     },
   },
 ];

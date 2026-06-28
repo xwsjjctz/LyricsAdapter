@@ -31,6 +31,8 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     buttonLetterSpacing: '0',
     controlTextTransform: 'none',
     listItemBorder: 'transparent',
+    listItemGap: '8px',
+    listItemPaddingY: '12px',
   };
 
   return {

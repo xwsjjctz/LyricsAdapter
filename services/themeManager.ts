@@ -156,6 +156,7 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-control-item-bg-active', controls.itemBackgroundActive);
     root.style.setProperty('--theme-control-item-fg-active', controls.itemForegroundActive);
     root.style.setProperty('--theme-control-item-shadow-active', controls.itemShadowActive);
+    root.style.setProperty('--theme-control-current-track-fg', controls.currentTrackForeground);
 
     root.style.setProperty('--theme-control-icon-bg', controls.iconBackground);
     root.style.setProperty('--theme-control-icon-bg-active', controls.iconBackgroundActive);
@@ -194,6 +195,8 @@ class ThemeManagerClass {
     root.style.setProperty('--theme-control-border-width', appearance.controlBorderWidth);
     root.style.setProperty('--theme-panel-border-width', appearance.panelBorderWidth);
     root.style.setProperty('--theme-list-item-border', appearance.listItemBorder);
+    root.style.setProperty('--theme-list-item-gap', appearance.listItemGap);
+    root.style.setProperty('--theme-list-item-padding-y', appearance.listItemPaddingY);
     root.style.setProperty('--theme-surface-shadow', appearance.surfaceShadow);
     root.style.setProperty('--theme-surface-shadow-hover', appearance.surfaceShadowHover);
     root.style.setProperty('--theme-elevated-shadow', appearance.elevatedShadow);
