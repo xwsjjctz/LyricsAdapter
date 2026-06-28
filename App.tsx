@@ -149,6 +149,7 @@ const App: React.FC = () => {
     fileInputRef,
     handleDesktopImport,
     handleCloudImport,
+    handleCloudDropFilePaths,
     handleDropFiles,
     handleDropFilePaths,
     handleFileInputChange,
@@ -382,6 +383,13 @@ const App: React.FC = () => {
       fileInputRef.current?.click();
     }
   }, [handleDesktopImport, handleCloudImport, viewSlot]);
+  const handleViewDropFilePaths = useCallback((filePaths: { path: string; name: string }[]) => {
+    if (viewSlot === 'cloud') {
+      handleCloudDropFilePaths(filePaths);
+      return;
+    }
+    handleDropFilePaths(filePaths);
+  }, [handleCloudDropFilePaths, handleDropFilePaths, viewSlot]);
   const handleNavigate = useCallback((mode: ViewMode) => {
     if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
       setPendingNavigation(mode);
@@ -684,7 +692,7 @@ const App: React.FC = () => {
                 onRemoveTrack={handleRemoveTrackFromView}
                 onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
                 onDropFiles={handleDropFiles}
-                onDropFilePaths={handleDropFilePaths}
+                onDropFilePaths={handleViewDropFilePaths}
                 onReorderTracks={handleReorderTracks}
                 onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
                 isFocusMode={isFocusMode}
