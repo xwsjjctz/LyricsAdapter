@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { getDesktopAPI } from './desktopAdapter';
+import { buildWebDAVUrl, webDAVHrefToPath } from './webdavPath';
 
 const WEBDAV_CONFIG_KEY = 'webdav-config';
 const CDN_CACHE_KEY = 'webdav-cdn-cache';
@@ -101,15 +102,7 @@ class WebDAVClient {
 
   private buildUrl(path: string): string {
     if (!this.config) return '';
-    const base = this.config.serverUrl.replace(/\/+$/, '');
-    let cleanPath = path.startsWith('/') ? path : '/' + path;
-    const baseSegment = new URL(base).pathname.replace(/\/+$/, '');
-    if (baseSegment && cleanPath.startsWith(baseSegment + '/')) {
-      cleanPath = cleanPath.slice(baseSegment.length);
-    } else if (cleanPath === baseSegment) {
-      cleanPath = '';
-    }
-    return `${base}${cleanPath}`;
+    return buildWebDAVUrl(this.config.serverUrl, path);
   }
 
   getConfig(): WebDAVConfig | null {
@@ -240,23 +233,20 @@ class WebDAVClient {
 
       if (!name) continue;
 
-      const propstat = resp.querySelector('propstat');
+      const propstat = [...resp.querySelectorAll('propstat')].find(item => {
+        const status = item.querySelector('status')?.textContent || '';
+        return /\s2\d\d\s/.test(status);
+      });
       if (!propstat) continue;
-
-      const statusEl = propstat.querySelector('status');
-      if (statusEl?.textContent?.includes('404')) continue;
 
       const resourcetype = propstat.querySelector('resourcetype');
       const isDirectory = !!resourcetype?.querySelector('collection');
 
-      if (isDirectory && href === requestPath) continue;
+      const filePath = webDAVHrefToPath(href, this.config!.serverUrl);
+      if (isDirectory && filePath === requestPath) continue;
 
       const sizeEl = propstat.querySelector('getcontentlength');
       const lastModEl = propstat.querySelector('getlastmodified');
-
-      const decodedHref = decodeURIComponent(href);
-      const basePath = this.config!.serverUrl.replace(/\/+$/, '');
-      const filePath = decodedHref.startsWith(basePath) ? decodedHref.slice(basePath.length) : decodedHref;
 
       if (!isDirectory) {
         const ext = name.toLowerCase().substring(name.lastIndexOf('.'));
