@@ -9,6 +9,24 @@ export function isCoverUrl(url: string | undefined | null): url is string {
   return !!url && url.startsWith(COVER_PROTOCOL);
 }
 
+export function parseCoverDataUrl(dataUrl: string | undefined | null): { mime: string; base64: string } | null {
+  if (!dataUrl) return null;
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/);
+  if (!match?.[1] || !match[2]) return null;
+  return {
+    mime: match[1] === 'image/jpg' ? 'image/jpeg' : match[1],
+    base64: match[2],
+  };
+}
+
+export function sanitizePersistedCoverUrl(url: string | undefined | null): string {
+  if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('file:') || url.startsWith('data:')) {
+    return '';
+  }
+  return url;
+}
+
 /**
  * 给 cover:// URL 追加一个查询参数，自动判断分隔符 ? / &。
  * 非 cover:// URL 原样返回。用于在同一 URL 上叠加多个参数（如 size 与 retry cache-bust）。
