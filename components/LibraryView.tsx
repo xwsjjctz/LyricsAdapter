@@ -952,7 +952,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               <div
                 ref={listRef}
                 className="grid relative"
-                style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)' }}
+                style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)', paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
               >
                 {insertPosition !== null && (
                   <div
@@ -1141,7 +1141,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                    <div
                      ref={listRef}
                      className="grid relative"
-                     style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)' }}
+                     style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)', paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
                    >
                       {visibleTracks.map((track, idx) => {
                         const filteredIndex = idx;
