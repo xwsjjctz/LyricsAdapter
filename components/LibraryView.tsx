@@ -1170,9 +1170,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                               border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
                               color: isCurrentTrack ? (playingIndicator === 'inline' ? 'var(--theme-control-current-track-fg)' : colors.primary) : colors.textPrimary,
                               cursor: (isEditMode || isUnavailable) ? 'default' : 'pointer',
+                              // inline 模式当前播放行：叠加粗粝风硬阴影并提升层级，使阴影不被相邻行遮挡。
+                              boxShadow: playingIndicator === 'inline' && isCurrentTrack ? 'var(--theme-elevated-shadow)' : undefined,
+                              zIndex: playingIndicator === 'inline' && isCurrentTrack ? 20 : undefined,
                             }}
-                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                            onMouseLeave={e => { if (!isUnavailable && !isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode && !isCurrentTrack) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                            onMouseLeave={e => { if (!isUnavailable && !isSelected && !isCurrentTrack) e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                            <div className="text-sm font-medium opacity-50">
                              {isEditMode && !isUnavailable ? (

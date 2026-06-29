@@ -80,6 +80,9 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         borderRadius: 'var(--theme-control-radius)',
         paddingTop: 'var(--theme-list-item-padding-y)',
         paddingBottom: 'var(--theme-list-item-padding-y)',
+        // inline 模式当前播放行：叠加粗粝风硬阴影并提升层级，使阴影不被紧邻的下一行遮挡。
+        boxShadow: playingIndicator === 'inline' && isCurrentTrack ? 'var(--theme-elevated-shadow)' : undefined,
+        zIndex: playingIndicator === 'inline' && isCurrentTrack ? 20 : undefined,
       }}
       className={`grid gap-4 px-4 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
         isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
