@@ -242,6 +242,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // 当前播放指示器形态：'inline' 时不渲染浮动跟随滑块，改用行内实色高亮，
   // 彻底规避浮动定位错位，且滚动时无跟随动画。
   const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
+  // inline 模式（粗粝类主题）下，浮动定位按钮也走粗粝风：实色底 + 黑色直角边框 + 硬阴影。
+  const inlineFab = playingIndicator === 'inline';
 
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
@@ -1260,10 +1262,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <button
           onClick={handleLocateToCurrentTrack}
           className="absolute right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
-          style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary, bottom: glassUI ? bottomInset + 24 : 24 }}
+          style={{
+            backgroundColor: inlineFab ? colors.primary : colors.backgroundCard,
+            color: inlineFab ? 'var(--theme-control-action-fg)' : colors.textSecondary,
+            border: inlineFab ? 'var(--theme-control-border-width) solid var(--theme-list-item-border)' : undefined,
+            borderRadius: inlineFab ? 'var(--theme-button-radius)' : undefined,
+            boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
+            bottom: glassUI ? bottomInset + 24 : 24,
+          }}
           title={i18n.t('library.locateToCurrent')}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
+          onMouseEnter={e => {
+            if (inlineFab) return; // 粗粝风按钮 hover 不变阴影/底色，保持稳定外观
+            e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+            e.currentTarget.style.color = colors.textPrimary;
+          }}
+          onMouseLeave={e => {
+            if (inlineFab) return;
+            e.currentTarget.style.backgroundColor = colors.backgroundCard;
+            e.currentTarget.style.color = colors.textSecondary;
+          }}
         >
           <span className="material-symbols-outlined text-lg">my_location</span>
         </button>
