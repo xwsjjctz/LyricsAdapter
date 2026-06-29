@@ -79,6 +79,8 @@ export interface DesktopAPI {
   webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
   webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
   webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
+  /** MKCOL 创建集合（目录），幂等。返回 success 与 HTTP status（201/2xx/405 视为已就绪）。 */
+  webdavMkcol: (url: string, authHeader: string) => Promise<{ success: boolean; status?: number; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
   cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }>;
   // Auto-updater APIs
@@ -409,6 +411,13 @@ class ElectronAdapter implements DesktopAPI {
       return result.ok ? { success: true } : { success: false, error: result.error };
     }
     return this.api.webdavDelete(url, authHeader);
+  }
+
+  async webdavMkcol(url: string, authHeader: string): Promise<{ success: boolean; status?: number; error?: string }> {
+    if (typeof this.api.webdavMkcol === 'function') {
+      return this.api.webdavMkcol(url, authHeader);
+    }
+    return { success: false, error: 'webdavMkcol not available' };
   }
 
   async runStartupCleanup(activeTrackIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> {

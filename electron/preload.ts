@@ -261,6 +261,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('webdav-delete', url, authHeader);
   },
 
+  // WebDAV MKCOL to ensure a collection (folder) exists before PUT
+  webdavMkcol: async (url: string, authHeader: string) => {
+    return ipcRenderer.invoke('webdav-mkcol', url, authHeader);
+  },
+
   // Run startup resource cleanup
   runStartupCleanup: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);

@@ -132,5 +132,27 @@ export function registerWebDAVHandlers(): void {
     }
   });
 
+  // MKCOL 创建集合（目录）。幂等：201 新建 / 2xx / 405(已存在) 均视为"目录就绪"。
+  // 用于上传前确保 /Metadata/ 存在——很多 WebDAV（含 123pan）在父目录缺失时 PUT 返回 409。
+  ipcMain.handle('webdav-mkcol', async (_event, url: string, authHeader: string) => {
+    try {
+      const response = await fetch(url, {
+        method: 'MKCOL',
+        headers: {
+          'Authorization': authHeader,
+        },
+      });
+
+      const status = response.status;
+      if ((status >= 200 && status < 300) || status === 405) {
+        return { success: true, status };
+      }
+      return { success: false, status, error: `MKCOL failed: ${status} ${response.statusText}` };
+    } catch (e: any) {
+      logger.error('[WebDAV] MKCOL error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   logger.info('[WebDAV] IPC handlers registered');
 }

@@ -307,6 +307,31 @@ class WebDAVClient {
     return this.uploadFile(filePath, data, 'application/json; charset=utf-8');
   }
 
+  /**
+   * 确保一个集合（目录）存在：发送 MKCOL，幂等。
+   * 201/2xx=新建成功，405=已存在，均视为就绪。用于上传 /Metadata/ 前保证父目录存在，
+   * 否则很多 WebDAV（含 123pan）PUT 到不存在的目录会返回 409。
+   * MKCOL 不被支持/失败时返回 false，调用方可继续尝试 PUT（部分服务器会自动建目录）。
+   */
+  async ensureCollection(folderPath: string): Promise<boolean> {
+    const api = await getDesktopAPI();
+    if (!api?.webdavMkcol) {
+      logger.warn('[WebDAV] webdavMkcol unavailable, skip ensureCollection:', folderPath);
+      return false;
+    }
+    const url = this.buildUrl(folderPath);
+    try {
+      const res = await api.webdavMkcol(url, this.buildAuthHeader());
+      if (!res?.success) {
+        logger.warn(`[WebDAV] MKCOL ${folderPath} → status ${res?.status ?? 'n/a'} (${res?.error ?? 'unknown'})`);
+      }
+      return res?.success === true;
+    } catch (e) {
+      logger.warn('[WebDAV] MKCOL error:', folderPath, e);
+      return false;
+    }
+  }
+
   async fetchTextFile(filePath: string): Promise<string | null> {
     const api = await getDesktopAPI();
     if (!api) return null;
