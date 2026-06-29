@@ -67,6 +67,76 @@ async function blobUrlToDataUrl(blobUrl: string): Promise<string> {
   }
 }
 
+/**
+ * 在渲染进程读取 cover://（本机封面协议）并转为可移植 data: URL。
+ *
+ * 必须用渲染端 fetch：cover 注册为 privileged(supportFetchAPI) 的自定义协议，
+ * 只有渲染进程的 fetch（Chromium）能解析它；主进程全局 fetch(undici) 不支持自定义协议，
+ * 故不能走 fetch-cover-base64 这个 IPC（它在主进程裸 fetch，只对 http 有效）。
+ * 文件缺失（404）或读取失败返回 undefined。
+ */
+async function readLocalCoverAsDataUrl(coverUrl: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(coverUrl);
+    if (!res.ok) return undefined;
+    const blob = await res.blob();
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+    return dataUrl.startsWith('data:') ? dataUrl : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 把封面 URL 转成可移植的 data: 形式，用于写入 WebDAV /Metadata/ 切片。
+ *
+ * /Metadata/ 是跨机器的可移植边界：切片必须自包含，绝不能存本机 cover:// 指针，
+ * 否则其他机器读到的是指向本机磁盘的悬空引用（cover:// 404）。
+ *  - cover:// → 渲染端 fetch 本机文件转 data:；读不到返回 undefined（不写悬空指针）
+ *  - data:    → 原样（已可移植）
+ *  - 其它（http/blob/file 占位等）→ undefined（不持久化进切片）
+ */
+async function materializePortableCover(coverUrl: string | undefined | null): Promise<string | undefined> {
+  if (!coverUrl) return undefined;
+  if (coverUrl.startsWith('data:')) return coverUrl;
+  if (!coverUrl.startsWith('cover://')) return undefined;
+  // 本机文件缺失时返回 undefined，交由调用方决定回退（如从 webdav 音频重新解析）。
+  return readLocalCoverAsDataUrl(coverUrl);
+}
+
+/**
+ * 从 Track 重建 WebDAVFile，供读取端治愈（lazyLoadCover 重新解析封面）使用。
+ * track.lastModified 是 PROPFIND getlastmodified 解析出的 ms 数值，转回 ISO 字符串。
+ */
+function trackToWebDAVFile(track: Track): WebDAVFile {
+  return {
+    name: track.fileName ?? '',
+    path: track.webdavPath ?? '',
+    size: track.fileSize ?? 0,
+    lastModified: track.lastModified ? new Date(track.lastModified).toISOString() : '',
+    isDirectory: false,
+  };
+}
+
+/**
+ * 从 (path, CachedMetadata) 重建 WebDAVFile，供上传端本机封面缺失时
+ * 回退从 webdav 音频重新解析封面使用。meta.lastModified 已是 PROPFIND 字符串。
+ */
+function metaToWebDAVFile(path: string, meta: { fileSize: number; lastModified: string }): WebDAVFile {
+  return {
+    name: path.split('/').pop() || '',
+    path,
+    size: meta.fileSize ?? 0,
+    lastModified: meta.lastModified ?? '',
+    isDirectory: false,
+  };
+}
+
 interface CachedMetadata {
   title: string;
   artist: string;
@@ -422,6 +492,10 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     logger.info('[useWebDAV] Populating details from chunks for', needDetails.length, 'tracks');
 
+    // 记录本次治愈的"旧版不可移植 cover://"条目数；>0 时治愈后回写服务端切片为 data:，
+    // 让这份缓存自愈成可移植（新机器首次连接即可治愈，省去回构建机重传）。
+    let legacyHealedCount = 0;
+
     // 按 chunkId 去重，逐批拉取
     const chunkIds = [...new Set(needDetails.map(d => d.chunkId))];
     for (let bi = 0; bi < chunkIds.length; bi += BATCH_SIZE) {
@@ -440,13 +514,36 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           const rawChunkEntry = chunk.entries[d.path];
           if (!rawChunkEntry) continue;
           let chunkEntry: ChunkEntry = rawChunkEntry;
-          if (chunkEntry.coverUrl?.startsWith('data:')) {
+          const coverFromChunk = chunkEntry.coverUrl;
+          if (coverFromChunk?.startsWith('data:')) {
+            // 可移植封面（新版缓存）：落本地 cover://，复用确定性 id
             const migrated = await migrateCoverToDisk(
-              { coverUrl: chunkEntry.coverUrl } as CachedMetadata,
+              { coverUrl: coverFromChunk } as CachedMetadata,
               d.path
             );
-            if (migrated.coverUrl !== chunkEntry.coverUrl) {
+            if (migrated.coverUrl !== coverFromChunk) {
               chunkEntry = { ...chunkEntry, coverUrl: migrated.coverUrl! };
+            }
+          } else if (coverFromChunk?.startsWith('cover://')) {
+            // Fix 2：旧版不可移植缓存——切片里存了构建机本机的 cover:// 指针。
+            // 新机器没有该本地文件，直接走 cover:// 会 404。这里用渲染端 fetch 校验本机文件：
+            //   存在 → 落本地 cover://（确定性 id，与构建机一致，命中即复用）；
+            //   缺失 → 从音频文件头重新解析封面自愈（一次性，后台渐进填充封面）。
+            const localDataUrl = await readLocalCoverAsDataUrl(coverFromChunk);
+            if (localDataUrl) {
+              const migrated = await migrateCoverToDisk({ coverUrl: localDataUrl } as CachedMetadata, d.path);
+              if (migrated.coverUrl) {
+                chunkEntry = { ...chunkEntry, coverUrl: migrated.coverUrl! };
+              }
+            } else {
+              logger.info('[useWebDAV] Legacy cover pointer dangling locally, re-extracting from audio:', d.path);
+              const track = tracks[d.trackIndex];
+              const reextracted = track ? await lazyLoadCover(trackToWebDAVFile(track)) : undefined;
+              if (reextracted) {
+                chunkEntry = { ...chunkEntry, coverUrl: reextracted };
+                legacyHealedCount += 1;
+              }
+              // 重新解析也失败（音频本就无封面）→ 保留原 cover://，TrackCover 兜底显示占位符
             }
           }
           if (tracks[d.trackIndex]) {
@@ -474,6 +571,14 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
     await saveMetadataCache(cache);
     logger.info('[useWebDAV] Detail population done');
+
+    // 治愈了旧版 cover:// 悬空指针 → 把重新解析得到的可移植 data: 回写服务端切片，
+    // 让这份缓存自愈成可移植（本次机器可写时生效）。回写是幂等的：切片已是 data: 后不再触发。
+    if (legacyHealedCount > 0) {
+      const healedPaths = new Set(tracks.map(t => t.webdavPath).filter(Boolean) as string[]);
+      logger.info(`[useWebDAV] ${legacyHealedCount} legacy cover(s) healed, writing portable data: back to /Metadata/`);
+      await persistManifestAndChunks(healedPaths, 'Failed to write back healed portable covers');
+    }
   };
 
   const runQueuedManifestUpload = (task: () => Promise<void>): Promise<void> => {
@@ -515,11 +620,40 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       // IndexedDB 中有更新（含 coverUrl）的条目覆盖基线；新条目分配 chunkId
       const affectedChunkIds = new Set<string>();
       const heavyUpdates: Record<string, { chunkId: string; entry: ChunkEntry; manifest: ManifestEntry }> = {};
+
+      // Fix 1：写入前把本机 cover:// 指针还原为可移植 data:。
+      // /Metadata/ 切片是跨机器的可移植边界，只允许存自包含的 data: 封面，
+      // 否则其他机器拿到指向本机磁盘的悬空 cover://（必然 404）。
+      // 本机封面文件缺失时（清缓存/换机），回退从 webdav 音频重新解析——
+      // 即"从 webdav 拉封面"，避免只告警就放弃、把封面丢出切片。
+      const portableCovers = new Map<string, string | undefined>();
+      const coverMaterializePaths = [...allEntries.entries()]
+        .filter(([p, m]) => (!queuedAudioPathSet || queuedAudioPathSet.has(p)) && !!m.coverUrl);
+      if (coverMaterializePaths.length > 0) {
+        const CONCURRENCY = 8;
+        for (let i = 0; i < coverMaterializePaths.length; i += CONCURRENCY) {
+          await Promise.all(coverMaterializePaths.slice(i, i + CONCURRENCY).map(async ([path, meta]) => {
+            let portable = await materializePortableCover(meta.coverUrl); // 本机文件 → data:
+            if (!portable && meta.coverUrl?.startsWith('cover://')) {
+              logger.info('[useWebDAV] Local cover missing, recovering from webdav audio:', path);
+              const recovered = await lazyLoadCover(metaToWebDAVFile(path, meta));
+              if (recovered) portable = recovered;
+            }
+            portableCovers.set(path, portable);
+          }));
+        }
+      }
+
       for (const [path, meta] of allEntries) {
         if (queuedAudioPathSet && !queuedAudioPathSet.has(path)) continue;
         const priorChunkId = manifestEntries[path]?.chunkId;
         const chunkId = priorChunkId ?? assignChunkId(path, existingManifest, chunkSize);
-        const hasCover = !!meta.coverUrl;
+        const portableCover = portableCovers.get(path);
+        // hasCover：有可移植封面→true；IndexedDB 无 coverUrl 但服务端已标 hasCover=true→保留服务端值。
+        // 新机器首连时 IndexedDB 尚无 coverUrl（封面待 chunk 补全/重新解析），
+        // 若因此把服务端 hasCover 清成 false，会导致 manifest 误判"无封面"并触发下游反复重解析。
+        const existingEntry = manifestEntries[path];
+        const hasCover = portableCover ? true : (existingEntry?.hasCover ?? false);
         const hasLyrics = !!meta.lyrics;
         const hasSynced = !!(meta.syncedLyrics && meta.syncedLyrics.length > 0);
 
@@ -542,12 +676,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         }
         manifestEntries[path] = nextEntry;
 
-        // 有重量数据 → 记录为该 chunk 的更新
-        if (meta.coverUrl || meta.lyrics || meta.syncedLyrics) {
+        // 有重量数据 → 记录为该 chunk 的更新（封面只用可移植 data:，绝不写本机 cover:// 指针）
+        if (portableCover || meta.lyrics || meta.syncedLyrics) {
           heavyUpdates[path] = {
             chunkId,
             entry: {
-              ...(meta.coverUrl ? { coverUrl: meta.coverUrl } : {}),
+              ...(portableCover ? { coverUrl: portableCover } : {}),
               ...(meta.lyrics ? { lyrics: meta.lyrics } : {}),
               ...(meta.syncedLyrics ? { syncedLyrics: meta.syncedLyrics } : {}),
             },
@@ -568,7 +702,17 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         const existingChunk = await metadataFolderService.loadChunk(chunkId);
         const mergedEntries: Record<string, ChunkEntry> = { ...(existingChunk?.entries ?? {}) };
         for (const [path, upd] of Object.entries(heavyUpdates)) {
-          if (upd.chunkId === chunkId) mergedEntries[path] = upd.entry;
+          if (upd.chunkId !== chunkId) continue;
+          // 防覆盖：本次没有可移植封面（本机缺失且重新解析也失败）时，
+          // 保留切片里已有的 data: 封面，避免把好封面清空。
+          if (!upd.entry.coverUrl) {
+            const existingCover = existingChunk?.entries[path]?.coverUrl;
+            if (existingCover?.startsWith('data:')) {
+              mergedEntries[path] = { ...upd.entry, coverUrl: existingCover };
+              continue;
+            }
+          }
+          mergedEntries[path] = upd.entry;
         }
         chunksToSave.set(chunkId, { chunkId, entries: mergedEntries });
       }
