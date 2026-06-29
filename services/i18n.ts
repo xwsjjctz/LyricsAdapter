@@ -2028,24 +2028,6 @@ const translations: Translations = {
     fr: 'Retour GSAP à la pression et au relâchement des boutons'
   },
 
-  'settings.liquidGlass': {
-    zh: '液态玻璃界面',
-    en: 'Liquid Glass UI',
-    ja: 'リキッドグラス UI',
-    ko: '리퀴드 글래스 UI',
-    de: 'Liquid-Glass-Oberfläche',
-    fr: 'Interface verre liquide'
-  },
-
-  'settings.liquidGlassDesc': {
-    zh: '工具栏按钮与 Focus Mode 播放台的液态玻璃效果',
-    en: 'Liquid glass effect for toolbar buttons and the Focus Mode player',
-    ja: 'ツールバーボタンと Focus Mode プレーヤーのリキッドグラス効果',
-    ko: '툴바 버튼과 Focus Mode 플레이어의 리퀴드 글래스 효과',
-    de: 'Liquid-Glass-Effekt für Toolbar-Buttons und den Focus-Mode-Player',
-    fr: 'Effet verre liquide pour les boutons et le lecteur en Focus Mode'
-  },
-
   'settings.focusBgBlurRadius': {
     zh: 'Focus Mode 背景模糊',
     en: 'Focus Mode Background Blur',

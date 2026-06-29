@@ -103,7 +103,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
-  const [liquidGlass, setLiquidGlass] = useState(() => settingsManager.getLiquidGlass());
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
@@ -116,7 +115,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
-      setLiquidGlass(settingsManager.getLiquidGlass());
     });
     return unsubscribe;
   }, []);
@@ -975,19 +973,18 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         </main>
 
         {/* Compact Bottom Player */}
-        <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5"
-          style={liquidGlass ? { filter: 'contrast(var(--lg-contrast))' } : undefined}
-        >
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
           <div
             ref={playerRef}
             onMouseEnter={handlePlayerMouseEnter}
             onMouseLeave={handlePlayerMouseLeave}
-            className={`${liquidGlass ? 'lg-glass' : 'glass'} p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500`}
+            className="glass p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
             style={{
               opacity: isPlayerVisible ? 1 : 0,
               borderRadius: 'var(--theme-surface-radius)',
-              ...(liquidGlass ? {} : { border: `var(--theme-panel-border-width) solid ${colors.borderLight}`, backgroundColor: colors.backgroundDark, boxShadow: 'var(--theme-surface-shadow)' }),
+              border: `var(--theme-panel-border-width) solid ${colors.borderLight}`,
+              backgroundColor: colors.backgroundDark,
+              boxShadow: 'var(--theme-surface-shadow)',
             }}
           >
             {/* Progress */}
