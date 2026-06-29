@@ -155,6 +155,9 @@ export const THEME_IDS = {
   MIDNIGHT: 'midnight',
   WARM: 'warm',
   GLACIER: 'glacier',
+
+  // The idea comes from https://uiverse.io/WattoRex/odd-fish-37
+  // Thanks to @WattoRex for the inspiration!
   BRUTALIST: 'brutalist',
 } as const;
 
