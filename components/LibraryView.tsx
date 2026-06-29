@@ -6,6 +6,7 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
+import { resolveThemeAppearance } from '../services/themeAppearance';
 import TrackCover from './TrackCover';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
@@ -238,6 +239,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Theme colors
   const colors = currentTheme.colors;
+  // 当前播放指示器形态：'inline' 时不渲染浮动跟随滑块，改用行内实色高亮，
+  // 彻底规避浮动定位错位，且滚动时无跟随动画。
+  const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
 
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
@@ -913,7 +917,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           )}
           {/* Sliding highlight overlay (outside scroll clipping) */}
           <div className="absolute inset-0 pointer-events-none">
-            {highlightStyle.opacity > 0 && (
+            {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
               <div
                 className="absolute pointer-events-none"
                 style={{
@@ -978,6 +982,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       isDragged={isDragged}
                       shouldShowAnimation={shouldShowAnimation}
                       colors={colors}
+                      playingIndicator={playingIndicator}
                       measureRef={idx === 0 ? rowMeasureRef : undefined}
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
@@ -1101,7 +1106,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              <div className="flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
                {/* Sliding highlight overlay (outside scroll clipping) */}
                <div className="absolute inset-0 pointer-events-none">
-                 {highlightStyle.opacity > 0 && (
+                 {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
                    <div
                      className="absolute pointer-events-none"
                      style={{
@@ -1161,9 +1166,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                             style={{
                               ...animationStyle,
                               opacity: isUnavailable ? 0.4 : 1,
-                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : (playingIndicator === 'inline' && isCurrentTrack ? colors.primary : 'transparent'),
                               border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
-                              color: isCurrentTrack ? colors.primary : colors.textPrimary,
+                              color: isCurrentTrack ? (playingIndicator === 'inline' ? 'var(--theme-control-current-track-fg)' : colors.primary) : colors.textPrimary,
                               cursor: (isEditMode || isUnavailable) ? 'default' : 'pointer',
                             }}
                             onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}

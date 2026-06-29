@@ -194,6 +194,9 @@ export const predefinedThemes: ThemeConfig[] = [
       listItemBorder: '#0a0a0a',
       listItemGap: '0px',
       listItemPaddingY: '16px',
+      // 粗粝风每行已有 3px 粗黑边框，浮动跟随滑块在此主题下会退化为孤立的
+      // 硬阴影方块（tint 为 transparent）且易错位；改用行内实色高亮，无跟随动画。
+      playingIndicator: 'inline',
     },
   },
 ];

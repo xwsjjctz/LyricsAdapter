@@ -35,6 +35,7 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     listItemBorder: 'transparent',
     listItemGap: '8px',
     listItemPaddingY: '12px',
+    playingIndicator: 'floating',
   };
 
   return {

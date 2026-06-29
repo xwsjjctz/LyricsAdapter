@@ -13,6 +13,8 @@ interface LibraryTrackRowProps {
   isDragged: boolean;
   shouldShowAnimation: boolean;
   colors: ThemeColors;
+  /** 当前播放指示器形态：'inline' 时当前行用实色背景，不依赖浮动滑块。 */
+  playingIndicator?: 'floating' | 'inline';
   measureRef?: ((node: HTMLDivElement | null) => void) | undefined;
   realTrackIndex: number;
   onTrackSelect: (index: number) => void;
@@ -40,6 +42,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   isDragged,
   shouldShowAnimation,
   colors,
+  playingIndicator = 'floating',
   measureRef,
   realTrackIndex,
   onTrackSelect,
@@ -71,7 +74,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       }}
       style={{
         ...animationStyle,
-        backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
+        backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? (playingIndicator === 'inline' ? colors.primary : `${colors.primary}15`) : 'transparent',
         border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}` : `var(--theme-control-border-width) solid var(--theme-list-item-border)`,
         borderBottom: 'none',
         borderRadius: 'var(--theme-control-radius)',
