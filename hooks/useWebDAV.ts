@@ -12,7 +12,8 @@ const RANGE_SIZE = 1048576;
 
 export type WebDAVDiffResult =
   | { type: 'full'; tracks: Track[] }
-  | { type: 'diff'; added: Track[]; removed: string[]; updated: Track[] };
+  | { type: 'diff'; added: Track[]; removed: string[]; updated: Track[] }
+  | { type: 'error'; error: string };
 
 interface FileDiff {
   added: WebDAVFile[];
@@ -746,8 +747,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
 
   const loadWebDAVFiles = useCallback(async (): Promise<WebDAVDiffResult> => {
     if (!webdavClient.hasConfig()) {
-      setError('WebDAV not configured');
-      return { type: 'full', tracks: [] };
+      const message = 'WebDAV not configured';
+      setError(message);
+      return { type: 'error', error: message };
     }
 
     abortRef.current = false;
@@ -881,7 +883,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       let fetched = enrichedNewTracks.length;
 
       for (let batch = 0; batch < toFetch.length; batch += BATCH_SIZE) {
-        if (abortRef.current) return { type: 'full', tracks: [] };
+        if (abortRef.current) return { type: 'error', error: 'WebDAV load cancelled' };
 
         const batchItems = toFetch.slice(batch, batch + BATCH_SIZE);
         const results = await Promise.allSettled(
@@ -931,8 +933,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       return { type: 'diff', added: addedTracks, removed: removedIds, updated: updatedTracks };
     } catch (e: any) {
       logger.error('[useWebDAV] Failed to load files:', e);
-      setError(e.message || 'Failed to load WebDAV files');
-      return { type: 'full', tracks: [] };
+      const message = e.message || 'Failed to load WebDAV files';
+      setError(message);
+      return { type: 'error', error: message };
     } finally {
       setIsLoading(false);
     }
@@ -1027,7 +1030,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     let fetched = audioFiles.length - toFetch.length;
 
     for (let batch = 0; batch < toFetch.length; batch += BATCH_SIZE) {
-      if (abortRef.current) return { type: 'full', tracks: [] };
+      if (abortRef.current) return { type: 'error', error: 'WebDAV load cancelled' };
 
       const batchItems = toFetch.slice(batch, batch + BATCH_SIZE);
       const results = await Promise.allSettled(

@@ -202,17 +202,22 @@ class WebDAVClient {
   }
 
   async listFiles(dirPath: string = '/'): Promise<WebDAVFile[]> {
-    if (!this.hasConfig()) return [];
+    if (!this.hasConfig()) {
+      throw new Error('WebDAV not configured');
+    }
 
     const api = await getDesktopAPI();
-    if (!api) return [];
+    if (!api) {
+      throw new Error('Desktop API not available');
+    }
 
     const url = this.buildUrl(dirPath);
     const result = await api.webdavPropfind(url, this.buildAuthHeader(), '1');
 
     if (!result.success || !result.xml) {
-      logger.error('[WebDAV] PROPFIND failed:', result.error);
-      return [];
+      const message = result.error || 'PROPFIND returned an empty response';
+      logger.error('[WebDAV] PROPFIND failed:', message);
+      throw new Error(message);
     }
 
     return this.parsePropfindResponse(result.xml, dirPath);
@@ -222,6 +227,9 @@ class WebDAVClient {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xml, 'application/xml');
     const responses = doc.querySelectorAll('response');
+    if (doc.querySelector('parsererror') || responses.length === 0) {
+      throw new Error('Invalid PROPFIND response');
+    }
     const files: WebDAVFile[] = [];
 
     for (const resp of responses) {
