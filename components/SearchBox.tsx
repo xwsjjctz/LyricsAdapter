@@ -6,6 +6,7 @@ import { themeManager } from '../services/themeManager';
 import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
+import { trackMatchesQuery } from '../services/pinyinSearch';
 import TrackCover from './TrackCover';
 
 const QQ_DEBOUNCE_MS = 300;
@@ -61,22 +62,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   // Filter local/cloud tracks
   const filteredLocal = useMemo(() => {
     if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return localTracks.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.artist.toLowerCase().includes(q) ||
-      t.album.toLowerCase().includes(q)
-    ).slice(0, MAX_RESULTS);
+    return localTracks.filter(t => trackMatchesQuery(t, query)).slice(0, MAX_RESULTS);
   }, [localTracks, query]);
 
   const filteredCloud = useMemo(() => {
     if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return cloudTracks.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.artist.toLowerCase().includes(q) ||
-      t.album.toLowerCase().includes(q)
-    ).slice(0, MAX_RESULTS);
+    return cloudTracks.filter(t => trackMatchesQuery(t, query)).slice(0, MAX_RESULTS);
   }, [cloudTracks, query]);
 
   // Online music search (debounced) — only when experimental toggle is on.
