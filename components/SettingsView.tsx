@@ -31,14 +31,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [neteaseCookie, setNeteaseCookie] = useState('');
   const [onlineSource, setOnlineSource] = useState<OnlineSource>('qq');
   const [downloadPath, setDownloadPath] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveMessageType, setSaveMessageType] = useState<'success' | 'error' | null>(null);
+  const [isSavingOnline, setIsSavingOnline] = useState(false);
+  const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
+  const [onlineMessageType, setOnlineMessageType] = useState<'success' | 'error' | null>(null);
 
   const [webdavServerUrl, setWebdavServerUrl] = useState('');
   const [webdavUsername, setWebdavUsername] = useState('');
   const [webdavPassword, setWebdavPassword] = useState('');
   const [isTestingWebdav, setIsTestingWebdav] = useState(false);
+  const [isSavingWebdav, setIsSavingWebdav] = useState(false);
   const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
@@ -141,12 +142,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     setIsLangDropdownOpen(false);
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveMessage(null);
+  const showOnlineMessage = (msg: string, type: 'success' | 'error') => {
+    setOnlineMessage(msg);
+    setOnlineMessageType(type);
+    setTimeout(() => { setOnlineMessage(null); setOnlineMessageType(null); }, 3000);
+  };
+
+  const handleSaveOnlineMusic = async () => {
+    setIsSavingOnline(true);
+    setOnlineMessage(null);
 
     try {
-      // Persist the active source choice immediately.
       settingsManager.setOnlineSource(onlineSource);
 
       const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
@@ -155,53 +161,70 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
-          setSaveMessage(i18n.t('settingsDialog.cookieInvalid'));
-          setSaveMessageType('error');
+          showOnlineMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
-          setIsSaving(false);
           return;
         }
+      } else {
+        await cookieStore.clearCookie();
       }
-      // NetEase cookie is optional — empty is valid (anonymous search).
 
       settingsManager.setDownloadPath(downloadPath.trim());
-
-      if (webdavServerUrl.trim() && webdavUsername.trim() && webdavPassword.trim()) {
-        webdavClient.saveConfig({
-          serverUrl: webdavServerUrl.trim(),
-          username: webdavUsername.trim(),
-          password: webdavPassword.trim(),
-        });
-      }
-
-      setSaveMessage(i18n.t('settingsDialog.saved'));
-      setSaveMessageType('success');
-      setTimeout(() => { setSaveMessage(null); setSaveMessageType(null); }, 3000);
+      showOnlineMessage(i18n.t('settingsDialog.saved'), 'success');
     } catch (err) {
-      setSaveMessage(i18n.t('settingsDialog.saveFailed'));
-      setSaveMessageType('error');
-      logger.error('[SettingsView] Save failed:', err);
+      showOnlineMessage(i18n.t('settingsDialog.saveFailed'), 'error');
+      logger.error('[SettingsView] Online Music save failed:', err);
     } finally {
-      setIsSaving(false);
+      setIsSavingOnline(false);
     }
   };
 
-  const handleTestWebdav = async () => {
+  const getWebdavFormConfig = () => {
     if (!webdavServerUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
       setWebdavMessage(i18n.t('settingsDialog.webdavFillAll'));
       setWebdavMessageType('error');
-      return;
+      return null;
     }
-    setIsTestingWebdav(true);
-    webdavClient.saveConfig({
+    return {
       serverUrl: webdavServerUrl.trim(),
       username: webdavUsername.trim(),
       password: webdavPassword.trim(),
-    });
-    const result = await webdavClient.testConnection();
-    setWebdavMessage(result.message);
-    setWebdavMessageType(result.success ? 'success' : 'error');
-    setIsTestingWebdav(false);
+    };
+  };
+
+  const handleTestWebdav = async () => {
+    const config = getWebdavFormConfig();
+    if (!config) {
+      return;
+    }
+    setIsTestingWebdav(true);
+    try {
+      const result = await webdavClient.testConnection(config);
+      setWebdavMessage(result.message);
+      setWebdavMessageType(result.success ? 'success' : 'error');
+    } finally {
+      setIsTestingWebdav(false);
+    }
+  };
+
+  const handleSaveWebdav = () => {
+    setIsSavingWebdav(true);
+    try {
+      const config = getWebdavFormConfig();
+      if (!config) {
+        return;
+      }
+      webdavClient.saveConfig(config);
+      setWebdavMessage(i18n.t('settingsDialog.saved'));
+      setWebdavMessageType('success');
+      setTimeout(() => { setWebdavMessage(null); setWebdavMessageType(null); }, 3000);
+    } catch (err) {
+      setWebdavMessage(i18n.t('settingsDialog.saveFailed'));
+      setWebdavMessageType('error');
+      logger.error('[SettingsView] WebDAV save failed:', err);
+    } finally {
+      setIsSavingWebdav(false);
+    }
   };
 
   const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
@@ -242,39 +265,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{i18n.t('settings.description')}</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-5 py-2.5 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-xl"
-          style={{ backgroundColor: colors.primary, color: '#fff', border: `var(--theme-control-border-width) solid ${colors.borderLight}` }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-        >
-          {isSaving ? (
-            <>
-              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-              {i18n.t('settingsDialog.saving')}
-            </>
-          ) : (
-            i18n.t('settingsDialog.save')
-          )}
-        </button>
       </div>
-
-      {saveMessage && (
-        <div className={`mb-4 p-3 r-control text-sm ${
-          saveMessageType === 'success'
-            ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-            : 'bg-red-500/10 border border-red-500/30 text-red-400'
-        }`}>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">
-              {saveMessageType === 'success' ? 'check' : 'error'}
-            </span>
-            {saveMessage}
-          </div>
-        </div>
-      )}
       </div>
 
       <div className={glassUI ? 'absolute inset-0 overflow-hidden' : 'flex-1 overflow-hidden'}>
@@ -341,40 +332,31 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           {/* Online Music — only visible when experimental toggle is enabled */}
           {qqMusicEnabled && (
           <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-            <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-              <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-              {i18n.t('settingsDialog.onlineMusicTitle')}
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
+                {i18n.t('settingsDialog.onlineMusicTitle')}
+              </h3>
+              <label className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
+                <span>{i18n.t('settingsDialog.onlineSource')}</span>
+                <select
+                  value={onlineSource}
+                  onChange={(e) => {
+                    const source = e.target.value as OnlineSource;
+                    setOnlineSource(source);
+                    settingsManager.setOnlineSource(source);
+                    setOnlineMessage(null);
+                    setOnlineMessageType(null);
+                  }}
+                  className="r-control px-2.5 py-1.5 text-xs focus:outline-none"
+                  style={{ backgroundColor: colors.backgroundDark, color: colors.textPrimary, border: `1px solid ${colors.borderLight}` }}
+                >
+                  <option value="qq">{i18n.t('settingsDialog.onlineSourceQq')}</option>
+                  <option value="netease">{i18n.t('settingsDialog.onlineSourceNetease')}</option>
+                </select>
+              </label>
+            </div>
             <div className="space-y-3">
-              {/* Source selector (QQ Music / NetEase) */}
-              <div>
-                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {i18n.t('settingsDialog.onlineSource')}
-                </label>
-                <div className="flex gap-2">
-                  {(['qq', 'netease'] as OnlineSource[]).map((src) => {
-                    const active = onlineSource === src;
-                    return (
-                      <button
-                        key={src}
-                        type="button"
-                        onClick={() => {
-                          setOnlineSource(src);
-                          settingsManager.setOnlineSource(src);
-                        }}
-                        className="flex-1 px-3 py-2 r-control text-xs font-medium transition-all"
-                        style={{
-                          backgroundColor: active ? colors.primary : colors.backgroundCard,
-                          color: active ? colors.textPrimary : colors.textSecondary,
-                          border: `1px solid ${active ? colors.primary : colors.borderLight}`,
-                        }}
-                      >
-                        {src === 'netease' ? i18n.t('settingsDialog.onlineSourceNetease') : i18n.t('settingsDialog.onlineSourceQq')}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
               {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
               <div>
                 <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
@@ -394,7 +376,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   style={inputStyle}
                   onFocus={inputFocus}
                   onBlur={inputBlur}
-                  disabled={isSaving}
+                  disabled={isSavingOnline}
                 />
                 {onlineSource === 'netease' && (
                   <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
@@ -416,7 +398,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     style={inputStyle}
                     onFocus={inputFocus}
                     onBlur={inputBlur}
-                    disabled={isSaving}
+                    disabled={isSavingOnline}
                   />
                   <button
                     onClick={async () => {
@@ -428,7 +410,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                         }
                       }
                     }}
-                    disabled={isSaving}
+                    disabled={isSavingOnline}
                     className="px-3 py-2.5 r-control transition-all disabled:opacity-50 flex items-center"
                     style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}` }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
@@ -440,6 +422,39 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
                   {i18n.t('settingsDialog.tip')}
                 </p>
+              </div>
+              {onlineMessage && (
+                <div className={`p-2 r-control text-xs ${
+                  onlineMessageType === 'success'
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                }`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-xs">
+                      {onlineMessageType === 'success' ? 'check' : 'error'}
+                    </span>
+                    {onlineMessage}
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSaveOnlineMusic}
+                  disabled={isSavingOnline}
+                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}` }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+                >
+                  {isSavingOnline ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                      {i18n.t('settingsDialog.saving')}
+                    </>
+                  ) : (
+                    i18n.t('settingsDialog.save')
+                  )}
+                </button>
               </div>
             </div>
           </section>
@@ -485,7 +500,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleTestWebdav}
-                  disabled={isTestingWebdav}
+                  disabled={isTestingWebdav || isSavingWebdav}
                   className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
                   style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}` }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
@@ -498,6 +513,23 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     </>
                   ) : (
                     i18n.t('settingsDialog.webdavTestConnection')
+                  )}
+                </button>
+                <button
+                  onClick={handleSaveWebdav}
+                  disabled={isTestingWebdav || isSavingWebdav}
+                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}` }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+                >
+                  {isSavingWebdav ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                      {i18n.t('settingsDialog.saving')}
+                    </>
+                  ) : (
+                    i18n.t('settingsDialog.save')
                   )}
                 </button>
                 {webdavMessage && (
