@@ -1370,12 +1370,12 @@ const translations: Translations = {
     fr: 'QQ Music'
   },
   'settingsDialog.onlineMusicTitle': {
-    zh: '在线音乐',
-    en: 'Online Music',
-    ja: 'オンライン音楽',
-    ko: '온라인 음악',
-    de: 'Online-Musik',
-    fr: 'Musique en ligne'
+    zh: '第三方音源',
+    en: 'Third Party Source',
+    ja: 'サードパーティ音源',
+    ko: '타사 음원',
+    de: 'Drittanbieter-Quelle',
+    fr: 'Source tierce'
   },
   'settingsDialog.onlineSource': {
     zh: '音源',

@@ -94,9 +94,9 @@ class WebDAVClient {
     }
   }
 
-  private buildAuthHeader(): string {
-    if (!this.config) return '';
-    const credentials = btoa(`${this.config.username}:${this.config.password}`);
+  private buildAuthHeader(config = this.config): string {
+    if (!config) return '';
+    const credentials = btoa(`${config.username}:${config.password}`);
     return `Basic ${credentials}`;
   }
 
@@ -139,15 +139,15 @@ class WebDAVClient {
     }
   }
 
-  async testConnection(): Promise<{ success: boolean; message: string }> {
-    if (!this.hasConfig()) {
+  async testConnection(config = this.config): Promise<{ success: boolean; message: string }> {
+    if (!config?.serverUrl || !config.username || !config.password) {
       return { success: false, message: 'WebDAV not configured' };
     }
     try {
       const api = await getDesktopAPI();
       if (!api) return { success: false, message: 'Desktop API not available' };
 
-      const result = await api.webdavPropfind(this.config!.serverUrl, this.buildAuthHeader(), '0');
+      const result = await api.webdavPropfind(config.serverUrl, this.buildAuthHeader(config), '0');
       if (result.success) {
         return { success: true, message: 'Connection successful' };
       }
