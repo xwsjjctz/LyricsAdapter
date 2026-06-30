@@ -22,11 +22,26 @@ interface NetEaseSongRaw {
   name?: string;
   ar?: { id?: number; name?: string }[];
   artists?: { id?: number; name?: string }[];
-  al?: { id?: number; name?: string; picUrl?: string };
-  album?: { id?: number; name?: string; picUrl?: string };
+  al?: NetEaseAlbumRaw;
+  album?: NetEaseAlbumRaw;
   picUrl?: string;
+  pic_str?: string;
+  picStr?: string;
+  pic?: number;
+  picId?: number;
   dt?: number;
   duration?: number;
+}
+
+interface NetEaseAlbumRaw {
+  id?: number;
+  name?: string;
+  picUrl?: string;
+  blurPicUrl?: string;
+  pic_str?: string;
+  picStr?: string;
+  pic?: number;
+  picId?: number;
 }
 
 interface NetEaseSongUrlEntry {
@@ -60,6 +75,7 @@ const HOT_PLAYLIST_ID = '3778678';
 class NetEaseMusicAPI implements OnlineMusicProvider {
   readonly id = 'netease' as const;
   private detailsCache = new Map<string, OnlineSong>();
+  private albumCoverCache = new Map<string, string | undefined>();
   private lyricsCache = new Map<string, string | null>();
 
   /** Send a weapi request via the main process. */
@@ -82,7 +98,7 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     const artists = raw.ar ?? raw.artists ?? [];
     const album = raw.al ?? raw.album;
     const durationMs = raw.dt ?? raw.duration ?? 0;
-    const coverUrl = this.normalizeCoverUrl(album?.picUrl || raw.picUrl);
+    const coverUrl = this.getRawCoverUrl(raw);
     return {
       songmid: String(raw.id),
       songname: raw.name || 'Unknown',
@@ -103,6 +119,25 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     if (!url) return undefined;
     const normalized = url.startsWith('http://') ? url.replace(/^http:\/\//, 'https://') : url;
     return normalized.includes('?') ? normalized : `${normalized}?param=800y800`;
+  }
+
+  private getRawCoverUrl(raw: NetEaseSongRaw): string | undefined {
+    const album = raw.al ?? raw.album;
+    return this.normalizeCoverUrl(
+      album?.picUrl ||
+      album?.blurPicUrl ||
+      raw.picUrl ||
+      this.buildCoverUrlFromPicFields(album) ||
+      this.buildCoverUrlFromPicFields(raw)
+    );
+  }
+
+  private buildCoverUrlFromPicFields(raw: NetEaseAlbumRaw | NetEaseSongRaw | undefined): string | undefined {
+    if (!raw) return undefined;
+    const picKey = raw.pic_str || raw.picStr;
+    const picId = raw.picId ?? raw.pic;
+    if (!picKey || picId == null) return undefined;
+    return `https://p1.music.126.net/${picKey}/${picId}.jpg`;
   }
 
   private mergeSong(base: OnlineSong, details: OnlineSong | undefined): OnlineSong {
@@ -131,7 +166,44 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
       }
     }
 
-    return songs.map((song) => this.mergeSong(song, this.detailsCache.get(song.songmid)));
+    const hydrated = songs.map((song) => this.mergeSong(song, this.detailsCache.get(song.songmid)));
+    await this.hydrateAlbumCovers(hydrated);
+    return hydrated.map((song) => {
+      if (song.coverUrl || !song.albummid) return song;
+      const coverUrl = this.albumCoverCache.get(song.albummid);
+      return coverUrl ? { ...song, coverUrl } : song;
+    });
+  }
+
+  private async hydrateAlbumCovers(songs: OnlineSong[]): Promise<void> {
+    const albumIds = [...new Set(
+      songs
+        .filter((song) => !song.coverUrl && song.albummid && !this.albumCoverCache.has(song.albummid))
+        .map((song) => song.albummid!)
+    )];
+    if (albumIds.length === 0) return;
+
+    await Promise.all(albumIds.map(async (albumId) => {
+      try {
+        const coverUrl = await this.getAlbumCoverUrl(albumId);
+        this.albumCoverCache.set(albumId, coverUrl);
+      } catch (err) {
+        logger.warn('[NetEase] getAlbumCoverUrl failed:', albumId, err);
+        this.albumCoverCache.set(albumId, undefined);
+      }
+    }));
+  }
+
+  private async getAlbumCoverUrl(albumId: string): Promise<string | undefined> {
+    const data = (await this.request(`/v1/album/${albumId}`, {
+      csrf_token: '',
+    })) as { album?: NetEaseAlbumRaw } | undefined;
+    const album = data?.album;
+    return this.normalizeCoverUrl(
+      album?.picUrl ||
+      album?.blurPicUrl ||
+      this.buildCoverUrlFromPicFields(album)
+    );
   }
 
   async searchMusic(query: string, limit = 20): Promise<OnlineSong[]> {
