@@ -29,6 +29,7 @@
     "idb": "^8.0.3",
     "music-metadata": "^11.13.0",
     "node-id3": "^0.2.9",
+    "pinyin-pro": "^3.28.1",
     "probe-image-size": "^7.3.0",
     "zod": "^4.4.3"
   },
