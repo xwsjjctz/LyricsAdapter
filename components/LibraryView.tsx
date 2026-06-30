@@ -921,27 +921,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           <div className="absolute inset-0 pointer-events-none">
             {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
               <div
-                className="absolute pointer-events-none"
+                className={`absolute pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
                 style={{
+                  transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+                  height: `${highlightStyle.height}px`,
+                  opacity: highlightStyle.opacity,
                   left: 24,
                   right: 24,
-                  top: 0,
-                  opacity: highlightStyle.opacity,
-                  transform: `translateY(${-scrollTop}px)`,
+                  backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
+                  boxShadow: 'var(--theme-elevated-shadow)',
+                  borderRadius: 'var(--theme-control-radius)',
                 }}
-              >
-                <div
-                  className={`pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
-                  style={{
-                    transform: `translateY(${highlightStyle.top}px)`,
-                    height: `${highlightStyle.height}px`,
-                    backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                    boxShadow: 'var(--theme-elevated-shadow)',
-                    borderRadius: 'var(--theme-control-radius)',
-                  }}
-                />
-              </div>
+              />
             )}
           </div>
 
@@ -1110,27 +1102,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                <div className="absolute inset-0 pointer-events-none">
                  {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
                    <div
-                     className="absolute pointer-events-none"
+                     className={`absolute pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
                      style={{
+                       transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+                       height: `${highlightStyle.height}px`,
+                       opacity: highlightStyle.opacity,
                        left: 24,
                        right: 24,
-                       top: 0,
-                       opacity: highlightStyle.opacity,
-                       transform: `translateY(${-scrollTop}px)`,
+                       backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                       border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
+                       boxShadow: 'var(--theme-elevated-shadow)',
+                       borderRadius: 'var(--theme-control-radius)',
                      }}
-                   >
-                     <div
-                       className={`pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
-                       style={{
-                         transform: `translateY(${highlightStyle.top}px)`,
-                         height: `${highlightStyle.height}px`,
-                         backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                         border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                         boxShadow: 'var(--theme-elevated-shadow)',
-                         borderRadius: 'var(--theme-control-radius)',
-                       }}
-                     />
-                   </div>
+                   />
                  )}
                </div>
 
