@@ -13,7 +13,7 @@ import { resolveThemeAppearance } from './themeAppearance';
 const THEME_STORAGE_KEY = 'app-theme';
 
 class ThemeManagerClass {
-  private currentThemeId: ThemeId = THEME_IDS.DEFAULT;
+  private currentThemeId: ThemeId = THEME_IDS.DEFAULT_DARK;
   private listeners: Set<(themeId: ThemeId) => void> = new Set();
 
   constructor() {
@@ -23,8 +23,9 @@ class ThemeManagerClass {
   private loadFromStorage(): void {
     try {
       const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
-      if (storedTheme && predefinedThemes.some(t => t.id === storedTheme)) {
-        this.currentThemeId = storedTheme;
+      const normalizedTheme = this.normalizeThemeId(storedTheme);
+      if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
+        this.currentThemeId = normalizedTheme;
         logger.debug('[ThemeManager] Loaded saved theme from localStorage:', storedTheme);
       } else {
         logger.debug('[ThemeManager] No saved theme found, using default');
@@ -32,6 +33,12 @@ class ThemeManagerClass {
     } catch (error) {
       logger.error('[ThemeManager] Failed to load from localStorage:', error);
     }
+  }
+
+  private normalizeThemeId(themeId: ThemeId | null): ThemeId | null {
+    if (themeId === THEME_IDS.DEFAULT) return THEME_IDS.DEFAULT_DARK;
+    if (themeId === THEME_IDS.WARM) return THEME_IDS.DEFAULT_LIGHT;
+    return themeId;
   }
 
   private saveToStorage(themeId: ThemeId): void {

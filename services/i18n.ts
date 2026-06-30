@@ -923,6 +923,30 @@ const translations: Translations = {
     de: 'Brutalistisches Gelb',
     fr: 'Jaune brutaliste'
   },
+  'theme.name.default-dark': {
+    zh: '默认深色',
+    en: 'Default Dark',
+    ja: 'Default Dark',
+    ko: 'Default Dark',
+    de: 'Default Dark',
+    fr: 'Default Dark'
+  },
+  'theme.name.default-light': {
+    zh: '默认浅色',
+    en: 'Default Light',
+    ja: 'Default Light',
+    ko: 'Default Light',
+    de: 'Default Light',
+    fr: 'Default Light'
+  },
+  'theme.name.default-combined': {
+    zh: '默认主题',
+    en: 'Default Theme',
+    ja: 'Default Theme',
+    ko: 'Default Theme',
+    de: 'Default Theme',
+    fr: 'Default Theme'
+  },
 
   // Theme descriptions
   'theme.desc.default': {
@@ -996,6 +1020,30 @@ const translations: Translations = {
     ko: '높은 대비, 단단한 테두리, 포스터 같은 브루탈리스트 스타일',
     de: 'Hoher Kontrast, harte Kanten und posterartige Brutalistik',
     fr: 'Contraste élevé, bords durs et style brutaliste façon affiche'
+  },
+  'theme.desc.default-dark': {
+    zh: '新的默认深色主题，基于经典蓝',
+    en: 'New default dark theme based on Classic Blue',
+    ja: 'New default dark theme based on Classic Blue',
+    ko: 'New default dark theme based on Classic Blue',
+    de: 'New default dark theme based on Classic Blue',
+    fr: 'New default dark theme based on Classic Blue'
+  },
+  'theme.desc.default-light': {
+    zh: '新的默认浅色主题，基于暖米',
+    en: 'New default light theme based on Warm Cream',
+    ja: 'New default light theme based on Warm Cream',
+    ko: 'New default light theme based on Warm Cream',
+    de: 'New default light theme based on Warm Cream',
+    fr: 'New default light theme based on Warm Cream'
+  },
+  'theme.desc.default-combined': {
+    zh: '内置默认主题，可在浅色和深色之间切换',
+    en: 'Built-in default theme with light and dark modes',
+    ja: 'Built-in default theme with light and dark modes',
+    ko: 'Built-in default theme with light and dark modes',
+    de: 'Built-in default theme with light and dark modes',
+    fr: 'Built-in default theme with light and dark modes'
   },
 
   // Theme tags
