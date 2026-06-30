@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { match } from 'pinyin-pro';
 import { Track } from '../types';
 import { getOnlineProvider, type OnlineSong } from '../services/onlineMusicProvider';
 import { i18n } from '../services/i18n';
@@ -6,10 +7,9 @@ import { themeManager } from '../services/themeManager';
 import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
-import { trackMatchesQuery } from '../services/pinyinSearch';
 import TrackCover from './TrackCover';
 
-const QQ_DEBOUNCE_MS = 300;
+const ONLINE_SEARCH_DEBOUNCE_MS = 500;
 const MAX_RESULTS = 8;
 
 const qualityOptions = [
@@ -17,6 +17,30 @@ const qualityOptions = [
   { value: '320' as const, label: '320kbps' },
   { value: 'flac' as const, label: 'FLAC' },
 ];
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
+}
+
+function trackMatchesSearch(track: Track, query: string): boolean {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return false;
+
+  const searchText = [track.title, track.artist, track.album, track.fileName].filter(Boolean).join(' ');
+  if (normalizeSearchText(searchText).includes(normalizeSearchText(trimmedQuery))) {
+    return true;
+  }
+
+  return match(searchText, trimmedQuery, {
+    insensitive: true,
+    continuous: true,
+    space: 'ignore',
+  }) !== null;
+}
 
 interface SearchBoxProps {
   isWindowFocused?: boolean;
@@ -62,12 +86,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   // Filter local/cloud tracks
   const filteredLocal = useMemo(() => {
     if (!query.trim()) return [];
-    return localTracks.filter(t => trackMatchesQuery(t, query)).slice(0, MAX_RESULTS);
+    return localTracks.filter(t => trackMatchesSearch(t, query)).slice(0, MAX_RESULTS);
   }, [localTracks, query]);
 
   const filteredCloud = useMemo(() => {
     if (!query.trim()) return [];
-    return cloudTracks.filter(t => trackMatchesQuery(t, query)).slice(0, MAX_RESULTS);
+    return cloudTracks.filter(t => trackMatchesSearch(t, query)).slice(0, MAX_RESULTS);
   }, [cloudTracks, query]);
 
   // Online music search (debounced) — only when experimental toggle is on.
@@ -89,7 +113,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         logger.warn(`[SearchBox] ${provider.id} search failed:`, err);
         setQqResults([]);
       } finally { setQqLoading(false); }
-    }, QQ_DEBOUNCE_MS);
+    }, ONLINE_SEARCH_DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, isExpanded]);
 

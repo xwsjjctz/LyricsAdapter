@@ -41,6 +41,8 @@ const qualityOptions: QualityOption[] = [
   { value: 'flac', label: 'FLAC' },
 ];
 
+const ONLINE_SEARCH_DEBOUNCE_MS = 500;
+
 function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] } {
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: { time: number; text: string }[] = [];
@@ -189,7 +191,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       } else if (hasSearched) {
         loadRecommendations();
       }
-    }, 500);
+    }, ONLINE_SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceTimerRef.current) {
