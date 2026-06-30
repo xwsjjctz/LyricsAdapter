@@ -39,6 +39,70 @@ body {
   font-weight: var(--theme-text-body-weight);
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html.electron[data-window-effect],
+html.electron[data-window-effect] body,
+html.electron[data-window-effect] #root {
+  background-color: transparent;
+}
+
+html.electron[data-window-effect='acrylic'] {
+  --sidebar-window-glass-bg: color-mix(in srgb, var(--theme-background-sidebar, #16212e) 50%, transparent);
+  --sidebar-window-glass-blur: 22px;
+  --sidebar-window-glass-saturation: 145%;
+}
+
+html.electron[data-window-effect='vibrancy'] {
+  --sidebar-window-glass-bg: color-mix(in srgb, var(--theme-background-sidebar, #16212e) 48%, transparent);
+  --sidebar-window-glass-blur: 18px;
+  --sidebar-window-glass-saturation: 135%;
+}
+
+:root.theme-is-transitioning body,
+:root.theme-is-transitioning body * {
+  transition-property: background-color, color, border-color, box-shadow, fill, stroke, opacity;
+  transition-duration: 360ms;
+  transition-timing-function: ease;
+}
+
+.theme-preview-card,
+.theme-preview-color {
+  transition-property: background-color, color, border-color, box-shadow, opacity, filter;
+  transition-duration: 420ms;
+  transition-timing-function: ease;
+}
+
+.sidebar-window-glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: transparent;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-window-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(230, 229, 229, 0.18), rgba(230, 229, 229, 0.18)),
+    var(--sidebar-window-glass-bg, color-mix(in srgb, var(--theme-background-sidebar, #16212e) 62%, transparent));
+  backdrop-filter: blur(var(--sidebar-window-glass-blur, 22px)) saturate(var(--sidebar-window-glass-saturation, 145%));
+  -webkit-backdrop-filter: blur(var(--sidebar-window-glass-blur, 22px)) saturate(var(--sidebar-window-glass-saturation, 145%));
+}
+
+.sidebar-window-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* Fade in animation for floating locate button */
 @keyframes fadeIn {
   from {
@@ -231,6 +295,24 @@ body {
 .theme-mode-switch__checkbox:checked + .theme-mode-switch__container .theme-mode-switch__stars-container {
   top: 50%;
   transform: translateY(-50%);
+}
+
+:root.theme-is-transitioning .theme-mode-switch__container,
+:root.theme-is-transitioning .theme-mode-switch__sun-moon-container,
+:root.theme-is-transitioning .theme-mode-switch__moon {
+  transition: var(--transition);
+}
+
+:root.theme-is-transitioning .theme-mode-switch__circle-container {
+  transition: var(--circle-transition);
+}
+
+:root.theme-is-transitioning .theme-mode-switch__clouds {
+  transition: 0.5s cubic-bezier(0, -0.02, 0.4, 1.25);
+}
+
+:root.theme-is-transitioning .theme-mode-switch__stars-container {
+  transition: var(--transition);
 }
 
 /* Remove default focus outline for all elements */

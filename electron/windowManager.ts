@@ -25,7 +25,7 @@ export async function createWindow(): Promise<BrowserWindow> {
   logger.info('===============================');
 
   const isMacOS = process.platform === 'darwin';
-  const isLinux = process.platform === 'linux';
+  const isWindows = process.platform === 'win32';
 
   win = new BrowserWindow({
     width: 1200,
@@ -34,7 +34,10 @@ export async function createWindow(): Promise<BrowserWindow> {
     minHeight: 720,
     title: 'LyricsAdapter',
     frame: false,
-    transparent: isLinux,
+    transparent: isMacOS || process.platform === 'linux',
+    ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
+    ...(isWindows ? { backgroundColor: '#00000000' } : {}),
+    ...(isMacOS ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

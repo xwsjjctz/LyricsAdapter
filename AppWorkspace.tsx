@@ -509,7 +509,7 @@ const AppWorkspace: React.FC = () => {
       <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
         background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
       } : {
-        backgroundColor: 'var(--theme-background-dark, #101922)',
+        backgroundColor: 'transparent',
       }}>
         <TitleBar
           isFocusMode={isFocusMode}

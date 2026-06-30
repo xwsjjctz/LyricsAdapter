@@ -232,9 +232,8 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
         }}
       >
         <aside
-          className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 overflow-hidden"
+          className="sidebar-window-glass flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 overflow-hidden"
           style={{
-            backgroundColor: 'var(--theme-background-sidebar)',
             borderRadius: 'var(--theme-surface-radius)',
             border: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
             filter: `drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45))`,
@@ -266,9 +265,8 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
 
   return (
     <aside
-      className="w-56 flex flex-col backdrop-blur-md z-20 pt-8"
+      className="sidebar-window-glass w-56 flex flex-col z-20 pt-8"
       style={{
-        backgroundColor: 'var(--theme-background-sidebar)',
         borderRight: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
       }}
     >
