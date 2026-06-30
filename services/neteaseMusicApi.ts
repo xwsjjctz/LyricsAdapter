@@ -24,6 +24,7 @@ interface NetEaseSongRaw {
   artists?: { id?: number; name?: string }[];
   al?: { id?: number; name?: string; picUrl?: string };
   album?: { id?: number; name?: string; picUrl?: string };
+  picUrl?: string;
   dt?: number;
   duration?: number;
 }
@@ -32,6 +33,17 @@ interface NetEaseSongUrlEntry {
   url: string | null;
   br?: number;
   freeTrialInfo?: unknown;
+}
+
+interface NetEaseLyricBlock {
+  lyric?: string;
+}
+
+interface NetEaseLyricResponse {
+  lrc?: NetEaseLyricBlock;
+  tlyric?: NetEaseLyricBlock;
+  romalrc?: NetEaseLyricBlock;
+  yrc?: NetEaseLyricBlock;
 }
 
 /** Map the shared UI quality to NetEase `level`. */
@@ -47,6 +59,8 @@ const HOT_PLAYLIST_ID = '3778678';
 
 class NetEaseMusicAPI implements OnlineMusicProvider {
   readonly id = 'netease' as const;
+  private detailsCache = new Map<string, OnlineSong>();
+  private lyricsCache = new Map<string, string | null>();
 
   /** Send a weapi request via the main process. */
   private async request(
@@ -68,6 +82,7 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     const artists = raw.ar ?? raw.artists ?? [];
     const album = raw.al ?? raw.album;
     const durationMs = raw.dt ?? raw.duration ?? 0;
+    const coverUrl = this.normalizeCoverUrl(album?.picUrl || raw.picUrl);
     return {
       songmid: String(raw.id),
       songname: raw.name || 'Unknown',
@@ -80,8 +95,43 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
       albumname: album?.name,
       albummid: album?.id != null ? String(album.id) : undefined,
       interval: Math.round((durationMs || 0) / 1000),
-      coverUrl: album?.picUrl,
+      coverUrl,
     };
+  }
+
+  private normalizeCoverUrl(url: string | undefined): string | undefined {
+    if (!url) return undefined;
+    const normalized = url.startsWith('http://') ? url.replace(/^http:\/\//, 'https://') : url;
+    return normalized.includes('?') ? normalized : `${normalized}?param=800y800`;
+  }
+
+  private mergeSong(base: OnlineSong, details: OnlineSong | undefined): OnlineSong {
+    if (!details) return base;
+    return {
+      ...base,
+      songname: base.songname !== 'Unknown' ? base.songname : details.songname,
+      singer: base.singer.length > 0 && base.singer[0]?.name !== 'Unknown' ? base.singer : details.singer,
+      albumname: base.albumname || details.albumname,
+      albummid: base.albummid || details.albummid,
+      interval: base.interval || details.interval,
+      coverUrl: base.coverUrl || details.coverUrl,
+    };
+  }
+
+  private async hydrateSongDetails(songs: OnlineSong[]): Promise<OnlineSong[]> {
+    const missingIds = songs
+      .filter((song) => !this.detailsCache.has(song.songmid))
+      .map((song) => song.songmid);
+
+    if (missingIds.length > 0) {
+      try {
+        await this.getSongDetails(missingIds);
+      } catch (err) {
+        logger.warn('[NetEase] hydrateSongDetails failed:', err);
+      }
+    }
+
+    return songs.map((song) => this.mergeSong(song, this.detailsCache.get(song.songmid)));
   }
 
   async searchMusic(query: string, limit = 20): Promise<OnlineSong[]> {
@@ -92,7 +142,7 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
       offset: 0,
     })) as { result?: { songs?: NetEaseSongRaw[] } } | undefined;
     const songs = data?.result?.songs ?? [];
-    return songs.map((s) => this.normalize(s));
+    return this.hydrateSongDetails(songs.map((s) => this.normalize(s)));
   }
 
   async getRecommendedSongs(): Promise<OnlineSong[]> {
@@ -102,7 +152,24 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
       s: 0,
     })) as { playlist?: { tracks?: NetEaseSongRaw[] } } | undefined;
     const tracks = data?.playlist?.tracks ?? [];
-    return tracks.slice(0, 30).map((t) => this.normalize(t));
+    return this.hydrateSongDetails(tracks.slice(0, 30).map((t) => this.normalize(t)));
+  }
+
+  async getSongDetails(songmids: string[]): Promise<OnlineSong[]> {
+    const ids = [...new Set(songmids.map((id) => Number(id)).filter(Number.isFinite))];
+    if (ids.length === 0) return [];
+
+    const data = (await this.request('/v3/song/detail', {
+      c: JSON.stringify(ids.map((id) => ({ id }))),
+      ids: JSON.stringify(ids),
+      csrf_token: '',
+    })) as { songs?: NetEaseSongRaw[] } | undefined;
+
+    const songs = (data?.songs ?? []).map((song) => this.normalize(song));
+    for (const song of songs) {
+      this.detailsCache.set(song.songmid, song);
+    }
+    return songs;
   }
 
   async getMusicUrl(songmid: string, quality: OnlineQuality): Promise<OnlineUrlResult> {
@@ -124,6 +191,10 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
   }
 
   async getLyrics(songmid: string): Promise<string | null> {
+    if (this.lyricsCache.has(songmid)) {
+      return this.lyricsCache.get(songmid) ?? null;
+    }
+
     try {
       const data = (await this.request('/song/lyric', {
         id: Number(songmid),
@@ -131,12 +202,36 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
         kv: -1,
         tv: -1,
         csrf_token: '',
-      })) as { lrc?: { lyric?: string } } | undefined;
-      return data?.lrc?.lyric || null;
+      })) as NetEaseLyricResponse | undefined;
+      let lyric = this.extractLyrics(data);
+      if (!lyric) {
+        const fallbackData = (await this.request('/song/lyric', {
+          id: Number(songmid),
+          lv: 1,
+          kv: 1,
+          tv: 1,
+          csrf_token: '',
+        })) as NetEaseLyricResponse | undefined;
+        lyric = this.extractLyrics(fallbackData);
+      }
+      this.lyricsCache.set(songmid, lyric);
+      return lyric;
     } catch (err) {
       logger.warn('[NetEase] getLyrics failed:', err);
+      this.lyricsCache.set(songmid, null);
       return null;
     }
+  }
+
+  private extractLyrics(data: NetEaseLyricResponse | undefined): string | null {
+    const candidates = [
+      data?.lrc?.lyric,
+      data?.yrc?.lyric,
+      data?.tlyric?.lyric,
+      data?.romalrc?.lyric,
+    ];
+    const lyric = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+    return lyric?.trim() || null;
   }
 
   getCoverUrl(song: OnlineSong): string {
