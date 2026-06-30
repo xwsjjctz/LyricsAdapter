@@ -168,9 +168,14 @@ export function registerNetEaseHandlers(): void {
   );
 
   // ===== QR scan login =====
+  // Real endpoints (reverse-engineered, weapi-encrypted):
+  //   unikey  -> POST /weapi/login/qrcode/unikey
+  //   poll    -> POST /weapi/login/qrcode/client/login   (returns code + Set-Cookie on 803)
+  // The QR itself encodes https://music.163.com/login?codekey=<unikey> (built locally).
+
   // Step 1: request a one-time `unikey` used to bind the QR + polling.
   ipcMain.handle('netease-qr-key', async () => {
-    const result = await weapiPost('/login/qr/key', { type: 1, noCookie: true });
+    const result = await weapiPost('/login/qrcode/unikey', { type: 1 });
     if (!result.success) {
       return { success: false, error: result.error };
     }
@@ -187,19 +192,9 @@ export function registerNetEaseHandlers(): void {
     if (typeof key !== 'string' || !key) {
       return { success: false, error: 'Invalid key' };
     }
-    const result = await weapiPost('/login/qr/create', { key, qrimg: true, qrimg_size: 280 });
-    if (!result.success) {
-      return { success: false, error: result.error };
-    }
-    const data = result.data as { qrurl?: string; qrimg?: string } | undefined;
-    const preRendered =
-      typeof data?.qrimg === 'string' && data.qrimg.startsWith('data:') ? data.qrimg : '';
-    const qrurl = typeof data?.qrurl === 'string' ? data.qrurl : '';
-    if (!preRendered && !qrurl) {
-      return { success: false, error: '未获取到二维码内容' };
-    }
     try {
-      const qrcode = preRendered || (await QRCode.toDataURL(qrurl, { margin: 1, width: 280 }));
+      const qrurl = `https://music.163.com/login?codekey=${encodeURIComponent(key)}`;
+      const qrcode = await QRCode.toDataURL(qrurl, { margin: 1, width: 280 });
       return { success: true, qrcode };
     } catch (error) {
       logger.error('[NetEase] QR render failed:', error);
@@ -213,7 +208,12 @@ export function registerNetEaseHandlers(): void {
     if (typeof key !== 'string' || !key) {
       return { success: false, error: 'Invalid key' };
     }
-    const result = await weapiRequest('/login/qr/check', { key, type: 1 }, undefined, true);
+    const result = await weapiRequest(
+      '/login/qrcode/client/login',
+      { key, type: 1 },
+      undefined,
+      true
+    );
     if (!result.success) {
       return { success: false, error: result.error };
     }

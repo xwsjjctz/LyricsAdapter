@@ -901,7 +901,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       type="button"
                       onClick={() => void startQr(onlineSource)}
                       title={i18n.t('settingsDialog.qrRefresh')}
-                      className="material-symbols-outlined text-sm opacity-60 hover:opacity-100 transition-opacity"
+                      className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
                       style={{ color: colors.textSecondary }}
                     >
                       refresh
@@ -1001,9 +1001,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     </div>
                   )}
                 </div>
-                <p className="mt-1 text-[11px]" style={{ color: colors.textMuted }}>
-                  {i18n.t('settingsDialog.qrHint')}
-                </p>
               </div>
 
               <div className="min-w-0 space-y-3">
