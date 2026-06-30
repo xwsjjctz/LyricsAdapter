@@ -24,10 +24,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
-  const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const langDropdownRef = useRef<HTMLDivElement>(null);
-  const sourceDropdownRef = useRef<HTMLDivElement>(null);
 
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
@@ -134,9 +132,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
         setIsLangDropdownOpen(false);
       }
-      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target as Node)) {
-        setIsSourceDropdownOpen(false);
-      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -152,7 +147,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     settingsManager.setOnlineSource(source);
     setOnlineMessage(null);
     setOnlineMessageType(null);
-    setIsSourceDropdownOpen(false);
   };
 
   const showOnlineMessage = (msg: string, type: 'success' | 'error') => {
@@ -254,7 +248,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
     { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
   ];
-  const currentSourceOption = sourceOptions.find(opt => opt.value === onlineSource) || sourceOptions[0]!;
   const colors = currentTheme.colors;
 
   const inputStyle = {
@@ -364,171 +357,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               </div>
             </div>
           </section>
-
-          {/* Online Music — only visible when experimental toggle is enabled */}
-          {qqMusicEnabled && (
-          <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-                {i18n.t('settingsDialog.onlineMusicTitle')}
-              </h3>
-              <div className="flex items-center gap-2">
-                <div className="relative" ref={sourceDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
-                    className="flex w-full items-center justify-between gap-1.5 px-4 py-2 text-xs transition-all"
-                    style={{
-                      backgroundColor: colors.backgroundDark,
-                      border: `1px solid ${colors.borderLight}`,
-                      borderRadius: isSourceDropdownOpen ? 'var(--theme-card-radius) var(--theme-card-radius) 0 0' : 'var(--theme-card-radius)',
-                      color: colors.textPrimary,
-                    }}
-                    title={i18n.t('settingsDialog.onlineSource')}
-                  >
-                    <span className="whitespace-nowrap">{currentSourceOption.label}</span>
-                    <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isSourceDropdownOpen ? 'rotate-180' : ''}`}>
-                      expand_more
-                    </span>
-                  </button>
-                  <div
-                    className="absolute left-0 right-0 top-full overflow-hidden z-50"
-                    style={{
-                      transform: isSourceDropdownOpen ? 'scaleY(1)' : 'scaleY(0)',
-                      transformOrigin: 'top center',
-                      opacity: isSourceDropdownOpen ? 1 : 0,
-                      pointerEvents: isSourceDropdownOpen ? 'auto' : 'none',
-                      transition: 'transform 0.25s ease, opacity 0.2s ease',
-                      background: colors.backgroundDark,
-                      backdropFilter: 'blur(20px)',
-                      borderWidth: '0 1px 1px',
-                      borderStyle: 'solid',
-                      borderColor: isSourceDropdownOpen ? colors.borderLight : 'transparent',
-                      borderRadius: '0 0 var(--theme-card-radius) var(--theme-card-radius)',
-                    }}
-                  >
-                    {sourceOptions.map((option) => {
-                      const active = onlineSource === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleOnlineSourceChange(option.value)}
-                          className="w-full px-4 py-2 text-left transition-colors text-xs"
-                          style={{ color: active ? colors.primary : colors.textSecondary }}
-                          onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
-                          onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button
-                  onClick={handleSaveOnlineMusic}
-                  disabled={isSavingOnline}
-                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-                >
-                  {isSavingOnline ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                      {i18n.t('settingsDialog.saving')}
-                    </>
-                  ) : (
-                    i18n.t('settingsDialog.save')
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
-              <div>
-                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {onlineSource === 'netease'
-                    ? i18n.t('settingsDialog.neteaseCookieLabel')
-                    : i18n.t('settingsDialog.cookie')}
-                </label>
-                <textarea
-                  value={onlineSource === 'netease' ? neteaseCookie : cookie}
-                  onChange={(e) =>
-                    onlineSource === 'netease'
-                      ? setNeteaseCookie(e.target.value)
-                      : setCookie(e.target.value)
-                  }
-                  placeholder={i18n.t('settingsDialog.pasteCookie')}
-                  className="w-full h-20 r-control p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
-                  style={inputStyle}
-                  onFocus={inputFocus}
-                  onBlur={inputBlur}
-                  disabled={isSavingOnline}
-                />
-                {onlineSource === 'netease' && (
-                  <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                    {i18n.t('settingsDialog.neteaseCookieHint')}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {i18n.t('settingsDialog.savePath')}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={downloadPath}
-                    onChange={(e) => setDownloadPath(e.target.value)}
-                    placeholder={i18n.t('settingsDialog.downloadFolderPath')}
-                    className="flex-1 r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                    style={inputStyle}
-                    onFocus={inputFocus}
-                    onBlur={inputBlur}
-                    disabled={isSavingOnline}
-                  />
-                  <button
-                    onClick={async () => {
-                      const desktopAPI = getDesktopAPI();
-                      if (desktopAPI?.selectDownloadFolder) {
-                        const result = await desktopAPI.selectDownloadFolder();
-                        if (result.success && result.path) {
-                          setDownloadPath(result.path);
-                        }
-                      }
-                    }}
-                    disabled={isSavingOnline}
-                    className="px-3 py-2.5 transition-all disabled:opacity-50 flex items-center"
-                    style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
-                  >
-                    <span className="material-symbols-outlined text-base">folder_open</span>
-                  </button>
-                </div>
-                <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                  {i18n.t('settingsDialog.tip')}
-                </p>
-              </div>
-              {onlineMessage && (
-                <div className={`p-2 r-control text-xs ${
-                  onlineMessageType === 'success'
-                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
-                }`}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-xs">
-                      {onlineMessageType === 'success' ? 'check' : 'error'}
-                    </span>
-                    {onlineMessage}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-          )}
 
           {/* WebDAV */}
           <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -833,6 +661,165 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           <section className="mb-4">
             <ShortcutsSettings />
           </section>
+
+          {/* Online Music — only visible when experimental toggle is enabled */}
+          {qqMusicEnabled && (
+          <section className="r-card p-4 border mb-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
+                {i18n.t('settingsDialog.onlineMusicTitle')}
+              </h3>
+              <button
+                onClick={handleSaveOnlineMusic}
+                disabled={isSavingOnline}
+                className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+                style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+              >
+                {isSavingOnline ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                    {i18n.t('settingsDialog.saving')}
+                  </>
+                ) : (
+                  i18n.t('settingsDialog.save')
+                )}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-4">
+              <div className="min-w-0">
+                <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                  {i18n.t('settingsDialog.onlineSource')}
+                </div>
+                <div
+                  className="max-h-36 overflow-y-auto no-scrollbar pr-1 space-y-1"
+                  style={{ borderRight: `1px solid ${colors.borderLight}` }}
+                >
+                  {sourceOptions.map((option) => {
+                    const active = onlineSource === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleOnlineSourceChange(option.value)}
+                        className="w-full px-3 py-2 text-left transition-colors text-xs flex items-center justify-between gap-2"
+                        style={{
+                          backgroundColor: active ? `${colors.primary}20` : 'transparent',
+                          border: `1px solid ${active ? colors.primary : 'transparent'}`,
+                          borderRadius: 'var(--theme-card-radius)',
+                          color: active ? colors.primary : colors.textSecondary,
+                        }}
+                        onMouseEnter={e => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                            e.currentTarget.style.color = colors.textPrimary;
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = colors.textSecondary;
+                          }
+                        }}
+                      >
+                        <span className="truncate">{option.label}</span>
+                        {active && <span className="material-symbols-outlined text-sm flex-shrink-0">check</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="min-w-0 space-y-3">
+                {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
+                <div>
+                  <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                    {onlineSource === 'netease'
+                      ? i18n.t('settingsDialog.neteaseCookieLabel')
+                      : i18n.t('settingsDialog.cookie')}
+                  </label>
+                  <textarea
+                    value={onlineSource === 'netease' ? neteaseCookie : cookie}
+                    onChange={(e) =>
+                      onlineSource === 'netease'
+                        ? setNeteaseCookie(e.target.value)
+                        : setCookie(e.target.value)
+                    }
+                    placeholder={i18n.t('settingsDialog.pasteCookie')}
+                    className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
+                    style={inputStyle}
+                    onFocus={inputFocus}
+                    onBlur={inputBlur}
+                    disabled={isSavingOnline}
+                  />
+                  {onlineSource === 'netease' && (
+                    <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
+                      {i18n.t('settingsDialog.neteaseCookieHint')}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                    {i18n.t('settingsDialog.savePath')}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={downloadPath}
+                      onChange={(e) => setDownloadPath(e.target.value)}
+                      placeholder={i18n.t('settingsDialog.downloadFolderPath')}
+                      className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
+                      style={inputStyle}
+                      onFocus={inputFocus}
+                      onBlur={inputBlur}
+                      disabled={isSavingOnline}
+                    />
+                    <button
+                      onClick={async () => {
+                        const desktopAPI = getDesktopAPI();
+                        if (desktopAPI?.selectDownloadFolder) {
+                          const result = await desktopAPI.selectDownloadFolder();
+                          if (result.success && result.path) {
+                            setDownloadPath(result.path);
+                          }
+                        }
+                      }}
+                      disabled={isSavingOnline}
+                      className="px-3 py-2 transition-all disabled:opacity-50 flex items-center flex-shrink-0"
+                      style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
+                    >
+                      <span className="material-symbols-outlined text-base">folder_open</span>
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
+                    {i18n.t('settingsDialog.tip')}
+                  </p>
+                </div>
+
+                {onlineMessage && (
+                  <div className={`p-2 r-control text-xs ${
+                    onlineMessageType === 'success'
+                      ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                      : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                  }`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-xs">
+                        {onlineMessageType === 'success' ? 'check' : 'error'}
+                      </span>
+                      {onlineMessage}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+          )}
 
         </div>
       </div>
