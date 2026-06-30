@@ -7,6 +7,14 @@ import { settingsManager, type OnlineSource } from '../services/settingsManager'
 import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
+import {
+  startQQLogin,
+  pollQQLogin,
+  startNetEaseQR,
+  pollNetEaseQR,
+  type QRLoginStatus,
+  type QRPollResult,
+} from '../services/qrLogin';
 import ShortcutsSettings from './ShortcutsSettings';
 import GsapModal from './GsapModal';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
@@ -34,6 +42,16 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [isSavingOnline, setIsSavingOnline] = useState(false);
   const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
   const [onlineMessageType, setOnlineMessageType] = useState<'success' | 'error' | null>(null);
+
+  // QR scan-login state — drives the live QR panel in the third-party section.
+  const [qqLoggedIn, setQqLoggedIn] = useState(false);
+  const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
+  const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrMsg, setQrMsg] = useState<string>('');
+  const sessionRef = useRef<{ source: OnlineSource; key: string } | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   const [webdavServerUrl, setWebdavServerUrl] = useState('');
   const [webdavUsername, setWebdavUsername] = useState('');
@@ -65,6 +83,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
       setOnlineSource(settingsManager.getOnlineSource());
+      setQqLoggedIn(cookieManager.hasCookie());
+      setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
       const webdavConfig = webdavClient.getConfig();
       if (webdavConfig) {
@@ -264,6 +284,144 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     e.currentTarget.style.backgroundColor = colors.backgroundCard;
     e.currentTarget.style.boxShadow = 'none';
   };
+
+  // ===== QR scan-login lifecycle =====
+  const isQrLoggedIn = onlineSource === 'qq' ? qqLoggedIn : neteaseLoggedIn;
+  const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
+
+  const stopQrPolling = (): void => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  const resetQr = (): void => {
+    stopQrPolling();
+    sessionRef.current = null;
+    setQrImage(null);
+    setQrMsg('');
+    setQrState('idle');
+  };
+
+  const handleQrPollResult = async (source: OnlineSource, res: QRPollResult): Promise<void> => {
+    setQrState(res.status);
+    if (res.status === 'confirming') {
+      setQrMsg(i18n.t('settingsDialog.qrConfirming'));
+    } else if (res.status === 'waiting') {
+      setQrMsg(res.msg || i18n.t('settingsDialog.qrWaiting'));
+    } else if (res.msg) {
+      setQrMsg(res.msg);
+    }
+
+    if (res.status === 'done') {
+      stopQrPolling();
+      setQrImage(null);
+      if (res.cookie) {
+        if (source === 'qq') {
+          await cookieManager.setCookie(res.cookie);
+          setCookie(cookieManager.getCookie());
+          setQqLoggedIn(true);
+        } else {
+          await neteaseCookieManager.setCookie(res.cookie);
+          setNeteaseCookie(neteaseCookieManager.getCookie());
+          setNeteaseLoggedIn(true);
+        }
+        showOnlineMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
+      }
+    } else if (res.status === 'expired') {
+      stopQrPolling();
+      setQrImage(null);
+    }
+    // 'waiting' | 'confirming' | 'error' → keep polling (error is treated as soft)
+  };
+
+  const beginQrPolling = (source: OnlineSource, key: string): void => {
+    stopQrPolling();
+    const tick = async (): Promise<void> => {
+      if (!mountedRef.current) return;
+      const sess = sessionRef.current;
+      if (!sess || sess.key !== key) return; // superseded by a newer session
+      try {
+        const res = source === 'qq' ? await pollQQLogin(key) : await pollNetEaseQR(key);
+        if (!mountedRef.current) return;
+        if (!sessionRef.current || sessionRef.current.key !== key) return;
+        await handleQrPollResult(source, res);
+      } catch (e) {
+        if (!mountedRef.current) return;
+        logger.error('[SettingsView] QR poll failed:', e);
+        setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+        setQrState('error');
+      }
+    };
+    pollTimerRef.current = setInterval(tick, 2000);
+  };
+
+  const startQr = async (source: OnlineSource): Promise<void> => {
+    stopQrPolling();
+    sessionRef.current = null;
+    setQrImage(null);
+    setQrMsg('');
+    setQrState('loading');
+    try {
+      const res = source === 'qq' ? await startQQLogin() : await startNetEaseQR();
+      if (!mountedRef.current) return;
+      sessionRef.current = { source, key: res.sessionKey };
+      setQrImage(res.qrcode);
+      setQrState('waiting');
+      setQrMsg(i18n.t('settingsDialog.qrWaiting'));
+      beginQrPolling(source, res.sessionKey);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      logger.error('[SettingsView] startQr failed:', e);
+      setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+      setQrState('error');
+    }
+  };
+
+  const handleQrLogout = async (): Promise<void> => {
+    if (onlineSource === 'qq') {
+      await cookieManager.clearCookie();
+      setCookie('');
+      setQqLoggedIn(false);
+    } else {
+      await neteaseCookieManager.clearCookie();
+      setNeteaseCookie('');
+      setNeteaseLoggedIn(false);
+    }
+    resetQr();
+    await startQr(onlineSource);
+  };
+
+  // Mark mounted; clean up any active polling on unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopQrPolling();
+      sessionRef.current = null;
+    };
+  }, []);
+
+  // (Re)start the QR whenever the third-party section is shown or the source changes.
+  useEffect(() => {
+    if (!qqMusicEnabled) {
+      resetQr();
+      return;
+    }
+    resetQr();
+    const loggedIn =
+      onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
+    if (!loggedIn) {
+      void startQr(onlineSource);
+    }
+    return () => {
+      stopQrPolling();
+      sessionRef.current = null;
+    };
+    // startQr/resetQr are stable in behavior (only refs + setters); omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qqMusicEnabled, onlineSource]);
 
   return (
     <><div className="w-full flex flex-col h-full relative">
@@ -736,19 +894,116 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               </div>
 
               <div className="min-w-0">
-                <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  QR code
+                <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
+                  <span>{i18n.t('settingsDialog.qrTitle')}</span>
+                  {(qrImage || qrState === 'error' || qrState === 'expired') && (
+                    <button
+                      type="button"
+                      onClick={() => void startQr(onlineSource)}
+                      title={i18n.t('settingsDialog.qrRefresh')}
+                      className="material-symbols-outlined text-sm opacity-60 hover:opacity-100 transition-opacity"
+                      style={{ color: colors.textSecondary }}
+                    >
+                      refresh
+                    </button>
+                  )}
                 </div>
                 <div
-                  className="h-44 w-full r-control flex items-center justify-center"
+                  className="h-44 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
                   style={{
                     backgroundColor: colors.backgroundDark,
                     border: `1px dashed ${colors.borderLight}`,
                     color: colors.textMuted,
                   }}
                 >
-                  <span className="material-symbols-outlined text-6xl">qr_code_2</span>
+                  {/* Logged-in panel */}
+                  {isQrLoggedIn && !qrScanning ? (
+                    <div className="flex flex-col items-center gap-1.5 text-center px-2">
+                      <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoggedIn')}</span>
+                      <div className="flex gap-1.5 mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleQrLogout()}
+                          className="px-2 py-1 text-xs transition-all"
+                          style={{
+                            backgroundColor: colors.backgroundCard,
+                            color: colors.textSecondary,
+                            border: `1px solid ${colors.borderLight}`,
+                            borderRadius: 'var(--theme-control-radius)',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                        >
+                          {i18n.t('settingsDialog.qrLogout')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void startQr(onlineSource)}
+                          className="px-2 py-1 text-xs transition-all"
+                          style={{
+                            backgroundColor: `${colors.primary}20`,
+                            color: colors.primary,
+                            border: `1px solid ${colors.primary}`,
+                            borderRadius: 'var(--theme-control-radius)',
+                          }}
+                        >
+                          {i18n.t('settingsDialog.qrReLogin')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : qrState === 'loading' ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoading')}</span>
+                    </div>
+                  ) : qrImage ? (
+                    <>
+                      <img
+                        src={qrImage}
+                        alt="QR"
+                        className="size-32 object-contain"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                      <div
+                        className="absolute bottom-0 inset-x-0 px-2 py-1 text-center text-[11px] truncate"
+                        style={{
+                          backgroundColor: colors.backgroundDark,
+                          color: qrState === 'confirming' ? colors.primary : colors.textSecondary,
+                        }}
+                      >
+                        {qrMsg || i18n.t('settingsDialog.qrWaiting')}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 text-center px-2">
+                      <span className="material-symbols-outlined text-5xl">
+                        {qrState === 'expired' ? 'qr_code_scanner' : 'error'}
+                      </span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>
+                        {qrState === 'expired'
+                          ? i18n.t('settingsDialog.qrExpired')
+                          : (qrMsg || i18n.t('settingsDialog.qrError'))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void startQr(onlineSource)}
+                        className="mt-0.5 px-2 py-1 text-xs transition-all"
+                        style={{
+                          backgroundColor: `${colors.primary}20`,
+                          color: colors.primary,
+                          border: `1px solid ${colors.primary}`,
+                          borderRadius: 'var(--theme-control-radius)',
+                        }}
+                      >
+                        {i18n.t('settingsDialog.qrRefresh')}
+                      </button>
+                    </div>
+                  )}
                 </div>
+                <p className="mt-1 text-[11px]" style={{ color: colors.textMuted }}>
+                  {i18n.t('settingsDialog.qrHint')}
+                </p>
               </div>
 
               <div className="min-w-0 space-y-3">

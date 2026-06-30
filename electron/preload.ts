@@ -191,6 +191,25 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('netease-request', channel, params, cookieString);
   },
 
+  // QQ Music QR scan login (start session + poll)
+  qqLoginQrStart: async () => {
+    return ipcRenderer.invoke('qq-login-qr-start');
+  },
+  qqLoginQrPoll: async (token: string) => {
+    return ipcRenderer.invoke('qq-login-qr-poll', token);
+  },
+
+  // NetEase Cloud Music QR scan login (key → create → check)
+  neteaseQrKey: async () => {
+    return ipcRenderer.invoke('netease-qr-key');
+  },
+  neteaseQrCreate: async (key: string) => {
+    return ipcRenderer.invoke('netease-qr-create', key);
+  },
+  neteaseQrCheck: async (key: string) => {
+    return ipcRenderer.invoke('netease-qr-check', key);
+  },
+
   fetchCoverBase64: async (coverUrl: string) => {
     return ipcRenderer.invoke('fetch-cover-base64', coverUrl);
   },

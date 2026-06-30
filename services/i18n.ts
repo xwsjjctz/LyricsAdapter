@@ -1465,6 +1465,94 @@ const translations: Translations = {
     de: 'Nur für VIP-/HQ-Downloads nötig; Suche & Vorschau funktionieren auch ohne',
     fr: 'Uniquement pour les téléchargements VIP/HQ ; recherche et aperçu fonctionnent sans'
   },
+  'settingsDialog.qrTitle': {
+    zh: '扫码登录',
+    en: 'Scan to log in',
+    ja: 'QRログイン',
+    ko: 'QR 로그인',
+    de: 'Per QR anmelden',
+    fr: 'Connexion par QR'
+  },
+  'settingsDialog.qrWaiting': {
+    zh: '请使用手机 APP 扫码',
+    en: 'Scan with the phone app',
+    ja: 'スマホアプリでスキャン',
+    ko: '휴대폰 앱으로 스캔',
+    de: 'Mit der Handy-App scannen',
+    fr: 'Scanner avec l’appli mobile'
+  },
+  'settingsDialog.qrConfirming': {
+    zh: '请在手机上确认登录',
+    en: 'Confirm on your phone',
+    ja: 'スマホで確認してください',
+    ko: '휴대폰에서 확인하세요',
+    de: 'Auf dem Handy bestätigen',
+    fr: 'Confirmez sur le téléphone'
+  },
+  'settingsDialog.qrExpired': {
+    zh: '二维码已失效',
+    en: 'QR code expired',
+    ja: 'QRコードが期限切れです',
+    ko: 'QR 코드가 만료되었습니다',
+    de: 'QR-Code abgelaufen',
+    fr: 'QR expiré'
+  },
+  'settingsDialog.qrError': {
+    zh: '加载失败，请重试',
+    en: 'Failed to load, retry',
+    ja: '読み込み失敗、再試行',
+    ko: '로드 실패, 재시도',
+    de: 'Laden fehlgeschlagen, erneut',
+    fr: 'Échec, réessayer'
+  },
+  'settingsDialog.qrLoading': {
+    zh: '正在生成二维码…',
+    en: 'Generating QR…',
+    ja: 'QR生成中…',
+    ko: 'QR 생성 중…',
+    de: 'QR wird erstellt…',
+    fr: 'Génération du QR…'
+  },
+  'settingsDialog.qrLoggedIn': {
+    zh: '已登录',
+    en: 'Logged in',
+    ja: 'ログイン済み',
+    ko: '로그인됨',
+    de: 'Angemeldet',
+    fr: 'Connecté'
+  },
+  'settingsDialog.qrRefresh': {
+    zh: '刷新二维码',
+    en: 'Refresh QR',
+    ja: 'QR更新',
+    ko: 'QR 새로고침',
+    de: 'QR aktualisieren',
+    fr: 'Actualiser le QR'
+  },
+  'settingsDialog.qrLogout': {
+    zh: '退出登录',
+    en: 'Log out',
+    ja: 'ログアウト',
+    ko: '로그아웃',
+    de: 'Abmelden',
+    fr: 'Déconnexion'
+  },
+  'settingsDialog.qrReLogin': {
+    zh: '重新扫码',
+    en: 'Re-scan',
+    ja: '再スキャン',
+    ko: '다시 스캔',
+    de: 'Erneut scannen',
+    fr: 'Re-scanner'
+  },
+  'settingsDialog.qrHint': {
+    zh: '扫码成功后会自动填入 Cookie',
+    en: 'A successful scan auto-fills the cookie',
+    ja: 'スキャン成功でCookieを自動入力',
+    ko: '스캔 성공 시 Cookie 자동 입력',
+    de: 'Erfolgreicher Scan füllt das Cookie automatisch',
+    fr: 'Un scan réussi remplit le cookie'
+  },
 
   // Player Controls
   'controls.playlist': {

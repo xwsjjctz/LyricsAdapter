@@ -73,6 +73,38 @@ export interface OnlineMusicElectronAPI {
     params: Record<string, unknown>,
     cookie?: string
   ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  /** QQ Music QR login — start a session, returns a PNG data URL + session token. */
+  qqLoginQrStart?: () => Promise<{
+    success: boolean;
+    token?: string;
+    qrcode?: string;
+    expiresIn?: number;
+    error?: string;
+  }>;
+  /** QQ Music QR login — poll a session until done/expired. */
+  qqLoginQrPoll?: (
+    token: string
+  ) => Promise<{
+    success: boolean;
+    status?: 'waiting' | 'confirming' | 'done' | 'expired' | 'error';
+    msg?: string;
+    cookie?: string;
+    error?: string;
+  }>;
+  /** NetEase QR login — request a one-time unikey. */
+  neteaseQrKey?: () => Promise<{ success: boolean; unikey?: string; error?: string }>;
+  /** NetEase QR login — render the QR for a key as a PNG data URL. */
+  neteaseQrCreate?: (key: string) => Promise<{ success: boolean; qrcode?: string; error?: string }>;
+  /** NetEase QR login — poll a key. code 800=expired 801=waiting 802=confirming 803=success. */
+  neteaseQrCheck?: (
+    key: string
+  ) => Promise<{
+    success: boolean;
+    code?: number;
+    message?: string;
+    cookie?: string;
+    error?: string;
+  }>;
   downloadAudioFile?: (
     url: string,
     cookie: string
