@@ -687,13 +687,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               </button>
             </div>
 
-            <div className="grid grid-cols-[160px_116px_minmax(0,1fr)] gap-5">
+            <div className="grid grid-cols-[190px_176px_minmax(220px,1fr)] gap-6">
               <div className="min-w-0">
                 <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
                   {i18n.t('settingsDialog.onlineSource')}
                 </div>
                 <div
-                  className="max-h-36 overflow-y-auto no-scrollbar p-2 space-y-1"
+                  className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
                   style={{
                     backgroundColor: colors.backgroundDark,
                     border: `1px solid ${colors.borderLight}`,
@@ -735,16 +735,19 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 </div>
               </div>
 
-              <div className="flex items-start justify-center pt-5">
+              <div className="min-w-0">
+                <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                  QR code
+                </div>
                 <div
-                  className="size-24 r-control flex items-center justify-center"
+                  className="h-44 w-full r-control flex items-center justify-center"
                   style={{
                     backgroundColor: colors.backgroundDark,
                     border: `1px dashed ${colors.borderLight}`,
                     color: colors.textMuted,
                   }}
                 >
-                  <span className="material-symbols-outlined text-3xl">qr_code_2</span>
+                  <span className="material-symbols-outlined text-6xl">qr_code_2</span>
                 </div>
               </div>
 
