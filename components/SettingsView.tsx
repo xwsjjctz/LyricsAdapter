@@ -433,15 +433,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 onFocus={inputFocus}
                 onBlur={inputBlur}
               />
-              <div className="min-h-5">
-                {webdavMessage && (
-                  <span className={`text-xs ${
-                    webdavMessageType === 'success' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {webdavMessage}
-                  </span>
-                )}
-              </div>
+              {webdavMessage && (
+                <span className={`text-xs ${
+                  webdavMessageType === 'success' ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {webdavMessage}
+                </span>
+              )}
             </div>
           </section>
 
@@ -689,14 +687,18 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               </button>
             </div>
 
-            <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-4">
+            <div className="grid grid-cols-[160px_116px_minmax(0,1fr)] gap-5">
               <div className="min-w-0">
                 <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
                   {i18n.t('settingsDialog.onlineSource')}
                 </div>
                 <div
-                  className="max-h-36 overflow-y-auto no-scrollbar pr-1 space-y-1"
-                  style={{ borderRight: `1px solid ${colors.borderLight}` }}
+                  className="max-h-36 overflow-y-auto no-scrollbar p-2 space-y-1"
+                  style={{
+                    backgroundColor: colors.backgroundDark,
+                    border: `1px solid ${colors.borderLight}`,
+                    borderRadius: 'var(--theme-card-radius)',
+                  }}
                 >
                   {sourceOptions.map((option) => {
                     const active = onlineSource === option.value;
@@ -733,6 +735,19 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 </div>
               </div>
 
+              <div className="flex items-start justify-center pt-5">
+                <div
+                  className="size-24 r-control flex items-center justify-center"
+                  style={{
+                    backgroundColor: colors.backgroundDark,
+                    border: `1px dashed ${colors.borderLight}`,
+                    color: colors.textMuted,
+                  }}
+                >
+                  <span className="material-symbols-outlined text-3xl">qr_code_2</span>
+                </div>
+              </div>
+
               <div className="min-w-0 space-y-3">
                 {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
                 <div>
@@ -755,11 +770,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     onBlur={inputBlur}
                     disabled={isSavingOnline}
                   />
-                  {onlineSource === 'netease' && (
-                    <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                      {i18n.t('settingsDialog.neteaseCookieHint')}
-                    </p>
-                  )}
                 </div>
 
                 <div>
