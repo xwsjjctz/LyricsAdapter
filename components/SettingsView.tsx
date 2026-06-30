@@ -24,8 +24,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+  const sourceDropdownRef = useRef<HTMLDivElement>(null);
 
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
@@ -129,8 +131,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
         setIsLangDropdownOpen(false);
+      }
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target as Node)) {
+        setIsSourceDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -140,6 +145,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const handleLanguageChange = (lang: Language) => {
     i18n.setLanguage(lang);
     setIsLangDropdownOpen(false);
+  };
+
+  const handleOnlineSourceChange = (source: OnlineSource) => {
+    setOnlineSource(source);
+    settingsManager.setOnlineSource(source);
+    setOnlineMessage(null);
+    setOnlineMessageType(null);
+    setIsSourceDropdownOpen(false);
   };
 
   const showOnlineMessage = (msg: string, type: 'success' | 'error') => {
@@ -237,6 +250,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   ];
 
   const currentLanguageOption = languageOptions.find(opt => opt.value === currentLang);
+  const sourceOptions: { value: OnlineSource; label: string }[] = [
+    { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
+    { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
+  ];
+  const currentSourceOption = sourceOptions.find(opt => opt.value === onlineSource) || sourceOptions[0]!;
   const colors = currentTheme.colors;
 
   const inputStyle = {
@@ -282,11 +300,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
                     <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{i18n.t('settings.language')}</span>
                   </div>
-                  <div className="relative" ref={dropdownRef}>
+                  <div className="relative w-32" ref={langDropdownRef}>
                     <button
                       onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 r-sm text-sm transition-all"
-                      style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}`, color: colors.textSecondary }}
+                      className="flex w-full items-center justify-between gap-1.5 px-2.5 py-1 r-sm text-sm transition-all"
+                      style={{
+                        backgroundColor: colors.backgroundCard,
+                        border: `1px solid ${colors.borderLight}`,
+                        borderRadius: isLangDropdownOpen ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
+                        color: colors.textSecondary,
+                        boxShadow: 'var(--theme-elevated-shadow)',
+                      }}
                     >
                       <span>{currentLanguageOption?.nativeLabel}</span>
                       <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
@@ -294,25 +318,39 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       </span>
                     </button>
 
-                    {isLangDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1 r-card shadow-xl overflow-hidden z-50 min-w-[140px]" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
-                        {languageOptions.map((option) => (
+                    <div
+                      className="absolute left-0 right-0 top-full overflow-hidden z-50"
+                      style={{
+                        transform: isLangDropdownOpen ? 'scaleY(1)' : 'scaleY(0)',
+                        transformOrigin: 'top center',
+                        opacity: isLangDropdownOpen ? 1 : 0,
+                        pointerEvents: isLangDropdownOpen ? 'auto' : 'none',
+                        transition: 'transform 0.25s ease, opacity 0.2s ease',
+                        background: colors.backgroundDark,
+                        backdropFilter: 'blur(20px)',
+                        borderWidth: '0 1px 1px',
+                        borderStyle: 'solid',
+                        borderColor: isLangDropdownOpen ? colors.borderLight : 'transparent',
+                        borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
+                        boxShadow: isLangDropdownOpen ? 'var(--theme-elevated-shadow)' : 'none',
+                      }}
+                    >
+                      {languageOptions.map((option) => {
+                        const active = currentLang === option.value;
+                        return (
                           <button
                             key={option.value}
                             onClick={() => handleLanguageChange(option.value)}
-                            className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors text-sm"
-                            style={{ color: currentLang === option.value ? colors.primary : colors.textSecondary }}
-                            onMouseEnter={e => { if (currentLang !== option.value) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
-                            onMouseLeave={e => { if (currentLang !== option.value) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
+                            className="w-full px-3 py-2 text-left transition-colors text-sm"
+                            style={{ color: active ? colors.primary : colors.textSecondary }}
+                            onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
+                            onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
                           >
-                            <span>{option.nativeLabel}</span>
-                            {currentLang === option.value && (
-                              <span className="material-symbols-outlined text-sm" style={{ color: colors.primary }}>check</span>
-                            )}
+                            {option.nativeLabel}
                           </button>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -337,24 +375,79 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
                 {i18n.t('settingsDialog.onlineMusicTitle')}
               </h3>
-              <label className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                <span>{i18n.t('settingsDialog.onlineSource')}</span>
-                <select
-                  value={onlineSource}
-                  onChange={(e) => {
-                    const source = e.target.value as OnlineSource;
-                    setOnlineSource(source);
-                    settingsManager.setOnlineSource(source);
-                    setOnlineMessage(null);
-                    setOnlineMessageType(null);
-                  }}
-                  className="r-control px-2.5 py-1.5 text-xs focus:outline-none"
-                  style={{ backgroundColor: colors.backgroundDark, color: colors.textPrimary, border: `1px solid ${colors.borderLight}` }}
+              <div className="flex items-center gap-2">
+                <div className="relative w-36" ref={sourceDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
+                    className="flex w-full items-center justify-between gap-1.5 px-2.5 py-2 r-sm text-xs transition-all"
+                    style={{
+                      backgroundColor: colors.backgroundDark,
+                      border: `1px solid ${colors.borderLight}`,
+                      borderRadius: isSourceDropdownOpen ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
+                      color: colors.textPrimary,
+                      boxShadow: 'var(--theme-elevated-shadow)',
+                    }}
+                    title={i18n.t('settingsDialog.onlineSource')}
+                  >
+                    <span className="truncate">{currentSourceOption.label}</span>
+                    <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isSourceDropdownOpen ? 'rotate-180' : ''}`}>
+                      expand_more
+                    </span>
+                  </button>
+                  <div
+                    className="absolute left-0 right-0 top-full overflow-hidden z-50"
+                    style={{
+                      transform: isSourceDropdownOpen ? 'scaleY(1)' : 'scaleY(0)',
+                      transformOrigin: 'top center',
+                      opacity: isSourceDropdownOpen ? 1 : 0,
+                      pointerEvents: isSourceDropdownOpen ? 'auto' : 'none',
+                      transition: 'transform 0.25s ease, opacity 0.2s ease',
+                      background: colors.backgroundDark,
+                      backdropFilter: 'blur(20px)',
+                      borderWidth: '0 1px 1px',
+                      borderStyle: 'solid',
+                      borderColor: isSourceDropdownOpen ? colors.borderLight : 'transparent',
+                      borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
+                      boxShadow: isSourceDropdownOpen ? 'var(--theme-elevated-shadow)' : 'none',
+                    }}
+                  >
+                    {sourceOptions.map((option) => {
+                      const active = onlineSource === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleOnlineSourceChange(option.value)}
+                          className="w-full px-3 py-2 text-left transition-colors text-xs"
+                          style={{ color: active ? colors.primary : colors.textSecondary }}
+                          onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
+                          onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={handleSaveOnlineMusic}
+                  disabled={isSavingOnline}
+                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}` }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
                 >
-                  <option value="qq">{i18n.t('settingsDialog.onlineSourceQq')}</option>
-                  <option value="netease">{i18n.t('settingsDialog.onlineSourceNetease')}</option>
-                </select>
-              </label>
+                  {isSavingOnline ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                      {i18n.t('settingsDialog.saving')}
+                    </>
+                  ) : (
+                    i18n.t('settingsDialog.save')
+                  )}
+                </button>
+              </div>
             </div>
             <div className="space-y-3">
               {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
@@ -437,67 +530,18 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   </div>
                 </div>
               )}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSaveOnlineMusic}
-                  disabled={isSavingOnline}
-                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}` }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-                >
-                  {isSavingOnline ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                      {i18n.t('settingsDialog.saving')}
-                    </>
-                  ) : (
-                    i18n.t('settingsDialog.save')
-                  )}
-                </button>
-              </div>
             </div>
           </section>
           )}
 
           {/* WebDAV */}
           <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-            <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-              <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
-              {i18n.t('settingsDialog.webdavTitle')}
-            </h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={webdavServerUrl}
-                onChange={(e) => setWebdavServerUrl(e.target.value)}
-                placeholder="https://webdav.123pan.cn/webdav"
-                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                style={inputStyle}
-                onFocus={inputFocus}
-                onBlur={inputBlur}
-              />
-              <input
-                type="text"
-                value={webdavUsername}
-                onChange={(e) => setWebdavUsername(e.target.value)}
-                placeholder={i18n.t('settingsDialog.webdavUsername')}
-                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                style={inputStyle}
-                onFocus={inputFocus}
-                onBlur={inputBlur}
-              />
-              <input
-                type="password"
-                value={webdavPassword}
-                onChange={(e) => setWebdavPassword(e.target.value)}
-                placeholder={i18n.t('settingsDialog.webdavPassword')}
-                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                style={inputStyle}
-                onFocus={inputFocus}
-                onBlur={inputBlur}
-              />
-              <div className="flex items-center gap-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
+                {i18n.t('settingsDialog.webdavTitle')}
+              </h3>
+              <div className="flex items-center gap-2">
                 <button
                   onClick={handleTestWebdav}
                   disabled={isTestingWebdav || isSavingWebdav}
@@ -532,6 +576,40 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     i18n.t('settingsDialog.save')
                   )}
                 </button>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={webdavServerUrl}
+                onChange={(e) => setWebdavServerUrl(e.target.value)}
+                placeholder="https://webdav.123pan.cn/webdav"
+                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                style={inputStyle}
+                onFocus={inputFocus}
+                onBlur={inputBlur}
+              />
+              <input
+                type="text"
+                value={webdavUsername}
+                onChange={(e) => setWebdavUsername(e.target.value)}
+                placeholder={i18n.t('settingsDialog.webdavUsername')}
+                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                style={inputStyle}
+                onFocus={inputFocus}
+                onBlur={inputBlur}
+              />
+              <input
+                type="password"
+                value={webdavPassword}
+                onChange={(e) => setWebdavPassword(e.target.value)}
+                placeholder={i18n.t('settingsDialog.webdavPassword')}
+                className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
+                style={inputStyle}
+                onFocus={inputFocus}
+                onBlur={inputBlur}
+              />
+              <div className="min-h-5">
                 {webdavMessage && (
                   <span className={`text-xs ${
                     webdavMessageType === 'success' ? 'text-green-400' : 'text-red-400'
