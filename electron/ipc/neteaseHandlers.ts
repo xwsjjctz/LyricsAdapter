@@ -174,8 +174,13 @@ export function registerNetEaseHandlers(): void {
   // The QR itself encodes https://music.163.com/login?codekey=<unikey> (built locally).
 
   // Step 1: request a one-time `unikey` used to bind the QR + polling.
+  // `noCheckToken: true` is REQUIRED — without it, after scan+confirm the
+  // server returns code 8821 ("请切换其他登录方式或升级新版本") at authorization.
   ipcMain.handle('netease-qr-key', async () => {
-    const result = await weapiPost('/login/qrcode/unikey', { type: 1 });
+    const result = await weapiPost('/login/qrcode/unikey', {
+      type: 1,
+      noCheckToken: true,
+    });
     if (!result.success) {
       return { success: false, error: result.error };
     }
@@ -210,7 +215,7 @@ export function registerNetEaseHandlers(): void {
     }
     const result = await weapiRequest(
       '/login/qrcode/client/login',
-      { key, type: 1 },
+      { key, type: 1, noCheckToken: true },
       undefined,
       true
     );
