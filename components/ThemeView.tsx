@@ -57,7 +57,6 @@ const ThemeModeSwitch: React.FC<ThemeModeSwitchProps> = ({ checked, ariaLabel, o
 const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
   const { ref: headerBandRef, headerHeight: headerBandHeight, glassUI } = useFrostedHeader(onHeaderHeightChange);
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
-  const [previewTheme, setPreviewTheme] = useState<ThemeConfig | null>(null);
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
   );
@@ -70,7 +69,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       if (themeId === THEME_IDS.DEFAULT_DARK || themeId === THEME_IDS.DEFAULT_LIGHT) {
         setDefaultCardMode(themeId === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark');
       }
-      setPreviewTheme(null);
       // Re-apply current theme styles when theme changes
       const currentTheme = themeManager.getCurrentTheme();
       applyThemeStyles(currentTheme);
@@ -96,30 +94,16 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
     themeManager.setTheme(themeId);
   };
 
-  const handlePreviewTheme = (theme: ThemeConfig) => {
-    setPreviewTheme(theme);
-    applyThemeStyles(theme);
-  };
-
-  const handleResetTheme = () => {
-    setPreviewTheme(null);
-    const currentTheme = themeManager.getCurrentTheme();
-    applyThemeStyles(currentTheme);
-  };
-
   const handleToggleDefaultCardMode = (isDark: boolean) => {
     const nextMode = isDark ? 'dark' : 'light';
     const nextThemeId = isDark ? THEME_IDS.DEFAULT_DARK : THEME_IDS.DEFAULT_LIGHT;
-    const nextTheme = predefinedThemes.find(theme => theme.id === nextThemeId);
-    if (!nextTheme) return;
 
     setDefaultCardMode(nextMode);
-    handlePreviewTheme(nextTheme);
+    themeManager.setTheme(nextThemeId);
   };
 
   // Delegate to themeManager so theme CSS variables (including derived
-  // alpha-tinted variants) have a single source of truth. Accepts an arbitrary
-  // theme so it can preview a theme without selecting it.
+  // alpha-tinted variants) have a single source of truth.
   const applyThemeStyles = (theme: ThemeConfig) => {
     themeManager.applyTheme(theme);
   };
@@ -225,19 +209,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
             {i18n.t('theme.description')}
           </p>
         </div>
-        {previewTheme && (
-          <button
-            onClick={handleResetTheme}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-80"
-            style={{
-              backgroundColor: 'var(--theme-background-card, rgba(255,255,255,0.05))',
-              border: '1px solid var(--theme-border-light, rgba(255,255,255,0.1))',
-              color: 'var(--theme-text-primary, #fff)',
-            }}
-          >
-            {i18n.t('common.cancel')}
-          </button>
-        )}
       </div>
 
       </div>
@@ -251,23 +222,19 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
           {visibleThemes.map((theme) => {
             const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
             const isCurrent = theme.id === currentThemeId;
-            const isPreview = previewTheme?.id === theme.id;
             const controls = resolveThemeControls(theme);
             const appearance = resolveThemeAppearance(theme);
 
             return (
               <div
-                key={theme.id}
-                className={`relative overflow-hidden transition-all duration-300 cursor-pointer group ${
-                  isPreview ? 'ring-2 ring-offset-2 ring-offset-transparent' : ''
-                }`}
+                key={isDefaultCard ? 'default-theme-card' : theme.id}
+                className="theme-preview-card relative overflow-hidden transition-all duration-300 cursor-pointer group"
                 style={{
                   backgroundColor: theme.colors.backgroundSidebar,
                   borderRadius: appearance.surfaceRadius,
                   border: `${appearance.surfaceBorderWidth} solid ${theme.colors.borderLight}`,
-                  boxShadow: isPreview ? appearance.surfaceShadowHover : appearance.surfaceShadow,
+                  boxShadow: appearance.surfaceShadow,
                 }}
-                onClick={() => handlePreviewTheme(theme)}
               >
                 {/* Theme Preview Area - Shows theme's own colors and control style tokens */}
                 <div className="h-32 relative overflow-hidden">
@@ -284,26 +251,27 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     </div>
                   )}
                   <div
-                    className="absolute inset-0 opacity-80"
+                    className="theme-preview-color absolute inset-0 opacity-80"
                     style={{
                       background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
+                      backgroundColor: theme.colors.backgroundGradientStart,
                     }}
                   />
                   {/* Decorative elements */}
                   <div
-                    className="absolute top-4 left-4 w-8 h-8 opacity-60"
+                    className="theme-preview-color absolute top-4 left-4 w-8 h-8 opacity-60"
                     style={{ backgroundColor: theme.colors.primary, borderRadius: appearance.buttonRadius }}
                   />
                   <div
-                    className="absolute top-6 right-8 w-4 h-4 opacity-40"
+                    className="theme-preview-color absolute top-6 right-8 w-4 h-4 opacity-40"
                     style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.controlRadius }}
                   />
                   <div
-                    className="absolute bottom-4 right-12 w-6 h-6 opacity-30"
+                    className="theme-preview-color absolute bottom-4 right-12 w-6 h-6 opacity-30"
                     style={{ backgroundColor: theme.colors.success, borderRadius: appearance.buttonRadius }}
                   />
                   <div
-                    className="absolute left-4 right-4 bottom-4 p-2"
+                    className="theme-preview-color absolute left-4 right-4 bottom-4 p-2"
                     style={{
                       backgroundColor: controls.panelBackgroundGlassStrong,
                       border: `${appearance.panelBorderWidth} solid ${controls.panelBorder}`,
@@ -313,7 +281,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                   >
                     <div className="flex items-center gap-2">
                       <span
-                        className="flex h-7 w-7 items-center justify-center"
+                        className="theme-preview-color flex h-7 w-7 items-center justify-center"
                         style={{
                           backgroundColor: controls.primaryButtonBackground,
                           color: controls.primaryButtonForeground,
@@ -324,7 +292,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                         <span className="material-symbols-outlined text-[16px] fill-icon">play_arrow</span>
                       </span>
                       <div
-                        className="flex-1 overflow-hidden"
+                        className="theme-preview-color flex-1 overflow-hidden"
                         style={{
                           height: appearance.progressHeight,
                           borderRadius: appearance.progressRadius,
@@ -332,12 +300,12 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                         }}
                       >
                         <div
-                          className="h-full w-2/3"
+                          className="theme-preview-color h-full w-2/3"
                           style={{ backgroundColor: controls.sliderFill, borderRadius: appearance.progressRadius }}
                         />
                       </div>
                       <span
-                        className="h-7 w-7"
+                        className="theme-preview-color h-7 w-7"
                         style={{ backgroundColor: controls.iconBackgroundActive, borderRadius: appearance.controlRadius }}
                       />
                     </div>
@@ -345,7 +313,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                 </div>
 
                 {/* Theme Info - Shows theme's own colors */}
-                <div className="p-4">
+                <div className="theme-preview-color p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3
                       className="text-lg"
@@ -360,7 +328,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     </h3>
                     {isCurrent && (
                       <span
-                        className="px-2 py-1 text-xs flex items-center gap-1"
+                        className="theme-preview-color px-2 py-1 text-xs flex items-center gap-1"
                         style={{
                           backgroundColor: theme.colors.primary,
                           color: theme.isDark ? '#ffffff' : '#1a1a1a',
@@ -386,7 +354,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     {theme.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 text-xs"
+                        className="theme-preview-color px-2 py-0.5 text-xs"
                         style={{
                           backgroundColor: theme.colors.backgroundCardHover,
                           color: theme.colors.textMuted,
@@ -412,9 +380,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
 
                 {/* Apply Button Overlay */}
                 <div
-                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
-                    isPreview ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}
+                  className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                   style={{
                     backgroundColor: 'rgba(0, 0, 0, 0.5)',
                     backdropFilter: 'blur(4px)',

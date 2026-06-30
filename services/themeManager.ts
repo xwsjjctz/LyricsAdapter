@@ -15,6 +15,7 @@ const THEME_STORAGE_KEY = 'app-theme';
 class ThemeManagerClass {
   private currentThemeId: ThemeId = THEME_IDS.DEFAULT_DARK;
   private listeners: Set<(themeId: ThemeId) => void> = new Set();
+  private themeTransitionTimer: number | null = null;
 
   constructor() {
     this.loadFromStorage();
@@ -99,6 +100,8 @@ class ThemeManagerClass {
     const radius = theme.borderRadius;
     const controls = resolveThemeControls(theme);
     const appearance = resolveThemeAppearance(theme);
+
+    this.startThemeTransition(root);
 
     // Apply CSS custom properties (CSS variables)
     root.style.setProperty('--theme-primary', colors.primary);
@@ -234,6 +237,18 @@ class ThemeManagerClass {
     document.body.classList.remove('theme-cute');
 
     logger.debug('[ThemeManager] Theme applied:', theme.name);
+  }
+
+  private startThemeTransition(root: HTMLElement): void {
+    if (this.themeTransitionTimer !== null) {
+      window.clearTimeout(this.themeTransitionTimer);
+    }
+
+    root.classList.add('theme-is-transitioning');
+    this.themeTransitionTimer = window.setTimeout(() => {
+      root.classList.remove('theme-is-transitioning');
+      this.themeTransitionTimer = null;
+    }, 420);
   }
 }
 
