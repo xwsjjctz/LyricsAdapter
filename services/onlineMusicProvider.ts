@@ -42,6 +42,8 @@ export interface OnlineMusicProvider {
   readonly id: OnlineSource;
   searchMusic(query: string, limit?: number): Promise<OnlineSong[]>;
   getRecommendedSongs(): Promise<OnlineSong[]>;
+  /** Optional batch metadata hydration for sources whose search result is sparse. */
+  getSongDetails?(songmids: string[]): Promise<OnlineSong[]>;
   getMusicUrl(songmid: string, quality: OnlineQuality): Promise<OnlineUrlResult>;
   getLyrics(songmid: string): Promise<string | null>;
   /** Full-size cover URL for the song (used when embedding metadata). */
