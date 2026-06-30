@@ -303,13 +303,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   <div className="relative w-32" ref={langDropdownRef}>
                     <button
                       onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                      className="flex w-full items-center justify-between gap-1.5 px-2.5 py-1 r-sm text-sm transition-all"
+                      className="flex w-full items-center justify-between gap-1.5 px-2.5 py-1 text-sm transition-all"
                       style={{
                         backgroundColor: colors.backgroundCard,
                         border: `1px solid ${colors.borderLight}`,
-                        borderRadius: isLangDropdownOpen ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
+                        borderRadius: isLangDropdownOpen ? 'var(--theme-card-radius) var(--theme-card-radius) 0 0' : 'var(--theme-card-radius)',
                         color: colors.textSecondary,
-                        boxShadow: 'var(--theme-elevated-shadow)',
                       }}
                     >
                       <span>{currentLanguageOption?.nativeLabel}</span>
@@ -331,8 +330,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                         borderWidth: '0 1px 1px',
                         borderStyle: 'solid',
                         borderColor: isLangDropdownOpen ? colors.borderLight : 'transparent',
-                        borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
-                        boxShadow: isLangDropdownOpen ? 'var(--theme-elevated-shadow)' : 'none',
+                        borderRadius: '0 0 var(--theme-card-radius) var(--theme-card-radius)',
                       }}
                     >
                       {languageOptions.map((option) => {
@@ -376,21 +374,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 {i18n.t('settingsDialog.onlineMusicTitle')}
               </h3>
               <div className="flex items-center gap-2">
-                <div className="relative w-36" ref={sourceDropdownRef}>
+                <div className="relative" ref={sourceDropdownRef}>
                   <button
                     type="button"
                     onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
-                    className="flex w-full items-center justify-between gap-1.5 px-2.5 py-2 r-sm text-xs transition-all"
+                    className="flex w-full items-center justify-between gap-1.5 px-4 py-2 text-xs transition-all"
                     style={{
                       backgroundColor: colors.backgroundDark,
                       border: `1px solid ${colors.borderLight}`,
-                      borderRadius: isSourceDropdownOpen ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
+                      borderRadius: isSourceDropdownOpen ? 'var(--theme-card-radius) var(--theme-card-radius) 0 0' : 'var(--theme-card-radius)',
                       color: colors.textPrimary,
-                      boxShadow: 'var(--theme-elevated-shadow)',
                     }}
                     title={i18n.t('settingsDialog.onlineSource')}
                   >
-                    <span className="truncate">{currentSourceOption.label}</span>
+                    <span className="whitespace-nowrap">{currentSourceOption.label}</span>
                     <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isSourceDropdownOpen ? 'rotate-180' : ''}`}>
                       expand_more
                     </span>
@@ -408,8 +405,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       borderWidth: '0 1px 1px',
                       borderStyle: 'solid',
                       borderColor: isSourceDropdownOpen ? colors.borderLight : 'transparent',
-                      borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
-                      boxShadow: isSourceDropdownOpen ? 'var(--theme-elevated-shadow)' : 'none',
+                      borderRadius: '0 0 var(--theme-card-radius) var(--theme-card-radius)',
                     }}
                   >
                     {sourceOptions.map((option) => {
@@ -419,7 +415,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                           key={option.value}
                           type="button"
                           onClick={() => handleOnlineSourceChange(option.value)}
-                          className="w-full px-3 py-2 text-left transition-colors text-xs"
+                          className="w-full px-4 py-2 text-left transition-colors text-xs"
                           style={{ color: active ? colors.primary : colors.textSecondary }}
                           onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
                           onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
@@ -433,8 +429,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <button
                   onClick={handleSaveOnlineMusic}
                   disabled={isSavingOnline}
-                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}` }}
+                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
                 >
@@ -504,8 +500,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       }
                     }}
                     disabled={isSavingOnline}
-                    className="px-3 py-2.5 r-control transition-all disabled:opacity-50 flex items-center"
-                    style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}` }}
+                    className="px-3 py-2.5 transition-all disabled:opacity-50 flex items-center"
+                    style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
                   >
@@ -545,8 +541,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <button
                   onClick={handleTestWebdav}
                   disabled={isTestingWebdav || isSavingWebdav}
-                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}` }}
+                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
                 >
@@ -562,8 +558,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <button
                   onClick={handleSaveWebdav}
                   disabled={isTestingWebdav || isSavingWebdav}
-                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}` }}
+                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
                 >
