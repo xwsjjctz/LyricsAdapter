@@ -306,6 +306,42 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     return lyric?.trim() || null;
   }
 
+  async getPlaylists(): Promise<import('../services/onlineMusicProvider').PlaylistInfo[]> {
+    if (!neteaseCookieManager.hasCookie()) throw new Error('请先登录网易云');
+    // 1) get current user's uid
+    const accountData = (await this.request('/nuser/account/get', { csrf_token: '' })) as {
+      profile?: { userId?: number };
+    } | undefined;
+    const uid = accountData?.profile?.userId;
+    if (!uid) throw new Error('无法获取用户信息');
+    // 2) fetch the user's playlists
+    const data = await this.request('/user/playlist', {
+      uid,
+      offset: 0,
+      limit: 50,
+      csrf_token: '',
+    });
+    const list: any[] = (data as { playlist?: any[] })?.playlist ?? [];
+    return list.map((item: any) => ({
+      id: String(item.id),
+      name: item.name || '未知歌单',
+      coverUrl: item.coverImgUrl || '',
+      songCount: Number(item.trackCount ?? 0),
+      source: 'netease' as const,
+    }));
+  }
+
+  async getPlaylistSongs(playlistId: string): Promise<OnlineSong[]> {
+    const data = await this.request('/v6/playlist/detail', {
+      id: playlistId,
+      n: 100,
+      s: 0,
+      csrf_token: '',
+    });
+    const tracks: NetEaseSongRaw[] = (data as { playlist?: { tracks?: NetEaseSongRaw[] } })?.playlist?.tracks ?? [];
+    return tracks.map((t) => this.normalize(t));
+  }
+
   getCoverUrl(song: OnlineSong): string {
     return song.coverUrl || '';
   }

@@ -378,7 +378,39 @@ class QQMusicAPI implements OnlineMusicProvider {
   }
 
   /**
-   * Get songs from a playlist
+   * Get the logged-in user's QQ Music playlists.
+   * Returns tid, name, cover, song count for each playlist.
+   */
+  async getPlaylists(): Promise<import('../services/onlineMusicProvider').PlaylistInfo[]> {
+    if (!cookieManager.hasCookie()) throw new Error('Cookie not set');
+    const data = {
+      comm: { g_tk: 5381, uin: '', format: 'json', ct: 24, cv: 0 },
+      req_1: {
+        module: 'music.social.user_songlist.GetUserSonglist',
+        method: 'GetUserSonglist',
+        param: { uin: '', offset: 0, num: 50 },
+      },
+    };
+    const res = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+      method: 'POST',
+      headers: this.getCookieHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.code === 500001) throw new Error('Cookie expired');
+    const list: any[] = json?.req_1?.data?.list ?? [];
+    return list.map((item: any) => ({
+      id: String(item.tid || item.dirid),
+      name: item.dissname || '未知歌单',
+      coverUrl: item.dir_logo ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.dir_logo}.jpg` : '',
+      songCount: Number(item.songnum ?? 0),
+      source: 'qq' as const,
+    }));
+  }
+
+  /**
+   * Get songs from a QQ Music playlist.
    */
   async getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
@@ -423,7 +455,7 @@ class QQMusicAPI implements OnlineMusicProvider {
       }
 
       const result = await response.json();
-      
+
       if (result.code === 500001) {
         throw new Error('Cookie expired or invalid');
       }

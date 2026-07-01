@@ -38,6 +38,14 @@ export interface OnlineUrlResult {
 
 export type OnlineSource = 'qq' | 'netease';
 
+export interface PlaylistInfo {
+  id: string;
+  name: string;
+  coverUrl: string;
+  songCount: number;
+  source: OnlineSource;
+}
+
 export interface OnlineMusicProvider {
   readonly id: OnlineSource;
   searchMusic(query: string, limit?: number): Promise<OnlineSong[]>;
@@ -53,6 +61,10 @@ export interface OnlineMusicProvider {
   hasCookie(): boolean;
   /** Whether features are gated behind a login cookie (QQ: yes, NetEase: no). */
   requiresCookie(): boolean;
+  /** Fetch the user's playlists (or popular playlists when not logged in). */
+  getPlaylists(): Promise<PlaylistInfo[]>;
+  /** Fetch songs in a specific playlist. */
+  getPlaylistSongs(playlistId: string): Promise<OnlineSong[]>;
 }
 
 // ---- Electron bridge typing (canonical home for online-music IPC) ----------

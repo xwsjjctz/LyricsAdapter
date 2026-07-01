@@ -1,7 +1,11 @@
 import React from 'react';
-import { Track } from '../types';
 import { i18n } from '../services/i18n';
 import { ThemeConfig } from '../types/theme';
+import { logger } from '../services/logger';
+import { qqMusicApi } from '../services/qqMusicApi';
+import { neteaseMusicApi } from '../services/neteaseMusicApi';
+import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
+import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
 
 /**
  * 第三方音源歌单浏览器。
@@ -13,14 +17,6 @@ import { ThemeConfig } from '../types/theme';
  * 4. 点歌曲 → 流式播放（复用 Branch A）→ 自动入 online LRU。
  */
 
-export interface PlaylistInfo {
-  id: string;
-  name: string;
-  coverUrl: string;
-  songCount: number;
-  source: 'qq' | 'netease';
-}
-
 interface PlaylistsViewProps {
   colors: ThemeConfig['colors'];
   onStreamPlay: (song: {
@@ -29,9 +25,18 @@ interface PlaylistsViewProps {
   }, source: 'qq' | 'netease') => void;
 }
 
+interface TrackRow {
+  songmid: string;
+  title: string;
+  artist: string;
+  album: string;
+  coverUrl: string;
+  duration: number;
+}
+
 type ViewState =
   | { phase: 'grid' }
-  | { phase: 'detail'; playlist: PlaylistInfo; songs: Track[]; loading: boolean; error?: string };
+  | { phase: 'detail'; playlist: PlaylistInfo; tracks: TrackRow[]; loading: boolean; error?: string };
 
 const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) => {
   const [state, setState] = React.useState<ViewState>({ phase: 'grid' });
@@ -43,9 +48,22 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) =
     const load = async () => {
       setLoadingPlaylists(true);
       const results: PlaylistInfo[] = [];
-      // Future: fetch from QQ + NetEase providers
-      // const qqPlaylists = await qqApi.getPlaylists();
-      // results.push(...qqPlaylists.map(p => ({ ...p, source: 'qq' })));
+      try {
+        if (cookieManager.hasCookie()) {
+          const qq = await qqMusicApi.getPlaylists();
+          results.push(...qq.map(p => ({ ...p, source: 'qq' as const })));
+        }
+      } catch (e) {
+        logger.warn('[PlaylistsView] QQ playlists failed:', e);
+      }
+      try {
+        if (neteaseCookieManager.hasCookie()) {
+          const netease = await neteaseMusicApi.getPlaylists();
+          results.push(...netease.map(p => ({ ...p, source: 'netease' as const })));
+        }
+      } catch (e) {
+        logger.warn('[PlaylistsView] NetEase playlists failed:', e);
+      }
       setPlaylists(results);
       setLoadingPlaylists(false);
     };
@@ -65,12 +83,60 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) =
   const sourceLabel = (s: 'qq' | 'netease'): string =>
     s === 'qq' ? 'QQ 音乐' : '网易云音乐';
 
+  /** Load songs for a playlist and transition to detail. */
+  const handlePlaylistClick = async (pl: PlaylistInfo) => {
+    setState({ phase: 'detail', playlist: pl, tracks: [], loading: true });
+    try {
+      const provider = pl.source === 'qq' ? qqMusicApi : neteaseMusicApi;
+      const songs: OnlineSong[] = await provider.getPlaylistSongs(pl.id);
+      const tracks: TrackRow[] = songs.map(s => ({
+        songmid: s.songmid,
+        title: s.songname,
+        artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+        album: s.albumname || 'Unknown Album',
+        coverUrl: s.coverUrl || '',
+        duration: s.interval || 0,
+      }));
+      setState({ phase: 'detail', playlist: pl, tracks, loading: false });
+    } catch (e: any) {
+      logger.error('[PlaylistsView] load songs failed:', e);
+      setState({ phase: 'detail', playlist: pl, tracks: [], loading: false, error: e.message || '加载失败' });
+    }
+  };
+
+  const renderTrackList = (tracks: TrackRow[]) => (
+    <div className="flex-1 overflow-y-auto no-scrollbar space-y-0.5">
+      {tracks.map((tr, idx) => (
+        <button
+          key={`${tr.songmid}-${idx}`}
+          onClick={() => onStreamPlay(tr, state.phase === 'detail' ? state.playlist.source : 'qq')}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left hover:bg-[var(--theme-control-item-bg-hover)]"
+          style={{ color: colors.textPrimary }}
+        >
+          <span className="text-xs w-6 text-center flex-shrink-0" style={{ color: colors.textMuted }}>
+            {idx + 1}
+          </span>
+          <div
+            className="size-10 rounded-lg bg-cover bg-center flex-shrink-0"
+            style={{ backgroundImage: tr.coverUrl ? `url(${tr.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium truncate">{tr.title}</div>
+            <div className="text-xs truncate" style={{ color: colors.textMuted }}>{tr.artist}</div>
+          </div>
+          <span className="text-xs tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
+            {Math.floor(tr.duration / 60)}:{String(Math.floor(tr.duration % 60)).padStart(2, '0')}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
   // ── Detail view ──
   if (state.phase === 'detail') {
-    const { playlist, songs, loading, error } = state;
+    const { playlist, tracks, loading, error } = state;
     return (
       <div className="px-6 py-4 h-full flex flex-col" style={{ color: colors.textPrimary }}>
-        {/* 标题行：返回按钮 + 歌单名 */}
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => setState({ phase: 'grid' })}
@@ -84,53 +150,23 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) =
             {playlist.name}
           </h2>
         </div>
-        {/* 歌曲列表 */}
-        {loading && <div className="flex-1 flex items-center justify-center" style={{ color: colors.textMuted }}>
-          <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
-          {i18n.t('browse.loading')}
-        </div>}
-        {error && <div className="flex-1 flex items-center justify-center text-sm" style={{ color: colors.textMuted }}>{error}</div>}
-        {!loading && !error && songs.length === 0 && (
+        {loading && (
+          <div className="flex-1 flex items-center justify-center" style={{ color: colors.textMuted }}>
+            <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+            {i18n.t('browse.loading')}
+          </div>
+        )}
+        {error && (
+          <div className="flex-1 flex items-center justify-center text-sm" style={{ color: colors.textMuted }}>
+            {error}
+          </div>
+        )}
+        {!loading && !error && tracks.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-sm" style={{ color: colors.textMuted }}>
             暂无歌曲
           </div>
         )}
-        {!loading && !error && songs.length > 0 && (
-          <div className="flex-1 overflow-y-auto no-scrollbar space-y-0.5">
-            {songs.map((track, idx) => (
-              <button
-                key={track.id}
-                onClick={() => {
-                  const base = {
-                    songmid: track.songmid || track.id,
-                    title: track.title,
-                    artist: track.artist,
-                    album: track.album,
-                    duration: track.duration,
-                  };
-                  onStreamPlay(track.coverUrl ? { ...base, coverUrl: track.coverUrl } : base, playlist.source);
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left hover:bg-[var(--theme-control-item-bg-hover)]"
-                style={{ color: colors.textPrimary }}
-              >
-                <span className="text-xs w-6 text-center flex-shrink-0" style={{ color: colors.textMuted }}>
-                  {idx + 1}
-                </span>
-                <div
-                  className="size-10 rounded-lg bg-cover bg-center flex-shrink-0"
-                  style={{ backgroundImage: track.coverUrl ? `url(${track.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{track.title}</div>
-                  <div className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</div>
-                </div>
-                <span className="text-xs tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
-                  {Math.floor(track.duration / 60)}:{String(Math.floor(track.duration % 60)).padStart(2, '0')}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        {!loading && !error && tracks.length > 0 && renderTrackList(tracks)}
       </div>
     );
   }
@@ -160,16 +196,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) =
               <button
                 key={pl.id}
                 className="flex-shrink-0 w-[140px] text-left transition-transform hover:scale-105"
-                onClick={() => {
-                  // Show detail view (future: load songs)
-                  setState({
-                    phase: 'detail',
-                    playlist: pl,
-                    songs: [],
-                    loading: true,
-                    error: '歌单功能开发中',
-                  });
-                }}
+                onClick={() => handlePlaylistClick(pl)}
               >
                 <div
                   className="w-[140px] h-[140px] rounded-xl overflow-hidden bg-cover bg-center shadow-md"
