@@ -338,6 +338,11 @@ const AppWorkspace: React.FC = () => {
   const syncOnlineCookies = useCallback(async () => {
     const api = window.electron;
     if (!api?.setOnlineCookie) return;
+    // Ensure both cookie stores are loaded from IndexedDB (lazy load).
+    await Promise.all([
+      cookieManager.ensureLoaded(),
+      neteaseCookieManager.ensureLoaded(),
+    ]);
     const qq = cookieManager.getCookie();
     const netease = neteaseCookieManager.getCookie();
     if (qq) void api.setOnlineCookie('qq', qq);

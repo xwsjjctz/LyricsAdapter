@@ -503,6 +503,7 @@ class QQMusicAPI implements OnlineMusicProvider {
    * Get lyrics for a song by songmid
    */
   async getLyrics(songmid: string): Promise<string | null> {
+    await cookieManager.ensureLoaded();
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
