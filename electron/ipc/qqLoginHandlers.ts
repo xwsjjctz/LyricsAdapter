@@ -248,20 +248,43 @@ async function ensureYqqContextCookies(session: QQSession): Promise<void> {
 /**
  * Build the final QQ Music cookie string.
  *
- * Collects from qq.com / y.qq.com / u.y.qq.com and de-dupes by name. The auth
- * cookies (`uin`, `qqmusic_key`, …) may land host-only on `y.qq.com`, so reading
- * only `u.y.qq.com` would miss them. Mirrors the cookie set a logged-in browser
- * exposes on y.qq.com (which the manual-paste flow already uses successfully).
+ * Collects cookies from a broad set of domains and de-dupes by name (first
+ * domain wins). Critically includes ptlogin2 / graph domains so the QQ-login
+ * `p_skey` / `skey` (required by g_tk-validated modules like MinePlaylist) are
+ * captured even when set host-only on ptlogin2.qq.com.
  */
 async function buildFinalCookie(session: QQSession): Promise<string> {
-  const urls = ['https://qq.com/', 'https://y.qq.com/', 'https://u.y.qq.com/'];
+  // Order matters: qq.com first so its p_skey takes priority over graph's.
+  const urls = [
+    'https://qq.com/',
+    'https://ptlogin2.qq.com/',
+    'https://ssl.ptlogin2.qq.com/',
+    'https://xui.ptlogin2.qq.com/',
+    'https://graph.qq.com/',
+    'https://y.qq.com/',
+    'https://u.y.qq.com/',
+  ];
   const map = new Map<string, string>();
   for (const url of urls) {
     const list = await session.jar.getCookies(url);
+    if (list.length > 0) {
+      logger.info(
+        `[QQLogin] cookies @ ${url}:`,
+        list.map((c) => c.key).join(',')
+      );
+    }
     for (const c of list) {
       if (c.key && !map.has(c.key)) map.set(c.key, c.value);
     }
   }
+  logger.info(
+    `[QQLogin] final cookie keys:`,
+    [...map.keys()].join(','),
+    '| has p_skey:',
+    map.has('p_skey'),
+    '| has skey:',
+    map.has('skey')
+  );
   return [...map.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
 }
 

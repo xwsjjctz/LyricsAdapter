@@ -404,16 +404,18 @@ class QQMusicAPI implements OnlineMusicProvider {
 
     // QQ Music's musicu.fcg validates `g_tk` against the login-state cookie.
     // The correct source key varies by login path, so we try each candidate
-    // until one passes — no guessing. Order: p_skey, qm_keyst, skey, fallback.
+    // until one passes — no guessing. Order: p_skey, qqmusic_key, qm_keyst, skey.
     const gtkCandidates: { name: string; value: number }[] = [];
-    for (const k of ['p_skey', 'qm_keyst', 'skey']) {
+    for (const k of ['p_skey', 'qqmusic_key', 'qm_keyst', 'skey']) {
       const v = cookies[k];
       if (v) gtkCandidates.push({ name: k, value: this.hash33(v) });
     }
     gtkCandidates.push({ name: 'fallback(5381)', value: 5381 });
 
-    logger.info('[QQMusicAPI] getPlaylists diag:', {
+    logger.warn('[QQMusicAPI] getPlaylists diag:', {
       cookieKeys: Object.keys(cookies),
+      hasP_skey: !!cookies['p_skey'],
+      hasSkey: !!cookies['skey'],
       rawUin,
       gtkCandidates: gtkCandidates.map(c => `${c.name}=${c.value}`),
     });
