@@ -38,6 +38,14 @@ export interface OnlineUrlResult {
 
 export type OnlineSource = 'qq' | 'netease';
 
+export interface PlaylistInfo {
+  id: string;
+  name: string;
+  coverUrl: string;
+  songCount: number;
+  source: OnlineSource;
+}
+
 export interface OnlineMusicProvider {
   readonly id: OnlineSource;
   searchMusic(query: string, limit?: number): Promise<OnlineSong[]>;
@@ -53,6 +61,10 @@ export interface OnlineMusicProvider {
   hasCookie(): boolean;
   /** Whether features are gated behind a login cookie (QQ: yes, NetEase: no). */
   requiresCookie(): boolean;
+  /** Fetch the user's playlists (or popular playlists when not logged in). */
+  getPlaylists(): Promise<PlaylistInfo[]>;
+  /** Fetch songs in a specific playlist. */
+  getPlaylistSongs(playlistId: string): Promise<OnlineSong[]>;
 }
 
 // ---- Electron bridge typing (canonical home for online-music IPC) ----------
@@ -73,6 +85,40 @@ export interface OnlineMusicElectronAPI {
     params: Record<string, unknown>,
     cookie?: string
   ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  /** QQ Music QR login — start a session, returns a PNG data URL + session token. */
+  qqLoginQrStart?: () => Promise<{
+    success: boolean;
+    token?: string;
+    qrcode?: string;
+    expiresIn?: number;
+    error?: string;
+  }>;
+  /** QQ Music QR login — poll a session until done/expired. */
+  qqLoginQrPoll?: (
+    token: string
+  ) => Promise<{
+    success: boolean;
+    status?: 'waiting' | 'confirming' | 'done' | 'expired' | 'error';
+    msg?: string;
+    cookie?: string;
+    error?: string;
+  }>;
+  /** NetEase QR login — request a one-time unikey. */
+  neteaseQrKey?: () => Promise<{ success: boolean; unikey?: string; error?: string }>;
+  /** NetEase QR login — render the QR for a key as a PNG data URL. */
+  neteaseQrCreate?: (key: string) => Promise<{ success: boolean; qrcode?: string; error?: string }>;
+  /** NetEase QR login — poll a key. code 800=expired 801=waiting 802=confirming 803=success. */
+  neteaseQrCheck?: (
+    key: string
+  ) => Promise<{
+    success: boolean;
+    code?: number;
+    message?: string;
+    cookie?: string;
+    error?: string;
+  }>;
+  /** Push a QQ / NetEase cookie to main-process memory for the streaming proxy. */
+  setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
   downloadAudioFile?: (
     url: string,
     cookie: string

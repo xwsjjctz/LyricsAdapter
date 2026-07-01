@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Track } from '../types';
+import { Track, SlotId } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
@@ -32,9 +32,9 @@ interface LibraryViewProps {
   onScrollPositionChange?: (position: number) => void;
   autoLocateToken?: number;
   importProgress?: { loaded: number; total: number } | null;
-  dataSource: 'local' | 'cloud';
-  activeSlotId: 'local' | 'cloud';
-  onSwitchSlot: (slotId: 'local' | 'cloud', options?: { locateCurrentTrack?: boolean }) => Promise<void>;
+  dataSource: SlotId;
+  activeSlotId: SlotId;
+  onSwitchSlot: (slotId: SlotId, options?: { locateCurrentTrack?: boolean }) => Promise<void>;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
   onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
@@ -42,10 +42,10 @@ interface LibraryViewProps {
   onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
-  pendingLocateSlot?: 'local' | 'cloud' | undefined;
+  pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: (token: number) => void;
-  onSlotContentReady?: (slot: 'local' | 'cloud') => void;
+  onSlotContentReady?: (slot: SlotId) => void;
   searchBox?: React.ReactNode;
 }
 

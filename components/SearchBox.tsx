@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { match } from 'pinyin-pro';
 import { Track } from '../types';
-import { getOnlineProvider, type OnlineSong } from '../services/onlineMusicProvider';
+import { type OnlineSong } from '../services/onlineMusicProvider';
+import { qqMusicApi } from '../services/qqMusicApi';
+import { neteaseMusicApi } from '../services/neteaseMusicApi';
+import { cookieManager } from '../services/cookieManager';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { settingsManager } from '../services/settingsManager';
@@ -49,6 +52,7 @@ interface SearchBoxProps {
   onNavigateToTrack: (track: Track) => void;
   onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
 }
 
@@ -59,11 +63,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   onNavigateToTrack,
   onOnlineDownload,
   onOnlineUpload,
+  onOnlineStreamPlay,
   onlineProgress,
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [qqResults, setQqResults] = useState<OnlineSong[]>([]);
+  const [onlineResults, setOnlineResults] = useState<{ source: 'qq' | 'netease'; song: OnlineSong }[]>([]);
   const [qqLoading, setQqLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [openQualityId, setOpenQualityId] = useState<string | null>(null);
@@ -94,24 +99,30 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     return cloudTracks.filter(t => trackMatchesSearch(t, query)).slice(0, MAX_RESULTS);
   }, [cloudTracks, query]);
 
-  // Online music search (debounced) — only when experimental toggle is on.
-  // Uses the active source (QQ Music or NetEase) from settings.
+  // Online music search (debounced) — searches ALL logged-in providers.
   useEffect(() => {
     if (!query.trim() || !isExpanded || !settingsManager.getQqMusicEnabled()) {
-      setQqResults([]);
+      setOnlineResults([]);
       setQqLoading(false);
       return;
     }
     setQqLoading(true);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const provider = getOnlineProvider();
     debounceRef.current = setTimeout(async () => {
+      const qqCookieLoaded = cookieManager.hasCookie();
       try {
-        const results = await provider.searchMusic(query.trim(), MAX_RESULTS);
-        setQqResults(results);
+        const [qqSongs, neteaseSongs] = await Promise.all([
+          qqCookieLoaded ? qqMusicApi.searchMusic(query.trim(), MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
+          neteaseMusicApi.searchMusic(query.trim(), MAX_RESULTS),
+        ]);
+        const merged: { source: 'qq' | 'netease'; song: OnlineSong }[] = [
+          ...qqSongs.map(song => ({ source: 'qq' as const, song })),
+          ...neteaseSongs.map(song => ({ source: 'netease' as const, song })),
+        ];
+        setOnlineResults(merged);
       } catch (err) {
-        logger.warn(`[SearchBox] ${provider.id} search failed:`, err);
-        setQqResults([]);
+        logger.warn('[SearchBox] online search failed:', err);
+        setOnlineResults([]);
       } finally { setQqLoading(false); }
     }, ONLINE_SEARCH_DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -133,7 +144,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   }, [isExpanded]);
 
   // Keyboard navigation
-  const totalItems = filteredLocal.length + filteredCloud.length + qqResults.length;
+  const totalItems = filteredLocal.length + filteredCloud.length + onlineResults.length;
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setQuery('');
@@ -162,10 +173,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const hasLocal = filteredLocal.length > 0;
   const hasCloud = filteredCloud.length > 0;
   const qqEnabled = settingsManager.getQqMusicEnabled();
-  const hasQQ = qqEnabled && (qqResults.length > 0 || qqLoading);
+  const hasQQ = qqEnabled && (onlineResults.length > 0 || qqLoading);
   const hasAny = hasLocal || hasCloud || hasQQ;
-  const sourceLabel = getOnlineProvider().id === 'netease' ? '网易云' : 'QQ Music';
-  const badgeLabel = getOnlineProvider().id === 'netease' ? '网易' : 'QQ';
   let resultOffset = 0;
 
   return (
@@ -274,21 +283,22 @@ const SearchBox: React.FC<SearchBoxProps> = ({
               {hasQQ && (
                 <div>
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
-                    <span className="material-symbols-outlined text-xs">language</span>{sourceLabel}
+                    <span className="material-symbols-outlined text-xs">language</span>第三方音源
                     {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                   </div>
-                  {qqResults.length === 0 && qqLoading ? (
+                  {onlineResults.length === 0 && qqLoading ? (
                     <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{i18n.t('search.searching')}...</div>
                   ) : (
-                    qqResults.map((song, idx) => (
-                      <QQRow key={song.songmid} song={song} isSelected={selectedIndex === resultOffset + idx} colors={colors}
-                        badgeLabel={badgeLabel}
+                    onlineResults.map(({ source, song }, idx) => (
+                      <QQRow key={`${source}-${song.songmid}`} song={song} isSelected={selectedIndex === resultOffset + idx} colors={colors}
+                        source={source}
                         {...(onlineProgress[song.songmid] != null ? { progress: onlineProgress[song.songmid] } : {})}
                         openQualityId={openQualityId} openUploadQualityId={openUploadQualityId}
                         onToggleQuality={id => setOpenQualityId(p => p === id ? null : id)}
                         onToggleUploadQuality={id => setOpenUploadQualityId(p => p === id ? null : id)}
                         onDownload={(s, q) => { onOnlineDownload(s, q); setOpenQualityId(null); }}
                         onUpload={(s, q) => { onOnlineUpload(s, q); setOpenUploadQualityId(null); }}
+                        onStreamPlay={(s) => onOnlineStreamPlay(s, source)}
                       />
                     ))
                   )}
@@ -335,15 +345,16 @@ const ResultRow: React.FC<{
 
 // Result row for online music (QQ Music / NetEase)
 const QQRow: React.FC<{
-  song: OnlineSong; isSelected: boolean; colors: ThemeConfig['colors']; badgeLabel: string;
+  song: OnlineSong; isSelected: boolean; colors: ThemeConfig['colors']; source: 'qq' | 'netease';
   progress?: { type: 'download' | 'upload'; percent: number };
   openQualityId: string | null; openUploadQualityId: string | null;
   onToggleQuality: (id: string) => void; onToggleUploadQuality: (id: string) => void;
   onDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-}> = ({ song, isSelected, colors, badgeLabel, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
-  <div
-    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border"
+  onStreamPlay: (song: OnlineSong) => void;
+}> = ({ song, isSelected, colors, source, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload, onStreamPlay }) => { const badgeLabel = source === 'qq' ? 'QQ' : '网易'; return (
+  <div onClick={() => onStreamPlay(song)}
+    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border cursor-pointer"
     style={{ backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent', borderColor: isSelected ? `${colors.warning}44` : 'transparent' }}
     onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : `${colors.borderLight}`; }}
     onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? colors.backgroundCardHover : 'transparent'; e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : 'transparent'; }}
@@ -424,6 +435,6 @@ const QQRow: React.FC<{
     </>
     )}
   </div>
-);
+); };
 
 export default SearchBox;

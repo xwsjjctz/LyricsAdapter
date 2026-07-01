@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { ViewMode } from '../types';
+import { ViewMode, SlotId } from '../types';
 import { i18n } from '../services/i18n';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
@@ -11,8 +11,8 @@ interface SidebarProps {
   onReloadFiles?: () => void;
   hasUnavailableTracks?: boolean;
   viewMode: ViewMode;
-  activeSlotId: 'local' | 'cloud';
-  onSlotChange: (slotId: 'local' | 'cloud') => void;
+  activeSlotId: SlotId;
+  onSlotChange: (slotId: SlotId) => void;
   localTrackCount: number;
   cloudTrackCount: number;
   importDisabled?: boolean;
@@ -158,6 +158,66 @@ const Sidebar: React.FC<SidebarProps> = ({
       >
         <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
         <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
+      </button>
+
+      {/* 在线播放 */}
+      <button
+        onClick={() => onSlotChange('online')}
+        className="flex items-center gap-3 px-4 py-3 transition-colors mt-3 border group text-[var(--theme-text-secondary)]"
+        style={{
+          backgroundColor: activeSlotId === 'online' ? 'var(--theme-control-item-bg-active)' : 'transparent',
+          borderColor: 'var(--theme-control-container-border)',
+          borderRadius: 'var(--theme-control-radius)',
+          borderWidth: 'var(--theme-control-border-width)',
+          boxShadow: activeSlotId === 'online' ? 'var(--theme-control-item-shadow-active)' : 'none',
+          color: activeSlotId === 'online' ? 'var(--theme-control-item-fg-active)' : undefined,
+          textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'],
+        }}
+        onMouseEnter={e => {
+          if (activeSlotId !== 'online') {
+            e.currentTarget.style.backgroundColor = 'var(--theme-control-item-bg-hover)';
+            e.currentTarget.style.color = 'var(--theme-control-item-fg-hover)';
+          }
+        }}
+        onMouseLeave={e => {
+          if (activeSlotId !== 'online') {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = '';
+          }
+        }}
+      >
+        <span className="material-symbols-outlined group-hover:scale-110 transition-transform text-lg">play_circle</span>
+        <span className="text-sm font-semibold">{i18n.t('sidebar.onlinePlayback')}</span>
+      </button>
+
+      {/* 歌单 */}
+      <button
+        onClick={() => onNavigate(ViewMode.PLAYLISTS)}
+        className="flex items-center gap-3 px-4 py-3 transition-colors mt-3 border group text-[var(--theme-text-secondary)]"
+        style={{
+          backgroundColor: currentView === ViewMode.PLAYLISTS ? 'var(--theme-control-item-bg-active)' : 'transparent',
+          borderColor: 'var(--theme-control-container-border)',
+          borderRadius: 'var(--theme-control-radius)',
+          borderWidth: 'var(--theme-control-border-width)',
+          boxShadow: currentView === ViewMode.PLAYLISTS ? 'var(--theme-control-item-shadow-active)' : 'none',
+          color: currentView === ViewMode.PLAYLISTS ? 'var(--theme-control-item-fg-active)' : undefined,
+          textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'],
+        }}
+        onMouseEnter={e => {
+          if (currentView !== ViewMode.PLAYLISTS) {
+            e.currentTarget.style.backgroundColor = 'var(--theme-control-item-bg-hover)';
+            e.currentTarget.style.color = 'var(--theme-control-item-fg-hover)';
+          }
+        }}
+        onMouseLeave={e => {
+          if (currentView !== ViewMode.PLAYLISTS) {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = '';
+          }
+        }}
+      >
+        <span className="material-symbols-outlined group-hover:scale-110 transition-transform text-lg">queue_music</span>
+        <span className="text-sm font-semibold">{i18n.t('sidebar.playlists')}</span>
       </button>
 
       {/* 设置和皮肤按钮 */}

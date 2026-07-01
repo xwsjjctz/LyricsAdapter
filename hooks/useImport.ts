@@ -33,7 +33,7 @@ interface UseImportOptions {
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
-  getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
+  getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' | 'online' };
   cloudTracks?: Track[];
   /** 云列表导入：上传到 WebDAV 后合并进 cloud slot。未提供则禁用云导入。 */
   mergeCloudTracks?: (added: Track[], removedIds: string[], updated: Track[]) => void;

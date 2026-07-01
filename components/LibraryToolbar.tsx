@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { i18n } from '../services/i18n';
 import { ThemeColors } from '../types/theme';
+import type { SlotId } from '../types';
 
 interface UniqueCategory {
   name: string;
@@ -8,7 +9,7 @@ interface UniqueCategory {
 }
 
 interface LibraryToolbarProps {
-  dataSource: 'local' | 'cloud';
+  dataSource: SlotId;
   colors: ThemeColors;
   isEditMode: boolean;
   selectedCount: number;

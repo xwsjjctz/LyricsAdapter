@@ -378,7 +378,91 @@ class QQMusicAPI implements OnlineMusicProvider {
   }
 
   /**
-   * Get songs from a playlist
+   * Get the logged-in user's QQ Music playlists.
+   * Returns tid, name, cover, song count for each playlist.
+   */
+  /**
+   * Compute QQ Music `g_tk` (hash33) from the `p_skey` / `skey` / `qm_keyst` cookie.
+   * Returns `{ g_tk, source }` so callers can log which key was used.
+   * Falls back to 5381 (zero-value default) when no key is present.
+   */
+  private hash33(s: string): number {
+    let hash = 5381;
+    for (let i = 0; i < s.length; i++) {
+      hash += (hash << 5) + s.charCodeAt(i);
+    }
+    return hash & 0x7fffffff;
+  }
+
+  /**
+   * Fetch the logged-in user's QQ Music playlists.
+   *
+   * NOTE: the QQ-Connect OAuth login used by our QR flow produces a `qm_keyst`
+   * session that authenticates streaming / search / lyrics (no g_tk needed)
+   * but is REJECTED by the user-playlist module (`MinePlaylist`, error
+   * 860100001), which requires a qq.com-domain `p_skey` from a full QQ login.
+   * Until a full-session login is implemented, this gracefully returns [] so
+   * the QQ section is simply absent rather than erroring.
+   */
+  async getPlaylists(): Promise<import('../services/onlineMusicProvider').PlaylistInfo[]> {
+    if (!cookieManager.hasCookie()) return [];
+    await cookieManager.ensureLoaded();
+    const cookies = cookieManager.parseCookie();
+    const rawUin = (cookies['uin'] || '0').replace(/^o/, '').replace(/^0+(?=\d)/, '');
+    const p_skey = cookies['p_skey'];
+    if (!p_skey) {
+      logger.info('[QQMusicAPI] getPlaylists: no p_skey (OAuth session) — user playlists deferred');
+      return [];
+    }
+    const g_tk = this.hash33(p_skey);
+
+    const data = {
+      comm: { g_tk, uin: rawUin, format: 'json', inCharset: 'utf-8', outCharset: 'utf-8', notice: 0, platform: 'yqq.json', needNewCode: 1 },
+      req_1: {
+        module: 'music.mine.MineServer',
+        method: 'MinePlaylist',
+        param: { uin: rawUin, offset: 0, num: 50, type: 1, picmid: 1 },
+      },
+    };
+    try {
+      const res = await fetch(`https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`, {
+        method: 'POST',
+        headers: {
+          ...this.getCookieHeaders(),
+          'Content-Type': 'application/json',
+          Referer: 'https://y.qq.com/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      if (json.code !== 0 || json?.req_1?.code !== 0) {
+        logger.info('[QQMusicAPI] getPlaylists: session lacks playlist access — deferred');
+        return [];
+      }
+      const rawList: any[] = json?.req_1?.data?.list ?? [];
+      return rawList.map((item: any) => {
+        const coverId = item.dir_logo || item.coverurl || item.cover_pic || '';
+        const coverUrl = coverId
+          ? (coverId.startsWith('http') ? coverId : `https://y.gtimg.cn/music/photo_new/T002R300x300M000${coverId}.jpg`)
+          : '';
+        return {
+          id: String(item.tid || item.id || item.dirid || ''),
+          name: item.dissname || item.name || '未知歌单',
+          coverUrl,
+          songCount: Number(item.songnum ?? item.total_song_num ?? 0),
+          source: 'qq' as const,
+        };
+      });
+    } catch (e) {
+      logger.warn('[QQMusicAPI] getPlaylists failed:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Get songs from a QQ Music playlist.
    */
   async getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
@@ -423,7 +507,7 @@ class QQMusicAPI implements OnlineMusicProvider {
       }
 
       const result = await response.json();
-      
+
       if (result.code === 500001) {
         throw new Error('Cookie expired or invalid');
       }
@@ -503,46 +587,30 @@ class QQMusicAPI implements OnlineMusicProvider {
    * Get lyrics for a song by songmid
    */
   async getLyrics(songmid: string): Promise<string | null> {
+    await cookieManager.ensureLoaded();
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
 
     try {
-      logger.debug('[QQMusicAPI] Getting lyrics for:', songmid);
+      logger.debug('[QQMusicAPI] Getting lyrics via IPC for:', songmid);
 
-      const response = await fetch(
-        `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
-        `&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0` +
-        `&platform=yqq.json&needNewCode=1&g_tk=5381&songmid=${songmid}`,
-        {
-          headers: this.getCookieHeaders(),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
+      // Use the main-process IPC (proven reliable, bypasses CORS/header issues)
+      if (!window.electron?.getQQMusicLyrics) {
+        throw new Error('Desktop API not available');
       }
+      const rawCookie = cookieManager.getCookie();
+      const result = await window.electron.getQQMusicLyrics(songmid, rawCookie) as {
+        success: boolean; lyrics?: string; error?: string;
+      };
 
-      const result = await response.json();
-      logger.debug('[QQMusicAPI] Lyrics response code:', result.code);
-
-      if (result.code !== 0) {
-        logger.warn('[QQMusicAPI] Lyrics API returned error code:', result.code);
+      if (!result.success) {
+        logger.warn('[QQMusicAPI] Lyrics IPC returned error:', result.error);
         return null;
       }
 
-      // Decode base64 lyrics
-      const lyricBase64 = result.lyric;
-      if (!lyricBase64) {
-        logger.debug('[QQMusicAPI] No lyrics available');
-        return null;
-      }
-
-      // Base64 decode
-      const lyrics = atob(lyricBase64);
-      logger.debug('[QQMusicAPI] Lyrics decoded, length:', lyrics.length);
-
-      return lyrics;
+      logger.debug('[QQMusicAPI] Lyrics decoded, length:', result.lyrics?.length ?? 0);
+      return result.lyrics || null;
     } catch (error: unknown) {
       logger.error('[QQMusicAPI] Get lyrics failed:', error);
       return null;

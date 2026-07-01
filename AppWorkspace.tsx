@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
@@ -8,6 +8,8 @@ import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
 import { reorderTracks } from './services/libraryReorder';
+import { cookieManager, neteaseCookieManager } from './services/cookieManager';
+import { parseLRCLyrics } from './services/metadataService';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -20,6 +22,7 @@ import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
+import PlaylistsView from './components/PlaylistsView';
 import SearchBox from './components/SearchBox';
 import { i18n } from './services/i18n';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
@@ -27,6 +30,10 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
+import { getOnlineProvider } from './services/onlineMusicProvider';
+import { qqMusicApi } from './services/qqMusicApi';
+import { neteaseMusicApi } from './services/neteaseMusicApi';
+import { themeManager } from './services/themeManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 declare global {
@@ -75,6 +82,9 @@ const AppWorkspace: React.FC = () => {
     loadCloudTracks,
     mergeCloudTracks,
     updateLocalTracks,
+    addOnlineTrack,
+    updateOnlineTracks,
+    loadOnlineTracks,
     getPersistenceData,
     restoreFromPersistence,
     viewSlot,
@@ -311,6 +321,7 @@ const AppWorkspace: React.FC = () => {
     slots,
     setLocalTracks: updateLocalTracks,
     loadCloudTracks,
+    loadOnlineTracks,
     setIsPlaying,
     setVolume,
     setPlaybackMode,
@@ -327,6 +338,23 @@ const AppWorkspace: React.FC = () => {
       }
     },
   });
+
+  // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
+  const syncOnlineCookies = useCallback(async () => {
+    const api = window.electron;
+    if (!api?.setOnlineCookie) return;
+    // Ensure both cookie stores are loaded from IndexedDB (lazy load).
+    await Promise.all([
+      cookieManager.ensureLoaded(),
+      neteaseCookieManager.ensureLoaded(),
+    ]);
+    const qq = cookieManager.getCookie();
+    const netease = neteaseCookieManager.getCookie();
+    if (qq) void api.setOnlineCookie('qq', qq);
+    if (netease) void api.setOnlineCookie('netease', netease);
+  }, []);
+  useEffect(() => { void syncOnlineCookies(); }, [syncOnlineCookies]);
+
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
@@ -411,6 +439,53 @@ const AppWorkspace: React.FC = () => {
     setViewMode,
     mergeCloudTracks,
   });
+
+  // Click a third-party search result → stream it via stream:// protocol
+  // and record in the online-playback slot (LRU, most-recent at head).
+  const handleOnlineStreamPlay = useCallback(async (song: {
+    songmid: string; title: string; artist: string; album: string;
+    coverUrl?: string; duration: number; singer?: { name: string }[];
+  }, sourceOverride?: 'qq' | 'netease') => {
+    const source = sourceOverride ?? getOnlineProvider().id;
+    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const track: Track = {
+      id: `online-${source}-${song.songmid}`,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration || 0,
+      coverUrl: song.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: song.songmid,
+    };
+    // Save current slot's playback position
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    // Add to online slot (LRU push to front → always at index 0)
+    addOnlineTrack(track);
+    updateSlot('online', s => ({ ...s, currentTrackIndex: 0 }));
+    // Cross-slot switch (active + view)
+    setRestoreTime(0);
+    switchTo('online');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+    setViewSlot('online');
+    // Async metadata/lyrics enrichment
+    lyricsProvider?.getLyrics?.(song.songmid).then(rawLyrics => {
+      if (rawLyrics) {
+        const parsed = parseLRCLyrics(rawLyrics);
+        updateOnlineTracks(prev => prev.map(t =>
+          t.id === track.id
+            ? {
+                ...t,
+                lyrics: parsed.plainText || rawLyrics,
+                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+              }
+            : t
+        ));
+      }
+    }).catch(() => {});
+  }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
   useShortcuts({
     viewMode,
     isFocusMode,
@@ -594,6 +669,13 @@ const AppWorkspace: React.FC = () => {
               <SettingsView onClearOrphanCache={handleClearOrphanCache} onHeaderHeightChange={setHeaderHeight} />
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView onHeaderHeightChange={setHeaderHeight} />
+            ) : viewMode === ViewMode.PLAYLISTS ? (
+              <PlaylistsView
+                colors={themeManager.getCurrentTheme().colors}
+                onStreamPlay={(song, source) => {
+                  handleOnlineStreamPlay(song, source);
+                }}
+              />
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView
@@ -633,6 +715,13 @@ const AppWorkspace: React.FC = () => {
 	                    cloudTracks={slots.cloud.tracks}
 	                    onNavigateToTrack={handleSearchNavigate}
 	                    onOnlineDownload={handleOnlineDownload}
+                    onOnlineStreamPlay={(song: any, source?: string) => handleOnlineStreamPlay({
+                      songmid: song.songmid, title: song.songname,
+                      artist: song.singer?.map((s: any) => s.name).join(' & ') || 'Unknown Artist',
+                      album: song.albumname || 'Unknown Album',
+                      coverUrl: song.coverUrl, duration: song.interval || 0,
+                      singer: song.singer,
+                    }, source as 'qq' | 'netease' | undefined)}
 	                    onOnlineUpload={handleOnlineUpload}
 	                    onlineProgress={onlineProgress}
 	                  />

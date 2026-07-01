@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Track } from '../types';
+import { Track, SlotId } from '../types';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
@@ -9,7 +9,7 @@ import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { registerCommand } from '../services/debugCommands';
 
 interface UseLibraryCloudSyncParams {
-  dataSource: 'local' | 'cloud';
+  dataSource: SlotId;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
 }

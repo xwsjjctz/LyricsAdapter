@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import crypto from 'node:crypto';
+import QRCode from 'qrcode';
 import { logger } from '../logger';
 
 /**
@@ -82,17 +83,24 @@ interface NetEaseRequestResult {
   error?: string;
 }
 
+interface NetEaseRawResult extends NetEaseRequestResult {
+  /** Raw `Set-Cookie` header values (only populated where requested). */
+  setCookies?: string[];
+}
+
 /**
- * POST to a NetEase weapi endpoint.
- * @param channel  path after `/weapi`, e.g. `search/get`
- * @param params   JSON payload (will be weapi-encrypted)
- * @param cookie   optional login cookie (enables VIP/high-quality playback)
+ * POST to a NetEase weapi endpoint, optionally capturing Set-Cookie headers.
+ * @param channel        path after `/weapi`, e.g. `search/get`
+ * @param params         JSON payload (will be weapi-encrypted)
+ * @param cookie         optional login cookie (enables VIP/high-quality playback)
+ * @param captureCookies when true, populate `setCookies` from the response
  */
-async function weapiPost(
+async function weapiRequest(
   channel: string,
   params: Record<string, unknown>,
-  cookie?: string
-): Promise<NetEaseRequestResult> {
+  cookie?: string,
+  captureCookies = false
+): Promise<NetEaseRawResult> {
   try {
     const body = new URLSearchParams(weapi(params));
     const headers: Record<string, string> = {
@@ -113,9 +121,118 @@ async function weapiPost(
     }
     const data = await res.json();
     logger.debug(`[NetEase] ${channel} -> code`, (data as { code?: number })?.code);
-    return { success: true, data };
+    const result: NetEaseRawResult = { success: true, data };
+    if (captureCookies && typeof res.headers.getSetCookie === 'function') {
+      result.setCookies = res.headers.getSetCookie();
+    }
+    return result;
   } catch (error) {
     logger.error(`[NetEase] ${channel} failed:`, error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/** Back-compat wrapper for the generic channel (drops Set-Cookie capture). */
+function weapiPost(
+  channel: string,
+  params: Record<string, unknown>,
+  cookie?: string
+): Promise<NetEaseRequestResult> {
+  // NetEaseRawResult is a structural superset of NetEaseRequestResult; the
+  // extra `setCookies` field is simply ignored by generic callers.
+  return weapiRequest(channel, params, cookie);
+}
+
+/** Reduce a list of `Set-Cookie` header values to a `k=v; k=v` string. */
+function cookieStringFrom(setCookies: string[] | undefined): string {
+  if (!setCookies?.length) return '';
+  const pairs: string[] = [];
+  for (const raw of setCookies) {
+    if (!raw) continue;
+    const first = raw.split(';')[0]?.trim();
+    if (first && first.includes('=')) pairs.push(first);
+  }
+  return pairs.join('; ');
+}
+
+/** Map an OnlineQuality to a NetEase `level` param. */
+const QUALITY_LEVEL: Record<string, string> = {
+  '128': 'standard',
+  '320': 'exhigh',
+  flac: 'lossless',
+  m4a: 'higher',
+};
+
+/**
+ * Resolve a NetEase stream URL from songmid + quality + cookie.
+ * Shared by the existing IPC handler and the `stream://` protocol handler.
+ */
+export async function resolveNetEaseStreamUrl(
+  songmid: string,
+  quality: string,
+  cookie: string
+): Promise<string> {
+  const level = QUALITY_LEVEL[quality] ?? 'exhigh';
+  const result = await weapiRequest(
+    '/song/enhance/player/url/v1',
+    { ids: [Number(songmid)], level, encodeType: 'aac', csrf_token: '' },
+    cookie
+  );
+  if (!result.success) throw new Error(result.error ?? 'NetEase stream URL failed');
+  const data = result.data as { data?: { url?: string }[] } | undefined;
+  const entry = data?.data?.[0];
+  if (!entry?.url) throw new Error('NetEase: empty URL (may be VIP/paid)');
+  return entry.url;
+}
+
+// ===== QR scan login (plain /api/ GET, desktop-client identity) =====
+// The weapi variants of these endpoints reject the authorization with code
+// 8821 ("请切换其他登录方式或升级新版本") once the user confirms, because the
+// request is identified as a third-party client. The plain
+// /api/login/qrcode/* GETs work when the request mimics the NetEase desktop
+// client (desktop UA + os=pc; appver cookie). Ported from community docs.
+const QR_UA =
+  'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+  'Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/2.10.2.200154';
+const QR_COOKIE = 'os=pc; appver=2.10.2.200154';
+
+interface QrApiResult {
+  success: boolean;
+  data?: unknown;
+  setCookies?: string[];
+  error?: string;
+}
+
+async function qrApiGet(
+  path: string,
+  params: Record<string, string | number>,
+  captureCookies = false
+): Promise<QrApiResult> {
+  try {
+    const query = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) query.set(k, String(v));
+    query.set('timestamp', String(Date.now()));
+    const res = await fetch(`https://music.163.com/api/login/qrcode/${path}?${query.toString()}`, {
+      headers: {
+        'User-Agent': QR_UA,
+        Referer: 'https://music.163.com/',
+        Origin: 'https://music.163.com',
+        Accept: 'application/json, text/plain, */*',
+        Cookie: QR_COOKIE,
+      },
+    });
+    if (!res.ok) {
+      return { success: false, error: `HTTP error: ${res.status}` };
+    }
+    const data = await res.json();
+    logger.debug(`[NetEase] /api/login/qrcode/${path} -> code`, (data as { code?: number })?.code);
+    const result: QrApiResult = { success: true, data };
+    if (captureCookies && typeof res.headers.getSetCookie === 'function') {
+      result.setCookies = res.headers.getSetCookie();
+    }
+    return result;
+  } catch (error) {
+    logger.error(`[NetEase] /api/login/qrcode/${path} failed:`, error);
     return { success: false, error: (error as Error).message };
   }
 }
@@ -131,4 +248,59 @@ export function registerNetEaseHandlers(): void {
       return weapiPost(channel, params ?? {}, cookie);
     }
   );
+
+  // ===== QR scan login =====
+  // Plain /api/login/qrcode/* GETs with a desktop-client identity. The weapi
+  // variants return code 8821 ("请切换其他登录方式") after the user confirms;
+  // mimicking the desktop client (UA + os=pc; appver cookie) avoids that.
+
+  // Step 1: request a one-time `unikey` used to bind the QR + polling.
+  ipcMain.handle('netease-qr-key', async () => {
+    const result = await qrApiGet('unikey', { type: 1 });
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    const data = result.data as { unikey?: string; data?: { unikey?: string } } | undefined;
+    const unikey = data?.unikey ?? data?.data?.unikey;
+    if (!unikey) {
+      return { success: false, error: '未获取到 unikey' };
+    }
+    return { success: true, unikey };
+  });
+
+  // Step 2: render the QR for a key as a PNG data URL.
+  ipcMain.handle('netease-qr-create', async (_event, key: string) => {
+    if (typeof key !== 'string' || !key) {
+      return { success: false, error: 'Invalid key' };
+    }
+    try {
+      const qrurl = `https://music.163.com/login?codekey=${encodeURIComponent(key)}`;
+      const qrcode = await QRCode.toDataURL(qrurl, { margin: 1, width: 280 });
+      return { success: true, qrcode };
+    } catch (error) {
+      logger.error('[NetEase] QR render failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // Step 3: poll a key. code 800=expired 801=waiting 802=confirming 803=success.
+  // On 803 the login cookie is returned both in the body (`cookie`) and via
+  // Set-Cookie; prefer the body string and fall back to Set-Cookie.
+  ipcMain.handle('netease-qr-check', async (_event, key: string) => {
+    if (typeof key !== 'string' || !key) {
+      return { success: false, error: 'Invalid key' };
+    }
+    const result = await qrApiGet('client/login', { key, type: 1 }, true);
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    const data = result.data as { code?: number; message?: string; cookie?: string } | undefined;
+    const code = Number(data?.code ?? 0);
+    if (code === 803) {
+      const cookie = data?.cookie || cookieStringFrom(result.setCookies);
+      logger.info('[NetEase] QR login success');
+      return { success: true, code, message: data?.message ?? '登录成功', cookie };
+    }
+    return { success: true, code, message: data?.message };
+  });
 }
