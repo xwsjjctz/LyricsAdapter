@@ -251,6 +251,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   ];
   const colors = currentTheme.colors;
   const isBrutalistTheme = currentTheme.id === THEME_IDS.BRUTALIST;
+  const getRangeClassName = () => (
+    isBrutalistTheme ? 'retro-range' : 'w-20 h-1.5 rounded-full appearance-none cursor-pointer'
+  );
+  const getRangeStyle = (progress: number) => (
+    isBrutalistTheme
+      ? ({ '--retro-range-progress': `${progress}%` } as React.CSSProperties)
+      : { background: `linear-gradient(to right, ${colors.primary} ${progress}%, ${colors.borderLight} ${progress}%)` }
+  );
 
   const inputStyle = {
     backgroundColor: colors.backgroundCard,
@@ -470,10 +478,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     const fn = (window as any).bg_blur_trans;
                     if (typeof fn === 'function') fn(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${bgBlurTrans * 100}%, ${colors.borderLight} ${bgBlurTrans * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(bgBlurTrans * 100)}
                 />
               </div>
             </div>
@@ -494,10 +500,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusBgBlurRadius(value);
                     settingsManager.setFocusBgBlurRadius(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusBgBlurRadius - 40) / 40) * 100}%, ${colors.borderLight} ${((focusBgBlurRadius - 40) / 40) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusBgBlurRadius - 40) / 40) * 100)}
                 />
               </div>
             </div>
@@ -518,10 +522,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusLyricsFontSize(value);
                     settingsManager.setFocusLyricsFontSize(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricsFontSize - 16) / 24) * 100}%, ${colors.borderLight} ${((focusLyricsFontSize - 16) / 24) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
                 />
               </div>
             </div>
@@ -542,10 +544,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusLyricLineSpacing(value);
                     settingsManager.setFocusLyricLineSpacing(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricLineSpacing - 12) / 36) * 100}%, ${colors.borderLight} ${((focusLyricLineSpacing - 12) / 36) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusLyricLineSpacing - 12) / 36) * 100)}
                 />
               </div>
             </div>
@@ -566,10 +566,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusInactiveLyricBlur(value);
                     settingsManager.setFocusInactiveLyricBlur(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${(focusInactiveLyricBlur / 12) * 100}%, ${colors.borderLight} ${(focusInactiveLyricBlur / 12) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle((focusInactiveLyricBlur / 12) * 100)}
                 />
               </div>
             </div>
