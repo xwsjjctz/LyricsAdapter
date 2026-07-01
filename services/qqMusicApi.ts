@@ -394,85 +394,71 @@ class QQMusicAPI implements OnlineMusicProvider {
     return hash & 0x7fffffff;
   }
 
+  /**
+   * Fetch the logged-in user's QQ Music playlists.
+   *
+   * NOTE: the QQ-Connect OAuth login used by our QR flow produces a `qm_keyst`
+   * session that authenticates streaming / search / lyrics (no g_tk needed)
+   * but is REJECTED by the user-playlist module (`MinePlaylist`, error
+   * 860100001), which requires a qq.com-domain `p_skey` from a full QQ login.
+   * Until a full-session login is implemented, this gracefully returns [] so
+   * the QQ section is simply absent rather than erroring.
+   */
   async getPlaylists(): Promise<import('../services/onlineMusicProvider').PlaylistInfo[]> {
-    if (!cookieManager.hasCookie()) throw new Error('Cookie not set');
+    if (!cookieManager.hasCookie()) return [];
     await cookieManager.ensureLoaded();
     const cookies = cookieManager.parseCookie();
-    // QQ's `uin` cookie is stored as `o0XXXXXXXXXX` (o-prefix + zero-padded).
-    // musicu.fcg user-playlist modules require the raw numeric QQ number.
     const rawUin = (cookies['uin'] || '0').replace(/^o/, '').replace(/^0+(?=\d)/, '');
-
-    // QQ Music's musicu.fcg validates `g_tk` against the login-state cookie.
-    // The correct source key varies by login path, so we try each candidate
-    // until one passes — no guessing. Order: p_skey, qqmusic_key, qm_keyst, skey.
-    const gtkCandidates: { name: string; value: number }[] = [];
-    for (const k of ['p_skey', 'qqmusic_key', 'qm_keyst', 'skey']) {
-      const v = cookies[k];
-      if (v) gtkCandidates.push({ name: k, value: this.hash33(v) });
+    const p_skey = cookies['p_skey'];
+    if (!p_skey) {
+      logger.info('[QQMusicAPI] getPlaylists: no p_skey (OAuth session) — user playlists deferred');
+      return [];
     }
-    gtkCandidates.push({ name: 'fallback(5381)', value: 5381 });
+    const g_tk = this.hash33(p_skey);
 
-    logger.warn('[QQMusicAPI] getPlaylists diag:', {
-      cookieKeys: Object.keys(cookies),
-      hasP_skey: !!cookies['p_skey'],
-      hasSkey: !!cookies['skey'],
-      rawUin,
-      gtkCandidates: gtkCandidates.map(c => `${c.name}=${c.value}`),
-    });
-
-    const headers: Record<string, string> = {
-      ...this.getCookieHeaders(),
-      'Content-Type': 'application/json',
-      Referer: 'https://y.qq.com/',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    const data = {
+      comm: { g_tk, uin: rawUin, format: 'json', inCharset: 'utf-8', outCharset: 'utf-8', notice: 0, platform: 'yqq.json', needNewCode: 1 },
+      req_1: {
+        module: 'music.mine.MineServer',
+        method: 'MinePlaylist',
+        param: { uin: rawUin, offset: 0, num: 50, type: 1, picmid: 1 },
+      },
     };
-
-    let lastErr: unknown = null;
-    for (const cand of gtkCandidates) {
-      const data = {
-        comm: { g_tk: cand.value, uin: rawUin, format: 'json', inCharset: 'utf-8', outCharset: 'utf-8', notice: 0, platform: 'yqq.json', needNewCode: 1 },
-        req_1: {
-          module: 'music.mine.MineServer',
-          method: 'MinePlaylist',
-          param: { uin: rawUin, offset: 0, num: 50, type: 1, picmid: 1 },
+    try {
+      const res = await fetch(`https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`, {
+        method: 'POST',
+        headers: {
+          ...this.getCookieHeaders(),
+          'Content-Type': 'application/json',
+          Referer: 'https://y.qq.com/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
         },
-      };
-      try {
-        const res = await fetch(`https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(data),
-        });
-        if (!res.ok) { lastErr = new Error(`HTTP ${res.status}`); continue; }
-        const json = await res.json();
-        if (json.code === 500001) throw new Error('Cookie expired');
-        const reqCode = json?.req_1?.code;
-        if (json.code === 0 && reqCode === 0) {
-          const rawList: any[] = json?.req_1?.data?.list ?? [];
-          logger.info(`[QQMusicAPI] getPlaylists OK via g_tk(${cand.name}):`, rawList.length, 'playlists');
-          return rawList.map((item: any) => {
-            const coverId = item.dir_logo || item.coverurl || item.cover_pic || '';
-            const coverUrl = coverId
-              ? (coverId.startsWith('http') ? coverId : `https://y.gtimg.cn/music/photo_new/T002R300x300M000${coverId}.jpg`)
-              : '';
-            return {
-              id: String(item.tid || item.id || item.dirid || ''),
-              name: item.dissname || item.name || '未知歌单',
-              coverUrl,
-              songCount: Number(item.songnum ?? item.total_song_num ?? 0),
-              source: 'qq' as const,
-            };
-          });
-        }
-        logger.warn(`[QQMusicAPI] g_tk(${cand.name}) -> comm=${json.code} req=${reqCode} sub=${json?.req_1?.subcode}`);
-        lastErr = new Error(`comm=${json.code} req=${reqCode} sub=${json?.req_1?.subcode}`);
-        // try next candidate
-      } catch (e) {
-        lastErr = e;
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      if (json.code !== 0 || json?.req_1?.code !== 0) {
+        logger.info('[QQMusicAPI] getPlaylists: session lacks playlist access — deferred');
+        return [];
       }
+      const rawList: any[] = json?.req_1?.data?.list ?? [];
+      return rawList.map((item: any) => {
+        const coverId = item.dir_logo || item.coverurl || item.cover_pic || '';
+        const coverUrl = coverId
+          ? (coverId.startsWith('http') ? coverId : `https://y.gtimg.cn/music/photo_new/T002R300x300M000${coverId}.jpg`)
+          : '';
+        return {
+          id: String(item.tid || item.id || item.dirid || ''),
+          name: item.dissname || item.name || '未知歌单',
+          coverUrl,
+          songCount: Number(item.songnum ?? item.total_song_num ?? 0),
+          source: 'qq' as const,
+        };
+      });
+    } catch (e) {
+      logger.warn('[QQMusicAPI] getPlaylists failed:', e);
+      return [];
     }
-    logger.error('[QQMusicAPI] getPlaylists: all g_tk candidates failed');
-    throw lastErr instanceof Error ? lastErr : new Error('QQ playlists: all g_tk candidates failed');
   }
 
   /**
