@@ -580,6 +580,30 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
   }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
 
+  const handleScrollToTop = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+
+    const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
+    if (currentTrackInFilteredIndex >= 0 && targetTracks.length > 0) {
+      const itemTop = rowTop(currentTrackInFilteredIndex);
+      const itemBottom = itemTop + baseRowHeight;
+      const viewportTop = topInset;
+      const viewportBottom = container.clientHeight - bottomInset;
+      const isVisible = itemBottom >= viewportTop && itemTop <= viewportBottom;
+      setShowLocateButton(!isVisible);
+    } else if (dataSource !== activeSlotId && currentTrackId) {
+      setShowLocateButton(true);
+    } else {
+      setShowLocateButton(false);
+    }
+  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
+
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -877,7 +901,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
-          <div className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] ${glassUI ? 'mb-0' : 'mb-2'}`} style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+          <div
+            className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] select-none ${glassUI ? 'mb-0' : 'mb-2'}`}
+            style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+            onDoubleClick={handleScrollToTop}
+          >
             {isEditMode ? (
               <input
                 type="checkbox"
@@ -1076,7 +1104,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                </div>
              )}
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+               <div
+                 className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px] select-none"
+                 style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+                 onDoubleClick={handleScrollToTop}
+               >
                 {isEditMode ? (
                   <input
                     type="checkbox"
@@ -1084,8 +1116,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     onChange={toggleSelectAll}
                     onClick={(e) => e.stopPropagation()}
                     className="w-4 h-4 rounded cursor-pointer"
-                  style={{ accentColor: colors.primary }}
-                />
+                    style={{ accentColor: colors.primary }}
+                  />
                 ) : (
                   <span>#</span>
                 )}
