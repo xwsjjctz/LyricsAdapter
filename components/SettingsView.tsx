@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { settingsManager, type OnlineSource } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
@@ -10,6 +10,7 @@ import { logger } from '../services/logger';
 import ShortcutsSettings from './ShortcutsSettings';
 import GsapModal from './GsapModal';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
+import RetroSwitch from './RetroSwitch';
 
 interface SettingsViewProps {
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
@@ -249,6 +250,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
   ];
   const colors = currentTheme.colors;
+  const isBrutalistTheme = currentTheme.id === THEME_IDS.BRUTALIST;
+  const getRangeClassName = () => (
+    isBrutalistTheme ? 'retro-range' : 'w-20 h-1.5 rounded-full appearance-none cursor-pointer'
+  );
+  const getRangeStyle = (progress: number) => (
+    isBrutalistTheme
+      ? ({ '--retro-range-progress': `${progress}%` } as React.CSSProperties)
+      : { background: `linear-gradient(to right, ${colors.primary} ${progress}%, ${colors.borderLight} ${progress}%)` }
+  );
 
   const inputStyle = {
     backgroundColor: colors.backgroundCard,
@@ -468,10 +478,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     const fn = (window as any).bg_blur_trans;
                     if (typeof fn === 'function') fn(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${bgBlurTrans * 100}%, ${colors.borderLight} ${bgBlurTrans * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(bgBlurTrans * 100)}
                 />
               </div>
             </div>
@@ -492,10 +500,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusBgBlurRadius(value);
                     settingsManager.setFocusBgBlurRadius(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusBgBlurRadius - 40) / 40) * 100}%, ${colors.borderLight} ${((focusBgBlurRadius - 40) / 40) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusBgBlurRadius - 40) / 40) * 100)}
                 />
               </div>
             </div>
@@ -516,10 +522,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusLyricsFontSize(value);
                     settingsManager.setFocusLyricsFontSize(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricsFontSize - 16) / 24) * 100}%, ${colors.borderLight} ${((focusLyricsFontSize - 16) / 24) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
                 />
               </div>
             </div>
@@ -540,10 +544,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusLyricLineSpacing(value);
                     settingsManager.setFocusLyricLineSpacing(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricLineSpacing - 12) / 36) * 100}%, ${colors.borderLight} ${((focusLyricLineSpacing - 12) / 36) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusLyricLineSpacing - 12) / 36) * 100)}
                 />
               </div>
             </div>
@@ -564,10 +566,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusInactiveLyricBlur(value);
                     settingsManager.setFocusInactiveLyricBlur(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${(focusInactiveLyricBlur / 12) * 100}%, ${colors.borderLight} ${(focusInactiveLyricBlur / 12) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle((focusInactiveLyricBlur / 12) * 100)}
                 />
               </div>
             </div>
@@ -575,24 +575,35 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             {/* 第三方音源开关 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
               <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
-              <button
-                onClick={() => {
-                  const newValue = !qqMusicEnabled;
-                  setQqMusicEnabled(newValue);
-                  settingsManager.setQqMusicEnabled(newValue);
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
-                style={{
-                  backgroundColor: qqMusicEnabled ? colors.primary : colors.borderLight,
-                }}
-              >
-                <span
-                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
-                  style={{
-                    transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
+              {isBrutalistTheme ? (
+                <RetroSwitch
+                  checked={qqMusicEnabled}
+                  ariaLabel={i18n.t('settings.qqMusicEnabled')}
+                  onChange={(newValue) => {
+                    setQqMusicEnabled(newValue);
+                    settingsManager.setQqMusicEnabled(newValue);
                   }}
                 />
-              </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const newValue = !qqMusicEnabled;
+                    setQqMusicEnabled(newValue);
+                    settingsManager.setQqMusicEnabled(newValue);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
+                  style={{
+                    backgroundColor: qqMusicEnabled ? colors.primary : colors.borderLight,
+                  }}
+                >
+                  <span
+                    className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
+                    style={{
+                      transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
+                    }}
+                  />
+                </button>
+              )}
             </div>
 
             {/* 按钮回弹开关 */}
@@ -601,22 +612,33 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.buttonBounce')}</span>
                 <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.buttonBounceDesc')}</p>
               </div>
-              <button
-                onClick={() => {
-                  const newValue = !gsapButtonBounce;
-                  setGsapButtonBounce(newValue);
-                  settingsManager.setGsapButtonBounce(newValue);
-                }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                style={{ backgroundColor: gsapButtonBounce ? colors.primary : colors.borderLight }}
-                aria-label={i18n.t('settings.buttonBounce')}
-                aria-pressed={gsapButtonBounce}
-              >
-                <span
-                  className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                  style={{ transform: gsapButtonBounce ? 'translateX(22px)' : 'translateX(2px)' }}
+              {isBrutalistTheme ? (
+                <RetroSwitch
+                  checked={gsapButtonBounce}
+                  ariaLabel={i18n.t('settings.buttonBounce')}
+                  onChange={(newValue) => {
+                    setGsapButtonBounce(newValue);
+                    settingsManager.setGsapButtonBounce(newValue);
+                  }}
                 />
-              </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const newValue = !gsapButtonBounce;
+                    setGsapButtonBounce(newValue);
+                    settingsManager.setGsapButtonBounce(newValue);
+                  }}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+                  style={{ backgroundColor: gsapButtonBounce ? colors.primary : colors.borderLight }}
+                  aria-label={i18n.t('settings.buttonBounce')}
+                  aria-pressed={gsapButtonBounce}
+                >
+                  <span
+                    className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                    style={{ transform: gsapButtonBounce ? 'translateX(22px)' : 'translateX(2px)' }}
+                  />
+                </button>
+              )}
             </div>
 
             {/* 清理孤儿缓存按钮 */}
