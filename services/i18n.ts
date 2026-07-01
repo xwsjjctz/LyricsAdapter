@@ -79,6 +79,14 @@ const translations: Translations = {
     de: 'Online',
     fr: 'En ligne'
   },
+  'sidebar.playlists': {
+    zh: '歌单',
+    en: 'Playlists',
+    ja: 'プレイリスト',
+    ko: '플레이리스트',
+    de: 'Wiedergabelisten',
+    fr: 'Listes de lecture'
+  },
   'sidebar.browse': {
     zh: '浏览',
     en: 'Browse',

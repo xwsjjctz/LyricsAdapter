@@ -92,5 +92,6 @@ export enum ViewMode {
   BROWSE = 'browse',
   METADATA = 'metadata',
   SETTINGS = 'settings',
-  THEME = 'theme'
+  THEME = 'theme',
+  PLAYLISTS = 'playlists'
 }

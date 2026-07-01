@@ -21,6 +21,7 @@ import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
+import PlaylistsView from './components/PlaylistsView';
 import SearchBox from './components/SearchBox';
 import { i18n } from './services/i18n';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
@@ -28,7 +29,10 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
-import { getOnlineProvider, type OnlineSong } from './services/onlineMusicProvider';
+import { getOnlineProvider } from './services/onlineMusicProvider';
+import { qqMusicApi } from './services/qqMusicApi';
+import { neteaseMusicApi } from './services/neteaseMusicApi';
+import { themeManager } from './services/themeManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 declare global {
@@ -437,16 +441,19 @@ const AppWorkspace: React.FC = () => {
 
   // Click a third-party search result → stream it via stream:// protocol
   // and record in the online-playback slot (LRU, most-recent at head).
-  const handleOnlineStreamPlay = useCallback(async (song: OnlineSong) => {
-    const provider = getOnlineProvider();
-    const source = provider.id; // 'qq' | 'netease'
+  const handleOnlineStreamPlay = useCallback(async (song: {
+    songmid: string; title: string; artist: string; album: string;
+    coverUrl?: string; duration: number; singer?: { name: string }[];
+  }, sourceOverride?: 'qq' | 'netease') => {
+    const source = sourceOverride ?? getOnlineProvider().id;
+    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
     const track: Track = {
       id: `online-${source}-${song.songmid}`,
-      title: song.songname,
-      artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
-      album: song.albumname || 'Unknown Album',
-      duration: song.interval || 0,
-      coverUrl: provider.getCoverUrl(song),
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration || 0,
+      coverUrl: song.coverUrl,
       audioUrl: '',
       source,
       songmid: song.songmid,
@@ -463,7 +470,7 @@ const AppWorkspace: React.FC = () => {
     setIsPlaying(true);
     setViewSlot('online');
     // Async metadata/lyrics enrichment
-    provider.getLyrics?.(song.songmid).then(lyrics => {
+    lyricsProvider?.getLyrics?.(song.songmid).then(lyrics => {
       if (lyrics) {
         updateOnlineTracks(prev => prev.map(t => t.id === track.id ? { ...t, lyrics } : t));
       }
@@ -652,6 +659,13 @@ const AppWorkspace: React.FC = () => {
               <SettingsView onClearOrphanCache={handleClearOrphanCache} onHeaderHeightChange={setHeaderHeight} />
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView onHeaderHeightChange={setHeaderHeight} />
+            ) : viewMode === ViewMode.PLAYLISTS ? (
+              <PlaylistsView
+                colors={themeManager.getCurrentTheme().colors}
+                onStreamPlay={(song, source) => {
+                  handleOnlineStreamPlay(song, source);
+                }}
+              />
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView
@@ -691,7 +705,13 @@ const AppWorkspace: React.FC = () => {
 	                    cloudTracks={slots.cloud.tracks}
 	                    onNavigateToTrack={handleSearchNavigate}
 	                    onOnlineDownload={handleOnlineDownload}
-                    onOnlineStreamPlay={handleOnlineStreamPlay}
+                    onOnlineStreamPlay={(song: any) => handleOnlineStreamPlay({
+                      songmid: song.songmid, title: song.songname,
+                      artist: song.singer?.map((s: any) => s.name).join(' & ') || 'Unknown Artist',
+                      album: song.albumname || 'Unknown Album',
+                      coverUrl: song.coverUrl, duration: song.interval || 0,
+                      singer: song.singer,
+                    })}
 	                    onOnlineUpload={handleOnlineUpload}
 	                    onlineProgress={onlineProgress}
 	                  />

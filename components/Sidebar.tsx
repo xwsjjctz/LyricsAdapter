@@ -190,6 +190,36 @@ const Sidebar: React.FC<SidebarProps> = ({
         <span className="text-sm font-semibold">{i18n.t('sidebar.onlinePlayback')}</span>
       </button>
 
+      {/* 歌单 */}
+      <button
+        onClick={() => onNavigate(ViewMode.PLAYLISTS)}
+        className="flex items-center gap-3 px-4 py-3 transition-colors mt-3 border group text-[var(--theme-text-secondary)]"
+        style={{
+          backgroundColor: currentView === ViewMode.PLAYLISTS ? 'var(--theme-control-item-bg-active)' : 'transparent',
+          borderColor: 'var(--theme-control-container-border)',
+          borderRadius: 'var(--theme-control-radius)',
+          borderWidth: 'var(--theme-control-border-width)',
+          boxShadow: currentView === ViewMode.PLAYLISTS ? 'var(--theme-control-item-shadow-active)' : 'none',
+          color: currentView === ViewMode.PLAYLISTS ? 'var(--theme-control-item-fg-active)' : undefined,
+          textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'],
+        }}
+        onMouseEnter={e => {
+          if (currentView !== ViewMode.PLAYLISTS) {
+            e.currentTarget.style.backgroundColor = 'var(--theme-control-item-bg-hover)';
+            e.currentTarget.style.color = 'var(--theme-control-item-fg-hover)';
+          }
+        }}
+        onMouseLeave={e => {
+          if (currentView !== ViewMode.PLAYLISTS) {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = '';
+          }
+        }}
+      >
+        <span className="material-symbols-outlined group-hover:scale-110 transition-transform text-lg">queue_music</span>
+        <span className="text-sm font-semibold">{i18n.t('sidebar.playlists')}</span>
+      </button>
+
       {/* 设置和皮肤按钮 */}
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
