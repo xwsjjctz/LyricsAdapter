@@ -210,6 +210,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('netease-qr-check', key);
   },
 
+  // Sync a QQ / NetEase cookie to the main process for the stream:// protocol
+  setOnlineCookie: async (source: string, cookie: string) => {
+    return ipcRenderer.invoke('set-online-cookie', source, cookie);
+  },
+
   fetchCoverBase64: async (coverUrl: string) => {
     return ipcRenderer.invoke('fetch-cover-base64', coverUrl);
   },

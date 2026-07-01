@@ -3,6 +3,7 @@ import { logger } from './logger';
 import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
 import { registerAudioProtocol } from './protocols/audioProtocol';
+import { registerStreamProtocol } from './protocols/streamProtocol';
 import {
   registerFileHandlers,
   registerLibraryHandlers,
@@ -26,6 +27,7 @@ app.commandLine.appendSwitch('log-level', '3');
 
 registerCoverProtocol();
 registerAudioProtocol();
+registerStreamProtocol();
 
 app.whenReady().then(async () => {
   await createWindow();

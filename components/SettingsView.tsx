@@ -322,10 +322,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           await cookieManager.setCookie(res.cookie);
           setCookie(cookieManager.getCookie());
           setQqLoggedIn(true);
+          window.electron?.setOnlineCookie?.('qq', cookieManager.getCookie());
         } else {
           await neteaseCookieManager.setCookie(res.cookie);
           setNeteaseCookie(neteaseCookieManager.getCookie());
           setNeteaseLoggedIn(true);
+          window.electron?.setOnlineCookie?.('netease', neteaseCookieManager.getCookie());
         }
         showOnlineMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
       }

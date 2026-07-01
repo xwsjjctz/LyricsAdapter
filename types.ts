@@ -21,9 +21,12 @@ export interface Track {
   playCount?: number | undefined;
   lastPlayed?: string | undefined;
 
-  // WebDAV fields
-  source?: 'local' | 'webdav' | undefined;
+  // Source: local file, WebDAV, or a third-party online stream (QQ/NetEase).
+  // Online tracks carry `songmid` so their `stream://` audioUrl can be rebuilt.
+  source?: 'local' | 'webdav' | 'qq' | 'netease' | undefined;
   webdavPath?: string | undefined;
+  /** Third-party song id (QQ songmid / NetEase numeric id) — used by `stream://`. */
+  songmid?: string | undefined;
   cdnUrl?: string | undefined;
   cdnUrlExpiry?: number | undefined;
 }
@@ -42,8 +45,10 @@ export interface PlaybackContext {
   isPlaying: boolean;
 }
 
+export type SlotId = 'local' | 'cloud' | 'online';
+
 export interface LibrarySlot {
-  id: 'local' | 'cloud';
+  id: SlotId;
   tracks: Track[];
   currentTrackIndex: number;
   currentTime: number;
@@ -54,7 +59,7 @@ export interface LibrarySlot {
   categorySelection: string | null;
 }
 
-export function createEmptySlot(id: 'local' | 'cloud'): LibrarySlot {
+export function createEmptySlot(id: SlotId): LibrarySlot {
   return {
     id,
     tracks: [],

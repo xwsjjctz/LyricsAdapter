@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { gsap } from 'gsap';
-
-type SlotId = 'local' | 'cloud';
+import type { SlotId } from '../types';
 
 interface GsapSlotTransition {
   containerRef: RefObject<HTMLDivElement>;

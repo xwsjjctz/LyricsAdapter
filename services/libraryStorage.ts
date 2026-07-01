@@ -29,13 +29,16 @@ export interface LibraryIndexSong {
   playCount?: number;
   lastPlayed?: string | null;
   available?: boolean;
-  source?: 'local' | 'webdav';
+  source?: 'local' | 'webdav' | 'qq' | 'netease';
   webdavPath?: string;
+  /** Third-party song id (QQ songmid / NetEase numeric id) for online tracks. */
+  songmid?: string;
 }
 
 export interface LibraryIndexData {
   songs: LibraryIndexSong[];
   cloudSongs?: LibraryIndexSong[];
+  onlineSongs?: LibraryIndexSong[];
   settings: LibrarySettings;
 }
 
@@ -56,7 +59,8 @@ export interface LibrarySettings {
   cloudPlaybackContext?: PlaybackContext | undefined;
   localSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  activeSlotId?: 'local' | 'cloud' | undefined;
+  onlineSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
+  activeSlotId?: 'local' | 'cloud' | 'online' | undefined;
   [key: string]: any;
 }
 

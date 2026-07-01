@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
@@ -8,6 +8,7 @@ import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
 import { reorderTracks } from './services/libraryReorder';
+import { cookieManager, neteaseCookieManager } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -27,6 +28,7 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
+import { getOnlineProvider, type OnlineSong } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 declare global {
@@ -75,6 +77,9 @@ const AppWorkspace: React.FC = () => {
     loadCloudTracks,
     mergeCloudTracks,
     updateLocalTracks,
+    addOnlineTrack,
+    updateOnlineTracks,
+    loadOnlineTracks,
     getPersistenceData,
     restoreFromPersistence,
     viewSlot,
@@ -311,6 +316,7 @@ const AppWorkspace: React.FC = () => {
     slots,
     setLocalTracks: updateLocalTracks,
     loadCloudTracks,
+    loadOnlineTracks,
     setIsPlaying,
     setVolume,
     setPlaybackMode,
@@ -327,6 +333,18 @@ const AppWorkspace: React.FC = () => {
       }
     },
   });
+
+  // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
+  const syncOnlineCookies = useCallback(async () => {
+    const api = window.electron;
+    if (!api?.setOnlineCookie) return;
+    const qq = cookieManager.getCookie();
+    const netease = neteaseCookieManager.getCookie();
+    if (qq) void api.setOnlineCookie('qq', qq);
+    if (netease) void api.setOnlineCookie('netease', netease);
+  }, []);
+  useEffect(() => { void syncOnlineCookies(); }, [syncOnlineCookies]);
+
   const handleDownloadComplete = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
@@ -411,6 +429,41 @@ const AppWorkspace: React.FC = () => {
     setViewMode,
     mergeCloudTracks,
   });
+
+  // Click a third-party search result → stream it via stream:// protocol
+  // and record in the online-playback slot (LRU, most-recent at head).
+  const handleOnlineStreamPlay = useCallback(async (song: OnlineSong) => {
+    const provider = getOnlineProvider();
+    const source = provider.id; // 'qq' | 'netease'
+    const track: Track = {
+      id: `online-${source}-${song.songmid}`,
+      title: song.songname,
+      artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
+      album: song.albumname || 'Unknown Album',
+      duration: song.interval || 0,
+      coverUrl: provider.getCoverUrl(song),
+      audioUrl: '',
+      source,
+      songmid: song.songmid,
+    };
+    // Save current slot's playback position
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    // Add to online slot (LRU push to front → always at index 0)
+    addOnlineTrack(track);
+    updateSlot('online', s => ({ ...s, currentTrackIndex: 0 }));
+    // Cross-slot switch (active + view)
+    setRestoreTime(0);
+    switchTo('online');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+    setViewSlot('online');
+    // Async metadata/lyrics enrichment
+    provider.getLyrics?.(song.songmid).then(lyrics => {
+      if (lyrics) {
+        updateOnlineTracks(prev => prev.map(t => t.id === track.id ? { ...t, lyrics } : t));
+      }
+    }).catch(() => {});
+  }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
   useShortcuts({
     viewMode,
     isFocusMode,
@@ -633,6 +686,7 @@ const AppWorkspace: React.FC = () => {
 	                    cloudTracks={slots.cloud.tracks}
 	                    onNavigateToTrack={handleSearchNavigate}
 	                    onOnlineDownload={handleOnlineDownload}
+                    onOnlineStreamPlay={handleOnlineStreamPlay}
 	                    onOnlineUpload={handleOnlineUpload}
 	                    onlineProgress={onlineProgress}
 	                  />

@@ -3,7 +3,7 @@ import { useGsapSlotTransition } from '../hooks/useGsapSlotTransition';
 import { useLibrarySlots } from '../hooks/useLibrarySlots';
 import { webdavClient } from '../services/webdavClient';
 
-export type LibrarySlotId = 'local' | 'cloud';
+export type LibrarySlotId = 'local' | 'cloud' | 'online';
 
 export function useLibraryStore() {
   const library = useLibrarySlots();

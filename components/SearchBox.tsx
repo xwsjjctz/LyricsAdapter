@@ -49,6 +49,7 @@ interface SearchBoxProps {
   onNavigateToTrack: (track: Track) => void;
   onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineStreamPlay: (song: OnlineSong) => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
 }
 
@@ -59,6 +60,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   onNavigateToTrack,
   onOnlineDownload,
   onOnlineUpload,
+  onOnlineStreamPlay,
   onlineProgress,
 }) => {
   const [query, setQuery] = useState('');
@@ -289,6 +291,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                         onToggleUploadQuality={id => setOpenUploadQualityId(p => p === id ? null : id)}
                         onDownload={(s, q) => { onOnlineDownload(s, q); setOpenQualityId(null); }}
                         onUpload={(s, q) => { onOnlineUpload(s, q); setOpenUploadQualityId(null); }}
+                        onStreamPlay={onOnlineStreamPlay}
                       />
                     ))
                   )}
@@ -341,9 +344,10 @@ const QQRow: React.FC<{
   onToggleQuality: (id: string) => void; onToggleUploadQuality: (id: string) => void;
   onDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-}> = ({ song, isSelected, colors, badgeLabel, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload }) => (
-  <div
-    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border"
+  onStreamPlay: (song: OnlineSong) => void;
+}> = ({ song, isSelected, colors, badgeLabel, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload, onStreamPlay }) => (
+  <div onClick={() => onStreamPlay(song)}
+    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border cursor-pointer"
     style={{ backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent', borderColor: isSelected ? `${colors.warning}44` : 'transparent' }}
     onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : `${colors.borderLight}`; }}
     onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? colors.backgroundCardHover : 'transparent'; e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : 'transparent'; }}

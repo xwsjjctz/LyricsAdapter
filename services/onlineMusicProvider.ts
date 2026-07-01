@@ -105,6 +105,8 @@ export interface OnlineMusicElectronAPI {
     cookie?: string;
     error?: string;
   }>;
+  /** Push a QQ / NetEase cookie to main-process memory for the streaming proxy. */
+  setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
   downloadAudioFile?: (
     url: string,
     cookie: string

@@ -155,6 +155,36 @@ function cookieStringFrom(setCookies: string[] | undefined): string {
   return pairs.join('; ');
 }
 
+/** Map an OnlineQuality to a NetEase `level` param. */
+const QUALITY_LEVEL: Record<string, string> = {
+  '128': 'standard',
+  '320': 'exhigh',
+  flac: 'lossless',
+  m4a: 'higher',
+};
+
+/**
+ * Resolve a NetEase stream URL from songmid + quality + cookie.
+ * Shared by the existing IPC handler and the `stream://` protocol handler.
+ */
+export async function resolveNetEaseStreamUrl(
+  songmid: string,
+  quality: string,
+  cookie: string
+): Promise<string> {
+  const level = QUALITY_LEVEL[quality] ?? 'exhigh';
+  const result = await weapiRequest(
+    '/song/enhance/player/url/v1',
+    { ids: [Number(songmid)], level, encodeType: 'aac', csrf_token: '' },
+    cookie
+  );
+  if (!result.success) throw new Error(result.error ?? 'NetEase stream URL failed');
+  const data = result.data as { data?: { url?: string }[] } | undefined;
+  const entry = data?.data?.[0];
+  if (!entry?.url) throw new Error('NetEase: empty URL (may be VIP/paid)');
+  return entry.url;
+}
+
 // ===== QR scan login (plain /api/ GET, desktop-client identity) =====
 // The weapi variants of these endpoints reject the authorization with code
 // 8821 ("请切换其他登录方式或升级新版本") once the user confirms, because the

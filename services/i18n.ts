@@ -63,6 +63,14 @@ const translations: Translations = {
     de: 'Cloud',
     fr: 'Nuage'
   },
+  'sidebar.onlinePlayback': {
+    zh: '在线播放',
+    en: 'Online',
+    ja: 'オンライン',
+    ko: '온라인',
+    de: 'Online',
+    fr: 'En ligne'
+  },
   'sidebar.browse': {
     zh: '浏览',
     en: 'Browse',
