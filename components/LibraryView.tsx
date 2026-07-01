@@ -584,10 +584,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    container.scrollTop = 0;
-    lastScrollTopRef.current = 0;
-    setScrollTop(0);
-    onScrollPositionChange?.(0);
+    container.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
 
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
     if (currentTrackInFilteredIndex >= 0 && targetTracks.length > 0) {
@@ -902,17 +902,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {filterType === 'default' && (
         <div className="flex-shrink-0">
           <div
-            className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] cursor-pointer select-none ${glassUI ? 'mb-0' : 'mb-2'}`}
+            className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] select-none ${glassUI ? 'mb-0' : 'mb-2'}`}
             style={{ color: colors.textMuted, borderColor: colors.borderLight }}
-            onClick={handleScrollToTop}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleScrollToTop();
-              }
-            }}
+            onDoubleClick={handleScrollToTop}
           >
             {isEditMode ? (
               <input
@@ -1113,17 +1105,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              )}
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
                <div
-                 className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px] cursor-pointer select-none"
+                 className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px] select-none"
                  style={{ color: colors.textMuted, borderColor: colors.borderLight }}
-                 onClick={handleScrollToTop}
-                 role="button"
-                 tabIndex={0}
-                 onKeyDown={(e) => {
-                   if (e.key === 'Enter' || e.key === ' ') {
-                     e.preventDefault();
-                     handleScrollToTop();
-                   }
-                 }}
+                 onDoubleClick={handleScrollToTop}
                >
                 {isEditMode ? (
                   <input
