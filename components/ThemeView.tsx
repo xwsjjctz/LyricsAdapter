@@ -6,6 +6,7 @@ import { predefinedThemes } from '../services/themes/predefinedThemes';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
 import { resolveThemeControls } from '../services/themeControls';
 import { resolveThemeAppearance } from '../services/themeAppearance';
+import RetroSwitch from './RetroSwitch';
 
 interface ThemeViewProps {
   onHeaderHeightChange?: (height: number) => void;
@@ -243,11 +244,19 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                       className="absolute right-3 top-3 z-20"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <ThemeModeSwitch
-                        checked={defaultCardMode === 'dark'}
-                        ariaLabel={defaultCardMode === 'dark' ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}
-                        onChange={handleToggleDefaultCardMode}
-                      />
+                      {currentThemeId === THEME_IDS.BRUTALIST ? (
+                        <RetroSwitch
+                          checked={defaultCardMode === 'dark'}
+                          ariaLabel={defaultCardMode === 'dark' ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}
+                          onChange={handleToggleDefaultCardMode}
+                        />
+                      ) : (
+                        <ThemeModeSwitch
+                          checked={defaultCardMode === 'dark'}
+                          ariaLabel={defaultCardMode === 'dark' ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}
+                          onChange={handleToggleDefaultCardMode}
+                        />
+                      )}
                     </div>
                   )}
                   <div
