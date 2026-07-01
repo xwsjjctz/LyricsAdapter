@@ -509,41 +509,24 @@ class QQMusicAPI implements OnlineMusicProvider {
     }
 
     try {
-      logger.debug('[QQMusicAPI] Getting lyrics for:', songmid);
+      logger.debug('[QQMusicAPI] Getting lyrics via IPC for:', songmid);
 
-      const response = await fetch(
-        `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
-        `&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0` +
-        `&platform=yqq.json&needNewCode=1&g_tk=5381&songmid=${songmid}`,
-        {
-          headers: this.getCookieHeaders(),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
+      // Use the main-process IPC (proven reliable, bypasses CORS/header issues)
+      if (!window.electron?.getQQMusicLyrics) {
+        throw new Error('Desktop API not available');
       }
+      const rawCookie = cookieManager.getCookie();
+      const result = await window.electron.getQQMusicLyrics(songmid, rawCookie) as {
+        success: boolean; lyrics?: string; error?: string;
+      };
 
-      const result = await response.json();
-      logger.debug('[QQMusicAPI] Lyrics response code:', result.code);
-
-      if (result.code !== 0) {
-        logger.warn('[QQMusicAPI] Lyrics API returned error code:', result.code);
+      if (!result.success) {
+        logger.warn('[QQMusicAPI] Lyrics IPC returned error:', result.error);
         return null;
       }
 
-      // Decode base64 lyrics
-      const lyricBase64 = result.lyric;
-      if (!lyricBase64) {
-        logger.debug('[QQMusicAPI] No lyrics available');
-        return null;
-      }
-
-      // Base64 decode
-      const lyrics = atob(lyricBase64);
-      logger.debug('[QQMusicAPI] Lyrics decoded, length:', lyrics.length);
-
-      return lyrics;
+      logger.debug('[QQMusicAPI] Lyrics decoded, length:', result.lyrics?.length ?? 0);
+      return result.lyrics || null;
     } catch (error: unknown) {
       logger.error('[QQMusicAPI] Get lyrics failed:', error);
       return null;

@@ -9,6 +9,7 @@ import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
 import { reorderTracks } from './services/libraryReorder';
 import { cookieManager, neteaseCookieManager } from './services/cookieManager';
+import { parseLRCLyrics } from './services/metadataService';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -470,9 +471,18 @@ const AppWorkspace: React.FC = () => {
     setIsPlaying(true);
     setViewSlot('online');
     // Async metadata/lyrics enrichment
-    lyricsProvider?.getLyrics?.(song.songmid).then(lyrics => {
-      if (lyrics) {
-        updateOnlineTracks(prev => prev.map(t => t.id === track.id ? { ...t, lyrics } : t));
+    lyricsProvider?.getLyrics?.(song.songmid).then(rawLyrics => {
+      if (rawLyrics) {
+        const parsed = parseLRCLyrics(rawLyrics);
+        updateOnlineTracks(prev => prev.map(t =>
+          t.id === track.id
+            ? {
+                ...t,
+                lyrics: parsed.plainText || rawLyrics,
+                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+              }
+            : t
+        ));
       }
     }).catch(() => {});
   }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
@@ -705,13 +715,13 @@ const AppWorkspace: React.FC = () => {
 	                    cloudTracks={slots.cloud.tracks}
 	                    onNavigateToTrack={handleSearchNavigate}
 	                    onOnlineDownload={handleOnlineDownload}
-                    onOnlineStreamPlay={(song: any) => handleOnlineStreamPlay({
+                    onOnlineStreamPlay={(song: any, source?: string) => handleOnlineStreamPlay({
                       songmid: song.songmid, title: song.songname,
                       artist: song.singer?.map((s: any) => s.name).join(' & ') || 'Unknown Artist',
                       album: song.albumname || 'Unknown Album',
                       coverUrl: song.coverUrl, duration: song.interval || 0,
                       singer: song.singer,
-                    })}
+                    }, source as 'qq' | 'netease' | undefined)}
 	                    onOnlineUpload={handleOnlineUpload}
 	                    onlineProgress={onlineProgress}
 	                  />
