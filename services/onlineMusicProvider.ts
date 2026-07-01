@@ -75,6 +75,13 @@ export interface OnlineMusicProvider {
  */
 export interface OnlineMusicElectronAPI {
   getQQMusicUrl?: (reqData: Record<string, unknown>, cookie: string) => Promise<unknown>;
+  qqMusicRequest?: (options: {
+    url: string;
+    method?: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: string;
+    cookie?: string;
+  }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
   getQQMusicLyrics?: (
     songmid: string,
     cookie: string

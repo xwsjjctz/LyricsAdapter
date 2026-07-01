@@ -181,6 +181,17 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('get-qq-music-url', requestData, cookieString);
   },
 
+  // Generic QQ Music API request (via main process, avoids renderer CORS/cookie limits)
+  qqMusicRequest: async (options: {
+    url: string;
+    method?: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: string;
+    cookie?: string;
+  }) => {
+    return ipcRenderer.invoke('qq-music-request', options);
+  },
+
   // Get lyrics from QQ Music API (via main process, avoids CORS)
   getQQMusicLyrics: async (songmid: string, cookieString: string) => {
     return ipcRenderer.invoke('get-qq-music-lyrics', songmid, cookieString);
