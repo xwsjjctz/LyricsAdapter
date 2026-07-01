@@ -381,55 +381,77 @@ class QQMusicAPI implements OnlineMusicProvider {
    * Get the logged-in user's QQ Music playlists.
    * Returns tid, name, cover, song count for each playlist.
    */
+  /**
+   * Compute QQ Music `g_tk` from the `p_skey` or `skey` cookie (hash33).
+   * Falls back to 5381 (the zero-value default) when neither key is present.
+   */
+  private calcGTK(): number {
+    const cookies = cookieManager.parseCookie();
+    const key = cookies['p_skey'] || cookies['skey'] || '';
+    if (!key) return 5381;
+    let hash = 5381;
+    for (let i = 0; i < key.length; i++) {
+      hash += (hash << 5) + key.charCodeAt(i);
+    }
+    return hash & 0x7fffffff;
+  }
+
   async getPlaylists(): Promise<import('../services/onlineMusicProvider').PlaylistInfo[]> {
     if (!cookieManager.hasCookie()) throw new Error('Cookie not set');
     await cookieManager.ensureLoaded();
-    const uin = cookieManager.parseCookie()['uin'] || '0';
+    const cookies = cookieManager.parseCookie();
+    const uin = cookies['uin'] || '0';
+    const g_tk = this.calcGTK();
+
     const data = {
-      comm: {
-        g_tk: 5381,
-        uin,
-        format: 'json',
-        inCharset: 'utf-8',
-        outCharset: 'utf-8',
-        notice: 0,
-        platform: 'h5',
-        needNewCode: 1,
-      },
+      comm: { g_tk, uin, format: 'json', inCharset: 'utf-8', outCharset: 'utf-8', notice: 0, platform: 'h5', needNewCode: 1 },
       req_1: {
-        module: 'music.mine.MineServer',
-        method: 'MinePlaylist',
-        param: { uin, offset: 0, num: 50, type: 1 },
+        module: 'music.social.user_songlist.GetUserSonglist',
+        method: 'GetUserSonglist',
+        param: { uin, offset: 0, num: 50 },
       },
     };
-    const res = await fetch(
-      `https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`,
-      {
-        method: 'POST',
-        headers: {
-          ...this.getCookieHeaders(),
-          'Content-Type': 'application/json',
-          Referer: 'https://y.qq.com/',
-        },
-        body: JSON.stringify(data),
+
+    const res = await fetch(`https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`, {
+      method: 'POST',
+      headers: {
+        ...this.getCookieHeaders(),
+        'Content-Type': 'application/json',
+        Referer: 'https://y.qq.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
       },
-    );
+      body: JSON.stringify(data),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     if (json.code === 500001) throw new Error('Cookie expired');
-    if (json.code !== 0 || json?.req_1?.code !== 0) {
-      logger.warn('[QQMusicAPI] MinePlaylist failed:', JSON.stringify(json).slice(0, 300));
-      throw new Error(`QQ playlists API error: code=${json.code} req=${json?.req_1?.code}`);
+
+    // Try the primary module path; fall back to parsing older response shapes.
+    const rawList: any[] =
+      json?.req_1?.data?.list ??
+      json?.req_1?.data?.songlist ??
+      json?.req_1?.data?.dlist ??
+      [];
+
+    if (!rawList.length && json.code === 0) {
+      // Module returned success but empty — log and continue (user may have zero playlists)
+      logger.info('[QQMusicAPI] getPlaylists returned empty list');
+      return [];
     }
-    const rawList: any[] = json?.req_1?.data?.list ?? [];
-    logger.info('[QQMusicAPI] MinePlaylist got', rawList.length, 'playlists');
+
+    if (json.code !== 0 || (json?.req_1 && json?.req_1?.code !== 0)) {
+      logger.warn('[QQMusicAPI] getPlaylists failed:', JSON.stringify(json).slice(0, 400));
+      throw new Error(`QQ playlists error: code=${json.code} req=${json?.req_1?.code}`);
+    }
+
+    logger.info('[QQMusicAPI] getPlaylists got', rawList.length, 'playlists');
     return rawList.map((item: any) => {
-      const coverId = item.dir_logo || item.coverurl || '';
+      const coverId = item.dir_logo || item.coverurl || item.cover_pic || '';
       const coverUrl = coverId
         ? (coverId.startsWith('http') ? coverId : `https://y.gtimg.cn/music/photo_new/T002R300x300M000${coverId}.jpg`)
         : '';
       return {
-        id: String(item.tid || item.id || ''),
+        id: String(item.tid || item.id || item.dirid || ''),
         name: item.dissname || item.name || '未知歌单',
         coverUrl,
         songCount: Number(item.songnum ?? item.total_song_num ?? 0),
