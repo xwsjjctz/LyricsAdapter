@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import TitleBar from '../TitleBar';
 import FocusMode from '../FocusMode';
 import MainView from './MainView';
@@ -9,9 +9,11 @@ import PanelStack from './PanelStack';
 import TrackContextMenu from './TrackContextMenu';
 import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
+import LocateNowPlayingButton from './LocateNowPlayingButton';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
 import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
+import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
 import { settingsManager } from '../../services/settingsManager';
 
@@ -86,6 +88,11 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 }) => {
   const entries = usePlaylistEntries(slots);
   const panels = useNewUxPanels();
+  const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
+  const [locateRequest, setLocateRequest] = useState<{ trackId: string | null; token: number }>({
+    trackId: null,
+    token: 0,
+  });
   const [playlistMenu, setPlaylistMenu] = useState<{
     entry: PlaylistEntry;
     x: number;
@@ -109,6 +116,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     const targetIds = new Set(panels.state.deleteTargetIds);
     return openEntry.tracks.filter(track => targetIds.has(track.id));
   }, [openEntry, panels.state.deleteTargetIds]);
+  const nowPlayingLocator = useNowPlayingLocator({
+    entries,
+    currentTrack,
+    openPlaylistId: panels.state.openPlaylistId,
+    isCurrentTrackVisible,
+  });
+
+  useEffect(() => {
+    setIsCurrentTrackVisible(false);
+  }, [currentTrack?.id, panels.state.openPlaylistId]);
 
   const handleOpenPlaylist = useCallback(async (entry: PlaylistEntry) => {
     await onOpenSlot(entry.id);
@@ -166,6 +183,20 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     panels.closeMetadata();
   }, [onUpdateTrack, panels]);
 
+  const handleLocateNowPlaying = useCallback(async () => {
+    const { targetEntry, targetTrackId } = nowPlayingLocator;
+    if (!targetEntry || !targetTrackId) return;
+
+    await onOpenSlot(targetEntry.id);
+    panels.openPlaylist(targetEntry.id);
+    setPlaylistMenu(null);
+    setIsCurrentTrackVisible(false);
+    setLocateRequest(prev => ({
+      trackId: targetTrackId,
+      token: prev.token + 1,
+    }));
+  }, [nowPlayingLocator, onOpenSlot, panels]);
+
   return (
     <div className="new-ux-shell font-sans">
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
@@ -215,6 +246,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   {...(currentTrack?.id ? { currentTrackId: currentTrack.id } : {})}
                   isEditMode={panels.state.isEditMode}
                   selectedTrackIds={panels.state.selectedTrackIds}
+                  {...(locateRequest.trackId ? { locateTrackId: locateRequest.trackId } : {})}
+                  locateToken={locateRequest.token}
                   onClose={panels.closePlaylist}
                   onTrackSelect={onTrackSelect}
                   onTrackContextMenu={handleTrackContextMenu}
@@ -222,6 +255,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onSelectAll={panels.selectAll}
                   onExitEditMode={panels.exitEditMode}
                   onDeleteSelected={() => panels.openDeleteConfirm(Array.from(panels.state.selectedTrackIds))}
+                  onCurrentTrackVisibilityChange={setIsCurrentTrackVisible}
                 />
               )}
               {editingTrack && (
@@ -268,6 +302,9 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           onExitEditMode={panels.exitEditMode}
           onClose={panels.closeTrackMenu}
         />
+      )}
+      {currentTrack && nowPlayingLocator.visible && (
+        <LocateNowPlayingButton track={currentTrack} onLocate={handleLocateNowPlaying} />
       )}
       <FloatingPlayerPanel
         track={currentTrack}

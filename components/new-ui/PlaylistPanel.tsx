@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
 import type { Track } from '../../types';
 import type { PlaylistEntry } from './types';
@@ -8,6 +8,8 @@ interface PlaylistPanelProps {
   currentTrackId?: string;
   isEditMode: boolean;
   selectedTrackIds: Set<string>;
+  locateTrackId?: string;
+  locateToken: number;
   onClose: () => void;
   onTrackSelect: (index: number) => void;
   onTrackContextMenu: (track: Track, index: number, event: React.MouseEvent) => void;
@@ -15,6 +17,7 @@ interface PlaylistPanelProps {
   onSelectAll: (trackIds: string[]) => void;
   onExitEditMode: () => void;
   onDeleteSelected: () => void;
+  onCurrentTrackVisibilityChange: (visible: boolean) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -33,9 +36,11 @@ const TrackRow: React.FC<{
   onTrackSelect: (index: number) => void;
   onTrackContextMenu: (track: Track, index: number, event: React.MouseEvent) => void;
   onToggleTrackSelected: (trackId: string) => void;
-}> = ({ track, index, active, isEditMode, selected, onTrackSelect, onTrackContextMenu, onToggleTrackSelected }) => (
+  rowRef: (node: HTMLButtonElement | null) => void;
+}> = ({ track, index, active, isEditMode, selected, onTrackSelect, onTrackContextMenu, onToggleTrackSelected, rowRef }) => (
   <button
     type="button"
+    ref={rowRef}
     className={`new-ux-button-reset new-ux-track-row ${active ? 'new-ux-track-row--active' : ''} ${isEditMode ? 'new-ux-track-row--editing' : ''} ${selected ? 'new-ux-track-row--selected' : ''}`}
     onClick={() => {
       if (isEditMode) {
@@ -75,6 +80,8 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   currentTrackId,
   isEditMode,
   selectedTrackIds,
+  locateTrackId,
+  locateToken,
   onClose,
   onTrackSelect,
   onTrackContextMenu,
@@ -82,7 +89,10 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   onSelectAll,
   onExitEditMode,
   onDeleteSelected,
+  onCurrentTrackVisibilityChange,
 }) => {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const trackRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('default');
 
@@ -106,6 +116,50 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   }, [entry.tracks, query, sortMode]);
 
   const visibleTrackIds = useMemo(() => visibleTracks.map(({ track }) => track.id), [visibleTracks]);
+  const registerTrack = useCallback((trackId: string) => (node: HTMLButtonElement | null) => {
+    trackRefs.current[trackId] = node;
+  }, []);
+
+  useEffect(() => {
+    const list = listRef.current;
+    const trackId = currentTrackId;
+    if (!list || !trackId) {
+      onCurrentTrackVisibilityChange(false);
+      return;
+    }
+
+    const node = trackRefs.current[trackId];
+    if (!node) {
+      onCurrentTrackVisibilityChange(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => onCurrentTrackVisibilityChange(Boolean(entry?.isIntersecting)),
+      {
+        root: list,
+        threshold: 0.72,
+      }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [currentTrackId, onCurrentTrackVisibilityChange, visibleTracks]);
+
+  useEffect(() => {
+    if (!locateTrackId || locateToken <= 0) return;
+
+    setQuery('');
+    setSortMode('default');
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        trackRefs.current[locateTrackId]?.scrollIntoView({
+          block: 'center',
+          behavior: 'smooth',
+        });
+      });
+    });
+  }, [locateToken, locateTrackId]);
 
   return (
     <aside className="new-ux-playlist-panel new-ux-panel-in">
@@ -151,7 +205,7 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
           </select>
         </label>
       </div>
-      <div className="new-ux-track-list new-ux-scrollbar">
+      <div ref={listRef} className="new-ux-track-list new-ux-scrollbar">
         {visibleTracks.length > 0 ? (
           visibleTracks.map(({ track, index }) => (
             <TrackRow
@@ -164,6 +218,7 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
               onTrackSelect={onTrackSelect}
               onTrackContextMenu={onTrackContextMenu}
               onToggleTrackSelected={onToggleTrackSelected}
+              rowRef={registerTrack(track.id)}
             />
           ))
         ) : (
