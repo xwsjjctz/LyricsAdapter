@@ -9,6 +9,7 @@ interface FloatingPlayerPanelProps {
   track: Track | null;
   isPlaying: boolean;
   currentTime: number;
+  transitionRef?: React.RefObject<HTMLDivElement>;
   onTogglePlay: () => void;
   onSkipNext: () => void;
   onSkipPrev: () => void;
@@ -28,6 +29,7 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
   track,
   isPlaying,
   currentTime,
+  transitionRef,
   onTogglePlay,
   onSkipNext,
   onSkipPrev,
@@ -40,7 +42,7 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
   const progressStyle = { '--player-progress': `${progress}%` } as React.CSSProperties;
 
   return (
-    <div className="new-ux-player">
+    <div ref={transitionRef} className="new-ux-player" data-focus-transition="panel">
       <div className="new-ux-player__body">
         <button
           type="button"
@@ -48,7 +50,7 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
           onClick={track ? onToggleFocus : undefined}
           aria-label="Open focus mode"
         >
-          <div className="new-ux-player__cover">
+          <div className="new-ux-player__cover" data-focus-transition="cover">
             {track?.coverUrl ? (
               <img src={toCoverThumb(track.coverUrl, 128)} alt="" />
             ) : (
@@ -56,11 +58,11 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
             )}
           </div>
           <div className="min-w-0 text-left">
-            <div className="new-ux-player__title">{track?.title ?? i18n.t('controls.noTrackSelected')}</div>
-            <div className="new-ux-player__artist">{track ? `${track.artist} · ${track.album}` : i18n.t('mainPlayer.importTracks')}</div>
+            <div className="new-ux-player__title" data-focus-transition="title">{track?.title ?? i18n.t('controls.noTrackSelected')}</div>
+            <div className="new-ux-player__artist" data-focus-transition="artist">{track ? `${track.artist} · ${track.album}` : i18n.t('mainPlayer.importTracks')}</div>
           </div>
         </button>
-        <div className="new-ux-player__timeline">
+        <div className="new-ux-player__timeline" data-focus-transition="progress">
           <span>{formatTime(seekValue)}</span>
           <input
             type="range"
@@ -76,7 +78,7 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
           <span>{formatTime(duration)}</span>
         </div>
       </div>
-      <div className="new-ux-player__controls">
+      <div className="new-ux-player__controls" data-focus-transition="controls">
         <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onSkipPrev} disabled={!track}>
           <span className="material-symbols-outlined text-[24px]">skip_previous</span>
         </button>

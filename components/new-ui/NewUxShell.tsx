@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TitleBar from '../TitleBar';
 import FocusMode from '../FocusMode';
 import MainView from './MainView';
@@ -10,6 +10,7 @@ import TrackContextMenu from './TrackContextMenu';
 import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
+import FocusTransitionLayer, { createFocusTransitionSnapshot, type FocusTransitionSnapshot } from './focus/FocusTransitionLayer';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
 import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
@@ -88,11 +89,13 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 }) => {
   const entries = usePlaylistEntries(slots);
   const panels = useNewUxPanels();
+  const playerTransitionRef = useRef<HTMLDivElement | null>(null);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
   const [locateRequest, setLocateRequest] = useState<{ trackId: string | null; token: number }>({
     trackId: null,
     token: 0,
   });
+  const [focusTransition, setFocusTransition] = useState<FocusTransitionSnapshot | null>(null);
   const [playlistMenu, setPlaylistMenu] = useState<{
     entry: PlaylistEntry;
     x: number;
@@ -196,6 +199,18 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       token: prev.token + 1,
     }));
   }, [nowPlayingLocator, onOpenSlot, panels]);
+
+  const handleOpenFocusMode = useCallback(() => {
+    if (!currentTrack) return;
+
+    const root = playerTransitionRef.current;
+    const snapshot = root ? createFocusTransitionSnapshot(root, currentTrack) : null;
+    if (snapshot) {
+      setFocusTransition(snapshot);
+      window.setTimeout(() => setFocusTransition(null), 760);
+    }
+    onToggleFocusMode();
+  }, [currentTrack, onToggleFocusMode]);
 
   return (
     <div className="new-ux-shell font-sans">
@@ -310,12 +325,19 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         track={currentTrack}
         isPlaying={isPlaying}
         currentTime={currentTime}
+        transitionRef={playerTransitionRef}
         onTogglePlay={onTogglePlay}
         onSkipNext={onSkipNext}
         onSkipPrev={onSkipPrev}
         onSeek={onSeek}
-        onToggleFocus={onToggleFocusMode}
+        onToggleFocus={handleOpenFocusMode}
       />
+      {focusTransition && (
+        <FocusTransitionLayer
+          snapshot={focusTransition}
+          onComplete={() => setFocusTransition(null)}
+        />
+      )}
       <FocusMode
         track={currentTrack}
         isVisible={isFocusMode}
