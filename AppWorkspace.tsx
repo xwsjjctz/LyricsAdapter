@@ -610,6 +610,9 @@ const AppWorkspace: React.FC = () => {
         onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
         onOpenSlot={handleSwitchSlot}
         onTrackSelect={handleTrackSelect}
+        onRemoveTrack={handleRemoveTrackFromView}
+        onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+        onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
         onTogglePlay={togglePlay}
         onSkipNext={skipForward}
         onSkipPrev={skipBackward}

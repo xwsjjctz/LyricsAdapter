@@ -5,8 +5,13 @@ import MainView from './MainView';
 import PlaylistPanel from './PlaylistPanel';
 import FloatingPlayerPanel from './FloatingPlayerPanel';
 import PlaylistCardContextMenu from './PlaylistCardContextMenu';
+import PanelStack from './PanelStack';
+import TrackContextMenu from './TrackContextMenu';
+import DeleteConfirmPanel from './DeleteConfirmPanel';
+import MetadataEditPanel from './MetadataEditPanel';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
+import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
 import { settingsManager } from '../../services/settingsManager';
 
@@ -21,6 +26,9 @@ interface NewUxShellProps {
   onToggleFocusMode: () => void;
   onOpenSlot: (slotId: SlotId) => Promise<void>;
   onTrackSelect: (index: number) => void;
+  onRemoveTrack: (trackId: string, deleteFile?: boolean) => Promise<void>;
+  onRemoveMultipleTracks: (trackIds: string[], deleteFile?: boolean) => Promise<void>;
+  onUpdateTrack: (track: Track) => void;
   onTogglePlay: () => void;
   onSkipNext: () => void;
   onSkipPrev: () => void;
@@ -53,6 +61,9 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onToggleFocusMode,
   onOpenSlot,
   onTrackSelect,
+  onRemoveTrack,
+  onRemoveMultipleTracks,
+  onUpdateTrack,
   onTogglePlay,
   onSkipNext,
   onSkipPrev,
@@ -74,7 +85,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onFileInputChange,
 }) => {
   const entries = usePlaylistEntries(slots);
-  const [openPlaylistId, setOpenPlaylistId] = useState<SlotId | null>(null);
+  const panels = useNewUxPanels();
   const [playlistMenu, setPlaylistMenu] = useState<{
     entry: PlaylistEntry;
     x: number;
@@ -82,14 +93,28 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   } | null>(null);
 
   const openEntry = useMemo(
-    () => entries.find(entry => entry.id === openPlaylistId) ?? null,
-    [entries, openPlaylistId]
+    () => entries.find(entry => entry.id === panels.state.openPlaylistId) ?? null,
+    [entries, panels.state.openPlaylistId]
   );
+  const trackMenuTrack = useMemo(() => {
+    if (!openEntry || !panels.state.trackMenu) return null;
+    return openEntry.tracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;
+  }, [openEntry, panels.state.trackMenu]);
+  const editingTrack = useMemo(() => {
+    if (!openEntry || !panels.state.editingTrackId) return null;
+    return openEntry.tracks.find(track => track.id === panels.state.editingTrackId) ?? null;
+  }, [openEntry, panels.state.editingTrackId]);
+  const deleteTracks = useMemo(() => {
+    if (!openEntry || panels.state.deleteTargetIds.length === 0) return [];
+    const targetIds = new Set(panels.state.deleteTargetIds);
+    return openEntry.tracks.filter(track => targetIds.has(track.id));
+  }, [openEntry, panels.state.deleteTargetIds]);
 
   const handleOpenPlaylist = useCallback(async (entry: PlaylistEntry) => {
     await onOpenSlot(entry.id);
-    setOpenPlaylistId(entry.id);
-  }, [onOpenSlot]);
+    panels.openPlaylist(entry.id);
+    setPlaylistMenu(null);
+  }, [onOpenSlot, panels]);
 
   const handlePlaylistContextMenu = useCallback((entry: PlaylistEntry, event: React.MouseEvent) => {
     event.preventDefault();
@@ -103,6 +128,43 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const handleImport = useCallback(async (slotId: SlotId) => {
     await onImportIntoSlot(slotId);
   }, [onImportIntoSlot]);
+
+  const handleTrackContextMenu = useCallback((track: Track, index: number, event: React.MouseEvent) => {
+    event.preventDefault();
+    panels.openTrackMenu({
+      trackId: track.id,
+      trackIndex: index,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }, [panels]);
+
+  const getDeleteTargetIds = useCallback((fallbackTrackId: string) => {
+    if (panels.state.isEditMode && panels.state.selectedTrackIds.size > 0) {
+      return Array.from(panels.state.selectedTrackIds);
+    }
+    return [fallbackTrackId];
+  }, [panels.state.isEditMode, panels.state.selectedTrackIds]);
+
+  const handleConfirmDelete = useCallback(async (deleteFiles: boolean) => {
+    const ids = panels.state.deleteTargetIds;
+    if (ids.length === 0) return;
+
+    if (ids.length === 1) {
+      const trackId = ids[0];
+      if (!trackId) return;
+      await onRemoveTrack(trackId, deleteFiles);
+    } else {
+      await onRemoveMultipleTracks(ids, deleteFiles);
+    }
+    panels.closeDeleteConfirm();
+    panels.exitEditMode();
+  }, [onRemoveMultipleTracks, onRemoveTrack, panels]);
+
+  const handleSaveMetadata = useCallback((track: Track) => {
+    onUpdateTrack(track);
+    panels.closeMetadata();
+  }, [onUpdateTrack, panels]);
 
   return (
     <div className="new-ux-shell font-sans">
@@ -146,14 +208,37 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
             onPlaylistContextMenu={handlePlaylistContextMenu}
           />
           <div className="new-ux-panel-layer">
-            {openEntry && (
-              <PlaylistPanel
-                entry={openEntry}
-                {...(currentTrack?.id ? { currentTrackId: currentTrack.id } : {})}
-                onClose={() => setOpenPlaylistId(null)}
-                onTrackSelect={onTrackSelect}
-              />
-            )}
+            <PanelStack>
+              {openEntry && (
+                <PlaylistPanel
+                  entry={openEntry}
+                  {...(currentTrack?.id ? { currentTrackId: currentTrack.id } : {})}
+                  isEditMode={panels.state.isEditMode}
+                  selectedTrackIds={panels.state.selectedTrackIds}
+                  onClose={panels.closePlaylist}
+                  onTrackSelect={onTrackSelect}
+                  onTrackContextMenu={handleTrackContextMenu}
+                  onToggleTrackSelected={panels.toggleTrackSelected}
+                  onSelectAll={panels.selectAll}
+                  onExitEditMode={panels.exitEditMode}
+                  onDeleteSelected={() => panels.openDeleteConfirm(Array.from(panels.state.selectedTrackIds))}
+                />
+              )}
+              {editingTrack && (
+                <MetadataEditPanel
+                  track={editingTrack}
+                  onClose={panels.closeMetadata}
+                  onSave={handleSaveMetadata}
+                />
+              )}
+              {deleteTracks.length > 0 && (
+                <DeleteConfirmPanel
+                  tracks={deleteTracks}
+                  onCancel={panels.closeDeleteConfirm}
+                  onConfirm={handleConfirmDelete}
+                />
+              )}
+            </PanelStack>
           </div>
         </div>
       </main>
@@ -167,6 +252,21 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           onOpen={handleOpenPlaylist}
           onImport={handleImport}
           onClose={() => setPlaylistMenu(null)}
+        />
+      )}
+      {panels.state.trackMenu && trackMenuTrack && (
+        <TrackContextMenu
+          track={trackMenuTrack}
+          x={panels.state.trackMenu.x}
+          y={panels.state.trackMenu.y}
+          isEditMode={panels.state.isEditMode}
+          selectedCount={panels.state.selectedTrackIds.size}
+          onPlay={() => onTrackSelect(panels.state.trackMenu?.trackIndex ?? 0)}
+          onEditMetadata={() => panels.openMetadata(trackMenuTrack.id)}
+          onDelete={() => panels.openDeleteConfirm(getDeleteTargetIds(trackMenuTrack.id))}
+          onEnterEditMode={() => panels.enterEditMode(trackMenuTrack.id)}
+          onExitEditMode={panels.exitEditMode}
+          onClose={panels.closeTrackMenu}
         />
       )}
       <FloatingPlayerPanel

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
 import type { Track } from '../../types';
 import type { PlaylistEntry } from './types';
@@ -6,8 +6,15 @@ import type { PlaylistEntry } from './types';
 interface PlaylistPanelProps {
   entry: PlaylistEntry;
   currentTrackId?: string;
+  isEditMode: boolean;
+  selectedTrackIds: Set<string>;
   onClose: () => void;
   onTrackSelect: (index: number) => void;
+  onTrackContextMenu: (track: Track, index: number, event: React.MouseEvent) => void;
+  onToggleTrackSelected: (trackId: string) => void;
+  onSelectAll: (trackIds: string[]) => void;
+  onExitEditMode: () => void;
+  onDeleteSelected: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -21,13 +28,29 @@ const TrackRow: React.FC<{
   track: Track;
   index: number;
   active: boolean;
+  isEditMode: boolean;
+  selected: boolean;
   onTrackSelect: (index: number) => void;
-}> = ({ track, index, active, onTrackSelect }) => (
+  onTrackContextMenu: (track: Track, index: number, event: React.MouseEvent) => void;
+  onToggleTrackSelected: (trackId: string) => void;
+}> = ({ track, index, active, isEditMode, selected, onTrackSelect, onTrackContextMenu, onToggleTrackSelected }) => (
   <button
     type="button"
-    className={`new-ux-button-reset new-ux-track-row ${active ? 'new-ux-track-row--active' : ''}`}
-    onClick={() => onTrackSelect(index)}
+    className={`new-ux-button-reset new-ux-track-row ${active ? 'new-ux-track-row--active' : ''} ${isEditMode ? 'new-ux-track-row--editing' : ''} ${selected ? 'new-ux-track-row--selected' : ''}`}
+    onClick={() => {
+      if (isEditMode) {
+        onToggleTrackSelected(track.id);
+        return;
+      }
+      onTrackSelect(index);
+    }}
+    onContextMenu={event => onTrackContextMenu(track, index, event)}
   >
+    {isEditMode && (
+      <span className={`new-ux-track-row__check${selected ? ' new-ux-track-row__check--selected' : ''}`}>
+        <span className="material-symbols-outlined text-[16px]">{selected ? 'check' : ''}</span>
+      </span>
+    )}
     <div className="new-ux-track-row__cover">
       {track.coverUrl ? (
         <img src={toCoverThumb(track.coverUrl, 128)} alt="" />
@@ -45,27 +68,102 @@ const TrackRow: React.FC<{
   </button>
 );
 
-const PlaylistPanel: React.FC<PlaylistPanelProps> = ({ entry, currentTrackId, onClose, onTrackSelect }) => {
+type SortMode = 'default' | 'title' | 'artist' | 'album' | 'duration';
+
+const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
+  entry,
+  currentTrackId,
+  isEditMode,
+  selectedTrackIds,
+  onClose,
+  onTrackSelect,
+  onTrackContextMenu,
+  onToggleTrackSelected,
+  onSelectAll,
+  onExitEditMode,
+  onDeleteSelected,
+}) => {
+  const [query, setQuery] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('default');
+
+  const visibleTracks = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const rows = entry.tracks
+      .map((track, index) => ({ track, index }))
+      .filter(({ track }) => {
+        if (!normalizedQuery) return true;
+        return [track.title, track.artist, track.album]
+          .filter(Boolean)
+          .some(value => value.toLowerCase().includes(normalizedQuery));
+      });
+
+    if (sortMode === 'default') return rows;
+
+    return rows.sort((a, b) => {
+      if (sortMode === 'duration') return a.track.duration - b.track.duration;
+      return (a.track[sortMode] || '').localeCompare(b.track[sortMode] || '');
+    });
+  }, [entry.tracks, query, sortMode]);
+
+  const visibleTrackIds = useMemo(() => visibleTracks.map(({ track }) => track.id), [visibleTracks]);
+
   return (
     <aside className="new-ux-playlist-panel new-ux-panel-in">
       <header className="new-ux-playlist-panel__header">
         <div className="min-w-0">
           <div className="new-ux-playlist-panel__title">{entry.title}</div>
-          <div className="new-ux-playlist-panel__meta">{entry.count} tracks</div>
+          <div className="new-ux-playlist-panel__meta">
+            {isEditMode ? `${selectedTrackIds.size} selected` : `${entry.count} tracks`}
+          </div>
         </div>
-        <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close playlist">
-          <span className="material-symbols-outlined text-[22px]">close</span>
-        </button>
+        <div className="new-ux-playlist-panel__actions">
+          {isEditMode && (
+            <>
+              <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={() => onSelectAll(visibleTrackIds)} aria-label="Select visible tracks">
+                <span className="material-symbols-outlined text-[22px]">select_all</span>
+              </button>
+              <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onDeleteSelected} aria-label="Delete selected tracks" disabled={selectedTrackIds.size === 0}>
+                <span className="material-symbols-outlined text-[22px]">delete</span>
+              </button>
+              <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onExitEditMode} aria-label="Exit edit mode">
+                <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+              </button>
+            </>
+          )}
+          <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close playlist">
+            <span className="material-symbols-outlined text-[22px]">close</span>
+          </button>
+        </div>
       </header>
+      <div className="new-ux-playlist-panel__tools">
+        <label className="new-ux-search-field">
+          <span className="material-symbols-outlined text-[18px]">search</span>
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search" />
+        </label>
+        <label className="new-ux-select-field">
+          <span className="material-symbols-outlined text-[18px]">sort</span>
+          <select value={sortMode} onChange={event => setSortMode(event.target.value as SortMode)}>
+            <option value="default">Default</option>
+            <option value="title">Title</option>
+            <option value="artist">Artist</option>
+            <option value="album">Album</option>
+            <option value="duration">Duration</option>
+          </select>
+        </label>
+      </div>
       <div className="new-ux-track-list new-ux-scrollbar">
-        {entry.tracks.length > 0 ? (
-          entry.tracks.map((track, index) => (
+        {visibleTracks.length > 0 ? (
+          visibleTracks.map(({ track, index }) => (
             <TrackRow
               key={track.id}
               track={track}
               index={index}
               active={track.id === currentTrackId}
+              isEditMode={isEditMode}
+              selected={selectedTrackIds.has(track.id)}
               onTrackSelect={onTrackSelect}
+              onTrackContextMenu={onTrackContextMenu}
+              onToggleTrackSelected={onToggleTrackSelected}
             />
           ))
         ) : (
