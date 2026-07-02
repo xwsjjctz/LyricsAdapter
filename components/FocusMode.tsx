@@ -8,6 +8,8 @@ import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { toCoverThumb } from '../services/coverUrl';
+import FocusCoverStage from './focus-mode/FocusCoverStage';
+import FocusTrackMeta from './focus-mode/FocusTrackMeta';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -902,24 +904,12 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
           {/* Cover & Title */}
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
-            <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
-              <img
-                src={toCoverThumb(track?.coverUrl, 512)}
-                className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
-                alt="album cover"
-              />
-            </div>
-            <div className="mt-5 lg:mt-7 text-center w-full max-w-[340px]">
-              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2 drop-shadow-2xl" style={{ color: focusColors.textPrimary }}>
-                {track?.title}
-              </h1>
-              <p className="text-base lg:text-lg font-semibold truncate opacity-80" style={{ color: focusColors.textPrimary }}>
-                {track?.artist}
-              </p>
-              <p className="text-xs lg:text-sm font-medium truncate mt-1" style={{ color: focusColors.textMuted }}>
-                {track?.album}
-              </p>
-            </div>
+            <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} />
+            <FocusTrackMeta
+              track={track}
+              textPrimary={focusColors.textPrimary}
+              textMuted={focusColors.textMuted}
+            />
           </div>
 
           {/* Lyrics */}
