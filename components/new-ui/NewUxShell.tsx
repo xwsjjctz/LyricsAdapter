@@ -41,6 +41,8 @@ interface NewUxShellProps {
   onToggleMute: () => void;
   onTogglePlaybackMode: () => void;
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
+  onReloadUnavailable: () => void;
+  onOpenSettings: () => void;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
   audioRef?: React.RefObject<HTMLAudioElement>;
@@ -76,6 +78,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onToggleMute,
   onTogglePlaybackMode,
   onImportIntoSlot,
+  onReloadUnavailable,
+  onOpenSettings,
   cloudImportDisabled,
   cloudImportDisabledReason,
   audioRef,
@@ -305,6 +309,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           {...(cloudImportDisabledReason ? { cloudImportDisabledReason } : {})}
           onOpen={handleOpenPlaylist}
           onImport={handleImport}
+          onReloadUnavailable={onReloadUnavailable}
+          onOpenSettings={onOpenSettings}
           onClose={() => setPlaylistMenu(null)}
         />
       )}

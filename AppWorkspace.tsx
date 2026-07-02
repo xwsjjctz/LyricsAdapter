@@ -34,6 +34,7 @@ import { getOnlineProvider } from './services/onlineMusicProvider';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
+import { settingsManager } from './services/settingsManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
@@ -190,6 +191,27 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
+  const { handleReloadFiles: handleReloadLocalFiles } = useLibraryActions({
+    tracks: slots.local.tracks,
+    setTracks: updateLocalTracks,
+    currentTrackIndex: slots.local.currentTrackIndex,
+    setCurrentTrackIndex: (index) => {
+      updateSlot('local', slot => ({
+        ...slot,
+        currentTrackIndex: typeof index === 'function' ? index(slot.currentTrackIndex) : index,
+      }));
+    },
+    isPlaying,
+    setIsPlaying,
+    createTrackedBlobUrl,
+    revokeBlobUrl,
+    audioRef,
+  });
+  const handleOpenNewUxSettings = useCallback(() => {
+    setIsFocusMode(false);
+    transitionToView(ViewMode.SETTINGS);
+    settingsManager.setNewUxEnabled(false);
+  }, [setIsFocusMode, transitionToView]);
   // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
   // This ensures deletion works correctly when browsing a different slot than the one playing.
   const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
@@ -621,6 +643,8 @@ const AppWorkspace: React.FC = () => {
         onToggleMute={handleToggleMute}
         onTogglePlaybackMode={handleTogglePlaybackMode}
         onImportIntoSlot={handleNewUxImportIntoSlot}
+        onReloadUnavailable={handleReloadLocalFiles}
+        onOpenSettings={handleOpenNewUxSettings}
         cloudImportDisabled={cloudWritable !== true}
         cloudImportDisabledReason={
           cloudWritable === null

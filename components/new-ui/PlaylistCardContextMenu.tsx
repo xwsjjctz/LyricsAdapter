@@ -11,6 +11,8 @@ interface PlaylistCardContextMenuProps {
   cloudImportDisabledReason?: string;
   onOpen: (entry: PlaylistEntry) => void;
   onImport: (slotId: SlotId) => void;
+  onReloadUnavailable: () => void;
+  onOpenSettings: () => void;
   onClose: () => void;
 }
 
@@ -22,6 +24,8 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
   cloudImportDisabledReason,
   onOpen,
   onImport,
+  onReloadUnavailable,
+  onOpenSettings,
   onClose,
 }) => {
   useEffect(() => {
@@ -39,6 +43,9 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
 
   const canImport = entry.id === 'local' || entry.id === 'cloud';
   const importDisabled = entry.id === 'cloud' && cloudImportDisabled;
+  const hasUnavailableTracks = entry.tracks.some(track => track.available === false);
+  const isCloud = entry.id === 'cloud';
+  const isOnline = entry.id === 'online';
 
   const runAction = (action: () => void) => (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -68,6 +75,51 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
           <span>{i18n.t('sidebar.importFiles')}</span>
         </button>
       )}
+      {entry.id === 'local' && (
+        <button
+          type="button"
+          className="new-ux-button-reset new-ux-context-menu__item"
+          onClick={runAction(onReloadUnavailable)}
+          disabled={!hasUnavailableTracks}
+          title={hasUnavailableTracks ? undefined : '当前没有不可用歌曲'}
+        >
+          <span className="material-symbols-outlined text-[18px]">sync_problem</span>
+          <span>重新加载不可用歌曲</span>
+        </button>
+      )}
+      {isCloud && (
+        <>
+          <button
+            type="button"
+            className="new-ux-button-reset new-ux-context-menu__item"
+            disabled
+            title="后续接入云端刷新流程"
+          >
+            <span className="material-symbols-outlined text-[18px]">sync</span>
+            <span>刷新云端歌曲</span>
+          </button>
+          <button
+            type="button"
+            className="new-ux-button-reset new-ux-context-menu__item"
+            onClick={runAction(onOpenSettings)}
+          >
+            <span className="material-symbols-outlined text-[18px]">settings</span>
+            <span>WebDAV 设置</span>
+          </button>
+        </>
+      )}
+      {isOnline && (
+        <button
+          type="button"
+          className="new-ux-button-reset new-ux-context-menu__item"
+          disabled
+          title="在线播放历史管理后续接入"
+        >
+          <span className="material-symbols-outlined text-[18px]">playlist_remove</span>
+          <span>清空在线播放历史</span>
+        </button>
+      )}
+      <div className="new-ux-context-menu__caption">{entry.subtitle}</div>
     </div>
   );
 };
