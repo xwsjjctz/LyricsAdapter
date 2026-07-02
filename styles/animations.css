@@ -133,3 +133,93 @@
     linear-gradient(90deg, transparent 0 22%, rgba(255, 255, 255, 0.22) 22% 34%, transparent 34% 66%, rgba(255, 255, 255, 0.22) 66% 78%, transparent 78%);
   animation: newUxFocusTransitionMove 720ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
 }
+
+@keyframes newUxFocusAmbientDrift {
+  from {
+    transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) rotate(14deg) scale(1.08);
+  }
+}
+
+@keyframes newUxFocusAmbientPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+.new-ux-focus-ambient {
+  pointer-events: none;
+  position: absolute;
+  inset: -16%;
+  overflow: hidden;
+  opacity: 0.78;
+  transition: opacity 700ms ease, filter 700ms ease;
+}
+
+.new-ux-focus-ambient__cover {
+  position: absolute;
+  inset: 4%;
+  background-image: var(--new-ux-focus-cover-image);
+  background-position: center;
+  background-size: cover;
+  filter: blur(72px) saturate(1.28) brightness(0.76);
+  opacity: 0.42;
+  transform: scale(1.08);
+  transition: background-image 700ms ease, opacity 700ms ease, filter 700ms ease;
+}
+
+.new-ux-focus-ambient__beam {
+  position: absolute;
+  width: 46%;
+  height: 54%;
+  border-radius: 999px;
+  mix-blend-mode: screen;
+  filter: blur(64px);
+  opacity: 0.48;
+  animation:
+    newUxFocusAmbientDrift 16s ease-in-out infinite alternate,
+    newUxFocusAmbientPulse 9s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.new-ux-focus-ambient__beam--a {
+  top: 4%;
+  left: 10%;
+  background: radial-gradient(circle, rgba(98, 190, 255, 0.62), rgba(98, 190, 255, 0) 68%);
+}
+
+.new-ux-focus-ambient__beam--b {
+  right: 8%;
+  bottom: 10%;
+  background: radial-gradient(circle, rgba(255, 117, 190, 0.58), rgba(255, 117, 190, 0) 70%);
+  animation-duration: 19s, 11s;
+  animation-delay: -4s, -2s;
+}
+
+.new-ux-focus-ambient__beam--c {
+  top: 20%;
+  right: 24%;
+  background: radial-gradient(circle, rgba(255, 216, 144, 0.4), rgba(148, 111, 255, 0) 72%);
+  animation-duration: 23s, 13s;
+  animation-delay: -8s, -5s;
+}
+
+.new-ux-focus-ambient--paused {
+  opacity: 0.42;
+  filter: saturate(0.86) brightness(0.8);
+}
+
+.new-ux-focus-ambient--paused .new-ux-focus-ambient__beam {
+  animation-duration: 34s, 18s;
+  opacity: 0.3;
+}
+
+.new-ux-focus-ambient--playing {
+  opacity: 0.82;
+}

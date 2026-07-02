@@ -35,6 +35,7 @@
    - 需要表现为播放器边框向四周展开，成为 FocusMode 背景容器。
    - 封面、TITLE、ARTIST、ALBUM、播放控件在过渡中移动并放大到 FocusMode 对应位置。
    - 歌词在展开完成后淡入。
+   - FocusMode 必须继续兼容老页面样式：默认调用路径保持 legacy 外观和行为，新 UI 的流光背景、过渡层和结构拆分通过可选插槽、wrapper 或新 UI 专属组件接入。
 
 ## 当前代码落点
 
@@ -503,6 +504,12 @@ interface FocusTransitionSnapshot {
 ### 目标
 
 降低 `FocusMode.tsx` 复杂度，并加入流光背景。
+
+### 兼容约束
+
+- 老 UI 继续使用 `FocusMode` 的默认 legacy 样式，不强制启用新 UI 的流光背景或过渡层。
+- 新 UI 专属增强优先通过可选 prop、插槽或 wrapper 注入，避免把 `FocusMode.tsx` 改成只适配新 UI 的实现。
+- 拆分子组件时，保留旧调用方式的默认行为；新组件可以逐步承接逻辑，但不能让旧 UI 出现视觉回退。
 
 ### 拆分建议
 

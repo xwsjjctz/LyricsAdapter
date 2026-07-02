@@ -42,11 +42,12 @@ interface FocusModeProps {
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
+  ambientLayer?: React.ReactNode;
 }
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, ambientLayer
 }) => {
   const isLinux = getDesktopAPI()?.platform === 'linux';
 
@@ -887,6 +888,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           }}
         />
       )}
+      {ambientLayer}
       <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
 
       <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
@@ -1111,6 +1113,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   if (prevProps.playbackMode !== nextProps.playbackMode) return false;
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
+  if (prevProps.ambientLayer !== nextProps.ambientLayer) return false;
 
   // For currentTime, we allow more frequent updates (0.5 second threshold)
   // This keeps the lyrics scrolling smooth while avoiding excessive re-renders

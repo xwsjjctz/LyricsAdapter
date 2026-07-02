@@ -10,6 +10,7 @@ import TrackContextMenu from './TrackContextMenu';
 import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
+import FocusAmbientLight from './focus/FocusAmbientLight';
 import FocusTransitionLayer, { createFocusTransitionSnapshot, type FocusTransitionSnapshot } from './focus/FocusTransitionLayer';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
@@ -125,6 +126,10 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     openPlaylistId: panels.state.openPlaylistId,
     isCurrentTrackVisible,
   });
+  const focusAmbientLayer = useMemo(
+    () => <FocusAmbientLight track={currentTrack} isPlaying={isPlaying} />,
+    [currentTrack, isPlaying]
+  );
 
   useEffect(() => {
     setIsCurrentTrackVisible(false);
@@ -353,6 +358,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         playbackMode={playbackMode}
         onTogglePlaybackMode={onTogglePlaybackMode}
         onToggleFocus={onToggleFocusMode}
+        ambientLayer={focusAmbientLayer}
         {...(audioRef ? { audioRef } : {})}
       />
     </div>
