@@ -8,6 +8,7 @@ import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { toCoverThumb } from '../services/coverUrl';
+import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
 
@@ -313,14 +314,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     }
     return 0;
   }, [activeCurrentTime, lyricsLines, track]);
-
-  // Helper to format time
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds === 0) return '0:00';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
 
   // Calculate scroll boundaries for lyrics
   const getScrollBounds = useCallback(() => {
@@ -966,116 +959,26 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           </div>
         </main>
 
-        {/* Compact Bottom Player */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
-          <div
-            ref={playerRef}
-            onMouseEnter={handlePlayerMouseEnter}
-            onMouseLeave={handlePlayerMouseLeave}
-            className="glass p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
-            style={{
-              opacity: isPlayerVisible ? 1 : 0,
-              borderRadius: 'var(--theme-surface-radius)',
-              border: `var(--theme-panel-border-width) solid ${colors.borderLight}`,
-              backgroundColor: colors.backgroundDark,
-              boxShadow: 'var(--theme-surface-shadow)',
-            }}
-          >
-            {/* Progress */}
-            <div className="w-full flex items-center gap-3">
-              <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>{formatTime(activeCurrentTime)}</span>
-              <div
-                className="flex-1 relative h-1 cursor-pointer group"
-                style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const pct = x / rect.width;
-                  onSeek(pct * (track?.duration || 0));
-                }}
-              >
-                <div
-                  className="absolute top-0 left-0 h-full transition-all duration-100"
-                  style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 15px ${colors.glowColor}`, borderRadius: 'var(--theme-progress-radius)' }}
-                />
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 size-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary, borderRadius: 'var(--theme-progress-radius)' }}
-                />
-              </div>
-              <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: colors.textMuted }}>{formatTime(track?.duration || 0)}</span>
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center justify-between px-4">
-              <div className="flex gap-4" style={{ color: colors.textMuted }}>
-                <span
-                  className="material-symbols-outlined text-lg cursor-pointer transition-colors relative -left-[4px]"
-                  style={{ color: colors.textMuted }}
-                  onClick={onTogglePlaybackMode}
-                  onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-                  onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
-                >
-                  {playbackMode === 'shuffle'
-                    ? 'shuffle'
-                    : playbackMode === 'repeat-one'
-                    ? 'repeat_one'
-                    : 'repeat'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-6 relative left-[30px]">
-                <button
-                  onClick={onSkipPrev}
-                  className="transition-all hover:scale-110"
-                  style={{ color: colors.textSecondary }}
-                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
-                >
-                  <span className="material-symbols-outlined text-2xl">skip_previous</span>
-                </button>
-                <button
-                  onClick={onTogglePlay}
-                  className="size-11 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
-                  style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
-                >
-                  <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
-                </button>
-                <button
-                  onClick={onSkipNext}
-                  className="transition-all hover:scale-110"
-                  style={{ color: colors.textSecondary }}
-                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
-                >
-                  <span className="material-symbols-outlined text-2xl">skip_next</span>
-                </button>
-              </div>
-
-              <div className="flex justify-end gap-4 items-center" style={{ color: colors.textMuted }}>
-                <span
-                  className="material-symbols-outlined text-lg cursor-pointer transition-colors"
-                  style={{ color: colors.textMuted }}
-                  onClick={onToggleMute}
-                  onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-                  onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
-                >
-                  {volume === 0 ? 'volume_off' : 'volume_up'}
-                </span>
-                <div className="w-16 relative h-4 flex items-center group">
-                  <input
-                    type="range" min="0" max="1" step="0.01" value={volume}
-                    onChange={(e) => onVolumeChange(Number(e.target.value))}
-                    className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
-                  />
-                  <div className="w-full h-1 overflow-hidden" style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}>
-                    <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FocusControls
+          track={track}
+          colors={colors}
+          isPlaying={isPlaying}
+          isPlayerVisible={isPlayerVisible}
+          activeCurrentTime={activeCurrentTime}
+          progress={progress}
+          volume={volume}
+          playbackMode={playbackMode}
+          playerRef={playerRef}
+          onSeek={onSeek}
+          onTogglePlay={onTogglePlay}
+          onSkipNext={onSkipNext}
+          onSkipPrev={onSkipPrev}
+          onVolumeChange={onVolumeChange}
+          onToggleMute={onToggleMute}
+          onTogglePlaybackMode={onTogglePlaybackMode}
+          onMouseEnter={handlePlayerMouseEnter}
+          onMouseLeave={handlePlayerMouseLeave}
+        />
       </div>
     </div>
   );
