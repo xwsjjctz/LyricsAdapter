@@ -237,7 +237,7 @@
   top: 88px;
   right: var(--new-ux-stage-padding);
   bottom: 112px;
-  width: min(640px, calc(100vw - 48px));
+  width: min(560px, calc(100vw - 48px));
   display: flex;
   flex-direction: column;
   overflow: hidden;

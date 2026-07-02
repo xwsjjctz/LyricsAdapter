@@ -66,6 +66,18 @@ const MainView: React.FC<MainViewProps> = ({
   }, [cardLayouts]);
 
   useEffect(() => {
+    const handleWindowWheel = (event: WheelEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.new-ux-shell')) return;
+
+      motionRef.current.targetX -= event.deltaX * 0.72;
+      motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
+    };
+
+    window.addEventListener('wheel', handleWindowWheel, { passive: true });
+    return () => window.removeEventListener('wheel', handleWindowWheel);
+  }, []);
+
+  useEffect(() => {
     let animationFrame = 0;
 
     const animate = () => {
@@ -202,12 +214,6 @@ const MainView: React.FC<MainViewProps> = ({
     }
   }, []);
 
-  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    if (event.target instanceof Element && event.target.closest('.new-ux-playlist-panel')) return;
-    motionRef.current.targetX -= event.deltaX * 0.72;
-    motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
-  }, []);
-
   const handleDoubleClick = useCallback(() => {
     motionRef.current.targetX = 0;
     motionRef.current.targetY = 0;
@@ -228,7 +234,7 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   return (
-    <section className="new-ux-mainview new-ux-scrollbar" onWheel={handleWheel}>
+    <section className="new-ux-mainview new-ux-scrollbar">
       <div
         ref={spaceRef}
         className={`new-ux-playlist-space${isDragging ? ' new-ux-playlist-space--dragging' : ''}`}
