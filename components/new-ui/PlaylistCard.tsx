@@ -6,9 +6,11 @@ interface PlaylistCardProps {
   entry: PlaylistEntry;
   onOpen: (entry: PlaylistEntry) => void;
   onContextMenu: (entry: PlaylistEntry, event: React.MouseEvent) => void;
+  cardRef?: (node: HTMLButtonElement | null) => void;
+  style?: React.CSSProperties;
 }
 
-const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMenu }) => {
+const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMenu, cardRef, style }) => {
   const covers = entry.coverUrls.length > 0 ? entry.coverUrls : [undefined, undefined, undefined];
   const primaryCover = covers[0];
 
@@ -16,6 +18,8 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMen
     <button
       type="button"
       className="new-ux-button-reset new-ux-playlist-card"
+      ref={cardRef}
+      style={style}
       onClick={() => onOpen(entry)}
       onContextMenu={(event) => onContextMenu(entry, event)}
     >

@@ -5,6 +5,7 @@ import MainView from './MainView';
 import PlaylistPanel from './PlaylistPanel';
 import FloatingPlayerPanel from './FloatingPlayerPanel';
 import PlaylistCardContextMenu from './PlaylistCardContextMenu';
+import RootCanvasBackdrop from './RootCanvasBackdrop';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -106,6 +107,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   return (
     <div className="new-ux-shell font-sans">
+      <RootCanvasBackdrop />
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
       {currentTrack && (
         <audio
@@ -127,13 +129,22 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         className="hidden"
         onChange={onFileInputChange}
       />
+      <div className="new-ux-chrome-layer">
+        <header className="new-ux-mainview__header">
+          <div>
+            <h1 className="new-ux-mainview__title">Lyrics Adapter</h1>
+          </div>
+          <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={() => settingsManager.setNewUxEnabled(false)} aria-label="Exit new UI">
+            <span className="material-symbols-outlined text-[22px]">logout</span>
+          </button>
+        </header>
+      </div>
       <main className="new-ux-main">
         <div className="new-ux-stage">
           <MainView
             entries={entries}
             onOpenPlaylist={handleOpenPlaylist}
             onPlaylistContextMenu={handlePlaylistContextMenu}
-            onExitNewUx={() => settingsManager.setNewUxEnabled(false)}
           />
           <div className="new-ux-panel-layer">
             {openEntry && (
@@ -162,9 +173,11 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       <FloatingPlayerPanel
         track={currentTrack}
         isPlaying={isPlaying}
+        currentTime={currentTime}
         onTogglePlay={onTogglePlay}
         onSkipNext={onSkipNext}
         onSkipPrev={onSkipPrev}
+        onSeek={onSeek}
         onToggleFocus={onToggleFocusMode}
       />
       <FocusMode

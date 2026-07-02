@@ -4,22 +4,44 @@
   height: 100vh;
   overflow: hidden;
   color: var(--theme-text-primary, #fff);
-  background:
-    linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533)),
-    var(--theme-background-dark, #101922);
+  background: #070b11;
+}
+
+.new-ux-root-backdrop {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
 }
 
 .new-ux-main {
   position: relative;
+  z-index: 10;
   height: 100%;
   padding: calc(var(--new-ux-stage-padding) + 22px) var(--new-ux-stage-padding) 118px;
+}
+
+.new-ux-chrome-layer {
+  pointer-events: none;
+  position: absolute;
+  top: calc(var(--new-ux-stage-padding) + 22px);
+  right: var(--new-ux-stage-padding);
+  left: var(--new-ux-stage-padding);
+  z-index: 30;
+}
+
+.new-ux-chrome-layer > * {
+  pointer-events: auto;
 }
 
 .new-ux-stage {
   position: relative;
   height: 100%;
   overflow: hidden;
-  perspective: 1100px;
+  perspective: 1600px;
+  perspective-origin: 50% 48%;
 }
 
 .new-ux-panel-layer {
