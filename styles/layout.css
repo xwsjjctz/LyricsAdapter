@@ -1,0 +1,34 @@
+.new-ux-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  color: var(--theme-text-primary, #fff);
+  background:
+    linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533)),
+    var(--theme-background-dark, #101922);
+}
+
+.new-ux-main {
+  position: relative;
+  height: 100%;
+  padding: calc(var(--new-ux-stage-padding) + 22px) var(--new-ux-stage-padding) 118px;
+}
+
+.new-ux-stage {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  perspective: 1100px;
+}
+
+.new-ux-panel-layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
+
+.new-ux-panel-layer > * {
+  pointer-events: auto;
+}

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect } from 'react';
-import { Track, ViewMode } from './types';
+import React, { useCallback, useEffect, useState } from 'react';
+import { SlotId, Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
@@ -36,6 +36,8 @@ import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
+import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
+import NewUxShell from './components/new-ui/NewUxShell';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -68,6 +70,7 @@ const AppWorkspace: React.FC = () => {
     glassUI,
     handleNavigate,
   } = useUIStore();
+  const newUxEnabled = useNewUxEnabled();
   const {
     slots,
     slotsRef,
@@ -162,6 +165,20 @@ const AppWorkspace: React.FC = () => {
     viewSlot,
     cloudWritable,
   });
+  const [pendingNewUxImportSlot, setPendingNewUxImportSlot] = useState<SlotId | null>(null);
+  useEffect(() => {
+    if (!pendingNewUxImportSlot || viewSlot !== pendingNewUxImportSlot) return;
+    handleImportClick();
+    setPendingNewUxImportSlot(null);
+  }, [handleImportClick, pendingNewUxImportSlot, viewSlot]);
+  const handleNewUxImportIntoSlot = useCallback(async (slotId: SlotId) => {
+    if (slotId === viewSlot) {
+      handleImportClick();
+      return;
+    }
+    setPendingNewUxImportSlot(slotId);
+    await handleSwitchSlot(slotId);
+  }, [handleImportClick, handleSwitchSlot, viewSlot]);
   const { handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
     setTracks: setActiveTracks,
@@ -579,6 +596,47 @@ const AppWorkspace: React.FC = () => {
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
+
+  if (newUxEnabled) {
+    return (
+      <NewUxShell
+        slots={slots}
+        currentTrack={currentTrack}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        volume={volume}
+        playbackMode={playbackMode}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+        onOpenSlot={handleSwitchSlot}
+        onTrackSelect={handleTrackSelect}
+        onTogglePlay={togglePlay}
+        onSkipNext={skipForward}
+        onSkipPrev={skipBackward}
+        onSeek={handleSeek}
+        onVolumeChange={handleVolumeChange}
+        onToggleMute={handleToggleMute}
+        onTogglePlaybackMode={handleTogglePlaybackMode}
+        onImportIntoSlot={handleNewUxImportIntoSlot}
+        cloudImportDisabled={cloudWritable !== true}
+        cloudImportDisabledReason={
+          cloudWritable === null
+            ? i18n.t('sidebar.importChecking')
+            : i18n.t('sidebar.importReadOnly')
+        }
+        audioRef={audioRef}
+        setAudioRef={setAudioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onTrackEnded={handleTrackEnded}
+        onCanPlay={handleCanPlay}
+        onAudioError={handleAudioError}
+        fileInputRef={fileInputRef}
+        onFileInputChange={handleFileInputChange}
+      />
+    );
+  }
+
   return (
     <>
       <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {

@@ -2043,6 +2043,14 @@ const translations: Translations = {
     de: 'Speichern',
     fr: 'Enregistrer'
   },
+  'common.open': {
+    zh: '打开',
+    en: 'Open',
+    ja: '開く',
+    ko: '열기',
+    de: 'Öffnen',
+    fr: 'Ouvrir'
+  },
   'common.cancel': {
     zh: '取消',
     en: 'Cancel',
@@ -2186,6 +2194,24 @@ const translations: Translations = {
     ko: '버튼 클릭 시 GSAP 누름·반동 피드백',
     de: 'GSAP-Feedback beim Drücken und Loslassen von Buttons',
     fr: 'Retour GSAP à la pression et au relâchement des boutons'
+  },
+
+  'settings.newUx': {
+    zh: '全新 UI/UX',
+    en: 'New UI/UX',
+    ja: '新しい UI/UX',
+    ko: '새 UI/UX',
+    de: 'Neue UI/UX',
+    fr: 'Nouvelle UI/UX'
+  },
+
+  'settings.newUxDesc': {
+    zh: '启用新的歌单空间、浮动面板和沉浸式播放过渡',
+    en: 'Enable the new playlist space, floating panels, and immersive playback transition',
+    ja: '新しいプレイリスト空間、フローティングパネル、没入型再生トランジションを有効にします',
+    ko: '새 플레이리스트 공간, 플로팅 패널, 몰입형 재생 전환을 활성화합니다',
+    de: 'Aktiviert den neuen Playlist-Raum, schwebende Panels und immersive Wiedergabeübergänge',
+    fr: 'Active le nouvel espace de playlists, les panneaux flottants et la transition de lecture immersive'
   },
 
   'settings.focusBgBlurRadius': {
