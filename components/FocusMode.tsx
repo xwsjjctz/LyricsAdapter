@@ -43,13 +43,15 @@ interface FocusModeProps {
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
   ambientLayer?: React.ReactNode;
+  variant?: 'legacy' | 'new-ux';
 }
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, ambientLayer
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, ambientLayer, variant = 'legacy'
 }) => {
   const isLinux = getDesktopAPI()?.platform === 'linux';
+  const isNewUxFocus = variant === 'new-ux';
 
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
@@ -922,7 +924,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
           {/* Lyrics */}
           <div
-            className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
+            className={`flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none${isNewUxFocus && isVisible ? ' new-ux-focus-lyrics-enter' : ''}`}
             ref={lyricsRef}
 
             onMouseDown={handleMouseDown}
@@ -1114,6 +1116,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
   if (prevProps.ambientLayer !== nextProps.ambientLayer) return false;
+  if (prevProps.variant !== nextProps.variant) return false;
 
   // For currentTime, we allow more frequent updates (0.5 second threshold)
   // This keeps the lyrics scrolling smooth while avoiding excessive re-renders

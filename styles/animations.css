@@ -153,6 +153,20 @@
   }
 }
 
+@keyframes newUxFocusLyricsEnter {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translate3d(18px, 12px, 0);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0);
+  }
+}
+
 .new-ux-focus-ambient {
   pointer-events: none;
   position: absolute;
@@ -222,4 +236,9 @@
 
 .new-ux-focus-ambient--playing {
   opacity: 0.82;
+}
+
+.new-ux-focus-lyrics-enter {
+  animation: newUxFocusLyricsEnter 980ms cubic-bezier(0.2, 0.72, 0.22, 1) both;
+  will-change: opacity, transform, filter;
 }

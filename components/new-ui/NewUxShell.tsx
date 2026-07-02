@@ -359,6 +359,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onTogglePlaybackMode={onTogglePlaybackMode}
         onToggleFocus={onToggleFocusMode}
         ambientLayer={focusAmbientLayer}
+        variant="new-ux"
         {...(audioRef ? { audioRef } : {})}
       />
     </div>
