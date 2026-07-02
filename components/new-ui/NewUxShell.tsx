@@ -336,11 +336,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         track={currentTrack}
         isPlaying={isPlaying}
         currentTime={currentTime}
+        volume={volume}
+        playbackMode={playbackMode}
         transitionRef={playerTransitionRef}
         onTogglePlay={onTogglePlay}
         onSkipNext={onSkipNext}
         onSkipPrev={onSkipPrev}
         onSeek={onSeek}
+        onVolumeChange={onVolumeChange}
+        onToggleMute={onToggleMute}
+        onTogglePlaybackMode={onTogglePlaybackMode}
         onToggleFocus={handleOpenFocusMode}
       />
       {focusTransition && (
