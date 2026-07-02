@@ -62,6 +62,7 @@
 .new-ux-focus-transition__cover,
 .new-ux-focus-transition__title,
 .new-ux-focus-transition__artist,
+.new-ux-focus-transition__album,
 .new-ux-focus-transition__controls,
 .new-ux-focus-transition__progress {
   position: fixed;
@@ -98,7 +99,8 @@
 }
 
 .new-ux-focus-transition__title,
-.new-ux-focus-transition__artist {
+.new-ux-focus-transition__artist,
+.new-ux-focus-transition__album {
   overflow: hidden;
   color: #fff;
   text-align: center;
@@ -117,6 +119,12 @@
 .new-ux-focus-transition__artist {
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
+  font-weight: 600;
+}
+
+.new-ux-focus-transition__album {
+  color: rgba(255, 255, 255, 0.44);
+  font-size: 11px;
   font-weight: 600;
 }
 

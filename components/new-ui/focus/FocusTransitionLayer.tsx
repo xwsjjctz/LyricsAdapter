@@ -15,6 +15,7 @@ export interface FocusTransitionSnapshot {
   cover: RectSnapshot;
   title: RectSnapshot;
   artist: RectSnapshot;
+  album: RectSnapshot | null;
   controls: RectSnapshot;
   progress: RectSnapshot;
 }
@@ -38,6 +39,7 @@ export function createFocusTransitionSnapshot(root: HTMLElement, track: Track): 
   const cover = query('cover');
   const title = query('title');
   const artist = query('artist');
+  const album = query('album');
   const controls = query('controls');
   const progress = query('progress');
 
@@ -49,6 +51,7 @@ export function createFocusTransitionSnapshot(root: HTMLElement, track: Track): 
     cover: toRect(cover.getBoundingClientRect()),
     title: toRect(title.getBoundingClientRect()),
     artist: toRect(artist.getBoundingClientRect()),
+    album: album ? toRect(album.getBoundingClientRect()) : null,
     controls: toRect(controls.getBoundingClientRect()),
     progress: toRect(progress.getBoundingClientRect()),
   };
@@ -68,6 +71,7 @@ function targetRects() {
     cover: { left: coverLeft, top: coverTop, width: coverSize, height: coverSize },
     title: { left: coverLeft, top: textTop, width: coverSize, height: 38 },
     artist: { left: coverLeft, top: textTop + 44, width: coverSize, height: 24 },
+    album: { left: coverLeft, top: textTop + 72, width: coverSize, height: 20 },
     controls: { left: (width - 176) / 2, top: height - 96, width: 176, height: 48 },
     progress: { left: (width - controlsWidth) / 2, top: height - 148, width: controlsWidth, height: 24 },
   };
@@ -103,8 +107,13 @@ const FocusTransitionLayer: React.FC<FocusTransitionLayerProps> = ({ snapshot, o
         {snapshot.track.title}
       </div>
       <div className="new-ux-focus-transition__artist" style={transitionStyle(snapshot.artist, targets.artist)}>
-        {snapshot.track.artist} · {snapshot.track.album}
+        {snapshot.track.artist}
       </div>
+      {snapshot.album && (
+        <div className="new-ux-focus-transition__album" style={transitionStyle(snapshot.album, targets.album)}>
+          {snapshot.track.album}
+        </div>
+      )}
       <div className="new-ux-focus-transition__progress" style={transitionStyle(snapshot.progress, targets.progress)} />
       <div className="new-ux-focus-transition__controls" style={transitionStyle(snapshot.controls, targets.controls)} />
     </div>

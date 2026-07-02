@@ -469,6 +469,15 @@
   font-size: 12px;
 }
 
+.new-ux-player__album {
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--theme-text-muted, rgba(255, 255, 255, 0.38));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
 .new-ux-locate-button {
   position: absolute;
   right: var(--new-ux-stage-padding);

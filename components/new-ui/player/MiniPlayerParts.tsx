@@ -73,8 +73,13 @@ export const MiniPlayerMeta: React.FC<MiniPlayerMetaProps> = ({ track }) => (
       {track?.title ?? i18n.t('controls.noTrackSelected')}
     </div>
     <div className="new-ux-player__artist" data-focus-transition="artist">
-      {track ? `${track.artist} · ${track.album}` : i18n.t('mainPlayer.importTracks')}
+      {track?.artist ?? i18n.t('mainPlayer.importTracks')}
     </div>
+    {track && (
+      <div className="new-ux-player__album" data-focus-transition="album">
+        {track.album}
+      </div>
+    )}
   </div>
 );
 
