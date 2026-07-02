@@ -8,6 +8,7 @@ import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { toCoverThumb } from '../services/coverUrl';
+import FocusBackdrop from './focus-mode/FocusBackdrop';
 import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
@@ -871,22 +872,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           (globalAlpha in renderCanvas), which always repaints reliably
           regardless of backdrop (CSS opacity on a filtered element does not). */}
       {/* Canvas-based Color Gradient Background */}
-      {bgImage1 && (
-        <canvas
-          ref={canvasRef}
-          style={{
-            position: 'absolute',
-            top: '-100px',
-            left: '-100px',
-            width: 'calc(100% + 200px)',
-            height: 'calc(100% + 200px)',
-            filter: `blur(${bgBlurRadius}px) saturate(1.5) brightness(0.55)`,
-            transition: 'filter 700ms ease-in-out'
-          }}
-        />
-      )}
-      {ambientLayer}
-      <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
+      <FocusBackdrop
+        hasBackground={Boolean(bgImage1)}
+        bgBlurRadius={bgBlurRadius}
+        isLinux={isLinux}
+        canvasRef={canvasRef}
+        ambientLayer={ambientLayer}
+      />
 
       <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
