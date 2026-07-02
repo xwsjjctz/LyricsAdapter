@@ -4,6 +4,7 @@ import PlaylistCard from './PlaylistCard';
 
 interface MainViewProps {
   entries: PlaylistEntry[];
+  isPlaylistPanelOpen: boolean;
   onOpenPlaylist: (entry: PlaylistEntry) => void | Promise<void>;
   onPlaylistContextMenu: (entry: PlaylistEntry, event: React.MouseEvent) => void;
 }
@@ -23,6 +24,7 @@ const dragHandleSelector = '.new-ux-playlist-card';
 
 const MainView: React.FC<MainViewProps> = ({
   entries,
+  isPlaylistPanelOpen,
   onOpenPlaylist,
   onPlaylistContextMenu,
 }) => {
@@ -64,18 +66,6 @@ const MainView: React.FC<MainViewProps> = ({
   useEffect(() => {
     layoutRef.current = cardLayouts;
   }, [cardLayouts]);
-
-  useEffect(() => {
-    const handleWindowWheel = (event: WheelEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest('.new-ux-shell')) return;
-
-      motionRef.current.targetX -= event.deltaX * 0.72;
-      motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
-    };
-
-    window.addEventListener('wheel', handleWindowWheel, { passive: true });
-    return () => window.removeEventListener('wheel', handleWindowWheel);
-  }, []);
 
   useEffect(() => {
     let animationFrame = 0;
@@ -141,6 +131,31 @@ const MainView: React.FC<MainViewProps> = ({
     return () => window.cancelAnimationFrame(animationFrame);
   }, []);
 
+  useEffect(() => {
+    if (isPlaylistPanelOpen) return;
+
+    dragRef.current.active = false;
+    isPanelOpeningRef.current = false;
+    setIsDragging(false);
+  }, [isPlaylistPanelOpen]);
+
+  useEffect(() => {
+    const clearDrag = (event: PointerEvent) => {
+      if (dragRef.current.pointerId !== event.pointerId) return;
+
+      dragRef.current.active = false;
+      isPanelOpeningRef.current = false;
+      setIsDragging(false);
+    };
+
+    window.addEventListener('pointerup', clearDrag);
+    window.addEventListener('pointercancel', clearDrag);
+    return () => {
+      window.removeEventListener('pointerup', clearDrag);
+      window.removeEventListener('pointercancel', clearDrag);
+    };
+  }, []);
+
   const registerCard = useCallback((id: PlaylistEntry['id']) => (node: HTMLButtonElement | null) => {
     cardRefs.current[id] = node;
   }, []);
@@ -156,6 +171,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, [onOpenPlaylist]);
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (isPlaylistPanelOpen) return;
     if (event.button !== 0) return;
     if (!(event.target instanceof Element) || !event.target.closest(dragHandleSelector)) return;
 
@@ -168,11 +184,15 @@ const MainView: React.FC<MainViewProps> = ({
     };
     motionRef.current.velocityX = 0;
     motionRef.current.velocityY = 0;
-  }, []);
+  }, [isPlaylistPanelOpen]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (isPanelOpeningRef.current) return;
+    if (isPlaylistPanelOpen || isPanelOpeningRef.current) {
+      drag.active = false;
+      setIsDragging(false);
+      return;
+    }
     if (!drag.active || drag.pointerId !== event.pointerId) return;
 
     const dx = event.clientX - drag.lastX;
@@ -191,7 +211,7 @@ const MainView: React.FC<MainViewProps> = ({
     motion.targetY += dy;
     motion.velocityX = dx * 0.62;
     motion.velocityY = dy * 0.62;
-  }, [isDragging]);
+  }, [isDragging, isPlaylistPanelOpen]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
@@ -221,6 +241,13 @@ const MainView: React.FC<MainViewProps> = ({
     motionRef.current.velocityY = 0;
   }, []);
 
+  const handleWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
+    if (isPlaylistPanelOpen) return;
+
+    motionRef.current.targetX -= event.deltaX * 0.72;
+    motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
+  }, [isPlaylistPanelOpen]);
+
   const cardStyle: CardCssVars = {
     '--card-x': '0px',
     '--card-y': '0px',
@@ -234,7 +261,7 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   return (
-    <section className="new-ux-mainview new-ux-scrollbar">
+    <section className="new-ux-mainview new-ux-scrollbar" onWheel={handleWheel}>
       <div
         ref={spaceRef}
         className={`new-ux-playlist-space${isDragging ? ' new-ux-playlist-space--dragging' : ''}`}

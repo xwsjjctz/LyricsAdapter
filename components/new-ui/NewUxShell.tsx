@@ -5,7 +5,6 @@ import MainView from './MainView';
 import PlaylistPanel from './PlaylistPanel';
 import FloatingPlayerPanel from './FloatingPlayerPanel';
 import PlaylistCardContextMenu from './PlaylistCardContextMenu';
-import RootCanvasBackdrop from './RootCanvasBackdrop';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -107,7 +106,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   return (
     <div className="new-ux-shell font-sans">
-      <RootCanvasBackdrop />
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
       {currentTrack && (
         <audio
@@ -143,6 +141,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         <div className="new-ux-stage">
           <MainView
             entries={entries}
+            isPlaylistPanelOpen={Boolean(openEntry)}
             onOpenPlaylist={handleOpenPlaylist}
             onPlaylistContextMenu={handlePlaylistContextMenu}
           />

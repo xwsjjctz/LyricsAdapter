@@ -4,16 +4,27 @@
   height: 100vh;
   overflow: hidden;
   color: var(--theme-text-primary, #fff);
-  background: #070b11;
+  background:
+    radial-gradient(78% 82% at 16% 82%, rgba(83, 193, 244, 0.92) 0%, rgba(120, 157, 244, 0.72) 34%, rgba(120, 157, 244, 0) 68%),
+    radial-gradient(86% 76% at 86% 22%, rgba(255, 214, 198, 0.96) 0%, rgba(252, 154, 187, 0.72) 42%, rgba(252, 154, 187, 0) 74%),
+    radial-gradient(80% 72% at 44% 30%, rgba(255, 140, 197, 0.82) 0%, rgba(236, 128, 212, 0.58) 48%, rgba(236, 128, 212, 0) 78%),
+    radial-gradient(70% 76% at 66% 76%, rgba(184, 125, 246, 0.82) 0%, rgba(157, 119, 244, 0.58) 42%, rgba(157, 119, 244, 0) 76%),
+    linear-gradient(135deg, #f6a5ca 0%, #f6bad0 42%, #8fcaf5 100%);
 }
 
-.new-ux-root-backdrop {
+.new-ux-shell::before {
+  content: '';
   pointer-events: none;
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: -18%;
   z-index: 0;
+  background:
+    radial-gradient(38% 34% at 68% 46%, rgba(255, 255, 255, 0.54) 0%, rgba(255, 242, 248, 0.28) 38%, rgba(255, 242, 248, 0) 72%),
+    radial-gradient(42% 38% at 30% 52%, rgba(227, 235, 255, 0.5) 0%, rgba(191, 161, 246, 0.36) 42%, rgba(191, 161, 246, 0) 76%),
+    radial-gradient(40% 34% at 36% 28%, rgba(255, 230, 238, 0.46) 0%, rgba(255, 230, 238, 0) 72%),
+    radial-gradient(42% 36% at 26% 80%, rgba(77, 190, 244, 0.5) 0%, rgba(77, 190, 244, 0) 72%);
+  filter: blur(80px) saturate(1.36) brightness(1.02);
+  transform: translateZ(0);
 }
 
 .new-ux-main {
