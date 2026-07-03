@@ -39,8 +39,21 @@ type ViewState =
   | { phase: 'grid' }
   | { phase: 'detail'; playlist: PlaylistInfo; tracks: TrackRow[]; loading: boolean; error?: string };
 
+/**
+ * Remembers the last-opened playlist detail for the lifetime of the app
+ * session. Re-entering the Playlists tab via the sidebar button restores this
+ * view; only the in-detail back button clears it and returns to the grid list.
+ * (PlaylistsView unmounts on every view switch, so this survives in module
+ * scope rather than component state.)
+ */
+let lastDetail: { playlist: PlaylistInfo; tracks: TrackRow[] } | null = null;
+
 const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, onStreamPlay }) => {
-  const [state, setState] = React.useState<ViewState>({ phase: 'grid' });
+  const [state, setState] = React.useState<ViewState>(() =>
+    lastDetail
+      ? { phase: 'detail', playlist: lastDetail.playlist, tracks: lastDetail.tracks, loading: false }
+      : { phase: 'grid' }
+  );
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
 
@@ -98,6 +111,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
         coverUrl: s.coverUrl || '',
         duration: s.interval || 0,
       }));
+      lastDetail = { playlist: pl, tracks };
       setState({ phase: 'detail', playlist: pl, tracks, loading: false });
     } catch (e: any) {
       logger.error('[PlaylistsView] load songs failed:', e);
@@ -106,7 +120,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
   };
 
   const renderTrackList = (tracks: TrackRow[]) => (
-    <div className="flex-1 overflow-y-auto no-scrollbar space-y-0.5">
+    <div className="flex-1 overflow-y-auto new-ux-scrollbar space-y-0.5">
       {tracks.map((tr, idx) => (
         <button
           key={`${tr.songmid}-${idx}`}
@@ -154,9 +168,9 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
     const { playlist, tracks, loading, error } = state;
     return (
       <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
-        <div className="mb-4 flex-shrink-0 flex items-center gap-3 pt-3">
+        <div className="mb-4 flex-shrink-0 flex items-center gap-3">
           <button
-            onClick={() => setState({ phase: 'grid' })}
+            onClick={() => { lastDetail = null; setState({ phase: 'grid' }); }}
             className="flex items-center gap-1 transition-opacity hover:opacity-80"
             style={{ color: colors.textSecondary }}
           >
@@ -206,7 +220,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
   return (
     <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
       {/* Header — matches LibraryToolbar title style */}
-      <div className="mb-4 flex-shrink-0 flex items-center justify-between pt-3">
+      <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
             {i18n.t('playlists.title')}
@@ -248,7 +262,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
             <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
               {sourceLabel(source)}
             </h2>
-            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            <div className="flex gap-3 overflow-x-auto p-2 no-scrollbar">
               {list.map((pl) => (
                 <button
                   key={pl.id}
