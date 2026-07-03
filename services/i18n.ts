@@ -539,6 +539,22 @@ const translations: Translations = {
     de: 'Noch keine Playlists. Melden Sie sich zuerst bei einer Drittanbieter-Musikquelle an.',
     fr: 'Aucune playlist. Connectez-vous d’abord à une source musicale tierce.'
   },
+  'playlists.title': {
+    zh: '歌单',
+    en: 'Playlists',
+    ja: 'プレイリスト',
+    ko: '플레이리스트',
+    de: 'Wiedergabelisten',
+    fr: 'Listes de lecture'
+  },
+  'playlists.description': {
+    zh: '浏览并播放第三方音源中的在线歌单',
+    en: 'Browse and play online playlists from third-party music sources',
+    ja: 'サードパーティ音源からオンラインプレイリストを閲覧・再生',
+    ko: '타사 음악 소스의 온라인 플레이리스트를 찾아 재생하세요',
+    de: 'Durchsuchen und abspielen von Online-Playlists von Drittanbieter-Musikquellen',
+    fr: 'Parcourez et écoutez des listes de lecture en ligne provenant de sources musicales tierces'
+  },
   'browse.browserLimitTitle': {
     zh: '提示：浏览功能需要在桌面端使用，因为浏览器存在跨域限制。',
     en: 'Tip: Browse feature requires desktop app due to browser CORS limitations.',

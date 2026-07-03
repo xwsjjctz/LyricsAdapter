@@ -175,6 +175,16 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
   // ── Grid view ──
   return (
     <div className="px-6 py-4 overflow-y-auto h-full" style={{ color: colors.textPrimary }}>
+      {/* Header */}
+      <div className="mb-4 flex-shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('playlists.title')}</h1>
+          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
+            {i18n.t('playlists.description')}
+          </p>
+        </div>
+      </div>
+
       {loadingPlaylists && (
         <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
           <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -203,11 +213,11 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
         </div>
       )}
       {[...grouped.entries()].map(([source, list]) => (
-        <div key={source} className="mb-6">
+        <div key={source} className="mb-8">
           <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
             {sourceLabel(source)}
           </h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+          <div className="flex gap-3 overflow-x-auto p-2 no-scrollbar">
             {list.map((pl) => (
               <button
                 key={pl.id}
