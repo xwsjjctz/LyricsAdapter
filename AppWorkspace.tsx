@@ -31,6 +31,7 @@ import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
 import { getOnlineProvider } from './services/onlineMusicProvider';
+import type { OnlineSong } from './services/onlineMusicProvider';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
@@ -524,6 +525,54 @@ const AppWorkspace: React.FC = () => {
       }
     }).catch(() => {});
   }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
+
+  // Play a whole playlist: load every song into the online slot as the queue so
+  // next/prev traverses the playlist in order. Keeps the user in the Playlists
+  // view (only activeSlot/viewSlot move to 'online'); the detail list highlights
+  // the current track via currentTrackId.
+  const handlePlayPlaylist = useCallback((source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => {
+    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const tracks: Track[] = songs.map(s => ({
+      id: `online-${source}-${s.songmid}`,
+      title: s.songname,
+      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+      album: s.albumname || 'Unknown Album',
+      duration: s.interval || 0,
+      coverUrl: s.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: s.songmid,
+    }));
+    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
+    const clickedId = tracks[safeIndex]?.id;
+    // Save current slot's playback position
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    // Replace the online slot with the full playlist as the play queue
+    loadOnlineTracks(tracks);
+    updateSlot('online', s => ({ ...s, currentTrackIndex: safeIndex }));
+    setRestoreTime(0);
+    switchTo('online');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+    setViewSlot('online');
+    // Lyrics for the clicked song
+    const clickedSong = songs[safeIndex];
+    if (clickedSong) {
+      lyricsProvider?.getLyrics?.(clickedSong.songmid).then(rawLyrics => {
+        if (!rawLyrics) return;
+        const parsed = parseLRCLyrics(rawLyrics);
+        updateOnlineTracks(prev => prev.map(t =>
+          t.id === clickedId
+            ? {
+              ...t,
+              lyrics: parsed.plainText || rawLyrics,
+              ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+            }
+            : t
+        ));
+      }).catch(() => {});
+    }
+  }, [loadOnlineTracks, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
   useShortcuts({
     viewMode,
     isFocusMode,
@@ -747,8 +796,8 @@ const AppWorkspace: React.FC = () => {
                 colors={themeManager.getCurrentTheme().colors}
                 {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
                 onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
-                onStreamPlay={(song, source) => {
-                  handleOnlineStreamPlay(song, source);
+                onPlayPlaylist={(source, songs, clickedIndex) => {
+                  handlePlayPlaylist(source, songs, clickedIndex);
                 }}
               />
             ) : (

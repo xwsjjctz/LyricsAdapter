@@ -8,74 +8,85 @@ import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
 import LibraryTrackRow from './LibraryTrackRow';
+import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 
 /**
  * 第三方音源歌单浏览器。
  *
- * 布局：
- * 1. 按源分组（QQ 音乐 / 网易云），每源一行横向滚动歌单卡片（≈4 个可见）。
- * 2. 每个卡片 = 封面 + 歌名。
- * 3. 点歌单 → 进入歌曲列表（左上角「← 返回」按钮）。
- * 4. 点歌曲 → 流式播放（复用 Branch A）→ 自动入 online LRU。
+ * 歌曲列表复用 LibraryTrackRow + useLibraryVirtualScroll，与本地/云端音频列表
+ * 使用同一套样式、虚拟滚动（≈30 行滑动窗口）与「定位到当前播放」能力。
  *
- * 歌曲列表复用 LibraryTrackRow，与本地/云端音频列表保持一致的样式、
- * 滚动条与「定位到当前播放」能力。
+ * 数据按页加载（QQ 音乐每页 PAGE_SIZE 首，滚到底部自动续拉）；网易云单次批量返回。
+ *
+ * 在歌单中点歌播放时，整个歌单会被加载为在线播放队列（替换 online 槽），因此
+ * 上一首/下一首在歌单内顺序切换。
  */
+
+const PAGE_SIZE = 30;
+/** Distance from the bottom (px) at which the next page starts loading. */
+const SCROLL_LOAD_THRESHOLD = 400;
 
 interface PlaylistsViewProps {
   colors: ThemeConfig['colors'];
-  /** Currently playing track id — used to highlight + auto-locate rows in the detail list. */
+  /** Currently playing track id — highlights + auto-locates the matching row. */
   currentTrackId?: string;
   onOpenSettings?: () => void;
-  onStreamPlay: (song: {
-    songmid: string; title: string; artist: string; album: string;
-    coverUrl?: string; duration: number;
-  }, source: 'qq' | 'netease') => void;
+  /** Play `songs[clickedIndex]` and use the whole list as the next/prev queue. */
+  onPlayPlaylist: (source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => void;
 }
 
-interface TrackRow {
-  songmid: string;
-  title: string;
-  artist: string;
-  album: string;
-  coverUrl: string;
-  duration: number;
-}
+type DetailState = {
+  phase: 'detail';
+  playlist: PlaylistInfo;
+  songs: OnlineSong[];
+  total: number;
+  loading: boolean;
+  loadingMore: boolean;
+  playPendingIndex: number | null;
+  error?: string;
+};
 
-type ViewState =
-  | { phase: 'grid' }
-  | { phase: 'detail'; playlist: PlaylistInfo; tracks: TrackRow[]; loading: boolean; error?: string };
+type ViewState = { phase: 'grid' } | DetailState;
 
 /**
- * Remembers the last-opened playlist detail for the lifetime of the app
- * session. Re-entering the Playlists tab via the sidebar button restores this
- * view; only the in-detail back button clears it and returns to the grid list.
- * (PlaylistsView unmounts on every view switch, so this survives in module
- * scope rather than component state.)
+ * Remembers the last-opened playlist detail for the lifetime of the app session.
+ * Re-entering the Playlists tab via the sidebar button restores this view; only
+ * the in-detail back button clears it. (PlaylistsView unmounts on every view
+ * switch, so this lives in module scope.)
  */
-let lastDetail: { playlist: PlaylistInfo; tracks: TrackRow[] } | null = null;
+let lastDetail: { playlist: PlaylistInfo; songs: OnlineSong[]; total: number } | null = null;
 
-/** Build a synthetic Track whose id matches the one handleOnlineStreamPlay assigns. */
-const toTrack = (row: TrackRow, source: 'qq' | 'netease'): Track => ({
-  id: `online-${source}-${row.songmid}`,
-  title: row.title,
-  artist: row.artist,
-  album: row.album,
-  duration: row.duration,
-  coverUrl: row.coverUrl || undefined,
+/** Build a synthetic Track whose id matches the one assigned to online-slot tracks. */
+const songToTrack = (s: OnlineSong, source: 'qq' | 'netease'): Track => ({
+  id: `online-${source}-${s.songmid}`,
+  title: s.songname,
+  artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+  album: s.albumname || 'Unknown Album',
+  duration: s.interval || 0,
+  coverUrl: s.coverUrl || undefined,
   audioUrl: '',
   source,
-  songmid: row.songmid,
+  songmid: s.songmid,
 });
 
-const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onStreamPlay }) => {
+/** QQ supports offset/limit paging; NetEase returns one bulk batch. */
+const supportsPaging = (s: 'qq' | 'netease'): boolean => s === 'qq';
+
+const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onPlayPlaylist }) => {
   const [state, setState] = React.useState<ViewState>(() =>
     lastDetail
-      ? { phase: 'detail', playlist: lastDetail.playlist, tracks: lastDetail.tracks, loading: false }
+      ? { phase: 'detail', playlist: lastDetail.playlist, songs: lastDetail.songs, total: lastDetail.total, loading: false, loadingMore: false, playPendingIndex: null }
       : { phase: 'grid' }
   );
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const [showLocate, setShowLocate] = React.useState(false);
+
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
 
   // On mount, load playlists from all logged-in providers.
   React.useEffect(() => {
@@ -117,69 +128,80 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const sourceLabel = (s: 'qq' | 'netease'): string =>
     s === 'qq' ? 'QQ 音乐' : '网易云音乐';
 
-  /** Load songs for a playlist and transition to detail. */
+  const fetchPage = async (pl: PlaylistInfo, offset: number): Promise<OnlineSong[]> => {
+    if (pl.source === 'qq') return qqMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
+    return neteaseMusicApi.getPlaylistSongs(pl.id);
+  };
+
+  /** Load the first page and transition to detail. */
   const handlePlaylistClick = async (pl: PlaylistInfo) => {
-    setState({ phase: 'detail', playlist: pl, tracks: [], loading: true });
+    setState({ phase: 'detail', playlist: pl, songs: [], total: Math.max(pl.songCount, 0), loading: true, loadingMore: false, playPendingIndex: null });
+    setScrollTop(0);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     try {
-      const provider = pl.source === 'qq' ? qqMusicApi : neteaseMusicApi;
-      const songs: OnlineSong[] = await provider.getPlaylistSongs(pl.id);
-      const tracks: TrackRow[] = songs.map(s => ({
-        songmid: s.songmid,
-        title: s.songname,
-        artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
-        album: s.albumname || 'Unknown Album',
-        coverUrl: s.coverUrl || '',
-        duration: s.interval || 0,
-      }));
-      lastDetail = { playlist: pl, tracks };
-      setState({ phase: 'detail', playlist: pl, tracks, loading: false });
+      const first = await fetchPage(pl, 0);
+      const total = supportsPaging(pl.source) ? Math.max(pl.songCount, first.length) : first.length;
+      lastDetail = { playlist: pl, songs: first, total };
+      setState({ phase: 'detail', playlist: pl, songs: first, total, loading: false, loadingMore: false, playPendingIndex: null });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '加载失败';
       logger.error('[PlaylistsView] load songs failed:', e);
-      setState({ phase: 'detail', playlist: pl, tracks: [], loading: false, error: message });
+      setState({ phase: 'detail', playlist: pl, songs: [], total: 0, loading: false, loadingMore: false, playPendingIndex: null, error: message });
     }
   };
 
-  // ── Detail list state ──
+  // ── Detail-derived values ──
   const source = state.phase === 'detail' ? state.playlist.source : 'qq';
-  const detailRows = state.phase === 'detail' ? state.tracks : [];
+  const detailSongs = state.phase === 'detail' ? state.songs : [];
+  const loadingMore = state.phase === 'detail' ? state.loadingMore : false;
+  const playPendingIndex = state.phase === 'detail' ? state.playPendingIndex : null;
+  const total = state.phase === 'detail' ? state.total : 0;
+  const hasMore = state.phase === 'detail' && supportsPaging(source) && detailSongs.length < total;
 
   const tracksAsTracks = React.useMemo<Track[]>(
-    () => detailRows.map(r => toTrack(r, source)),
-    [detailRows, source]
+    () => detailSongs.map(s => songToTrack(s, source)),
+    [detailSongs, source]
   );
-
   const currentRowIndex = currentTrackId
-    ? detailRows.findIndex(r => `online-${source}-${r.songmid}` === currentTrackId)
+    ? detailSongs.findIndex(s => `online-${source}-${s.songmid}` === currentTrackId)
     : -1;
 
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [showLocate, setShowLocate] = React.useState(false);
+  const {
+    baseRowHeight,
+    rowStride,
+    startIndex,
+    endIndex,
+    paddingTop,
+    paddingBottom,
+    rowMeasureRef,
+  } = useLibraryVirtualScroll({
+    itemCount: tracksAsTracks.length,
+    scrollTop,
+    scrollContainerRef: scrollRef,
+    listRef,
+    isEditMode: false,
+    topInset: 0,
+  });
 
+  // Locate math is index-based (no DOM query) so it stays correct even when the
+  // current row is virtualized out of the rendered window.
   const isCurrentVisible = React.useCallback(() => {
     const container = scrollRef.current;
     if (currentRowIndex < 0 || !container) return true;
-    const node = container.querySelector(`[data-track-index="${currentRowIndex}"]`) as HTMLElement | null;
-    if (!node) return false;
-    const c = container.getBoundingClientRect();
-    const n = node.getBoundingClientRect();
-    return n.top >= c.top && n.bottom <= c.bottom;
-  }, [currentRowIndex]);
+    const itemTop = currentRowIndex * rowStride;
+    const itemBottom = itemTop + baseRowHeight;
+    return itemTop >= container.scrollTop && itemBottom <= container.scrollTop + container.clientHeight;
+  }, [currentRowIndex, rowStride, baseRowHeight]);
 
   const scrollToCurrent = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
     const container = scrollRef.current;
-    if (!container || currentRowIndex < 0) return;
-    const node = container.querySelector(`[data-track-index="${currentRowIndex}"]`) as HTMLElement | null;
-    if (!node) return;
-    const c = container.getBoundingClientRect();
-    const n = node.getBoundingClientRect();
-    // Delta from the row's current position to a centered position within the viewport.
-    const delta = (n.top - c.top) - (container.clientHeight / 2 - n.height / 2);
-    container.scrollBy({ top: delta, behavior });
-  }, [currentRowIndex]);
+    if (!container || currentRowIndex < 0 || rowStride <= 0) return;
+    const target = currentRowIndex * rowStride - (container.clientHeight / 2 - baseRowHeight / 2);
+    const max = container.scrollHeight - container.clientHeight;
+    container.scrollTo({ top: Math.max(0, Math.min(target, max)), behavior });
+  }, [currentRowIndex, rowStride, baseRowHeight]);
 
-  // Auto-locate when the current track changes (a song in this list starts
-  // playing, or the user enters a playlist that contains the playing song).
+  // Auto-locate when the current track changes.
   React.useEffect(() => {
     if (currentRowIndex < 0) {
       setShowLocate(false);
@@ -192,26 +214,79 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
     return () => cancelAnimationFrame(id);
   }, [currentRowIndex, isCurrentVisible, scrollToCurrent]);
 
-  const handleScroll = React.useCallback(() => {
-    setShowLocate(currentRowIndex >= 0 && !isCurrentVisible());
-  }, [currentRowIndex, isCurrentVisible]);
-
-  // Stable row handlers (refs keep them identity-stable so LibraryTrackRow's
-  // memo isn't busted every render).
-  const stateRef = React.useRef(state);
-  stateRef.current = state;
-  const handleRowSelect = React.useCallback((idx: number) => {
+  /** Append the next page when scrolling near the bottom. */
+  const loadMore = React.useCallback(async () => {
     const s = stateRef.current;
     if (s.phase !== 'detail') return;
-    const row = s.tracks[idx];
-    if (!row) return;
-    onStreamPlay(row, s.playlist.source);
-  }, [onStreamPlay]);
+    if (!supportsPaging(s.playlist.source) || s.loading || s.loadingMore) return;
+    if (s.songs.length >= s.total) return;
+    setState(prev => (prev.phase === 'detail' ? { ...prev, loadingMore: true } : prev));
+    try {
+      const next = await fetchPage(s.playlist, s.songs.length);
+      if (next.length === 0) {
+        setState(prev => (prev.phase === 'detail' ? { ...prev, loadingMore: false, total: s.songs.length } : prev));
+        return;
+      }
+      const songs = [...s.songs, ...next];
+      lastDetail = { playlist: s.playlist, songs, total: s.total };
+      setState(prev => (prev.phase === 'detail' ? { ...prev, songs, loadingMore: false } : prev));
+    } catch (e) {
+      logger.warn('[PlaylistsView] load more failed:', e);
+      setState(prev => (prev.phase === 'detail' ? { ...prev, loadingMore: false } : prev));
+    }
+  }, []);
+
+  /**
+   * Ensure the whole playlist is loaded, then hand it off as the play queue.
+   * (If only the first pages are loaded, next/prev would otherwise stop early.)
+   */
+  const handleRowSelect = React.useCallback(async (idx: number) => {
+    const s = stateRef.current;
+    if (s.phase !== 'detail') return;
+    if (playPendingIndex !== null) return;
+    if (!supportsPaging(s.playlist.source) || s.songs.length >= s.total) {
+      onPlayPlaylist(s.playlist.source, s.songs, idx);
+      return;
+    }
+    setState(prev => (prev.phase === 'detail' ? { ...prev, playPendingIndex: idx, loadingMore: true } : prev));
+    try {
+      let songs = s.songs;
+      let offset = songs.length;
+      while (offset < s.total) {
+        const page = await fetchPage(s.playlist, offset);
+        if (page.length === 0) break;
+        songs = [...songs, ...page];
+        offset = songs.length;
+        lastDetail = { playlist: s.playlist, songs, total: s.total };
+        setState(prev => (prev.phase === 'detail' ? { ...prev, songs } : prev));
+      }
+      onPlayPlaylist(s.playlist.source, songs, idx);
+    } catch (e) {
+      logger.warn('[PlaylistsView] load all for playback failed:', e);
+      const fallback = stateRef.current;
+      if (fallback.phase === 'detail') onPlayPlaylist(fallback.playlist.source, fallback.songs, idx);
+    } finally {
+      setState(prev => (prev.phase === 'detail' ? { ...prev, playPendingIndex: null, loadingMore: false } : prev));
+    }
+  }, [onPlayPlaylist, playPendingIndex]);
+
+  const handleScroll = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setScrollTop(el.scrollTop);
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_LOAD_THRESHOLD) {
+      void loadMore();
+    }
+    setShowLocate(currentRowIndex >= 0 && !isCurrentVisible());
+  }, [loadMore, currentRowIndex, isCurrentVisible]);
+
   const noop = React.useCallback(() => {}, []);
 
   // ── Detail view ──
   if (state.phase === 'detail') {
-    const { playlist, tracks, loading, error } = state;
+    const { playlist, loading, error } = state;
+    const visibleTracks = tracksAsTracks.slice(startIndex, endIndex);
+    const showList = (!loading || detailSongs.length > 0) && !error;
     return (
       <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
         <div className="mb-4 flex-shrink-0 flex items-center gap-3">
@@ -226,23 +301,23 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
             {playlist.name}
           </h1>
         </div>
-        {loading && (
+        {loading && detailSongs.length === 0 && (
           <div className="flex-1 flex items-center justify-center" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
             {i18n.t('browse.loading')}
           </div>
         )}
-        {error && (
+        {error && detailSongs.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-sm" style={{ color: colors.textMuted }}>
             {error}
           </div>
         )}
-        {!loading && !error && tracks.length === 0 && (
+        {!loading && !error && detailSongs.length === 0 && !hasMore && (
           <div className="flex-1 flex items-center justify-center text-sm" style={{ color: colors.textMuted }}>
             暂无歌曲
           </div>
         )}
-        {!loading && !error && tracks.length > 0 && (
+        {showList && (
           <>
             <div className="flex-shrink-0">
               <div
@@ -259,41 +334,58 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
               <div
                 ref={scrollRef}
                 onScroll={handleScroll}
-                className="h-full overflow-y-auto new-ux-scrollbar"
+                className="h-full min-h-0 overflow-y-auto no-scrollbar"
               >
-                <div className="grid relative" style={{ gap: 'var(--theme-list-item-gap)' }}>
-                  {tracksAsTracks.map((track, idx) => (
-                    <LibraryTrackRow
-                      key={`${track.id}-${idx}`}
-                      track={track}
-                      filteredIndex={idx}
-                      realTrackIndex={idx}
-                      isCurrentTrack={idx === currentRowIndex}
-                      isEditMode={false}
-                      isSelected={false}
-                      isDragged={false}
-                      shouldShowAnimation={false}
-                      colors={colors}
-                      playingIndicator="inline"
-                      onTrackSelect={handleRowSelect}
-                      onToggleSelect={noop}
-                      onEditMetadata={noop}
-                      onDelete={noop}
-                      onDragStart={noop}
-                      onDragOver={noop}
-                      onDragEnd={noop}
-                    />
-                  ))}
+                <div
+                  ref={listRef}
+                  className="grid relative"
+                  style={{ gap: 'var(--theme-list-item-gap)', paddingTop, paddingBottom }}
+                >
+                  {visibleTracks.map((track, i) => {
+                    const idx = startIndex + i;
+                    return (
+                      <LibraryTrackRow
+                        key={`${track.id}-${idx}`}
+                        track={track}
+                        filteredIndex={idx}
+                        realTrackIndex={idx}
+                        isCurrentTrack={idx === currentRowIndex}
+                        isEditMode={false}
+                        isSelected={false}
+                        isDragged={false}
+                        shouldShowAnimation={false}
+                        colors={colors}
+                        playingIndicator="inline"
+                        measureRef={i === 0 ? rowMeasureRef : undefined}
+                        onTrackSelect={handleRowSelect}
+                        onToggleSelect={noop}
+                        onEditMetadata={noop}
+                        onDelete={noop}
+                        onDragStart={noop}
+                        onDragOver={noop}
+                        onDragEnd={noop}
+                      />
+                    );
+                  })}
                 </div>
+                {(loadingMore || hasMore) && (
+                  <div className="flex items-center justify-center py-4" style={{ color: colors.textMuted }}>
+                    <span className="material-symbols-outlined animate-spin mr-2 text-lg">progress_activity</span>
+                    <span className="text-xs">
+                      {playPendingIndex !== null
+                        ? '准备播放…'
+                        : loadingMore
+                          ? '加载更多…'
+                          : `已加载 ${detailSongs.length}/${total}`}
+                    </span>
+                  </div>
+                )}
               </div>
               {showLocate && currentRowIndex >= 0 && (
                 <button
                   onClick={() => scrollToCurrent('smooth')}
-                  className="absolute right-6 bottom-4 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
-                  style={{
-                    backgroundColor: colors.backgroundCard,
-                    color: colors.textSecondary,
-                  }}
+                  className="absolute right-6 bottom-4 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30"
+                  style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary }}
                   title={i18n.t('library.locateToCurrent')}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
@@ -311,7 +403,6 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   // ── Grid view ──
   return (
     <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
-      {/* Header — matches LibraryToolbar title style */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
@@ -320,7 +411,6 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         </div>
       </div>
 
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         {loadingPlaylists && (
           <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
