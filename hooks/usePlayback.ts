@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Track } from '../types';
 import { metadataCacheService } from '../services/metadataCacheService';
+import { parseLRCLyrics } from '../services/metadataService';
+import { qqMusicApi } from '../services/qqMusicApi';
+import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
 import { UI } from '../constants/config';
@@ -516,6 +519,44 @@ export function usePlayback({
       cancelled = true;
     };
   }, [currentTrack?.id]);
+
+  // Auto-fetch lyrics for online (QQ / NetEase) tracks whenever the current
+  // track changes. This covers next/prev within the playlist and online slots —
+  // not only direct clicks (which previously were the only path that fetched).
+  // setTracks targets the active slot, so the enriched track is the one playing.
+  useEffect(() => {
+    const track = currentTrack;
+    if (!track) return;
+    if (track.source !== 'qq' && track.source !== 'netease') return;
+    if (!track.songmid) return;
+    if (track.lyrics || (track.syncedLyrics && track.syncedLyrics.length > 0)) return;
+
+    let cancelled = false;
+    const provider = track.source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    provider.getLyrics(track.songmid)
+      .then(rawLyrics => {
+        if (cancelled || !rawLyrics) return;
+        const parsed = parseLRCLyrics(rawLyrics);
+        setTracks(prev => {
+          const idx = prev.findIndex(t => t.id === track.id);
+          if (idx === -1) return prev;
+          const existing = prev[idx];
+          if (!existing) return prev;
+          // Re-check: another path (direct-click handler) may have set lyrics first.
+          if (existing.lyrics || (existing.syncedLyrics && existing.syncedLyrics.length > 0)) return prev;
+          const next = [...prev];
+          next[idx] = {
+            ...existing,
+            lyrics: parsed.plainText || rawLyrics,
+            ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+          };
+          return next;
+        });
+      })
+      .catch(() => { /* lyrics are best-effort */ });
+
+    return () => { cancelled = true; };
+  }, [currentTrack, setTracks]);
 
   useEffect(() => {
     if (!currentTrack) return;
