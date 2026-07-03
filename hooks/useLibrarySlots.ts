@@ -19,6 +19,7 @@ interface PersistedSlotState {
   localSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   cloudSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   onlineSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
+  playlistSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   activeSlotId?: SlotId;
   activeDataSource?: SlotId;
   localPlaybackContext?: PlaybackContext;
@@ -325,14 +326,13 @@ export function useLibrarySlots() {
       localSlot: extractSlotData(slots.local),
       cloudSlot: extractSlotData(slots.cloud),
       onlineSlot: extractSlotData(slots.online),
-      // The playlist slot is ephemeral — never restore into it as the active
-      // slot (its tracks aren't persisted), so fall back to 'local'.
-      activeSlotId: activeSlotId === 'playlist' ? 'local' : activeSlotId,
+      playlistSlot: extractSlotData(slots.playlist),
+      activeSlotId,
     };
   }, [slots, activeSlotId]);
 
   const restoreFromPersistence = useCallback((data: PersistedSlotState, tracksFromDisk: Track[], onlineTracks?: Track[]) => {
-    const slotState = data.localSlot || data.cloudSlot || data.onlineSlot
+    const slotState = data.localSlot || data.cloudSlot || data.onlineSlot || data.playlistSlot
       ? data
       : migrateFromLegacyFormat(data);
 
@@ -344,6 +344,7 @@ export function useLibrarySlots() {
       const localData = slotState.localSlot;
       const cloudData = slotState.cloudSlot;
       const onlineData = slotState.onlineSlot;
+      const playlistData = slotState.playlistSlot;
       return {
         local: {
           ...prev.local,
@@ -377,8 +378,18 @@ export function useLibrarySlots() {
           filterType: onlineData?.filterType ?? prev.online.filterType,
           categorySelection: onlineData?.categorySelection ?? prev.online.categorySelection,
         },
-        // Playlist slot is ephemeral — preserve whatever is in memory.
-        playlist: prev.playlist,
+        // Playlist slot: restore saved playback context (tracks are reloaded
+        // separately via loadPlaylistTracks, mirroring the online slot).
+        playlist: {
+          ...prev.playlist,
+          currentTrackIndex: playlistData?.currentTrackIndex ?? prev.playlist.currentTrackIndex,
+          currentTime: playlistData?.currentTime ?? prev.playlist.currentTime,
+          volume: playlistData?.volume ?? prev.playlist.volume,
+          playbackMode: playlistData?.playbackMode ?? prev.playlist.playbackMode,
+          scrollPosition: playlistData?.scrollPosition ?? prev.playlist.scrollPosition,
+          filterType: playlistData?.filterType ?? prev.playlist.filterType,
+          categorySelection: playlistData?.categorySelection ?? prev.playlist.categorySelection,
+        },
       };
     });
   }, []);
@@ -413,7 +424,7 @@ export function useLibrarySlots() {
   };
 }
 
-function migrateFromLegacyFormat(data: PersistedSlotState): { localSlot: Partial<SlotPersistenceData>; cloudSlot: Partial<SlotPersistenceData>; onlineSlot?: Partial<SlotPersistenceData>; activeSlotId: SlotId } {
+function migrateFromLegacyFormat(data: PersistedSlotState): { localSlot: Partial<SlotPersistenceData>; cloudSlot: Partial<SlotPersistenceData>; onlineSlot?: Partial<SlotPersistenceData>; playlistSlot?: Partial<SlotPersistenceData>; activeSlotId: SlotId } {
   const legacyLocal = data.localPlaybackContext;
   const legacyCloud = data.cloudPlaybackContext;
   const anyData = data as any;

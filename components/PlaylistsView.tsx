@@ -9,6 +9,7 @@ import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
+import type { PlaylistsViewPersistence } from '../services/libraryStorage';
 import LibraryTrackRow from './LibraryTrackRow';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 
@@ -20,7 +21,7 @@ import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
  *
  * 数据按页加载（QQ 音乐每页 PAGE_SIZE 首，滚到底部自动续拉）；网易云单次批量返回。
  *
- * 在歌单中点歌播放时，整个歌单会被加载为在线播放队列（替换 online 槽），因此
+ * 在歌单中点歌播放时，整个歌单会被加载为独立的 playlist 播放队列，因此
  * 上一首/下一首在歌单内顺序切换。
  */
 
@@ -35,6 +36,8 @@ interface PlaylistsViewProps {
   onOpenSettings?: () => void;
   /** Play `songs[clickedIndex]` and use the whole list as the next/prev queue. */
   onPlayPlaylist: (source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => void;
+  initialState: PlaylistsViewPersistence;
+  onPersistenceChange: (state: PlaylistsViewPersistence) => void;
 }
 
 type DetailState = {
@@ -56,7 +59,7 @@ type ViewState = { phase: 'grid' } | DetailState;
  * the in-detail back button clears it. (PlaylistsView unmounts on every view
  * switch, so this lives in module scope.)
  */
-let lastDetail: { playlist: PlaylistInfo; songs: OnlineSong[]; total: number } | null = null;
+let lastDetail: { playlist: PlaylistInfo; songs: OnlineSong[]; total: number; scrollPosition: number } | null = null;
 
 /** Build a synthetic Track whose id matches the one assigned to online-slot tracks. */
 const songToTrack = (s: OnlineSong, source: 'qq' | 'netease'): Track => ({
@@ -74,24 +77,40 @@ const songToTrack = (s: OnlineSong, source: 'qq' | 'netease'): Track => ({
 /** QQ supports offset/limit paging; NetEase returns one bulk batch. */
 const supportsPaging = (s: 'qq' | 'netease'): boolean => s === 'qq';
 
-const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onPlayPlaylist }) => {
-  const [state, setState] = React.useState<ViewState>(() =>
-    lastDetail
-      ? { phase: 'detail', playlist: lastDetail.playlist, songs: lastDetail.songs, total: lastDetail.total, loading: false, loadingMore: false, playPendingIndex: null }
-      : { phase: 'grid' }
+const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onPlayPlaylist, initialState, onPersistenceChange }) => {
+  const restoredDetailRef = React.useRef(
+    lastDetail ??
+    (initialState.phase === 'detail' && initialState.playlist && initialState.songs
+      ? {
+          playlist: initialState.playlist,
+          songs: initialState.songs,
+          total: initialState.total ?? initialState.songs.length,
+          scrollPosition: initialState.scrollPosition,
+        }
+      : null)
   );
+  const [state, setState] = React.useState<ViewState>(() => {
+    const restoredDetail = restoredDetailRef.current;
+    return restoredDetail
+      ? { phase: 'detail', playlist: restoredDetail.playlist, songs: restoredDetail.songs, total: restoredDetail.total, loading: false, loadingMore: false, playPendingIndex: null }
+      : { phase: 'grid' };
+  });
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
-  const [scrollTop, setScrollTop] = React.useState(0);
+  const [scrollTop, setScrollTop] = React.useState(restoredDetailRef.current?.scrollPosition ?? 0);
+  const [gridScrollTop, setGridScrollTop] = React.useState(initialState.phase === 'grid' ? initialState.scrollPosition : 0);
   const [showLocate, setShowLocate] = React.useState(false);
   const [currentTheme, setCurrentTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
   // Floating highlight band ("滑块") position — same model as LibraryView.
   const [highlightStyle, setHighlightStyle] = React.useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const gridScrollRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const stateRef = React.useRef(state);
   stateRef.current = state;
+  const pendingDetailScrollRestoreRef = React.useRef<number | null>(restoredDetailRef.current?.scrollPosition ?? null);
+  const pendingGridScrollRestoreRef = React.useRef<number | null>(initialState.phase === 'grid' ? initialState.scrollPosition : null);
 
   // Keep the playing-indicator mode in sync with the active theme (floating vs inline).
   React.useEffect(() => {
@@ -149,11 +168,12 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const handlePlaylistClick = async (pl: PlaylistInfo) => {
     setState({ phase: 'detail', playlist: pl, songs: [], total: Math.max(pl.songCount, 0), loading: true, loadingMore: false, playPendingIndex: null });
     setScrollTop(0);
+    pendingDetailScrollRestoreRef.current = 0;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     try {
       const first = await fetchPage(pl, 0);
       const total = supportsPaging(pl.source) ? Math.max(pl.songCount, first.length) : first.length;
-      lastDetail = { playlist: pl, songs: first, total };
+      lastDetail = { playlist: pl, songs: first, total, scrollPosition: 0 };
       setState({ phase: 'detail', playlist: pl, songs: first, total, loading: false, loadingMore: false, playPendingIndex: null });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '加载失败';
@@ -169,6 +189,50 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const playPendingIndex = state.phase === 'detail' ? state.playPendingIndex : null;
   const total = state.phase === 'detail' ? state.total : 0;
   const hasMore = state.phase === 'detail' && supportsPaging(source) && detailSongs.length < total;
+
+  React.useEffect(() => {
+    if (state.phase === 'detail') {
+      lastDetail = {
+        playlist: state.playlist,
+        songs: state.songs,
+        total: state.total,
+        scrollPosition: scrollTop,
+      };
+      onPersistenceChange({
+        phase: 'detail',
+        playlist: state.playlist,
+        songs: state.songs,
+        total: state.total,
+        scrollPosition: scrollTop,
+      });
+      return;
+    }
+
+    onPersistenceChange({
+      phase: 'grid',
+      scrollPosition: gridScrollTop,
+    });
+  }, [state, scrollTop, gridScrollTop, onPersistenceChange]);
+
+  React.useLayoutEffect(() => {
+    if (state.phase !== 'detail') return;
+    const target = pendingDetailScrollRestoreRef.current;
+    const el = scrollRef.current;
+    if (target === null || !el) return;
+    el.scrollTop = target;
+    setScrollTop(target);
+    pendingDetailScrollRestoreRef.current = null;
+  }, [state.phase, detailSongs.length]);
+
+  React.useLayoutEffect(() => {
+    if (state.phase !== 'grid') return;
+    const target = pendingGridScrollRestoreRef.current;
+    const el = gridScrollRef.current;
+    if (target === null || !el) return;
+    el.scrollTop = target;
+    setGridScrollTop(target);
+    pendingGridScrollRestoreRef.current = null;
+  }, [state.phase, playlists.length, loadingPlaylists]);
 
   const tracksAsTracks = React.useMemo<Track[]>(
     () => detailSongs.map(s => songToTrack(s, source)),
@@ -252,7 +316,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         return;
       }
       const songs = [...s.songs, ...next];
-      lastDetail = { playlist: s.playlist, songs, total: s.total };
+      lastDetail = { playlist: s.playlist, songs, total: s.total, scrollPosition: scrollRef.current?.scrollTop ?? scrollTop };
       setState(prev => (prev.phase === 'detail' ? { ...prev, songs, loadingMore: false } : prev));
     } catch (e) {
       logger.warn('[PlaylistsView] load more failed:', e);
@@ -281,7 +345,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         if (page.length === 0) break;
         songs = [...songs, ...page];
         offset = songs.length;
-        lastDetail = { playlist: s.playlist, songs, total: s.total };
+        lastDetail = { playlist: s.playlist, songs, total: s.total, scrollPosition: scrollRef.current?.scrollTop ?? scrollTop };
         setState(prev => (prev.phase === 'detail' ? { ...prev, songs } : prev));
       }
       onPlayPlaylist(s.playlist.source, songs, idx);
@@ -315,7 +379,12 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
       <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
         <div className="mb-4 flex-shrink-0 flex items-center gap-3">
           <button
-            onClick={() => { lastDetail = null; setState({ phase: 'grid' }); }}
+            onClick={() => {
+              lastDetail = null;
+              setState({ phase: 'grid' });
+              setGridScrollTop(0);
+              pendingGridScrollRestoreRef.current = 0;
+            }}
             className="flex items-center gap-1 transition-opacity hover:opacity-80"
             style={{ color: colors.textSecondary }}
           >
@@ -456,7 +525,11 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={gridScrollRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={() => setGridScrollTop(gridScrollRef.current?.scrollTop ?? 0)}
+      >
         {loadingPlaylists && (
           <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined animate-spin">progress_activity</span>

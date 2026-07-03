@@ -3,6 +3,7 @@ import type { Track } from '../types';
 import { useImport } from '../hooks/useImport';
 import { isDesktop } from '../services/desktopAdapter';
 import type { LibrarySlotId } from './libraryStore';
+import type { LibrarySettings } from '../services/libraryStorage';
 
 interface ImportStoreOptions {
   localTracks: Track[];
@@ -14,7 +15,7 @@ interface ImportStoreOptions {
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
-  getPersistenceData: () => { localSlot: any; cloudSlot: any; activeSlotId: LibrarySlotId };
+  getPersistenceData: () => LibrarySettings;
   mergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
   viewSlot: LibrarySlotId;
   cloudWritable: boolean | null;

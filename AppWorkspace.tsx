@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { SlotId, Track, ViewMode } from './types';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { LibrarySlot, SlotId, Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
+import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
 import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
@@ -92,7 +93,6 @@ const AppWorkspace: React.FC = () => {
     loadOnlineTracks,
     loadPlaylistTracks,
     updatePlaylistTracks,
-    getPersistenceData,
     restoreFromPersistence,
     viewSlot,
     setViewSlot,
@@ -105,6 +105,43 @@ const AppWorkspace: React.FC = () => {
     handleLibraryScrollPositionChange,
     handleCategoryChange,
   } = useLibraryStore();
+  const [playlistsViewPersistence, setPlaylistsViewPersistence] = useState<PlaylistsViewPersistence>({
+    phase: 'grid',
+    scrollPosition: 0,
+  });
+  const playlistsViewPersistenceRef = useRef(playlistsViewPersistence);
+  const activeSlotIdRef = useRef(activeSlotId);
+  useEffect(() => {
+    activeSlotIdRef.current = activeSlotId;
+  }, [activeSlotId]);
+  useEffect(() => {
+    playlistsViewPersistenceRef.current = playlistsViewPersistence;
+  }, [playlistsViewPersistence]);
+  const handlePlaylistsViewPersistenceChange = useCallback((next: PlaylistsViewPersistence) => {
+    playlistsViewPersistenceRef.current = next;
+    setPlaylistsViewPersistence(next);
+  }, []);
+  const getAppPersistenceData = useCallback((): LibrarySettings => {
+    const snapshot = slotsRef.current;
+    const extractSlotData = (slot: LibrarySlot) => ({
+      currentTrackIndex: slot.currentTrackIndex,
+      currentTime: slot.currentTime,
+      volume: slot.volume,
+      playbackMode: slot.playbackMode,
+      scrollPosition: slot.scrollPosition,
+      filterType: slot.filterType,
+      categorySelection: slot.categorySelection,
+    });
+
+    return {
+      localSlot: extractSlotData(snapshot.local),
+      cloudSlot: extractSlotData(snapshot.cloud),
+      onlineSlot: extractSlotData(snapshot.online),
+      playlistSlot: extractSlotData(snapshot.playlist),
+      activeSlotId: activeSlotIdRef.current,
+      playlistsView: playlistsViewPersistenceRef.current,
+    };
+  }, [slotsRef]);
   const {
     audioRef,
     setAudioRef,
@@ -163,7 +200,7 @@ const AppWorkspace: React.FC = () => {
     playbackMode,
     createTrackedBlobUrl,
     persistedTimeRef,
-    getPersistenceData,
+    getPersistenceData: getAppPersistenceData,
     mergeCloudTracks,
     viewSlot,
     cloudWritable,
@@ -358,24 +395,36 @@ const AppWorkspace: React.FC = () => {
 
   useLibraryLoad({
     restoreFromPersistence,
-    getPersistenceData,
+    getPersistenceData: getAppPersistenceData,
+    getSlotsSnapshot: () => slotsRef.current,
     slots,
     setLocalTracks: updateLocalTracks,
     loadCloudTracks,
     loadOnlineTracks,
+    loadPlaylistTracks,
     setIsPlaying,
     setVolume,
     setPlaybackMode,
     audioRef,
     persistedTimeRef,
     updateSlot,
-    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime }) => {
+    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime, playlistsView }) => {
       if (restoredSlotId) {
         setRestoreTime(restoredTime ?? 0);
         switchTo(restoredSlotId);
-        setViewSlot(restoredSlotId);
+        // The playlist slot has no sidebar entry, so on restart keep the library
+        // view on a real library slot (local) while the playlist resumes as the
+        // active play context.
+        setViewSlot(restoredSlotId === 'playlist' ? 'local' : restoredSlotId);
         // 触发 LibraryView 自动定位到当前曲目
         markTrackSwitch();
+      }
+      if (playlistsView) {
+        playlistsViewPersistenceRef.current = playlistsView;
+        setPlaylistsViewPersistence(playlistsView);
+        if (playlistsView.phase === 'detail' && restoredSlotId === 'playlist') {
+          transitionToView(ViewMode.PLAYLISTS);
+        }
       }
     },
   });
@@ -407,11 +456,11 @@ const AppWorkspace: React.FC = () => {
     updateLocalTracks(newTracks);
     logger.debug('[App] Track added to library:', track.title);
     await metadataCacheService.save();
-    const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData);
+    const persistData = getAppPersistenceData();
+    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData, slots.online.tracks, slots.playlist.tracks);
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
-  }, [slots.local.tracks, slots.cloud.tracks, updateLocalTracks, getPersistenceData]);
+  }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, slots.playlist.tracks, updateLocalTracks, getAppPersistenceData]);
   const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
     logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
     const sourceSlot = slots[viewSlot];
@@ -424,15 +473,17 @@ const AppWorkspace: React.FC = () => {
       currentTrackIndex: result.currentTrackIndex,
     }));
 
-    const persistData = getPersistenceData();
+    const persistData = getAppPersistenceData();
     const libraryData = buildLibraryIndexDataForSlots(
-      activeSlotId === 'local' ? result.tracks : slots.local.tracks,
-      activeSlotId === 'cloud' ? result.tracks : slots.cloud.tracks,
-      persistData
+      viewSlot === 'local' ? result.tracks : slots.local.tracks,
+      viewSlot === 'cloud' ? result.tracks : slots.cloud.tracks,
+      persistData,
+      viewSlot === 'online' ? result.tracks : slots.online.tracks,
+      viewSlot === 'playlist' ? result.tracks : slots.playlist.tracks
     );
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
-  }, [activeSlotId, getPersistenceData, slots, updateSlot, viewSlot]);
+  }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
   // Global search handlers
   const handleSearchNavigate = useCallback((track: Track) => {
     const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
@@ -528,7 +579,7 @@ const AppWorkspace: React.FC = () => {
     }).catch(() => {});
   }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
 
-  // Play a whole playlist: load every song into the online slot as the queue so
+  // Play a whole playlist: load every song into the playlist slot as the queue so
   // next/prev traverses the playlist in order. Keeps the user in the Playlists
   // view (only activeSlot/viewSlot move to 'online'); the detail list highlights
   // the current track via currentTrackId.
@@ -840,6 +891,8 @@ const AppWorkspace: React.FC = () => {
                 onPlayPlaylist={(source, songs, clickedIndex) => {
                   handlePlayPlaylist(source, songs, clickedIndex);
                 }}
+                initialState={playlistsViewPersistence}
+                onPersistenceChange={handlePlaylistsViewPersistenceChange}
               />
             ) : (
               <div ref={libraryContentRef} className="h-full">
@@ -876,8 +929,8 @@ const AppWorkspace: React.FC = () => {
                 pendingLocateToken={pendingSlotLocate?.token}
                 onPendingLocatePrepared={handleSlotLocatePrepared}
                 onSlotContentReady={handleSlotContentReady}
-                filterType="default"
-                categorySelection={null}
+                filterType={slots[viewSlot].filterType}
+                categorySelection={slots[viewSlot].categorySelection}
                 onCategoryChange={handleCategoryChange}
                 onHeaderHeightChange={setHeaderHeight}
                 onLoadCloudTracks={loadCloudTracks}
