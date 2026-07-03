@@ -745,6 +745,7 @@ const AppWorkspace: React.FC = () => {
             ) : viewMode === ViewMode.PLAYLISTS ? (
               <PlaylistsView
                 colors={themeManager.getCurrentTheme().colors}
+                {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
                 onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
                 onStreamPlay={(song, source) => {
                   handleOnlineStreamPlay(song, source);

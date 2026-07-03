@@ -1,4 +1,5 @@
 import React from 'react';
+import { Track } from '../types';
 import { i18n } from '../services/i18n';
 import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
@@ -6,6 +7,7 @@ import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
+import LibraryTrackRow from './LibraryTrackRow';
 
 /**
  * 第三方音源歌单浏览器。
@@ -15,10 +17,15 @@ import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvi
  * 2. 每个卡片 = 封面 + 歌名。
  * 3. 点歌单 → 进入歌曲列表（左上角「← 返回」按钮）。
  * 4. 点歌曲 → 流式播放（复用 Branch A）→ 自动入 online LRU。
+ *
+ * 歌曲列表复用 LibraryTrackRow，与本地/云端音频列表保持一致的样式、
+ * 滚动条与「定位到当前播放」能力。
  */
 
 interface PlaylistsViewProps {
   colors: ThemeConfig['colors'];
+  /** Currently playing track id — used to highlight + auto-locate rows in the detail list. */
+  currentTrackId?: string;
   onOpenSettings?: () => void;
   onStreamPlay: (song: {
     songmid: string; title: string; artist: string; album: string;
@@ -48,7 +55,20 @@ type ViewState =
  */
 let lastDetail: { playlist: PlaylistInfo; tracks: TrackRow[] } | null = null;
 
-const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, onStreamPlay }) => {
+/** Build a synthetic Track whose id matches the one handleOnlineStreamPlay assigns. */
+const toTrack = (row: TrackRow, source: 'qq' | 'netease'): Track => ({
+  id: `online-${source}-${row.songmid}`,
+  title: row.title,
+  artist: row.artist,
+  album: row.album,
+  duration: row.duration,
+  coverUrl: row.coverUrl || undefined,
+  audioUrl: '',
+  source,
+  songmid: row.songmid,
+});
+
+const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onStreamPlay }) => {
   const [state, setState] = React.useState<ViewState>(() =>
     lastDetail
       ? { phase: 'detail', playlist: lastDetail.playlist, tracks: lastDetail.tracks, loading: false }
@@ -113,55 +133,81 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
       }));
       lastDetail = { playlist: pl, tracks };
       setState({ phase: 'detail', playlist: pl, tracks, loading: false });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : '加载失败';
       logger.error('[PlaylistsView] load songs failed:', e);
-      setState({ phase: 'detail', playlist: pl, tracks: [], loading: false, error: e.message || '加载失败' });
+      setState({ phase: 'detail', playlist: pl, tracks: [], loading: false, error: message });
     }
   };
 
-  const renderTrackList = (tracks: TrackRow[]) => (
-    <div className="flex-1 overflow-y-auto new-ux-scrollbar space-y-0.5">
-      {tracks.map((tr, idx) => (
-        <button
-          key={`${tr.songmid}-${idx}`}
-          onClick={() => onStreamPlay(tr, state.phase === 'detail' ? state.playlist.source : 'qq')}
-          className="w-full grid grid-cols-[48px_1fr_1fr_80px] gap-4 items-center px-4 py-2 transition-colors text-left relative"
-          style={{
-            color: colors.textPrimary,
-            borderRadius: 'var(--theme-control-radius)',
-            border: 'var(--theme-control-border-width) solid transparent',
-            borderBottom: 'none',
-            paddingTop: 'var(--theme-list-item-padding-y)',
-            paddingBottom: 'var(--theme-list-item-padding-y)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-        >
-          <div className="text-sm font-medium" style={{ opacity: 0.5, color: colors.textSecondary }}>
-            {idx + 1}
-          </div>
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="size-10 rounded-lg bg-cover bg-center flex-shrink-0"
-              style={{
-                backgroundImage: tr.coverUrl ? `url(${tr.coverUrl})` : undefined,
-                backgroundColor: colors.backgroundCard,
-                borderRadius: 'var(--theme-media-radius-sm)',
-              }}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm truncate" style={{ fontWeight: 'var(--theme-text-heading-weight)' }}>{tr.title}</p>
-              <p className="text-xs truncate" style={{ color: colors.textMuted }}>{tr.artist}</p>
-            </div>
-          </div>
-          <p className="text-sm truncate" style={{ color: colors.textMuted }}>{tr.album}</p>
-          <p className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
-            {Math.floor(tr.duration / 60)}:{String(Math.floor(tr.duration % 60)).padStart(2, '0')}
-          </p>
-        </button>
-      ))}
-    </div>
+  // ── Detail list state ──
+  const source = state.phase === 'detail' ? state.playlist.source : 'qq';
+  const detailRows = state.phase === 'detail' ? state.tracks : [];
+
+  const tracksAsTracks = React.useMemo<Track[]>(
+    () => detailRows.map(r => toTrack(r, source)),
+    [detailRows, source]
   );
+
+  const currentRowIndex = currentTrackId
+    ? detailRows.findIndex(r => `online-${source}-${r.songmid}` === currentTrackId)
+    : -1;
+
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [showLocate, setShowLocate] = React.useState(false);
+
+  const isCurrentVisible = React.useCallback(() => {
+    const container = scrollRef.current;
+    if (currentRowIndex < 0 || !container) return true;
+    const node = container.querySelector(`[data-track-index="${currentRowIndex}"]`) as HTMLElement | null;
+    if (!node) return false;
+    const c = container.getBoundingClientRect();
+    const n = node.getBoundingClientRect();
+    return n.top >= c.top && n.bottom <= c.bottom;
+  }, [currentRowIndex]);
+
+  const scrollToCurrent = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const container = scrollRef.current;
+    if (!container || currentRowIndex < 0) return;
+    const node = container.querySelector(`[data-track-index="${currentRowIndex}"]`) as HTMLElement | null;
+    if (!node) return;
+    const c = container.getBoundingClientRect();
+    const n = node.getBoundingClientRect();
+    // Delta from the row's current position to a centered position within the viewport.
+    const delta = (n.top - c.top) - (container.clientHeight / 2 - n.height / 2);
+    container.scrollBy({ top: delta, behavior });
+  }, [currentRowIndex]);
+
+  // Auto-locate when the current track changes (a song in this list starts
+  // playing, or the user enters a playlist that contains the playing song).
+  React.useEffect(() => {
+    if (currentRowIndex < 0) {
+      setShowLocate(false);
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      if (!isCurrentVisible()) scrollToCurrent('smooth');
+      setShowLocate(!isCurrentVisible());
+    });
+    return () => cancelAnimationFrame(id);
+  }, [currentRowIndex, isCurrentVisible, scrollToCurrent]);
+
+  const handleScroll = React.useCallback(() => {
+    setShowLocate(currentRowIndex >= 0 && !isCurrentVisible());
+  }, [currentRowIndex, isCurrentVisible]);
+
+  // Stable row handlers (refs keep them identity-stable so LibraryTrackRow's
+  // memo isn't busted every render).
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+  const handleRowSelect = React.useCallback((idx: number) => {
+    const s = stateRef.current;
+    if (s.phase !== 'detail') return;
+    const row = s.tracks[idx];
+    if (!row) return;
+    onStreamPlay(row, s.playlist.source);
+  }, [onStreamPlay]);
+  const noop = React.useCallback(() => {}, []);
 
   // ── Detail view ──
   if (state.phase === 'detail') {
@@ -200,7 +246,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
           <>
             <div className="flex-shrink-0">
               <div
-                className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest grid-cols-[48px_1fr_1fr_80px] select-none mb-2"
+                className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest grid-cols-[48px_1fr_1fr_120px] select-none mb-2"
                 style={{ color: colors.textMuted, borderBottom: `1px solid ${colors.borderLight}` }}
               >
                 <span>#</span>
@@ -209,7 +255,53 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
                 <span className="text-right">{i18n.t('library.timeCol')}</span>
               </div>
             </div>
-            {renderTrackList(tracks)}
+            <div className="relative flex-1 min-h-0">
+              <div
+                ref={scrollRef}
+                onScroll={handleScroll}
+                className="h-full overflow-y-auto new-ux-scrollbar"
+              >
+                <div className="grid relative" style={{ gap: 'var(--theme-list-item-gap)' }}>
+                  {tracksAsTracks.map((track, idx) => (
+                    <LibraryTrackRow
+                      key={`${track.id}-${idx}`}
+                      track={track}
+                      filteredIndex={idx}
+                      realTrackIndex={idx}
+                      isCurrentTrack={idx === currentRowIndex}
+                      isEditMode={false}
+                      isSelected={false}
+                      isDragged={false}
+                      shouldShowAnimation={false}
+                      colors={colors}
+                      playingIndicator="inline"
+                      onTrackSelect={handleRowSelect}
+                      onToggleSelect={noop}
+                      onEditMetadata={noop}
+                      onDelete={noop}
+                      onDragStart={noop}
+                      onDragOver={noop}
+                      onDragEnd={noop}
+                    />
+                  ))}
+                </div>
+              </div>
+              {showLocate && currentRowIndex >= 0 && (
+                <button
+                  onClick={() => scrollToCurrent('smooth')}
+                  className="absolute right-6 bottom-4 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
+                  style={{
+                    backgroundColor: colors.backgroundCard,
+                    color: colors.textSecondary,
+                  }}
+                  title={i18n.t('library.locateToCurrent')}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
+                >
+                  <span className="material-symbols-outlined text-lg">my_location</span>
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -257,10 +349,10 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
             )}
           </div>
         )}
-        {[...grouped.entries()].map(([source, list]) => (
-          <div key={source} className="mb-6">
+        {[...grouped.entries()].map(([src, list]) => (
+          <div key={src} className="mb-6">
             <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
-              {sourceLabel(source)}
+              {sourceLabel(src)}
             </h2>
             <div className="flex gap-3 overflow-x-auto p-2 no-scrollbar">
               {list.map((pl) => (
