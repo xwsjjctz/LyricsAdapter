@@ -69,6 +69,7 @@ export interface DesktopAPI {
   isMaximized?: () => Promise<boolean>;
   isFullScreen?: () => Promise<boolean>;
   onFullScreenChange?: (callback: (isFullScreen: boolean) => void) => () => void;
+  onBeforeWindowClose?: (callback: () => Promise<boolean> | boolean) => () => void;
   // Settings APIs
   selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
   // Shortcut API
@@ -366,6 +367,13 @@ class ElectronAdapter implements DesktopAPI {
   onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {
     if (typeof this.api.onFullScreenChange === 'function') {
       return this.api.onFullScreenChange(callback);
+    }
+    return () => {};
+  }
+
+  onBeforeWindowClose(callback: () => Promise<boolean> | boolean): () => void {
+    if (typeof this.api.onBeforeWindowClose === 'function') {
+      return this.api.onBeforeWindowClose(callback);
     }
     return () => {};
   }

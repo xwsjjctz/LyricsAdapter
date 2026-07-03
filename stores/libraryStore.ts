@@ -2,8 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGsapSlotTransition } from '../hooks/useGsapSlotTransition';
 import { useLibrarySlots } from '../hooks/useLibrarySlots';
 import { webdavClient } from '../services/webdavClient';
+import type { SlotId } from '../types';
 
-export type LibrarySlotId = 'local' | 'cloud' | 'online';
+// Aligned with SlotId so the play context (which may be the 'playlist' slot) can
+// flow through the same APIs. The library VIEW only ever sets viewSlot to
+// local/cloud/online at runtime; 'playlist' is a play-only context.
+export type LibrarySlotId = SlotId;
 
 export function useLibraryStore() {
   const library = useLibrarySlots();

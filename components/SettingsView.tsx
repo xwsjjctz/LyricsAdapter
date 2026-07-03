@@ -65,6 +65,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
+  const [newUxEnabled, setNewUxEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
@@ -97,6 +98,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
+      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -111,6 +113,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
+      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -761,6 +764,41 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     style={{
                       transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
                     }}
+                  />
+                </button>
+              )}
+            </div>
+
+            {/* 全新 UI/UX 开关 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <div className="min-w-0 mr-3">
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.newUx')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.newUxDesc')}</p>
+              </div>
+              {isBrutalistTheme ? (
+                <RetroSwitch
+                  checked={newUxEnabled}
+                  ariaLabel={i18n.t('settings.newUx')}
+                  onChange={(newValue) => {
+                    setNewUxEnabled(newValue);
+                    settingsManager.setNewUxEnabled(newValue);
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => {
+                    const newValue = !newUxEnabled;
+                    setNewUxEnabled(newValue);
+                    settingsManager.setNewUxEnabled(newValue);
+                  }}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+                  style={{ backgroundColor: newUxEnabled ? colors.primary : colors.borderLight }}
+                  aria-label={i18n.t('settings.newUx')}
+                  aria-pressed={newUxEnabled}
+                >
+                  <span
+                    className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                    style={{ transform: newUxEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
                   />
                 </button>
               )}

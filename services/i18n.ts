@@ -64,20 +64,36 @@ const translations: Translations = {
     fr: 'Nuage'
   },
   'sidebar.onlinePlayback': {
-    zh: '在线播放',
-    en: 'Online',
-    ja: 'オンライン',
-    ko: '온라인',
-    de: 'Online',
-    fr: 'En ligne'
+    zh: '在线队列',
+    en: 'Online Queue',
+    ja: 'オンラインキュー',
+    ko: '온라인 대기열',
+    de: 'Online-Warteschlange',
+    fr: 'File en ligne'
   },
   'sidebar.online': {
-    zh: '在线播放',
-    en: 'Online',
-    ja: 'オンライン',
-    ko: '온라인',
-    de: 'Online',
-    fr: 'En ligne'
+    zh: '在线队列',
+    en: 'Online Queue',
+    ja: 'オンラインキュー',
+    ko: '온라인 대기열',
+    de: 'Online-Warteschlange',
+    fr: 'File en ligne'
+  },
+  'sidebar.onlineQueue': {
+    zh: '在线队列',
+    en: 'Online Queue',
+    ja: 'オンラインキュー',
+    ko: '온라인 대기열',
+    de: 'Online-Warteschlange',
+    fr: 'File en ligne'
+  },
+  'sidebar.onlineMusic': {
+    zh: '在线音乐',
+    en: 'Online Music',
+    ja: 'オンライン音楽',
+    ko: '온라인 음악',
+    de: 'Online-Musik',
+    fr: 'Musique en ligne'
   },
   'sidebar.playlists': {
     zh: '歌单',
@@ -313,6 +329,46 @@ const translations: Translations = {
     de: 'Verwenden Sie die Seitenleiste, um Audio-Dateien zu importieren',
     fr: 'Utilisez la barre latérale pour importer vos fichiers audio'
   },
+  'library.importTracksHint': {
+    zh: '导入本地音频文件后，它们会出现在这里',
+    en: 'Import local audio files and they will appear here',
+    ja: 'ローカル音声ファイルをインポートするとここに表示されます',
+    ko: '로컬 오디오 파일을 가져오면 여기에 표시됩니다',
+    de: 'Importierte lokale Audiodateien erscheinen hier',
+    fr: 'Importez des fichiers audio locaux pour les afficher ici'
+  },
+  'library.noCloudTracks': {
+    zh: '云端还没有曲目',
+    en: 'No cloud tracks yet',
+    ja: 'クラウドにトラックがありません',
+    ko: '클라우드에 아직 곡이 없습니다',
+    de: 'Noch keine Cloud-Titel',
+    fr: 'Aucun titre cloud'
+  },
+  'library.cloudEmptyHint': {
+    zh: '刷新 WebDAV 或到设置中配置云端音乐库',
+    en: 'Refresh WebDAV or configure your cloud library in Settings',
+    ja: 'WebDAV を更新するか、設定でクラウドライブラリを構成してください',
+    ko: 'WebDAV를 새로고침하거나 설정에서 클라우드 라이브러리를 구성하세요',
+    de: 'Aktualisieren Sie WebDAV oder konfigurieren Sie Ihre Cloud-Bibliothek in den Einstellungen',
+    fr: 'Actualisez WebDAV ou configurez votre bibliothèque cloud dans les réglages'
+  },
+  'library.noOnlineTracks': {
+    zh: '在线队列为空',
+    en: 'Online queue is empty',
+    ja: 'オンラインキューは空です',
+    ko: '온라인 대기열이 비어 있습니다',
+    de: 'Die Online-Warteschlange ist leer',
+    fr: 'La file en ligne est vide'
+  },
+  'library.onlineQueueEmptyHint': {
+    zh: '通过顶部搜索框或第三方歌单播放歌曲后，会自动加入这里',
+    en: 'Play songs from the top search box or third-party playlists and they will appear here',
+    ja: '上部の検索ボックスやサードパーティのプレイリストから再生するとここに追加されます',
+    ko: '상단 검색창이나 타사 플레이리스트에서 재생하면 여기에 추가됩니다',
+    de: 'Spielen Sie Songs über das obere Suchfeld oder Drittanbieter-Playlists ab, dann erscheinen sie hier',
+    fr: 'Lancez des titres depuis la recherche du haut ou les playlists tierces pour les voir ici'
+  },
   'library.needReimport': {
     zh: '(需要重新导入)',
     en: '(Need re-import)',
@@ -420,12 +476,12 @@ const translations: Translations = {
 
   // Browse View
   'browse.title': {
-    zh: '浏览',
-    en: 'Browse',
-    ja: 'ブラウズ',
-    ko: '찾아보기',
-    de: 'Durchsuchen',
-    fr: 'Parcourir'
+    zh: '在线搜索',
+    en: 'Online Search',
+    ja: 'オンライン検索',
+    ko: '온라인 검색',
+    de: 'Online-Suche',
+    fr: 'Recherche en ligne'
   },
   'browse.searchResults': {
     zh: '搜索结果：',
@@ -474,6 +530,30 @@ const translations: Translations = {
     ko: '설정 열기',
     de: 'Einstellungen öffnen',
     fr: 'Ouvrir les paramètres'
+  },
+  'playlists.emptyLoginHint': {
+    zh: '暂无歌单，请先登录第三方音源',
+    en: 'No playlists yet. Sign in to a third-party music source first.',
+    ja: 'プレイリストがありません。先にサードパーティ音源へログインしてください。',
+    ko: '아직 플레이리스트가 없습니다. 먼저 타사 음악 소스에 로그인하세요.',
+    de: 'Noch keine Playlists. Melden Sie sich zuerst bei einer Drittanbieter-Musikquelle an.',
+    fr: 'Aucune playlist. Connectez-vous d’abord à une source musicale tierce.'
+  },
+  'playlists.title': {
+    zh: '歌单',
+    en: 'Playlists',
+    ja: 'プレイリスト',
+    ko: '플레이리스트',
+    de: 'Wiedergabelisten',
+    fr: 'Listes de lecture'
+  },
+  'playlists.description': {
+    zh: '浏览并播放第三方音源中的在线歌单',
+    en: 'Browse and play online playlists from third-party music sources',
+    ja: 'サードパーティ音源からオンラインプレイリストを閲覧・再生',
+    ko: '타사 음악 소스의 온라인 플레이리스트를 찾아 재생하세요',
+    de: 'Durchsuchen und abspielen von Online-Playlists von Drittanbieter-Musikquellen',
+    fr: 'Parcourez et écoutez des listes de lecture en ligne provenant de sources musicales tierces'
   },
   'browse.browserLimitTitle': {
     zh: '提示：浏览功能需要在桌面端使用，因为浏览器存在跨域限制。',
@@ -2043,6 +2123,14 @@ const translations: Translations = {
     de: 'Speichern',
     fr: 'Enregistrer'
   },
+  'common.open': {
+    zh: '打开',
+    en: 'Open',
+    ja: '開く',
+    ko: '열기',
+    de: 'Öffnen',
+    fr: 'Ouvrir'
+  },
   'common.cancel': {
     zh: '取消',
     en: 'Cancel',
@@ -2186,6 +2274,24 @@ const translations: Translations = {
     ko: '버튼 클릭 시 GSAP 누름·반동 피드백',
     de: 'GSAP-Feedback beim Drücken und Loslassen von Buttons',
     fr: 'Retour GSAP à la pression et au relâchement des boutons'
+  },
+
+  'settings.newUx': {
+    zh: '全新 UI/UX',
+    en: 'New UI/UX',
+    ja: '新しい UI/UX',
+    ko: '새 UI/UX',
+    de: 'Neue UI/UX',
+    fr: 'Nouvelle UI/UX'
+  },
+
+  'settings.newUxDesc': {
+    zh: '启用新的歌单空间、浮动面板和沉浸式播放过渡',
+    en: 'Enable the new playlist space, floating panels, and immersive playback transition',
+    ja: '新しいプレイリスト空間、フローティングパネル、没入型再生トランジションを有効にします',
+    ko: '새 플레이리스트 공간, 플로팅 패널, 몰입형 재생 전환을 활성화합니다',
+    de: 'Aktiviert den neuen Playlist-Raum, schwebende Panels und immersive Wiedergabeübergänge',
+    fr: 'Active le nouvel espace de playlists, les panneaux flottants et la transition de lecture immersive'
   },
 
   'settings.focusBgBlurRadius': {

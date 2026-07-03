@@ -45,7 +45,7 @@ export interface PlaybackContext {
   isPlaying: boolean;
 }
 
-export type SlotId = 'local' | 'cloud' | 'online';
+export type SlotId = 'local' | 'cloud' | 'online' | 'playlist';
 
 export interface LibrarySlot {
   id: SlotId;

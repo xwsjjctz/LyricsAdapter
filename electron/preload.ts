@@ -164,6 +164,20 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('fullscreen-changed', handler);
   },
 
+  onBeforeWindowClose: (callback: () => Promise<boolean> | boolean) => {
+    const handler = async () => {
+      let saved = false;
+      try {
+        saved = await callback();
+      } catch {
+        saved = false;
+      }
+      ipcRenderer.send('window-before-close-flush-done', saved);
+    };
+    ipcRenderer.on('window-before-close-flush', handler);
+    return () => ipcRenderer.removeListener('window-before-close-flush', handler);
+  },
+
   // Get real file path from File object (for drag-and-drop)
   getPathForFile: (file: File) => {
     const filePath = webUtils.getPathForFile(file);

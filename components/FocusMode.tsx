@@ -8,6 +8,10 @@ import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { toCoverThumb } from '../services/coverUrl';
+import FocusBackdrop from './focus-mode/FocusBackdrop';
+import FocusControls from './focus-mode/FocusControls';
+import FocusCoverStage from './focus-mode/FocusCoverStage';
+import FocusTrackMeta from './focus-mode/FocusTrackMeta';
 
 // Decode HTML entities in lyrics text
 function decodeHtmlEntities(text: string): string {
@@ -42,13 +46,16 @@ interface FocusModeProps {
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
+  ambientLayer?: React.ReactNode;
+  variant?: 'legacy' | 'new-ux';
 }
 
 const FocusMode: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, ambientLayer, variant = 'legacy'
 }) => {
   const isLinux = getDesktopAPI()?.platform === 'linux';
+  const isNewUxFocus = variant === 'new-ux';
 
   // Force re-render when language changes
   const [, setLanguageVersion] = useState(0);
@@ -308,14 +315,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     }
     return 0;
   }, [activeCurrentTime, lyricsLines, track]);
-
-  // Helper to format time
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds === 0) return '0:00';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
 
   // Calculate scroll boundaries for lyrics
   const getScrollBounds = useCallback(() => {
@@ -873,21 +872,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           (globalAlpha in renderCanvas), which always repaints reliably
           regardless of backdrop (CSS opacity on a filtered element does not). */}
       {/* Canvas-based Color Gradient Background */}
-      {bgImage1 && (
-        <canvas
-          ref={canvasRef}
-          style={{
-            position: 'absolute',
-            top: '-100px',
-            left: '-100px',
-            width: 'calc(100% + 200px)',
-            height: 'calc(100% + 200px)',
-            filter: `blur(${bgBlurRadius}px) saturate(1.5) brightness(0.55)`,
-            transition: 'filter 700ms ease-in-out'
-          }}
-        />
-      )}
-      <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
+      <FocusBackdrop
+        hasBackground={Boolean(bgImage1)}
+        bgBlurRadius={bgBlurRadius}
+        isLinux={isLinux}
+        canvasRef={canvasRef}
+        ambientLayer={ambientLayer}
+      />
 
       <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
@@ -898,29 +889,17 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
           {/* Cover & Title */}
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
-            <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
-              <img
-                src={toCoverThumb(track?.coverUrl, 512)}
-                className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
-                alt="album cover"
-              />
-            </div>
-            <div className="mt-5 lg:mt-7 text-center w-full max-w-[340px]">
-              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 line-clamp-2 drop-shadow-2xl" style={{ color: focusColors.textPrimary }}>
-                {track?.title}
-              </h1>
-              <p className="text-base lg:text-lg font-semibold truncate opacity-80" style={{ color: focusColors.textPrimary }}>
-                {track?.artist}
-              </p>
-              <p className="text-xs lg:text-sm font-medium truncate mt-1" style={{ color: focusColors.textMuted }}>
-                {track?.album}
-              </p>
-            </div>
+            <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} />
+            <FocusTrackMeta
+              track={track}
+              textPrimary={focusColors.textPrimary}
+              textMuted={focusColors.textMuted}
+            />
           </div>
 
           {/* Lyrics */}
           <div
-            className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
+            className={`flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none${isNewUxFocus && isVisible ? ' new-ux-focus-lyrics-enter' : ''}`}
             ref={lyricsRef}
 
             onMouseDown={handleMouseDown}
@@ -972,116 +951,26 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           </div>
         </main>
 
-        {/* Compact Bottom Player */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
-          <div
-            ref={playerRef}
-            onMouseEnter={handlePlayerMouseEnter}
-            onMouseLeave={handlePlayerMouseLeave}
-            className="glass p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
-            style={{
-              opacity: isPlayerVisible ? 1 : 0,
-              borderRadius: 'var(--theme-surface-radius)',
-              border: `var(--theme-panel-border-width) solid ${colors.borderLight}`,
-              backgroundColor: colors.backgroundDark,
-              boxShadow: 'var(--theme-surface-shadow)',
-            }}
-          >
-            {/* Progress */}
-            <div className="w-full flex items-center gap-3">
-              <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>{formatTime(activeCurrentTime)}</span>
-              <div
-                className="flex-1 relative h-1 cursor-pointer group"
-                style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const pct = x / rect.width;
-                  onSeek(pct * (track?.duration || 0));
-                }}
-              >
-                <div
-                  className="absolute top-0 left-0 h-full transition-all duration-100"
-                  style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 15px ${colors.glowColor}`, borderRadius: 'var(--theme-progress-radius)' }}
-                />
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 size-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary, borderRadius: 'var(--theme-progress-radius)' }}
-                />
-              </div>
-              <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: colors.textMuted }}>{formatTime(track?.duration || 0)}</span>
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center justify-between px-4">
-              <div className="flex gap-4" style={{ color: colors.textMuted }}>
-                <span
-                  className="material-symbols-outlined text-lg cursor-pointer transition-colors relative -left-[4px]"
-                  style={{ color: colors.textMuted }}
-                  onClick={onTogglePlaybackMode}
-                  onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-                  onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
-                >
-                  {playbackMode === 'shuffle'
-                    ? 'shuffle'
-                    : playbackMode === 'repeat-one'
-                    ? 'repeat_one'
-                    : 'repeat'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-6 relative left-[30px]">
-                <button
-                  onClick={onSkipPrev}
-                  className="transition-all hover:scale-110"
-                  style={{ color: colors.textSecondary }}
-                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
-                >
-                  <span className="material-symbols-outlined text-2xl">skip_previous</span>
-                </button>
-                <button
-                  onClick={onTogglePlay}
-                  className="size-11 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
-                  style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
-                >
-                  <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
-                </button>
-                <button
-                  onClick={onSkipNext}
-                  className="transition-all hover:scale-110"
-                  style={{ color: colors.textSecondary }}
-                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; }}
-                >
-                  <span className="material-symbols-outlined text-2xl">skip_next</span>
-                </button>
-              </div>
-
-              <div className="flex justify-end gap-4 items-center" style={{ color: colors.textMuted }}>
-                <span
-                  className="material-symbols-outlined text-lg cursor-pointer transition-colors"
-                  style={{ color: colors.textMuted }}
-                  onClick={onToggleMute}
-                  onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-                  onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
-                >
-                  {volume === 0 ? 'volume_off' : 'volume_up'}
-                </span>
-                <div className="w-16 relative h-4 flex items-center group">
-                  <input
-                    type="range" min="0" max="1" step="0.01" value={volume}
-                    onChange={(e) => onVolumeChange(Number(e.target.value))}
-                    className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
-                  />
-                  <div className="w-full h-1 overflow-hidden" style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}>
-                    <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FocusControls
+          track={track}
+          colors={colors}
+          isPlaying={isPlaying}
+          isPlayerVisible={isPlayerVisible}
+          activeCurrentTime={activeCurrentTime}
+          progress={progress}
+          volume={volume}
+          playbackMode={playbackMode}
+          playerRef={playerRef}
+          onSeek={onSeek}
+          onTogglePlay={onTogglePlay}
+          onSkipNext={onSkipNext}
+          onSkipPrev={onSkipPrev}
+          onVolumeChange={onVolumeChange}
+          onToggleMute={onToggleMute}
+          onTogglePlaybackMode={onTogglePlaybackMode}
+          onMouseEnter={handlePlayerMouseEnter}
+          onMouseLeave={handlePlayerMouseLeave}
+        />
       </div>
     </div>
   );
@@ -1111,6 +1000,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   if (prevProps.playbackMode !== nextProps.playbackMode) return false;
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
+  if (prevProps.ambientLayer !== nextProps.ambientLayer) return false;
+  if (prevProps.variant !== nextProps.variant) return false;
 
   // For currentTime, we allow more frequent updates (0.5 second threshold)
   // This keeps the lyrics scrolling smooth while avoiding excessive re-renders

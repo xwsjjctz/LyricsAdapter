@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect } from 'react';
-import { Track, ViewMode } from './types';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { LibrarySlot, SlotId, Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
 import { libraryStorage } from './services/libraryStorage';
+import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
 import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
@@ -31,11 +32,15 @@ import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
 import { getOnlineProvider } from './services/onlineMusicProvider';
+import type { OnlineSong } from './services/onlineMusicProvider';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
+import { settingsManager } from './services/settingsManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
+import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
+import NewUxShell from './components/new-ui/NewUxShell';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -68,6 +73,7 @@ const AppWorkspace: React.FC = () => {
     glassUI,
     handleNavigate,
   } = useUIStore();
+  const newUxEnabled = useNewUxEnabled();
   const {
     slots,
     slotsRef,
@@ -85,7 +91,8 @@ const AppWorkspace: React.FC = () => {
     addOnlineTrack,
     updateOnlineTracks,
     loadOnlineTracks,
-    getPersistenceData,
+    loadPlaylistTracks,
+    updatePlaylistTracks,
     restoreFromPersistence,
     viewSlot,
     setViewSlot,
@@ -96,9 +103,45 @@ const AppWorkspace: React.FC = () => {
     handleSlotContentReady,
     handleSlotLocatePrepared,
     handleLibraryScrollPositionChange,
-    handleFilterTypeChange,
     handleCategoryChange,
   } = useLibraryStore();
+  const [playlistsViewPersistence, setPlaylistsViewPersistence] = useState<PlaylistsViewPersistence>({
+    phase: 'grid',
+    scrollPosition: 0,
+  });
+  const playlistsViewPersistenceRef = useRef(playlistsViewPersistence);
+  const activeSlotIdRef = useRef(activeSlotId);
+  useEffect(() => {
+    activeSlotIdRef.current = activeSlotId;
+  }, [activeSlotId]);
+  useEffect(() => {
+    playlistsViewPersistenceRef.current = playlistsViewPersistence;
+  }, [playlistsViewPersistence]);
+  const handlePlaylistsViewPersistenceChange = useCallback((next: PlaylistsViewPersistence) => {
+    playlistsViewPersistenceRef.current = next;
+    setPlaylistsViewPersistence(next);
+  }, []);
+  const getAppPersistenceData = useCallback((): LibrarySettings => {
+    const snapshot = slotsRef.current;
+    const extractSlotData = (slot: LibrarySlot) => ({
+      currentTrackIndex: slot.currentTrackIndex,
+      currentTime: slot.currentTime,
+      volume: slot.volume,
+      playbackMode: slot.playbackMode,
+      scrollPosition: slot.scrollPosition,
+      filterType: slot.filterType,
+      categorySelection: slot.categorySelection,
+    });
+
+    return {
+      localSlot: extractSlotData(snapshot.local),
+      cloudSlot: extractSlotData(snapshot.cloud),
+      onlineSlot: extractSlotData(snapshot.online),
+      playlistSlot: extractSlotData(snapshot.playlist),
+      activeSlotId: activeSlotIdRef.current,
+      playlistsView: playlistsViewPersistenceRef.current,
+    };
+  }, [slotsRef]);
   const {
     audioRef,
     setAudioRef,
@@ -157,11 +200,25 @@ const AppWorkspace: React.FC = () => {
     playbackMode,
     createTrackedBlobUrl,
     persistedTimeRef,
-    getPersistenceData,
+    getPersistenceData: getAppPersistenceData,
     mergeCloudTracks,
     viewSlot,
     cloudWritable,
   });
+  const [pendingNewUxImportSlot, setPendingNewUxImportSlot] = useState<SlotId | null>(null);
+  useEffect(() => {
+    if (!pendingNewUxImportSlot || viewSlot !== pendingNewUxImportSlot) return;
+    handleImportClick();
+    setPendingNewUxImportSlot(null);
+  }, [handleImportClick, pendingNewUxImportSlot, viewSlot]);
+  const handleNewUxImportIntoSlot = useCallback(async (slotId: SlotId) => {
+    if (slotId === viewSlot) {
+      handleImportClick();
+      return;
+    }
+    setPendingNewUxImportSlot(slotId);
+    await handleSwitchSlot(slotId);
+  }, [handleImportClick, handleSwitchSlot, viewSlot]);
   const { handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
     setTracks: setActiveTracks,
@@ -173,6 +230,27 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
+  const { handleReloadFiles: handleReloadLocalFiles } = useLibraryActions({
+    tracks: slots.local.tracks,
+    setTracks: updateLocalTracks,
+    currentTrackIndex: slots.local.currentTrackIndex,
+    setCurrentTrackIndex: (index) => {
+      updateSlot('local', slot => ({
+        ...slot,
+        currentTrackIndex: typeof index === 'function' ? index(slot.currentTrackIndex) : index,
+      }));
+    },
+    isPlaying,
+    setIsPlaying,
+    createTrackedBlobUrl,
+    revokeBlobUrl,
+    audioRef,
+  });
+  const handleOpenNewUxSettings = useCallback(() => {
+    setIsFocusMode(false);
+    transitionToView(ViewMode.SETTINGS);
+    settingsManager.setNewUxEnabled(false);
+  }, [setIsFocusMode, transitionToView]);
   // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
   // This ensures deletion works correctly when browsing a different slot than the one playing.
   const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
@@ -317,24 +395,36 @@ const AppWorkspace: React.FC = () => {
 
   useLibraryLoad({
     restoreFromPersistence,
-    getPersistenceData,
+    getPersistenceData: getAppPersistenceData,
+    getSlotsSnapshot: () => slotsRef.current,
     slots,
     setLocalTracks: updateLocalTracks,
     loadCloudTracks,
     loadOnlineTracks,
+    loadPlaylistTracks,
     setIsPlaying,
     setVolume,
     setPlaybackMode,
     audioRef,
     persistedTimeRef,
     updateSlot,
-    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime }) => {
+    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime, playlistsView }) => {
       if (restoredSlotId) {
         setRestoreTime(restoredTime ?? 0);
         switchTo(restoredSlotId);
-        setViewSlot(restoredSlotId);
+        // The playlist slot has no sidebar entry, so on restart keep the library
+        // view on a real library slot (local) while the playlist resumes as the
+        // active play context.
+        setViewSlot(restoredSlotId === 'playlist' ? 'local' : restoredSlotId);
         // 触发 LibraryView 自动定位到当前曲目
         markTrackSwitch();
+      }
+      if (playlistsView) {
+        playlistsViewPersistenceRef.current = playlistsView;
+        setPlaylistsViewPersistence(playlistsView);
+        if (playlistsView.phase === 'detail' && restoredSlotId === 'playlist') {
+          transitionToView(ViewMode.PLAYLISTS);
+        }
       }
     },
   });
@@ -366,11 +456,11 @@ const AppWorkspace: React.FC = () => {
     updateLocalTracks(newTracks);
     logger.debug('[App] Track added to library:', track.title);
     await metadataCacheService.save();
-    const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData);
+    const persistData = getAppPersistenceData();
+    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData, slots.online.tracks, slots.playlist.tracks);
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
-  }, [slots.local.tracks, slots.cloud.tracks, updateLocalTracks, getPersistenceData]);
+  }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, slots.playlist.tracks, updateLocalTracks, getAppPersistenceData]);
   const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
     logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
     const sourceSlot = slots[viewSlot];
@@ -383,15 +473,17 @@ const AppWorkspace: React.FC = () => {
       currentTrackIndex: result.currentTrackIndex,
     }));
 
-    const persistData = getPersistenceData();
+    const persistData = getAppPersistenceData();
     const libraryData = buildLibraryIndexDataForSlots(
-      activeSlotId === 'local' ? result.tracks : slots.local.tracks,
-      activeSlotId === 'cloud' ? result.tracks : slots.cloud.tracks,
-      persistData
+      viewSlot === 'local' ? result.tracks : slots.local.tracks,
+      viewSlot === 'cloud' ? result.tracks : slots.cloud.tracks,
+      persistData,
+      viewSlot === 'online' ? result.tracks : slots.online.tracks,
+      viewSlot === 'playlist' ? result.tracks : slots.playlist.tracks
     );
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
-  }, [activeSlotId, getPersistenceData, slots, updateSlot, viewSlot]);
+  }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
   // Global search handlers
   const handleSearchNavigate = useCallback((track: Track) => {
     const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
@@ -486,6 +578,93 @@ const AppWorkspace: React.FC = () => {
       }
     }).catch(() => {});
   }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
+
+  // Play a whole playlist: load every song into the playlist slot as the queue so
+  // next/prev traverses the playlist in order. Keeps the user in the Playlists
+  // view (only activeSlot/viewSlot move to 'online'); the detail list highlights
+  // the current track via currentTrackId.
+  const handlePlayPlaylist = useCallback((source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => {
+    const tracks: Track[] = songs.map(s => ({
+      id: `online-${source}-${s.songmid}`,
+      title: s.songname,
+      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+      album: s.albumname || 'Unknown Album',
+      duration: s.interval || 0,
+      coverUrl: s.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: s.songmid,
+    }));
+    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
+    // Save current slot's playback position
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    // Load the full playlist into the dedicated playlist slot (isolated from the
+    // online/search LRU queue) and make it the active play context. The user
+    // stays in the Playlists view; viewSlot is left untouched.
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
+    setRestoreTime(0);
+    switchTo('playlist');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+    // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
+  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
+
+  // Playlist-only lyrics sliding window (size 3): prefetch the current track and
+  // its two neighbours, and evict lyrics outside that window to bound memory.
+  // Other slots are unaffected — online uses per-click enrichment, local/cloud
+  // read lyrics from file metadata.
+  useEffect(() => {
+    const playlistTracks = slots.playlist.tracks;
+    const i = slots.playlist.currentTrackIndex;
+    if (i < 0 || playlistTracks.length === 0) return;
+    const lo = Math.max(0, i - 1);
+    const hi = Math.min(playlistTracks.length - 1, i + 1);
+
+    // Prefetch the window's missing lyrics (current ± 1).
+    for (let k = lo; k <= hi; k++) {
+      const t = playlistTracks[k];
+      if (!t || (t.source !== 'qq' && t.source !== 'netease') || !t.songmid) continue;
+      if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) continue;
+      const provider = t.source === 'qq' ? qqMusicApi : neteaseMusicApi;
+      const trackId = t.id;
+      provider.getLyrics(t.songmid)
+        .then(raw => {
+          if (!raw) return;
+          const parsed = parseLRCLyrics(raw);
+          updatePlaylistTracks(prev => prev.map(x =>
+            x.id === trackId && !x.lyrics
+              ? {
+                ...x,
+                lyrics: parsed.plainText || raw,
+                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+              }
+              : x
+          ));
+        })
+        .catch(() => { /* lyrics are best-effort */ });
+    }
+
+    // Evict lyrics outside the window so only the current ± 1 stay cached.
+    updatePlaylistTracks(prev => {
+      const evictLo = Math.max(0, i - 1);
+      const evictHi = Math.min(prev.length - 1, i + 1);
+      let changed = false;
+      const next = prev.map((t, k) => {
+        if (k < evictLo || k > evictHi) {
+          if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) {
+            changed = true;
+            const clone = { ...t };
+            delete clone.lyrics;
+            delete clone.syncedLyrics;
+            return clone;
+          }
+        }
+        return t;
+      });
+      return changed ? next : prev;
+    });
+  }, [slots.playlist.currentTrackIndex, slots.playlist.tracks.length, updatePlaylistTracks]);
   useShortcuts({
     viewMode,
     isFocusMode,
@@ -579,6 +758,52 @@ const AppWorkspace: React.FC = () => {
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
+
+  if (newUxEnabled) {
+    return (
+      <NewUxShell
+        slots={slots}
+        currentTrack={currentTrack}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        volume={volume}
+        playbackMode={playbackMode}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+        onOpenSlot={handleSwitchSlot}
+        onTrackSelect={handleTrackSelect}
+        onRemoveTrack={handleRemoveTrackFromView}
+        onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+        onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
+        onTogglePlay={togglePlay}
+        onSkipNext={skipForward}
+        onSkipPrev={skipBackward}
+        onSeek={handleSeek}
+        onVolumeChange={handleVolumeChange}
+        onToggleMute={handleToggleMute}
+        onTogglePlaybackMode={handleTogglePlaybackMode}
+        onImportIntoSlot={handleNewUxImportIntoSlot}
+        onReloadUnavailable={handleReloadLocalFiles}
+        onOpenSettings={handleOpenNewUxSettings}
+        cloudImportDisabled={cloudWritable !== true}
+        cloudImportDisabledReason={
+          cloudWritable === null
+            ? i18n.t('sidebar.importChecking')
+            : i18n.t('sidebar.importReadOnly')
+        }
+        audioRef={audioRef}
+        setAudioRef={setAudioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onTrackEnded={handleTrackEnded}
+        onCanPlay={handleCanPlay}
+        onAudioError={handleAudioError}
+        fileInputRef={fileInputRef}
+        onFileInputChange={handleFileInputChange}
+      />
+    );
+  }
+
   return (
     <>
       <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
@@ -592,7 +817,6 @@ const AppWorkspace: React.FC = () => {
         />
         <div className="flex flex-1">
           <Sidebar
-          onImportClick={handleImportClick}
           onNavigate={handleNavigate}
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
@@ -600,16 +824,6 @@ const AppWorkspace: React.FC = () => {
           viewMode={viewMode}
           activeSlotId={viewSlot}
           onSlotChange={handleSwitchSlot}
-          localTrackCount={slots.local.tracks.length}
-          cloudTrackCount={slots.cloud.tracks.length}
-          importDisabled={importDisabled}
-          importDisabledReason={
-            viewSlot === 'cloud'
-              ? (cloudWritable === null
-                  ? i18n.t('sidebar.importChecking')
-                  : i18n.t('sidebar.importReadOnly'))
-              : undefined
-          }
           floating={floatingPanel}
         />
         <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
@@ -672,9 +886,13 @@ const AppWorkspace: React.FC = () => {
             ) : viewMode === ViewMode.PLAYLISTS ? (
               <PlaylistsView
                 colors={themeManager.getCurrentTheme().colors}
-                onStreamPlay={(song, source) => {
-                  handleOnlineStreamPlay(song, source);
+                {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
+                onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
+                onPlayPlaylist={(source, songs, clickedIndex) => {
+                  handlePlayPlaylist(source, songs, clickedIndex);
                 }}
+                initialState={playlistsViewPersistence}
+                onPersistenceChange={handlePlaylistsViewPersistenceChange}
               />
             ) : (
               <div ref={libraryContentRef} className="h-full">
@@ -685,6 +903,16 @@ const AppWorkspace: React.FC = () => {
                 onTrackSelect={handleTrackSelect}
                 onRemoveTrack={handleRemoveTrackFromView}
                 onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+                onImportClick={handleImportClick}
+                importDisabled={importDisabled}
+                importDisabledReason={
+                  viewSlot === 'cloud'
+                    ? (cloudWritable === null
+                        ? i18n.t('sidebar.importChecking')
+                        : i18n.t('sidebar.importReadOnly'))
+                    : undefined
+                }
+                onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleViewDropFilePaths}
                 onReorderTracks={handleReorderTracks}
@@ -703,7 +931,6 @@ const AppWorkspace: React.FC = () => {
                 onSlotContentReady={handleSlotContentReady}
                 filterType={slots[viewSlot].filterType}
                 categorySelection={slots[viewSlot].categorySelection}
-                onFilterTypeChange={handleFilterTypeChange}
                 onCategoryChange={handleCategoryChange}
                 onHeaderHeightChange={setHeaderHeight}
                 onLoadCloudTracks={loadCloudTracks}

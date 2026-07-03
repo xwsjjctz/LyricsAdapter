@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
+import type { LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { logger } from '../services/logger';
@@ -10,27 +11,31 @@ import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
-  getPersistenceData: () => { localSlot: any; cloudSlot: any; onlineSlot?: any; activeSlotId: SlotId };
+  getPersistenceData: () => LibrarySettings;
+  getSlotsSnapshot?: () => Record<SlotId, LibrarySlot>;
   slots: Record<SlotId, LibrarySlot>;
   setLocalTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
   loadCloudTracks: (tracks: Track[]) => void;
   loadOnlineTracks: (tracks: Track[]) => void;
+  loadPlaylistTracks: (tracks: Track[]) => void;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setVolume: (volume: number) => void;
   setPlaybackMode: (mode: 'order' | 'shuffle' | 'repeat-one') => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   persistedTimeRef: React.MutableRefObject<number>;
-  onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number }) => void;
+  onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number; playlistsView?: PlaylistsViewPersistence }) => void;
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
 
 export function useLibraryLoad({
   restoreFromPersistence,
   getPersistenceData,
+  getSlotsSnapshot,
   slots,
   setLocalTracks,
   loadCloudTracks,
   loadOnlineTracks,
+  loadPlaylistTracks,
   setIsPlaying,
   setVolume,
   setPlaybackMode,
@@ -41,7 +46,7 @@ export function useLibraryLoad({
 }: UseLibraryLoadOptions) {
   const isFirstLoadRef = useRef(true);
 
-  const loadAndRestoreLibrary = async (libraryData: { songs: any[]; cloudSongs?: any[]; onlineSongs?: any[]; settings: any }) => {
+  const loadAndRestoreLibrary = async (libraryData: { songs: any[]; cloudSongs?: any[]; onlineSongs?: any[]; playlistSongs?: any[]; settings: any }) => {
     logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0, 'cloud songs:', libraryData.cloudSongs?.length || 0);
 
     const settings = libraryData.settings || {};
@@ -120,13 +125,34 @@ export function useLibraryLoad({
       logger.debug('[LibraryLoad] Restored', restoredOnlineTracks.length, 'online tracks from disk');
     }
 
+    let restoredPlaylistTracks: Track[] = [];
+    if (libraryData.playlistSongs && libraryData.playlistSongs.length > 0) {
+      restoredPlaylistTracks = libraryData.playlistSongs.map((song: any) => ({
+        id: song.id,
+        title: song.title || 'Unknown',
+        artist: song.artist || 'Unknown Artist',
+        album: song.album || 'Unknown Album',
+        duration: song.duration || 0,
+        lyrics: song.lyrics || '',
+        syncedLyrics: song.syncedLyrics,
+        coverUrl: sanitizePersistedCoverUrl(song.coverUrl),
+        audioUrl: '',
+        source: (song.source as 'qq' | 'netease') ?? undefined,
+        songmid: song.songmid,
+      } as Track));
+      loadPlaylistTracks(restoredPlaylistTracks);
+      logger.debug('[LibraryLoad] Restored', restoredPlaylistTracks.length, 'playlist tracks from disk');
+    }
+
     const activeSource = settings.activeSlotId || settings.activeDataSource || 'local';
-    const slotData = settings.localSlot || settings.cloudSlot || settings.onlineSlot ? settings : null;
+    const slotData = settings.localSlot || settings.cloudSlot || settings.onlineSlot || settings.playlistSlot ? settings : null;
     const activeSlotState = activeSource === 'cloud'
       ? slotData?.cloudSlot
       : activeSource === 'online'
         ? slotData?.onlineSlot
-        : slotData?.localSlot;
+        : activeSource === 'playlist'
+          ? slotData?.playlistSlot
+          : slotData?.localSlot;
 
     if (activeSlotState?.volume !== undefined) {
       updateSlot(activeSource, s => ({ ...s, volume: activeSlotState.volume }));
@@ -149,16 +175,21 @@ export function useLibraryLoad({
         ...loadedTracks.map(t => t.id),
         ...restoredCloudTracks.map(t => t.id),
         ...restoredOnlineTracks.map(t => t.id),
+        ...restoredPlaylistTracks.map(t => t.id),
       ];
       desktopAPI.runStartupCleanup(ids).catch(err => {
         logger.warn('[LibraryLoad] Startup cleanup failed:', err);
       });
     }
 
-    onLibrarySettingsRestored?.({
+    const restoredSettings: { activeSlotId?: SlotId; currentTime?: number; playlistsView?: PlaylistsViewPersistence } = {
       activeSlotId: activeSource,
       currentTime: activeSlotState?.currentTime ?? 0,
-    });
+    };
+    if (settings.playlistsView) {
+      restoredSettings.playlistsView = settings.playlistsView;
+    }
+    onLibrarySettingsRestored?.(restoredSettings);
 
     const tracksToValidate = loadedTracks.filter(t => t.filePath);
     if (tracksToValidate.length > 0) {
@@ -199,12 +230,19 @@ export function useLibraryLoad({
   useEffect(() => {
     if (isFirstLoadRef.current) return;
 
+    const slotsSnapshot = getSlotsSnapshot?.() ?? slots;
     const persistData = getPersistenceData();
-    const libraryData = buildLibraryIndexDataForSlots(slots.local.tracks, slots.cloud.tracks, persistData, slots.online.tracks);
+    const libraryData = buildLibraryIndexDataForSlots(
+      slotsSnapshot.local.tracks,
+      slotsSnapshot.cloud.tracks,
+      persistData,
+      slotsSnapshot.online.tracks,
+      slotsSnapshot.playlist.tracks
+    );
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.currentTime, slots.online.volume, slots.online.playbackMode]);
+  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.currentTime, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.currentTime, slots.playlist.volume, slots.playlist.playbackMode]);
 
   useEffect(() => {
     if (!isDesktop()) return;
@@ -225,14 +263,27 @@ export function useLibraryLoad({
 
   useEffect(() => {
     const flushCurrentLibrary = async () => {
+      const slotsSnapshot = getSlotsSnapshot?.() ?? slots;
       const persistData = getPersistenceData();
-      const libraryData = buildLibraryIndexDataForSlots(slots.local.tracks, slots.cloud.tracks, persistData, slots.online.tracks);
+      const libraryData = buildLibraryIndexDataForSlots(
+        slotsSnapshot.local.tracks,
+        slotsSnapshot.cloud.tracks,
+        persistData,
+        slotsSnapshot.online.tracks,
+        slotsSnapshot.playlist.tracks
+      );
 
       logger.debug('[LibraryLoad] Flushing library before close');
       return libraryStorage.flushPendingSave(libraryData);
     };
 
     const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
+    let removeWindowCloseListener: (() => void) | undefined;
+    let mounted = true;
+    void getDesktopAPIAsync().then(api => {
+      if (!mounted) return;
+      removeWindowCloseListener = api?.onBeforeWindowClose?.(() => flushCurrentLibrary());
+    });
 
     const handleBeforeUnload = () => {
       void flushCurrentLibrary();
@@ -241,8 +292,10 @@ export function useLibraryLoad({
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      mounted = false;
+      removeWindowCloseListener?.();
       removeFlushListener();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, getPersistenceData]);
+  }, [slots, getPersistenceData, getSlotsSnapshot]);
 }

@@ -461,6 +461,41 @@ export function registerCoverHandlers(): void {
 }
 
 export function registerWindowControls(win: BrowserWindow | null): void {
+  let closeAllowed = false;
+  let closeInProgress = false;
+
+  const requestRendererFlushBeforeClose = () => {
+    if (!win || closeAllowed || closeInProgress) return;
+    closeInProgress = true;
+
+    const targetWindow = win;
+    const timeout = setTimeout(() => {
+      logger.warn('[Window] Renderer close flush timed out; closing window');
+      closeAllowed = true;
+      closeInProgress = false;
+      if (!targetWindow.isDestroyed()) {
+        targetWindow.close();
+      }
+    }, 3000);
+
+    ipcMain.once('window-before-close-flush-done', (_event, saved: boolean) => {
+      clearTimeout(timeout);
+      closeInProgress = false;
+
+      if (saved === false) {
+        logger.warn('[Window] Renderer close flush failed; keeping window open');
+        return;
+      }
+
+      closeAllowed = true;
+      if (!targetWindow.isDestroyed()) {
+        targetWindow.close();
+      }
+    });
+
+    targetWindow.webContents.send('window-before-close-flush');
+  };
+
   ipcMain.handle('window-minimize', async () => {
     if (win) {
       win.minimize();
@@ -498,6 +533,17 @@ export function registerWindowControls(win: BrowserWindow | null): void {
   });
 
   if (win) {
+    win.on('close', (event) => {
+      if (closeAllowed) return;
+      event.preventDefault();
+      requestRendererFlushBeforeClose();
+    });
+
+    win.on('closed', () => {
+      closeAllowed = false;
+      closeInProgress = false;
+    });
+
     win.on('enter-full-screen', () => {
       win?.webContents.send('fullscreen-changed', true);
     });

@@ -19,6 +19,7 @@ interface PersistedSlotState {
   localSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   cloudSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   onlineSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
+  playlistSlot?: SlotPersistenceData | Partial<SlotPersistenceData>;
   activeSlotId?: SlotId;
   activeDataSource?: SlotId;
   localPlaybackContext?: PlaybackContext;
@@ -60,6 +61,7 @@ export function useLibrarySlots() {
     local: createEmptySlot('local'),
     cloud: createEmptySlot('cloud'),
     online: createEmptySlot('online'),
+    playlist: createEmptySlot('playlist'),
   });
   const [activeSlotId, setActiveSlotId] = useState<SlotId>('local');
 
@@ -278,6 +280,26 @@ export function useLibrarySlots() {
     }));
   }, []);
 
+  /**
+   * Playlist play-context slot — isolated from the online (search) LRU queue.
+   * Playing a third-party playlist loads its full track list here so next/prev
+   * traverses the playlist. Ephemeral: not persisted, no sidebar entry.
+   */
+  const loadPlaylistTracks = useCallback((tracks: Track[]) => {
+    setSlots(prev => ({
+      ...prev,
+      playlist: { ...prev.playlist, tracks },
+    }));
+  }, []);
+
+  /** In-place update of playlist-slot tracks (e.g. lyrics enrichment). */
+  const updatePlaylistTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
+    setSlots(prev => {
+      const newTracks = typeof updater === 'function' ? updater(prev.playlist.tracks) : updater;
+      return { ...prev, playlist: { ...prev.playlist, tracks: newTracks } };
+    });
+  }, []);
+
   // 原地更新 cloud tracks（不做扫描合并/重排/去重），用于不改变列表顺序的细粒度更新
   // （如 clear cache 后清空失效 coverUrl）。顺序与 currentTrackIndex 均保持不变。
   const updateCloudTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
@@ -304,12 +326,13 @@ export function useLibrarySlots() {
       localSlot: extractSlotData(slots.local),
       cloudSlot: extractSlotData(slots.cloud),
       onlineSlot: extractSlotData(slots.online),
+      playlistSlot: extractSlotData(slots.playlist),
       activeSlotId,
     };
   }, [slots, activeSlotId]);
 
   const restoreFromPersistence = useCallback((data: PersistedSlotState, tracksFromDisk: Track[], onlineTracks?: Track[]) => {
-    const slotState = data.localSlot || data.cloudSlot || data.onlineSlot
+    const slotState = data.localSlot || data.cloudSlot || data.onlineSlot || data.playlistSlot
       ? data
       : migrateFromLegacyFormat(data);
 
@@ -321,6 +344,7 @@ export function useLibrarySlots() {
       const localData = slotState.localSlot;
       const cloudData = slotState.cloudSlot;
       const onlineData = slotState.onlineSlot;
+      const playlistData = slotState.playlistSlot;
       return {
         local: {
           ...prev.local,
@@ -354,6 +378,18 @@ export function useLibrarySlots() {
           filterType: onlineData?.filterType ?? prev.online.filterType,
           categorySelection: onlineData?.categorySelection ?? prev.online.categorySelection,
         },
+        // Playlist slot: restore saved playback context (tracks are reloaded
+        // separately via loadPlaylistTracks, mirroring the online slot).
+        playlist: {
+          ...prev.playlist,
+          currentTrackIndex: playlistData?.currentTrackIndex ?? prev.playlist.currentTrackIndex,
+          currentTime: playlistData?.currentTime ?? prev.playlist.currentTime,
+          volume: playlistData?.volume ?? prev.playlist.volume,
+          playbackMode: playlistData?.playbackMode ?? prev.playlist.playbackMode,
+          scrollPosition: playlistData?.scrollPosition ?? prev.playlist.scrollPosition,
+          filterType: playlistData?.filterType ?? prev.playlist.filterType,
+          categorySelection: playlistData?.categorySelection ?? prev.playlist.categorySelection,
+        },
       };
     });
   }, []);
@@ -381,12 +417,14 @@ export function useLibrarySlots() {
     addOnlineTrack,
     updateOnlineTracks,
     loadOnlineTracks,
+    loadPlaylistTracks,
+    updatePlaylistTracks,
     getPersistenceData,
     restoreFromPersistence,
   };
 }
 
-function migrateFromLegacyFormat(data: PersistedSlotState): { localSlot: Partial<SlotPersistenceData>; cloudSlot: Partial<SlotPersistenceData>; onlineSlot?: Partial<SlotPersistenceData>; activeSlotId: SlotId } {
+function migrateFromLegacyFormat(data: PersistedSlotState): { localSlot: Partial<SlotPersistenceData>; cloudSlot: Partial<SlotPersistenceData>; onlineSlot?: Partial<SlotPersistenceData>; playlistSlot?: Partial<SlotPersistenceData>; activeSlotId: SlotId } {
   const legacyLocal = data.localPlaybackContext;
   const legacyCloud = data.cloudPlaybackContext;
   const anyData = data as any;
