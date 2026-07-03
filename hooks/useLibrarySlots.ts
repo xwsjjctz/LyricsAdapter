@@ -60,6 +60,7 @@ export function useLibrarySlots() {
     local: createEmptySlot('local'),
     cloud: createEmptySlot('cloud'),
     online: createEmptySlot('online'),
+    playlist: createEmptySlot('playlist'),
   });
   const [activeSlotId, setActiveSlotId] = useState<SlotId>('local');
 
@@ -278,6 +279,26 @@ export function useLibrarySlots() {
     }));
   }, []);
 
+  /**
+   * Playlist play-context slot — isolated from the online (search) LRU queue.
+   * Playing a third-party playlist loads its full track list here so next/prev
+   * traverses the playlist. Ephemeral: not persisted, no sidebar entry.
+   */
+  const loadPlaylistTracks = useCallback((tracks: Track[]) => {
+    setSlots(prev => ({
+      ...prev,
+      playlist: { ...prev.playlist, tracks },
+    }));
+  }, []);
+
+  /** In-place update of playlist-slot tracks (e.g. lyrics enrichment). */
+  const updatePlaylistTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
+    setSlots(prev => {
+      const newTracks = typeof updater === 'function' ? updater(prev.playlist.tracks) : updater;
+      return { ...prev, playlist: { ...prev.playlist, tracks: newTracks } };
+    });
+  }, []);
+
   // 原地更新 cloud tracks（不做扫描合并/重排/去重），用于不改变列表顺序的细粒度更新
   // （如 clear cache 后清空失效 coverUrl）。顺序与 currentTrackIndex 均保持不变。
   const updateCloudTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
@@ -304,7 +325,9 @@ export function useLibrarySlots() {
       localSlot: extractSlotData(slots.local),
       cloudSlot: extractSlotData(slots.cloud),
       onlineSlot: extractSlotData(slots.online),
-      activeSlotId,
+      // The playlist slot is ephemeral — never restore into it as the active
+      // slot (its tracks aren't persisted), so fall back to 'local'.
+      activeSlotId: activeSlotId === 'playlist' ? 'local' : activeSlotId,
     };
   }, [slots, activeSlotId]);
 
@@ -354,6 +377,8 @@ export function useLibrarySlots() {
           filterType: onlineData?.filterType ?? prev.online.filterType,
           categorySelection: onlineData?.categorySelection ?? prev.online.categorySelection,
         },
+        // Playlist slot is ephemeral — preserve whatever is in memory.
+        playlist: prev.playlist,
       };
     });
   }, []);
@@ -381,6 +406,8 @@ export function useLibrarySlots() {
     addOnlineTrack,
     updateOnlineTracks,
     loadOnlineTracks,
+    loadPlaylistTracks,
+    updatePlaylistTracks,
     getPersistenceData,
     restoreFromPersistence,
   };

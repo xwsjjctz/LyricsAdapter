@@ -60,7 +60,7 @@ export interface LibrarySettings {
   localSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   onlineSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  activeSlotId?: 'local' | 'cloud' | 'online' | undefined;
+  activeSlotId?: 'local' | 'cloud' | 'online' | 'playlist' | undefined;
   [key: string]: any;
 }
 

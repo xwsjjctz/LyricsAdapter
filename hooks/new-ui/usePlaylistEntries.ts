@@ -9,6 +9,7 @@ const SLOT_ICONS: Record<SlotId, string> = {
   local: 'hard_drive',
   cloud: 'cloud',
   online: 'play_circle',
+  playlist: 'queue_music',
 };
 
 function getSlotTitle(slotId: SlotId): string {

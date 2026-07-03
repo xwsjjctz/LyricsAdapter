@@ -90,6 +90,8 @@ const AppWorkspace: React.FC = () => {
     addOnlineTrack,
     updateOnlineTracks,
     loadOnlineTracks,
+    loadPlaylistTracks,
+    updatePlaylistTracks,
     getPersistenceData,
     restoreFromPersistence,
     viewSlot,
@@ -547,21 +549,22 @@ const AppWorkspace: React.FC = () => {
     const clickedId = tracks[safeIndex]?.id;
     // Save current slot's playback position
     updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    // Replace the online slot with the full playlist as the play queue
-    loadOnlineTracks(tracks);
-    updateSlot('online', s => ({ ...s, currentTrackIndex: safeIndex }));
+    // Load the full playlist into the dedicated playlist slot (isolated from the
+    // online/search LRU queue) and make it the active play context. The user
+    // stays in the Playlists view; viewSlot is left untouched.
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
     setRestoreTime(0);
-    switchTo('online');
+    switchTo('playlist');
     shouldAutoPlayRef.current = true;
     setIsPlaying(true);
-    setViewSlot('online');
     // Lyrics for the clicked song
     const clickedSong = songs[safeIndex];
     if (clickedSong) {
       lyricsProvider?.getLyrics?.(clickedSong.songmid).then(rawLyrics => {
         if (!rawLyrics) return;
         const parsed = parseLRCLyrics(rawLyrics);
-        updateOnlineTracks(prev => prev.map(t =>
+        updatePlaylistTracks(prev => prev.map(t =>
           t.id === clickedId
             ? {
               ...t,
@@ -572,7 +575,7 @@ const AppWorkspace: React.FC = () => {
         ));
       }).catch(() => {});
     }
-  }, [loadOnlineTracks, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
+  }, [loadPlaylistTracks, updatePlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
   useShortcuts({
     viewMode,
     isFocusMode,
