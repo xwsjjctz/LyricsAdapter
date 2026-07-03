@@ -153,7 +153,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
   if (state.phase === 'detail') {
     const { playlist, tracks, loading, error } = state;
     return (
-      <div className="px-6 h-full flex flex-col" style={{ color: colors.textPrimary }}>
+      <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
         <div className="mb-4 flex-shrink-0 flex items-center gap-3 pt-3">
           <button
             onClick={() => setState({ phase: 'grid' })}
@@ -204,7 +204,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
 
   // ── Grid view ──
   return (
-    <div className="px-6 overflow-y-auto h-full" style={{ color: colors.textPrimary }}>
+    <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
       {/* Header — matches LibraryToolbar title style */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between pt-3">
         <div>
@@ -214,62 +214,65 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
         </div>
       </div>
 
-      {loadingPlaylists && (
-        <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
-          <span className="material-symbols-outlined animate-spin">progress_activity</span>
-          <span>{i18n.t('browse.loading')}</span>
-        </div>
-      )}
-      {!loadingPlaylists && playlists.length === 0 && (
-        <div className="flex flex-col items-center gap-3 py-20" style={{ color: colors.textMuted }}>
-          <span className="material-symbols-outlined text-6xl">queue_music</span>
-          <span className="text-sm">{i18n.t('playlists.emptyLoginHint')}</span>
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
-              style={{
-                backgroundColor: colors.backgroundCard,
-                color: colors.textSecondary,
-                borderRadius: 'var(--theme-control-radius)',
-                border: `1px solid ${colors.borderLight}`,
-              }}
-            >
-              <span className="material-symbols-outlined text-lg">settings</span>
-              <span>{i18n.t('browse.openSettings')}</span>
-            </button>
-          )}
-        </div>
-      )}
-      {[...grouped.entries()].map(([source, list]) => (
-        <div key={source} className="mb-6">
-          <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
-            {sourceLabel(source)}
-          </h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-            {list.map((pl) => (
-              <button
-                key={pl.id}
-                className="flex-shrink-0 w-[140px] text-left transition-transform hover:scale-105"
-                onClick={() => handlePlaylistClick(pl)}
-              >
-                <div
-                  className="w-[140px] h-[140px] rounded-xl overflow-hidden bg-cover bg-center shadow-md"
-                  style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
-                >
-                  {!pl.coverUrl && (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="material-symbols-outlined text-5xl" style={{ color: colors.textMuted }}>music_note</span>
-                    </div>
-                  )}
-                </div>
-                <p className="mt-1.5 text-sm font-medium truncate" style={{ color: colors.textPrimary }}>{pl.name}</p>
-                <p className="text-xs" style={{ color: colors.textMuted }}>{pl.songCount} 首</p>
-              </button>
-            ))}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto">
+        {loadingPlaylists && (
+          <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
+            <span className="material-symbols-outlined animate-spin">progress_activity</span>
+            <span>{i18n.t('browse.loading')}</span>
           </div>
-        </div>
-      ))}
+        )}
+        {!loadingPlaylists && playlists.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-20" style={{ color: colors.textMuted }}>
+            <span className="material-symbols-outlined text-6xl">queue_music</span>
+            <span className="text-sm">{i18n.t('playlists.emptyLoginHint')}</span>
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
+                style={{
+                  backgroundColor: colors.backgroundCard,
+                  color: colors.textSecondary,
+                  borderRadius: 'var(--theme-control-radius)',
+                  border: `1px solid ${colors.borderLight}`,
+                }}
+              >
+                <span className="material-symbols-outlined text-lg">settings</span>
+                <span>{i18n.t('browse.openSettings')}</span>
+              </button>
+            )}
+          </div>
+        )}
+        {[...grouped.entries()].map(([source, list]) => (
+          <div key={source} className="mb-6">
+            <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
+              {sourceLabel(source)}
+            </h2>
+            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+              {list.map((pl) => (
+                <button
+                  key={pl.id}
+                  className="flex-shrink-0 w-[140px] text-left transition-transform hover:scale-105"
+                  onClick={() => handlePlaylistClick(pl)}
+                >
+                  <div
+                    className="w-[140px] h-[140px] rounded-xl overflow-hidden bg-cover bg-center shadow-md"
+                    style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
+                  >
+                    {!pl.coverUrl && (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="material-symbols-outlined text-5xl" style={{ color: colors.textMuted }}>music_note</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-sm font-medium truncate" style={{ color: colors.textPrimary }}>{pl.name}</p>
+                  <p className="text-xs" style={{ color: colors.textMuted }}>{pl.songCount} 首</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
