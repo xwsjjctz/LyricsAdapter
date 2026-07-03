@@ -164,6 +164,20 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('fullscreen-changed', handler);
   },
 
+  onBeforeWindowClose: (callback: () => Promise<boolean> | boolean) => {
+    const handler = async () => {
+      let saved = false;
+      try {
+        saved = await callback();
+      } catch {
+        saved = false;
+      }
+      ipcRenderer.send('window-before-close-flush-done', saved);
+    };
+    ipcRenderer.on('window-before-close-flush', handler);
+    return () => ipcRenderer.removeListener('window-before-close-flush', handler);
+  },
+
   // Get real file path from File object (for drag-and-drop)
   getPathForFile: (file: File) => {
     const filePath = webUtils.getPathForFile(file);
@@ -181,6 +195,17 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('get-qq-music-url', requestData, cookieString);
   },
 
+  // Generic QQ Music API request (via main process, avoids renderer CORS/cookie limits)
+  qqMusicRequest: async (options: {
+    url: string;
+    method?: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: string;
+    cookie?: string;
+  }) => {
+    return ipcRenderer.invoke('qq-music-request', options);
+  },
+
   // Get lyrics from QQ Music API (via main process, avoids CORS)
   getQQMusicLyrics: async (songmid: string, cookieString: string) => {
     return ipcRenderer.invoke('get-qq-music-lyrics', songmid, cookieString);
@@ -189,6 +214,30 @@ contextBridge.exposeInMainWorld('electron', {
   // NetEase Cloud Music generic weapi request (encryption runs in main process)
   neteaseRequest: async (channel: string, params: any, cookieString?: string) => {
     return ipcRenderer.invoke('netease-request', channel, params, cookieString);
+  },
+
+  // QQ Music QR scan login (start session + poll)
+  qqLoginQrStart: async () => {
+    return ipcRenderer.invoke('qq-login-qr-start');
+  },
+  qqLoginQrPoll: async (token: string) => {
+    return ipcRenderer.invoke('qq-login-qr-poll', token);
+  },
+
+  // NetEase Cloud Music QR scan login (key → create → check)
+  neteaseQrKey: async () => {
+    return ipcRenderer.invoke('netease-qr-key');
+  },
+  neteaseQrCreate: async (key: string) => {
+    return ipcRenderer.invoke('netease-qr-create', key);
+  },
+  neteaseQrCheck: async (key: string) => {
+    return ipcRenderer.invoke('netease-qr-check', key);
+  },
+
+  // Sync a QQ / NetEase cookie to the main process for the stream:// protocol
+  setOnlineCookie: async (source: string, cookie: string) => {
+    return ipcRenderer.invoke('set-online-cookie', source, cookie);
   },
 
   fetchCoverBase64: async (coverUrl: string) => {
@@ -259,6 +308,11 @@ contextBridge.exposeInMainWorld('electron', {
   // WebDAV DELETE for file removal
   webdavDelete: async (url: string, authHeader: string) => {
     return ipcRenderer.invoke('webdav-delete', url, authHeader);
+  },
+
+  // WebDAV MKCOL to ensure a collection (folder) exists before PUT
+  webdavMkcol: async (url: string, authHeader: string) => {
+    return ipcRenderer.invoke('webdav-mkcol', url, authHeader);
   },
 
   // Run startup resource cleanup

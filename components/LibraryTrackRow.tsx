@@ -13,6 +13,8 @@ interface LibraryTrackRowProps {
   isDragged: boolean;
   shouldShowAnimation: boolean;
   colors: ThemeColors;
+  /** 当前播放指示器形态：'inline' 时当前行用实色背景，不依赖浮动滑块。 */
+  playingIndicator?: 'floating' | 'inline';
   measureRef?: ((node: HTMLDivElement | null) => void) | undefined;
   realTrackIndex: number;
   onTrackSelect: (index: number) => void;
@@ -40,6 +42,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   isDragged,
   shouldShowAnimation,
   colors,
+  playingIndicator = 'floating',
   measureRef,
   realTrackIndex,
   onTrackSelect,
@@ -71,12 +74,15 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       }}
       style={{
         ...animationStyle,
-        backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? `${colors.primary}15` : 'transparent',
+        backgroundColor: isDragged ? 'transparent' : isUnavailable ? 'transparent' : isSelected ? `${colors.error}1a` : isCurrentTrack ? (playingIndicator === 'inline' ? colors.primary : `${colors.primary}15`) : 'transparent',
         border: isSelected ? `var(--theme-control-border-width) solid ${colors.error}` : `var(--theme-control-border-width) solid var(--theme-list-item-border)`,
         borderBottom: 'none',
         borderRadius: 'var(--theme-control-radius)',
         paddingTop: 'var(--theme-list-item-padding-y)',
         paddingBottom: 'var(--theme-list-item-padding-y)',
+        // inline 模式当前播放行：叠加粗粝风硬阴影并提升层级，使阴影不被紧邻的下一行遮挡。
+        boxShadow: playingIndicator === 'inline' && isCurrentTrack ? 'var(--theme-elevated-shadow)' : undefined,
+        zIndex: playingIndicator === 'inline' && isCurrentTrack ? 20 : undefined,
       }}
       className={`grid gap-4 px-4 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
         isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'

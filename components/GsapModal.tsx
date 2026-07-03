@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 
 interface GsapModalProps {
@@ -24,17 +25,17 @@ const GsapModal: React.FC<GsapModalProps> = ({
   onBackdropClick,
 }) => {
   const [isMounted, setIsMounted] = useState(isOpen);
-  const [renderedChildren, setRenderedChildren] = useState(children);
+  const latestChildrenRef = useRef(children);
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const onExitedRef = useRef(onExited);
   onExitedRef.current = onExited;
+  if (isOpen) latestChildrenRef.current = children;
 
   useEffect(() => {
     if (!isOpen) return;
-    setRenderedChildren(children);
     setIsMounted(true);
-  }, [children, isOpen]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isMounted) return;
@@ -74,7 +75,7 @@ const GsapModal: React.FC<GsapModalProps> = ({
 
   if (!isMounted) return null;
 
-  return (
+  const modal = (
     <div
       ref={overlayRef}
       className={`fixed inset-0 flex items-center justify-center ${overlayClassName}`}
@@ -84,10 +85,12 @@ const GsapModal: React.FC<GsapModalProps> = ({
       }}
     >
       <div ref={panelRef} className={panelClassName} style={panelStyle}>
-        {renderedChildren}
+        {isOpen ? children : latestChildrenRef.current}
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 };
 
 export default GsapModal;

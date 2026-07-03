@@ -24,17 +24,22 @@ function serializeTrack(track: Track): any {
     available: track.available ?? true,
     source: track.source,
     webdavPath: track.webdavPath || '',
+    songmid: track.songmid || '',
   };
 }
 
 export function buildLibraryIndexData(
   tracks: Track[],
   settings: LibrarySettings,
-  cloudTracks?: Track[]
+  cloudTracks?: Track[],
+  onlineTracks?: Track[],
+  playlistTracks?: Track[]
 ): LibraryIndexData {
   return {
     songs: tracks.map(serializeTrack),
     ...(cloudTracks && cloudTracks.length > 0 ? { cloudSongs: cloudTracks.map(serializeTrack) } : {}),
+    ...(onlineTracks && onlineTracks.length > 0 ? { onlineSongs: onlineTracks.map(serializeTrack) } : {}),
+    ...(playlistTracks && playlistTracks.length > 0 ? { playlistSongs: playlistTracks.map(serializeTrack) } : {}),
     settings
   };
 }
@@ -42,7 +47,9 @@ export function buildLibraryIndexData(
 export function buildLibraryIndexDataForSlots(
   localTracks: Track[],
   cloudTracks: Track[],
-  settings: LibrarySettings
+  settings: LibrarySettings,
+  onlineTracks?: Track[],
+  playlistTracks?: Track[]
 ): LibraryIndexData {
-  return buildLibraryIndexData(localTracks, settings, cloudTracks);
+  return buildLibraryIndexData(localTracks, settings, cloudTracks, onlineTracks, playlistTracks);
 }

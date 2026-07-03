@@ -13,12 +13,14 @@ import {
 const webdavMocks = vi.hoisted(() => ({
   fetchTextFile: vi.fn(),
   uploadTextFile: vi.fn(),
+  ensureCollection: vi.fn(),
 }));
 
 vi.mock('../../../services/webdavClient', () => ({
   webdavClient: {
     fetchTextFile: webdavMocks.fetchTextFile,
     uploadTextFile: webdavMocks.uploadTextFile,
+    ensureCollection: webdavMocks.ensureCollection,
   },
 }));
 
@@ -56,6 +58,8 @@ const makeManifest = (entries: Record<string, ManifestEntry> = {}): Manifest => 
 beforeEach(() => {
   webdavMocks.fetchTextFile.mockReset();
   webdavMocks.uploadTextFile.mockReset();
+  webdavMocks.ensureCollection.mockReset();
+  webdavMocks.ensureCollection.mockResolvedValue(true);
   metadataFolderService.clearCache();
 });
 
@@ -133,7 +137,9 @@ describe('metadataFolderService writes', () => {
       '/music/remote.flac': makeEntry({ title: 'Remote', chunkId: '0001' }),
     });
 
-    webdavMocks.uploadTextFile.mockResolvedValueOnce({ success: false });
+    webdavMocks.uploadTextFile
+      .mockResolvedValueOnce({ success: false })
+      .mockResolvedValueOnce({ success: false });
 
     await expect(metadataFolderService.saveManifest(failedManifest)).resolves.toBe(false);
 
@@ -158,7 +164,9 @@ describe('metadataFolderService writes', () => {
       },
     };
 
-    webdavMocks.uploadTextFile.mockResolvedValueOnce({ success: false });
+    webdavMocks.uploadTextFile
+      .mockResolvedValueOnce({ success: false })
+      .mockResolvedValueOnce({ success: false });
 
     await expect(metadataFolderService.saveChunk('0001', failedChunk)).resolves.toBe(false);
 
@@ -180,13 +188,15 @@ describe('metadataFolderService writes', () => {
       '/music/song.flac': makeEntry({ chunkId: '0001', hasLyrics: true }),
     });
 
-    webdavMocks.uploadTextFile.mockResolvedValueOnce({ success: false });
+    webdavMocks.uploadTextFile
+      .mockResolvedValueOnce({ success: false })
+      .mockResolvedValueOnce({ success: false });
 
     await expect(
       metadataFolderService.saveChunksAndManifest(new Map([['0001', chunk]]), manifest)
     ).resolves.toBe(false);
 
-    expect(webdavMocks.uploadTextFile).toHaveBeenCalledTimes(1);
+    expect(webdavMocks.uploadTextFile).toHaveBeenCalledTimes(2);
     expect(webdavMocks.uploadTextFile).toHaveBeenCalledWith(
       '/Metadata/_chunk_0001.json',
       JSON.stringify(chunk)

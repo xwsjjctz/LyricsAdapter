@@ -3,6 +3,7 @@ import { logger } from './logger';
 import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
 import { registerAudioProtocol } from './protocols/audioProtocol';
+import { registerStreamProtocol } from './protocols/streamProtocol';
 import {
   registerFileHandlers,
   registerLibraryHandlers,
@@ -15,6 +16,7 @@ import {
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
+import { registerQQLoginHandlers } from './ipc/qqLoginHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
@@ -25,6 +27,7 @@ app.commandLine.appendSwitch('log-level', '3');
 
 registerCoverProtocol();
 registerAudioProtocol();
+registerStreamProtocol();
 
 app.whenReady().then(async () => {
   await createWindow();
@@ -39,6 +42,7 @@ app.whenReady().then(async () => {
   registerMetadataHandlers();
   registerQQMusicHandlers();
   registerNetEaseHandlers();
+  registerQQLoginHandlers();
   registerWebDAVHandlers();
   registerCleanupHandlers();
   registerNotificationHandlers();

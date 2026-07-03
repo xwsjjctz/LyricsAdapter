@@ -1,15 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
+import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { settingsManager, type OnlineSource } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
+import {
+  startQQLogin,
+  pollQQLogin,
+  startNetEaseQR,
+  pollNetEaseQR,
+  type QRLoginStatus,
+  type QRPollResult,
+} from '../services/qrLogin';
 import ShortcutsSettings from './ShortcutsSettings';
 import GsapModal from './GsapModal';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
+import RetroSwitch from './RetroSwitch';
 
 interface SettingsViewProps {
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
@@ -25,27 +34,38 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
 
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
   const [onlineSource, setOnlineSource] = useState<OnlineSource>('qq');
   const [downloadPath, setDownloadPath] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveMessageType, setSaveMessageType] = useState<'success' | 'error' | null>(null);
+  const [isSavingOnline, setIsSavingOnline] = useState(false);
+  const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
+  const [onlineMessageType, setOnlineMessageType] = useState<'success' | 'error' | null>(null);
+
+  // QR scan-login state — drives the live QR panel in the third-party section.
+  const [qqLoggedIn, setQqLoggedIn] = useState(false);
+  const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
+  const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrMsg, setQrMsg] = useState<string>('');
+  const sessionRef = useRef<{ source: OnlineSource; key: string } | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   const [webdavServerUrl, setWebdavServerUrl] = useState('');
   const [webdavUsername, setWebdavUsername] = useState('');
   const [webdavPassword, setWebdavPassword] = useState('');
   const [isTestingWebdav, setIsTestingWebdav] = useState(false);
+  const [isSavingWebdav, setIsSavingWebdav] = useState(false);
   const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
-  const [liquidGlass, setLiquidGlass] = useState(true);
+  const [newUxEnabled, setNewUxEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
@@ -65,6 +85,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
       setOnlineSource(settingsManager.getOnlineSource());
+      setQqLoggedIn(cookieManager.hasCookie());
+      setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
       const webdavConfig = webdavClient.getConfig();
       if (webdavConfig) {
@@ -76,7 +98,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
-      setLiquidGlass(settingsManager.getLiquidGlass());
+      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -91,7 +113,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
-      setLiquidGlass(settingsManager.getLiquidGlass());
+      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -131,7 +153,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
         setIsLangDropdownOpen(false);
       }
     };
@@ -144,12 +166,24 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     setIsLangDropdownOpen(false);
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveMessage(null);
+  const handleOnlineSourceChange = (source: OnlineSource) => {
+    setOnlineSource(source);
+    settingsManager.setOnlineSource(source);
+    setOnlineMessage(null);
+    setOnlineMessageType(null);
+  };
+
+  const showOnlineMessage = (msg: string, type: 'success' | 'error') => {
+    setOnlineMessage(msg);
+    setOnlineMessageType(type);
+    setTimeout(() => { setOnlineMessage(null); setOnlineMessageType(null); }, 3000);
+  };
+
+  const handleSaveOnlineMusic = async () => {
+    setIsSavingOnline(true);
+    setOnlineMessage(null);
 
     try {
-      // Persist the active source choice immediately.
       settingsManager.setOnlineSource(onlineSource);
 
       const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
@@ -158,53 +192,70 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
-          setSaveMessage(i18n.t('settingsDialog.cookieInvalid'));
-          setSaveMessageType('error');
+          showOnlineMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
-          setIsSaving(false);
           return;
         }
+      } else {
+        await cookieStore.clearCookie();
       }
-      // NetEase cookie is optional — empty is valid (anonymous search).
 
       settingsManager.setDownloadPath(downloadPath.trim());
-
-      if (webdavServerUrl.trim() && webdavUsername.trim() && webdavPassword.trim()) {
-        webdavClient.saveConfig({
-          serverUrl: webdavServerUrl.trim(),
-          username: webdavUsername.trim(),
-          password: webdavPassword.trim(),
-        });
-      }
-
-      setSaveMessage(i18n.t('settingsDialog.saved'));
-      setSaveMessageType('success');
-      setTimeout(() => { setSaveMessage(null); setSaveMessageType(null); }, 3000);
+      showOnlineMessage(i18n.t('settingsDialog.saved'), 'success');
     } catch (err) {
-      setSaveMessage(i18n.t('settingsDialog.saveFailed'));
-      setSaveMessageType('error');
-      logger.error('[SettingsView] Save failed:', err);
+      showOnlineMessage(i18n.t('settingsDialog.saveFailed'), 'error');
+      logger.error('[SettingsView] Online Music save failed:', err);
     } finally {
-      setIsSaving(false);
+      setIsSavingOnline(false);
     }
   };
 
-  const handleTestWebdav = async () => {
+  const getWebdavFormConfig = () => {
     if (!webdavServerUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
       setWebdavMessage(i18n.t('settingsDialog.webdavFillAll'));
       setWebdavMessageType('error');
-      return;
+      return null;
     }
-    setIsTestingWebdav(true);
-    webdavClient.saveConfig({
+    return {
       serverUrl: webdavServerUrl.trim(),
       username: webdavUsername.trim(),
       password: webdavPassword.trim(),
-    });
-    const result = await webdavClient.testConnection();
-    setWebdavMessage(result.message);
-    setWebdavMessageType(result.success ? 'success' : 'error');
-    setIsTestingWebdav(false);
+    };
+  };
+
+  const handleTestWebdav = async () => {
+    const config = getWebdavFormConfig();
+    if (!config) {
+      return;
+    }
+    setIsTestingWebdav(true);
+    try {
+      const result = await webdavClient.testConnection(config);
+      setWebdavMessage(result.message);
+      setWebdavMessageType(result.success ? 'success' : 'error');
+    } finally {
+      setIsTestingWebdav(false);
+    }
+  };
+
+  const handleSaveWebdav = () => {
+    setIsSavingWebdav(true);
+    try {
+      const config = getWebdavFormConfig();
+      if (!config) {
+        return;
+      }
+      webdavClient.saveConfig(config);
+      setWebdavMessage(i18n.t('settingsDialog.saved'));
+      setWebdavMessageType('success');
+      setTimeout(() => { setWebdavMessage(null); setWebdavMessageType(null); }, 3000);
+    } catch (err) {
+      setWebdavMessage(i18n.t('settingsDialog.saveFailed'));
+      setWebdavMessageType('error');
+      logger.error('[SettingsView] WebDAV save failed:', err);
+    } finally {
+      setIsSavingWebdav(false);
+    }
   };
 
   const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
@@ -217,7 +268,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   ];
 
   const currentLanguageOption = languageOptions.find(opt => opt.value === currentLang);
+  const sourceOptions: { value: OnlineSource; label: string }[] = [
+    { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
+    { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
+  ];
   const colors = currentTheme.colors;
+  const isBrutalistTheme = currentTheme.id === THEME_IDS.BRUTALIST;
+  const getRangeClassName = () => (
+    isBrutalistTheme ? 'retro-range' : 'w-20 h-1.5 rounded-full appearance-none cursor-pointer'
+  );
+  const getRangeStyle = (progress: number) => (
+    isBrutalistTheme
+      ? ({ '--retro-range-progress': `${progress}%` } as React.CSSProperties)
+      : { background: `linear-gradient(to right, ${colors.primary} ${progress}%, ${colors.borderLight} ${progress}%)` }
+  );
 
   const inputStyle = {
     backgroundColor: colors.backgroundCard,
@@ -234,6 +298,146 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     e.currentTarget.style.boxShadow = 'none';
   };
 
+  // ===== QR scan-login lifecycle =====
+  const isQrLoggedIn = onlineSource === 'qq' ? qqLoggedIn : neteaseLoggedIn;
+  const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
+
+  const stopQrPolling = (): void => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  const resetQr = (): void => {
+    stopQrPolling();
+    sessionRef.current = null;
+    setQrImage(null);
+    setQrMsg('');
+    setQrState('idle');
+  };
+
+  const handleQrPollResult = async (source: OnlineSource, res: QRPollResult): Promise<void> => {
+    setQrState(res.status);
+    if (res.status === 'confirming') {
+      setQrMsg(i18n.t('settingsDialog.qrConfirming'));
+    } else if (res.status === 'waiting') {
+      setQrMsg(res.msg || i18n.t('settingsDialog.qrWaiting'));
+    } else if (res.msg) {
+      setQrMsg(res.msg);
+    }
+
+    if (res.status === 'done') {
+      stopQrPolling();
+      setQrImage(null);
+      if (res.cookie) {
+        if (source === 'qq') {
+          await cookieManager.setCookie(res.cookie);
+          setCookie(cookieManager.getCookie());
+          setQqLoggedIn(true);
+          window.electron?.setOnlineCookie?.('qq', cookieManager.getCookie());
+        } else {
+          await neteaseCookieManager.setCookie(res.cookie);
+          setNeteaseCookie(neteaseCookieManager.getCookie());
+          setNeteaseLoggedIn(true);
+          window.electron?.setOnlineCookie?.('netease', neteaseCookieManager.getCookie());
+        }
+        showOnlineMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
+      }
+    } else if (res.status === 'expired') {
+      stopQrPolling();
+      setQrImage(null);
+    }
+    // 'waiting' | 'confirming' | 'error' → keep polling (error is treated as soft)
+  };
+
+  const beginQrPolling = (source: OnlineSource, key: string): void => {
+    stopQrPolling();
+    const tick = async (): Promise<void> => {
+      if (!mountedRef.current) return;
+      const sess = sessionRef.current;
+      if (!sess || sess.key !== key) return; // superseded by a newer session
+      try {
+        const res = source === 'qq' ? await pollQQLogin(key) : await pollNetEaseQR(key);
+        if (!mountedRef.current) return;
+        if (!sessionRef.current || sessionRef.current.key !== key) return;
+        await handleQrPollResult(source, res);
+      } catch (e) {
+        if (!mountedRef.current) return;
+        logger.error('[SettingsView] QR poll failed:', e);
+        setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+        setQrState('error');
+      }
+    };
+    pollTimerRef.current = setInterval(tick, 2000);
+  };
+
+  const startQr = async (source: OnlineSource): Promise<void> => {
+    stopQrPolling();
+    sessionRef.current = null;
+    setQrImage(null);
+    setQrMsg('');
+    setQrState('loading');
+    try {
+      const res = source === 'qq' ? await startQQLogin() : await startNetEaseQR();
+      if (!mountedRef.current) return;
+      sessionRef.current = { source, key: res.sessionKey };
+      setQrImage(res.qrcode);
+      setQrState('waiting');
+      setQrMsg(i18n.t('settingsDialog.qrWaiting'));
+      beginQrPolling(source, res.sessionKey);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      logger.error('[SettingsView] startQr failed:', e);
+      setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+      setQrState('error');
+    }
+  };
+
+  const handleQrLogout = async (): Promise<void> => {
+    if (onlineSource === 'qq') {
+      await cookieManager.clearCookie();
+      setCookie('');
+      setQqLoggedIn(false);
+    } else {
+      await neteaseCookieManager.clearCookie();
+      setNeteaseCookie('');
+      setNeteaseLoggedIn(false);
+    }
+    resetQr();
+    await startQr(onlineSource);
+  };
+
+  // Mark mounted; clean up any active polling on unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopQrPolling();
+      sessionRef.current = null;
+    };
+  }, []);
+
+  // (Re)start the QR whenever the third-party section is shown or the source changes.
+  useEffect(() => {
+    if (!qqMusicEnabled) {
+      resetQr();
+      return;
+    }
+    resetQr();
+    const loggedIn =
+      onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
+    if (!loggedIn) {
+      void startQr(onlineSource);
+    }
+    return () => {
+      stopQrPolling();
+      sessionRef.current = null;
+    };
+    // startQr/resetQr are stable in behavior (only refs + setters); omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qqMusicEnabled, onlineSource]);
+
   return (
     <><div className="w-full flex flex-col h-full relative">
       {/* Header band: in glass mode it overlays the top (z-30) while the body
@@ -245,39 +449,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{i18n.t('settings.description')}</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-5 py-2.5 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-xl"
-          style={{ backgroundColor: colors.primary, color: '#fff', border: `var(--theme-control-border-width) solid ${colors.borderLight}` }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-        >
-          {isSaving ? (
-            <>
-              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-              {i18n.t('settingsDialog.saving')}
-            </>
-          ) : (
-            i18n.t('settingsDialog.save')
-          )}
-        </button>
       </div>
-
-      {saveMessage && (
-        <div className={`mb-4 p-3 r-control text-sm ${
-          saveMessageType === 'success'
-            ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-            : 'bg-red-500/10 border border-red-500/30 text-red-400'
-        }`}>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">
-              {saveMessageType === 'success' ? 'check' : 'error'}
-            </span>
-            {saveMessage}
-          </div>
-        </div>
-      )}
       </div>
 
       <div className={glassUI ? 'absolute inset-0 overflow-hidden' : 'flex-1 overflow-hidden'}>
@@ -294,11 +466,16 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
                     <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{i18n.t('settings.language')}</span>
                   </div>
-                  <div className="relative" ref={dropdownRef}>
+                  <div className="relative w-32" ref={langDropdownRef}>
                     <button
                       onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 r-sm text-sm transition-all"
-                      style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}`, color: colors.textSecondary }}
+                      className="flex w-full items-center justify-between gap-1.5 px-2.5 py-1 text-sm transition-all"
+                      style={{
+                        backgroundColor: colors.backgroundCard,
+                        border: `1px solid ${colors.borderLight}`,
+                        borderRadius: isLangDropdownOpen ? 'var(--theme-card-radius) var(--theme-card-radius) 0 0' : 'var(--theme-card-radius)',
+                        color: colors.textSecondary,
+                      }}
                     >
                       <span>{currentLanguageOption?.nativeLabel}</span>
                       <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
@@ -306,25 +483,38 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       </span>
                     </button>
 
-                    {isLangDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1 r-card shadow-xl overflow-hidden z-50 min-w-[140px]" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
-                        {languageOptions.map((option) => (
+                    <div
+                      className="absolute left-0 right-0 top-full overflow-hidden z-50"
+                      style={{
+                        transform: isLangDropdownOpen ? 'scaleY(1)' : 'scaleY(0)',
+                        transformOrigin: 'top center',
+                        opacity: isLangDropdownOpen ? 1 : 0,
+                        pointerEvents: isLangDropdownOpen ? 'auto' : 'none',
+                        transition: 'transform 0.25s ease, opacity 0.2s ease',
+                        background: colors.backgroundDark,
+                        backdropFilter: 'blur(20px)',
+                        borderWidth: '0 1px 1px',
+                        borderStyle: 'solid',
+                        borderColor: isLangDropdownOpen ? colors.borderLight : 'transparent',
+                        borderRadius: '0 0 var(--theme-card-radius) var(--theme-card-radius)',
+                      }}
+                    >
+                      {languageOptions.map((option) => {
+                        const active = currentLang === option.value;
+                        return (
                           <button
                             key={option.value}
                             onClick={() => handleLanguageChange(option.value)}
-                            className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors text-sm"
-                            style={{ color: currentLang === option.value ? colors.primary : colors.textSecondary }}
-                            onMouseEnter={e => { if (currentLang !== option.value) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
-                            onMouseLeave={e => { if (currentLang !== option.value) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
+                            className="w-full px-3 py-2 text-left transition-colors text-sm"
+                            style={{ color: active ? colors.primary : colors.textSecondary }}
+                            onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; } }}
+                            onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textSecondary; } }}
                           >
-                            <span>{option.nativeLabel}</span>
-                            {currentLang === option.value && (
-                              <span className="material-symbols-outlined text-sm" style={{ color: colors.primary }}>check</span>
-                            )}
+                            {option.nativeLabel}
                           </button>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -341,119 +531,50 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             </div>
           </section>
 
-          {/* Online Music — only visible when experimental toggle is enabled */}
-          {qqMusicEnabled && (
-          <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-            <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-              <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-              {i18n.t('settingsDialog.onlineMusicTitle')}
-            </h3>
-            <div className="space-y-3">
-              {/* Source selector (QQ Music / NetEase) */}
-              <div>
-                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {i18n.t('settingsDialog.onlineSource')}
-                </label>
-                <div className="flex gap-2">
-                  {(['qq', 'netease'] as OnlineSource[]).map((src) => {
-                    const active = onlineSource === src;
-                    return (
-                      <button
-                        key={src}
-                        type="button"
-                        onClick={() => {
-                          setOnlineSource(src);
-                          settingsManager.setOnlineSource(src);
-                        }}
-                        className="flex-1 px-3 py-2 r-control text-xs font-medium transition-all"
-                        style={{
-                          backgroundColor: active ? colors.primary : colors.backgroundCard,
-                          color: active ? colors.textPrimary : colors.textSecondary,
-                          border: `1px solid ${active ? colors.primary : colors.borderLight}`,
-                        }}
-                      >
-                        {src === 'netease' ? i18n.t('settingsDialog.onlineSourceNetease') : i18n.t('settingsDialog.onlineSourceQq')}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
-              <div>
-                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {onlineSource === 'netease'
-                    ? i18n.t('settingsDialog.neteaseCookieLabel')
-                    : i18n.t('settingsDialog.cookie')}
-                </label>
-                <textarea
-                  value={onlineSource === 'netease' ? neteaseCookie : cookie}
-                  onChange={(e) =>
-                    onlineSource === 'netease'
-                      ? setNeteaseCookie(e.target.value)
-                      : setCookie(e.target.value)
-                  }
-                  placeholder={i18n.t('settingsDialog.pasteCookie')}
-                  className="w-full h-20 r-control p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
-                  style={inputStyle}
-                  onFocus={inputFocus}
-                  onBlur={inputBlur}
-                  disabled={isSaving}
-                />
-                {onlineSource === 'netease' && (
-                  <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                    {i18n.t('settingsDialog.neteaseCookieHint')}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {i18n.t('settingsDialog.savePath')}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={downloadPath}
-                    onChange={(e) => setDownloadPath(e.target.value)}
-                    placeholder={i18n.t('settingsDialog.downloadFolderPath')}
-                    className="flex-1 r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                    style={inputStyle}
-                    onFocus={inputFocus}
-                    onBlur={inputBlur}
-                    disabled={isSaving}
-                  />
-                  <button
-                    onClick={async () => {
-                      const desktopAPI = getDesktopAPI();
-                      if (desktopAPI?.selectDownloadFolder) {
-                        const result = await desktopAPI.selectDownloadFolder();
-                        if (result.success && result.path) {
-                          setDownloadPath(result.path);
-                        }
-                      }
-                    }}
-                    disabled={isSaving}
-                    className="px-3 py-2.5 r-control transition-all disabled:opacity-50 flex items-center"
-                    style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}` }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
-                  >
-                    <span className="material-symbols-outlined text-base">folder_open</span>
-                  </button>
-                </div>
-                <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                  {i18n.t('settingsDialog.tip')}
-                </p>
-              </div>
-            </div>
-          </section>
-          )}
-
           {/* WebDAV */}
           <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-            <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-              <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
-              {i18n.t('settingsDialog.webdavTitle')}
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
+                {i18n.t('settingsDialog.webdavTitle')}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleTestWebdav}
+                  disabled={isTestingWebdav || isSavingWebdav}
+                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
+                >
+                  {isTestingWebdav ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                      {i18n.t('settingsDialog.webdavTesting')}
+                    </>
+                  ) : (
+                    i18n.t('settingsDialog.webdavTestConnection')
+                  )}
+                </button>
+                <button
+                  onClick={handleSaveWebdav}
+                  disabled={isTestingWebdav || isSavingWebdav}
+                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+                >
+                  {isSavingWebdav ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                      {i18n.t('settingsDialog.saving')}
+                    </>
+                  ) : (
+                    i18n.t('settingsDialog.save')
+                  )}
+                </button>
+              </div>
+            </div>
             <div className="space-y-3">
               <input
                 type="text"
@@ -485,32 +606,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 onFocus={inputFocus}
                 onBlur={inputBlur}
               />
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleTestWebdav}
-                  disabled={isTestingWebdav}
-                  className="px-4 py-2 r-control text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}` }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
-                >
-                  {isTestingWebdav ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                      {i18n.t('settingsDialog.webdavTesting')}
-                    </>
-                  ) : (
-                    i18n.t('settingsDialog.webdavTestConnection')
-                  )}
-                </button>
-                {webdavMessage && (
-                  <span className={`text-xs ${
-                    webdavMessageType === 'success' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {webdavMessage}
-                  </span>
-                )}
-              </div>
+              {webdavMessage && (
+                <span className={`text-xs ${
+                  webdavMessageType === 'success' ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {webdavMessage}
+                </span>
+              )}
             </div>
           </section>
 
@@ -539,10 +641,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     const fn = (window as any).bg_blur_trans;
                     if (typeof fn === 'function') fn(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${bgBlurTrans * 100}%, ${colors.borderLight} ${bgBlurTrans * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(bgBlurTrans * 100)}
                 />
               </div>
             </div>
@@ -563,10 +663,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusBgBlurRadius(value);
                     settingsManager.setFocusBgBlurRadius(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusBgBlurRadius - 40) / 40) * 100}%, ${colors.borderLight} ${((focusBgBlurRadius - 40) / 40) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusBgBlurRadius - 40) / 40) * 100)}
                 />
               </div>
             </div>
@@ -587,10 +685,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusLyricsFontSize(value);
                     settingsManager.setFocusLyricsFontSize(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricsFontSize - 16) / 24) * 100}%, ${colors.borderLight} ${((focusLyricsFontSize - 16) / 24) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
                 />
               </div>
             </div>
@@ -611,10 +707,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusLyricLineSpacing(value);
                     settingsManager.setFocusLyricLineSpacing(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${((focusLyricLineSpacing - 12) / 36) * 100}%, ${colors.borderLight} ${((focusLyricLineSpacing - 12) / 36) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle(((focusLyricLineSpacing - 12) / 36) * 100)}
                 />
               </div>
             </div>
@@ -635,10 +729,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     setFocusInactiveLyricBlur(value);
                     settingsManager.setFocusInactiveLyricBlur(value);
                   }}
-                  className="w-20 h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${colors.primary} ${(focusInactiveLyricBlur / 12) * 100}%, ${colors.borderLight} ${(focusInactiveLyricBlur / 12) * 100}%)`,
-                  }}
+                  className={getRangeClassName()}
+                  style={getRangeStyle((focusInactiveLyricBlur / 12) * 100)}
                 />
               </div>
             </div>
@@ -646,24 +738,70 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             {/* 第三方音源开关 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
               <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
-              <button
-                onClick={() => {
-                  const newValue = !qqMusicEnabled;
-                  setQqMusicEnabled(newValue);
-                  settingsManager.setQqMusicEnabled(newValue);
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
-                style={{
-                  backgroundColor: qqMusicEnabled ? colors.primary : colors.borderLight,
-                }}
-              >
-                <span
-                  className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
-                  style={{
-                    transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
+              {isBrutalistTheme ? (
+                <RetroSwitch
+                  checked={qqMusicEnabled}
+                  ariaLabel={i18n.t('settings.qqMusicEnabled')}
+                  onChange={(newValue) => {
+                    setQqMusicEnabled(newValue);
+                    settingsManager.setQqMusicEnabled(newValue);
                   }}
                 />
-              </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const newValue = !qqMusicEnabled;
+                    setQqMusicEnabled(newValue);
+                    settingsManager.setQqMusicEnabled(newValue);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none`}
+                  style={{
+                    backgroundColor: qqMusicEnabled ? colors.primary : colors.borderLight,
+                  }}
+                >
+                  <span
+                    className={`inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200`}
+                    style={{
+                      transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
+                    }}
+                  />
+                </button>
+              )}
+            </div>
+
+            {/* 全新 UI/UX 开关 */}
+            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+              <div className="min-w-0 mr-3">
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.newUx')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.newUxDesc')}</p>
+              </div>
+              {isBrutalistTheme ? (
+                <RetroSwitch
+                  checked={newUxEnabled}
+                  ariaLabel={i18n.t('settings.newUx')}
+                  onChange={(newValue) => {
+                    setNewUxEnabled(newValue);
+                    settingsManager.setNewUxEnabled(newValue);
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => {
+                    const newValue = !newUxEnabled;
+                    setNewUxEnabled(newValue);
+                    settingsManager.setNewUxEnabled(newValue);
+                  }}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+                  style={{ backgroundColor: newUxEnabled ? colors.primary : colors.borderLight }}
+                  aria-label={i18n.t('settings.newUx')}
+                  aria-pressed={newUxEnabled}
+                >
+                  <span
+                    className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                    style={{ transform: newUxEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
+                  />
+                </button>
+              )}
             </div>
 
             {/* 按钮回弹开关 */}
@@ -672,46 +810,33 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.buttonBounce')}</span>
                 <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.buttonBounceDesc')}</p>
               </div>
-              <button
-                onClick={() => {
-                  const newValue = !gsapButtonBounce;
-                  setGsapButtonBounce(newValue);
-                  settingsManager.setGsapButtonBounce(newValue);
-                }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                style={{ backgroundColor: gsapButtonBounce ? colors.primary : colors.borderLight }}
-                aria-label={i18n.t('settings.buttonBounce')}
-                aria-pressed={gsapButtonBounce}
-              >
-                <span
-                  className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                  style={{ transform: gsapButtonBounce ? 'translateX(22px)' : 'translateX(2px)' }}
+              {isBrutalistTheme ? (
+                <RetroSwitch
+                  checked={gsapButtonBounce}
+                  ariaLabel={i18n.t('settings.buttonBounce')}
+                  onChange={(newValue) => {
+                    setGsapButtonBounce(newValue);
+                    settingsManager.setGsapButtonBounce(newValue);
+                  }}
                 />
-              </button>
-            </div>
-
-            {/* 液态玻璃开关 */}
-            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <div className="min-w-0 mr-3">
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.liquidGlass')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.liquidGlassDesc')}</p>
-              </div>
-              <button
-                onClick={() => {
-                  const newValue = !liquidGlass;
-                  setLiquidGlass(newValue);
-                  settingsManager.setLiquidGlass(newValue);
-                }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                style={{ backgroundColor: liquidGlass ? colors.primary : colors.borderLight }}
-                aria-label={i18n.t('settings.liquidGlass')}
-                aria-pressed={liquidGlass}
-              >
-                <span
-                  className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                  style={{ transform: liquidGlass ? 'translateX(22px)' : 'translateX(2px)' }}
-                />
-              </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const newValue = !gsapButtonBounce;
+                    setGsapButtonBounce(newValue);
+                    settingsManager.setGsapButtonBounce(newValue);
+                  }}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+                  style={{ backgroundColor: gsapButtonBounce ? colors.primary : colors.borderLight }}
+                  aria-label={i18n.t('settings.buttonBounce')}
+                  aria-pressed={gsapButtonBounce}
+                >
+                  <span
+                    className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                    style={{ transform: gsapButtonBounce ? 'translateX(22px)' : 'translateX(2px)' }}
+                  />
+                </button>
+              )}
             </div>
 
             {/* 清理孤儿缓存按钮 */}
@@ -754,6 +879,274 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           <section className="mb-4">
             <ShortcutsSettings />
           </section>
+
+          {/* Online Music — only visible when experimental toggle is enabled */}
+          {qqMusicEnabled && (
+          <section className="r-card p-4 border mb-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
+                {i18n.t('settingsDialog.onlineMusicTitle')}
+              </h3>
+              <button
+                onClick={handleSaveOnlineMusic}
+                disabled={isSavingOnline}
+                className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+                style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+              >
+                {isSavingOnline ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                    {i18n.t('settingsDialog.saving')}
+                  </>
+                ) : (
+                  i18n.t('settingsDialog.save')
+                )}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-[190px_176px_minmax(220px,1fr)] gap-6">
+              <div className="min-w-0">
+                <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                  {i18n.t('settingsDialog.onlineSource')}
+                </div>
+                <div
+                  className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
+                  style={{
+                    backgroundColor: colors.backgroundDark,
+                    border: `1px solid ${colors.borderLight}`,
+                    borderRadius: 'var(--theme-card-radius)',
+                  }}
+                >
+                  {sourceOptions.map((option) => {
+                    const active = onlineSource === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleOnlineSourceChange(option.value)}
+                        className="w-full px-3 py-2 text-left transition-colors text-xs flex items-center justify-between gap-2"
+                        style={{
+                          backgroundColor: active ? `${colors.primary}20` : 'transparent',
+                          border: `1px solid ${active ? colors.primary : 'transparent'}`,
+                          borderRadius: 'var(--theme-card-radius)',
+                          color: active ? colors.primary : colors.textSecondary,
+                        }}
+                        onMouseEnter={e => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                            e.currentTarget.style.color = colors.textPrimary;
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = colors.textSecondary;
+                          }
+                        }}
+                      >
+                        <span className="truncate">{option.label}</span>
+                        {active && <span className="material-symbols-outlined text-sm flex-shrink-0">check</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
+                  <span>{i18n.t('settingsDialog.qrTitle')}</span>
+                  {(qrImage || qrState === 'error' || qrState === 'expired') && (
+                    <button
+                      type="button"
+                      onClick={() => void startQr(onlineSource)}
+                      title={i18n.t('settingsDialog.qrRefresh')}
+                      className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
+                      style={{ color: colors.textSecondary }}
+                    >
+                      refresh
+                    </button>
+                  )}
+                </div>
+                <div
+                  className="h-44 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
+                  style={{
+                    backgroundColor: colors.backgroundDark,
+                    border: `1px dashed ${colors.borderLight}`,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {/* Logged-in panel */}
+                  {isQrLoggedIn && !qrScanning ? (
+                    <div className="flex flex-col items-center gap-1.5 text-center px-2">
+                      <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoggedIn')}</span>
+                      <div className="flex gap-1.5 mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleQrLogout()}
+                          className="px-2 py-1 text-xs transition-all"
+                          style={{
+                            backgroundColor: colors.backgroundCard,
+                            color: colors.textSecondary,
+                            border: `1px solid ${colors.borderLight}`,
+                            borderRadius: 'var(--theme-control-radius)',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                        >
+                          {i18n.t('settingsDialog.qrLogout')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void startQr(onlineSource)}
+                          className="px-2 py-1 text-xs transition-all"
+                          style={{
+                            backgroundColor: `${colors.primary}20`,
+                            color: colors.primary,
+                            border: `1px solid ${colors.primary}`,
+                            borderRadius: 'var(--theme-control-radius)',
+                          }}
+                        >
+                          {i18n.t('settingsDialog.qrReLogin')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : qrState === 'loading' ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoading')}</span>
+                    </div>
+                  ) : qrImage ? (
+                    <>
+                      <img
+                        src={qrImage}
+                        alt="QR"
+                        className="size-32 object-contain"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                      <div
+                        className="absolute bottom-0 inset-x-0 px-2 py-1 text-center text-[11px] truncate"
+                        style={{
+                          backgroundColor: colors.backgroundDark,
+                          color: qrState === 'confirming' ? colors.primary : colors.textSecondary,
+                        }}
+                      >
+                        {qrMsg || i18n.t('settingsDialog.qrWaiting')}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 text-center px-2">
+                      <span className="material-symbols-outlined text-5xl">
+                        {qrState === 'expired' ? 'qr_code_scanner' : 'error'}
+                      </span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>
+                        {qrState === 'expired'
+                          ? i18n.t('settingsDialog.qrExpired')
+                          : (qrMsg || i18n.t('settingsDialog.qrError'))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void startQr(onlineSource)}
+                        className="mt-0.5 px-2 py-1 text-xs transition-all"
+                        style={{
+                          backgroundColor: `${colors.primary}20`,
+                          color: colors.primary,
+                          border: `1px solid ${colors.primary}`,
+                          borderRadius: 'var(--theme-control-radius)',
+                        }}
+                      >
+                        {i18n.t('settingsDialog.qrRefresh')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="min-w-0 space-y-3">
+                {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
+                <div>
+                  <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                    {onlineSource === 'netease'
+                      ? i18n.t('settingsDialog.neteaseCookieLabel')
+                      : i18n.t('settingsDialog.cookie')}
+                  </label>
+                  <textarea
+                    value={onlineSource === 'netease' ? neteaseCookie : cookie}
+                    onChange={(e) =>
+                      onlineSource === 'netease'
+                        ? setNeteaseCookie(e.target.value)
+                        : setCookie(e.target.value)
+                    }
+                    placeholder={i18n.t('settingsDialog.pasteCookie')}
+                    className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
+                    style={inputStyle}
+                    onFocus={inputFocus}
+                    onBlur={inputBlur}
+                    disabled={isSavingOnline}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
+                    {i18n.t('settingsDialog.savePath')}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={downloadPath}
+                      onChange={(e) => setDownloadPath(e.target.value)}
+                      placeholder={i18n.t('settingsDialog.downloadFolderPath')}
+                      className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
+                      style={inputStyle}
+                      onFocus={inputFocus}
+                      onBlur={inputBlur}
+                      disabled={isSavingOnline}
+                    />
+                    <button
+                      onClick={async () => {
+                        const desktopAPI = getDesktopAPI();
+                        if (desktopAPI?.selectDownloadFolder) {
+                          const result = await desktopAPI.selectDownloadFolder();
+                          if (result.success && result.path) {
+                            setDownloadPath(result.path);
+                          }
+                        }
+                      }}
+                      disabled={isSavingOnline}
+                      className="px-3 py-2 transition-all disabled:opacity-50 flex items-center flex-shrink-0"
+                      style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
+                    >
+                      <span className="material-symbols-outlined text-base">folder_open</span>
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
+                    {i18n.t('settingsDialog.tip')}
+                  </p>
+                </div>
+
+                {onlineMessage && (
+                  <div className={`p-2 r-control text-xs ${
+                    onlineMessageType === 'success'
+                      ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                      : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                  }`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-xs">
+                        {onlineMessageType === 'success' ? 'check' : 'error'}
+                      </span>
+                      {onlineMessage}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+          )}
 
         </div>
       </div>

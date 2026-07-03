@@ -94,9 +94,9 @@ class WebDAVClient {
     }
   }
 
-  private buildAuthHeader(): string {
-    if (!this.config) return '';
-    const credentials = btoa(`${this.config.username}:${this.config.password}`);
+  private buildAuthHeader(config = this.config): string {
+    if (!config) return '';
+    const credentials = btoa(`${config.username}:${config.password}`);
     return `Basic ${credentials}`;
   }
 
@@ -139,15 +139,15 @@ class WebDAVClient {
     }
   }
 
-  async testConnection(): Promise<{ success: boolean; message: string }> {
-    if (!this.hasConfig()) {
+  async testConnection(config = this.config): Promise<{ success: boolean; message: string }> {
+    if (!config?.serverUrl || !config.username || !config.password) {
       return { success: false, message: 'WebDAV not configured' };
     }
     try {
       const api = await getDesktopAPI();
       if (!api) return { success: false, message: 'Desktop API not available' };
 
-      const result = await api.webdavPropfind(this.config!.serverUrl, this.buildAuthHeader(), '0');
+      const result = await api.webdavPropfind(config.serverUrl, this.buildAuthHeader(config), '0');
       if (result.success) {
         return { success: true, message: 'Connection successful' };
       }
@@ -202,17 +202,22 @@ class WebDAVClient {
   }
 
   async listFiles(dirPath: string = '/'): Promise<WebDAVFile[]> {
-    if (!this.hasConfig()) return [];
+    if (!this.hasConfig()) {
+      throw new Error('WebDAV not configured');
+    }
 
     const api = await getDesktopAPI();
-    if (!api) return [];
+    if (!api) {
+      throw new Error('Desktop API not available');
+    }
 
     const url = this.buildUrl(dirPath);
     const result = await api.webdavPropfind(url, this.buildAuthHeader(), '1');
 
     if (!result.success || !result.xml) {
-      logger.error('[WebDAV] PROPFIND failed:', result.error);
-      return [];
+      const message = result.error || 'PROPFIND returned an empty response';
+      logger.error('[WebDAV] PROPFIND failed:', message);
+      throw new Error(message);
     }
 
     return this.parsePropfindResponse(result.xml, dirPath);
@@ -222,6 +227,9 @@ class WebDAVClient {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xml, 'application/xml');
     const responses = doc.querySelectorAll('response');
+    if (doc.querySelector('parsererror') || responses.length === 0) {
+      throw new Error('Invalid PROPFIND response');
+    }
     const files: WebDAVFile[] = [];
 
     for (const resp of responses) {
@@ -305,6 +313,31 @@ class WebDAVClient {
     const encoder = new TextEncoder();
     const data = encoder.encode(content).buffer as ArrayBuffer;
     return this.uploadFile(filePath, data, 'application/json; charset=utf-8');
+  }
+
+  /**
+   * 确保一个集合（目录）存在：发送 MKCOL，幂等。
+   * 201/2xx=新建成功，405=已存在，均视为就绪。用于上传 /Metadata/ 前保证父目录存在，
+   * 否则很多 WebDAV（含 123pan）PUT 到不存在的目录会返回 409。
+   * MKCOL 不被支持/失败时返回 false，调用方可继续尝试 PUT（部分服务器会自动建目录）。
+   */
+  async ensureCollection(folderPath: string): Promise<boolean> {
+    const api = await getDesktopAPI();
+    if (!api?.webdavMkcol) {
+      logger.warn('[WebDAV] webdavMkcol unavailable, skip ensureCollection:', folderPath);
+      return false;
+    }
+    const url = this.buildUrl(folderPath);
+    try {
+      const res = await api.webdavMkcol(url, this.buildAuthHeader());
+      if (!res?.success) {
+        logger.warn(`[WebDAV] MKCOL ${folderPath} → status ${res?.status ?? 'n/a'} (${res?.error ?? 'unknown'})`);
+      }
+      return res?.success === true;
+    } catch (e) {
+      logger.warn('[WebDAV] MKCOL error:', folderPath, e);
+      return false;
+    }
   }
 
   async fetchTextFile(filePath: string): Promise<string | null> {

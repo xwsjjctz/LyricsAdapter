@@ -129,6 +129,14 @@ export interface ThemeAppearanceStyles {
   listItemBorder: string;
   listItemGap: string;
   listItemPaddingY: string;
+  /**
+   * 当前播放曲目的指示器形态。
+   * - 'floating'：浮在列表外的跟随式高亮滑块（随滚动反向补偿 + 过渡动画）。
+   * - 'inline'：不渲染浮动滑块，当前播放行直接用行内样式（实色背景 + 前景色）
+   *   标识，无跟随动画。适合行本身已有强边框的粗粝类主题，且彻底规避
+   *   浮动定位（rowStride/topInset）错位到相邻行的问题。
+   */
+  playingIndicator: 'floating' | 'inline';
 }
 
 export interface ThemeConfig {
@@ -148,6 +156,8 @@ export interface ThemeConfig {
 // Default theme IDs
 export const THEME_IDS = {
   DEFAULT: 'default',
+  DEFAULT_DARK: 'default-dark',
+  DEFAULT_LIGHT: 'default-light',
   CUTE: 'cute',
   OCEAN: 'ocean',
   SUNSET: 'sunset',
@@ -155,6 +165,9 @@ export const THEME_IDS = {
   MIDNIGHT: 'midnight',
   WARM: 'warm',
   GLACIER: 'glacier',
+
+  // The idea comes from https://uiverse.io/WattoRex/odd-fish-37
+  // Thanks to @WattoRex for the inspiration!
   BRUTALIST: 'brutalist',
 } as const;
 

@@ -1,15 +1,10 @@
 import React, { memo } from 'react';
 import { i18n } from '../services/i18n';
 import { ThemeColors } from '../types/theme';
-import { useLiquidGlass } from '../hooks/useLiquidGlass';
-
-interface UniqueCategory {
-  name: string;
-  [key: string]: unknown;
-}
+import type { SlotId } from '../types';
 
 interface LibraryToolbarProps {
-  dataSource: 'local' | 'cloud';
+  dataSource: SlotId;
   colors: ThemeColors;
   isEditMode: boolean;
   selectedCount: number;
@@ -17,17 +12,20 @@ interface LibraryToolbarProps {
   setShowEditDropdown: (v: boolean) => void;
   onToggleEditMode: () => void;
   onBatchDelete: () => void;
+  onImportClick?: () => void;
+  importDisabled?: boolean;
+  importDisabledReason?: string | undefined;
   onRefreshCloud?: () => void;
   isRefreshing?: boolean;
-  filterType: 'default' | 'album' | 'artist';
-  onFilterTypeChange: (t: 'default' | 'album' | 'artist') => void;
-  onCategoryChange: (s: string | null) => void;
-  uniqueAlbums: UniqueCategory[];
-  uniqueArtists: UniqueCategory[];
   trackCount: number;
   importProgress?: { loaded: number; total: number } | null | undefined;
   loadProgress?: { loaded: number; total: number } | null | undefined;
   searchBox?: React.ReactNode | undefined;
+}
+
+function getDataSourceTitle(dataSource: SlotId): string {
+  if (dataSource === 'playlist') return i18n.t('sidebar.playlists');
+  return i18n.t(`sidebar.${dataSource}`);
 }
 
 /**
@@ -43,24 +41,46 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   setShowEditDropdown,
   onToggleEditMode,
   onBatchDelete,
+  onImportClick,
+  importDisabled = false,
+  importDisabledReason,
   onRefreshCloud,
   isRefreshing = false,
-  filterType,
-  onFilterTypeChange,
-  onCategoryChange,
-  uniqueAlbums,
-  uniqueArtists,
   trackCount,
   importProgress,
   loadProgress,
   searchBox,
 }) => {
-  const liquidGlass = useLiquidGlass();
+  const renderImportButton = (icon: 'upload_file' | 'cloud_upload') => {
+    if (!onImportClick) return null;
+
+    return (
+      <button
+        onClick={onImportClick}
+        disabled={importDisabled}
+        className="w-10 h-10 flex items-center justify-center transition-colors"
+        style={{
+          borderRadius: 'var(--theme-control-radius)',
+          color: importDisabled ? colors.textMuted : '#fff',
+          backgroundColor: importDisabled ? colors.backgroundCard : colors.primary,
+          border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+          boxShadow: importDisabled ? 'none' : 'var(--theme-elevated-shadow)',
+          cursor: importDisabled ? 'not-allowed' : 'pointer',
+          opacity: importDisabled ? 0.55 : 1,
+        }}
+        title={importDisabled ? importDisabledReason : i18n.t('sidebar.importFiles')}
+        aria-label={i18n.t('sidebar.importFiles')}
+      >
+        <span className="material-symbols-outlined text-[22px]">{icon}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="mb-4 flex-shrink-0 flex items-center justify-between">
       <div>
         <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-          {i18n.t(`sidebar.${dataSource}`)}
+          {getDataSourceTitle(dataSource)}
         </h1>
         <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
           {importProgress ? (
@@ -91,25 +111,26 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
       <div className="flex items-center gap-2">
         {searchBox}
         {dataSource === 'cloud' ? (
-          /* Cloud：刷新按钮（替换编辑按钮） */
-          <div className={liquidGlass ? 'lg-layer' : ''}>
+          <>
+            {/* Cloud：刷新 + 上传到 WebDAV */}
             <button
               onClick={onRefreshCloud}
               disabled={isRefreshing}
-              className={`${liquidGlass ? 'lg-glass' : ''} w-10 h-10 flex items-center justify-center`}
+              className="w-10 h-10 flex items-center justify-center"
               style={{
                 borderRadius: 'var(--theme-control-radius)',
                 color: colors.textSecondary,
-                backgroundColor: liquidGlass ? undefined : colors.backgroundCard,
-                border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-                boxShadow: liquidGlass ? undefined : 'var(--theme-elevated-shadow)',
+                backgroundColor: colors.backgroundCard,
+                border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                boxShadow: 'var(--theme-elevated-shadow)',
                 cursor: isRefreshing ? 'not-allowed' : 'pointer',
                 opacity: isRefreshing ? 0.7 : 1,
                 transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
               }}
-              onMouseEnter={liquidGlass || isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
-              onMouseLeave={liquidGlass ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; })}
+              onMouseEnter={isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
               title={i18n.t('library.refresh')}
+              aria-label={i18n.t('library.refresh')}
             >
               <span
                 className={`material-symbols-outlined${isRefreshing ? ' animate-spin' : ''}`}
@@ -118,7 +139,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 refresh
               </span>
             </button>
-          </div>
+            {renderImportButton('cloud_upload')}
+          </>
         ) : (
           /* Local：编辑按钮 + 下拉删除菜单 */
           <div
@@ -126,22 +148,20 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
             onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
           >
-            <div className={liquidGlass ? 'lg-layer' : ''}>
-              <button
-                onClick={onToggleEditMode}
-                className={`${liquidGlass ? 'lg-glass' : ''} w-10 h-10 flex items-center justify-center relative`}
-                style={{
-                  borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
-                  color: isEditMode ? (liquidGlass ? colors.success : '#fff') : colors.textSecondary,
-                  backgroundColor: isEditMode
-                    ? (liquidGlass ? `${colors.success}33` : colors.success)
-                    : (liquidGlass ? undefined : colors.backgroundCard),
-                  boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : liquidGlass ? undefined : 'var(--theme-elevated-shadow)',
-                  border: liquidGlass ? undefined : 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-                  transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
-                }}
-              >
-              <span className="material-symbols-outlined absolute"
+            <button
+              onClick={onToggleEditMode}
+              className="w-10 h-10 flex items-center justify-center relative"
+              style={{
+                borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
+                color: isEditMode ? '#fff' : colors.textSecondary,
+                backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
+                boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : 'var(--theme-elevated-shadow)',
+                border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
+              }}
+            >
+              <span
+                className="material-symbols-outlined absolute"
                 style={{
                   opacity: isEditMode ? 1 : 0,
                   transform: isEditMode ? 'scale(1)' : 'scale(0.4)',
@@ -150,7 +170,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               >
                 check
               </span>
-              <span className="material-symbols-outlined absolute"
+              <span
+                className="material-symbols-outlined absolute"
                 style={{
                   opacity: isEditMode ? 0 : 1,
                   transform: isEditMode ? 'scale(0.4)' : 'scale(1)',
@@ -160,7 +181,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 edit
               </span>
             </button>
-            </div>
 
             {/* 下拉菜单：删除选中 */}
             <div
@@ -211,54 +231,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             </div>
           </div>
         )}
-        <div className={liquidGlass ? 'lg-layer' : ''}>
-        <div className={`${liquidGlass ? 'lg-glass' : 'border'} flex items-center h-10`} style={liquidGlass ? undefined : { borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard, boxShadow: 'var(--theme-elevated-shadow)' }}>
-          <button
-            onClick={() => {
-              onFilterTypeChange('default');
-              onCategoryChange(null);
-            }}
-            className="w-10 h-full text-sm transition-all flex items-center justify-center"
-            style={{
-              borderRadius: 'var(--theme-control-radius) 0 0 var(--theme-control-radius)',
-              backgroundColor: filterType === 'default' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
-              color: filterType === 'default' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
-              boxShadow: filterType === 'default' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
-            }}
-          >
-            <span className="material-symbols-outlined text-xl">list</span>
-          </button>
-          <button
-            onClick={() => {
-              onFilterTypeChange('album');
-              onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0]!.name : null);
-            }}
-            className="w-10 h-full text-sm transition-all flex items-center justify-center"
-            style={{
-              backgroundColor: filterType === 'album' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
-              color: filterType === 'album' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
-              boxShadow: filterType === 'album' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
-            }}
-          >
-            <span className="material-symbols-outlined text-xl">album</span>
-          </button>
-          <button
-            onClick={() => {
-              onFilterTypeChange('artist');
-              onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0]!.name : null);
-            }}
-            className="w-10 h-full text-sm transition-all flex items-center justify-center"
-            style={{
-              borderRadius: '0 var(--theme-control-radius) var(--theme-control-radius) 0',
-              backgroundColor: filterType === 'artist' ? (liquidGlass ? `${colors.primary}40` : colors.primary) : 'transparent',
-              color: filterType === 'artist' ? (liquidGlass ? colors.textPrimary : '#fff') : colors.textSecondary,
-              boxShadow: filterType === 'artist' ? `0 0 ${liquidGlass ? 16 : 20}px ${colors.glowColor}` : 'none',
-            }}
-          >
-            <span className="material-symbols-outlined text-xl">artist</span>
-          </button>
-        </div>
-        </div>
+        {dataSource === 'local' && renderImportButton('upload_file')}
       </div>
     </div>
   );

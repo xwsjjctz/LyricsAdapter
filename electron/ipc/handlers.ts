@@ -461,6 +461,41 @@ export function registerCoverHandlers(): void {
 }
 
 export function registerWindowControls(win: BrowserWindow | null): void {
+  let closeAllowed = false;
+  let closeInProgress = false;
+
+  const requestRendererFlushBeforeClose = () => {
+    if (!win || closeAllowed || closeInProgress) return;
+    closeInProgress = true;
+
+    const targetWindow = win;
+    const timeout = setTimeout(() => {
+      logger.warn('[Window] Renderer close flush timed out; closing window');
+      closeAllowed = true;
+      closeInProgress = false;
+      if (!targetWindow.isDestroyed()) {
+        targetWindow.close();
+      }
+    }, 3000);
+
+    ipcMain.once('window-before-close-flush-done', (_event, saved: boolean) => {
+      clearTimeout(timeout);
+      closeInProgress = false;
+
+      if (saved === false) {
+        logger.warn('[Window] Renderer close flush failed; keeping window open');
+        return;
+      }
+
+      closeAllowed = true;
+      if (!targetWindow.isDestroyed()) {
+        targetWindow.close();
+      }
+    });
+
+    targetWindow.webContents.send('window-before-close-flush');
+  };
+
   ipcMain.handle('window-minimize', async () => {
     if (win) {
       win.minimize();
@@ -498,6 +533,17 @@ export function registerWindowControls(win: BrowserWindow | null): void {
   });
 
   if (win) {
+    win.on('close', (event) => {
+      if (closeAllowed) return;
+      event.preventDefault();
+      requestRendererFlushBeforeClose();
+    });
+
+    win.on('closed', () => {
+      closeAllowed = false;
+      closeInProgress = false;
+    });
+
     win.on('enter-full-screen', () => {
       win?.webContents.send('fullscreen-changed', true);
     });
@@ -733,7 +779,110 @@ export function registerMetadataHandlers(): void {
   });
 }
 
+/**
+ * Resolve a QQ Music stream URL from songmid + quality + cookie (vkey flow).
+ * Shared by the existing IPC handler and the `stream://` protocol handler.
+ */
+export async function qqResolveStreamUrl(songmid: string, quality: string, cookie: string): Promise<string> {
+  const fileConfig: Record<string, { s: string; e: string }> = {
+    m4a: { s: 'C400', e: '.m4a' },
+    '128': { s: 'M500', e: '.mp3' },
+    '320': { s: 'M800', e: '.mp3' },
+    flac: { s: 'F000', e: '.flac' },
+  };
+  const cfg = fileConfig[quality] ?? fileConfig['320']!;
+  const file = `${cfg.s}${songmid}${songmid}${cfg.e}`;
+  const reqData = {
+    req_1: {
+      module: 'vkey.GetVkeyServer',
+      method: 'CgiGetVkey',
+      param: {
+        filename: [file],
+        guid: '10000',
+        songmid: [songmid],
+        songtype: [0],
+        uin: '0',
+        loginflag: 1,
+        platform: '20',
+      },
+    },
+    loginUin: '0',
+    comm: { uin: '0', format: 'json', ct: 24, cv: 0 },
+  };
+  const response = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Referer: 'https://y.qq.com/',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      Cookie: cookie,
+    },
+    body: JSON.stringify(reqData),
+  });
+  if (!response.ok) throw new Error(`QQ vkey HTTP ${response.status}`);
+  const data = await response.json();
+  const purl = data?.req_1?.data?.midurlinfo?.[0]?.purl;
+  const sip = data?.req_1?.data?.sip?.[0] ?? '';
+  if (!purl) throw new Error('QQ vkey: empty purl (cookie may be expired or song unavailable)');
+  return sip + purl;
+}
+
 export function registerQQMusicHandlers(): void {
+  ipcMain.handle('qq-music-request', async (_event, options: {
+    url: string;
+    method?: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: string;
+    cookie?: string;
+  }) => {
+    try {
+      if (!options?.url) {
+        throw new Error('Missing QQ Music request URL');
+      }
+
+      const requestUrl = new URL(options.url);
+      const allowedHosts = new Set(['u.y.qq.com', 'c.y.qq.com', 'y.qq.com']);
+      if (!allowedHosts.has(requestUrl.hostname)) {
+        throw new Error(`Unsupported QQ Music host: ${requestUrl.hostname}`);
+      }
+
+      logger.info('[Main] QQ Music request:', options.method || 'GET', requestUrl.hostname, requestUrl.pathname);
+
+      const requestInit: RequestInit = {
+        method: options.method || 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+          'Referer': 'https://y.qq.com/',
+          ...(options.headers || {}),
+          ...(options.cookie ? { Cookie: options.cookie } : {}),
+        },
+      };
+      if (options.body !== undefined) {
+        requestInit.body = options.body;
+      }
+
+      const response = await fetch(requestUrl.toString(), requestInit);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      const text = await response.text();
+      const jsonText = text.trim().replace(/^[\w$]+\((.*)\);?$/s, '$1');
+      const data = jsonText ? JSON.parse(jsonText) : null;
+      return { success: true, data };
+    } catch (error) {
+      logger.error('[Main] QQ Music request failed:', error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
+    }
+  });
+
   ipcMain.handle('get-qq-music-url', async (_event, requestData: any, cookieString: string) => {
     try {
       logger.info('[Main] Getting QQ Music URL...');

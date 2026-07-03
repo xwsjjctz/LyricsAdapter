@@ -22,6 +22,7 @@ import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
 import { i18n } from '../services/i18n';
 import { getDesktopImportKey, getTrackImportKeys, getUniqueWebDAVFileName, getWebFileImportKey } from '../services/importIdentity';
+import type { LibrarySettings } from '../services/libraryStorage';
 
 interface UseImportOptions {
   tracks: Track[];
@@ -33,7 +34,7 @@ interface UseImportOptions {
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
   createTrackedBlobUrl: (blob: Blob | File) => string;
   persistedTimeRef: React.MutableRefObject<number>;
-  getPersistenceData?: () => { localSlot: any; cloudSlot: any; activeSlotId: 'local' | 'cloud' };
+  getPersistenceData?: () => LibrarySettings;
   cloudTracks?: Track[];
   /** 云列表导入：上传到 WebDAV 后合并进 cloud slot。未提供则禁用云导入。 */
   mergeCloudTracks?: (added: Track[], removedIds: string[], updated: Track[]) => void;

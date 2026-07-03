@@ -1,0 +1,252 @@
+@keyframes newUxPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.new-ux-panel-in {
+  animation: newUxPanelIn 260ms ease both;
+}
+
+@keyframes newUxFocusTransitionMove {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1, 1);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(var(--focus-dx), var(--focus-dy), 0) scale(var(--focus-sx), var(--focus-sy));
+  }
+}
+
+@keyframes newUxFocusTransitionFade {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes newUxFocusTransitionText {
+  from {
+    opacity: 0.96;
+    transform: translate3d(0, 0, 0) scale(1, 1);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(var(--focus-dx), var(--focus-dy), 0) scale(var(--focus-sx), var(--focus-sy));
+  }
+}
+
+.new-ux-focus-transition {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  animation: newUxFocusTransitionFade 760ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+.new-ux-focus-transition__panel,
+.new-ux-focus-transition__cover,
+.new-ux-focus-transition__title,
+.new-ux-focus-transition__artist,
+.new-ux-focus-transition__album,
+.new-ux-focus-transition__controls,
+.new-ux-focus-transition__progress {
+  position: fixed;
+  transform-origin: left top;
+  will-change: transform, opacity;
+}
+
+.new-ux-focus-transition__panel {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 24px;
+  background: rgba(18, 24, 34, 0.52);
+  box-shadow: 0 28px 90px -24px rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  animation: newUxFocusTransitionMove 700ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+.new-ux-focus-transition__cover {
+  display: flex;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+  animation: newUxFocusTransitionMove 720ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+.new-ux-focus-transition__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.new-ux-focus-transition__title,
+.new-ux-focus-transition__artist,
+.new-ux-focus-transition__album {
+  overflow: hidden;
+  color: #fff;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0;
+  text-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+  animation: newUxFocusTransitionText 720ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+.new-ux-focus-transition__title {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.new-ux-focus-transition__artist {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.new-ux-focus-transition__album {
+  color: rgba(255, 255, 255, 0.44);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.new-ux-focus-transition__progress {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  animation: newUxFocusTransitionMove 720ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+.new-ux-focus-transition__controls {
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.92) 0 22%, transparent 23%),
+    linear-gradient(90deg, transparent 0 22%, rgba(255, 255, 255, 0.22) 22% 34%, transparent 34% 66%, rgba(255, 255, 255, 0.22) 66% 78%, transparent 78%);
+  animation: newUxFocusTransitionMove 720ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+@keyframes newUxFocusAmbientDrift {
+  from {
+    transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) rotate(14deg) scale(1.08);
+  }
+}
+
+@keyframes newUxFocusAmbientPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@keyframes newUxFocusLyricsEnter {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translate3d(18px, 12px, 0);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0);
+  }
+}
+
+.new-ux-focus-ambient {
+  pointer-events: none;
+  position: absolute;
+  inset: -16%;
+  overflow: hidden;
+  opacity: 0.78;
+  transition: opacity 700ms ease, filter 700ms ease;
+}
+
+.new-ux-focus-ambient__cover {
+  position: absolute;
+  inset: 4%;
+  background-image: var(--new-ux-focus-cover-image);
+  background-position: center;
+  background-size: cover;
+  filter: blur(72px) saturate(1.28) brightness(0.76);
+  opacity: 0.42;
+  transform: scale(1.08);
+  transition: background-image 700ms ease, opacity 700ms ease, filter 700ms ease;
+}
+
+.new-ux-focus-ambient__beam {
+  position: absolute;
+  width: 46%;
+  height: 54%;
+  border-radius: 999px;
+  mix-blend-mode: screen;
+  filter: blur(64px);
+  opacity: 0.48;
+  animation:
+    newUxFocusAmbientDrift 16s ease-in-out infinite alternate,
+    newUxFocusAmbientPulse 9s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.new-ux-focus-ambient__beam--a {
+  top: 4%;
+  left: 10%;
+  background: radial-gradient(circle, rgba(98, 190, 255, 0.62), rgba(98, 190, 255, 0) 68%);
+}
+
+.new-ux-focus-ambient__beam--b {
+  right: 8%;
+  bottom: 10%;
+  background: radial-gradient(circle, rgba(255, 117, 190, 0.58), rgba(255, 117, 190, 0) 70%);
+  animation-duration: 19s, 11s;
+  animation-delay: -4s, -2s;
+}
+
+.new-ux-focus-ambient__beam--c {
+  top: 20%;
+  right: 24%;
+  background: radial-gradient(circle, rgba(255, 216, 144, 0.4), rgba(148, 111, 255, 0) 72%);
+  animation-duration: 23s, 13s;
+  animation-delay: -8s, -5s;
+}
+
+.new-ux-focus-ambient--paused {
+  opacity: 0.42;
+  filter: saturate(0.86) brightness(0.8);
+}
+
+.new-ux-focus-ambient--paused .new-ux-focus-ambient__beam {
+  animation-duration: 34s, 18s;
+  opacity: 0.3;
+}
+
+.new-ux-focus-ambient--playing {
+  opacity: 0.82;
+}
+
+.new-ux-focus-lyrics-enter {
+  animation: newUxFocusLyricsEnter 980ms cubic-bezier(0.2, 0.72, 0.22, 1) both;
+  will-change: opacity, transform, filter;
+}

@@ -63,6 +63,46 @@ const translations: Translations = {
     de: 'Cloud',
     fr: 'Nuage'
   },
+  'sidebar.onlinePlayback': {
+    zh: '在线队列',
+    en: 'Online Queue',
+    ja: 'オンラインキュー',
+    ko: '온라인 대기열',
+    de: 'Online-Warteschlange',
+    fr: 'File en ligne'
+  },
+  'sidebar.online': {
+    zh: '在线队列',
+    en: 'Online Queue',
+    ja: 'オンラインキュー',
+    ko: '온라인 대기열',
+    de: 'Online-Warteschlange',
+    fr: 'File en ligne'
+  },
+  'sidebar.onlineQueue': {
+    zh: '在线队列',
+    en: 'Online Queue',
+    ja: 'オンラインキュー',
+    ko: '온라인 대기열',
+    de: 'Online-Warteschlange',
+    fr: 'File en ligne'
+  },
+  'sidebar.onlineMusic': {
+    zh: '在线音乐',
+    en: 'Online Music',
+    ja: 'オンライン音楽',
+    ko: '온라인 음악',
+    de: 'Online-Musik',
+    fr: 'Musique en ligne'
+  },
+  'sidebar.playlists': {
+    zh: '歌单',
+    en: 'Playlists',
+    ja: 'プレイリスト',
+    ko: '플레이리스트',
+    de: 'Wiedergabelisten',
+    fr: 'Listes de lecture'
+  },
   'sidebar.browse': {
     zh: '浏览',
     en: 'Browse',
@@ -289,6 +329,46 @@ const translations: Translations = {
     de: 'Verwenden Sie die Seitenleiste, um Audio-Dateien zu importieren',
     fr: 'Utilisez la barre latérale pour importer vos fichiers audio'
   },
+  'library.importTracksHint': {
+    zh: '导入本地音频文件后，它们会出现在这里',
+    en: 'Import local audio files and they will appear here',
+    ja: 'ローカル音声ファイルをインポートするとここに表示されます',
+    ko: '로컬 오디오 파일을 가져오면 여기에 표시됩니다',
+    de: 'Importierte lokale Audiodateien erscheinen hier',
+    fr: 'Importez des fichiers audio locaux pour les afficher ici'
+  },
+  'library.noCloudTracks': {
+    zh: '云端还没有曲目',
+    en: 'No cloud tracks yet',
+    ja: 'クラウドにトラックがありません',
+    ko: '클라우드에 아직 곡이 없습니다',
+    de: 'Noch keine Cloud-Titel',
+    fr: 'Aucun titre cloud'
+  },
+  'library.cloudEmptyHint': {
+    zh: '刷新 WebDAV 或到设置中配置云端音乐库',
+    en: 'Refresh WebDAV or configure your cloud library in Settings',
+    ja: 'WebDAV を更新するか、設定でクラウドライブラリを構成してください',
+    ko: 'WebDAV를 새로고침하거나 설정에서 클라우드 라이브러리를 구성하세요',
+    de: 'Aktualisieren Sie WebDAV oder konfigurieren Sie Ihre Cloud-Bibliothek in den Einstellungen',
+    fr: 'Actualisez WebDAV ou configurez votre bibliothèque cloud dans les réglages'
+  },
+  'library.noOnlineTracks': {
+    zh: '在线队列为空',
+    en: 'Online queue is empty',
+    ja: 'オンラインキューは空です',
+    ko: '온라인 대기열이 비어 있습니다',
+    de: 'Die Online-Warteschlange ist leer',
+    fr: 'La file en ligne est vide'
+  },
+  'library.onlineQueueEmptyHint': {
+    zh: '通过顶部搜索框或第三方歌单播放歌曲后，会自动加入这里',
+    en: 'Play songs from the top search box or third-party playlists and they will appear here',
+    ja: '上部の検索ボックスやサードパーティのプレイリストから再生するとここに追加されます',
+    ko: '상단 검색창이나 타사 플레이리스트에서 재생하면 여기에 추가됩니다',
+    de: 'Spielen Sie Songs über das obere Suchfeld oder Drittanbieter-Playlists ab, dann erscheinen sie hier',
+    fr: 'Lancez des titres depuis la recherche du haut ou les playlists tierces pour les voir ici'
+  },
   'library.needReimport': {
     zh: '(需要重新导入)',
     en: '(Need re-import)',
@@ -396,12 +476,12 @@ const translations: Translations = {
 
   // Browse View
   'browse.title': {
-    zh: '浏览',
-    en: 'Browse',
-    ja: 'ブラウズ',
-    ko: '찾아보기',
-    de: 'Durchsuchen',
-    fr: 'Parcourir'
+    zh: '在线搜索',
+    en: 'Online Search',
+    ja: 'オンライン検索',
+    ko: '온라인 검색',
+    de: 'Online-Suche',
+    fr: 'Recherche en ligne'
   },
   'browse.searchResults': {
     zh: '搜索结果：',
@@ -450,6 +530,30 @@ const translations: Translations = {
     ko: '설정 열기',
     de: 'Einstellungen öffnen',
     fr: 'Ouvrir les paramètres'
+  },
+  'playlists.emptyLoginHint': {
+    zh: '暂无歌单，请先登录第三方音源',
+    en: 'No playlists yet. Sign in to a third-party music source first.',
+    ja: 'プレイリストがありません。先にサードパーティ音源へログインしてください。',
+    ko: '아직 플레이리스트가 없습니다. 먼저 타사 음악 소스에 로그인하세요.',
+    de: 'Noch keine Playlists. Melden Sie sich zuerst bei einer Drittanbieter-Musikquelle an.',
+    fr: 'Aucune playlist. Connectez-vous d’abord à une source musicale tierce.'
+  },
+  'playlists.title': {
+    zh: '歌单',
+    en: 'Playlists',
+    ja: 'プレイリスト',
+    ko: '플레이리스트',
+    de: 'Wiedergabelisten',
+    fr: 'Listes de lecture'
+  },
+  'playlists.description': {
+    zh: '浏览并播放第三方音源中的在线歌单',
+    en: 'Browse and play online playlists from third-party music sources',
+    ja: 'サードパーティ音源からオンラインプレイリストを閲覧・再生',
+    ko: '타사 음악 소스의 온라인 플레이리스트를 찾아 재생하세요',
+    de: 'Durchsuchen und abspielen von Online-Playlists von Drittanbieter-Musikquellen',
+    fr: 'Parcourez et écoutez des listes de lecture en ligne provenant de sources musicales tierces'
   },
   'browse.browserLimitTitle': {
     zh: '提示：浏览功能需要在桌面端使用，因为浏览器存在跨域限制。',
@@ -923,6 +1027,30 @@ const translations: Translations = {
     de: 'Brutalistisches Gelb',
     fr: 'Jaune brutaliste'
   },
+  'theme.name.default-dark': {
+    zh: '默认深色',
+    en: 'Default Dark',
+    ja: 'Default Dark',
+    ko: 'Default Dark',
+    de: 'Default Dark',
+    fr: 'Default Dark'
+  },
+  'theme.name.default-light': {
+    zh: '默认浅色',
+    en: 'Default Light',
+    ja: 'Default Light',
+    ko: 'Default Light',
+    de: 'Default Light',
+    fr: 'Default Light'
+  },
+  'theme.name.default-combined': {
+    zh: '默认主题',
+    en: 'Default Theme',
+    ja: 'Default Theme',
+    ko: 'Default Theme',
+    de: 'Default Theme',
+    fr: 'Default Theme'
+  },
 
   // Theme descriptions
   'theme.desc.default': {
@@ -996,6 +1124,30 @@ const translations: Translations = {
     ko: '높은 대비, 단단한 테두리, 포스터 같은 브루탈리스트 스타일',
     de: 'Hoher Kontrast, harte Kanten und posterartige Brutalistik',
     fr: 'Contraste élevé, bords durs et style brutaliste façon affiche'
+  },
+  'theme.desc.default-dark': {
+    zh: '新的默认深色主题，基于经典蓝',
+    en: 'New default dark theme based on Classic Blue',
+    ja: 'New default dark theme based on Classic Blue',
+    ko: 'New default dark theme based on Classic Blue',
+    de: 'New default dark theme based on Classic Blue',
+    fr: 'New default dark theme based on Classic Blue'
+  },
+  'theme.desc.default-light': {
+    zh: '新的默认浅色主题，基于暖米',
+    en: 'New default light theme based on Warm Cream',
+    ja: 'New default light theme based on Warm Cream',
+    ko: 'New default light theme based on Warm Cream',
+    de: 'New default light theme based on Warm Cream',
+    fr: 'New default light theme based on Warm Cream'
+  },
+  'theme.desc.default-combined': {
+    zh: '内置默认主题，可在浅色和深色之间切换',
+    en: 'Built-in default theme with light and dark modes',
+    ja: 'Built-in default theme with light and dark modes',
+    ko: 'Built-in default theme with light and dark modes',
+    de: 'Built-in default theme with light and dark modes',
+    fr: 'Built-in default theme with light and dark modes'
   },
 
   // Theme tags
@@ -1370,12 +1522,12 @@ const translations: Translations = {
     fr: 'QQ Music'
   },
   'settingsDialog.onlineMusicTitle': {
-    zh: '在线音乐',
-    en: 'Online Music',
-    ja: 'オンライン音楽',
-    ko: '온라인 음악',
-    de: 'Online-Musik',
-    fr: 'Musique en ligne'
+    zh: '第三方音源',
+    en: 'Third Party Source',
+    ja: 'サードパーティ音源',
+    ko: '타사 음원',
+    de: 'Drittanbieter-Quelle',
+    fr: 'Source tierce'
   },
   'settingsDialog.onlineSource': {
     zh: '音源',
@@ -1416,6 +1568,94 @@ const translations: Translations = {
     ko: 'VIP / 고음질 다운로드에만 필요. 입력 안 해도 검색·미리듣기 가능',
     de: 'Nur für VIP-/HQ-Downloads nötig; Suche & Vorschau funktionieren auch ohne',
     fr: 'Uniquement pour les téléchargements VIP/HQ ; recherche et aperçu fonctionnent sans'
+  },
+  'settingsDialog.qrTitle': {
+    zh: '扫码登录',
+    en: 'Scan to log in',
+    ja: 'QRログイン',
+    ko: 'QR 로그인',
+    de: 'Per QR anmelden',
+    fr: 'Connexion par QR'
+  },
+  'settingsDialog.qrWaiting': {
+    zh: '请使用手机 APP 扫码',
+    en: 'Scan with the phone app',
+    ja: 'スマホアプリでスキャン',
+    ko: '휴대폰 앱으로 스캔',
+    de: 'Mit der Handy-App scannen',
+    fr: 'Scanner avec l’appli mobile'
+  },
+  'settingsDialog.qrConfirming': {
+    zh: '请在手机上确认登录',
+    en: 'Confirm on your phone',
+    ja: 'スマホで確認してください',
+    ko: '휴대폰에서 확인하세요',
+    de: 'Auf dem Handy bestätigen',
+    fr: 'Confirmez sur le téléphone'
+  },
+  'settingsDialog.qrExpired': {
+    zh: '二维码已失效',
+    en: 'QR code expired',
+    ja: 'QRコードが期限切れです',
+    ko: 'QR 코드가 만료되었습니다',
+    de: 'QR-Code abgelaufen',
+    fr: 'QR expiré'
+  },
+  'settingsDialog.qrError': {
+    zh: '加载失败，请重试',
+    en: 'Failed to load, retry',
+    ja: '読み込み失敗、再試行',
+    ko: '로드 실패, 재시도',
+    de: 'Laden fehlgeschlagen, erneut',
+    fr: 'Échec, réessayer'
+  },
+  'settingsDialog.qrLoading': {
+    zh: '正在生成二维码…',
+    en: 'Generating QR…',
+    ja: 'QR生成中…',
+    ko: 'QR 생성 중…',
+    de: 'QR wird erstellt…',
+    fr: 'Génération du QR…'
+  },
+  'settingsDialog.qrLoggedIn': {
+    zh: '已登录',
+    en: 'Logged in',
+    ja: 'ログイン済み',
+    ko: '로그인됨',
+    de: 'Angemeldet',
+    fr: 'Connecté'
+  },
+  'settingsDialog.qrRefresh': {
+    zh: '刷新二维码',
+    en: 'Refresh QR',
+    ja: 'QR更新',
+    ko: 'QR 새로고침',
+    de: 'QR aktualisieren',
+    fr: 'Actualiser le QR'
+  },
+  'settingsDialog.qrLogout': {
+    zh: '退出登录',
+    en: 'Log out',
+    ja: 'ログアウト',
+    ko: '로그아웃',
+    de: 'Abmelden',
+    fr: 'Déconnexion'
+  },
+  'settingsDialog.qrReLogin': {
+    zh: '重新扫码',
+    en: 'Re-scan',
+    ja: '再スキャン',
+    ko: '다시 스캔',
+    de: 'Erneut scannen',
+    fr: 'Re-scanner'
+  },
+  'settingsDialog.qrHint': {
+    zh: '扫码成功后会自动填入 Cookie',
+    en: 'A successful scan auto-fills the cookie',
+    ja: 'スキャン成功でCookieを自動入力',
+    ko: '스캔 성공 시 Cookie 자동 입력',
+    de: 'Erfolgreicher Scan füllt das Cookie automatisch',
+    fr: 'Un scan réussi remplit le cookie'
   },
 
   // Player Controls
@@ -1883,6 +2123,14 @@ const translations: Translations = {
     de: 'Speichern',
     fr: 'Enregistrer'
   },
+  'common.open': {
+    zh: '打开',
+    en: 'Open',
+    ja: '開く',
+    ko: '열기',
+    de: 'Öffnen',
+    fr: 'Ouvrir'
+  },
   'common.cancel': {
     zh: '取消',
     en: 'Cancel',
@@ -2028,22 +2276,22 @@ const translations: Translations = {
     fr: 'Retour GSAP à la pression et au relâchement des boutons'
   },
 
-  'settings.liquidGlass': {
-    zh: '液态玻璃界面',
-    en: 'Liquid Glass UI',
-    ja: 'リキッドグラス UI',
-    ko: '리퀴드 글래스 UI',
-    de: 'Liquid-Glass-Oberfläche',
-    fr: 'Interface verre liquide'
+  'settings.newUx': {
+    zh: '全新 UI/UX',
+    en: 'New UI/UX',
+    ja: '新しい UI/UX',
+    ko: '새 UI/UX',
+    de: 'Neue UI/UX',
+    fr: 'Nouvelle UI/UX'
   },
 
-  'settings.liquidGlassDesc': {
-    zh: '工具栏按钮与 Focus Mode 播放台的液态玻璃效果',
-    en: 'Liquid glass effect for toolbar buttons and the Focus Mode player',
-    ja: 'ツールバーボタンと Focus Mode プレーヤーのリキッドグラス効果',
-    ko: '툴바 버튼과 Focus Mode 플레이어의 리퀴드 글래스 효과',
-    de: 'Liquid-Glass-Effekt für Toolbar-Buttons und den Focus-Mode-Player',
-    fr: 'Effet verre liquide pour les boutons et le lecteur en Focus Mode'
+  'settings.newUxDesc': {
+    zh: '启用新的歌单空间、浮动面板和沉浸式播放过渡',
+    en: 'Enable the new playlist space, floating panels, and immersive playback transition',
+    ja: '新しいプレイリスト空間、フローティングパネル、没入型再生トランジションを有効にします',
+    ko: '새 플레이리스트 공간, 플로팅 패널, 몰입형 재생 전환을 활성화합니다',
+    de: 'Aktiviert den neuen Playlist-Raum, schwebende Panels und immersive Wiedergabeübergänge',
+    fr: 'Active le nouvel espace de playlists, les panneaux flottants et la transition de lecture immersive'
   },
 
   'settings.focusBgBlurRadius': {

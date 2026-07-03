@@ -172,6 +172,27 @@ class MetadataFolderService {
     return `/Metadata/_chunk_${chunkId}.json`;
   }
 
+  /** /Metadata/ 集合路径。上传前需 MKCOL 确保其存在。 */
+  get folderPath(): string {
+    return '/Metadata';
+  }
+
+  /**
+   * 上传 JSON 文本到 /Metadata/，失败时自动 MKCOL 父目录后重试一次。
+   * 常见失败：父目录缺失 → PUT 409。把被吞掉的错误打印出来，便于诊断非 409 的真实原因。
+   */
+  private async uploadJsonWithMkcolRetry(filePath: string, json: string): Promise<boolean> {
+    let result = await webdavClient.uploadTextFile(filePath, json);
+    if (result.success) return true;
+    logger.warn(`[MetadataFolder] PUT ${filePath} failed (${result.error}); ensuring ${this.folderPath} and retrying`);
+    await webdavClient.ensureCollection(this.folderPath);
+    result = await webdavClient.uploadTextFile(filePath, json);
+    if (!result.success) {
+      logger.error(`[MetadataFolder] PUT ${filePath} retry still failed: ${result.error}`);
+    }
+    return result.success;
+  }
+
   /**
    * 加载 manifest。缓存结果。
    * 顺序：① GET _manifest.json → v3 返回；
@@ -304,12 +325,11 @@ class MetadataFolderService {
 
   /** 覆盖写入 manifest。调用方必须已成功写入所有引用的 chunk。 */
   async saveManifest(manifest: Manifest): Promise<boolean> {
-    const json = JSON.stringify(manifest);
-    const result = await webdavClient.uploadTextFile(this.manifestPath, json);
-    if (result.success) {
+    const ok = await this.uploadJsonWithMkcolRetry(this.manifestPath, JSON.stringify(manifest));
+    if (ok) {
       this.manifestCache = manifest;
     }
-    return result.success;
+    return ok;
   }
 
   /** 加载单个 chunk。缓存结果。返回 null 表示缺失/损坏。 */
@@ -332,12 +352,11 @@ class MetadataFolderService {
 
   /** 覆盖写入 chunk。更新缓存。 */
   async saveChunk(chunkId: string, chunk: Chunk): Promise<boolean> {
-    const json = JSON.stringify(chunk);
-    const result = await webdavClient.uploadTextFile(this.chunkPath(chunkId), json);
-    if (result.success) {
+    const ok = await this.uploadJsonWithMkcolRetry(this.chunkPath(chunkId), JSON.stringify(chunk));
+    if (ok) {
       this.chunkCache.set(chunkId, chunk);
     }
-    return result.success;
+    return ok;
   }
 
   /**
@@ -347,6 +366,8 @@ class MetadataFolderService {
    * 已成功写入的孤儿 chunk 无害，下次 forceAll 回收。
    */
   async saveChunksAndManifest(chunks: Map<string, Chunk>, manifest: Manifest): Promise<boolean> {
+    // 预先确保 /Metadata/ 存在，避免每个文件都走"PUT 失败→MKCOL→重试"的额外往返。
+    await webdavClient.ensureCollection(this.folderPath);
     for (const [id, chunk] of chunks) {
       const ok = await this.saveChunk(id, chunk);
       if (!ok) {

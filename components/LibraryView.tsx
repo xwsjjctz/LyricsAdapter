@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Track } from '../types';
+import { Track, SlotId } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
+import { resolveThemeAppearance } from '../services/themeAppearance';
 import TrackCover from './TrackCover';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
@@ -22,6 +23,10 @@ interface LibraryViewProps {
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string, deleteFile?: boolean) => void;
   onRemoveMultipleTracks?: (trackIds: string[], deleteFile?: boolean) => void;
+  onImportClick?: () => void;
+  importDisabled?: boolean;
+  importDisabledReason?: string | undefined;
+  onOpenSettings?: () => void;
   onDropFiles?: (files: File[]) => void;
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
   onReorderTracks?: (fromIndex: number, toIndex: number) => void;
@@ -31,21 +36,32 @@ interface LibraryViewProps {
   onScrollPositionChange?: (position: number) => void;
   autoLocateToken?: number;
   importProgress?: { loaded: number; total: number } | null;
-  dataSource: 'local' | 'cloud';
-  activeSlotId: 'local' | 'cloud';
-  onSwitchSlot: (slotId: 'local' | 'cloud', options?: { locateCurrentTrack?: boolean }) => Promise<void>;
+  dataSource: SlotId;
+  activeSlotId: SlotId;
+  onSwitchSlot: (slotId: SlotId, options?: { locateCurrentTrack?: boolean }) => Promise<void>;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
-  onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
   onCategoryChange: (selection: string | null) => void;
   onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
-  pendingLocateSlot?: 'local' | 'cloud' | undefined;
+  pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: (token: number) => void;
-  onSlotContentReady?: (slot: 'local' | 'cloud') => void;
+  onSlotContentReady?: (slot: SlotId) => void;
   searchBox?: React.ReactNode;
+}
+
+interface LibraryEmptyState {
+  icon: string;
+  title: string;
+  description: string;
+  primaryLabel: string;
+  primaryIcon: string;
+  onPrimary?: (() => void) | undefined;
+  secondaryLabel?: string | undefined;
+  secondaryIcon?: string | undefined;
+  onSecondary?: (() => void) | undefined;
 }
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
@@ -55,6 +71,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
+  onImportClick,
+  importDisabled = false,
+  importDisabledReason,
+  onOpenSettings,
   onDropFiles,
   onDropFilePaths,
   onReorderTracks,
@@ -69,7 +89,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onSwitchSlot,
   filterType,
   categorySelection,
-  onFilterTypeChange,
   onCategoryChange,
   onHeaderHeightChange,
   onLoadCloudTracks,
@@ -88,7 +107,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
   // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const [languageVersion, setLanguageVersion] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -238,9 +257,47 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Theme colors
   const colors = currentTheme.colors;
+  // 当前播放指示器形态：'inline' 时不渲染浮动跟随滑块，改用行内实色高亮，
+  // 彻底规避浮动定位错位，且滚动时无跟随动画。
+  const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
+  // inline 模式（粗粝类主题）下，浮动定位按钮也走粗粝风：实色底 + 黑色直角边框 + 硬阴影。
+  const inlineFab = playingIndicator === 'inline';
 
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
+
+  const emptyState = useMemo<LibraryEmptyState>(() => {
+    if (dataSource === 'cloud') {
+      return {
+        icon: 'cloud_off',
+        title: i18n.t('library.noCloudTracks'),
+        description: i18n.t('library.cloudEmptyHint'),
+        primaryLabel: i18n.t('library.refresh'),
+        primaryIcon: 'refresh',
+        onPrimary: handleRefreshCloud,
+        secondaryLabel: i18n.t('browse.openSettings'),
+        secondaryIcon: 'settings',
+        onSecondary: onOpenSettings,
+      };
+    }
+    if (dataSource === 'online') {
+      return {
+        icon: 'history',
+        title: i18n.t('library.noOnlineTracks'),
+        description: i18n.t('library.onlineQueueEmptyHint'),
+        primaryLabel: '',
+        primaryIcon: '',
+      };
+    }
+    return {
+      icon: 'library_music',
+      title: i18n.t('library.noTracksImported'),
+      description: i18n.t('library.importTracksHint'),
+      primaryLabel: i18n.t('sidebar.importFiles'),
+      primaryIcon: 'add',
+      onPrimary: onImportClick,
+    };
+  }, [dataSource, handleRefreshCloud, onImportClick, onOpenSettings, languageVersion]);
 
   // Glass UI insets. topInset offsets the default (virtualized) list below the
   // frosted header band so rows scroll under it; the hook windows against it and
@@ -574,6 +631,30 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
   }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
 
+  const handleScrollToTop = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+
+    const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
+    if (currentTrackInFilteredIndex >= 0 && targetTracks.length > 0) {
+      const itemTop = rowTop(currentTrackInFilteredIndex);
+      const itemBottom = itemTop + baseRowHeight;
+      const viewportTop = topInset;
+      const viewportBottom = container.clientHeight - bottomInset;
+      const isVisible = itemBottom >= viewportTop && itemTop <= viewportBottom;
+      setShowLocateButton(!isVisible);
+    } else if (dataSource !== activeSlotId && currentTrackId) {
+      setShowLocateButton(true);
+    } else {
+      setShowLocateButton(false);
+    }
+  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
+
   // Handle drag events
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -857,12 +938,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           }
         }}
         onBatchDelete={confirmBatchDelete}
+        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled, importDisabledReason } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
-        filterType={filterType}
-        onFilterTypeChange={onFilterTypeChange}
-        onCategoryChange={onCategoryChange}
-        uniqueAlbums={uniqueAlbums}
-        uniqueArtists={uniqueArtists}
         trackCount={filteredTracks.length}
         importProgress={importProgress}
         loadProgress={dataSource === 'cloud' ? loadProgress : undefined}
@@ -871,7 +948,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
-          <div className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] ${glassUI ? 'mb-0' : 'mb-2'}`} style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+          <div
+            className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] select-none ${glassUI ? 'mb-0' : 'mb-2'}`}
+            style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+            onDoubleClick={handleScrollToTop}
+          >
             {isEditMode ? (
               <input
                 type="checkbox"
@@ -913,29 +994,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           )}
           {/* Sliding highlight overlay (outside scroll clipping) */}
           <div className="absolute inset-0 pointer-events-none">
-            {highlightStyle.opacity > 0 && (
+            {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
               <div
-                className="absolute pointer-events-none"
+                className={`absolute pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
                 style={{
+                  transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+                  height: `${highlightStyle.height}px`,
+                  opacity: highlightStyle.opacity,
                   left: 24,
                   right: 24,
-                  top: 0,
-                  opacity: highlightStyle.opacity,
-                  transform: `translateY(${-scrollTop}px)`,
+                  backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
+                  boxShadow: 'var(--theme-elevated-shadow)',
+                  borderRadius: 'var(--theme-control-radius)',
                 }}
-              >
-                <div
-                  className={`pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
-                  style={{
-                    transform: `translateY(${highlightStyle.top}px)`,
-                    height: `${highlightStyle.height}px`,
-                    backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                    boxShadow: 'var(--theme-elevated-shadow)',
-                    borderRadius: 'var(--theme-control-radius)',
-                  }}
-                />
-              </div>
+              />
             )}
           </div>
 
@@ -948,7 +1021,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               <div
                 ref={listRef}
                 className="grid relative"
-                style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)' }}
+                style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)', paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
               >
                 {insertPosition !== null && (
                   <div
@@ -978,6 +1051,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       isDragged={isDragged}
                       shouldShowAnimation={shouldShowAnimation}
                       colors={colors}
+                      playingIndicator={playingIndicator}
                       measureRef={idx === 0 ? rowMeasureRef : undefined}
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
@@ -992,10 +1066,46 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 })}
               </div>
             ) : (
-              <div className="py-20 text-center rounded-2xl" style={{ opacity: 0.2, color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
-                <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
-                <p className="text-xl font-medium">{i18n.t('library.noTracksImported')}</p>
-                <p className="text-sm">{i18n.t('library.useSidebarToImport')}</p>
+              <div className="py-16 text-center rounded-2xl" style={{ color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
+                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">{emptyState.icon}</span>
+                <p className="text-xl font-medium" style={{ color: colors.textSecondary }}>{emptyState.title}</p>
+                <p className="text-sm mt-1">{emptyState.description}</p>
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  {emptyState.onPrimary && (
+                    <button
+                      onClick={emptyState.onPrimary}
+                      disabled={dataSource === 'local' && importDisabled}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
+                      style={{
+                        backgroundColor: dataSource === 'local' && importDisabled ? colors.backgroundCard : colors.primary,
+                        color: dataSource === 'local' && importDisabled ? colors.textMuted : '#fff',
+                        borderRadius: 'var(--theme-control-radius)',
+                        border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                        cursor: dataSource === 'local' && importDisabled ? 'not-allowed' : 'pointer',
+                        opacity: dataSource === 'local' && importDisabled ? 0.55 : 1,
+                      }}
+                      title={dataSource === 'local' && importDisabled ? importDisabledReason : undefined}
+                    >
+                      <span className="material-symbols-outlined text-lg">{emptyState.primaryIcon}</span>
+                      <span>{emptyState.primaryLabel}</span>
+                    </button>
+                  )}
+                  {emptyState.onSecondary && (
+                    <button
+                      onClick={emptyState.onSecondary}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
+                      style={{
+                        backgroundColor: colors.backgroundCard,
+                        color: colors.textSecondary,
+                        borderRadius: 'var(--theme-control-radius)',
+                        border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                      }}
+                    >
+                      <span className="material-symbols-outlined text-lg">{emptyState.secondaryIcon}</span>
+                      <span>{emptyState.secondaryLabel}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1077,7 +1187,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                </div>
              )}
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
-               <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
+               <div
+                 className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px] select-none"
+                 style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+                 onDoubleClick={handleScrollToTop}
+               >
                 {isEditMode ? (
                   <input
                     type="checkbox"
@@ -1085,8 +1199,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     onChange={toggleSelectAll}
                     onClick={(e) => e.stopPropagation()}
                     className="w-4 h-4 rounded cursor-pointer"
-                  style={{ accentColor: colors.primary }}
-                />
+                    style={{ accentColor: colors.primary }}
+                  />
                 ) : (
                   <span>#</span>
                 )}
@@ -1101,29 +1215,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              <div className="flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
                {/* Sliding highlight overlay (outside scroll clipping) */}
                <div className="absolute inset-0 pointer-events-none">
-                 {highlightStyle.opacity > 0 && (
+                 {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
                    <div
-                     className="absolute pointer-events-none"
+                     className={`absolute pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
                      style={{
+                       transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+                       height: `${highlightStyle.height}px`,
+                       opacity: highlightStyle.opacity,
                        left: 24,
                        right: 24,
-                       top: 0,
-                       opacity: highlightStyle.opacity,
-                       transform: `translateY(${-scrollTop}px)`,
+                       backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                       border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
+                       boxShadow: 'var(--theme-elevated-shadow)',
+                       borderRadius: 'var(--theme-control-radius)',
                      }}
-                   >
-                     <div
-                       className={`pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
-                       style={{
-                         transform: `translateY(${highlightStyle.top}px)`,
-                         height: `${highlightStyle.height}px`,
-                         backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                         border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                         boxShadow: 'var(--theme-elevated-shadow)',
-                         borderRadius: 'var(--theme-control-radius)',
-                       }}
-                     />
-                   </div>
+                   />
                  )}
                </div>
 
@@ -1136,7 +1242,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                    <div
                      ref={listRef}
                      className="grid relative"
-                     style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)' }}
+                     style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)', paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
                    >
                       {visibleTracks.map((track, idx) => {
                         const filteredIndex = idx;
@@ -1161,13 +1267,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                             style={{
                               ...animationStyle,
                               opacity: isUnavailable ? 0.4 : 1,
-                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : (playingIndicator === 'inline' && isCurrentTrack ? colors.primary : 'transparent'),
                               border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
-                              color: isCurrentTrack ? colors.primary : colors.textPrimary,
+                              color: isCurrentTrack ? (playingIndicator === 'inline' ? 'var(--theme-control-current-track-fg)' : colors.primary) : colors.textPrimary,
                               cursor: (isEditMode || isUnavailable) ? 'default' : 'pointer',
+                              // inline 模式当前播放行：叠加粗粝风硬阴影并提升层级，使阴影不被相邻行遮挡。
+                              boxShadow: playingIndicator === 'inline' && isCurrentTrack ? 'var(--theme-elevated-shadow)' : undefined,
+                              zIndex: playingIndicator === 'inline' && isCurrentTrack ? 20 : undefined,
                             }}
-                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                            onMouseLeave={e => { if (!isUnavailable && !isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode && !isCurrentTrack) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                            onMouseLeave={e => { if (!isUnavailable && !isSelected && !isCurrentTrack) e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                            <div className="text-sm font-medium opacity-50">
                              {isEditMode && !isUnavailable ? (
@@ -1252,10 +1361,25 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <button
           onClick={handleLocateToCurrentTrack}
           className="absolute right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
-          style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary, bottom: glassUI ? bottomInset + 24 : 24 }}
+          style={{
+            backgroundColor: inlineFab ? colors.primary : colors.backgroundCard,
+            color: inlineFab ? 'var(--theme-control-action-fg)' : colors.textSecondary,
+            border: inlineFab ? 'var(--theme-control-border-width) solid var(--theme-list-item-border)' : undefined,
+            borderRadius: inlineFab ? 'var(--theme-button-radius)' : undefined,
+            boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
+            bottom: glassUI ? bottomInset + 24 : 24,
+          }}
           title={i18n.t('library.locateToCurrent')}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
+          onMouseEnter={e => {
+            if (inlineFab) return; // 粗粝风按钮 hover 不变阴影/底色，保持稳定外观
+            e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+            e.currentTarget.style.color = colors.textPrimary;
+          }}
+          onMouseLeave={e => {
+            if (inlineFab) return;
+            e.currentTarget.style.backgroundColor = colors.backgroundCard;
+            e.currentTarget.style.color = colors.textSecondary;
+          }}
         >
           <span className="material-symbols-outlined text-lg">my_location</span>
         </button>

@@ -370,6 +370,34 @@ export function usePlayback({
       return;
     }
 
+    // Online streaming (QQ / NetEase) via the stream:// protocol proxy.
+    if (currentTrack.source === 'qq' || currentTrack.source === 'netease') {
+      const capturedIndex = currentTrackIndex;
+      const shouldPlay = shouldAutoPlayRef.current;
+      const streamOnline = async () => {
+        const source = currentTrack.source;
+        const songmid = currentTrack.songmid;
+        if (!songmid) {
+          logger.error('[Playback] Online track missing songmid:', currentTrack.title);
+          return;
+        }
+        if (currentTrackIndexRef.current !== capturedIndex || !audioRef.current) return;
+        const audioUrl = `stream://${source}/${encodeURIComponent(songmid)}?q=320`;
+        logger.info('[Playback] Loading online audio:', audioUrl.slice(0, 60));
+        audioRef.current.src = audioUrl;
+        audioUrlReadyRef.current = true;
+        if (shouldPlay) {
+          await audioRef.current.play().catch(() => {});
+          shouldAutoPlayRef.current = false;
+          setIsPlaying(true);
+        } else {
+          audioRef.current.pause();
+        }
+      };
+      streamOnline();
+      return;
+    }
+
     if (!currentTrack.audioUrl && currentTrack.filePath) {
       logger.debug('[Playback] Lazy loading audio for:', currentTrack.title);
 

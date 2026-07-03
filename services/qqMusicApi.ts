@@ -72,6 +72,62 @@ class QQMusicAPI implements OnlineMusicProvider {
     };
   }
 
+  private getUin(cookies: Record<string, string>): string {
+    const raw = cookies['uin'] || cookies['p_uin'] || cookies['ptui_loginuin'] || cookies['luin'] || '0';
+    return raw.replace(/^o/, '').replace(/^0+(?=\d)/, '') || '0';
+  }
+
+  private normalizePlaylistCoverUrl(raw: unknown): string {
+    if (typeof raw !== 'string') return '';
+    const value = raw.trim();
+    if (!value) return '';
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    if (value.startsWith('//')) return `https:${value}`;
+    if (value.startsWith('/')) return `https://y.gtimg.cn${value}`;
+    if (/^[A-Za-z0-9]{14}$/.test(value)) {
+      return `https://y.gtimg.cn/music/photo_new/T002R300x300M000${value}.jpg`;
+    }
+    return '';
+  }
+
+  private async requestJson(
+    url: string,
+    options: {
+      method?: 'GET' | 'POST';
+      headers?: Record<string, string>;
+      body?: string;
+      cookie?: string;
+    } = {}
+  ): Promise<any> {
+    if (window.electron?.qqMusicRequest) {
+      const result = await window.electron.qqMusicRequest({
+        ...options,
+        url,
+        cookie: options.cookie ?? cookieManager.getCookie(),
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'QQ Music request failed');
+      }
+      return result.data;
+    }
+
+    const requestInit: RequestInit = {
+      method: options.method || 'GET',
+    };
+    if (options.headers !== undefined) {
+      requestInit.headers = options.headers;
+    }
+    if (options.body !== undefined) {
+      requestInit.body = options.body;
+    }
+
+    const response = await fetch(url, requestInit);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    return response.json();
+  }
+
   private isAsciiOnly(str: string): boolean {
     // Check if string contains only ISO-8859-1 characters (char code 0-255)
     // fetch API requires headers to be ISO-8859-1 encoded
@@ -378,7 +434,129 @@ class QQMusicAPI implements OnlineMusicProvider {
   }
 
   /**
-   * Get songs from a playlist
+   * Get the logged-in user's QQ Music playlists.
+   * Returns tid, name, cover, song count for each playlist.
+   */
+  /**
+   * Compute QQ Music `g_tk` (hash33) from the `p_skey` / `skey` / `qm_keyst` cookie.
+   * Returns `{ g_tk, source }` so callers can log which key was used.
+   * Falls back to 5381 (zero-value default) when no key is present.
+   */
+  private hash33(s: string): number {
+    let hash = 5381;
+    for (let i = 0; i < s.length; i++) {
+      hash += (hash << 5) + s.charCodeAt(i);
+    }
+    return hash & 0x7fffffff;
+  }
+
+  /**
+   * Fetch the logged-in user's QQ Music playlists.
+   *
+   * Two paths are tried (the QQ-Connect OAuth session lacks the qq.com `p_skey`
+   * that `MinePlaylist` demands, so we lead with the legacy cookie-auth endpoint):
+   *
+   *  1. Legacy `fcg_user_created_diss.fcg` — cookie auth (`qm_keyst`) + g_tk=5381,
+   *     the same auth model as vkey/DissInfo (which already work for us).
+   *  2. `music.mine.MineServer.MinePlaylist` — needs a valid p_skey g_tk (full login).
+   *
+   * Returns [] (QQ section absent) if neither works — graceful degradation.
+   */
+  async getPlaylists(): Promise<import('../services/onlineMusicProvider').PlaylistInfo[]> {
+    if (!cookieManager.hasCookie()) return [];
+    await cookieManager.ensureLoaded();
+    const cookies = cookieManager.parseCookie();
+    const rawUin = this.getUin(cookies);
+    const headers: Record<string, string> = {
+      ...this.getCookieHeaders(),
+      Referer: 'https://y.qq.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    };
+
+    const mapItem = (item: any): import('../services/onlineMusicProvider').PlaylistInfo => {
+      const coverRaw = item.logo || item.dir_logo || item.picurl || item.coverurl || item.diss_cover || '';
+      const isLikedPlaylist = Number(item.dirid) === 201;
+      const coverUrl = this.normalizePlaylistCoverUrl(coverRaw)
+        || (isLikedPlaylist ? 'https://y.gtimg.cn/mediastyle/global/img/cover_like.png' : '');
+      return {
+        id: String(item.disstid || item.tid || item.id || item.dirid || ''),
+        name: item.dissname || item.diss_name || item.name || '未知歌单',
+        coverUrl,
+        songCount: Number(item.songnum ?? item.song_cnt ?? item.total_song_num ?? 0),
+        source: 'qq' as const,
+      };
+    };
+
+    // ── Path 1: fcg_user_created_diss (current profile playlist endpoint) ──
+    try {
+      const params = new URLSearchParams({
+        hostUin: '0',
+        hostuin: rawUin,
+        g_tk: '5381',
+        inCharset: 'utf8',
+        outCharset: 'utf-8',
+        format: 'json',
+        notice: '0',
+        platform: 'yqq.json',
+        needNewCode: '0',
+        sin: '0',
+        size: '200',
+        loginUin: '0',
+      });
+      const json = await this.requestJson(
+        `https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss?${params.toString()}`,
+        { headers: { ...headers, Referer: 'https://y.qq.com/portal/profile.html' }, cookie: cookieManager.getCookie() },
+      );
+      const list: any[] = json?.data?.disslist ?? json?.cdlist ?? json?.data?.cdlist ?? [];
+      // cdlist[0] is sometimes "我喜欢的音乐" wrapper; filter to real playlists.
+      const playlists = list
+        .filter((d) => d && (d.disstid || d.tid || d.dirid))
+        .map(mapItem);
+      if (playlists.length > 0) {
+        logger.info('[QQMusicAPI] getPlaylists via fcg_user_created_diss:', playlists.length);
+        return playlists;
+      }
+      logger.info('[QQMusicAPI] fcg_user_created_diss empty; code=', json?.code, 'sub=', json?.subcode, 'cdlist?', Array.isArray(json?.cdlist));
+    } catch (e) {
+      logger.warn('[QQMusicAPI] fcg_user_created_diss failed:', e);
+    }
+
+    // ── Path 2: MinePlaylist (needs p_skey g_tk) ──
+    const p_skey = cookies['p_skey'];
+    if (p_skey) {
+      try {
+        const g_tk = this.hash33(p_skey);
+        const data = {
+          comm: { g_tk, uin: rawUin, format: 'json', inCharset: 'utf-8', outCharset: 'utf-8', notice: 0, platform: 'yqq.json', needNewCode: 1 },
+          req_1: {
+            module: 'music.mine.MineServer',
+            method: 'MinePlaylist',
+            param: { uin: rawUin, offset: 0, num: 50, type: 1, picmid: 1 },
+          },
+        };
+        const json = await this.requestJson(`https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          cookie: cookieManager.getCookie(),
+        });
+        if (json.code === 0 && json?.req_1?.code === 0) {
+          const list: any[] = json?.req_1?.data?.list ?? [];
+          const playlists = list.map(mapItem);
+          logger.info('[QQMusicAPI] getPlaylists via MinePlaylist:', playlists.length);
+          return playlists;
+        }
+      } catch (e) {
+        logger.warn('[QQMusicAPI] MinePlaylist failed:', e);
+      }
+    }
+
+    logger.info('[QQMusicAPI] getPlaylists: no working path — QQ section deferred');
+    return [];
+  }
+
+  /**
+   * Get songs from a QQ Music playlist.
    */
   async getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
@@ -409,21 +587,45 @@ class QQMusicAPI implements OnlineMusicProvider {
     };
 
     try {
-      const response = await fetch(
+      const params = new URLSearchParams({
+        type: '1',
+        utf8: '1',
+        disstid: playlistId,
+        loginUin: '0',
+        format: 'json',
+        inCharset: 'utf8',
+        outCharset: 'utf-8',
+      });
+      const qzoneResult = await this.requestJson(
+        `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?${params.toString()}`,
+        {
+          headers: { ...this.getCookieHeaders(), Referer: 'https://y.qq.com/n/yqq/playlist' },
+          cookie: cookieManager.getCookie(),
+        }
+      );
+      const qzoneSongList = qzoneResult?.cdlist?.[0]?.songlist ?? [];
+      if (qzoneSongList.length > 0) {
+        logger.info('[QQMusicAPI] getPlaylistSongs via fcg_ucc_getcdinfo_byids_cp:', qzoneSongList.length);
+        return qzoneSongList
+          .slice(songBegin, songBegin + songNum)
+          .map((song: any) => this.normalizeSong(song));
+      }
+      logger.info('[QQMusicAPI] fcg_ucc_getcdinfo_byids_cp empty; code=', qzoneResult?.code, 'sub=', qzoneResult?.subcode);
+    } catch (error: any) {
+      logger.warn('[QQMusicAPI] fcg_ucc_getcdinfo_byids_cp failed:', error);
+    }
+
+    try {
+      const result = await this.requestJson(
         `https://u.y.qq.com/cgi-bin/musicu.fcg?_webcgikey=uniform_get_Dissinfo&_=${Date.now()}`,
         {
           method: 'POST',
-          headers: this.getCookieHeaders(),
+          headers: { ...this.getCookieHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
+          cookie: cookieManager.getCookie(),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
       if (result.code === 500001) {
         throw new Error('Cookie expired or invalid');
       }
@@ -503,46 +705,30 @@ class QQMusicAPI implements OnlineMusicProvider {
    * Get lyrics for a song by songmid
    */
   async getLyrics(songmid: string): Promise<string | null> {
+    await cookieManager.ensureLoaded();
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
 
     try {
-      logger.debug('[QQMusicAPI] Getting lyrics for:', songmid);
+      logger.debug('[QQMusicAPI] Getting lyrics via IPC for:', songmid);
 
-      const response = await fetch(
-        `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
-        `&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0` +
-        `&platform=yqq.json&needNewCode=1&g_tk=5381&songmid=${songmid}`,
-        {
-          headers: this.getCookieHeaders(),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
+      // Use the main-process IPC (proven reliable, bypasses CORS/header issues)
+      if (!window.electron?.getQQMusicLyrics) {
+        throw new Error('Desktop API not available');
       }
+      const rawCookie = cookieManager.getCookie();
+      const result = await window.electron.getQQMusicLyrics(songmid, rawCookie) as {
+        success: boolean; lyrics?: string; error?: string;
+      };
 
-      const result = await response.json();
-      logger.debug('[QQMusicAPI] Lyrics response code:', result.code);
-
-      if (result.code !== 0) {
-        logger.warn('[QQMusicAPI] Lyrics API returned error code:', result.code);
+      if (!result.success) {
+        logger.warn('[QQMusicAPI] Lyrics IPC returned error:', result.error);
         return null;
       }
 
-      // Decode base64 lyrics
-      const lyricBase64 = result.lyric;
-      if (!lyricBase64) {
-        logger.debug('[QQMusicAPI] No lyrics available');
-        return null;
-      }
-
-      // Base64 decode
-      const lyrics = atob(lyricBase64);
-      logger.debug('[QQMusicAPI] Lyrics decoded, length:', lyrics.length);
-
-      return lyrics;
+      logger.debug('[QQMusicAPI] Lyrics decoded, length:', result.lyrics?.length ?? 0);
+      return result.lyrics || null;
     } catch (error: unknown) {
       logger.error('[QQMusicAPI] Get lyrics failed:', error);
       return null;

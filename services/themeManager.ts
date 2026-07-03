@@ -13,8 +13,9 @@ import { resolveThemeAppearance } from './themeAppearance';
 const THEME_STORAGE_KEY = 'app-theme';
 
 class ThemeManagerClass {
-  private currentThemeId: ThemeId = THEME_IDS.DEFAULT;
+  private currentThemeId: ThemeId = THEME_IDS.DEFAULT_DARK;
   private listeners: Set<(themeId: ThemeId) => void> = new Set();
+  private themeTransitionTimer: number | null = null;
 
   constructor() {
     this.loadFromStorage();
@@ -23,8 +24,9 @@ class ThemeManagerClass {
   private loadFromStorage(): void {
     try {
       const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
-      if (storedTheme && predefinedThemes.some(t => t.id === storedTheme)) {
-        this.currentThemeId = storedTheme;
+      const normalizedTheme = this.normalizeThemeId(storedTheme);
+      if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
+        this.currentThemeId = normalizedTheme;
         logger.debug('[ThemeManager] Loaded saved theme from localStorage:', storedTheme);
       } else {
         logger.debug('[ThemeManager] No saved theme found, using default');
@@ -32,6 +34,12 @@ class ThemeManagerClass {
     } catch (error) {
       logger.error('[ThemeManager] Failed to load from localStorage:', error);
     }
+  }
+
+  private normalizeThemeId(themeId: ThemeId | null): ThemeId | null {
+    if (themeId === THEME_IDS.DEFAULT) return THEME_IDS.DEFAULT_DARK;
+    if (themeId === THEME_IDS.WARM) return THEME_IDS.DEFAULT_LIGHT;
+    return themeId;
   }
 
   private saveToStorage(themeId: ThemeId): void {
@@ -92,6 +100,8 @@ class ThemeManagerClass {
     const radius = theme.borderRadius;
     const controls = resolveThemeControls(theme);
     const appearance = resolveThemeAppearance(theme);
+
+    this.startThemeTransition(root);
 
     // Apply CSS custom properties (CSS variables)
     root.style.setProperty('--theme-primary', colors.primary);
@@ -227,6 +237,18 @@ class ThemeManagerClass {
     document.body.classList.remove('theme-cute');
 
     logger.debug('[ThemeManager] Theme applied:', theme.name);
+  }
+
+  private startThemeTransition(root: HTMLElement): void {
+    if (this.themeTransitionTimer !== null) {
+      window.clearTimeout(this.themeTransitionTimer);
+    }
+
+    root.classList.add('theme-is-transitioning');
+    this.themeTransitionTimer = window.setTimeout(() => {
+      root.classList.remove('theme-is-transitioning');
+      this.themeTransitionTimer = null;
+    }, 420);
   }
 }
 

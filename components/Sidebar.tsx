@@ -1,27 +1,21 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { ViewMode } from '../types';
+import { ViewMode, SlotId } from '../types';
 import { i18n } from '../services/i18n';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 
 interface SidebarProps {
-  onImportClick: () => void;
   onNavigate: (mode: ViewMode) => void;
   currentView: ViewMode;
   onReloadFiles?: () => void;
   hasUnavailableTracks?: boolean;
   viewMode: ViewMode;
-  activeSlotId: 'local' | 'cloud';
-  onSlotChange: (slotId: 'local' | 'cloud') => void;
-  localTrackCount: number;
-  cloudTrackCount: number;
-  importDisabled?: boolean;
-  importDisabledReason?: string | undefined;
+  activeSlotId: SlotId;
+  onSlotChange: (slotId: SlotId) => void;
   floating?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
-  onImportClick,
   onNavigate,
   currentView,
   onReloadFiles,
@@ -29,18 +23,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   viewMode: _viewMode,
   activeSlotId,
   onSlotChange,
-  localTrackCount,
-  cloudTrackCount,
-  importDisabled = false,
-  importDisabledReason,
 }) => {
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isSettingsView = currentView === ViewMode.SETTINGS;
   const isThemeView = currentView === ViewMode.THEME;
+  const isPlaylistsView = currentView === ViewMode.PLAYLISTS;
 
   // Force re-render when language changes
   const [languageVersion, setLanguageVersion] = useState(0);
-  const [isImportHovered, setIsImportHovered] = useState(false);
   const [isReloadHovered, setIsReloadHovered] = useState(false);
 
   // Subscribe to language changes
@@ -55,7 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // which the browser re-resolves on theme switch — no React state or
   // re-render needed here.
 
-  const handleSlotClick = useCallback((slotId: 'local' | 'cloud') => {
+  const handleSlotClick = useCallback((slotId: SlotId) => {
     if (slotId === 'cloud') {
       if (!webdavClient.hasConfig()) {
         notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
@@ -72,7 +62,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       key: 'local' as const,
       icon: 'hard_drive',
       label: i18n.t('sidebar.local'),
-      count: localTrackCount,
       active: isLibraryView && activeSlotId === 'local',
       onClick: () => handleSlotClick('local'),
     },
@@ -80,85 +69,116 @@ const Sidebar: React.FC<SidebarProps> = ({
       key: 'cloud' as const,
       icon: 'cloud',
       label: i18n.t('sidebar.cloud'),
-      count: cloudTrackCount,
       active: isLibraryView && activeSlotId === 'cloud',
       onClick: () => handleSlotClick('cloud'),
     },
-  ], [localTrackCount, cloudTrackCount, isLibraryView, activeSlotId, handleSlotClick, languageVersion]);
+  ], [isLibraryView, activeSlotId, handleSlotClick, languageVersion]);
+
+  const onlineItems = useMemo(() => [
+    {
+      key: 'online',
+      icon: 'history',
+      label: i18n.t('sidebar.onlineQueue'),
+      active: isLibraryView && activeSlotId === 'online',
+      onClick: () => handleSlotClick('online'),
+    },
+    {
+      key: 'playlists',
+      icon: 'queue_music',
+      label: i18n.t('sidebar.playlists'),
+      active: isPlaylistsView,
+      onClick: () => onNavigate(ViewMode.PLAYLISTS),
+    },
+  ], [isLibraryView, activeSlotId, handleSlotClick, isPlaylistsView, onNavigate, languageVersion]);
+
+  const renderNavItem = (
+    item: {
+      key: string;
+      icon: string;
+      label: string;
+      active: boolean;
+      onClick: () => void;
+    },
+    compact = false
+  ) => (
+    <button
+      key={item.key}
+      onClick={item.onClick}
+      className={`relative flex items-center gap-3 transition-colors w-full text-left ${
+        compact ? 'min-h-11 px-2.5 py-2.5' : 'min-h-12 px-2.5 py-2.5'
+      } ${
+        item.active
+          ? ''
+          : 'bg-transparent text-[var(--theme-control-action-fg)] hover:text-[var(--theme-control-action-fg-hover)]'
+      }`}
+      style={{
+        ...(item.active
+          ? { backgroundColor: 'color-mix(in srgb, var(--theme-control-item-bg-active) 78%, transparent)', color: 'var(--theme-control-item-fg-active)' }
+          : {}),
+        borderRadius: 'var(--theme-control-radius)',
+        boxShadow: item.active ? 'var(--theme-control-item-shadow-active)' : 'none',
+        textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'],
+        letterSpacing: 'var(--theme-button-letter-spacing)',
+      }}
+    >
+      <span
+        className="absolute left-0 top-2 bottom-2 w-1 transition-opacity"
+        style={{
+          backgroundColor: 'var(--theme-primary)',
+          borderRadius: '999px',
+          opacity: item.active ? 1 : 0,
+        }}
+      />
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center"
+        style={{
+          backgroundColor: item.active ? 'var(--theme-control-icon-bg-active)' : 'var(--theme-control-icon-bg)',
+          color: item.active ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)',
+          borderRadius: 'var(--theme-control-radius)',
+        }}
+      >
+        <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold leading-none">{item.label}</span>
+      </span>
+    </button>
+  );
+
+  const renderSection = (
+    title: string,
+    items: Array<{
+      key: string;
+      icon: string;
+      label: string;
+      active: boolean;
+      onClick: () => void;
+    }>
+  ) => (
+    <div
+      className="px-2 py-2"
+      style={{
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-control-container-bg) 90%, transparent), color-mix(in srgb, var(--theme-control-container-bg) 58%, transparent))',
+        border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+        borderRadius: 'var(--theme-surface-radius)',
+        boxShadow: 'var(--theme-elevated-shadow)',
+      }}
+    >
+      <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
+        <span>
+          {title}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {items.map((item) => renderNavItem(item))}
+      </div>
+    </div>
+  );
 
   return (
     <>
-      {/* LIBRARY 容器 */}
-      <div
-        className="p-2 shadow-xl"
-        style={{
-          backgroundColor: 'var(--theme-control-container-bg)',
-          border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-          borderRadius: 'var(--theme-surface-radius)',
-        }}
-      >
-        <div className="text-[10px] font-bold uppercase tracking-[0.24em] px-3 pt-2 pb-2" style={{ color: 'var(--theme-text-muted)' }}>
-          {i18n.t('sidebar.library')}
-        </div>
-        <div className="flex flex-col gap-1">
-          {libraryItems.map((item) => (
-            <button
-              key={item.key}
-              onClick={item.onClick}
-              className={`flex min-h-12 items-center gap-3 px-3 py-3 transition-colors w-full text-left ${
-                item.active
-                  ? ''
-                  : 'bg-transparent text-[var(--theme-control-action-fg)] hover:bg-[var(--theme-control-item-bg-hover)] hover:text-[var(--theme-control-action-fg-hover)]'
-              }`}
-              style={{
-                ...(item.active ? { backgroundColor: 'var(--theme-control-item-bg-active)', color: 'var(--theme-control-item-fg-active)' } : {}),
-                borderRadius: 'var(--theme-control-radius)',
-                boxShadow: item.active ? 'var(--theme-control-item-shadow-active)' : 'none',
-                textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'],
-                letterSpacing: 'var(--theme-button-letter-spacing)',
-              }}
-            >
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center"
-                style={{
-                  backgroundColor: item.active ? 'var(--theme-control-icon-bg-active)' : 'var(--theme-control-icon-bg)',
-                  color: item.active ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)',
-                  borderRadius: 'var(--theme-control-radius)',
-                }}
-              >
-                <span className={`material-symbols-outlined text-[20px] leading-none ${item.active ? 'fill-1' : ''}`}>{item.icon}</span>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold leading-none">{item.label}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 分隔 */}
-      <div className="my-1 mx-4 border-t" style={{ borderColor: 'var(--theme-border-light)' }} />
-
-      <button
-        onClick={onImportClick}
-        disabled={importDisabled}
-        onMouseEnter={() => !importDisabled && setIsImportHovered(true)}
-        onMouseLeave={() => setIsImportHovered(false)}
-        title={importDisabled ? importDisabledReason : undefined}
-        className="flex items-center gap-3 px-4 py-3 transition-colors mt-2 border border-dashed group text-[var(--theme-text-secondary)]"
-        style={{
-          backgroundColor: !importDisabled && isImportHovered ? 'var(--theme-primary-10)' : 'transparent',
-          borderColor: 'var(--theme-control-container-border)',
-          borderRadius: 'var(--theme-control-radius)',
-          borderWidth: 'var(--theme-control-border-width)',
-          color: isImportHovered && !importDisabled ? 'var(--theme-text-primary)' : undefined,
-          opacity: importDisabled ? 0.4 : 1,
-          cursor: importDisabled ? 'not-allowed' : 'pointer',
-        }}
-      >
-        <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
-        <span className="text-sm font-semibold">{i18n.t('sidebar.importFiles')}</span>
-      </button>
+      {renderSection(i18n.t('sidebar.library'), libraryItems)}
+      {renderSection(i18n.t('sidebar.onlineMusic'), onlineItems)}
 
       {/* 设置和皮肤按钮 */}
       <div className="mt-4 grid grid-cols-2 gap-2">

@@ -7,7 +7,7 @@ import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
 import TrackCover from './TrackCover';
 
-const QQ_DEBOUNCE_MS = 300;
+const ONLINE_SEARCH_DEBOUNCE_MS = 500;
 const MAX_RESULTS_PER_SECTION = 8;
 
 const qualityOptions = [
@@ -71,7 +71,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
       .slice(0, MAX_RESULTS_PER_SECTION);
   }, [cloudTracks, query]);
 
-  // Debounced QQ Music search
+  // Debounced online music search
   useEffect(() => {
     if (!query.trim() || !isOpen) {
       setQqResults([]);
@@ -93,7 +93,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
       } finally {
         setQqLoading(false);
       }
-    }, QQ_DEBOUNCE_MS);
+    }, ONLINE_SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

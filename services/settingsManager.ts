@@ -11,7 +11,7 @@ const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
-const LIQUID_GLASS_KEY = 'la_liquid_glass';
+const NEW_UX_ENABLED_KEY = 'la_new_ux_enabled';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
 export type OnlineSource = 'qq' | 'netease';
@@ -31,8 +31,7 @@ class SettingsManager {
   private focusLyricsFontSize: number = 24;
   private focusLyricLineSpacing: number = 32;
   private focusInactiveLyricBlur: number = 2;
-  // Liquid Glass (纯CSS液态玻璃) — toolbar buttons + Focus Mode player console.
-  private liquidGlass: boolean = true;
+  private newUxEnabled: boolean = false;
   private listeners: Set<Listener> = new Set();
 
   constructor() {
@@ -61,6 +60,8 @@ class SettingsManager {
       this.glassUI = localStorage.getItem(GLASS_UI_KEY) === 'true';
 
       this.gsapButtonBounce = localStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
+
+      this.newUxEnabled = localStorage.getItem(NEW_UX_ENABLED_KEY) === 'true';
 
       const blurRadius = localStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
       if (blurRadius) {
@@ -93,9 +94,6 @@ class SettingsManager {
           this.focusInactiveLyricBlur = Math.max(0, Math.min(12, parsed));
         }
       }
-
-      // Default to ON; only disable when explicitly stored as 'false'.
-      this.liquidGlass = localStorage.getItem(LIQUID_GLASS_KEY) !== 'false';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from localStorage:', error);
     }
@@ -240,6 +238,23 @@ class SettingsManager {
     logger.debug(`[SettingsManager] GSAP button bounce set to: ${enabled}`);
   }
 
+  // --- New UI/UX ---
+
+  getNewUxEnabled(): boolean {
+    return this.newUxEnabled;
+  }
+
+  setNewUxEnabled(enabled: boolean): void {
+    this.newUxEnabled = enabled;
+    try {
+      localStorage.setItem(NEW_UX_ENABLED_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+      logger.error('[SettingsManager] Failed to save New UI/UX enabled:', error);
+    }
+    this.notify();
+    logger.debug(`[SettingsManager] New UI/UX set to: ${enabled}`);
+  }
+
   // --- Focus Mode Background Blur Radius ---
 
   getFocusBgBlurRadius(): number {
@@ -306,23 +321,6 @@ class SettingsManager {
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
-  }
-
-  // --- Liquid Glass (纯CSS液态玻璃) ---
-
-  getLiquidGlass(): boolean {
-    return this.liquidGlass;
-  }
-
-  setLiquidGlass(enabled: boolean): void {
-    this.liquidGlass = enabled;
-    try {
-      localStorage.setItem(LIQUID_GLASS_KEY, enabled ? 'true' : 'false');
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save liquid glass:', error);
-    }
-    this.notify();
-    logger.debug(`[SettingsManager] Liquid glass set to: ${enabled}`);
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

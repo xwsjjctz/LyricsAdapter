@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Track } from '../types';
+import { Track, SlotId } from '../types';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
@@ -9,7 +9,7 @@ import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { registerCommand } from '../services/debugCommands';
 
 interface UseLibraryCloudSyncParams {
-  dataSource: 'local' | 'cloud';
+  dataSource: SlotId;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
 }
@@ -32,8 +32,10 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
   const applyDiffResult = useCallback((result: WebDAVDiffResult) => {
     if (result.type === 'full') {
       onLoadCloudTracks(result.tracks);
-    } else {
+    } else if (result.type === 'diff') {
       onMergeCloudTracks(result.added, result.removed, result.updated);
+    } else {
+      logger.warn('[LibraryView] WebDAV sync failed; keeping existing cloud tracks:', result.error);
     }
   }, [onLoadCloudTracks, onMergeCloudTracks]);
 
@@ -373,9 +375,8 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
     registerCommand(
       'clear_webdav_cache',
       async () => {
-        const { clearWebdavCache, onLoadCloudTracks, loadWebDAVFiles, applyDiffResult } = debugActionsRef.current;
+        const { clearWebdavCache, loadWebDAVFiles, applyDiffResult } = debugActionsRef.current;
         await clearWebdavCache();
-        onLoadCloudTracks([]);
         if (webdavClient.hasConfig()) {
           const result = await loadWebDAVFiles();
           applyDiffResult(result);
@@ -391,15 +392,16 @@ export function useLibraryCloudSync({ dataSource, onLoadCloudTracks, onMergeClou
           logger.warn('[LibraryView] WebDAV not configured');
           return;
         }
-        const { loadWebDAVFiles, onMergeCloudTracks, onLoadCloudTracks } = debugActionsRef.current;
+        const { loadWebDAVFiles, applyDiffResult } = debugActionsRef.current;
         loadWebDAVFiles().then(result => {
           if (result.type === 'full') {
             logger.info('[LibraryView] sync_webdav: full load, ' + result.tracks.length + ' tracks');
-            onLoadCloudTracks(result.tracks);
-          } else {
+          } else if (result.type === 'diff') {
             logger.info('[LibraryView] sync_webdav: diff — added=' + result.added.length + ' removed=' + result.removed.length + ' updated=' + result.updated.length);
-            onMergeCloudTracks(result.added, result.removed, result.updated);
           }
+          applyDiffResult(result);
+        }).catch(err => {
+          logger.warn('[LibraryView] sync_webdav failed:', err);
         });
       },
       'Manually trigger WebDAV sync'
