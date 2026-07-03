@@ -153,8 +153,8 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
   if (state.phase === 'detail') {
     const { playlist, tracks, loading, error } = state;
     return (
-      <div className="px-6 py-4 h-full flex flex-col" style={{ color: colors.textPrimary }}>
-        <div className="mb-4 flex-shrink-0 flex items-center gap-3">
+      <div className="px-6 h-full flex flex-col" style={{ color: colors.textPrimary }}>
+        <div className="mb-4 flex-shrink-0 flex items-center gap-3 pt-3">
           <button
             onClick={() => setState({ phase: 'grid' })}
             className="flex items-center gap-1 transition-opacity hover:opacity-80"
@@ -162,7 +162,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
           >
             <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
-          <h1 className="text-3xl font-extrabold truncate" style={{ color: 'var(--theme-text-primary, #fff)' }}>
+          <h1 className="text-3xl truncate" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
             {playlist.name}
           </h1>
         </div>
@@ -182,21 +182,35 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
             暂无歌曲
           </div>
         )}
-        {!loading && !error && tracks.length > 0 && renderTrackList(tracks)}
+        {!loading && !error && tracks.length > 0 && (
+          <>
+            <div className="flex-shrink-0">
+              <div
+                className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest grid-cols-[48px_1fr_1fr_80px] select-none mb-2"
+                style={{ color: colors.textMuted, borderBottom: `1px solid ${colors.borderLight}` }}
+              >
+                <span>#</span>
+                <span>{i18n.t('library.titleCol')}</span>
+                <span className="pl-8">{i18n.t('library.albumCol')}</span>
+                <span className="text-right">{i18n.t('library.timeCol')}</span>
+              </div>
+            </div>
+            {renderTrackList(tracks)}
+          </>
+        )}
       </div>
     );
   }
 
   // ── Grid view ──
   return (
-    <div className="px-6 py-4 overflow-y-auto h-full" style={{ color: colors.textPrimary }}>
-      {/* Header */}
-      <div className="mb-4 flex-shrink-0 flex items-center justify-between">
+    <div className="px-6 overflow-y-auto h-full" style={{ color: colors.textPrimary }}>
+      {/* Header — matches LibraryToolbar title style */}
+      <div className="mb-4 flex-shrink-0 flex items-center justify-between pt-3">
         <div>
-          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('playlists.title')}</h1>
-          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-            {i18n.t('playlists.description')}
-          </p>
+          <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
+            {i18n.t('playlists.title')}
+          </h1>
         </div>
       </div>
 
@@ -228,11 +242,11 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
         </div>
       )}
       {[...grouped.entries()].map(([source, list]) => (
-        <div key={source} className="mb-8">
+        <div key={source} className="mb-6">
           <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
             {sourceLabel(source)}
           </h2>
-          <div className="flex gap-3 overflow-x-auto p-2 no-scrollbar">
+          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             {list.map((pl) => (
               <button
                 key={pl.id}
