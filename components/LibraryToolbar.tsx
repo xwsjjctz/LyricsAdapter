@@ -3,11 +3,6 @@ import { i18n } from '../services/i18n';
 import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
 
-interface UniqueCategory {
-  name: string;
-  [key: string]: unknown;
-}
-
 interface LibraryToolbarProps {
   dataSource: SlotId;
   colors: ThemeColors;
@@ -17,13 +12,11 @@ interface LibraryToolbarProps {
   setShowEditDropdown: (v: boolean) => void;
   onToggleEditMode: () => void;
   onBatchDelete: () => void;
+  onImportClick?: () => void;
+  importDisabled?: boolean;
+  importDisabledReason?: string | undefined;
   onRefreshCloud?: () => void;
   isRefreshing?: boolean;
-  filterType: 'default' | 'album' | 'artist';
-  onFilterTypeChange: (t: 'default' | 'album' | 'artist') => void;
-  onCategoryChange: (s: string | null) => void;
-  uniqueAlbums: UniqueCategory[];
-  uniqueArtists: UniqueCategory[];
   trackCount: number;
   importProgress?: { loaded: number; total: number } | null | undefined;
   loadProgress?: { loaded: number; total: number } | null | undefined;
@@ -43,13 +36,11 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   setShowEditDropdown,
   onToggleEditMode,
   onBatchDelete,
+  onImportClick,
+  importDisabled = false,
+  importDisabledReason,
   onRefreshCloud,
   isRefreshing = false,
-  filterType,
-  onFilterTypeChange,
-  onCategoryChange,
-  uniqueAlbums,
-  uniqueArtists,
   trackCount,
   importProgress,
   loadProgress,
@@ -206,52 +197,26 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             </div>
           </div>
         )}
-        <div className="border flex items-center h-10" style={{ borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', backgroundColor: colors.backgroundCard, boxShadow: 'var(--theme-elevated-shadow)' }}>
+        {dataSource === 'local' && onImportClick && (
           <button
-            onClick={() => {
-              onFilterTypeChange('default');
-              onCategoryChange(null);
-            }}
-            className="w-10 h-full text-sm transition-all flex items-center justify-center"
+            onClick={onImportClick}
+            disabled={importDisabled}
+            className="h-10 px-3 flex items-center gap-2 text-sm font-semibold transition-all"
             style={{
-              borderRadius: 'var(--theme-control-radius) 0 0 var(--theme-control-radius)',
-              backgroundColor: filterType === 'default' ? colors.primary : 'transparent',
-              color: filterType === 'default' ? '#fff' : colors.textSecondary,
-              boxShadow: filterType === 'default' ? `0 0 20px ${colors.glowColor}` : 'none',
+              borderRadius: 'var(--theme-control-radius)',
+              color: importDisabled ? colors.textMuted : colors.textPrimary,
+              backgroundColor: importDisabled ? colors.backgroundCard : colors.primary,
+              border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+              boxShadow: importDisabled ? 'none' : 'var(--theme-elevated-shadow)',
+              cursor: importDisabled ? 'not-allowed' : 'pointer',
+              opacity: importDisabled ? 0.55 : 1,
             }}
+            title={importDisabled ? importDisabledReason : i18n.t('sidebar.importFiles')}
           >
-            <span className="material-symbols-outlined text-xl">list</span>
+            <span className="material-symbols-outlined text-xl">add</span>
+            <span>{i18n.t('sidebar.importFiles')}</span>
           </button>
-          <button
-            onClick={() => {
-              onFilterTypeChange('album');
-              onCategoryChange(uniqueAlbums.length > 0 ? uniqueAlbums[0]!.name : null);
-            }}
-            className="w-10 h-full text-sm transition-all flex items-center justify-center"
-            style={{
-              backgroundColor: filterType === 'album' ? colors.primary : 'transparent',
-              color: filterType === 'album' ? '#fff' : colors.textSecondary,
-              boxShadow: filterType === 'album' ? `0 0 20px ${colors.glowColor}` : 'none',
-            }}
-          >
-            <span className="material-symbols-outlined text-xl">album</span>
-          </button>
-          <button
-            onClick={() => {
-              onFilterTypeChange('artist');
-              onCategoryChange(uniqueArtists.length > 0 ? uniqueArtists[0]!.name : null);
-            }}
-            className="w-10 h-full text-sm transition-all flex items-center justify-center"
-            style={{
-              borderRadius: '0 var(--theme-control-radius) var(--theme-control-radius) 0',
-              backgroundColor: filterType === 'artist' ? colors.primary : 'transparent',
-              color: filterType === 'artist' ? '#fff' : colors.textSecondary,
-              boxShadow: filterType === 'artist' ? `0 0 20px ${colors.glowColor}` : 'none',
-            }}
-          >
-            <span className="material-symbols-outlined text-xl">artist</span>
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -100,7 +100,6 @@ const AppWorkspace: React.FC = () => {
     handleSlotContentReady,
     handleSlotLocatePrepared,
     handleLibraryScrollPositionChange,
-    handleFilterTypeChange,
     handleCategoryChange,
   } = useLibraryStore();
   const {
@@ -677,7 +676,6 @@ const AppWorkspace: React.FC = () => {
         />
         <div className="flex flex-1">
           <Sidebar
-          onImportClick={handleImportClick}
           onNavigate={handleNavigate}
           onReloadFiles={handleReloadFiles}
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
@@ -685,16 +683,6 @@ const AppWorkspace: React.FC = () => {
           viewMode={viewMode}
           activeSlotId={viewSlot}
           onSlotChange={handleSwitchSlot}
-          localTrackCount={slots.local.tracks.length}
-          cloudTrackCount={slots.cloud.tracks.length}
-          importDisabled={importDisabled}
-          importDisabledReason={
-            viewSlot === 'cloud'
-              ? (cloudWritable === null
-                  ? i18n.t('sidebar.importChecking')
-                  : i18n.t('sidebar.importReadOnly'))
-              : undefined
-          }
           floating={floatingPanel}
         />
         <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
@@ -757,6 +745,7 @@ const AppWorkspace: React.FC = () => {
             ) : viewMode === ViewMode.PLAYLISTS ? (
               <PlaylistsView
                 colors={themeManager.getCurrentTheme().colors}
+                onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
                 onStreamPlay={(song, source) => {
                   handleOnlineStreamPlay(song, source);
                 }}
@@ -770,6 +759,16 @@ const AppWorkspace: React.FC = () => {
                 onTrackSelect={handleTrackSelect}
                 onRemoveTrack={handleRemoveTrackFromView}
                 onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+                onImportClick={handleImportClick}
+                importDisabled={importDisabled}
+                importDisabledReason={
+                  viewSlot === 'cloud'
+                    ? (cloudWritable === null
+                        ? i18n.t('sidebar.importChecking')
+                        : i18n.t('sidebar.importReadOnly'))
+                    : undefined
+                }
+                onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleViewDropFilePaths}
                 onReorderTracks={handleReorderTracks}
@@ -786,9 +785,8 @@ const AppWorkspace: React.FC = () => {
                 pendingLocateToken={pendingSlotLocate?.token}
                 onPendingLocatePrepared={handleSlotLocatePrepared}
                 onSlotContentReady={handleSlotContentReady}
-                filterType={slots[viewSlot].filterType}
-                categorySelection={slots[viewSlot].categorySelection}
-                onFilterTypeChange={handleFilterTypeChange}
+                filterType="default"
+                categorySelection={null}
                 onCategoryChange={handleCategoryChange}
                 onHeaderHeightChange={setHeaderHeight}
                 onLoadCloudTracks={loadCloudTracks}

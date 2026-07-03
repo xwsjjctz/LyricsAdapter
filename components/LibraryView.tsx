@@ -23,6 +23,10 @@ interface LibraryViewProps {
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string, deleteFile?: boolean) => void;
   onRemoveMultipleTracks?: (trackIds: string[], deleteFile?: boolean) => void;
+  onImportClick?: () => void;
+  importDisabled?: boolean;
+  importDisabledReason?: string | undefined;
+  onOpenSettings?: () => void;
   onDropFiles?: (files: File[]) => void;
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
   onReorderTracks?: (fromIndex: number, toIndex: number) => void;
@@ -37,7 +41,6 @@ interface LibraryViewProps {
   onSwitchSlot: (slotId: SlotId, options?: { locateCurrentTrack?: boolean }) => Promise<void>;
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
-  onFilterTypeChange: (filterType: 'default' | 'album' | 'artist') => void;
   onCategoryChange: (selection: string | null) => void;
   onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
@@ -49,6 +52,18 @@ interface LibraryViewProps {
   searchBox?: React.ReactNode;
 }
 
+interface LibraryEmptyState {
+  icon: string;
+  title: string;
+  description: string;
+  primaryLabel: string;
+  primaryIcon: string;
+  onPrimary?: (() => void) | undefined;
+  secondaryLabel?: string | undefined;
+  secondaryIcon?: string | undefined;
+  onSecondary?: (() => void) | undefined;
+}
+
 const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
   currentTrackIndex,
@@ -56,6 +71,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
+  onImportClick,
+  importDisabled = false,
+  importDisabledReason,
+  onOpenSettings,
   onDropFiles,
   onDropFilePaths,
   onReorderTracks,
@@ -70,7 +89,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onSwitchSlot,
   filterType,
   categorySelection,
-  onFilterTypeChange,
   onCategoryChange,
   onHeaderHeightChange,
   onLoadCloudTracks,
@@ -89,7 +107,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
   // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const [languageVersion, setLanguageVersion] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -247,6 +265,39 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
+
+  const emptyState = useMemo<LibraryEmptyState>(() => {
+    if (dataSource === 'cloud') {
+      return {
+        icon: 'cloud_off',
+        title: i18n.t('library.noCloudTracks'),
+        description: i18n.t('library.cloudEmptyHint'),
+        primaryLabel: i18n.t('library.refresh'),
+        primaryIcon: 'refresh',
+        onPrimary: handleRefreshCloud,
+        secondaryLabel: i18n.t('browse.openSettings'),
+        secondaryIcon: 'settings',
+        onSecondary: onOpenSettings,
+      };
+    }
+    if (dataSource === 'online') {
+      return {
+        icon: 'history',
+        title: i18n.t('library.noOnlineTracks'),
+        description: i18n.t('library.onlineQueueEmptyHint'),
+        primaryLabel: '',
+        primaryIcon: '',
+      };
+    }
+    return {
+      icon: 'library_music',
+      title: i18n.t('library.noTracksImported'),
+      description: i18n.t('library.importTracksHint'),
+      primaryLabel: i18n.t('sidebar.importFiles'),
+      primaryIcon: 'add',
+      onPrimary: onImportClick,
+    };
+  }, [dataSource, handleRefreshCloud, onImportClick, onOpenSettings, languageVersion]);
 
   // Glass UI insets. topInset offsets the default (virtualized) list below the
   // frosted header band so rows scroll under it; the hook windows against it and
@@ -887,12 +938,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           }
         }}
         onBatchDelete={confirmBatchDelete}
+        {...(dataSource === 'local' ? { onImportClick, importDisabled, importDisabledReason } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
-        filterType={filterType}
-        onFilterTypeChange={onFilterTypeChange}
-        onCategoryChange={onCategoryChange}
-        uniqueAlbums={uniqueAlbums}
-        uniqueArtists={uniqueArtists}
         trackCount={filteredTracks.length}
         importProgress={importProgress}
         loadProgress={dataSource === 'cloud' ? loadProgress : undefined}
@@ -1019,10 +1066,46 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 })}
               </div>
             ) : (
-              <div className="py-20 text-center rounded-2xl" style={{ opacity: 0.2, color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
-                <span className="material-symbols-outlined text-6xl mb-4 block">library_music</span>
-                <p className="text-xl font-medium">{i18n.t('library.noTracksImported')}</p>
-                <p className="text-sm">{i18n.t('library.useSidebarToImport')}</p>
+              <div className="py-16 text-center rounded-2xl" style={{ color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
+                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">{emptyState.icon}</span>
+                <p className="text-xl font-medium" style={{ color: colors.textSecondary }}>{emptyState.title}</p>
+                <p className="text-sm mt-1">{emptyState.description}</p>
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  {emptyState.onPrimary && (
+                    <button
+                      onClick={emptyState.onPrimary}
+                      disabled={dataSource === 'local' && importDisabled}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
+                      style={{
+                        backgroundColor: dataSource === 'local' && importDisabled ? colors.backgroundCard : colors.primary,
+                        color: dataSource === 'local' && importDisabled ? colors.textMuted : '#fff',
+                        borderRadius: 'var(--theme-control-radius)',
+                        border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                        cursor: dataSource === 'local' && importDisabled ? 'not-allowed' : 'pointer',
+                        opacity: dataSource === 'local' && importDisabled ? 0.55 : 1,
+                      }}
+                      title={dataSource === 'local' && importDisabled ? importDisabledReason : undefined}
+                    >
+                      <span className="material-symbols-outlined text-lg">{emptyState.primaryIcon}</span>
+                      <span>{emptyState.primaryLabel}</span>
+                    </button>
+                  )}
+                  {emptyState.onSecondary && (
+                    <button
+                      onClick={emptyState.onSecondary}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
+                      style={{
+                        backgroundColor: colors.backgroundCard,
+                        color: colors.textSecondary,
+                        borderRadius: 'var(--theme-control-radius)',
+                        border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                      }}
+                    >
+                      <span className="material-symbols-outlined text-lg">{emptyState.secondaryIcon}</span>
+                      <span>{emptyState.secondaryLabel}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

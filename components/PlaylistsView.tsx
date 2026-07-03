@@ -19,6 +19,7 @@ import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvi
 
 interface PlaylistsViewProps {
   colors: ThemeConfig['colors'];
+  onOpenSettings?: () => void;
   onStreamPlay: (song: {
     songmid: string; title: string; artist: string; album: string;
     coverUrl?: string; duration: number;
@@ -38,7 +39,7 @@ type ViewState =
   | { phase: 'grid' }
   | { phase: 'detail'; playlist: PlaylistInfo; tracks: TrackRow[]; loading: boolean; error?: string };
 
-const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) => {
+const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, onStreamPlay }) => {
   const [state, setState] = React.useState<ViewState>({ phase: 'grid' });
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
@@ -183,7 +184,22 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onStreamPlay }) =
       {!loadingPlaylists && playlists.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-20" style={{ color: colors.textMuted }}>
           <span className="material-symbols-outlined text-6xl">queue_music</span>
-          <span className="text-sm">暂无歌单，请先登录第三方音源</span>
+          <span className="text-sm">{i18n.t('playlists.emptyLoginHint')}</span>
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="mt-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
+              style={{
+                backgroundColor: colors.backgroundCard,
+                color: colors.textSecondary,
+                borderRadius: 'var(--theme-control-radius)',
+                border: `1px solid ${colors.borderLight}`,
+              }}
+            >
+              <span className="material-symbols-outlined text-lg">settings</span>
+              <span>{i18n.t('browse.openSettings')}</span>
+            </button>
+          )}
         </div>
       )}
       {[...grouped.entries()].map(([source, list]) => (

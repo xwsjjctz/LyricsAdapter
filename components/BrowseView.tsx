@@ -795,21 +795,32 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
           </div>
         ) : songs.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center opacity-40">
+            <div className="text-center">
               <span className="material-symbols-outlined text-6xl mb-4 block">music_off</span>
               <p className="text-xl font-medium">{i18n.t('browse.noMusic')}</p>
               <p className="text-sm mt-2 mb-4">
                 {hasSearched ? i18n.t('browse.tryDifferentKeywords') : i18n.t('browse.setCookieToGetRecommended')}
               </p>
-              <button
-                onClick={() => loadRecommendations()}
-                className="px-4 py-2 rounded-xl transition-all"
-                style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-              >
-                {i18n.t('browse.refresh')}
-              </button>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => loadRecommendations()}
+                  className="px-4 py-2 rounded-xl transition-all"
+                  style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                >
+                  {i18n.t('browse.refresh')}
+                </button>
+                {!hasSearched && onNavigateToSettings && (
+                  <button
+                    onClick={() => onNavigateToSettings()}
+                    className="px-4 py-2 rounded-xl transition-all"
+                    style={{ backgroundColor: colors.primary, color: '#fff' }}
+                  >
+                    {i18n.t('browse.openSettings')}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ) : (
