@@ -64,7 +64,7 @@ export interface OnlineMusicProvider {
   /** Fetch the user's playlists (or popular playlists when not logged in). */
   getPlaylists(): Promise<PlaylistInfo[]>;
   /** Fetch songs in a specific playlist. */
-  getPlaylistSongs(playlistId: string): Promise<OnlineSong[]>;
+  getPlaylistSongs(playlistId: string, offset?: number, limit?: number): Promise<OnlineSong[]>;
 }
 
 // ---- Electron bridge typing (canonical home for online-music IPC) ----------

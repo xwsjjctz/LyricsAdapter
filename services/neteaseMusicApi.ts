@@ -61,6 +61,10 @@ interface NetEaseLyricResponse {
   yrc?: NetEaseLyricBlock;
 }
 
+interface NetEasePlaylistTrackId {
+  id?: number;
+}
+
 /** Map the shared UI quality to NetEase `level`. */
 const QUALITY_MAP: Record<OnlineQuality, string> = {
   '128': 'standard',
@@ -331,15 +335,28 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     }));
   }
 
-  async getPlaylistSongs(playlistId: string): Promise<OnlineSong[]> {
+  async getPlaylistSongs(playlistId: string, offset = 0, limit = 30): Promise<OnlineSong[]> {
     const data = await this.request('/v6/playlist/detail', {
       id: playlistId,
-      n: 100,
+      n: limit,
       s: 0,
       csrf_token: '',
     });
-    const tracks: NetEaseSongRaw[] = (data as { playlist?: { tracks?: NetEaseSongRaw[] } })?.playlist?.tracks ?? [];
-    return tracks.map((t) => this.normalize(t));
+    const playlist = (data as { playlist?: { tracks?: NetEaseSongRaw[]; trackIds?: NetEasePlaylistTrackId[] } })?.playlist;
+    const trackIds = (playlist?.trackIds ?? [])
+      .map((track) => track.id)
+      .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
+
+    if (trackIds.length > 0) {
+      const pageIds = trackIds.slice(offset, offset + limit).map(String);
+      await this.getSongDetails(pageIds);
+      return pageIds
+        .map((id) => this.detailsCache.get(id))
+        .filter((song): song is OnlineSong => Boolean(song));
+    }
+
+    const tracks: NetEaseSongRaw[] = playlist?.tracks ?? [];
+    return this.hydrateSongDetails(tracks.slice(offset, offset + limit).map((t) => this.normalize(t)));
   }
 
   getCoverUrl(song: OnlineSong): string {

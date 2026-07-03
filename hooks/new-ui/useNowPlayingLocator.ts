@@ -5,6 +5,7 @@ import type { PlaylistEntry } from '../../components/new-ui/types';
 interface UseNowPlayingLocatorOptions {
   entries: PlaylistEntry[];
   currentTrack: Track | null;
+  activeSlotId: SlotId;
   openPlaylistId: SlotId | null;
   isCurrentTrackVisible: boolean;
 }
@@ -18,6 +19,7 @@ function inferSlotId(track: Track): SlotId {
 export function useNowPlayingLocator({
   entries,
   currentTrack,
+  activeSlotId,
   openPlaylistId,
   isCurrentTrackVisible,
 }: UseNowPlayingLocatorOptions) {
@@ -30,9 +32,10 @@ export function useNowPlayingLocator({
       };
     }
 
+    const activeEntry = entries.find(entry => entry.id === activeSlotId && entry.tracks.some(track => track.id === currentTrack.id));
     const entryByTrack = entries.find(entry => entry.tracks.some(track => track.id === currentTrack.id));
     const fallbackEntry = entries.find(entry => entry.id === inferSlotId(currentTrack)) ?? null;
-    const targetEntry = entryByTrack ?? fallbackEntry;
+    const targetEntry = activeEntry ?? entryByTrack ?? fallbackEntry;
 
     if (!targetEntry) {
       return {
@@ -49,5 +52,5 @@ export function useNowPlayingLocator({
       targetEntry,
       targetTrackId: currentTrack.id,
     };
-  }, [currentTrack, entries, isCurrentTrackVisible, openPlaylistId]);
+  }, [activeSlotId, currentTrack, entries, isCurrentTrackVisible, openPlaylistId]);
 }

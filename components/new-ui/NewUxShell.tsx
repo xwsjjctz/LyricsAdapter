@@ -21,6 +21,7 @@ import { settingsManager } from '../../services/settingsManager';
 
 interface NewUxShellProps {
   slots: LibrarySlotsById;
+  activeSlotId: SlotId;
   currentTrack: Track | null;
   isPlaying: boolean;
   currentTime: number;
@@ -58,6 +59,7 @@ interface NewUxShellProps {
 
 const NewUxShell: React.FC<NewUxShellProps> = ({
   slots,
+  activeSlotId,
   currentTrack,
   isPlaying,
   currentTime,
@@ -127,6 +129,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const nowPlayingLocator = useNowPlayingLocator({
     entries,
     currentTrack,
+    activeSlotId,
     openPlaylistId: panels.state.openPlaylistId,
     isCurrentTrackVisible,
   });

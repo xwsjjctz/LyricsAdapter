@@ -23,6 +23,11 @@ interface LibraryToolbarProps {
   searchBox?: React.ReactNode | undefined;
 }
 
+function getDataSourceTitle(dataSource: SlotId): string {
+  if (dataSource === 'playlist') return i18n.t('sidebar.playlists');
+  return i18n.t(`sidebar.${dataSource}`);
+}
+
 /**
  * Library header: title, progress/import status, search box slot,
  * edit-mode toggle with batch-delete dropdown, and filter-type switch.
@@ -75,7 +80,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
     <div className="mb-4 flex-shrink-0 flex items-center justify-between">
       <div>
         <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-          {i18n.t(`sidebar.${dataSource}`)}
+          {getDataSourceTitle(dataSource)}
         </h1>
         <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
           {importProgress ? (

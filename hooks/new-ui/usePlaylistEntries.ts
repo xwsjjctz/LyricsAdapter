@@ -3,7 +3,7 @@ import type { SlotId } from '../../types';
 import { i18n } from '../../services/i18n';
 import type { LibrarySlotsById, PlaylistEntry } from '../../components/new-ui/types';
 
-const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'online'];
+const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'playlist', 'online'];
 
 const SLOT_ICONS: Record<SlotId, string> = {
   local: 'hard_drive',
@@ -15,17 +15,21 @@ const SLOT_ICONS: Record<SlotId, string> = {
 function getSlotTitle(slotId: SlotId): string {
   if (slotId === 'local') return i18n.t('sidebar.local');
   if (slotId === 'cloud') return i18n.t('sidebar.cloud');
+  if (slotId === 'playlist') return i18n.t('sidebar.playlists');
   return i18n.t('sidebar.onlinePlayback');
 }
 
 function getSlotSubtitle(slotId: SlotId, count: number): string {
   if (slotId === 'local') return count > 0 ? `${count} local tracks` : i18n.t('mainPlayer.importTracks');
   if (slotId === 'cloud') return count > 0 ? `${count} cloud tracks` : i18n.t('sidebar.cloud');
+  if (slotId === 'playlist') return count > 0 ? `${count} playlist tracks` : i18n.t('sidebar.playlists');
   return count > 0 ? `${count} streamed tracks` : i18n.t('sidebar.onlinePlayback');
 }
 
 export function usePlaylistEntries(slots: LibrarySlotsById): PlaylistEntry[] {
-  return useMemo(() => SLOT_ORDER.map((slotId) => {
+  return useMemo(() => SLOT_ORDER
+    .filter(slotId => slotId !== 'playlist' || slots.playlist.tracks.length > 0)
+    .map((slotId) => {
     const tracks = slots[slotId].tracks;
     return {
       id: slotId,

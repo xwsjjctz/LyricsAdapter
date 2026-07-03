@@ -763,6 +763,7 @@ const AppWorkspace: React.FC = () => {
     return (
       <NewUxShell
         slots={slots}
+        activeSlotId={activeSlotId}
         currentTrack={currentTrack}
         isPlaying={isPlaying}
         currentTime={currentTime}

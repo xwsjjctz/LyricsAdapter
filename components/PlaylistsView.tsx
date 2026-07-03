@@ -17,15 +17,15 @@ import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
  * 第三方音源歌单浏览器。
  *
  * 歌曲列表复用 LibraryTrackRow + useLibraryVirtualScroll，与本地/云端音频列表
- * 使用同一套样式、虚拟滚动（≈30 行滑动窗口）与「定位到当前播放」能力。
+ * 使用同一套样式、虚拟滚动（≈15 行加载窗口）与「定位到当前播放」能力。
  *
- * 数据按页加载（QQ 音乐每页 PAGE_SIZE 首，滚到底部自动续拉）；网易云单次批量返回。
+ * 数据按页加载（QQ/网易云每页 PAGE_SIZE 首，滚到底部自动续拉）。
  *
  * 在歌单中点歌播放时，整个歌单会被加载为独立的 playlist 播放队列，因此
  * 上一首/下一首在歌单内顺序切换。
  */
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 15;
 /** Distance from the bottom (px) at which the next page starts loading. */
 const SCROLL_LOAD_THRESHOLD = 400;
 
@@ -74,8 +74,8 @@ const songToTrack = (s: OnlineSong, source: 'qq' | 'netease'): Track => ({
   songmid: s.songmid,
 });
 
-/** QQ supports offset/limit paging; NetEase returns one bulk batch. */
-const supportsPaging = (s: 'qq' | 'netease'): boolean => s === 'qq';
+/** Third-party playlist providers support offset/limit paging here. */
+const supportsPaging = (_s: 'qq' | 'netease'): boolean => true;
 
 const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onPlayPlaylist, initialState, onPersistenceChange }) => {
   const restoredDetailRef = React.useRef(
@@ -161,7 +161,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
   const fetchPage = async (pl: PlaylistInfo, offset: number): Promise<OnlineSong[]> => {
     if (pl.source === 'qq') return qqMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
-    return neteaseMusicApi.getPlaylistSongs(pl.id);
+    return neteaseMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
   };
 
   /** Load the first page and transition to detail. */
@@ -323,6 +323,15 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
       setState(prev => (prev.phase === 'detail' ? { ...prev, loadingMore: false } : prev));
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!hasMore || loadingMore) return;
+    const container = scrollRef.current;
+    if (!container) return;
+    if (container.scrollHeight <= container.clientHeight + SCROLL_LOAD_THRESHOLD) {
+      void loadMore();
+    }
+  }, [detailSongs.length, hasMore, loadingMore, loadMore]);
 
   /**
    * Ensure the whole playlist is loaded, then hand it off as the play queue.
