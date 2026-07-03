@@ -938,7 +938,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           }
         }}
         onBatchDelete={confirmBatchDelete}
-        {...(dataSource === 'local' ? { onImportClick, importDisabled, importDisabledReason } : {})}
+        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled, importDisabledReason } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         trackCount={filteredTracks.length}
         importProgress={importProgress}

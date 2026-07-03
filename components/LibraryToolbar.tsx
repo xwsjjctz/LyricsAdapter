@@ -46,6 +46,31 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   loadProgress,
   searchBox,
 }) => {
+  const renderImportButton = (icon: 'upload_file' | 'cloud_upload') => {
+    if (!onImportClick) return null;
+
+    return (
+      <button
+        onClick={onImportClick}
+        disabled={importDisabled}
+        className="w-10 h-10 flex items-center justify-center transition-colors"
+        style={{
+          borderRadius: 'var(--theme-control-radius)',
+          color: importDisabled ? colors.textMuted : '#fff',
+          backgroundColor: importDisabled ? colors.backgroundCard : colors.primary,
+          border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+          boxShadow: importDisabled ? 'none' : 'var(--theme-elevated-shadow)',
+          cursor: importDisabled ? 'not-allowed' : 'pointer',
+          opacity: importDisabled ? 0.55 : 1,
+        }}
+        title={importDisabled ? importDisabledReason : i18n.t('sidebar.importFiles')}
+        aria-label={i18n.t('sidebar.importFiles')}
+      >
+        <span className="material-symbols-outlined text-[22px]">{icon}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="mb-4 flex-shrink-0 flex items-center justify-between">
       <div>
@@ -81,32 +106,36 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
       <div className="flex items-center gap-2">
         {searchBox}
         {dataSource === 'cloud' ? (
-          /* Cloud：刷新按钮（替换编辑按钮） */
-          <button
-            onClick={onRefreshCloud}
-            disabled={isRefreshing}
-            className="w-10 h-10 flex items-center justify-center"
-            style={{
-              borderRadius: 'var(--theme-control-radius)',
-              color: colors.textSecondary,
-              backgroundColor: colors.backgroundCard,
-              border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-              boxShadow: 'var(--theme-elevated-shadow)',
-              cursor: isRefreshing ? 'not-allowed' : 'pointer',
-              opacity: isRefreshing ? 0.7 : 1,
-              transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
-            }}
-            onMouseEnter={isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            title={i18n.t('library.refresh')}
-          >
-            <span
-              className={`material-symbols-outlined${isRefreshing ? ' animate-spin' : ''}`}
-              style={{ fontSize: '22px' }}
+          <>
+            {/* Cloud：刷新 + 上传到 WebDAV */}
+            <button
+              onClick={onRefreshCloud}
+              disabled={isRefreshing}
+              className="w-10 h-10 flex items-center justify-center"
+              style={{
+                borderRadius: 'var(--theme-control-radius)',
+                color: colors.textSecondary,
+                backgroundColor: colors.backgroundCard,
+                border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+                boxShadow: 'var(--theme-elevated-shadow)',
+                cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                opacity: isRefreshing ? 0.7 : 1,
+                transition: 'background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
+              }}
+              onMouseEnter={isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+              title={i18n.t('library.refresh')}
+              aria-label={i18n.t('library.refresh')}
             >
-              refresh
-            </span>
-          </button>
+              <span
+                className={`material-symbols-outlined${isRefreshing ? ' animate-spin' : ''}`}
+                style={{ fontSize: '22px' }}
+              >
+                refresh
+              </span>
+            </button>
+            {renderImportButton('cloud_upload')}
+          </>
         ) : (
           /* Local：编辑按钮 + 下拉删除菜单 */
           <div
@@ -197,26 +226,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             </div>
           </div>
         )}
-        {dataSource === 'local' && onImportClick && (
-          <button
-            onClick={onImportClick}
-            disabled={importDisabled}
-            className="h-10 px-3 flex items-center gap-2 text-sm font-semibold transition-all"
-            style={{
-              borderRadius: 'var(--theme-control-radius)',
-              color: importDisabled ? colors.textMuted : colors.textPrimary,
-              backgroundColor: importDisabled ? colors.backgroundCard : colors.primary,
-              border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-              boxShadow: importDisabled ? 'none' : 'var(--theme-elevated-shadow)',
-              cursor: importDisabled ? 'not-allowed' : 'pointer',
-              opacity: importDisabled ? 0.55 : 1,
-            }}
-            title={importDisabled ? importDisabledReason : i18n.t('sidebar.importFiles')}
-          >
-            <span className="material-symbols-outlined text-xl">add</span>
-            <span>{i18n.t('sidebar.importFiles')}</span>
-          </button>
-        )}
+        {dataSource === 'local' && renderImportButton('upload_file')}
       </div>
     </div>
   );
