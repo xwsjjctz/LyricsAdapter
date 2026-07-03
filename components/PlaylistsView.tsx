@@ -3,6 +3,8 @@ import { Track } from '../types';
 import { i18n } from '../services/i18n';
 import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
+import { themeManager } from '../services/themeManager';
+import { resolveThemeAppearance } from '../services/themeAppearance';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
@@ -82,11 +84,21 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
   const [scrollTop, setScrollTop] = React.useState(0);
   const [showLocate, setShowLocate] = React.useState(false);
+  const [currentTheme, setCurrentTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
+  // Floating highlight band ("滑块") position — same model as LibraryView.
+  const [highlightStyle, setHighlightStyle] = React.useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const stateRef = React.useRef(state);
   stateRef.current = state;
+
+  // Keep the playing-indicator mode in sync with the active theme (floating vs inline).
+  React.useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
+    return unsubscribe;
+  }, []);
+  const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
 
   // On mount, load playlists from all logged-in providers.
   React.useEffect(() => {
@@ -182,6 +194,18 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
     isEditMode: false,
     topInset: 0,
   });
+
+  // Position the floating highlight band purely from the index (idx * rowStride),
+  // mirroring LibraryView's default-mode math. Index-based means the band stays
+  // put even when the current row is virtualized out of the rendered window, and
+  // it rides the scroll via the translateY(top - scrollTop) transform in JSX.
+  React.useEffect(() => {
+    if (currentRowIndex < 0 || detailSongs.length === 0) {
+      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
+      return;
+    }
+    setHighlightStyle({ top: currentRowIndex * rowStride, height: baseRowHeight, opacity: 1 });
+  }, [currentRowIndex, rowStride, baseRowHeight, detailSongs.length]);
 
   // Locate math is index-based (no DOM query) so it stays correct even when the
   // current row is virtualized out of the rendered window.
@@ -330,7 +354,28 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                 <span className="text-right">{i18n.t('library.timeCol')}</span>
               </div>
             </div>
-            <div className="relative flex-1 min-h-0">
+            <div className="relative flex-1 min-h-0 overflow-hidden">
+              {/* Floating current-track highlight band ("滑块") — same markup/style
+                  as LibraryView. Rendered as a sibling of the scroll container so it
+                  isn't clipped, and translated by (top - scrollTop) to track the row. */}
+              <div className="absolute inset-0 pointer-events-none">
+                {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
+                  <div
+                    className="absolute pointer-events-none transition-[transform,height] duration-150 ease-out"
+                    style={{
+                      transform: `translateY(${highlightStyle.top - scrollTop}px)`,
+                      height: `${highlightStyle.height}px`,
+                      opacity: highlightStyle.opacity,
+                      left: 0,
+                      right: 0,
+                      backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
+                      boxShadow: 'var(--theme-elevated-shadow)',
+                      borderRadius: 'var(--theme-control-radius)',
+                    }}
+                  />
+                )}
+              </div>
               <div
                 ref={scrollRef}
                 onScroll={handleScroll}
@@ -339,7 +384,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                 <div
                   ref={listRef}
                   className="grid relative"
-                  style={{ gap: 'var(--theme-list-item-gap)', paddingTop, paddingBottom }}
+                  style={{ gap: 'var(--theme-list-item-gap)', paddingTop, paddingBottom, paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
                 >
                   {visibleTracks.map((track, i) => {
                     const idx = startIndex + i;
@@ -355,7 +400,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                         isDragged={false}
                         shouldShowAnimation={false}
                         colors={colors}
-                        playingIndicator="inline"
+                        playingIndicator={playingIndicator}
                         measureRef={i === 0 ? rowMeasureRef : undefined}
                         onTrackSelect={handleRowSelect}
                         onToggleSelect={noop}
