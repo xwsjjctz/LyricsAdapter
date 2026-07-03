@@ -533,7 +533,6 @@ const AppWorkspace: React.FC = () => {
   // view (only activeSlot/viewSlot move to 'online'); the detail list highlights
   // the current track via currentTrackId.
   const handlePlayPlaylist = useCallback((source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => {
-    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
     const tracks: Track[] = songs.map(s => ({
       id: `online-${source}-${s.songmid}`,
       title: s.songname,
@@ -546,7 +545,6 @@ const AppWorkspace: React.FC = () => {
       songmid: s.songmid,
     }));
     const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
-    const clickedId = tracks[safeIndex]?.id;
     // Save current slot's playback position
     updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
     // Load the full playlist into the dedicated playlist slot (isolated from the
@@ -558,24 +556,64 @@ const AppWorkspace: React.FC = () => {
     switchTo('playlist');
     shouldAutoPlayRef.current = true;
     setIsPlaying(true);
-    // Lyrics for the clicked song
-    const clickedSong = songs[safeIndex];
-    if (clickedSong) {
-      lyricsProvider?.getLyrics?.(clickedSong.songmid).then(rawLyrics => {
-        if (!rawLyrics) return;
-        const parsed = parseLRCLyrics(rawLyrics);
-        updatePlaylistTracks(prev => prev.map(t =>
-          t.id === clickedId
-            ? {
-              ...t,
-              lyrics: parsed.plainText || rawLyrics,
-              ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
-            }
-            : t
-        ));
-      }).catch(() => {});
+    // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
+  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
+
+  // Playlist-only lyrics sliding window (size 3): prefetch the current track and
+  // its two neighbours, and evict lyrics outside that window to bound memory.
+  // Other slots are unaffected — online uses per-click enrichment, local/cloud
+  // read lyrics from file metadata.
+  useEffect(() => {
+    const playlistTracks = slots.playlist.tracks;
+    const i = slots.playlist.currentTrackIndex;
+    if (i < 0 || playlistTracks.length === 0) return;
+    const lo = Math.max(0, i - 1);
+    const hi = Math.min(playlistTracks.length - 1, i + 1);
+
+    // Prefetch the window's missing lyrics (current ± 1).
+    for (let k = lo; k <= hi; k++) {
+      const t = playlistTracks[k];
+      if (!t || (t.source !== 'qq' && t.source !== 'netease') || !t.songmid) continue;
+      if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) continue;
+      const provider = t.source === 'qq' ? qqMusicApi : neteaseMusicApi;
+      const trackId = t.id;
+      provider.getLyrics(t.songmid)
+        .then(raw => {
+          if (!raw) return;
+          const parsed = parseLRCLyrics(raw);
+          updatePlaylistTracks(prev => prev.map(x =>
+            x.id === trackId && !x.lyrics
+              ? {
+                ...x,
+                lyrics: parsed.plainText || raw,
+                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+              }
+              : x
+          ));
+        })
+        .catch(() => { /* lyrics are best-effort */ });
     }
-  }, [loadPlaylistTracks, updatePlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
+
+    // Evict lyrics outside the window so only the current ± 1 stay cached.
+    updatePlaylistTracks(prev => {
+      const evictLo = Math.max(0, i - 1);
+      const evictHi = Math.min(prev.length - 1, i + 1);
+      let changed = false;
+      const next = prev.map((t, k) => {
+        if (k < evictLo || k > evictHi) {
+          if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) {
+            changed = true;
+            const clone = { ...t };
+            delete clone.lyrics;
+            delete clone.syncedLyrics;
+            return clone;
+          }
+        }
+        return t;
+      });
+      return changed ? next : prev;
+    });
+  }, [slots.playlist.currentTrackIndex, slots.playlist.tracks.length, updatePlaylistTracks]);
   useShortcuts({
     viewMode,
     isFocusMode,
