@@ -111,23 +111,39 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
         <button
           key={`${tr.songmid}-${idx}`}
           onClick={() => onStreamPlay(tr, state.phase === 'detail' ? state.playlist.source : 'qq')}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left hover:bg-[var(--theme-control-item-bg-hover)]"
-          style={{ color: colors.textPrimary }}
+          className="w-full grid grid-cols-[48px_1fr_1fr_80px] gap-4 items-center px-4 py-2 transition-colors text-left relative"
+          style={{
+            color: colors.textPrimary,
+            borderRadius: 'var(--theme-control-radius)',
+            border: 'var(--theme-control-border-width) solid transparent',
+            borderBottom: 'none',
+            paddingTop: 'var(--theme-list-item-padding-y)',
+            paddingBottom: 'var(--theme-list-item-padding-y)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
         >
-          <span className="text-xs w-6 text-center flex-shrink-0" style={{ color: colors.textMuted }}>
+          <div className="text-sm font-medium" style={{ opacity: 0.5, color: colors.textSecondary }}>
             {idx + 1}
-          </span>
-          <div
-            className="size-10 rounded-lg bg-cover bg-center flex-shrink-0"
-            style={{ backgroundImage: tr.coverUrl ? `url(${tr.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium truncate">{tr.title}</div>
-            <div className="text-xs truncate" style={{ color: colors.textMuted }}>{tr.artist}</div>
           </div>
-          <span className="text-xs tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="size-10 rounded-lg bg-cover bg-center flex-shrink-0"
+              style={{
+                backgroundImage: tr.coverUrl ? `url(${tr.coverUrl})` : undefined,
+                backgroundColor: colors.backgroundCard,
+                borderRadius: 'var(--theme-media-radius-sm)',
+              }}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm truncate" style={{ fontWeight: 'var(--theme-text-heading-weight)' }}>{tr.title}</p>
+              <p className="text-xs truncate" style={{ color: colors.textMuted }}>{tr.artist}</p>
+            </div>
+          </div>
+          <p className="text-sm truncate" style={{ color: colors.textMuted }}>{tr.album}</p>
+          <p className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
             {Math.floor(tr.duration / 60)}:{String(Math.floor(tr.duration % 60)).padStart(2, '0')}
-          </span>
+          </p>
         </button>
       ))}
     </div>
@@ -138,18 +154,17 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, onOpenSettings, o
     const { playlist, tracks, loading, error } = state;
     return (
       <div className="px-6 py-4 h-full flex flex-col" style={{ color: colors.textPrimary }}>
-        <div className="flex items-center gap-3 mb-4">
+        <div className="mb-4 flex-shrink-0 flex items-center gap-3">
           <button
             onClick={() => setState({ phase: 'grid' })}
-            className="flex items-center gap-1 text-sm transition-opacity hover:opacity-80"
+            className="flex items-center gap-1 transition-opacity hover:opacity-80"
             style={{ color: colors.textSecondary }}
           >
-            <span className="material-symbols-outlined text-base">arrow_back</span>
-            返回
+            <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
-          <h2 className="text-lg font-semibold truncate" style={{ color: colors.textPrimary }}>
+          <h1 className="text-3xl font-extrabold truncate" style={{ color: 'var(--theme-text-primary, #fff)' }}>
             {playlist.name}
-          </h2>
+          </h1>
         </div>
         {loading && (
           <div className="flex-1 flex items-center justify-center" style={{ color: colors.textMuted }}>
