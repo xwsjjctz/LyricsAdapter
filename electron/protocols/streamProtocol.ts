@@ -12,7 +12,7 @@ import { resolveNetEaseStreamUrl } from '../ipc/neteaseHandlers';
  *   songmid  = third-party song id (QQ songmid / NetEase numeric id)
  *   q        = quality: "128" | "320" | "flac" | "m4a"   (default "320")
  *
- * Cookes are pushed from the renderer via the `set-online-cookie` IPC channel.
+ * Cookies are pushed from the renderer via the `set-online-cookie` IPC channel.
  */
 
 // ── Cookie store (synced from renderer on login / app start) ──
@@ -37,32 +37,50 @@ setInterval(() => {
 /**
  * Resolve (or resolve + cache) a playable CDN URL for a given source/songmid.
  */
+const QUALITY_FALLBACKS: Record<string, string[]> = {
+  flac: ['flac', '320', '128', 'm4a'],
+  '320': ['320', '128', 'm4a'],
+  '128': ['128', 'm4a'],
+  m4a: ['m4a', '128'],
+};
+
 async function resolveCdnUrl(
   source: string,
   songmid: string,
   quality: string
 ): Promise<string> {
-  const cacheKey = `${source}:${songmid}:${quality}`;
-  const cached = cdnCache.get(cacheKey);
-  if (cached && cached.expiry > Date.now()) {
-    logger.debug(`[StreamProtocol] CDN cache hit: ${cacheKey}`);
-    return cached.url;
-  }
-
   const cookie = onlineCookies[source];
-  if (!cookie) throw new Error(`请先登录 ${source === 'qq' ? 'QQ 音乐' : '网易云音乐'}`);
-
-  let url: string;
-  if (source === 'qq') {
-    url = await qqResolveStreamUrl(songmid, quality, cookie);
-  } else if (source === 'netease') {
-    url = await resolveNetEaseStreamUrl(songmid, quality, cookie);
-  } else {
+  if (source === 'qq' && !cookie) throw new Error('请先登录 QQ 音乐');
+  if (source !== 'qq' && source !== 'netease') {
     throw new Error(`Unknown source: ${source}`);
   }
 
-  cdnCache.set(cacheKey, { url, expiry: Date.now() + CACHE_TTL });
-  return url;
+  const qualities = QUALITY_FALLBACKS[quality] ?? [quality, '128'];
+  let lastError: unknown;
+  for (const candidate of qualities) {
+    const cacheKey = `${source}:${songmid}:${candidate}`;
+    const cached = cdnCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      logger.debug(`[StreamProtocol] CDN cache hit: ${cacheKey}`);
+      return cached.url;
+    }
+
+    try {
+      const url = source === 'qq'
+        ? await qqResolveStreamUrl(songmid, candidate, cookie!)
+        : await resolveNetEaseStreamUrl(songmid, candidate, cookie);
+      cdnCache.set(cacheKey, { url, expiry: Date.now() + CACHE_TTL });
+      if (candidate !== quality) {
+        logger.info(`[StreamProtocol] ${source}:${songmid} fell back ${quality} -> ${candidate}`);
+      }
+      return url;
+    } catch (error) {
+      lastError = error;
+      logger.warn(`[StreamProtocol] Resolve failed for ${source}:${songmid}@${candidate}:`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Unable to resolve stream URL');
 }
 
 export function registerStreamProtocol(): void {
@@ -111,11 +129,17 @@ export function registerStreamProtocol(): void {
 
         // Build headers for the CDN fetch — User-Agent + Referer + (cookie)
         const cdnHeaders: Record<string, string> = {
+          Accept: '*/*',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           Referer:
             source === 'qq'
               ? 'https://y.qq.com/'
+              : 'https://music.163.com',
+          Origin:
+            source === 'qq'
+              ? 'https://y.qq.com'
               : 'https://music.163.com',
         };
         const cookie = onlineCookies[source];
@@ -142,6 +166,9 @@ export function registerStreamProtocol(): void {
         const responseHeaders: Record<string, string> = {
           'Content-Type': contentType,
           'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': 'Range, Content-Type',
         };
         if (contentLength) responseHeaders['Content-Length'] = contentLength;
         if (contentRange) responseHeaders['Content-Range'] = contentRange;

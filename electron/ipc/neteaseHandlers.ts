@@ -170,7 +170,7 @@ const QUALITY_LEVEL: Record<string, string> = {
 export async function resolveNetEaseStreamUrl(
   songmid: string,
   quality: string,
-  cookie: string
+  cookie?: string
 ): Promise<string> {
   const level = QUALITY_LEVEL[quality] ?? 'exhigh';
   const result = await weapiRequest(
