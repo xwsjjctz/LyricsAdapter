@@ -442,6 +442,14 @@
   font-size: 11px;
 }
 
+.new-ux-global-search {
+  position: absolute;
+  top: calc(var(--new-ux-stage-padding) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+}
+
 .new-ux-locate-button {
   position: absolute;
   right: var(--new-ux-stage-padding);

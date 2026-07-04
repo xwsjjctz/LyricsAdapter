@@ -11,10 +11,12 @@ import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
 import SettingsPanel from './SettingsPanel';
 import ThemePanel from './ThemePanel';
+import NewUxSearchBox from './NewUxSearchBox';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
 import FocusAmbientLight from './focus/FocusAmbientLight';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
+import type { OnlineSong } from '../../services/onlineMusicProvider';
 import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -47,6 +49,12 @@ interface NewUxShellProps {
   onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
   onExitNewUx: () => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
+  isWindowFocused?: boolean;
+  onNavigateToTrack: (track: Track) => void;
+  onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
+  onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
   audioRef?: React.RefObject<HTMLAudioElement>;
@@ -81,6 +89,12 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onOpenOnlinePlaylist,
   onExitNewUx,
   onClearOrphanCache,
+  isWindowFocused,
+  onNavigateToTrack,
+  onOnlineDownload,
+  onOnlineUpload,
+  onOnlineStreamPlay,
+  onlineProgress,
   cloudImportDisabled,
   cloudImportDisabledReason,
   audioRef,
@@ -252,6 +266,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
             Exiting back to the legacy UI is exposed from the Settings card (see
             SettingsPanel) to keep the chrome minimal. */}
       </div>
+      <NewUxSearchBox
+        {...(isWindowFocused !== undefined ? { isWindowFocused } : {})}
+        localTracks={slots.local.tracks}
+        cloudTracks={slots.cloud.tracks}
+        onNavigateToTrack={onNavigateToTrack}
+        onOnlineDownload={onOnlineDownload}
+        onOnlineUpload={onOnlineUpload}
+        onOnlineStreamPlay={onOnlineStreamPlay}
+        onlineProgress={onlineProgress}
+      />
       <main className="new-ux-main">
         <div className="new-ux-stage">
           <MainView

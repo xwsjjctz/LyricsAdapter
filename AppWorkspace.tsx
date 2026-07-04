@@ -828,6 +828,19 @@ const AppWorkspace: React.FC = () => {
           onOpenOnlinePlaylist={handleOpenOnlinePlaylist}
           onExitNewUx={handleExitNewUx}
           onClearOrphanCache={handleClearOrphanCache}
+          isWindowFocused={isWindowFocused}
+          onNavigateToTrack={handleSearchNavigate}
+          onOnlineDownload={handleOnlineDownload}
+          onOnlineUpload={handleOnlineUpload}
+          onOnlineStreamPlay={(song, source) => handleOnlineStreamPlay({
+            songmid: song.songmid, title: song.songname,
+            artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
+            album: song.albumname || 'Unknown Album',
+            ...(song.coverUrl ? { coverUrl: song.coverUrl } : {}),
+            duration: song.interval || 0,
+            singer: song.singer,
+          }, source)}
+          onlineProgress={onlineProgress}
           cloudImportDisabled={cloudWritable !== true}
           cloudImportDisabledReason={
             cloudWritable === null
