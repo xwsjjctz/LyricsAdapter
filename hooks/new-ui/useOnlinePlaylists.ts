@@ -19,6 +19,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
     const load = async () => {
       const results: PlaylistInfo[] = [];
       try {
+        await cookieManager.ensureLoaded();
         if (cookieManager.hasCookie()) {
           const qq = await qqMusicApi.getPlaylists();
           results.push(...qq.map(p => ({ ...p, source: 'qq' as const })));
@@ -27,6 +28,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
         logger.warn('[useOnlinePlaylists] QQ playlists failed:', e);
       }
       try {
+        await neteaseCookieManager.ensureLoaded();
         if (neteaseCookieManager.hasCookie()) {
           const netease = await neteaseMusicApi.getPlaylists();
           results.push(...netease.map(p => ({ ...p, source: 'netease' as const })));

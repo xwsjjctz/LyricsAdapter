@@ -21,6 +21,8 @@ interface CardLayout {
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 const dragHandleSelector = '.new-ux-playlist-card';
+const gridColumnGap = 220;
+const gridRowGap = 280;
 
 const MainView: React.FC<MainViewProps> = ({
   entries,
@@ -51,16 +53,24 @@ const MainView: React.FC<MainViewProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   const cardLayouts = useMemo<CardLayout[]>(() => {
-    const centerIndex = (entries.length - 1) / 2;
-    const spread = entries.length <= 2 ? 260 : 225;
+    const columns = entries.length <= 3 ? Math.max(entries.length, 1) : Math.min(4, entries.length);
+    const rows = Math.ceil(entries.length / columns);
+    const yOffset = rows <= 2 ? ((rows - 1) * gridRowGap) / 2 : gridRowGap * 0.62;
 
-    return entries.map((entry, index) => ({
-      id: entry.id,
-      x: (index - centerIndex) * spread,
-      y: index % 2 === 0 ? 22 : -34,
-      rotate: index % 2 === 0 ? -6 : 5,
-      scale: entries.length <= 2 ? 1.1 : 1,
-    }));
+    return entries.map((entry, index) => {
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      const rowColumns = Math.min(columns, entries.length - row * columns);
+      const rowOffset = row % 2 === 0 ? 0 : gridColumnGap * 0.18;
+
+      return {
+        id: entry.id,
+        x: (column - (rowColumns - 1) / 2) * gridColumnGap + rowOffset,
+        y: row * gridRowGap - yOffset,
+        rotate: (column % 2 === 0 ? -5 : 4) + (row % 2 === 0 ? 0 : 2),
+        scale: entries.length <= 2 ? 1.1 : 1,
+      };
+    });
   }, [entries]);
 
   useEffect(() => {
@@ -84,8 +94,15 @@ const MainView: React.FC<MainViewProps> = ({
           motion.velocityY *= 0.92;
         }
 
-        const maxX = Math.max(280, rect.width * 0.32);
-        const maxY = Math.max(150, rect.height * 0.22);
+        const layoutBounds = layoutRef.current.reduce(
+          (bounds, layout) => ({
+            maxX: Math.max(bounds.maxX, Math.abs(layout.x)),
+            maxY: Math.max(bounds.maxY, Math.abs(layout.y)),
+          }),
+          { maxX: 0, maxY: 0 }
+        );
+        const maxX = Math.max(280, rect.width * 0.32, layoutBounds.maxX - rect.width * 0.28);
+        const maxY = Math.max(150, rect.height * 0.22, layoutBounds.maxY - rect.height * 0.24);
         motion.targetX = clamp(motion.targetX, -maxX, maxX);
         motion.targetY = clamp(motion.targetY, -maxY, maxY);
         motion.x += (motion.targetX - motion.x) * 0.15;

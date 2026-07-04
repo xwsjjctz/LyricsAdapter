@@ -4,7 +4,7 @@ import { i18n } from '../../services/i18n';
 import type { PlaylistInfo } from '../../services/onlineMusicProvider';
 import type { LibrarySlotsById, PlaylistEntry } from '../../components/new-ui/types';
 
-const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'playlist', 'online'];
+const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'online'];
 
 const SLOT_ICONS: Record<SlotId, string> = {
   local: 'hard_drive',
@@ -50,7 +50,6 @@ function playlistInfoToEntry(p: PlaylistInfo): PlaylistEntry {
 export function usePlaylistEntries(slots: LibrarySlotsById, onlinePlaylists: PlaylistInfo[] = []): PlaylistEntry[] {
   return useMemo(() => {
     const slotEntries: PlaylistEntry[] = SLOT_ORDER
-      .filter(slotId => slotId !== 'playlist' || slots.playlist.tracks.length > 0)
       .map((slotId) => {
         const tracks = slots[slotId].tracks;
         return {
