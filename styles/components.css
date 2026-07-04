@@ -1,3 +1,21 @@
+/*
+ * New-UI component styles.
+ *
+ * Sections in this file (search by the leading comment to jump):
+ *   [card wall]      .new-ux-mainview / .new-ux-playlist-space /
+ *                    .new-ux-playlist-card (positions written by the
+ *                    MainView rAF loop — no static :nth-card fallbacks)
+ *   [panels]         .new-ux-side-panel / .new-ux-playlist-panel /
+ *                    .new-ux-panel-stack / .new-ux-panel-in
+ *   [floating UI]    .new-ux-context-menu / search box / locate button /
+ *                    floating player
+ *   [track list]     .new-ux-track-row / .new-ux-track-list
+ *
+ * Note: r-card / r-control are shared global utility classes used by both
+ * the legacy UI and the new UI; do not rename them here.
+ */
+
+/* [card wall] */
 .new-ux-mainview {
   position: relative;
   height: 100%;
@@ -184,6 +202,7 @@
   font-variation-settings: 'FILL' 1;
 }
 
+/* [panels] */
 .new-ux-playlist-panel {
   position: absolute;
   top: 88px;
@@ -250,6 +269,7 @@
   white-space: nowrap;
 }
 
+/* [track list] */
 .new-ux-track-list {
   flex: 1;
   overflow: auto;
@@ -422,6 +442,7 @@
   z-index: 40;
 }
 
+/* [floating UI] */
 .new-ux-locate-button {
   position: absolute;
   right: var(--new-ux-stage-padding);
@@ -589,6 +610,7 @@
   }
 }
 
+/* [floating UI: context menu] */
 .new-ux-context-menu {
   position: fixed;
   z-index: 80;
