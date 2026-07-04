@@ -19,6 +19,8 @@ interface CardLayout {
   scale: number;
 }
 
+type CardRefCallback = (node: HTMLButtonElement | null) => void;
+
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 const gridColumnGap = 220;
 const gridRowGap = 280;
@@ -31,6 +33,7 @@ const MainView: React.FC<MainViewProps> = ({
 }) => {
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const cardRefCallbacks = useRef<Record<string, CardRefCallback>>({});
   const layoutRef = useRef<CardLayout[]>([]);
   const isPanelOpeningRef = useRef(false);
   const motionRef = useRef({
@@ -49,12 +52,20 @@ const MainView: React.FC<MainViewProps> = ({
     moved: 0,
     thresholdExceeded: false,
   });
+  const wasPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const isPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const clickGuardUntilRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [panelCloseEpoch, setPanelCloseEpoch] = useState(0);
 
   useEffect(() => {
+    const wasOpen = wasPlaylistPanelOpenRef.current;
     isPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
+    wasPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
+
+    if (wasOpen && !isPlaylistPanelOpen) {
+      setPanelCloseEpoch(epoch => epoch + 1);
+    }
   }, [isPlaylistPanelOpen]);
 
   const resetDragState = useCallback((pointerId?: number, guardClick = false) => {
@@ -113,12 +124,9 @@ const MainView: React.FC<MainViewProps> = ({
     layoutRef.current = cardLayouts;
   }, [cardLayouts]);
 
-  // The animation loop is the SINGLE writer of every --card-* CSS variable and
-  // each card's zIndex. It runs once on mount with an empty dependency array and
-  // never re-creates — all dynamic inputs reach it through refs (spaceRef /
-  // layoutRef / cardRefs / motionRef / dragRef), so opening or closing the
-  // playlist panel (which re-renders MainView) cannot teardown and restart the
-  // loop, and React cannot clobber the values written here.
+  // The animation loop is the single writer of wall motion and per-card focus
+  // accents. Wall motion lives on the parent space, so a temporarily stale card
+  // ref cannot leave one card pinned after opening/closing a panel.
   useEffect(() => {
     let animationFrame = 0;
 
@@ -167,10 +175,7 @@ const MainView: React.FC<MainViewProps> = ({
           const opacity = 0.5 + Math.exp(-Math.pow(distance / (radius * 1.9), 2)) * 0.5;
           const blur = (1 - focus) * 2.8;
 
-          node.style.setProperty('--card-x', `${x}px`);
-          node.style.setProperty('--card-y', `${y}px`);
           node.style.setProperty('--card-z', `${z}px`);
-          node.style.setProperty('--card-rotate', `${layout.rotate}deg`);
           node.style.setProperty('--card-rot-x', `${rotX}deg`);
           node.style.setProperty('--card-rot-y', `${rotY}deg`);
           node.style.setProperty('--card-scale', `${scale}`);
@@ -179,6 +184,8 @@ const MainView: React.FC<MainViewProps> = ({
           node.style.zIndex = String(Math.round(1000 + focus * 100 - index));
         });
 
+        space.style.setProperty('--wall-x', `${motion.x}px`);
+        space.style.setProperty('--wall-y', `${motion.y}px`);
         space.style.setProperty('--field-x', `${motion.x * 0.32}px`);
         space.style.setProperty('--field-y', `${motion.y * 0.24}px`);
       }
@@ -245,8 +252,12 @@ const MainView: React.FC<MainViewProps> = ({
     };
   }, [resetDragState]);
 
-  const registerCard = useCallback((id: CardEntry['id']) => (node: HTMLButtonElement | null) => {
-    cardRefs.current[id] = node;
+  const registerCard = useCallback((id: CardEntry['id']) => {
+    cardRefCallbacks.current[id] ??= (node: HTMLButtonElement | null) => {
+      cardRefs.current[id] = node;
+    };
+
+    return cardRefCallbacks.current[id];
   }, []);
 
   const handleOpenPlaylist = useCallback((entry: CardEntry) => {
@@ -306,29 +317,37 @@ const MainView: React.FC<MainViewProps> = ({
     motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
   }, [isPlaylistPanelOpen]);
 
-  // The rAF loop is the single writer of every --card-* variable. This inline
-  // style only registers the custom properties on the node (so they exist before
-  // the first frame) — its identity is memoised so React never rewrites it on
-  // re-render, leaving the loop's per-frame values untouched.
-  const cardStyle = useMemo<CardCssVars>(() => ({
-    '--card-x': '0px',
-    '--card-y': '0px',
-    '--card-z': '0px',
-    '--card-rotate': '0deg',
-    '--card-rot-x': '0deg',
-    '--card-rot-y': '0deg',
-    '--card-scale': 1,
-    '--card-opacity': 1,
-    '--card-blur': '0px',
-  }), []);
+  const handleNativeDragStart = useCallback((event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+  }, []);
+
+  // Layout variables are static per entry. Runtime wall movement is written on
+  // the parent space, while the rAF loop only updates visual depth accents here.
+  const cardStyles = useMemo<Record<CardEntry['id'], CardCssVars>>(() => {
+    return cardLayouts.reduce<Record<CardEntry['id'], CardCssVars>>((styles, layout) => {
+      styles[layout.id] = {
+        '--card-layout-x': `${layout.x}px`,
+        '--card-layout-y': `${layout.y}px`,
+        '--card-z': '0px',
+        '--card-rotate': `${layout.rotate}deg`,
+        '--card-rot-x': '0deg',
+        '--card-rot-y': '0deg',
+        '--card-scale': layout.scale,
+        '--card-opacity': 1,
+        '--card-blur': '0px',
+      };
+      return styles;
+    }, {});
+  }, [cardLayouts]);
 
   return (
     <section
       className="new-ux-mainview new-ux-scrollbar"
-      onPointerDown={handlePointerDown}
+      onPointerDownCapture={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}
+      onDragStartCapture={handleNativeDragStart}
       onWheel={handleWheel}
     >
       <div
@@ -338,11 +357,10 @@ const MainView: React.FC<MainViewProps> = ({
       >
         {entries.map(entry => (
           <PlaylistCard
-            key={entry.id}
+            key={`${entry.id}:${panelCloseEpoch}`}
             entry={entry}
             cardRef={registerCard(entry.id)}
-            style={cardStyle}
-            onPointerDown={handlePointerDown}
+            {...(cardStyles[entry.id] ? { style: cardStyles[entry.id] } : {})}
             onOpen={handleOpenPlaylist}
             onContextMenu={onPlaylistContextMenu}
           />

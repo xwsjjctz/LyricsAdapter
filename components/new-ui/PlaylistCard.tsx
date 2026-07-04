@@ -6,12 +6,11 @@ interface PlaylistCardProps {
   entry: CardEntry;
   onOpen: (entry: CardEntry) => void;
   onContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
-  onPointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void;
   cardRef?: (node: HTMLButtonElement | null) => void;
   style?: React.CSSProperties;
 }
 
-const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMenu, onPointerDown, cardRef, style }) => {
+const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMenu, cardRef, style }) => {
   const covers = entry.coverUrls.length > 0 ? entry.coverUrls : [undefined, undefined, undefined];
   const primaryCover = covers[0];
 
@@ -23,7 +22,6 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMen
       style={style}
       draggable={false}
       onDragStart={(event) => event.preventDefault()}
-      onPointerDown={onPointerDown}
       onClick={() => onOpen(entry)}
       onContextMenu={(event) => onContextMenu(entry, event)}
     >

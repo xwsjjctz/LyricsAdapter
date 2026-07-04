@@ -32,13 +32,15 @@
 .new-ux-playlist-space {
   --field-x: 0px;
   --field-y: 0px;
+  --wall-x: 0px;
+  --wall-y: 0px;
   position: absolute;
   inset: 44px 0 0;
   min-height: 540px;
   transform-style: preserve-3d;
   z-index: 10;
   cursor: grab;
-  touch-action: pan-x pan-y;
+  touch-action: none;
   user-select: none;
 }
 
@@ -47,8 +49,8 @@
 }
 
 .new-ux-playlist-card {
-  --card-x: 0px;
-  --card-y: 0px;
+  --card-layout-x: 0px;
+  --card-layout-y: 0px;
   --card-rotate: 0deg;
   --card-rot-x: 0deg;
   --card-rot-y: 0deg;
@@ -70,7 +72,11 @@
   filter: blur(var(--card-blur));
   transform:
     translate(-50%, -50%)
-    translate3d(var(--card-x), var(--card-y), var(--card-z))
+    translate3d(
+      calc(var(--card-layout-x) + var(--wall-x)),
+      calc(var(--card-layout-y) + var(--wall-y)),
+      var(--card-z)
+    )
     rotateX(var(--card-rot-x))
     rotateY(var(--card-rot-y))
     rotate(var(--card-rotate))
@@ -81,26 +87,30 @@
     opacity var(--new-ux-transition-medium);
   transform-style: preserve-3d;
   will-change: transform, filter, opacity;
+  touch-action: none;
   -webkit-user-drag: none;
   user-drag: none;
 }
 
 .new-ux-playlist-card *,
 .new-ux-playlist-card img {
+  pointer-events: none;
   -webkit-user-drag: none;
   user-drag: none;
 }
 
-/* Note: per-card position/scale/rotation are written exclusively by the
-   MainView rAF loop (single writer). No static :nth-card fallbacks here —
-   they previously fought with the loop and caused stuck cards. The base
-   defaults are declared on .new-ux-playlist-card above and in the inline
-   style; the loop overwrites them on the first synchronous frame. */
+/* Note: wall motion is written to .new-ux-playlist-space so every card moves
+   as a group. Per-card refs only write depth/blur/focus accents, which keeps a
+   stale card ref from freezing the card's position after panel transitions. */
 
 .new-ux-playlist-card:hover {
   transform:
     translate(-50%, -50%)
-    translate3d(var(--card-x), calc(var(--card-y) - 18px), calc(var(--card-z) + 80px))
+    translate3d(
+      calc(var(--card-layout-x) + var(--wall-x)),
+      calc(var(--card-layout-y) + var(--wall-y) - 18px),
+      calc(var(--card-z) + 80px)
+    )
     rotateX(var(--card-rot-x))
     rotateY(var(--card-rot-y))
     rotate(var(--card-rotate))
