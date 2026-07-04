@@ -246,11 +246,13 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
-  const handleOpenNewUxSettings = useCallback(() => {
+  // Exit the New UI back to the legacy shell. Reached from the Settings card's
+  // header button. (Settings/Theme are now opened as floating cards inside the
+  // New UI — see NewUxShell — so this only handles the explicit "back to legacy" action.)
+  const handleExitNewUx = useCallback(() => {
     setIsFocusMode(false);
-    transitionToView(ViewMode.SETTINGS);
     settingsManager.setNewUxEnabled(false);
-  }, [setIsFocusMode, transitionToView]);
+  }, [setIsFocusMode]);
   // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
   // This ensures deletion works correctly when browsing a different slot than the one playing.
   const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
@@ -799,7 +801,8 @@ const AppWorkspace: React.FC = () => {
           onTogglePlaybackMode={handleTogglePlaybackMode}
           onImportIntoSlot={handleNewUxImportIntoSlot}
           onReloadUnavailable={handleReloadLocalFiles}
-          onOpenSettings={handleOpenNewUxSettings}
+          onExitNewUx={handleExitNewUx}
+          onClearOrphanCache={handleClearOrphanCache}
           cloudImportDisabled={cloudWritable !== true}
           cloudImportDisabledReason={
             cloudWritable === null

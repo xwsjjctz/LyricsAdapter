@@ -691,6 +691,10 @@
   width: min(360px, calc(100vw - 72px));
 }
 
+.new-ux-side-panel--wide {
+  width: min(680px, calc(100vw - 72px));
+}
+
 .new-ux-side-panel__header,
 .new-ux-side-panel__footer {
   display: flex;

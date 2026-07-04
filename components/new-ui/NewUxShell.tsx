@@ -9,6 +9,8 @@ import PanelStack from './PanelStack';
 import TrackContextMenu from './TrackContextMenu';
 import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
+import SettingsPanel from './SettingsPanel';
+import ThemePanel from './ThemePanel';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
 import FocusAmbientLight from './focus/FocusAmbientLight';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
@@ -41,7 +43,8 @@ interface NewUxShellProps {
   onTogglePlaybackMode: () => void;
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
-  onOpenSettings: () => void;
+  onExitNewUx: () => void;
+  onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
   audioRef?: React.RefObject<HTMLAudioElement>;
@@ -73,7 +76,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onTogglePlaybackMode,
   onImportIntoSlot,
   onReloadUnavailable,
-  onOpenSettings,
+  onExitNewUx,
+  onClearOrphanCache,
   cloudImportDisabled,
   cloudImportDisabledReason,
   audioRef,
@@ -128,8 +132,21 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   }, [currentTrack?.id, panels.state.openPlaylistId]);
 
   const handleOpenPlaylist = useCallback(async (entry: PlaylistEntry) => {
-    await onOpenSlot(entry.id);
-    panels.openPlaylist(entry.id);
+    // Overlay cards (settings/theme) open a floating panel instead of a slot.
+    if (entry.kind === 'settings') {
+      panels.openSettings();
+      setPlaylistMenu(null);
+      return;
+    }
+    if (entry.kind === 'theme') {
+      panels.openTheme();
+      setPlaylistMenu(null);
+      return;
+    }
+    // Slot-backed cards (local/cloud/playlist/online). The id is the SlotId.
+    const slotId = entry.id as SlotId;
+    await onOpenSlot(slotId);
+    panels.openPlaylist(slotId);
     setPlaylistMenu(null);
   }, [onOpenSlot, panels]);
 
@@ -187,8 +204,11 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     const { targetEntry, targetTrackId } = nowPlayingLocator;
     if (!targetEntry || !targetTrackId) return;
 
-    await onOpenSlot(targetEntry.id);
-    panels.openPlaylist(targetEntry.id);
+    // targetEntry is always a slot-backed card (overlay cards have no tracks),
+    // so its id is the SlotId.
+    const slotId = targetEntry.id as SlotId;
+    await onOpenSlot(slotId);
+    panels.openPlaylist(slotId);
     setPlaylistMenu(null);
     setIsCurrentTrackVisible(false);
     setLocateRequest(prev => ({
@@ -255,6 +275,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onSave={handleSaveMetadata}
                 />
               )}
+              {panels.state.openOverlayPanel === 'settings' && (
+                <SettingsPanel
+                  onClose={panels.closeOverlay}
+                  onExitNewUx={onExitNewUx}
+                  {...(onClearOrphanCache ? { onClearOrphanCache } : {})}
+                />
+              )}
+              {panels.state.openOverlayPanel === 'theme' && (
+                <ThemePanel onClose={panels.closeOverlay} />
+              )}
               {deleteTracks.length > 0 && (
                 <DeleteConfirmPanel
                   tracks={deleteTracks}
@@ -276,7 +306,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           onOpen={handleOpenPlaylist}
           onImport={handleImport}
           onReloadUnavailable={onReloadUnavailable}
-          onOpenSettings={onOpenSettings}
+          onOpenSettings={panels.openSettings}
           onClose={() => setPlaylistMenu(null)}
         />
       )}
