@@ -16,7 +16,6 @@ import type { SlotId, Track } from '../../types';
 import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
-import { settingsManager } from '../../services/settingsManager';
 
 interface NewUxShellProps {
   slots: LibrarySlotsById;
@@ -217,14 +216,9 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onChange={onFileInputChange}
       />
       <div className="new-ux-chrome-layer">
-        <header className="new-ux-mainview__header">
-          <div>
-            <h1 className="new-ux-mainview__title">Lyrics Adapter</h1>
-          </div>
-          <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={() => settingsManager.setNewUxEnabled(false)} aria-label="Exit new UI">
-            <span className="material-symbols-outlined text-[22px]">logout</span>
-          </button>
-        </header>
+        {/* The big title and the top-right "exit new UI" button were removed.
+            Exiting back to the legacy UI is exposed from the Settings card (see
+            SettingsPanel) to keep the chrome minimal. */}
       </div>
       <main className="new-ux-main">
         <div className="new-ux-stage">

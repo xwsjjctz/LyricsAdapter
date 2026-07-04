@@ -5,26 +5,6 @@
   padding: 8px 4px 28px;
 }
 
-.new-ux-mainview__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  position: relative;
-  z-index: 30;
-  margin-bottom: 0;
-}
-
-.new-ux-mainview__title {
-  margin: 0;
-  max-width: min(760px, 78vw);
-  color: var(--theme-text-primary, #fff);
-  font-size: clamp(20px, 2.3vw, 30px);
-  font-weight: var(--theme-text-heading-weight, 800);
-  line-height: 1;
-  letter-spacing: 0;
-}
-
 .new-ux-mainview__subtitle {
   margin-top: 14px;
   color: var(--theme-text-secondary, rgba(255, 255, 255, 0.68));
