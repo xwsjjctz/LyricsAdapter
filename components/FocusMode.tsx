@@ -890,12 +890,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
         {/* Content Section */}
         <main
-          className={[
-            'flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full',
-            hasLyrics
-              ? 'flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6'
-              : 'flex-col px-6 max-w-2xl',
-          ].join(' ')}
+          className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
         >
 
           {/* Cover & Title */}
