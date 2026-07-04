@@ -504,27 +504,27 @@ const AppWorkspace: React.FC = () => {
     // Sync view to match the playing slot
     setViewSlot(targetSlot);
   }, [activeSlotId, viewSlot, slots.local.tracks, slots.cloud.tracks, selectTrack, audioRef, updateSlot, switchTo, setIsPlaying]);
-  // Track selection handler that handles cross-slot selection
-  // When viewing a different slot than what's playing, clicking a track
-  // switches the active slot to the view slot without pausing audio.
-  const handleTrackSelect = useCallback((trackIndex: number) => {
-    if (activeSlotId === 'playlist') {
+  // Track selection handler that handles cross-slot selection.
+  // `targetSlotId` lets New-UI callers state explicitly which slot the clicked
+  // row belongs to (the open panel may show local/cloud tracks while the active
+  // play context is the 'playlist' slot — e.g. after opening a third-party
+  // playlist card). Legacy callers omit it and fall back to viewSlot.
+  const handleTrackSelect = useCallback((trackIndex: number, targetSlotId?: SlotId) => {
+    const playSlot = targetSlotId ?? viewSlot;
+
+    if (playSlot === activeSlotId) {
       selectTrack(trackIndex);
       return;
     }
 
-    if (viewSlot !== activeSlotId) {
-      // Cross-slot: save playing slot's time, switch active slot, then play
-      updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-      updateSlot(viewSlot, s => ({ ...s, currentTrackIndex: trackIndex }));
-      setRestoreTime(0);
-      markTrackSwitch();
-      switchTo(viewSlot);
-      shouldAutoPlayRef.current = true;
-      setIsPlaying(true);
-    } else {
-      selectTrack(trackIndex);
-    }
+    // Cross-slot: save playing slot's time, switch active slot, then play.
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    updateSlot(playSlot, s => ({ ...s, currentTrackIndex: trackIndex }));
+    setRestoreTime(0);
+    markTrackSwitch();
+    switchTo(playSlot);
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
   }, [viewSlot, activeSlotId, selectTrack, updateSlot, switchTo, setIsPlaying, audioRef, markTrackSwitch]);
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
     setViewMode,
