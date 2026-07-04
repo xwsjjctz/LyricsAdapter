@@ -199,6 +199,7 @@ const MainView: React.FC<MainViewProps> = ({
       lastY: event.clientY,
       moved: 0,
     };
+    event.currentTarget.setPointerCapture(event.pointerId);
     motionRef.current.velocityX = 0;
     motionRef.current.velocityY = 0;
   }, [isPlaylistPanelOpen]);

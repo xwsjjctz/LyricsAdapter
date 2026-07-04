@@ -114,10 +114,19 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     y: number;
   } | null>(null);
 
-  const openEntry = useMemo(
-    () => entries.find(entry => entry.id === panels.state.openPlaylistId) ?? null,
-    [entries, panels.state.openPlaylistId]
-  );
+  const openEntry = useMemo(() => {
+    const entry = entries.find(item => item.id === panels.state.openPlaylistId) ?? null;
+    if (!entry) return null;
+    if (entry.kind !== 'playlist-info') return entry;
+
+    const tracks = slots.playlist.tracks;
+    return {
+      ...entry,
+      count: tracks.length,
+      tracks,
+      coverUrls: tracks.map(track => track.coverUrl).filter((coverUrl): coverUrl is string => Boolean(coverUrl)).slice(0, 3),
+    };
+  }, [entries, panels.state.openPlaylistId, slots.playlist.tracks]);
   const trackMenuTrack = useMemo(() => {
     if (!openEntry || !panels.state.trackMenu) return null;
     return openEntry.tracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;
@@ -131,11 +140,18 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     const targetIds = new Set(panels.state.deleteTargetIds);
     return openEntry.tracks.filter(track => targetIds.has(track.id));
   }, [openEntry, panels.state.deleteTargetIds]);
+  const openSlotId = useMemo<SlotId | null>(() => {
+    const openId = panels.state.openPlaylistId;
+    if (openId === 'local' || openId === 'cloud' || openId === 'online' || openId === 'playlist') {
+      return openId;
+    }
+    return null;
+  }, [panels.state.openPlaylistId]);
   const nowPlayingLocator = useNowPlayingLocator({
     entries,
     currentTrack,
     activeSlotId,
-    openPlaylistId: panels.state.openPlaylistId,
+    openPlaylistId: openSlotId,
     isCurrentTrackVisible,
   });
   const focusAmbientLayer = useMemo(
@@ -163,7 +179,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     // open the playlist panel over that slot.
     if (entry.kind === 'playlist-info' && entry.source && entry.playlistId) {
       await onOpenOnlinePlaylist(entry.source, entry.playlistId, entry.title);
-      panels.openPlaylist('playlist');
+      panels.openPlaylist(entry.id);
       setPlaylistMenu(null);
       return;
     }

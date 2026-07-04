@@ -1,6 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { SlotId } from '../../types';
-
 interface TrackMenuState {
   trackId: string;
   trackIndex: number;
@@ -13,7 +11,7 @@ interface DeleteState {
 }
 
 export interface NewUxPanelState {
-  openPlaylistId: SlotId | null;
+  openPlaylistId: string | null;
   isEditMode: boolean;
   selectedTrackIds: Set<string>;
   editingTrackId: string | null;
@@ -25,7 +23,7 @@ export interface NewUxPanelState {
 }
 
 export function useNewUxPanels() {
-  const [openPlaylistId, setOpenPlaylistId] = useState<SlotId | null>(null);
+  const [openPlaylistId, setOpenPlaylistId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(() => new Set());
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
@@ -37,7 +35,7 @@ export function useNewUxPanels() {
     setSelectedTrackIds(new Set());
   }, []);
 
-  const openPlaylist = useCallback((playlistId: SlotId) => {
+  const openPlaylist = useCallback((playlistId: string) => {
     setOpenPlaylistId(playlistId);
     setOpenOverlayPanel(null);
     setTrackMenu(null);

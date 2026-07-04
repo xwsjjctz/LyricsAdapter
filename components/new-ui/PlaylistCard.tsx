@@ -20,18 +20,20 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMen
       className="new-ux-button-reset new-ux-playlist-card"
       ref={cardRef}
       style={style}
+      draggable={false}
+      onDragStart={(event) => event.preventDefault()}
       onClick={() => onOpen(entry)}
       onContextMenu={(event) => onContextMenu(entry, event)}
     >
       <div className="new-ux-playlist-card__stack" aria-hidden="true">
         {covers.slice(1, 3).map((coverUrl, index) => (
           <div className="new-ux-playlist-card__back-cover" key={`${entry.id}-back-${index}`}>
-            {coverUrl ? <img src={toCoverThumb(coverUrl, 256)} alt="" /> : null}
+            {coverUrl ? <img src={toCoverThumb(coverUrl, 256)} alt="" draggable={false} /> : null}
           </div>
         ))}
         <div className="new-ux-playlist-card__main-cover">
           {primaryCover ? (
-            <img src={toCoverThumb(primaryCover, 512)} alt="" />
+            <img src={toCoverThumb(primaryCover, 512)} alt="" draggable={false} />
           ) : (
             <span className="new-ux-playlist-card__icon material-symbols-outlined">{entry.icon}</span>
           )}

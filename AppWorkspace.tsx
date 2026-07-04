@@ -508,6 +508,11 @@ const AppWorkspace: React.FC = () => {
   // When viewing a different slot than what's playing, clicking a track
   // switches the active slot to the view slot without pausing audio.
   const handleTrackSelect = useCallback((trackIndex: number) => {
+    if (activeSlotId === 'playlist') {
+      selectTrack(trackIndex);
+      return;
+    }
+
     if (viewSlot !== activeSlotId) {
       // Cross-slot: save playing slot's time, switch active slot, then play
       updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
