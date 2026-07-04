@@ -20,7 +20,6 @@ interface CardLayout {
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
-const dragHandleSelector = '.new-ux-playlist-card';
 const gridColumnGap = 220;
 const gridRowGap = 280;
 
@@ -51,6 +50,36 @@ const MainView: React.FC<MainViewProps> = ({
   });
   const clickGuardUntilRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
+
+  const resetDragState = useCallback((pointerId?: number, guardClick = false) => {
+    const drag = dragRef.current;
+    const releasePointerId = pointerId ?? drag.pointerId;
+    const space = spaceRef.current;
+
+    if (guardClick && drag.moved > 8) {
+      clickGuardUntilRef.current = performance.now() + 180;
+    }
+
+    if (space && releasePointerId > 0) {
+      try {
+        if (space.hasPointerCapture(releasePointerId)) {
+          space.releasePointerCapture(releasePointerId);
+        }
+      } catch {
+        // The pointer can already be gone when a panel transition interrupts a drag.
+      }
+    }
+
+    dragRef.current = {
+      active: false,
+      pointerId: 0,
+      lastX: 0,
+      lastY: 0,
+      moved: 0,
+    };
+    isPanelOpeningRef.current = false;
+    setIsDragging(false);
+  }, []);
 
   const cardLayouts = useMemo<CardLayout[]>(() => {
     const columns = entries.length <= 3 ? Math.max(entries.length, 1) : Math.min(4, entries.length);
@@ -160,18 +189,14 @@ const MainView: React.FC<MainViewProps> = ({
   useEffect(() => {
     if (isPlaylistPanelOpen) return;
 
-    dragRef.current.active = false;
-    isPanelOpeningRef.current = false;
-    setIsDragging(false);
-  }, [isPlaylistPanelOpen]);
+    resetDragState(undefined, true);
+  }, [isPlaylistPanelOpen, resetDragState]);
 
   useEffect(() => {
     const clearDrag = (event: PointerEvent) => {
       if (dragRef.current.pointerId !== event.pointerId) return;
 
-      dragRef.current.active = false;
-      isPanelOpeningRef.current = false;
-      setIsDragging(false);
+      resetDragState(event.pointerId, true);
     };
 
     window.addEventListener('pointerup', clearDrag);
@@ -180,7 +205,7 @@ const MainView: React.FC<MainViewProps> = ({
       window.removeEventListener('pointerup', clearDrag);
       window.removeEventListener('pointercancel', clearDrag);
     };
-  }, []);
+  }, [resetDragState]);
 
   const registerCard = useCallback((id: CardEntry['id']) => (node: HTMLButtonElement | null) => {
     cardRefs.current[id] = node;
@@ -188,18 +213,16 @@ const MainView: React.FC<MainViewProps> = ({
 
   const handleOpenPlaylist = useCallback((entry: CardEntry) => {
     if (performance.now() < clickGuardUntilRef.current) return;
-    dragRef.current.active = false;
+    resetDragState(undefined, false);
     isPanelOpeningRef.current = true;
-    setIsDragging(false);
     Promise.resolve(onOpenPlaylist(entry)).finally(() => {
       isPanelOpeningRef.current = false;
     });
-  }, [onOpenPlaylist]);
+  }, [onOpenPlaylist, resetDragState]);
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (isPlaylistPanelOpen) return;
     if (event.button !== 0) return;
-    if (!(event.target instanceof Element) || !event.target.closest(dragHandleSelector)) return;
 
     dragRef.current = {
       active: true,
@@ -221,8 +244,7 @@ const MainView: React.FC<MainViewProps> = ({
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (isPlaylistPanelOpen || isPanelOpeningRef.current) {
-      drag.active = false;
-      setIsDragging(false);
+      resetDragState(event.pointerId, true);
       return;
     }
     if (!drag.active || drag.pointerId !== event.pointerId) return;
@@ -235,7 +257,15 @@ const MainView: React.FC<MainViewProps> = ({
 
     if (drag.moved > 6 && !isDragging) {
       setIsDragging(true);
-      event.currentTarget.setPointerCapture(event.pointerId);
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore stale pointers; the next global pointerup/cancel will clean up.
+      }
+    }
+
+    if (drag.moved > 6) {
+      event.preventDefault();
     }
 
     const motion = motionRef.current;
@@ -243,28 +273,17 @@ const MainView: React.FC<MainViewProps> = ({
     motion.targetY += dy;
     motion.velocityX = dx * 0.62;
     motion.velocityY = dy * 0.62;
-  }, [isDragging, isPlaylistPanelOpen]);
+  }, [isDragging, isPlaylistPanelOpen, resetDragState]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag.active || drag.pointerId !== event.pointerId) {
-      isPanelOpeningRef.current = false;
-      setIsDragging(false);
+      resetDragState(event.pointerId, false);
       return;
     }
 
-    if (drag.moved > 8) {
-      clickGuardUntilRef.current = performance.now() + 180;
-    }
-
-    dragRef.current.active = false;
-    isPanelOpeningRef.current = false;
-    setIsDragging(false);
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }, []);
+    resetDragState(event.pointerId, true);
+  }, [resetDragState]);
 
   const handleDoubleClick = useCallback(() => {
     motionRef.current.targetX = 0;

@@ -81,6 +81,14 @@
     opacity var(--new-ux-transition-medium);
   transform-style: preserve-3d;
   will-change: transform, filter, opacity;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.new-ux-playlist-card *,
+.new-ux-playlist-card img {
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 /* Note: per-card position/scale/rotation are written exclusively by the
