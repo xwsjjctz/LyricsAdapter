@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PlaylistEntry } from './types';
+import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
 
 interface MainViewProps {
-  entries: PlaylistEntry[];
+  entries: CardEntry[];
   isPlaylistPanelOpen: boolean;
-  onOpenPlaylist: (entry: PlaylistEntry) => void | Promise<void>;
-  onPlaylistContextMenu: (entry: PlaylistEntry, event: React.MouseEvent) => void;
+  onOpenPlaylist: (entry: CardEntry) => void | Promise<void>;
+  onPlaylistContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
 }
 
 type CardCssVars = React.CSSProperties & Record<`--card-${string}`, string | number>;
 
 interface CardLayout {
-  id: PlaylistEntry['id'];
+  id: CardEntry['id'];
   x: number;
   y: number;
   rotate: number;
@@ -182,11 +182,11 @@ const MainView: React.FC<MainViewProps> = ({
     };
   }, []);
 
-  const registerCard = useCallback((id: PlaylistEntry['id']) => (node: HTMLButtonElement | null) => {
+  const registerCard = useCallback((id: CardEntry['id']) => (node: HTMLButtonElement | null) => {
     cardRefs.current[id] = node;
   }, []);
 
-  const handleOpenPlaylist = useCallback((entry: PlaylistEntry) => {
+  const handleOpenPlaylist = useCallback((entry: CardEntry) => {
     if (performance.now() < clickGuardUntilRef.current) return;
     dragRef.current.active = false;
     isPanelOpeningRef.current = true;

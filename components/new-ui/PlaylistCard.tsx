@@ -1,11 +1,11 @@
 import React from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
-import type { PlaylistEntry } from './types';
+import type { CardEntry } from './types';
 
 interface PlaylistCardProps {
-  entry: PlaylistEntry;
-  onOpen: (entry: PlaylistEntry) => void;
-  onContextMenu: (entry: PlaylistEntry, event: React.MouseEvent) => void;
+  entry: CardEntry;
+  onOpen: (entry: CardEntry) => void;
+  onContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
   cardRef?: (node: HTMLButtonElement | null) => void;
   style?: React.CSSProperties;
 }

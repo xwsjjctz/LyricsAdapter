@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { SlotId } from '../../types';
 import { i18n } from '../../services/i18n';
 import type { PlaylistInfo } from '../../services/onlineMusicProvider';
-import type { LibrarySlotsById, PlaylistEntry } from '../../components/new-ui/types';
+import type { CardEntry, CardMeta, LibrarySlotsById } from '../../components/new-ui/types';
 
 const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'online'];
 
@@ -32,63 +32,62 @@ const SOURCE_LABELS: Record<'qq' | 'netease', string> = {
   netease: i18n.t('settingsDialog.onlineSourceNetease'),
 };
 
-function playlistInfoToEntry(p: PlaylistInfo): PlaylistEntry {
-  return {
-    id: `playlist-info-${p.source}-${p.id}`,
-    kind: 'playlist-info',
-    title: p.name,
-    subtitle: `${p.songCount} · ${SOURCE_LABELS[p.source]}`,
-    count: p.songCount,
-    tracks: [],
-    coverUrls: p.coverUrl ? [p.coverUrl] : [],
-    icon: 'queue_music',
-    source: p.source,
-    playlistId: p.id,
-  };
+/** Collect up to `n` cover URLs from a slot's tracks (for the cover collage). */
+function takeCovers(tracks: readonly { coverUrl?: string | undefined }[], n: number): string[] {
+  return tracks
+    .map(track => track.coverUrl)
+    .filter((coverUrl): coverUrl is string => Boolean(coverUrl))
+    .slice(0, n);
 }
 
-export function usePlaylistEntries(slots: LibrarySlotsById, onlinePlaylists: PlaylistInfo[] = []): PlaylistEntry[] {
+export function usePlaylistEntries(slots: LibrarySlotsById, onlinePlaylists: PlaylistInfo[] = []): CardEntry[] {
   return useMemo(() => {
-    const slotEntries: PlaylistEntry[] = SLOT_ORDER
-      .map((slotId) => {
-        const tracks = slots[slotId].tracks;
-        return {
-          id: slotId,
-          kind: slotId,
-          title: getSlotTitle(slotId),
-          subtitle: getSlotSubtitle(slotId, tracks.length),
-          count: tracks.length,
-          tracks,
-          coverUrls: tracks.map(track => track.coverUrl).filter((coverUrl): coverUrl is string => Boolean(coverUrl)).slice(0, 3),
-          icon: SLOT_ICONS[slotId],
-        };
-      });
+    // Slot-backed cards (local/cloud/online). Cover collage comes from the
+    // slot's tracks; the tracks themselves are NOT embedded in the card.
+    const slotEntries: CardEntry[] = SLOT_ORDER.map(slotId => {
+      const tracks = slots[slotId].tracks;
+      const meta: CardMeta = {
+        id: slotId,
+        title: getSlotTitle(slotId),
+        subtitle: getSlotSubtitle(slotId, tracks.length),
+        icon: SLOT_ICONS[slotId],
+        coverUrls: takeCovers(tracks, 3),
+      };
+      return { kind: 'slot', slotId, ...meta };
+    });
 
     // Third-party (QQ/NetEase) playlists each become their own card.
-    const playlistInfoEntries: PlaylistEntry[] = onlinePlaylists.map(playlistInfoToEntry);
+    const playlistInfoEntries: CardEntry[] = onlinePlaylists.map(p => {
+      const meta: CardMeta = {
+        id: `playlist-info-${p.source}-${p.id}`,
+        title: p.name,
+        subtitle: `${p.songCount} · ${SOURCE_LABELS[p.source]}`,
+        icon: 'queue_music',
+        coverUrls: p.coverUrl ? [p.coverUrl] : [],
+      };
+      return { kind: 'online-playlist', source: p.source, playlistId: p.id, ...meta };
+    });
 
     // Overlay cards (settings / theme) sit alongside the library cards so the
     // user reaches them from the same card wall.
-    const overlayEntries: PlaylistEntry[] = [
+    const overlayEntries: CardEntry[] = [
       {
+        kind: 'overlay',
+        overlay: 'settings',
         id: 'overlay-settings',
-        kind: 'settings',
         title: i18n.t('settings.title'),
         subtitle: i18n.t('settings.description'),
-        count: 0,
-        tracks: [],
-        coverUrls: [],
         icon: 'settings',
+        coverUrls: [],
       },
       {
+        kind: 'overlay',
+        overlay: 'theme',
         id: 'overlay-theme',
-        kind: 'theme',
         title: i18n.t('theme.title'),
         subtitle: i18n.t('theme.description'),
-        count: 0,
-        tracks: [],
-        coverUrls: [],
         icon: 'palette',
+        coverUrls: [],
       },
     ];
 

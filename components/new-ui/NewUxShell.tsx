@@ -14,7 +14,7 @@ import ThemePanel from './ThemePanel';
 import NewUxSearchBox from './NewUxSearchBox';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
 import FocusAmbientLight from './focus/FocusAmbientLight';
-import type { LibrarySlotsById, PlaylistEntry } from './types';
+import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
 import { useNewUxStore } from '../../stores/newUxStore';
@@ -109,37 +109,44 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     token: 0,
   });
   const [playlistMenu, setPlaylistMenu] = useState<{
-    entry: PlaylistEntry;
+    entry: CardEntry;
     x: number;
     y: number;
   } | null>(null);
 
-  const openEntry = useMemo(() => {
-    const entry = entries.find(item => item.id === panels.state.openPlaylistId) ?? null;
+  // Resolve the currently open card and the tracks to display in its panel.
+  // Tracks are fetched from the backing slot on demand: slot cards read their
+  // own slot; third-party playlist cards read the dedicated playlist slot
+  // (handleOpenOnlinePlaylist loads songs there). Overlay cards never reach here
+  // because they open via openOverlayPanel, not openPlaylistId.
+  const openPanel = useMemo<{ entry: CardEntry; tracks: Track[] } | null>(() => {
+    const openId = panels.state.openPlaylistId;
+    if (!openId) return null;
+    const entry = entries.find(item => item.id === openId) ?? null;
     if (!entry) return null;
-    if (entry.kind !== 'playlist-info') return entry;
-
-    const tracks = slots.playlist.tracks;
-    return {
-      ...entry,
-      count: tracks.length,
-      tracks,
-      coverUrls: tracks.map(track => track.coverUrl).filter((coverUrl): coverUrl is string => Boolean(coverUrl)).slice(0, 3),
-    };
-  }, [entries, panels.state.openPlaylistId, slots.playlist.tracks]);
+    if (entry.kind === 'slot') {
+      return { entry, tracks: slots[entry.slotId].tracks };
+    }
+    if (entry.kind === 'online-playlist') {
+      return { entry, tracks: slots.playlist.tracks };
+    }
+    // overlay cards are not opened through openPlaylistId
+    return null;
+  }, [entries, panels.state.openPlaylistId, slots]);
+  const openTracks = openPanel?.tracks ?? [];
   const trackMenuTrack = useMemo(() => {
-    if (!openEntry || !panels.state.trackMenu) return null;
-    return openEntry.tracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;
-  }, [openEntry, panels.state.trackMenu]);
+    if (!openPanel || !panels.state.trackMenu) return null;
+    return openTracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;
+  }, [openPanel, openTracks, panels.state.trackMenu]);
   const editingTrack = useMemo(() => {
-    if (!openEntry || !panels.state.editingTrackId) return null;
-    return openEntry.tracks.find(track => track.id === panels.state.editingTrackId) ?? null;
-  }, [openEntry, panels.state.editingTrackId]);
+    if (!openPanel || !panels.state.editingTrackId) return null;
+    return openTracks.find(track => track.id === panels.state.editingTrackId) ?? null;
+  }, [openPanel, openTracks, panels.state.editingTrackId]);
   const deleteTracks = useMemo(() => {
-    if (!openEntry || panels.state.deleteTargetIds.length === 0) return [];
+    if (!openPanel || panels.state.deleteTargetIds.length === 0) return [];
     const targetIds = new Set(panels.state.deleteTargetIds);
-    return openEntry.tracks.filter(track => targetIds.has(track.id));
-  }, [openEntry, panels.state.deleteTargetIds]);
+    return openTracks.filter(track => targetIds.has(track.id));
+  }, [openPanel, openTracks, panels.state.deleteTargetIds]);
   const openSlotId = useMemo<SlotId | null>(() => {
     const openId = panels.state.openPlaylistId;
     if (openId === 'local' || openId === 'cloud' || openId === 'online' || openId === 'playlist') {
@@ -149,6 +156,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   }, [panels.state.openPlaylistId]);
   const nowPlayingLocator = useNowPlayingLocator({
     entries,
+    slots,
     currentTrack,
     activeSlotId,
     openPlaylistId: openSlotId,
@@ -163,34 +171,32 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     setIsCurrentTrackVisible(false);
   }, [currentTrack?.id, panels.state.openPlaylistId]);
 
-  const handleOpenPlaylist = useCallback(async (entry: PlaylistEntry) => {
+  const handleOpenPlaylist = useCallback(async (entry: CardEntry) => {
     // Overlay cards (settings/theme) open a floating panel instead of a slot.
-    if (entry.kind === 'settings') {
-      panels.openSettings();
-      setPlaylistMenu(null);
-      return;
-    }
-    if (entry.kind === 'theme') {
-      panels.openTheme();
+    if (entry.kind === 'overlay') {
+      if (entry.overlay === 'settings') {
+        panels.openSettings();
+      } else {
+        panels.openTheme();
+      }
       setPlaylistMenu(null);
       return;
     }
     // Third-party playlist card: load its songs into the playlist slot, then
-    // open the playlist panel over that slot.
-    if (entry.kind === 'playlist-info' && entry.source && entry.playlistId) {
+    // open the playlist panel keyed by the card id.
+    if (entry.kind === 'online-playlist') {
       await onOpenOnlinePlaylist(entry.source, entry.playlistId, entry.title);
       panels.openPlaylist(entry.id);
       setPlaylistMenu(null);
       return;
     }
-    // Slot-backed cards (local/cloud/playlist/online). The id is the SlotId.
-    const slotId = entry.id as SlotId;
-    await onOpenSlot(slotId);
-    panels.openPlaylist(slotId);
+    // Slot-backed cards (local/cloud/online). kind === 'slot' → slotId.
+    await onOpenSlot(entry.slotId);
+    panels.openPlaylist(entry.slotId);
     setPlaylistMenu(null);
   }, [onOpenSlot, onOpenOnlinePlaylist, panels]);
 
-  const handlePlaylistContextMenu = useCallback((entry: PlaylistEntry, event: React.MouseEvent) => {
+  const handlePlaylistContextMenu = useCallback((entry: CardEntry, event: React.MouseEvent) => {
     event.preventDefault();
     setPlaylistMenu({
       entry,
@@ -244,9 +250,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     const { targetEntry, targetTrackId } = nowPlayingLocator;
     if (!targetEntry || !targetTrackId) return;
 
-    // targetEntry is always a slot-backed card (overlay cards have no tracks),
-    // so its id is the SlotId.
-    const slotId = targetEntry.id as SlotId;
+    // targetEntry is narrowed to a slot card by useNowPlayingLocator.
+    const slotId = targetEntry.slotId;
     await onOpenSlot(slotId);
     panels.openPlaylist(slotId);
     setPlaylistMenu(null);
@@ -294,15 +299,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         <div className="new-ux-stage">
           <MainView
             entries={entries}
-            isPlaylistPanelOpen={Boolean(openEntry)}
+            isPlaylistPanelOpen={Boolean(openPanel)}
             onOpenPlaylist={handleOpenPlaylist}
             onPlaylistContextMenu={handlePlaylistContextMenu}
           />
           <div className="new-ux-panel-layer">
             <PanelStack>
-              {openEntry && (
+              {openPanel && (
                 <PlaylistPanel
-                  entry={openEntry}
+                  title={openPanel.entry.title}
+                  tracks={openTracks}
                   {...(currentTrack?.id ? { currentTrackId: currentTrack.id } : {})}
                   isEditMode={panels.state.isEditMode}
                   selectedTrackIds={panels.state.selectedTrackIds}
@@ -348,6 +354,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       {playlistMenu && (
         <PlaylistCardContextMenu
           entry={playlistMenu.entry}
+          slots={slots}
           x={playlistMenu.x}
           y={playlistMenu.y}
           cloudImportDisabled={cloudImportDisabled}

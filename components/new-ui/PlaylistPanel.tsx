@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
 import type { Track } from '../../types';
-import type { PlaylistEntry } from './types';
 
 interface PlaylistPanelProps {
-  entry: PlaylistEntry;
+  /** Panel title (the opened card's title). */
+  title: string;
+  /** Tracks displayed in this panel. Provided by the caller from the slot. */
+  tracks: Track[];
   currentTrackId?: string;
   isEditMode: boolean;
   selectedTrackIds: Set<string>;
@@ -85,7 +87,8 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 
 const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
-  entry,
+  title,
+  tracks,
   currentTrackId,
   isEditMode,
   selectedTrackIds,
@@ -112,7 +115,7 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   }, []);
 
   const visibleTracks = useMemo(() => {
-    const rows = entry.tracks.map((track, index) => ({ track, index }));
+    const rows = tracks.map((track, index) => ({ track, index }));
 
     if (sortMode === 'default') return rows;
 
@@ -120,7 +123,7 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
       if (sortMode === 'duration') return a.track.duration - b.track.duration;
       return (a.track[sortMode] || '').localeCompare(b.track[sortMode] || '');
     });
-  }, [entry.tracks, sortMode]);
+  }, [tracks, sortMode]);
 
   const visibleTrackIds = useMemo(() => visibleTracks.map(({ track }) => track.id), [visibleTracks]);
   const registerTrack = useCallback((trackId: string) => (node: HTMLButtonElement | null) => {
@@ -171,9 +174,9 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
     <aside className="new-ux-playlist-panel new-ux-panel-in">
       <header className="new-ux-playlist-panel__header">
         <div className="min-w-0">
-          <div className="new-ux-playlist-panel__title">{entry.title}</div>
+          <div className="new-ux-playlist-panel__title">{title}</div>
           <div className="new-ux-playlist-panel__meta">
-            {isEditMode ? `${selectedTrackIds.size} selected` : `${entry.count} tracks`}
+            {isEditMode ? `${selectedTrackIds.size} selected` : `${tracks.length} tracks`}
           </div>
         </div>
         <div className="new-ux-playlist-panel__actions">

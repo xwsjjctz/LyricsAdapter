@@ -1,15 +1,20 @@
 import React, { useEffect } from 'react';
 import type { SlotId } from '../../types';
 import { i18n } from '../../services/i18n';
-import type { PlaylistEntry } from './types';
+import type { CardEntry } from './types';
+import type { LibrarySlotsById } from './types';
 
 interface PlaylistCardContextMenuProps {
-  entry: PlaylistEntry;
+  entry: CardEntry;
+  /** Slot tracks, used to detect unavailable/local-only menu actions. Only the
+   *  slot this card points at is read, but passing the full map keeps the caller
+   *  symmetric with the rest of the new-UI data flow. */
+  slots: LibrarySlotsById;
   x: number;
   y: number;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
-  onOpen: (entry: PlaylistEntry) => void;
+  onOpen: (entry: CardEntry) => void;
   onImport: (slotId: SlotId) => void;
   onReloadUnavailable: () => void;
   onOpenSettings: () => void;
@@ -18,6 +23,7 @@ interface PlaylistCardContextMenuProps {
 
 const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
   entry,
+  slots,
   x,
   y,
   cloudImportDisabled,
@@ -41,11 +47,15 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
     };
   }, [onClose]);
 
-  const canImport = entry.id === 'local' || entry.id === 'cloud';
-  const importDisabled = entry.id === 'cloud' && cloudImportDisabled;
-  const hasUnavailableTracks = entry.tracks.some(track => track.available === false);
-  const isCloud = entry.id === 'cloud';
-  const isOnline = entry.id === 'online';
+  // Menu actions only apply to slot-backed cards. Overlay / online-playlist
+  // cards fall through to a plain "open" + caption.
+  const slotId: SlotId | null = entry.kind === 'slot' ? entry.slotId : null;
+  const slotTracks = slotId ? slots[slotId].tracks : [];
+  const canImport = slotId === 'local' || slotId === 'cloud';
+  const importDisabled = slotId === 'cloud' && cloudImportDisabled;
+  const hasUnavailableTracks = slotTracks.some(track => track.available === false);
+  const isCloud = slotId === 'cloud';
+  const isOnline = slotId === 'online';
 
   const runAction = (action: () => void) => (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -63,11 +73,11 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
         <span className="material-symbols-outlined text-[18px]">open_in_new</span>
         <span>{i18n.t('common.open')}</span>
       </button>
-      {canImport && (
+      {canImport && slotId && (
         <button
           type="button"
           className="new-ux-button-reset new-ux-context-menu__item"
-          onClick={runAction(() => onImport(entry.id as SlotId))}
+          onClick={runAction(() => onImport(slotId))}
           disabled={importDisabled}
           title={importDisabled ? cloudImportDisabledReason : undefined}
         >
@@ -75,7 +85,7 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
           <span>{i18n.t('sidebar.importFiles')}</span>
         </button>
       )}
-      {entry.id === 'local' && (
+      {slotId === 'local' && (
         <button
           type="button"
           className="new-ux-button-reset new-ux-context-menu__item"

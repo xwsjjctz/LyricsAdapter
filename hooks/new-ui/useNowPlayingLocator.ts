@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import type { SlotId, Track } from '../../types';
-import type { PlaylistEntry } from '../../components/new-ui/types';
+import type { CardEntry } from '../../components/new-ui/types';
+import type { LibrarySlotsById } from '../../components/new-ui/types';
 
 interface UseNowPlayingLocatorOptions {
-  entries: PlaylistEntry[];
+  entries: CardEntry[];
+  slots: LibrarySlotsById;
   currentTrack: Track | null;
   activeSlotId: SlotId;
   openPlaylistId: SlotId | null;
@@ -18,6 +20,7 @@ function inferSlotId(track: Track): SlotId {
 
 export function useNowPlayingLocator({
   entries,
+  slots,
   currentTrack,
   activeSlotId,
   openPlaylistId,
@@ -32,9 +35,16 @@ export function useNowPlayingLocator({
       };
     }
 
-    const activeEntry = entries.find(entry => entry.id === activeSlotId && entry.tracks.some(track => track.id === currentTrack.id));
-    const entryByTrack = entries.find(entry => entry.tracks.some(track => track.id === currentTrack.id));
-    const fallbackEntry = entries.find(entry => entry.id === inferSlotId(currentTrack)) ?? null;
+    // A slot card "contains" the current track when its slot's tracks include
+    // the track id. Only slot-backed cards hold tracks; overlay / online-playlist
+    // cards are skipped (they have no browsable track list).
+    const slotContainsTrack = (entry: CardEntry & { kind: 'slot' }): boolean =>
+      slots[entry.slotId].tracks.some(track => track.id === currentTrack.id);
+
+    const slotCards = entries.filter((entry): entry is CardEntry & { kind: 'slot' } => entry.kind === 'slot');
+    const activeEntry = slotCards.find(entry => entry.slotId === activeSlotId && slotContainsTrack(entry));
+    const entryByTrack = slotCards.find(entry => slotContainsTrack(entry));
+    const fallbackEntry = slotCards.find(entry => entry.slotId === inferSlotId(currentTrack)) ?? null;
     const targetEntry = activeEntry ?? entryByTrack ?? fallbackEntry;
 
     if (!targetEntry) {
@@ -45,12 +55,14 @@ export function useNowPlayingLocator({
       };
     }
 
-    const isOpenTarget = openPlaylistId === targetEntry.id;
+    // openPlaylistId is the slot id of the currently open panel (or null). The
+    // locate button hides when the open panel already shows the current track.
+    const isOpenTarget = openPlaylistId === targetEntry.slotId;
 
     return {
       visible: !isOpenTarget || !isCurrentTrackVisible,
       targetEntry,
       targetTrackId: currentTrack.id,
     };
-  }, [activeSlotId, currentTrack, entries, isCurrentTrackVisible, openPlaylistId]);
+  }, [activeSlotId, currentTrack, entries, isCurrentTrackVisible, openPlaylistId, slots]);
 }
