@@ -47,12 +47,6 @@ interface NewUxShellProps {
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
   audioRef?: React.RefObject<HTMLAudioElement>;
-  setAudioRef: (node: HTMLAudioElement | null) => void;
-  onTimeUpdate: React.ReactEventHandler<HTMLAudioElement>;
-  onLoadedMetadata: React.ReactEventHandler<HTMLAudioElement>;
-  onTrackEnded: React.ReactEventHandler<HTMLAudioElement>;
-  onCanPlay: React.ReactEventHandler<HTMLAudioElement>;
-  onAudioError: React.ReactEventHandler<HTMLAudioElement>;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onFileInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -85,12 +79,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   cloudImportDisabled,
   cloudImportDisabledReason,
   audioRef,
-  setAudioRef,
-  onTimeUpdate,
-  onLoadedMetadata,
-  onTrackEnded,
-  onCanPlay,
-  onAudioError,
   fileInputRef,
   onFileInputChange,
 }) => {
@@ -227,18 +215,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   return (
     <div className="new-ux-shell font-sans">
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
-      {currentTrack && (
-        <audio
-          ref={setAudioRef}
-          src={currentTrack.audioUrl}
-          onTimeUpdate={onTimeUpdate}
-          onLoadedMetadata={onLoadedMetadata}
-          onLoadedData={onLoadedMetadata}
-          onEnded={onTrackEnded}
-          onCanPlay={onCanPlay}
-          onError={onAudioError}
-        />
-      )}
       <input
         type="file"
         ref={fileInputRef}

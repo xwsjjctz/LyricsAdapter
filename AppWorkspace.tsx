@@ -758,55 +758,65 @@ const AppWorkspace: React.FC = () => {
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
+  const audioElement = currentTrack ? (
+    <audio
+      ref={setAudioRef}
+      src={currentTrack.audioUrl}
+      onTimeUpdate={handleTimeUpdate}
+      onLoadedMetadata={handleLoadedMetadata}
+      onLoadedData={handleLoadedMetadata}
+      onEnded={handleTrackEnded}
+      onCanPlay={handleCanPlay}
+      onError={handleAudioError}
+    />
+  ) : null;
 
   if (newUxEnabled) {
     return (
-      <NewUxShell
-        slots={slots}
-        activeSlotId={activeSlotId}
-        currentTrack={currentTrack}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        volume={volume}
-        playbackMode={playbackMode}
-        isFocusMode={isFocusMode}
-        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-        onOpenSlot={handleSwitchSlot}
-        onTrackSelect={handleTrackSelect}
-        onRemoveTrack={handleRemoveTrackFromView}
-        onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
-        onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
-        onTogglePlay={togglePlay}
-        onSkipNext={skipForward}
-        onSkipPrev={skipBackward}
-        onSeek={handleSeek}
-        onVolumeChange={handleVolumeChange}
-        onToggleMute={handleToggleMute}
-        onTogglePlaybackMode={handleTogglePlaybackMode}
-        onImportIntoSlot={handleNewUxImportIntoSlot}
-        onReloadUnavailable={handleReloadLocalFiles}
-        onOpenSettings={handleOpenNewUxSettings}
-        cloudImportDisabled={cloudWritable !== true}
-        cloudImportDisabledReason={
-          cloudWritable === null
-            ? i18n.t('sidebar.importChecking')
-            : i18n.t('sidebar.importReadOnly')
-        }
-        audioRef={audioRef}
-        setAudioRef={setAudioRef}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onTrackEnded={handleTrackEnded}
-        onCanPlay={handleCanPlay}
-        onAudioError={handleAudioError}
-        fileInputRef={fileInputRef}
-        onFileInputChange={handleFileInputChange}
-      />
+      <>
+        {audioElement}
+        <NewUxShell
+          slots={slots}
+          activeSlotId={activeSlotId}
+          currentTrack={currentTrack}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          volume={volume}
+          playbackMode={playbackMode}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+          onOpenSlot={handleSwitchSlot}
+          onTrackSelect={handleTrackSelect}
+          onRemoveTrack={handleRemoveTrackFromView}
+          onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+          onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
+          onTogglePlay={togglePlay}
+          onSkipNext={skipForward}
+          onSkipPrev={skipBackward}
+          onSeek={handleSeek}
+          onVolumeChange={handleVolumeChange}
+          onToggleMute={handleToggleMute}
+          onTogglePlaybackMode={handleTogglePlaybackMode}
+          onImportIntoSlot={handleNewUxImportIntoSlot}
+          onReloadUnavailable={handleReloadLocalFiles}
+          onOpenSettings={handleOpenNewUxSettings}
+          cloudImportDisabled={cloudWritable !== true}
+          cloudImportDisabledReason={
+            cloudWritable === null
+              ? i18n.t('sidebar.importChecking')
+              : i18n.t('sidebar.importReadOnly')
+          }
+          audioRef={audioRef}
+          fileInputRef={fileInputRef}
+          onFileInputChange={handleFileInputChange}
+        />
+      </>
     );
   }
 
   return (
     <>
+      {audioElement}
       <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
         background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
       } : {
@@ -839,18 +849,6 @@ const AppWorkspace: React.FC = () => {
             <div
               className="frosted-header absolute top-0 left-0 right-0 z-20"
               style={{ height: 40 + headerHeight }}
-            />
-          )}
-          {currentTrack && (
-            <audio
-              ref={setAudioRef}
-              src={currentTrack.audioUrl}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              onLoadedData={handleLoadedMetadata}
-              onEnded={handleTrackEnded}
-              onCanPlay={handleCanPlay}
-              onError={handleAudioError}
             />
           )}
           <input
