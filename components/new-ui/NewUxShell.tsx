@@ -17,7 +17,7 @@ import FocusAmbientLight from './focus/FocusAmbientLight';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
-import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
+import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
 import { useOnlinePlaylists } from '../../hooks/new-ui/useOnlinePlaylists';
@@ -101,7 +101,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 }) => {
   const { playlists: onlinePlaylists } = useOnlinePlaylists();
   const entries = usePlaylistEntries(slots, onlinePlaylists);
-  const panels = useNewUxPanels();
+  const panels = useNewUxStore();
   const playerTransitionRef = useRef<HTMLDivElement | null>(null);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
   const [locateRequest, setLocateRequest] = useState<{ trackId: string | null; token: number }>({
