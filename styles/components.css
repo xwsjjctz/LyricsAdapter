@@ -65,41 +65,11 @@
   will-change: transform, filter, opacity;
 }
 
-.new-ux-playlist-card:nth-child(1) {
-  --card-x: -250px;
-  --card-y: 16px;
-  --card-rotate: -8deg;
-  --card-scale: 1.04;
-  --card-z: 64px;
-  z-index: 4;
-}
-
-.new-ux-playlist-card:nth-child(2) {
-  --card-x: 0px;
-  --card-y: -34px;
-  --card-rotate: 3deg;
-  --card-scale: 1.18;
-  --card-z: 120px;
-  z-index: 5;
-}
-
-.new-ux-playlist-card:nth-child(3) {
-  --card-x: 260px;
-  --card-y: 26px;
-  --card-rotate: 9deg;
-  --card-scale: 0.98;
-  --card-z: 40px;
-  z-index: 3;
-}
-
-.new-ux-playlist-card:nth-child(n + 4) {
-  --card-x: calc(-360px + (var(--card-index, 0) * 80px));
-  --card-y: 230px;
-  --card-scale: 0.72;
-  --card-z: -80px;
-  filter: blur(1.2px);
-  opacity: 0.76;
-}
+/* Note: per-card position/scale/rotation are written exclusively by the
+   MainView rAF loop (single writer). No static :nth-card fallbacks here —
+   they previously fought with the loop and caused stuck cards. The base
+   defaults are declared on .new-ux-playlist-card above and in the inline
+   style; the loop overwrites them on the first synchronous frame. */
 
 .new-ux-playlist-card:hover {
   transform:

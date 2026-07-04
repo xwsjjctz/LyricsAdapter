@@ -77,6 +77,12 @@ const MainView: React.FC<MainViewProps> = ({
     layoutRef.current = cardLayouts;
   }, [cardLayouts]);
 
+  // The animation loop is the SINGLE writer of every --card-* CSS variable and
+  // each card's zIndex. It runs once on mount with an empty dependency array and
+  // never re-creates — all dynamic inputs reach it through refs (spaceRef /
+  // layoutRef / cardRefs / motionRef / dragRef), so opening or closing the
+  // playlist panel (which re-renders MainView) cannot teardown and restart the
+  // loop, and React cannot clobber the values written here.
   useEffect(() => {
     let animationFrame = 0;
 
@@ -144,7 +150,10 @@ const MainView: React.FC<MainViewProps> = ({
       animationFrame = window.requestAnimationFrame(animate);
     };
 
-    animationFrame = window.requestAnimationFrame(animate);
+    // Run one frame synchronously on mount so cards have correct positions on the
+    // very first paint — they no longer fall back to CSS :nth-child defaults (those
+    // were a second writer that conflicted with this loop).
+    animate();
     return () => window.cancelAnimationFrame(animationFrame);
   }, []);
 
@@ -266,12 +275,10 @@ const MainView: React.FC<MainViewProps> = ({
     motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
   }, [isPlaylistPanelOpen]);
 
-  // Fixed reference: the rAF loop (above) owns every --card-* CSS variable, so the
-  // inline style here only seeds the very first paint. Memoising the object keeps its
-  // identity stable across re-renders, so React does NOT rewrite the inline style when
-  // the playlist panel opens/closes (which triggers a MainView re-render) — that rewrite
-  // was clobbering the values the animation loop writes each frame, leaving the cards
-  // stuck after a panel open→close cycle.
+  // The rAF loop is the single writer of every --card-* variable. This inline
+  // style only registers the custom properties on the node (so they exist before
+  // the first frame) — its identity is memoised so React never rewrites it on
+  // re-render, leaving the loop's per-frame values untouched.
   const cardStyle = useMemo<CardCssVars>(() => ({
     '--card-x': '0px',
     '--card-y': '0px',
