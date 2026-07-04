@@ -47,9 +47,15 @@ const MainView: React.FC<MainViewProps> = ({
     lastX: 0,
     lastY: 0,
     moved: 0,
+    thresholdExceeded: false,
   });
+  const isPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const clickGuardUntilRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    isPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
+  }, [isPlaylistPanelOpen]);
 
   const resetDragState = useCallback((pointerId?: number, guardClick = false) => {
     const drag = dragRef.current;
@@ -76,6 +82,7 @@ const MainView: React.FC<MainViewProps> = ({
       lastX: 0,
       lastY: 0,
       moved: 0,
+      thresholdExceeded: false,
     };
     isPanelOpeningRef.current = false;
     setIsDragging(false);
@@ -193,15 +200,46 @@ const MainView: React.FC<MainViewProps> = ({
   }, [isPlaylistPanelOpen, resetDragState]);
 
   useEffect(() => {
+    const handleWindowPointerMove = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (isPlaylistPanelOpenRef.current || isPanelOpeningRef.current) {
+        resetDragState(event.pointerId, true);
+        return;
+      }
+      if (!drag.active || drag.pointerId !== event.pointerId) return;
+
+      const dx = event.clientX - drag.lastX;
+      const dy = event.clientY - drag.lastY;
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+      drag.moved += Math.abs(dx) + Math.abs(dy);
+
+      if (drag.moved > 6) {
+        event.preventDefault();
+        if (!drag.thresholdExceeded) {
+          drag.thresholdExceeded = true;
+          setIsDragging(true);
+        }
+      }
+
+      const motion = motionRef.current;
+      motion.targetX += dx;
+      motion.targetY += dy;
+      motion.velocityX = dx * 0.62;
+      motion.velocityY = dy * 0.62;
+    };
+
     const clearDrag = (event: PointerEvent) => {
       if (dragRef.current.pointerId !== event.pointerId) return;
 
       resetDragState(event.pointerId, true);
     };
 
+    window.addEventListener('pointermove', handleWindowPointerMove, { passive: false });
     window.addEventListener('pointerup', clearDrag);
     window.addEventListener('pointercancel', clearDrag);
     return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
       window.removeEventListener('pointerup', clearDrag);
       window.removeEventListener('pointercancel', clearDrag);
     };
@@ -220,8 +258,8 @@ const MainView: React.FC<MainViewProps> = ({
     });
   }, [onOpenPlaylist, resetDragState]);
 
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (isPlaylistPanelOpen) return;
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (isPlaylistPanelOpenRef.current || isPanelOpeningRef.current) return;
     if (event.button !== 0) return;
 
     dragRef.current = {
@@ -230,50 +268,19 @@ const MainView: React.FC<MainViewProps> = ({
       lastX: event.clientX,
       lastY: event.clientY,
       moved: 0,
+      thresholdExceeded: false,
     };
-    // NOTE: setPointerCapture is intentionally NOT called here. Capturing on
-    // pointerdown retargets the subsequent pointerup (and the browser-synthesised
-    // click) to the space div, which steals the click from the card button —
-    // panels never open. Capture is acquired in handlePointerMove once the drag
-    // threshold is exceeded; that plus draggable={false} on the card is enough to
-    // keep dragging responsive.
+    // Do not capture here: a plain click must still bubble to the card button.
+    // Movement is tracked on window so panel transitions cannot strand the drag.
     motionRef.current.velocityX = 0;
     motionRef.current.velocityY = 0;
-  }, [isPlaylistPanelOpen]);
+  }, []);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (isPlaylistPanelOpen || isPanelOpeningRef.current) {
-      resetDragState(event.pointerId, true);
-      return;
-    }
-    if (!drag.active || drag.pointerId !== event.pointerId) return;
-
-    const dx = event.clientX - drag.lastX;
-    const dy = event.clientY - drag.lastY;
-    drag.lastX = event.clientX;
-    drag.lastY = event.clientY;
-    drag.moved += Math.abs(dx) + Math.abs(dy);
-
-    if (drag.moved > 6 && !isDragging) {
-      setIsDragging(true);
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        // Ignore stale pointers; the next global pointerup/cancel will clean up.
-      }
-    }
-
-    if (drag.moved > 6) {
+    if (dragRef.current.active && dragRef.current.pointerId === event.pointerId && dragRef.current.moved > 6) {
       event.preventDefault();
     }
-
-    const motion = motionRef.current;
-    motion.targetX += dx;
-    motion.targetY += dy;
-    motion.velocityX = dx * 0.62;
-    motion.velocityY = dy * 0.62;
-  }, [isDragging, isPlaylistPanelOpen, resetDragState]);
+  }, []);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
@@ -316,15 +323,17 @@ const MainView: React.FC<MainViewProps> = ({
   }), []);
 
   return (
-    <section className="new-ux-mainview new-ux-scrollbar" onWheel={handleWheel}>
+    <section
+      className="new-ux-mainview new-ux-scrollbar"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onWheel={handleWheel}
+    >
       <div
         ref={spaceRef}
         className={`new-ux-playlist-space${isDragging ? ' new-ux-playlist-space--dragging' : ''}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={finishDrag}
-        onPointerLeave={finishDrag}
-        onPointerCancel={finishDrag}
         onDoubleClick={handleDoubleClick}
       >
         {entries.map(entry => (
@@ -333,6 +342,7 @@ const MainView: React.FC<MainViewProps> = ({
             entry={entry}
             cardRef={registerCard(entry.id)}
             style={cardStyle}
+            onPointerDown={handlePointerDown}
             onOpen={handleOpenPlaylist}
             onContextMenu={onPlaylistContextMenu}
           />
