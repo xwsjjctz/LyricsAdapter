@@ -217,7 +217,7 @@
   top: 88px;
   right: var(--new-ux-stage-padding);
   bottom: 112px;
-  width: min(560px, calc(100vw - 48px));
+  width: min(360px, calc(100vw - 48px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -289,7 +289,7 @@
   grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 12px;
   width: 100%;
-  max-width: 560px;
+  max-width: 500px;
   margin: 0 auto;
   align-items: center;
   padding: 10px;
