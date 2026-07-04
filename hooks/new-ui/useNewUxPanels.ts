@@ -19,6 +19,9 @@ export interface NewUxPanelState {
   editingTrackId: string | null;
   deleteTargetIds: string[];
   trackMenu: TrackMenuState | null;
+  /** Overlay panel (settings/theme) shown instead of a playlist panel. Mutually
+   *  exclusive with openPlaylistId: opening one closes the other. */
+  openOverlayPanel: 'settings' | 'theme' | null;
 }
 
 export function useNewUxPanels() {
@@ -28,6 +31,7 @@ export function useNewUxPanels() {
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [trackMenu, setTrackMenu] = useState<TrackMenuState | null>(null);
+  const [openOverlayPanel, setOpenOverlayPanel] = useState<'settings' | 'theme' | null>(null);
 
   const clearSelection = useCallback(() => {
     setSelectedTrackIds(new Set());
@@ -35,6 +39,7 @@ export function useNewUxPanels() {
 
   const openPlaylist = useCallback((playlistId: SlotId) => {
     setOpenPlaylistId(playlistId);
+    setOpenOverlayPanel(null);
     setTrackMenu(null);
     setEditingTrackId(null);
     setDeleteState(null);
@@ -48,6 +53,20 @@ export function useNewUxPanels() {
     setIsEditMode(false);
     clearSelection();
   }, [clearSelection]);
+
+  const openSettings = useCallback(() => {
+    setOpenOverlayPanel('settings');
+    closePlaylist();
+  }, [closePlaylist]);
+
+  const openTheme = useCallback(() => {
+    setOpenOverlayPanel('theme');
+    closePlaylist();
+  }, [closePlaylist]);
+
+  const closeOverlay = useCallback(() => {
+    setOpenOverlayPanel(null);
+  }, []);
 
   const enterEditMode = useCallback((initialTrackId?: string) => {
     setIsEditMode(true);
@@ -116,7 +135,8 @@ export function useNewUxPanels() {
     editingTrackId,
     deleteTargetIds: deleteState?.trackIds ?? [],
     trackMenu,
-  }), [deleteState, editingTrackId, isEditMode, openPlaylistId, selectedTrackIds, trackMenu]);
+    openOverlayPanel,
+  }), [deleteState, editingTrackId, isEditMode, openPlaylistId, openOverlayPanel, selectedTrackIds, trackMenu]);
 
   return {
     state,
@@ -134,5 +154,8 @@ export function useNewUxPanels() {
     openDeleteConfirm,
     closeDeleteConfirm,
     clearSelection,
+    openSettings,
+    openTheme,
+    closeOverlay,
   };
 }

@@ -67,7 +67,7 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
         <button
           type="button"
           className="new-ux-button-reset new-ux-context-menu__item"
-          onClick={runAction(() => onImport(entry.id))}
+          onClick={runAction(() => onImport(entry.id as SlotId))}
           disabled={importDisabled}
           title={importDisabled ? cloudImportDisabledReason : undefined}
         >

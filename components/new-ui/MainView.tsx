@@ -248,7 +248,13 @@ const MainView: React.FC<MainViewProps> = ({
     motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
   }, [isPlaylistPanelOpen]);
 
-  const cardStyle: CardCssVars = {
+  // Fixed reference: the rAF loop (above) owns every --card-* CSS variable, so the
+  // inline style here only seeds the very first paint. Memoising the object keeps its
+  // identity stable across re-renders, so React does NOT rewrite the inline style when
+  // the playlist panel opens/closes (which triggers a MainView re-render) — that rewrite
+  // was clobbering the values the animation loop writes each frame, leaving the cards
+  // stuck after a panel open→close cycle.
+  const cardStyle = useMemo<CardCssVars>(() => ({
     '--card-x': '0px',
     '--card-y': '0px',
     '--card-z': '0px',
@@ -258,7 +264,7 @@ const MainView: React.FC<MainViewProps> = ({
     '--card-scale': 1,
     '--card-opacity': 1,
     '--card-blur': '0px',
-  };
+  }), []);
 
   return (
     <section className="new-ux-mainview new-ux-scrollbar" onWheel={handleWheel}>

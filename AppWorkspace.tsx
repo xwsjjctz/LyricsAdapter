@@ -246,11 +246,13 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
-  const handleOpenNewUxSettings = useCallback(() => {
+  // Exit the New UI back to the legacy shell. Reached from the Settings card's
+  // header button. (Settings/Theme are now opened as floating cards inside the
+  // New UI — see NewUxShell — so this only handles the explicit "back to legacy" action.)
+  const handleExitNewUx = useCallback(() => {
     setIsFocusMode(false);
-    transitionToView(ViewMode.SETTINGS);
     settingsManager.setNewUxEnabled(false);
-  }, [setIsFocusMode, transitionToView]);
+  }, [setIsFocusMode]);
   // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
   // This ensures deletion works correctly when browsing a different slot than the one playing.
   const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
@@ -610,6 +612,30 @@ const AppWorkspace: React.FC = () => {
     // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
   }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
+  // New UI: opening a third-party playlist card loads its songs into the
+  // playlist slot (without auto-playing) so the playlist panel can browse them.
+  // Playback starts when the user clicks a track inside the panel.
+  const handleOpenOnlinePlaylist = useCallback(async (source: 'qq' | 'netease', playlistId: string, _name: string) => {
+    const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const songs = await provider.getPlaylistSongs(playlistId);
+    const tracks: Track[] = songs.map(s => ({
+      id: `online-${source}-${s.songmid}`,
+      title: s.songname,
+      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+      album: s.albumname || 'Unknown Album',
+      duration: s.interval || 0,
+      coverUrl: s.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: s.songmid,
+    }));
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: -1 }));
+    setRestoreTime(0);
+    switchTo('playlist');
+  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo]);
+
   // Playlist-only lyrics sliding window (size 3): prefetch the current track and
   // its two neighbours, and evict lyrics outside that window to bound memory.
   // Other slots are unaffected — online uses per-click enrichment, local/cloud
@@ -799,7 +825,22 @@ const AppWorkspace: React.FC = () => {
           onTogglePlaybackMode={handleTogglePlaybackMode}
           onImportIntoSlot={handleNewUxImportIntoSlot}
           onReloadUnavailable={handleReloadLocalFiles}
-          onOpenSettings={handleOpenNewUxSettings}
+          onOpenOnlinePlaylist={handleOpenOnlinePlaylist}
+          onExitNewUx={handleExitNewUx}
+          onClearOrphanCache={handleClearOrphanCache}
+          isWindowFocused={isWindowFocused}
+          onNavigateToTrack={handleSearchNavigate}
+          onOnlineDownload={handleOnlineDownload}
+          onOnlineUpload={handleOnlineUpload}
+          onOnlineStreamPlay={(song, source) => handleOnlineStreamPlay({
+            songmid: song.songmid, title: song.songname,
+            artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
+            album: song.albumname || 'Unknown Album',
+            ...(song.coverUrl ? { coverUrl: song.coverUrl } : {}),
+            duration: song.interval || 0,
+            singer: song.singer,
+          }, source)}
+          onlineProgress={onlineProgress}
           cloudImportDisabled={cloudWritable !== true}
           cloudImportDisabledReason={
             cloudWritable === null

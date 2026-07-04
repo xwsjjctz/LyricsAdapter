@@ -9,15 +9,18 @@ import PanelStack from './PanelStack';
 import TrackContextMenu from './TrackContextMenu';
 import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
+import SettingsPanel from './SettingsPanel';
+import ThemePanel from './ThemePanel';
+import NewUxSearchBox from './NewUxSearchBox';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
 import FocusAmbientLight from './focus/FocusAmbientLight';
-import FocusTransitionLayer, { createFocusTransitionSnapshot, type FocusTransitionSnapshot } from './focus/FocusTransitionLayer';
 import type { LibrarySlotsById, PlaylistEntry } from './types';
 import type { SlotId, Track } from '../../types';
+import type { OnlineSong } from '../../services/onlineMusicProvider';
 import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
-import { settingsManager } from '../../services/settingsManager';
+import { useOnlinePlaylists } from '../../hooks/new-ui/useOnlinePlaylists';
 
 interface NewUxShellProps {
   slots: LibrarySlotsById;
@@ -43,7 +46,15 @@ interface NewUxShellProps {
   onTogglePlaybackMode: () => void;
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
-  onOpenSettings: () => void;
+  onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
+  onExitNewUx: () => void;
+  onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
+  isWindowFocused?: boolean;
+  onNavigateToTrack: (track: Track) => void;
+  onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
+  onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
+  onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
   audioRef?: React.RefObject<HTMLAudioElement>;
@@ -75,14 +86,23 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onTogglePlaybackMode,
   onImportIntoSlot,
   onReloadUnavailable,
-  onOpenSettings,
+  onOpenOnlinePlaylist,
+  onExitNewUx,
+  onClearOrphanCache,
+  isWindowFocused,
+  onNavigateToTrack,
+  onOnlineDownload,
+  onOnlineUpload,
+  onOnlineStreamPlay,
+  onlineProgress,
   cloudImportDisabled,
   cloudImportDisabledReason,
   audioRef,
   fileInputRef,
   onFileInputChange,
 }) => {
-  const entries = usePlaylistEntries(slots);
+  const { playlists: onlinePlaylists } = useOnlinePlaylists();
+  const entries = usePlaylistEntries(slots, onlinePlaylists);
   const panels = useNewUxPanels();
   const playerTransitionRef = useRef<HTMLDivElement | null>(null);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
@@ -90,7 +110,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     trackId: null,
     token: 0,
   });
-  const [focusTransition, setFocusTransition] = useState<FocusTransitionSnapshot | null>(null);
   const [playlistMenu, setPlaylistMenu] = useState<{
     entry: PlaylistEntry;
     x: number;
@@ -131,10 +150,31 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   }, [currentTrack?.id, panels.state.openPlaylistId]);
 
   const handleOpenPlaylist = useCallback(async (entry: PlaylistEntry) => {
-    await onOpenSlot(entry.id);
-    panels.openPlaylist(entry.id);
+    // Overlay cards (settings/theme) open a floating panel instead of a slot.
+    if (entry.kind === 'settings') {
+      panels.openSettings();
+      setPlaylistMenu(null);
+      return;
+    }
+    if (entry.kind === 'theme') {
+      panels.openTheme();
+      setPlaylistMenu(null);
+      return;
+    }
+    // Third-party playlist card: load its songs into the playlist slot, then
+    // open the playlist panel over that slot.
+    if (entry.kind === 'playlist-info' && entry.source && entry.playlistId) {
+      await onOpenOnlinePlaylist(entry.source, entry.playlistId, entry.title);
+      panels.openPlaylist('playlist');
+      setPlaylistMenu(null);
+      return;
+    }
+    // Slot-backed cards (local/cloud/playlist/online). The id is the SlotId.
+    const slotId = entry.id as SlotId;
+    await onOpenSlot(slotId);
+    panels.openPlaylist(slotId);
     setPlaylistMenu(null);
-  }, [onOpenSlot, panels]);
+  }, [onOpenSlot, onOpenOnlinePlaylist, panels]);
 
   const handlePlaylistContextMenu = useCallback((entry: PlaylistEntry, event: React.MouseEvent) => {
     event.preventDefault();
@@ -190,8 +230,11 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     const { targetEntry, targetTrackId } = nowPlayingLocator;
     if (!targetEntry || !targetTrackId) return;
 
-    await onOpenSlot(targetEntry.id);
-    panels.openPlaylist(targetEntry.id);
+    // targetEntry is always a slot-backed card (overlay cards have no tracks),
+    // so its id is the SlotId.
+    const slotId = targetEntry.id as SlotId;
+    await onOpenSlot(slotId);
+    panels.openPlaylist(slotId);
     setPlaylistMenu(null);
     setIsCurrentTrackVisible(false);
     setLocateRequest(prev => ({
@@ -202,13 +245,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   const handleOpenFocusMode = useCallback(() => {
     if (!currentTrack) return;
-
-    const root = playerTransitionRef.current;
-    const snapshot = root ? createFocusTransitionSnapshot(root, currentTrack) : null;
-    if (snapshot) {
-      setFocusTransition(snapshot);
-      window.setTimeout(() => setFocusTransition(null), 760);
-    }
+    // The cover-to-focus flying animation is intentionally removed for now and will be
+    // rebuilt later. Clicking the cover simply toggles focus mode directly.
     onToggleFocusMode();
   }, [currentTrack, onToggleFocusMode]);
 
@@ -224,15 +262,20 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onChange={onFileInputChange}
       />
       <div className="new-ux-chrome-layer">
-        <header className="new-ux-mainview__header">
-          <div>
-            <h1 className="new-ux-mainview__title">Lyrics Adapter</h1>
-          </div>
-          <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={() => settingsManager.setNewUxEnabled(false)} aria-label="Exit new UI">
-            <span className="material-symbols-outlined text-[22px]">logout</span>
-          </button>
-        </header>
+        {/* The big title and the top-right "exit new UI" button were removed.
+            Exiting back to the legacy UI is exposed from the Settings card (see
+            SettingsPanel) to keep the chrome minimal. */}
       </div>
+      <NewUxSearchBox
+        {...(isWindowFocused !== undefined ? { isWindowFocused } : {})}
+        localTracks={slots.local.tracks}
+        cloudTracks={slots.cloud.tracks}
+        onNavigateToTrack={onNavigateToTrack}
+        onOnlineDownload={onOnlineDownload}
+        onOnlineUpload={onOnlineUpload}
+        onOnlineStreamPlay={onOnlineStreamPlay}
+        onlineProgress={onlineProgress}
+      />
       <main className="new-ux-main">
         <div className="new-ux-stage">
           <MainView
@@ -268,6 +311,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onSave={handleSaveMetadata}
                 />
               )}
+              {panels.state.openOverlayPanel === 'settings' && (
+                <SettingsPanel
+                  onClose={panels.closeOverlay}
+                  onExitNewUx={onExitNewUx}
+                  {...(onClearOrphanCache ? { onClearOrphanCache } : {})}
+                />
+              )}
+              {panels.state.openOverlayPanel === 'theme' && (
+                <ThemePanel onClose={panels.closeOverlay} />
+              )}
               {deleteTracks.length > 0 && (
                 <DeleteConfirmPanel
                   tracks={deleteTracks}
@@ -289,7 +342,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           onOpen={handleOpenPlaylist}
           onImport={handleImport}
           onReloadUnavailable={onReloadUnavailable}
-          onOpenSettings={onOpenSettings}
+          onOpenSettings={panels.openSettings}
           onClose={() => setPlaylistMenu(null)}
         />
       )}
@@ -327,12 +380,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onTogglePlaybackMode={onTogglePlaybackMode}
         onToggleFocus={handleOpenFocusMode}
       />
-      {focusTransition && (
-        <FocusTransitionLayer
-          snapshot={focusTransition}
-          onComplete={() => setFocusTransition(null)}
-        />
-      )}
       <FocusMode
         track={currentTrack}
         isVisible={isFocusMode}
