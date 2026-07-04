@@ -5,7 +5,7 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
-import { ThemeConfig } from '../types/theme';
+import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { toCoverThumb } from '../services/coverUrl';
 import FocusBackdrop from './focus-mode/FocusBackdrop';
@@ -130,6 +130,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const colors = currentTheme.colors;
   // FocusMode uses fixed dark colors for immersive experience (except player controls)
   const focusColors = FOCUS_MODE_COLORS;
+  const useDefaultThemeControlGlass =
+    !isNewUxFocus &&
+    (currentTheme.id === THEME_IDS.DEFAULT_DARK || currentTheme.id === THEME_IDS.DEFAULT);
 
   // Use RAF to get more accurate currentTime, with higher frequency for better sync
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
@@ -973,6 +976,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           onTogglePlaybackMode={onTogglePlaybackMode}
           onMouseEnter={handlePlayerMouseEnter}
           onMouseLeave={handlePlayerMouseLeave}
+          glassMaterial={useDefaultThemeControlGlass}
         />
       </div>
     </div>
