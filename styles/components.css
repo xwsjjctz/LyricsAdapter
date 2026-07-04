@@ -2,7 +2,7 @@
   position: relative;
   height: 100%;
   overflow: hidden;
-  padding: 8px 4px 28px;
+  padding: 0;
 }
 
 .new-ux-mainview__subtitle {
@@ -737,6 +737,14 @@
   flex: 1;
   overflow: auto;
   padding: 16px;
+}
+
+.new-ux-settings-panel__body {
+  scrollbar-width: none;
+}
+
+.new-ux-settings-panel__body::-webkit-scrollbar {
+  display: none;
 }
 
 .new-ux-side-panel__copy {

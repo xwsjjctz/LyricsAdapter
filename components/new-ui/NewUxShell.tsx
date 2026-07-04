@@ -47,7 +47,6 @@ interface NewUxShellProps {
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
   onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
-  onExitNewUx: () => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   isWindowFocused?: boolean;
   onNavigateToTrack: (track: Track) => void;
@@ -87,7 +86,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onImportIntoSlot,
   onReloadUnavailable,
   onOpenOnlinePlaylist,
-  onExitNewUx,
   onClearOrphanCache,
   isWindowFocused,
   onNavigateToTrack,
@@ -314,7 +312,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
               {panels.state.openOverlayPanel === 'settings' && (
                 <SettingsPanel
                   onClose={panels.closeOverlay}
-                  onExitNewUx={onExitNewUx}
                   {...(onClearOrphanCache ? { onClearOrphanCache } : {})}
                 />
               )}

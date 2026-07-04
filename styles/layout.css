@@ -31,7 +31,7 @@
   position: relative;
   z-index: 10;
   height: 100%;
-  padding: calc(var(--new-ux-stage-padding) + 22px) var(--new-ux-stage-padding) 118px;
+  padding: 0;
 }
 
 .new-ux-chrome-layer {

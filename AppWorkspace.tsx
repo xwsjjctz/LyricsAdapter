@@ -36,7 +36,6 @@ import type { OnlineSong } from './services/onlineMusicProvider';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
-import { settingsManager } from './services/settingsManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
@@ -246,13 +245,6 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
-  // Exit the New UI back to the legacy shell. Reached from the Settings card's
-  // header button. (Settings/Theme are now opened as floating cards inside the
-  // New UI — see NewUxShell — so this only handles the explicit "back to legacy" action.)
-  const handleExitNewUx = useCallback(() => {
-    setIsFocusMode(false);
-    settingsManager.setNewUxEnabled(false);
-  }, [setIsFocusMode]);
   // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
   // This ensures deletion works correctly when browsing a different slot than the one playing.
   const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
@@ -826,7 +818,6 @@ const AppWorkspace: React.FC = () => {
           onImportIntoSlot={handleNewUxImportIntoSlot}
           onReloadUnavailable={handleReloadLocalFiles}
           onOpenOnlinePlaylist={handleOpenOnlinePlaylist}
-          onExitNewUx={handleExitNewUx}
           onClearOrphanCache={handleClearOrphanCache}
           isWindowFocused={isWindowFocused}
           onNavigateToTrack={handleSearchNavigate}

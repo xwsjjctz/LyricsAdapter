@@ -21,12 +21,10 @@ import RetroSwitch from '../RetroSwitch';
 
 interface SettingsPanelProps {
   onClose: () => void;
-  /** Exit back to the legacy UI (the top-right exit button was removed). */
-  onExitNewUx: () => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onExitNewUx, onClearOrphanCache }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache }) => {
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
@@ -439,22 +437,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onExitNewUx, onC
             <h2 className="new-ux-side-panel__title">{i18n.t('settings.description')}</h2>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="new-ux-button-reset new-ux-text-button"
-              onClick={onExitNewUx}
-              title={i18n.t('settings.newUxDesc')}
-            >
-              <span className="material-symbols-outlined text-[18px] mr-1">logout</span>
-              {i18n.t('settings.newUx')}
-            </button>
             <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close settings panel">
               <span className="material-symbols-outlined text-[22px]">close</span>
             </button>
           </div>
         </header>
 
-        <div className="new-ux-side-panel__body">
+        <div className="new-ux-side-panel__body new-ux-settings-panel__body">
           <div className="space-y-4">
 
             <section>
