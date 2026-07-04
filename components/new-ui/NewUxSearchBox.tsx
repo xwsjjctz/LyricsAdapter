@@ -23,7 +23,7 @@ interface NewUxSearchBoxProps {
  */
 const NewUxSearchBox: React.FC<NewUxSearchBoxProps> = (props) => (
   <div className="new-ux-global-search">
-    <SearchBox {...props} />
+    <SearchBox {...props} variant="new-ux" />
   </div>
 );
 
