@@ -415,6 +415,18 @@ html.electron[data-window-effect] #root {
 .r-surface { border-radius: var(--theme-surface-radius); }
 .r-sm { border-radius: var(--theme-small-radius); }
 
+/* Hide scrollbars on elements that should scroll without showing a thumb
+   (e.g. the cookie textarea, the online-source list). The element still
+   scrolls — only the scrollbar is hidden. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* Frosted-glass bars for the experimental "Glass UI" feature.
    Used by the library header band and the global ControlBar.
    Translucent background is applied inline per component (theme-aware);
