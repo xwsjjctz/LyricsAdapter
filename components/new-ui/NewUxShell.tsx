@@ -33,7 +33,7 @@ interface NewUxShellProps {
   isFocusMode: boolean;
   onToggleFocusMode: () => void;
   onOpenSlot: (slotId: SlotId) => Promise<void>;
-  onTrackSelect: (index: number) => void;
+  onTrackSelect: (index: number, slotId?: SlotId) => void;
   onRemoveTrack: (trackId: string, deleteFile?: boolean) => Promise<void>;
   onRemoveMultipleTracks: (trackIds: string[], deleteFile?: boolean) => Promise<void>;
   onUpdateTrack: (track: Track) => void;
@@ -134,6 +134,18 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     return null;
   }, [entries, panels.state.openPlaylistId, slots]);
   const openTracks = openPanel?.tracks ?? [];
+  // The slot the open panel's tracks belong to. Slot cards → their own slot;
+  // third-party playlist cards → the dedicated 'playlist' slot. Forwarded to
+  // onTrackSelect so playback targets the right slot even when the active play
+  // context is still 'playlist' after browsing a third-party playlist card.
+  const openPanelSlotId = useMemo<SlotId | null>(() => {
+    const entry = openPanel?.entry;
+    if (!entry) return null;
+    return entry.kind === 'slot' ? entry.slotId : 'playlist';
+  }, [openPanel]);
+  const handlePanelTrackSelect = useCallback((index: number) => {
+    onTrackSelect(index, openPanelSlotId ?? undefined);
+  }, [onTrackSelect, openPanelSlotId]);
   const trackMenuTrack = useMemo(() => {
     if (!openPanel || !panels.state.trackMenu) return null;
     return openTracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;
@@ -315,7 +327,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   {...(locateRequest.trackId ? { locateTrackId: locateRequest.trackId } : {})}
                   locateToken={locateRequest.token}
                   onClose={panels.closePlaylist}
-                  onTrackSelect={onTrackSelect}
+                  onTrackSelect={handlePanelTrackSelect}
                   onTrackContextMenu={handleTrackContextMenu}
                   onToggleTrackSelected={panels.toggleTrackSelected}
                   onSelectAll={panels.selectAll}
@@ -373,7 +385,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           y={panels.state.trackMenu.y}
           isEditMode={panels.state.isEditMode}
           selectedCount={panels.state.selectedTrackIds.size}
-          onPlay={() => onTrackSelect(panels.state.trackMenu?.trackIndex ?? 0)}
+          onPlay={() => handlePanelTrackSelect(panels.state.trackMenu?.trackIndex ?? 0)}
           onEditMetadata={() => panels.openMetadata(trackMenuTrack.id)}
           onDelete={() => panels.openDeleteConfirm(getDeleteTargetIds(trackMenuTrack.id))}
           onEnterEditMode={() => panels.enterEditMode(trackMenuTrack.id)}
