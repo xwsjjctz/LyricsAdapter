@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { SlotId } from '../../types';
 import { i18n } from '../../services/i18n';
+import type { PlaylistInfo } from '../../services/onlineMusicProvider';
 import type { LibrarySlotsById, PlaylistEntry } from '../../components/new-ui/types';
 
 const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'playlist', 'online'];
@@ -26,7 +27,27 @@ function getSlotSubtitle(slotId: SlotId, count: number): string {
   return count > 0 ? `${count} streamed tracks` : i18n.t('sidebar.onlinePlayback');
 }
 
-export function usePlaylistEntries(slots: LibrarySlotsById): PlaylistEntry[] {
+const SOURCE_LABELS: Record<'qq' | 'netease', string> = {
+  qq: i18n.t('settingsDialog.onlineSourceQq'),
+  netease: i18n.t('settingsDialog.onlineSourceNetease'),
+};
+
+function playlistInfoToEntry(p: PlaylistInfo): PlaylistEntry {
+  return {
+    id: `playlist-info-${p.source}-${p.id}`,
+    kind: 'playlist-info',
+    title: p.name,
+    subtitle: `${p.songCount} · ${SOURCE_LABELS[p.source]}`,
+    count: p.songCount,
+    tracks: [],
+    coverUrls: p.coverUrl ? [p.coverUrl] : [],
+    icon: 'queue_music',
+    source: p.source,
+    playlistId: p.id,
+  };
+}
+
+export function usePlaylistEntries(slots: LibrarySlotsById, onlinePlaylists: PlaylistInfo[] = []): PlaylistEntry[] {
   return useMemo(() => {
     const slotEntries: PlaylistEntry[] = SLOT_ORDER
       .filter(slotId => slotId !== 'playlist' || slots.playlist.tracks.length > 0)
@@ -43,6 +64,9 @@ export function usePlaylistEntries(slots: LibrarySlotsById): PlaylistEntry[] {
           icon: SLOT_ICONS[slotId],
         };
       });
+
+    // Third-party (QQ/NetEase) playlists each become their own card.
+    const playlistInfoEntries: PlaylistEntry[] = onlinePlaylists.map(playlistInfoToEntry);
 
     // Overlay cards (settings / theme) sit alongside the library cards so the
     // user reaches them from the same card wall.
@@ -69,6 +93,6 @@ export function usePlaylistEntries(slots: LibrarySlotsById): PlaylistEntry[] {
       },
     ];
 
-    return [...slotEntries, ...overlayEntries];
-  }, [slots]);
+    return [...slotEntries, ...playlistInfoEntries, ...overlayEntries];
+  }, [slots, onlinePlaylists]);
 }

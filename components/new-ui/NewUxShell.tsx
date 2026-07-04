@@ -18,6 +18,7 @@ import type { SlotId, Track } from '../../types';
 import { useNewUxPanels } from '../../hooks/new-ui/useNewUxPanels';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
+import { useOnlinePlaylists } from '../../hooks/new-ui/useOnlinePlaylists';
 
 interface NewUxShellProps {
   slots: LibrarySlotsById;
@@ -43,6 +44,7 @@ interface NewUxShellProps {
   onTogglePlaybackMode: () => void;
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
+  onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
   onExitNewUx: () => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   cloudImportDisabled: boolean;
@@ -76,6 +78,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onTogglePlaybackMode,
   onImportIntoSlot,
   onReloadUnavailable,
+  onOpenOnlinePlaylist,
   onExitNewUx,
   onClearOrphanCache,
   cloudImportDisabled,
@@ -84,7 +87,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   fileInputRef,
   onFileInputChange,
 }) => {
-  const entries = usePlaylistEntries(slots);
+  const { playlists: onlinePlaylists } = useOnlinePlaylists();
+  const entries = usePlaylistEntries(slots, onlinePlaylists);
   const panels = useNewUxPanels();
   const playerTransitionRef = useRef<HTMLDivElement | null>(null);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
@@ -143,12 +147,20 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       setPlaylistMenu(null);
       return;
     }
+    // Third-party playlist card: load its songs into the playlist slot, then
+    // open the playlist panel over that slot.
+    if (entry.kind === 'playlist-info' && entry.source && entry.playlistId) {
+      await onOpenOnlinePlaylist(entry.source, entry.playlistId, entry.title);
+      panels.openPlaylist('playlist');
+      setPlaylistMenu(null);
+      return;
+    }
     // Slot-backed cards (local/cloud/playlist/online). The id is the SlotId.
     const slotId = entry.id as SlotId;
     await onOpenSlot(slotId);
     panels.openPlaylist(slotId);
     setPlaylistMenu(null);
-  }, [onOpenSlot, panels]);
+  }, [onOpenSlot, onOpenOnlinePlaylist, panels]);
 
   const handlePlaylistContextMenu = useCallback((entry: PlaylistEntry, event: React.MouseEvent) => {
     event.preventDefault();
