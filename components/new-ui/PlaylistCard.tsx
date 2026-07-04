@@ -39,12 +39,14 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMen
           )}
         </div>
       </div>
-      <div className="new-ux-playlist-card__info">
+      <div className={`new-ux-playlist-card__info${entry.kind === 'overlay' ? ' new-ux-playlist-card__info--no-play' : ''}`}>
         <div className="min-w-0">
           <div className="new-ux-playlist-card__title">{entry.title}</div>
           <div className="new-ux-playlist-card__meta">{entry.subtitle}</div>
         </div>
-        <span className="new-ux-playlist-card__play material-symbols-outlined">play_arrow</span>
+        {entry.kind !== 'overlay' && (
+          <span className="new-ux-playlist-card__play material-symbols-outlined">play_arrow</span>
+        )}
       </div>
     </button>
   );

@@ -89,14 +89,12 @@
   will-change: transform, filter, opacity;
   touch-action: none;
   -webkit-user-drag: none;
-  user-drag: none;
 }
 
 .new-ux-playlist-card *,
 .new-ux-playlist-card img {
   pointer-events: none;
   -webkit-user-drag: none;
-  user-drag: none;
 }
 
 /* Note: wall motion is written to .new-ux-playlist-space so every card moves
@@ -131,11 +129,15 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 60%, transparent);
   border-radius: 26px 26px 20px 20px;
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--theme-primary, #2b8cee) 26%, var(--theme-background-card, rgba(255, 255, 255, 0.08))), var(--theme-background-sidebar, #16212e));
-  box-shadow: 0 30px 70px -34px rgba(0, 0, 0, 0.86);
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--theme-primary, #2b8cee) 20%, var(--theme-background-card, rgba(255, 255, 255, 0.08))),
+      var(--theme-background-sidebar, #16212e));
+  box-shadow:
+    0 36px 80px -30px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .new-ux-playlist-card__main-cover {
@@ -194,30 +196,43 @@
 
 .new-ux-playlist-card__info {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
+  grid-template-columns: minmax(0, 1fr) 36px;
   align-items: center;
-  gap: 12px;
-  min-height: 76px;
-  margin-top: -18px;
-  padding: 22px 13px 13px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  gap: 10px;
+  min-height: 72px;
+  margin-top: -20px;
+  padding: 26px 14px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-top: 0;
   border-radius: 0 0 24px 24px;
-  background: linear-gradient(180deg, rgba(9, 12, 16, 0.78), rgba(4, 6, 9, 0.94));
-  box-shadow: 0 26px 58px -32px rgba(0, 0, 0, 0.9);
+  background: linear-gradient(180deg, rgba(8, 11, 16, 0.82) 0%, rgba(3, 5, 8, 0.96) 100%);
+  box-shadow: 0 22px 48px -28px rgba(0, 0, 0, 0.92);
+}
+
+/* Overlay cards (settings / theme) have no play button — use single column */
+.new-ux-playlist-card__info--no-play {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .new-ux-playlist-card__play {
   display: flex;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #111;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0a0f18;
   font-size: 22px;
   font-variation-settings: 'FILL' 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.38);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.new-ux-playlist-card:hover .new-ux-playlist-card__play {
+  background: #fff;
+  transform: scale(1.08);
 }
 
 /* [panels] */
@@ -375,23 +390,30 @@
 .new-ux-player {
   position: absolute;
   left: 50%;
-  bottom: 20px;
+  bottom: 22px;
   z-index: 30;
-  width: min(640px, calc(100vw - 36px));
+  width: min(660px, calc(100vw - 32px));
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
+  gap: 16px;
   align-items: center;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 70%, transparent);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.86)) 56%, transparent);
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 64%, transparent);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.86)) 58%, transparent);
   box-shadow:
-    0 22px 68px -18px rgba(0, 0, 0, 0.62),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(32px) saturate(145%);
-  -webkit-backdrop-filter: blur(32px) saturate(145%);
+    0 28px 80px -20px rgba(0, 0, 0, 0.68),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(36px) saturate(150%);
+  -webkit-backdrop-filter: blur(36px) saturate(150%);
+  transition: box-shadow 300ms ease;
+}
+
+.new-ux-player:hover {
+  box-shadow:
+    0 32px 88px -18px rgba(0, 0, 0, 0.74),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11);
 }
 
 .new-ux-player__body {
@@ -411,12 +433,19 @@
 }
 
 .new-ux-player__cover {
-  width: 52px;
-  height: 52px;
+  width: 54px;
+  height: 54px;
   overflow: hidden;
   flex-shrink: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.new-ux-player__cover:hover {
+  transform: scale(1.06) translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
 }
 
 .new-ux-player__cover img {
@@ -452,12 +481,56 @@
   font-size: 11px;
 }
 
+/* ─── Global search box (wraps legacy SearchBox in the New UI) ────────────── */
 .new-ux-global-search {
   position: absolute;
-  top: calc(var(--new-ux-stage-padding) + 8px);
+  top: calc(var(--new-ux-stage-padding) + 4px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;
+  width: min(440px, calc(100vw - 200px));
+}
+
+.new-ux-global-search > div {
+  width: 100%;
+}
+
+/* ─── New-UI input bar (rendered by SearchBox when variant="new-ux") ─────── */
+.new-ux-search-bar {
+  height: 40px;
+  border-radius: 999px !important;
+  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 64%, transparent) !important;
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.86)) 62%, transparent) !important;
+  box-shadow:
+    0 16px 48px -16px rgba(0, 0, 0, 0.56),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+  backdrop-filter: blur(28px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(145%) !important;
+  transition: box-shadow 220ms ease, border-color 220ms ease !important;
+}
+
+.new-ux-search-bar:focus-within {
+  border-color: color-mix(in srgb, var(--theme-primary, #2b8cee) 54%, rgba(255, 255, 255, 0.18)) !important;
+  box-shadow:
+    0 16px 48px -16px rgba(0, 0, 0, 0.56),
+    0 0 0 3px color-mix(in srgb, var(--theme-primary, #2b8cee) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+}
+
+/* ─── New-UI results panel ───────────────────────────────────────────────── */
+.new-ux-search-results {
+  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 64%, transparent);
+  border-top: none;
+  border-radius: 0 0 22px 22px;
+  background: color-mix(in srgb, var(--theme-background-sidebar, #111b28) 86%, transparent);
+  backdrop-filter: blur(32px) saturate(150%);
+  -webkit-backdrop-filter: blur(32px) saturate(150%);
+  box-shadow: 0 28px 72px -20px rgba(0, 0, 0, 0.72);
+}
+
+/* Section header labels inside the results panel */
+.new-ux-search-results .text-\[10px\] {
+  letter-spacing: 0.16em;
 }
 
 /* [floating UI] */
@@ -602,10 +675,11 @@
 }
 
 .new-ux-icon-button--primary {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   background: var(--theme-control-primary-button-bg, var(--theme-primary, #2b8cee));
   color: var(--theme-control-primary-button-fg, #fff);
+  box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--theme-primary, #2b8cee) 54%, transparent);
 }
 
 .new-ux-icon-button--compact {
