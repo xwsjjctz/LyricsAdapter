@@ -47,7 +47,6 @@ type DetailState = {
   total: number;
   loading: boolean;
   loadingMore: boolean;
-  playPendingIndex: number | null;
   error?: string;
 };
 
@@ -92,7 +91,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const [state, setState] = React.useState<ViewState>(() => {
     const restoredDetail = restoredDetailRef.current;
     return restoredDetail
-      ? { phase: 'detail', playlist: restoredDetail.playlist, songs: restoredDetail.songs, total: restoredDetail.total, loading: false, loadingMore: false, playPendingIndex: null }
+      ? { phase: 'detail', playlist: restoredDetail.playlist, songs: restoredDetail.songs, total: restoredDetail.total, loading: false, loadingMore: false }
       : { phase: 'grid' };
   });
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
@@ -166,7 +165,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
   /** Load the first page and transition to detail. */
   const handlePlaylistClick = async (pl: PlaylistInfo) => {
-    setState({ phase: 'detail', playlist: pl, songs: [], total: Math.max(pl.songCount, 0), loading: true, loadingMore: false, playPendingIndex: null });
+    setState({ phase: 'detail', playlist: pl, songs: [], total: Math.max(pl.songCount, 0), loading: true, loadingMore: false });
     setScrollTop(0);
     pendingDetailScrollRestoreRef.current = 0;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -174,11 +173,11 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
       const first = await fetchPage(pl, 0);
       const total = supportsPaging(pl.source) ? Math.max(pl.songCount, first.length) : first.length;
       lastDetail = { playlist: pl, songs: first, total, scrollPosition: 0 };
-      setState({ phase: 'detail', playlist: pl, songs: first, total, loading: false, loadingMore: false, playPendingIndex: null });
+      setState({ phase: 'detail', playlist: pl, songs: first, total, loading: false, loadingMore: false });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '加载失败';
       logger.error('[PlaylistsView] load songs failed:', e);
-      setState({ phase: 'detail', playlist: pl, songs: [], total: 0, loading: false, loadingMore: false, playPendingIndex: null, error: message });
+      setState({ phase: 'detail', playlist: pl, songs: [], total: 0, loading: false, loadingMore: false, error: message });
     }
   };
 
@@ -186,7 +185,6 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const source = state.phase === 'detail' ? state.playlist.source : 'qq';
   const detailSongs = state.phase === 'detail' ? state.songs : [];
   const loadingMore = state.phase === 'detail' ? state.loadingMore : false;
-  const playPendingIndex = state.phase === 'detail' ? state.playPendingIndex : null;
   const total = state.phase === 'detail' ? state.total : 0;
   const hasMore = state.phase === 'detail' && supportsPaging(source) && detailSongs.length < total;
 
@@ -334,38 +332,18 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }, [detailSongs.length, hasMore, loadingMore, loadMore]);
 
   /**
-   * Ensure the whole playlist is loaded, then hand it off as the play queue.
-   * (If only the first pages are loaded, next/prev would otherwise stop early.)
+   * Play the clicked row immediately using whatever songs are already loaded.
+   * Previously this blocked on a serial while-loop that fetched the ENTIRE
+   * playlist (page by page) before starting playback — a 660-song playlist
+   * meant ~44 sequential network round-trips (~22s) of frozen UI. Remaining
+   * songs are still loaded lazily by scrolling (loadMore), and a user who
+   * wants the full queue can scroll to load more then replay.
    */
-  const handleRowSelect = React.useCallback(async (idx: number) => {
+  const handleRowSelect = React.useCallback((idx: number) => {
     const s = stateRef.current;
     if (s.phase !== 'detail') return;
-    if (playPendingIndex !== null) return;
-    if (!supportsPaging(s.playlist.source) || s.songs.length >= s.total) {
-      onPlayPlaylist(s.playlist.source, s.songs, idx);
-      return;
-    }
-    setState(prev => (prev.phase === 'detail' ? { ...prev, playPendingIndex: idx, loadingMore: true } : prev));
-    try {
-      let songs = s.songs;
-      let offset = songs.length;
-      while (offset < s.total) {
-        const page = await fetchPage(s.playlist, offset);
-        if (page.length === 0) break;
-        songs = [...songs, ...page];
-        offset = songs.length;
-        lastDetail = { playlist: s.playlist, songs, total: s.total, scrollPosition: scrollRef.current?.scrollTop ?? scrollTop };
-        setState(prev => (prev.phase === 'detail' ? { ...prev, songs } : prev));
-      }
-      onPlayPlaylist(s.playlist.source, songs, idx);
-    } catch (e) {
-      logger.warn('[PlaylistsView] load all for playback failed:', e);
-      const fallback = stateRef.current;
-      if (fallback.phase === 'detail') onPlayPlaylist(fallback.playlist.source, fallback.songs, idx);
-    } finally {
-      setState(prev => (prev.phase === 'detail' ? { ...prev, playPendingIndex: null, loadingMore: false } : prev));
-    }
-  }, [onPlayPlaylist, playPendingIndex]);
+    onPlayPlaylist(s.playlist.source, s.songs, idx);
+  }, [onPlayPlaylist]);
 
   const handleScroll = React.useCallback(() => {
     const el = scrollRef.current;
@@ -495,11 +473,9 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                   <div className="flex items-center justify-center py-4" style={{ color: colors.textMuted }}>
                     <span className="material-symbols-outlined animate-spin mr-2 text-lg">progress_activity</span>
                     <span className="text-xs">
-                      {playPendingIndex !== null
-                        ? '准备播放…'
-                        : loadingMore
-                          ? '加载更多…'
-                          : `已加载 ${detailSongs.length}/${total}`}
+                      {loadingMore
+                        ? '加载更多…'
+                        : `已加载 ${detailSongs.length}/${total}`}
                     </span>
                   </div>
                 )}
