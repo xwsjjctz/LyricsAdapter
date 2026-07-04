@@ -1,23 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../../services/i18n';
-import { themeManager } from '../../services/themeManager';
-import { ThemeConfig, THEME_IDS } from '../../types/theme';
-import { cookieManager, neteaseCookieManager } from '../../services/cookieManager';
-import { settingsManager, type OnlineSource } from '../../services/settingsManager';
-import { webdavClient } from '../../services/webdavClient';
+import { settingsManager } from '../../services/settingsManager';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import { logger } from '../../services/logger';
-import {
-  startQQLogin,
-  pollQQLogin,
-  startNetEaseQR,
-  pollNetEaseQR,
-  type QRLoginStatus,
-  type QRPollResult,
-} from '../../services/qrLogin';
 import ShortcutsSettings from '../ShortcutsSettings';
 import GsapModal from '../GsapModal';
 import RetroSwitch from '../RetroSwitch';
+import { useCurrentTheme, useSettingsTheme, LANGUAGE_OPTIONS } from './settings/shared';
+import { useWebdavSettings } from './settings/hooks/useWebdavSettings';
+import { useOnlineMusicSettings } from './settings/hooks/useOnlineMusicSettings';
+import WebdavSection from './settings/sections/WebdavSection';
+import OnlineMusicSection from './settings/sections/OnlineMusicSection';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -25,36 +18,18 @@ interface SettingsPanelProps {
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache }) => {
+  const theme = useCurrentTheme();
+  const themeUtils = useSettingsTheme(theme);
+  const { colors, isBrutalistTheme, rangeClassName, rangeStyle } = themeUtils;
+
+  // Language + about
   const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const [appVersion, setAppVersion] = useState<string>('');
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [cookie, setCookie] = useState('');
-  const [neteaseCookie, setNeteaseCookie] = useState('');
-  const [onlineSource, setOnlineSource] = useState<OnlineSource>('qq');
-  const [downloadPath, setDownloadPath] = useState('');
-  const [isSavingOnline, setIsSavingOnline] = useState(false);
-  const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
-  const [onlineMessageType, setOnlineMessageType] = useState<'success' | 'error' | null>(null);
-
-  // QR scan-login state — drives the live QR panel in the third-party section.
-  const [qqLoggedIn, setQqLoggedIn] = useState(false);
-  const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
-  const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
-  const [qrImage, setQrImage] = useState<string | null>(null);
-  const [qrMsg, setQrMsg] = useState<string>('');
-  const sessionRef = useRef<{ source: OnlineSource; key: string } | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mountedRef = useRef(true);
-
-  const [webdavServerUrl, setWebdavServerUrl] = useState('');
-  const [webdavUsername, setWebdavUsername] = useState('');
-  const [webdavPassword, setWebdavPassword] = useState('');
-  const [isTestingWebdav, setIsTestingWebdav] = useState(false);
-  const [isSavingWebdav, setIsSavingWebdav] = useState(false);
-  const [webdavMessage, setWebdavMessage] = useState<string | null>(null);
-  const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
+  // Appearance / experimental toggles & sliders (kept here: they share one
+  // settingsManager subscription and feed both this panel and the live app.)
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
@@ -64,29 +39,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
 
-  const [appVersion, setAppVersion] = useState<string>('');
+  // Clear-cache confirmation
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheClearMessage, setCacheClearMessage] = useState<string | null>(null);
   const [cacheClearMessageType, setCacheClearMessageType] = useState<'success' | 'error' | null>(null);
 
+  // Extracted sections own their own state.
+  const webdav = useWebdavSettings();
+  const onlineMusic = useOnlineMusicSettings({ enabled: qqMusicEnabled });
+
+  // Initial load of appearance values + shared subscription.
   useEffect(() => {
     (async () => {
-      await cookieManager.ensureLoaded();
-      await neteaseCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
-      setCookie(cookieManager.getCookie());
-      setNeteaseCookie(neteaseCookieManager.getCookie());
-      setOnlineSource(settingsManager.getOnlineSource());
-      setQqLoggedIn(cookieManager.hasCookie());
-      setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
-      setDownloadPath(settingsManager.getDownloadPath());
-      const webdavConfig = webdavClient.getConfig();
-      if (webdavConfig) {
-        setWebdavServerUrl(webdavConfig.serverUrl);
-        setWebdavUsername(webdavConfig.username);
-        setWebdavPassword(webdavConfig.password);
-      }
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGsapButtonBounce(settingsManager.getGsapButtonBounce());
@@ -98,7 +64,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
     })();
   }, []);
 
-  // Subscribe to settings changes (e.g. bgBlurTrans updated by FocusMode)
   useEffect(() => {
     const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
@@ -129,13 +94,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   }, []);
 
   useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
     getDesktopAPI()?.getAppVersion?.()
       .then(v => setAppVersion(v))
       .catch(e => logger.error('[SettingsPanel] getAppVersion failed:', e));
@@ -156,277 +114,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
     setIsLangDropdownOpen(false);
   };
 
-  const handleOnlineSourceChange = (source: OnlineSource) => {
-    setOnlineSource(source);
-    settingsManager.setOnlineSource(source);
-    setOnlineMessage(null);
-    setOnlineMessageType(null);
-  };
-
-  const showOnlineMessage = (msg: string, type: 'success' | 'error') => {
-    setOnlineMessage(msg);
-    setOnlineMessageType(type);
-    setTimeout(() => { setOnlineMessage(null); setOnlineMessageType(null); }, 3000);
-  };
-
-  const handleSaveOnlineMusic = async () => {
-    setIsSavingOnline(true);
-    setOnlineMessage(null);
-
-    try {
-      settingsManager.setOnlineSource(onlineSource);
-
-      const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
-      const cookieValue = (onlineSource === 'netease' ? neteaseCookie : cookie).trim();
-      if (cookieValue) {
-        await cookieStore.setCookie(cookieValue);
-        const status = await cookieStore.validateCookie();
-        if (!status.valid) {
-          showOnlineMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
-          await cookieStore.clearCookie();
-          return;
-        }
-      } else {
-        await cookieStore.clearCookie();
-      }
-
-      settingsManager.setDownloadPath(downloadPath.trim());
-      showOnlineMessage(i18n.t('settingsDialog.saved'), 'success');
-    } catch (err) {
-      showOnlineMessage(i18n.t('settingsDialog.saveFailed'), 'error');
-      logger.error('[SettingsPanel] Online Music save failed:', err);
-    } finally {
-      setIsSavingOnline(false);
-    }
-  };
-
-  const getWebdavFormConfig = () => {
-    if (!webdavServerUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
-      setWebdavMessage(i18n.t('settingsDialog.webdavFillAll'));
-      setWebdavMessageType('error');
-      return null;
-    }
-    return {
-      serverUrl: webdavServerUrl.trim(),
-      username: webdavUsername.trim(),
-      password: webdavPassword.trim(),
-    };
-  };
-
-  const handleTestWebdav = async () => {
-    const config = getWebdavFormConfig();
-    if (!config) {
-      return;
-    }
-    setIsTestingWebdav(true);
-    try {
-      const result = await webdavClient.testConnection(config);
-      setWebdavMessage(result.message);
-      setWebdavMessageType(result.success ? 'success' : 'error');
-    } finally {
-      setIsTestingWebdav(false);
-    }
-  };
-
-  const handleSaveWebdav = () => {
-    setIsSavingWebdav(true);
-    try {
-      const config = getWebdavFormConfig();
-      if (!config) {
-        return;
-      }
-      webdavClient.saveConfig(config);
-      setWebdavMessage(i18n.t('settingsDialog.saved'));
-      setWebdavMessageType('success');
-      setTimeout(() => { setWebdavMessage(null); setWebdavMessageType(null); }, 3000);
-    } catch (err) {
-      setWebdavMessage(i18n.t('settingsDialog.saveFailed'));
-      setWebdavMessageType('error');
-      logger.error('[SettingsPanel] WebDAV save failed:', err);
-    } finally {
-      setIsSavingWebdav(false);
-    }
-  };
-
-  const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
-    { value: 'zh', label: i18n.t('settings.language.zh'), nativeLabel: '中文' },
-    { value: 'en', label: i18n.t('settings.language.en'), nativeLabel: 'English' },
-    { value: 'ja', label: i18n.t('settings.language.ja'), nativeLabel: '日本語' },
-    { value: 'ko', label: i18n.t('settings.language.ko'), nativeLabel: '한국어' },
-    { value: 'de', label: i18n.t('settings.language.de'), nativeLabel: 'Deutsch' },
-    { value: 'fr', label: i18n.t('settings.language.fr'), nativeLabel: 'Français' }
-  ];
-
-  const currentLanguageOption = languageOptions.find(opt => opt.value === currentLang);
-  const sourceOptions: { value: OnlineSource; label: string }[] = [
-    { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
-    { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
-  ];
-  const colors = currentTheme.colors;
-  const isBrutalistTheme = currentTheme.id === THEME_IDS.BRUTALIST;
-  const getRangeClassName = () => (
-    isBrutalistTheme ? 'retro-range' : 'w-20 h-1.5 rounded-full appearance-none cursor-pointer'
-  );
-  const getRangeStyle = (progress: number) => (
-    isBrutalistTheme
-      ? ({ '--retro-range-progress': `${progress}%` } as React.CSSProperties)
-      : { background: `linear-gradient(to right, ${colors.primary} ${progress}%, ${colors.borderLight} ${progress}%)` }
-  );
-
-  const inputStyle = {
-    backgroundColor: colors.backgroundCard,
-    border: `1px solid ${colors.borderLight}`,
-    color: colors.textPrimary,
-    borderRadius: 'var(--theme-control-radius)',
-  };
-  const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-    e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
-  };
-  const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.currentTarget.style.backgroundColor = colors.backgroundCard;
-    e.currentTarget.style.boxShadow = 'none';
-  };
-
-  // ===== QR scan-login lifecycle =====
-  const isQrLoggedIn = onlineSource === 'qq' ? qqLoggedIn : neteaseLoggedIn;
-  const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
-
-  const stopQrPolling = (): void => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  };
-
-  const resetQr = (): void => {
-    stopQrPolling();
-    sessionRef.current = null;
-    setQrImage(null);
-    setQrMsg('');
-    setQrState('idle');
-  };
-
-  const handleQrPollResult = async (source: OnlineSource, res: QRPollResult): Promise<void> => {
-    setQrState(res.status);
-    if (res.status === 'confirming') {
-      setQrMsg(i18n.t('settingsDialog.qrConfirming'));
-    } else if (res.status === 'waiting') {
-      setQrMsg(res.msg || i18n.t('settingsDialog.qrWaiting'));
-    } else if (res.msg) {
-      setQrMsg(res.msg);
-    }
-
-    if (res.status === 'done') {
-      stopQrPolling();
-      setQrImage(null);
-      if (res.cookie) {
-        if (source === 'qq') {
-          await cookieManager.setCookie(res.cookie);
-          setCookie(cookieManager.getCookie());
-          setQqLoggedIn(true);
-          window.electron?.setOnlineCookie?.('qq', cookieManager.getCookie());
-        } else {
-          await neteaseCookieManager.setCookie(res.cookie);
-          setNeteaseCookie(neteaseCookieManager.getCookie());
-          setNeteaseLoggedIn(true);
-          window.electron?.setOnlineCookie?.('netease', neteaseCookieManager.getCookie());
-        }
-        showOnlineMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
-      }
-    } else if (res.status === 'expired') {
-      stopQrPolling();
-      setQrImage(null);
-    }
-    // 'waiting' | 'confirming' | 'error' → keep polling (error is treated as soft)
-  };
-
-  const beginQrPolling = (source: OnlineSource, key: string): void => {
-    stopQrPolling();
-    const tick = async (): Promise<void> => {
-      if (!mountedRef.current) return;
-      const sess = sessionRef.current;
-      if (!sess || sess.key !== key) return; // superseded by a newer session
-      try {
-        const res = source === 'qq' ? await pollQQLogin(key) : await pollNetEaseQR(key);
-        if (!mountedRef.current) return;
-        if (!sessionRef.current || sessionRef.current.key !== key) return;
-        await handleQrPollResult(source, res);
-      } catch (e) {
-        if (!mountedRef.current) return;
-        logger.error('[SettingsPanel] QR poll failed:', e);
-        setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
-        setQrState('error');
-      }
-    };
-    pollTimerRef.current = setInterval(tick, 2000);
-  };
-
-  const startQr = async (source: OnlineSource): Promise<void> => {
-    stopQrPolling();
-    sessionRef.current = null;
-    setQrImage(null);
-    setQrMsg('');
-    setQrState('loading');
-    try {
-      const res = source === 'qq' ? await startQQLogin() : await startNetEaseQR();
-      if (!mountedRef.current) return;
-      sessionRef.current = { source, key: res.sessionKey };
-      setQrImage(res.qrcode);
-      setQrState('waiting');
-      setQrMsg(i18n.t('settingsDialog.qrWaiting'));
-      beginQrPolling(source, res.sessionKey);
-    } catch (e) {
-      if (!mountedRef.current) return;
-      logger.error('[SettingsPanel] startQr failed:', e);
-      setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
-      setQrState('error');
-    }
-  };
-
-  const handleQrLogout = async (): Promise<void> => {
-    if (onlineSource === 'qq') {
-      await cookieManager.clearCookie();
-      setCookie('');
-      setQqLoggedIn(false);
-    } else {
-      await neteaseCookieManager.clearCookie();
-      setNeteaseCookie('');
-      setNeteaseLoggedIn(false);
-    }
-    resetQr();
-    await startQr(onlineSource);
-  };
-
-  // Mark mounted; clean up any active polling on unmount.
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      stopQrPolling();
-      sessionRef.current = null;
-    };
-  }, []);
-
-  // (Re)start the QR whenever the third-party section is shown or the source changes.
-  useEffect(() => {
-    if (!qqMusicEnabled) {
-      resetQr();
-      return;
-    }
-    resetQr();
-    const loggedIn =
-      onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
-    if (!loggedIn) {
-      void startQr(onlineSource);
-    }
-    return () => {
-      stopQrPolling();
-      sessionRef.current = null;
-    };
-    // startQr/resetQr are stable in behavior (only refs + setters); omit from deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qqMusicEnabled, onlineSource]);
+  const currentLanguageOption = LANGUAGE_OPTIONS.find(opt => opt.value === currentLang);
 
   return (
     <>
@@ -446,6 +134,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
         <div className="new-ux-side-panel__body new-ux-settings-panel__body">
           <div className="space-y-4">
 
+            {/* Language + About */}
             <section>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="r-card p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -487,7 +176,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                           borderRadius: '0 0 var(--theme-card-radius) var(--theme-card-radius)',
                         }}
                       >
-                        {languageOptions.map((option) => {
+                        {LANGUAGE_OPTIONS.map((option) => {
                           const active = currentLang === option.value;
                           return (
                             <button
@@ -520,89 +209,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* WebDAV */}
-            <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                  <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
-                  {i18n.t('settingsDialog.webdavTitle')}
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleTestWebdav}
-                    disabled={isTestingWebdav || isSavingWebdav}
-                    className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                    style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
-                  >
-                    {isTestingWebdav ? (
-                      <>
-                        <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                        {i18n.t('settingsDialog.webdavTesting')}
-                      </>
-                    ) : (
-                      i18n.t('settingsDialog.webdavTestConnection')
-                    )}
-                  </button>
-                  <button
-                    onClick={handleSaveWebdav}
-                    disabled={isTestingWebdav || isSavingWebdav}
-                    className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                    style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-                  >
-                    {isSavingWebdav ? (
-                      <>
-                        <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                        {i18n.t('settingsDialog.saving')}
-                      </>
-                    ) : (
-                      i18n.t('settingsDialog.save')
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={webdavServerUrl}
-                  onChange={(e) => setWebdavServerUrl(e.target.value)}
-                  placeholder="https://webdav.123pan.cn/webdav"
-                  className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                  style={inputStyle}
-                  onFocus={inputFocus}
-                  onBlur={inputBlur}
-                />
-                <input
-                  type="text"
-                  value={webdavUsername}
-                  onChange={(e) => setWebdavUsername(e.target.value)}
-                  placeholder={i18n.t('settingsDialog.webdavUsername')}
-                  className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                  style={inputStyle}
-                  onFocus={inputFocus}
-                  onBlur={inputBlur}
-                />
-                <input
-                  type="password"
-                  value={webdavPassword}
-                  onChange={(e) => setWebdavPassword(e.target.value)}
-                  placeholder={i18n.t('settingsDialog.webdavPassword')}
-                  className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
-                  style={inputStyle}
-                  onFocus={inputFocus}
-                  onBlur={inputBlur}
-                />
-                {webdavMessage && (
-                  <span className={`text-xs ${
-                    webdavMessageType === 'success' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {webdavMessage}
-                  </span>
-                )}
-              </div>
-            </section>
+            <WebdavSection
+              theme={themeUtils}
+              serverUrl={webdav.serverUrl}
+              username={webdav.username}
+              password={webdav.password}
+              message={webdav.message}
+              messageType={webdav.messageType}
+              isTesting={webdav.isTesting}
+              isSaving={webdav.isSaving}
+              setServerUrl={webdav.setServerUrl}
+              setUsername={webdav.setUsername}
+              setPassword={webdav.setPassword}
+              onTest={webdav.handleTest}
+              onSave={webdav.handleSave}
+            />
 
             {/* Experimental Features */}
             <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -629,8 +250,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       const fn = (window as any).bg_blur_trans;
                       if (typeof fn === 'function') fn(value);
                     }}
-                    className={getRangeClassName()}
-                    style={getRangeStyle(bgBlurTrans * 100)}
+                    className={rangeClassName}
+                    style={rangeStyle(bgBlurTrans * 100)}
                   />
                 </div>
               </div>
@@ -651,8 +272,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       setFocusBgBlurRadius(value);
                       settingsManager.setFocusBgBlurRadius(value);
                     }}
-                    className={getRangeClassName()}
-                    style={getRangeStyle(((focusBgBlurRadius - 40) / 40) * 100)}
+                    className={rangeClassName}
+                    style={rangeStyle(((focusBgBlurRadius - 40) / 40) * 100)}
                   />
                 </div>
               </div>
@@ -673,8 +294,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       setFocusLyricsFontSize(value);
                       settingsManager.setFocusLyricsFontSize(value);
                     }}
-                    className={getRangeClassName()}
-                    style={getRangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
+                    className={rangeClassName}
+                    style={rangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
                   />
                 </div>
               </div>
@@ -695,8 +316,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       setFocusLyricLineSpacing(value);
                       settingsManager.setFocusLyricLineSpacing(value);
                     }}
-                    className={getRangeClassName()}
-                    style={getRangeStyle(((focusLyricLineSpacing - 12) / 36) * 100)}
+                    className={rangeClassName}
+                    style={rangeStyle(((focusLyricLineSpacing - 12) / 36) * 100)}
                   />
                 </div>
               </div>
@@ -717,8 +338,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       setFocusInactiveLyricBlur(value);
                       settingsManager.setFocusInactiveLyricBlur(value);
                     }}
-                    className={getRangeClassName()}
-                    style={getRangeStyle((focusInactiveLyricBlur / 12) * 100)}
+                    className={rangeClassName}
+                    style={rangeStyle((focusInactiveLyricBlur / 12) * 100)}
                   />
                 </div>
               </div>
@@ -870,270 +491,28 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
             {/* Online Music — only visible when experimental toggle is enabled */}
             {qqMusicEnabled && (
-            <section className="r-card p-4 border mb-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                  <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-                  {i18n.t('settingsDialog.onlineMusicTitle')}
-                </h3>
-                <button
-                  onClick={handleSaveOnlineMusic}
-                  disabled={isSavingOnline}
-                  className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
-                  style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-                >
-                  {isSavingOnline ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                      {i18n.t('settingsDialog.saving')}
-                    </>
-                  ) : (
-                    i18n.t('settingsDialog.save')
-                  )}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-[190px_176px_minmax(220px,1fr)] gap-6">
-                <div className="min-w-0">
-                  <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                    {i18n.t('settingsDialog.onlineSource')}
-                  </div>
-                  <div
-                    className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
-                    style={{
-                      backgroundColor: colors.backgroundDark,
-                      border: `1px solid ${colors.borderLight}`,
-                      borderRadius: 'var(--theme-card-radius)',
-                    }}
-                  >
-                    {sourceOptions.map((option) => {
-                      const active = onlineSource === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleOnlineSourceChange(option.value)}
-                          className="w-full px-3 py-2 text-left transition-colors text-xs flex items-center justify-between gap-2"
-                          style={{
-                            backgroundColor: active ? `${colors.primary}20` : 'transparent',
-                            border: `1px solid ${active ? colors.primary : 'transparent'}`,
-                            borderRadius: 'var(--theme-card-radius)',
-                            color: active ? colors.primary : colors.textSecondary,
-                          }}
-                          onMouseEnter={e => {
-                            if (!active) {
-                              e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-                              e.currentTarget.style.color = colors.textPrimary;
-                            }
-                          }}
-                          onMouseLeave={e => {
-                            if (!active) {
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                              e.currentTarget.style.color = colors.textSecondary;
-                            }
-                          }}
-                        >
-                          <span className="truncate">{option.label}</span>
-                          {active && <span className="material-symbols-outlined text-sm flex-shrink-0">check</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="min-w-0">
-                  <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
-                    <span>{i18n.t('settingsDialog.qrTitle')}</span>
-                    {(qrImage || qrState === 'error' || qrState === 'expired') && (
-                      <button
-                        type="button"
-                        onClick={() => void startQr(onlineSource)}
-                        title={i18n.t('settingsDialog.qrRefresh')}
-                        className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
-                        style={{ color: colors.textSecondary }}
-                      >
-                        refresh
-                      </button>
-                    )}
-                  </div>
-                  <div
-                    className="h-44 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
-                    style={{
-                      backgroundColor: colors.backgroundDark,
-                      border: `1px dashed ${colors.borderLight}`,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    {/* Logged-in panel */}
-                    {isQrLoggedIn && !qrScanning ? (
-                      <div className="flex flex-col items-center gap-1.5 text-center px-2">
-                        <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
-                        <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoggedIn')}</span>
-                        <div className="flex gap-1.5 mt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => void handleQrLogout()}
-                            className="px-2 py-1 text-xs transition-all"
-                            style={{
-                              backgroundColor: colors.backgroundCard,
-                              color: colors.textSecondary,
-                              border: `1px solid ${colors.borderLight}`,
-                              borderRadius: 'var(--theme-control-radius)',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                          >
-                            {i18n.t('settingsDialog.qrLogout')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void startQr(onlineSource)}
-                            className="px-2 py-1 text-xs transition-all"
-                            style={{
-                              backgroundColor: `${colors.primary}20`,
-                              color: colors.primary,
-                              border: `1px solid ${colors.primary}`,
-                              borderRadius: 'var(--theme-control-radius)',
-                            }}
-                          >
-                            {i18n.t('settingsDialog.qrReLogin')}
-                          </button>
-                        </div>
-                      </div>
-                    ) : qrState === 'loading' ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
-                        <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoading')}</span>
-                      </div>
-                    ) : qrImage ? (
-                      <>
-                        <img
-                          src={qrImage}
-                          alt="QR"
-                          className="size-32 object-contain"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                        <div
-                          className="absolute bottom-0 inset-x-0 px-2 py-1 text-center text-[11px] truncate"
-                          style={{
-                            backgroundColor: colors.backgroundDark,
-                            color: qrState === 'confirming' ? colors.primary : colors.textSecondary,
-                          }}
-                        >
-                          {qrMsg || i18n.t('settingsDialog.qrWaiting')}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 text-center px-2">
-                        <span className="material-symbols-outlined text-5xl">
-                          {qrState === 'expired' ? 'qr_code_scanner' : 'error'}
-                        </span>
-                        <span className="text-xs" style={{ color: colors.textSecondary }}>
-                          {qrState === 'expired'
-                            ? i18n.t('settingsDialog.qrExpired')
-                            : (qrMsg || i18n.t('settingsDialog.qrError'))}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void startQr(onlineSource)}
-                          className="mt-0.5 px-2 py-1 text-xs transition-all"
-                          style={{
-                            backgroundColor: `${colors.primary}20`,
-                            color: colors.primary,
-                            border: `1px solid ${colors.primary}`,
-                            borderRadius: 'var(--theme-control-radius)',
-                          }}
-                        >
-                          {i18n.t('settingsDialog.qrRefresh')}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="min-w-0 space-y-3">
-                  {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
-                  <div>
-                    <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                      {onlineSource === 'netease'
-                        ? i18n.t('settingsDialog.neteaseCookieLabel')
-                        : i18n.t('settingsDialog.cookie')}
-                    </label>
-                    <textarea
-                      value={onlineSource === 'netease' ? neteaseCookie : cookie}
-                      onChange={(e) =>
-                        onlineSource === 'netease'
-                          ? setNeteaseCookie(e.target.value)
-                          : setCookie(e.target.value)
-                      }
-                      placeholder={i18n.t('settingsDialog.pasteCookie')}
-                      className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
-                      style={inputStyle}
-                      onFocus={inputFocus}
-                      onBlur={inputBlur}
-                      disabled={isSavingOnline}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                      {i18n.t('settingsDialog.savePath')}
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={downloadPath}
-                        onChange={(e) => setDownloadPath(e.target.value)}
-                        placeholder={i18n.t('settingsDialog.downloadFolderPath')}
-                        className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
-                        style={inputStyle}
-                        onFocus={inputFocus}
-                        onBlur={inputBlur}
-                        disabled={isSavingOnline}
-                      />
-                      <button
-                        onClick={async () => {
-                          const desktopAPI = getDesktopAPI();
-                          if (desktopAPI?.selectDownloadFolder) {
-                            const result = await desktopAPI.selectDownloadFolder();
-                            if (result.success && result.path) {
-                              setDownloadPath(result.path);
-                            }
-                          }
-                        }}
-                        disabled={isSavingOnline}
-                        className="px-3 py-2 transition-all disabled:opacity-50 flex items-center flex-shrink-0"
-                        style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
-                      >
-                        <span className="material-symbols-outlined text-base">folder_open</span>
-                      </button>
-                    </div>
-                    <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                      {i18n.t('settingsDialog.tip')}
-                    </p>
-                  </div>
-
-                  {onlineMessage && (
-                    <div className={`p-2 r-control text-xs ${
-                      onlineMessageType === 'success'
-                        ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
-                    }`}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-xs">
-                          {onlineMessageType === 'success' ? 'check' : 'error'}
-                        </span>
-                        {onlineMessage}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
+              <OnlineMusicSection
+                theme={themeUtils}
+                onlineSource={onlineMusic.onlineSource}
+                cookie={onlineMusic.cookie}
+                neteaseCookie={onlineMusic.neteaseCookie}
+                downloadPath={onlineMusic.downloadPath}
+                isQrLoggedIn={onlineMusic.isQrLoggedIn}
+                qrScanning={onlineMusic.qrScanning}
+                qrState={onlineMusic.qrState}
+                qrImage={onlineMusic.qrImage}
+                qrMsg={onlineMusic.qrMsg}
+                isSaving={onlineMusic.isSaving}
+                message={onlineMusic.message}
+                messageType={onlineMusic.messageType}
+                setOnlineSource={onlineMusic.setOnlineSource}
+                setCookie={onlineMusic.setCookie}
+                setNeteaseCookie={onlineMusic.setNeteaseCookie}
+                setDownloadPath={onlineMusic.setDownloadPath}
+                onSave={onlineMusic.handleSave}
+                startQr={onlineMusic.startQr}
+                onQrLogout={onlineMusic.handleQrLogout}
+              />
             )}
 
           </div>
