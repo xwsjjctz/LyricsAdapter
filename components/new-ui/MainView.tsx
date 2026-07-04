@@ -208,7 +208,12 @@ const MainView: React.FC<MainViewProps> = ({
       lastY: event.clientY,
       moved: 0,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // NOTE: setPointerCapture is intentionally NOT called here. Capturing on
+    // pointerdown retargets the subsequent pointerup (and the browser-synthesised
+    // click) to the space div, which steals the click from the card button —
+    // panels never open. Capture is acquired in handlePointerMove once the drag
+    // threshold is exceeded; that plus draggable={false} on the card is enough to
+    // keep dragging responsive.
     motionRef.current.velocityX = 0;
     motionRef.current.velocityY = 0;
   }, [isPlaylistPanelOpen]);
