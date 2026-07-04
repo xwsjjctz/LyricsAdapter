@@ -874,7 +874,7 @@ const AppWorkspace: React.FC = () => {
           onSlotChange={handleSwitchSlot}
           floating={floatingPanel}
         />
-        <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
+        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
           style={floatingPanel ? {} : {
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}

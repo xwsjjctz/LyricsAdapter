@@ -7,10 +7,10 @@ interface FocusCoverStageProps {
 }
 
 const FocusCoverStage: React.FC<FocusCoverStageProps> = ({ coverUrl, isPlaying }) => (
-  <div className="relative w-full aspect-square max-w-[280px] lg:max-w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
+  <div className="relative aspect-square w-[280px] lg:w-[340px] shadow-[0_30px_80px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden group">
     <img
       src={toCoverThumb(coverUrl, 512)}
-      className={`w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
+      className={`absolute inset-0 w-full h-full object-cover transition-transform duration-[6s] ${isPlaying ? 'scale-110' : 'scale-100'}`}
       alt="album cover"
     />
   </div>
