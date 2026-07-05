@@ -867,7 +867,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+    <div className={`fixed inset-0 z-[120] overflow-hidden ${isNewUxFocus ? (isVisible ? '' : 'pointer-events-none') : `transition-transform duration-600 ease-in-out ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}${isLinux ? ' rounded-lg' : ''}`}>
       {/* Background layer (canvas + gradient) slides in via the outer
           container's translate-y with NO opacity fade, so it is fully present
           from frame 1 — the blurred backdrop arrives in sync with the entry
@@ -884,7 +884,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         ambientLayer={ambientLayer}
       />
 
-      <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`relative h-full flex flex-col z-10 overflow-hidden ${isNewUxFocus ? 'opacity-100' : `transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}`}>
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" />
 
