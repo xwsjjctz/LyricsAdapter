@@ -151,8 +151,8 @@ const MainView: React.FC<MainViewProps> = ({
           }),
           { maxX: 0, maxY: 0 }
         );
-        const maxX = Math.max(280, rect.width * 0.32, layoutBounds.maxX - rect.width * 0.28);
-        const maxY = Math.max(150, rect.height * 0.22, layoutBounds.maxY - rect.height * 0.24);
+        const maxX = Math.max(400, rect.width * 0.65, layoutBounds.maxX + 120);
+        const maxY = Math.max(280, rect.height * 0.55, layoutBounds.maxY + 120);
         motion.targetX = clamp(motion.targetX, -maxX, maxX);
         motion.targetY = clamp(motion.targetY, -maxY, maxY);
         motion.x += (motion.targetX - motion.x) * 0.15;
