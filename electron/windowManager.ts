@@ -45,7 +45,10 @@ export async function createWindow(): Promise<BrowserWindow> {
       contextIsolation: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      sandbox: true
+      // sandbox disabled: custom app:// protocol (protocol.handle) is
+      // incompatible with OS-level renderer sandbox. contextIsolation
+      // provides the security boundary instead.
+      sandbox: false
     },
   });
 
