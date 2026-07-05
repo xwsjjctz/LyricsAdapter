@@ -64,7 +64,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
-  const [gsapButtonBounce, setGsapButtonBounce] = useState(true);
   const [newUxEnabled, setNewUxEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
@@ -97,7 +96,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
-      setGsapButtonBounce(settingsManager.getGsapButtonBounce());
       setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
@@ -112,7 +110,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
-      setGsapButtonBounce(settingsManager.getGsapButtonBounce());
       setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
@@ -799,41 +796,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   <span
                     className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
                     style={{ transform: newUxEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
-                  />
-                </button>
-              )}
-            </div>
-
-            {/* 按钮回弹开关 */}
-            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <div className="min-w-0 mr-3">
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.buttonBounce')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.buttonBounceDesc')}</p>
-              </div>
-              {isBrutalistTheme ? (
-                <RetroSwitch
-                  checked={gsapButtonBounce}
-                  ariaLabel={i18n.t('settings.buttonBounce')}
-                  onChange={(newValue) => {
-                    setGsapButtonBounce(newValue);
-                    settingsManager.setGsapButtonBounce(newValue);
-                  }}
-                />
-              ) : (
-                <button
-                  onClick={() => {
-                    const newValue = !gsapButtonBounce;
-                    setGsapButtonBounce(newValue);
-                    settingsManager.setGsapButtonBounce(newValue);
-                  }}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                  style={{ backgroundColor: gsapButtonBounce ? colors.primary : colors.borderLight }}
-                  aria-label={i18n.t('settings.buttonBounce')}
-                  aria-pressed={gsapButtonBounce}
-                >
-                  <span
-                    className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                    style={{ transform: gsapButtonBounce ? 'translateX(22px)' : 'translateX(2px)' }}
                   />
                 </button>
               )}
