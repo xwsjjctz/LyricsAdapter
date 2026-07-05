@@ -867,15 +867,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] overflow-hidden ${isNewUxFocus ? (isVisible ? '' : 'pointer-events-none') : `transition-transform duration-600 ease-in-out ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}${isLinux ? ' rounded-lg' : ''}`}>
-      {/* Background layer (canvas + gradient) slides in via the outer
-          container's translate-y with NO opacity fade, so it is fully present
-          from frame 1 — the blurred backdrop arrives in sync with the entry
-          instead of flashing in when the slide completes. There is no opaque
-          backing layer: the canvas's transparency is baked into its draw alpha
-          (globalAlpha in renderCanvas), which always repaints reliably
-          regardless of backdrop (CSS opacity on a filtered element does not). */}
-      {/* Canvas-based Color Gradient Background */}
+    <div className={isNewUxFocus
+      ? `newux-focus-shell${!isVisible ? ' newux-focus-shell--hidden' : ''}${isLinux ? ' rounded-lg' : ''}`
+      : `fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`
+    }>
       <FocusBackdrop
         hasBackground={Boolean(bgImage1)}
         bgBlurRadius={bgBlurRadius}
@@ -884,17 +879,24 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         ambientLayer={ambientLayer}
       />
 
-      <div className={`relative h-full flex flex-col z-10 overflow-hidden ${isNewUxFocus ? 'opacity-100' : `transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}`}>
+      <div className={isNewUxFocus
+        ? 'newux-focus-content'
+        : `relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`
+      }>
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" />
 
         {/* Content Section */}
-        <main
-          className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
-        >
+        <main className={isNewUxFocus
+          ? 'newux-focus-main'
+          : 'flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6'
+        }>
 
           {/* Cover & Title */}
-          <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
+          <div className={isNewUxFocus
+            ? 'newux-focus-cover-col'
+            : 'flex-none flex flex-col items-center justify-center w-auto p-6'
+          }>
             <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} />
             <FocusTrackMeta
               track={track}
@@ -906,9 +908,11 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           {/* Lyrics */}
           {hasLyrics && (
             <div
-              className={`flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none${isNewUxFocus && isVisible ? ' new-ux-focus-lyrics-enter' : ''}`}
+              className={isNewUxFocus
+                ? `newux-focus-lyrics${isVisible ? ' new-ux-focus-lyrics-enter' : ''}`
+                : `flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none`
+              }
               ref={lyricsRef}
-
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -930,8 +934,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                     <p
                       key={idx}
                       className={`font-bold leading-tight cursor-default ${
-                        isActive 
-                          ? 'active-lyric transition-all duration-300' 
+                        isActive
+                          ? 'active-lyric transition-all duration-300'
                           : ''
                       } ${hasTimestamp ? 'cursor-pointer' : ''}`}
                       style={{
@@ -952,27 +956,29 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           )}
         </main>
 
-        <FocusControls
-          track={track}
-          colors={colors}
-          isPlaying={isPlaying}
-          isPlayerVisible={isPlayerVisible}
-          activeCurrentTime={activeCurrentTime}
-          progress={progress}
-          volume={volume}
-          playbackMode={playbackMode}
-          playerRef={playerRef}
-          onSeek={onSeek}
-          onTogglePlay={onTogglePlay}
-          onSkipNext={onSkipNext}
-          onSkipPrev={onSkipPrev}
-          onVolumeChange={onVolumeChange}
-          onToggleMute={onToggleMute}
-          onTogglePlaybackMode={onTogglePlaybackMode}
-          onMouseEnter={handlePlayerMouseEnter}
-          onMouseLeave={handlePlayerMouseLeave}
-          glassMaterial={useDefaultThemeControlGlass}
-        />
+        <div className={isNewUxFocus ? 'newux-focus-controls-wrap' : ''}>
+          <FocusControls
+            track={track}
+            colors={colors}
+            isPlaying={isPlaying}
+            isPlayerVisible={isPlayerVisible}
+            activeCurrentTime={activeCurrentTime}
+            progress={progress}
+            volume={volume}
+            playbackMode={playbackMode}
+            playerRef={playerRef}
+            onSeek={onSeek}
+            onTogglePlay={onTogglePlay}
+            onSkipNext={onSkipNext}
+            onSkipPrev={onSkipPrev}
+            onVolumeChange={onVolumeChange}
+            onToggleMute={onToggleMute}
+            onTogglePlaybackMode={onTogglePlaybackMode}
+            onMouseEnter={handlePlayerMouseEnter}
+            onMouseLeave={handlePlayerMouseLeave}
+            glassMaterial={useDefaultThemeControlGlass}
+          />
+        </div>
       </div>
     </div>
   );

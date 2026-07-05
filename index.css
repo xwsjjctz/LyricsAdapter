@@ -3,6 +3,7 @@
 @import "./styles/layout.css";
 @import "./styles/components.css";
 @import "./styles/animations.css";
+@import "./styles/focus-mode-newux.css";
 @import "tailwindcss";
 
 @theme {
