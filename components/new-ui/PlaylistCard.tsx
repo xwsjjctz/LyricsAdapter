@@ -9,7 +9,6 @@ interface PlaylistCardProps {
   cardRef?: (node: HTMLButtonElement | null) => void;
   style?: React.CSSProperties;
   isCardEditMode?: boolean;
-  isHidden?: boolean;
   overrideCover?: string;
   overrideName?: string;
   onToggleHidden?: () => void;
@@ -19,7 +18,7 @@ interface PlaylistCardProps {
 
 const PlaylistCard: React.FC<PlaylistCardProps> = ({
   entry, onOpen, onContextMenu, cardRef, style,
-  isCardEditMode, isHidden, overrideCover, overrideName,
+  isCardEditMode, overrideCover, overrideName,
   onToggleHidden, onChangeCover, onChangeName,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
@@ -43,7 +42,7 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
   return (
     <button
       type="button"
-      className={`new-ux-button-reset new-ux-playlist-card${isHidden ? ' new-ux-playlist-card--hidden' : ''}`}
+      className="new-ux-button-reset new-ux-playlist-card"
       ref={cardRef}
       style={style}
       draggable={false}
@@ -84,10 +83,10 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
                 <button
                   className="new-ux-edit-overlay__btn"
                   onClick={(e) => { e.stopPropagation(); onToggleHidden?.(); }}
-                  title={isHidden ? '显示' : '隐藏'}
+                  title="隐藏"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                    {isHidden ? 'visibility' : 'visibility_off'}
+                    visibility_off
                   </span>
                 </button>
               </div>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
+import { toCoverThumb } from '../../services/coverUrl';
 import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit';
 
 interface MainViewProps {
@@ -106,15 +107,30 @@ const MainView: React.FC<MainViewProps> = ({
     setIsDragging(false);
   }, []);
 
+  // Split entries into visible (on the wall) and hidden (in the tray)
+  const { visibleEntries, hiddenEntries } = useMemo(() => {
+    const vis: CardEntry[] = [];
+    const hid: CardEntry[] = [];
+    for (const entry of entries) {
+      if (cardOverrides?.[entry.id]?.hidden) {
+        hid.push(entry);
+      } else {
+        vis.push(entry);
+      }
+    }
+    return { visibleEntries: vis, hiddenEntries: hid };
+  }, [entries, cardOverrides]);
+
   const cardLayouts = useMemo<CardLayout[]>(() => {
-    const columns = entries.length <= 3 ? Math.max(entries.length, 1) : Math.min(4, entries.length);
-    const rows = Math.ceil(entries.length / columns);
+    const list = visibleEntries;
+    const columns = list.length <= 3 ? Math.max(list.length, 1) : Math.min(4, list.length);
+    const rows = Math.ceil(list.length / columns);
     const yOffset = rows <= 2 ? ((rows - 1) * gridRowGap) / 2 : gridRowGap * 0.62;
 
-    return entries.map((entry, index) => {
+    return list.map((entry, index) => {
       const row = Math.floor(index / columns);
       const column = index % columns;
-      const rowColumns = Math.min(columns, entries.length - row * columns);
+      const rowColumns = Math.min(columns, list.length - row * columns);
       const rowOffset = row % 2 === 0 ? 0 : gridColumnGap * 0.18;
 
       return {
@@ -122,10 +138,10 @@ const MainView: React.FC<MainViewProps> = ({
         x: (column - (rowColumns - 1) / 2) * gridColumnGap + rowOffset,
         y: row * gridRowGap - yOffset,
         rotate: Math.round(Math.sin(index * 2.4 + 0.7) * 7 + Math.cos(index * 1.1) * 2),
-        scale: entries.length <= 2 ? 1.1 : 1,
+        scale: list.length <= 2 ? 1.1 : 1,
       };
     });
-  }, [entries]);
+  }, [visibleEntries]);
 
   useEffect(() => {
     layoutRef.current = cardLayouts;
@@ -405,9 +421,8 @@ const MainView: React.FC<MainViewProps> = ({
         className={`new-ux-playlist-space${isDragging ? ' new-ux-playlist-space--dragging' : ''}`}
         onDoubleClick={handleDoubleClick}
       >
-        {entries.map(entry => {
+        {visibleEntries.map(entry => {
           const override = cardOverrides?.[entry.id];
-          const isHidden = !!override?.hidden;
           return (
             <PlaylistCard
               key={`${entry.id}:${panelCloseEpoch}`}
@@ -417,10 +432,9 @@ const MainView: React.FC<MainViewProps> = ({
               onOpen={handleOpenPlaylist}
               onContextMenu={onPlaylistContextMenu}
               {...(isCardEditMode ? { isCardEditMode: true } : {})}
-              {...(isHidden ? { isHidden: true } : {})}
               {...(override?.coverUrl ? { overrideCover: override.coverUrl } : {})}
               {...(override?.name ? { overrideName: override.name } : {})}
-              onToggleHidden={() => onCardOverrideChange?.(entry.id, { hidden: !isHidden })}
+              onToggleHidden={() => onCardOverrideChange?.(entry.id, { hidden: true })}
               onChangeCover={() => {
                 coverTargetRef.current = entry.id;
                 coverInputRef.current?.click();
@@ -436,6 +450,46 @@ const MainView: React.FC<MainViewProps> = ({
           );
         })}
       </div>
+
+      {/* Hidden cards tray — only visible in edit mode when there are hidden cards */}
+      {isCardEditMode && hiddenEntries.length > 0 && (
+        <div className="new-ux-hidden-tray">
+          <div className="new-ux-hidden-tray__header">
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>visibility_off</span>
+            已隐藏 ({hiddenEntries.length})
+          </div>
+          <div className="new-ux-hidden-tray__list">
+            {hiddenEntries.map(entry => {
+              const override = cardOverrides?.[entry.id];
+              const coverUrl = override?.coverUrl ?? (entry.coverUrls[0] || undefined);
+              const displayName = override?.name ?? entry.title;
+              return (
+                <div key={entry.id} className="new-ux-hidden-tray__item">
+                  <div className="new-ux-hidden-tray__cover">
+                    {coverUrl ? (
+                      <img src={toCoverThumb(coverUrl, 128)} alt="" />
+                    ) : (
+                      <div className="new-ux-hidden-tray__cover-fallback">
+                        <span className="material-symbols-outlined">music_note</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="new-ux-hidden-tray__info">
+                    <div className="new-ux-hidden-tray__title">{displayName}</div>
+                  </div>
+                  <button
+                    className="new-ux-hidden-tray__restore"
+                    onClick={() => onCardOverrideChange?.(entry.id, { hidden: false })}
+                    title="恢复显示"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>visibility</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 };
