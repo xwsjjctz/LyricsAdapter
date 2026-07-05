@@ -501,6 +501,11 @@
   transform: translateX(-50%);
   z-index: 40;
   width: min(440px, calc(100vw - 200px));
+  transition: width 0.28s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.new-ux-global-search--expanded {
+  width: min(720px, calc(100vw - 80px));
 }
 
 .new-ux-global-search > div {
@@ -518,7 +523,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
   backdrop-filter: blur(28px) saturate(145%) !important;
   -webkit-backdrop-filter: blur(28px) saturate(145%) !important;
-  transition: box-shadow 220ms ease, border-color 220ms ease !important;
+  transition: box-shadow 220ms ease, border-color 220ms ease, border-radius 220ms ease !important;
+}
+
+.new-ux-search-bar--expanded {
+  border-radius: 20px 20px 0 0 !important;
 }
 
 .new-ux-search-bar:focus-within {
@@ -531,18 +540,112 @@
 
 /* ─── New-UI results panel ───────────────────────────────────────────────── */
 .new-ux-search-results {
-  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 64%, transparent);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
   border-top: none;
-  border-radius: 0 0 22px 22px;
-  background: color-mix(in srgb, var(--theme-background-sidebar, #111b28) 86%, transparent);
-  backdrop-filter: blur(32px) saturate(150%);
-  -webkit-backdrop-filter: blur(32px) saturate(150%);
-  box-shadow: 0 28px 72px -20px rgba(0, 0, 0, 0.72);
+  border-radius: 0 0 20px 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    color-mix(in srgb, var(--theme-background-sidebar, #111b28) 88%, transparent) 100%
+  );
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  box-shadow: 0 24px 64px -18px rgba(0, 0, 0, 0.7);
 }
 
-/* Section header labels inside the results panel */
-.new-ux-search-results .text-\[10px\] {
+/* Card grid layout for search results */
+.new-ux-search-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+/* Section label above each card group */
+.new-ux-search-card-grid__label {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.16em;
+  color: var(--theme-text-muted, rgba(255, 255, 255, 0.46));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 0;
+}
+
+/* Individual search result card */
+.new-ux-search-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(0, 0, 0, 0.08) 100%);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  box-shadow: 0 4px 16px -6px rgba(0, 0, 0, 0.5);
+}
+
+.new-ux-search-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.65);
+}
+
+.new-ux-search-card.selected {
+  border-color: color-mix(in srgb, var(--theme-primary, #2b8cee) 55%, rgba(255, 255, 255, 0.18));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-primary, #2b8cee) 22%, transparent);
+}
+
+.new-ux-search-card__cover {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--theme-primary, #2b8cee) 18%, rgba(255, 255, 255, 0.06)),
+    var(--theme-background-sidebar, #16212e));
+}
+
+.new-ux-search-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.new-ux-search-card__cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--theme-text-muted, rgba(255, 255, 255, 0.46));
+  font-size: 28px;
+}
+
+.new-ux-search-card__info {
+  padding: 6px 8px 8px;
+}
+
+.new-ux-search-card__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--theme-text-primary, #fff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.new-ux-search-card__meta {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.42);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+  line-height: 1.2;
 }
 
 /* [floating UI] */
