@@ -70,20 +70,6 @@ function parseRangeHeader(rangeHeader: string, fileSize: number): { start: numbe
  * URL format: audio://<encoded-file-path>
  */
 export function registerAudioProtocol(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: 'audio',
-      privileges: {
-        secure: true,
-        standard: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        bypassCSP: false,
-        stream: true,
-      },
-    },
-  ]);
-
   app.whenReady().then(() => {
     protocol.handle('audio', async (request) => {
       try {

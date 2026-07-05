@@ -4,16 +4,16 @@ import { pathToFileURL } from 'url';
 import { logger } from '../logger';
 
 /**
- * Registers the `app://` custom privileged scheme so that the packaged app
- * loads its HTML via `app://localhost/index.html` instead of `file://...`.
+ * Registers ALL custom schemes in a single registerSchemesAsPrivileged call.
+ * Electron only honours the FIRST call — subsequent calls are silently ignored.
  *
- * `file://` gives the page an opaque origin which causes Chromium to silently
- * disable GPU-composited features like `backdrop-filter: blur()`.  A proper
- * scheme with `secure: true` and `standard: true` restores full GPU
- * compositing support.
+ * Custom schemes:
+ *   app://    — serves the packaged app's static files (dist/)
+ *   cover://  — serves cached album cover images
+ *   audio://  — serves local audio files
+ *   stream:// — serves proxied streaming audio
  */
-export function registerAppProtocol(): void {
-  // Must be called before app.whenReady()
+export function registerAllSchemes(): void {
   protocol.registerSchemesAsPrivileged([
     {
       scheme: 'app',
@@ -25,30 +25,69 @@ export function registerAppProtocol(): void {
         bypassCSP: false,
       },
     },
+    {
+      scheme: 'cover',
+      privileges: {
+        secure: true,
+        standard: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        bypassCSP: false,
+      },
+    },
+    {
+      scheme: 'audio',
+      privileges: {
+        secure: true,
+        standard: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        bypassCSP: false,
+        stream: true,
+      },
+    },
+    {
+      scheme: 'stream',
+      privileges: {
+        secure: true,
+        standard: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        bypassCSP: false,
+        stream: true,
+      },
+    },
   ]);
+}
 
+/**
+ * Register the app:// protocol handler that serves the packaged app's
+ * static files from the dist/ directory.
+ */
+export function registerAppProtocolHandler(): void {
   app.whenReady().then(() => {
-    // Resolve the dist directory — works both in dev (dist-electron/ is sibling)
-    // and in packaged asar (dist-electron/ is inside resources/).
     const distDir = path.join(__dirname, '../../dist');
 
     protocol.handle('app', (request) => {
-      // request.url looks like "app://localhost/index.html" or "app://localhost/assets/index-abc123.js"
-      const url = new URL(request.url);
-      const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-      const filePath = path.join(distDir, relativePath);
+      try {
+        const url = new URL(request.url);
+        const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+        const filePath = path.join(distDir, relativePath);
 
-      // Security: ensure resolved path stays within dist directory
-      const resolvedFile = path.resolve(filePath);
-      const resolvedDist = path.resolve(distDir);
-      if (!resolvedFile.startsWith(resolvedDist)) {
-        logger.warn('[app://] Path traversal blocked:', resolvedFile);
-        return new Response('Forbidden', { status: 403 });
+        const resolvedFile = path.resolve(filePath);
+        const resolvedDist = path.resolve(distDir);
+        if (!resolvedFile.startsWith(resolvedDist)) {
+          logger.warn('[app://] Path traversal blocked:', resolvedFile);
+          return new Response('Forbidden', { status: 403 });
+        }
+
+        return net.fetch(pathToFileURL(resolvedFile).href);
+      } catch (err) {
+        logger.error('[app://] Handler error:', err);
+        return new Response('Internal Error', { status: 500 });
       }
-
-      return net.fetch(pathToFileURL(resolvedFile).href);
     });
 
-    logger.info('[app://] Protocol registered, dist:', distDir);
+    logger.info('[app://] Protocol handler registered, dist:', distDir);
   });
 }

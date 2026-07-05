@@ -4,7 +4,7 @@ import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
 import { registerAudioProtocol } from './protocols/audioProtocol';
 import { registerStreamProtocol } from './protocols/streamProtocol';
-import { registerAppProtocol } from './protocols/appProtocol';
+import { registerAllSchemes, registerAppProtocolHandler } from './protocols/appProtocol';
 import {
   registerFileHandlers,
   registerLibraryHandlers,
@@ -26,12 +26,16 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 app.commandLine.appendSwitch('log-level', '3');
 
-registerAppProtocol();
-registerCoverProtocol();
-registerAudioProtocol();
-registerStreamProtocol();
+// Register all custom schemes in one call (Electron only honours the first call).
+registerAllSchemes();
 
 app.whenReady().then(async () => {
+  // Register protocol handlers (must be after app is ready)
+  registerAppProtocolHandler();
+  registerCoverProtocol();
+  registerAudioProtocol();
+  registerStreamProtocol();
+
   await createWindow();
 
   const win = getWindow();
