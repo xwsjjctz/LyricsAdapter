@@ -24,10 +24,6 @@ import {
   type CardOverrideMap,
 } from '../../services/newUxCardEdit';
 import FocusAmbientLight from './focus/FocusAmbientLight';
-import FocusTransitionLayer, {
-  createFocusTransitionSnapshot,
-  type FocusTransitionSnapshot,
-} from './focus/FocusTransitionLayer';
 import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
@@ -185,8 +181,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     }
   }, [isCardEditMode, hasHiddenCards, activePanel, exitingPanel]);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
-  const [focusTransitionSnapshot, setFocusTransitionSnapshot] =
-    useState<FocusTransitionSnapshot | null>(null);
   const [locateRequest, setLocateRequest] = useState<{ trackId: string | null; token: number }>({
     trackId: null,
     token: 0,
@@ -359,19 +353,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   const handleOpenFocusMode = useCallback(() => {
     if (!currentTrack) return;
-    // Attempt to capture a snapshot of the mini player for the hero transition.
-    const panelRoot = playerTransitionRef.current;
-    const snapshot =
-      panelRoot ? createFocusTransitionSnapshot(panelRoot, currentTrack) : null;
-    if (snapshot) {
-      // Show Focus Mode immediately (it renders below the transition layer),
-      // then let the hero animation play on top.
-      onToggleFocusMode();
-      setFocusTransitionSnapshot(snapshot);
-    } else {
-      // No snapshot available (e.g. panel not yet mounted) — fall back to direct toggle.
-      onToggleFocusMode();
-    }
+    onToggleFocusMode();
   }, [currentTrack, onToggleFocusMode]);
 
   return (
@@ -596,12 +578,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onTogglePlaybackMode={onTogglePlaybackMode}
         onToggleFocus={handleOpenFocusMode}
       />
-      {focusTransitionSnapshot && (
-        <FocusTransitionLayer
-          snapshot={focusTransitionSnapshot}
-          onComplete={() => setFocusTransitionSnapshot(null)}
-        />
-      )}
       <FocusMode
         track={currentTrack}
         isVisible={isFocusMode}

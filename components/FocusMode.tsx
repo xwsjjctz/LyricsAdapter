@@ -867,10 +867,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   };
 
   return (
-    <div className={isNewUxFocus
-      ? `newux-focus-shell${!isVisible ? ' newux-focus-shell--hidden' : ''}${isLinux ? ' rounded-lg' : ''}`
-      : `fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`
-    }>
+    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={Boolean(bgImage1)}
         bgBlurRadius={bgBlurRadius}
@@ -879,10 +876,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         ambientLayer={ambientLayer}
       />
 
-      <div className={isNewUxFocus
-        ? 'newux-focus-content'
-        : `relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`
-      }>
+      <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" />
 
