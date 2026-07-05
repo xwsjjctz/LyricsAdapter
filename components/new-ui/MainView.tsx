@@ -55,6 +55,8 @@ const MainView: React.FC<MainViewProps> = ({
   const wasPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const isPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const clickGuardUntilRef = useRef(0);
+  const hoveredIdRef = useRef<string | null>(null);
+  const hoverScaleRef = useRef<Record<string, number>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [panelCloseEpoch, setPanelCloseEpoch] = useState(0);
 
@@ -168,8 +170,16 @@ const MainView: React.FC<MainViewProps> = ({
           const y = layout.y + motion.y;
           const distance = Math.hypot(x, y);
           const focus = Math.exp(-Math.pow(distance / radius, 2));
-          const scale = layout.scale * (0.55 + focus * 0.60);
-          const z = -260 + focus * 460;
+          const baseScale = layout.scale * (0.55 + focus * 0.60);
+
+          // Smooth hover scale interpolation (lerp towards 1.18 on hover, 1.0 off)
+          const hoverTarget = hoveredIdRef.current === layout.id ? 1.18 : 1.0;
+          const prevHoverScale = hoverScaleRef.current[layout.id] ?? 1.0;
+          const hoverScale = prevHoverScale + (hoverTarget - prevHoverScale) * 0.10;
+          hoverScaleRef.current[layout.id] = hoverScale;
+
+          const scale = baseScale * hoverScale;
+          const z = -260 + focus * 460 + (hoverScale > 1.01 ? (hoverScale - 1.0) * 200 : 0);
           const rotX = clamp((y / radius) * -26, -22, 22);
           const rotY = clamp((x / radius) * 28, -26, 26);
           const opacity = 0.35 + Math.exp(-Math.pow(distance / (radius * 1.4), 2)) * 0.65;
@@ -252,7 +262,21 @@ const MainView: React.FC<MainViewProps> = ({
 
   const registerCard = useCallback((id: CardEntry['id']) => {
     cardRefCallbacks.current[id] ??= (node: HTMLButtonElement | null) => {
+      const prev = cardRefs.current[id];
+      if (prev) {
+        const p = prev as any;
+        if (p._hoverEnter) prev.removeEventListener('mouseenter', p._hoverEnter);
+        if (p._hoverLeave) prev.removeEventListener('mouseleave', p._hoverLeave);
+      }
       cardRefs.current[id] = node;
+      if (node) {
+        const enter = () => { hoveredIdRef.current = id; };
+        const leave = () => { if (hoveredIdRef.current === id) hoveredIdRef.current = null; };
+        (node as any)._hoverEnter = enter;
+        (node as any)._hoverLeave = leave;
+        node.addEventListener('mouseenter', enter);
+        node.addEventListener('mouseleave', leave);
+      }
     };
 
     return cardRefCallbacks.current[id];

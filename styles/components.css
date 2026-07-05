@@ -110,17 +110,6 @@
    stale card ref from freezing the card's position after panel transitions. */
 
 .new-ux-playlist-card:hover {
-  transform:
-    translate(-50%, -50%)
-    translate3d(
-      calc(var(--card-layout-x) + var(--wall-x)),
-      calc(var(--card-layout-y) + var(--wall-y) - 18px),
-      calc(var(--card-z) + 80px)
-    )
-    rotateX(var(--card-rot-x))
-    rotateY(var(--card-rot-y))
-    rotate(var(--card-rotate))
-    scale(calc(var(--card-scale) * 1.06));
   border-color: rgba(255, 255, 255, 0.22);
 }
 
