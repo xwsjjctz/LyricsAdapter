@@ -127,32 +127,41 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const bgInputRef = useRef<HTMLInputElement>(null);
 
   // ── Left panel state machine (mutual exclusivity + exit animation) ──
-  // 'hidden' = hidden cards tray, 'bg' = background settings tray, null = none
-  const [leftPanel, setLeftPanel] = useState<'hidden' | 'bg' | null>(null);
+  const [activePanel, setActivePanel] = useState<'hidden' | 'bg' | null>(null);
   const [exitingPanel, setExitingPanel] = useState<'hidden' | 'bg' | null>(null);
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const toggleLeftPanel = useCallback((panel: 'hidden' | 'bg') => {
-    if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null; }
-
-    if (leftPanel === panel) {
-      // Toggle off: play exit animation, then clear
-      setExitingPanel(panel);
-      setLeftPanel(null);
-      exitTimerRef.current = setTimeout(() => setExitingPanel(null), 220);
-    } else if (leftPanel !== null) {
-      // Switch: exit current, then enter new
-      setExitingPanel(leftPanel);
-      setLeftPanel(null);
-      exitTimerRef.current = setTimeout(() => {
-        setExitingPanel(null);
-        setLeftPanel(panel);
-      }, 220);
-    } else {
-      // Open fresh
-      setLeftPanel(panel);
+    // Cancel any pending exit timer to prevent stale callbacks
+    if (exitTimerRef.current) {
+      clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
     }
-  }, [leftPanel]);
+
+    setActivePanel(current => {
+      if (current === panel) {
+        // Toggle off: start exit animation, clear after 220ms
+        setExitingPanel(panel);
+        exitTimerRef.current = setTimeout(() => {
+          setExitingPanel(null);
+          exitTimerRef.current = null;
+        }, 220);
+        return null;
+      } else if (current !== null) {
+        // Switch: exit current immediately, show new one
+        setExitingPanel(current);
+        exitTimerRef.current = setTimeout(() => {
+          setExitingPanel(null);
+          exitTimerRef.current = null;
+        }, 220);
+        return panel;
+      } else {
+        // Open fresh (no current panel, or previous already exited)
+        setExitingPanel(null);
+        return panel;
+      }
+    });
+  }, []);
 
   useEffect(() => {
     loadCardOverrides().then(setCardOverrides);
@@ -160,19 +169,21 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     loadBgBlur().then(setBgBlur);
   }, []);
 
-  // Auto-show hidden tray when edit mode activates with hidden cards,
-  // auto-hide when edit mode deactivates or no hidden cards remain.
+  // Auto-show hidden tray when entering edit mode with hidden cards,
+  // auto-hide when leaving edit mode or all cards become visible.
   const hasHiddenCards = Object.values(cardOverrides).some(o => o.hidden);
   useEffect(() => {
-    if (exitTimerRef.current) return; // Don't interfere with ongoing transition
-    if (isCardEditMode && hasHiddenCards && leftPanel === null && exitingPanel === null) {
-      setLeftPanel('hidden');
-    } else if ((!isCardEditMode || !hasHiddenCards) && leftPanel === 'hidden') {
+    if (isCardEditMode && hasHiddenCards && activePanel === null && exitingPanel === null) {
+      setActivePanel('hidden');
+    } else if ((!isCardEditMode || !hasHiddenCards) && activePanel === 'hidden') {
       setExitingPanel('hidden');
-      setLeftPanel(null);
-      exitTimerRef.current = setTimeout(() => { setExitingPanel(null); exitTimerRef.current = null; }, 220);
+      setActivePanel(null);
+      exitTimerRef.current = setTimeout(() => {
+        setExitingPanel(null);
+        exitTimerRef.current = null;
+      }, 220);
     }
-  }, [isCardEditMode, hasHiddenCards, leftPanel, exitingPanel]);
+  }, [isCardEditMode, hasHiddenCards, activePanel, exitingPanel]);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
   const [focusTransitionSnapshot, setFocusTransitionSnapshot] =
     useState<FocusTransitionSnapshot | null>(null);
@@ -412,7 +423,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
               const next = await setCardOverride(entryId, patch);
               setCardOverrides(next);
             }}
-            leftPanel={leftPanel}
+            activePanel={activePanel}
             exitingPanel={exitingPanel}
           />
           <div className="new-ux-panel-layer">
@@ -501,12 +512,12 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
         onOpenSettings={panels.openSettings}
         onOpenTheme={panels.openTheme}
-        showBgSettings={leftPanel === 'bg'}
+        showBgSettings={activePanel === 'bg'}
         onToggleBgSettings={() => toggleLeftPanel('bg')}
       />
 
       {/* Left-side background settings panel */}
-      {(leftPanel === 'bg' || exitingPanel === 'bg') && (
+      {(activePanel === 'bg' || exitingPanel === 'bg') && (
         <div className={`new-ux-bg-tray${exitingPanel === 'bg' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-bg-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>

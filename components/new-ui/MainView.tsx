@@ -13,7 +13,7 @@ interface MainViewProps {
   isCardEditMode?: boolean;
   cardOverrides?: CardOverrideMap;
   onCardOverrideChange?: (entryId: string, patch: Partial<CardOverride>) => void;
-  leftPanel?: 'hidden' | 'bg' | null;
+  activePanel?: 'hidden' | 'bg' | null;
   exitingPanel?: 'hidden' | 'bg' | null;
 }
 
@@ -41,7 +41,7 @@ const MainView: React.FC<MainViewProps> = ({
   isCardEditMode,
   cardOverrides,
   onCardOverrideChange,
-  leftPanel,
+  activePanel,
   exitingPanel,
 }) => {
   const spaceRef = useRef<HTMLDivElement | null>(null);
@@ -457,7 +457,7 @@ const MainView: React.FC<MainViewProps> = ({
       </div>
 
       {/* Hidden cards tray — managed by left panel state machine */}
-      {isCardEditMode && hiddenEntries.length > 0 && (leftPanel === 'hidden' || exitingPanel === 'hidden') && (
+      {isCardEditMode && hiddenEntries.length > 0 && (activePanel === 'hidden' || exitingPanel === 'hidden') && (
         <div className={`new-ux-hidden-tray${exitingPanel === 'hidden' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-hidden-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>visibility_off</span>
