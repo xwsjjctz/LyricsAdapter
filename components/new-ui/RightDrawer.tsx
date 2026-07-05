@@ -69,13 +69,11 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
           {/* Settings */}
           <button className="new-ux-drawer__btn" onClick={onOpenSettings} title="设置">
             <span className="material-symbols-outlined">settings</span>
-            <span className="new-ux-drawer__btn-label">设置</span>
           </button>
 
           {/* Theme */}
           <button className="new-ux-drawer__btn" onClick={onOpenTheme} title="主题">
             <span className="material-symbols-outlined">palette</span>
-            <span className="new-ux-drawer__btn-label">主题</span>
           </button>
 
           {/* Separator */}
@@ -85,10 +83,9 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
           <button
             className={`new-ux-drawer__btn${isCardEditMode ? ' new-ux-drawer__btn--active' : ''}`}
             onClick={onToggleCardEditMode}
-            title="编辑卡片"
+            title={isCardEditMode ? '完成编辑' : '编辑卡片'}
           >
             <span className="material-symbols-outlined">{isCardEditMode ? 'check' : 'edit'}</span>
-            <span className="new-ux-drawer__btn-label">{isCardEditMode ? '完成' : '编辑'}</span>
           </button>
 
           {/* Background */}
@@ -98,7 +95,6 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
             title="背景设置"
           >
             <span className="material-symbols-outlined">image</span>
-            <span className="new-ux-drawer__btn-label">背景</span>
           </button>
         </div>
 
