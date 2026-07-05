@@ -16,6 +16,7 @@ import {
   applyOverrides,
   type PlaylistOverride,
 } from '../services/playlistOverrides';
+import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache';
 import LibraryTrackRow from './LibraryTrackRow';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 
@@ -102,6 +103,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   });
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
+  const [expiredSources, setExpiredSources] = React.useState<Set<'qq' | 'netease'>>(new Set());
   const [scrollTop, setScrollTop] = React.useState(restoredDetailRef.current?.scrollPosition ?? 0);
   const [gridScrollTop, setGridScrollTop] = React.useState(initialState.phase === 'grid' ? initialState.scrollPosition : 0);
   const [showLocate, setShowLocate] = React.useState(false);
@@ -130,32 +132,78 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }, []);
   const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
 
-  // On mount, load playlists from all logged-in providers.
+  // On mount: show cached playlists immediately, then fetch fresh + validate cookies.
   React.useEffect(() => {
     loadOverrides().then(setOverrides);
-    const load = async () => {
+
+    // Phase 1: show cached data instantly
+    loadPlaylistCache().then(cached => {
+      if (cached) {
+        const fromCache: PlaylistInfo[] = [];
+        if (cached.qq) fromCache.push(...cached.qq.map(p => ({ ...p, source: 'qq' as const })));
+        if (cached.netease) fromCache.push(...cached.netease.map(p => ({ ...p, source: 'netease' as const })));
+        setPlaylists(fromCache);
+      }
+    });
+
+    // Phase 2: validate cookies + fetch fresh data
+    const fetchFresh = async () => {
       setLoadingPlaylists(true);
       const results: PlaylistInfo[] = [];
+      const expired = new Set<'qq' | 'netease'>();
+
+      // QQ Music
       try {
         if (cookieManager.hasCookie()) {
-          const qq = await qqMusicApi.getPlaylists();
-          results.push(...qq.map(p => ({ ...p, source: 'qq' as const })));
+          const status = await cookieManager.validateCookie();
+          if (status.valid) {
+            const qq = await qqMusicApi.getPlaylists();
+            results.push(...qq.map(p => ({ ...p, source: 'qq' as const })));
+          } else {
+            expired.add('qq');
+            logger.warn('[PlaylistsView] QQ cookie invalid:', status.message);
+          }
+        } else {
+          expired.add('qq');
         }
       } catch (e) {
+        expired.add('qq');
         logger.warn('[PlaylistsView] QQ playlists failed:', e);
       }
+
+      // NetEase
       try {
         if (neteaseCookieManager.hasCookie()) {
-          const netease = await neteaseMusicApi.getPlaylists();
-          results.push(...netease.map(p => ({ ...p, source: 'netease' as const })));
+          const status = await neteaseCookieManager.validateCookie();
+          if (status.valid) {
+            const netease = await neteaseMusicApi.getPlaylists();
+            results.push(...netease.map(p => ({ ...p, source: 'netease' as const })));
+          } else {
+            expired.add('netease');
+            logger.warn('[PlaylistsView] NetEase cookie invalid:', status.message);
+          }
+        } else {
+          expired.add('netease');
         }
       } catch (e) {
+        expired.add('netease');
         logger.warn('[PlaylistsView] NetEase playlists failed:', e);
       }
+
       setPlaylists(results);
+      setExpiredSources(expired);
       setLoadingPlaylists(false);
+
+      // Save to cache (only sources that returned data)
+      const qqResults = results.filter(p => p.source === 'qq');
+      const neteaseResults = results.filter(p => p.source === 'netease');
+      await savePlaylistCache(
+        qqResults.length > 0 || !expired.has('qq') ? qqResults : undefined,
+        neteaseResults.length > 0 || !expired.has('netease') ? neteaseResults : undefined,
+      );
     };
-    load();
+
+    fetchFresh();
   }, []);
 
   const grouped = React.useMemo(() => {
@@ -639,8 +687,21 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         )}
         {[...grouped.entries()].map(([src, list]) => (
           <div key={src} className="mb-6">
-            <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
+            <h2 className="text-base font-semibold mb-3 flex items-center gap-2" style={{ color: colors.textSecondary }}>
               {sourceLabel(src)}
+              {expiredSources.has(src) && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                  style={{
+                    backgroundColor: `${colors.error}20`,
+                    color: colors.error,
+                    border: `1px solid ${colors.error}30`,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>lock</span>
+                  登录失效
+                </span>
+              )}
             </h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 p-2">
               {list.map((pl) => {
@@ -666,6 +727,19 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                         </div>
                       )}
                     </button>
+
+                    {/* Expired login overlay on cover */}
+                    {expiredSources.has(pl.source) && (
+                      <div
+                        className="absolute inset-0 rounded-lg flex items-center justify-center pointer-events-none z-[5]"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="material-symbols-outlined text-2xl" style={{ color: 'rgba(255,255,255,0.8)' }}>lock</span>
+                          <span className="text-[9px] font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>登录失效</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Eye toggle — top-right of cover */}
                     {isEditMode && (
