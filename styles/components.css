@@ -250,9 +250,9 @@
 /* [panels] */
 .new-ux-playlist-panel {
   position: absolute;
-  top: 88px;
+  top: 100px;
   right: var(--new-ux-stage-padding);
-  bottom: 112px;
+  bottom: 140px;
   width: min(360px, calc(100vw - 48px));
   display: flex;
   flex-direction: column;
