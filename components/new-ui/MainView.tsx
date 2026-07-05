@@ -53,7 +53,6 @@ const MainView: React.FC<MainViewProps> = ({
     thresholdExceeded: false,
   });
   const wasPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
-  const isPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const clickGuardUntilRef = useRef(0);
   const hoveredIdRef = useRef<string | null>(null);
   const hoverScaleRef = useRef<Record<string, number>>({});
@@ -62,7 +61,6 @@ const MainView: React.FC<MainViewProps> = ({
 
   useEffect(() => {
     const wasOpen = wasPlaylistPanelOpenRef.current;
-    isPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
     wasPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
 
     if (wasOpen && !isPlaylistPanelOpen) {
@@ -211,15 +209,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isPlaylistPanelOpen) {
-      // Panel opened — snap all hover scales back to 1.0 immediately so cards
-      // don't appear stuck at an intermediate size.
-      hoveredIdRef.current = null;
-      for (const id of Object.keys(hoverScaleRef.current)) {
-        hoverScaleRef.current[id] = 1.0;
-      }
-      return;
-    }
+    if (isPlaylistPanelOpen) return;
 
     resetDragState(undefined, true);
   }, [isPlaylistPanelOpen, resetDragState]);
@@ -227,7 +217,7 @@ const MainView: React.FC<MainViewProps> = ({
   useEffect(() => {
     const handleWindowPointerMove = (event: PointerEvent) => {
       const drag = dragRef.current;
-      if (isPlaylistPanelOpenRef.current || isPanelOpeningRef.current) {
+      if (isPanelOpeningRef.current) {
         resetDragState(event.pointerId, true);
         return;
       }
@@ -302,7 +292,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, [onOpenPlaylist, resetDragState]);
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
-    if (isPlaylistPanelOpenRef.current || isPanelOpeningRef.current) return;
+    if (isPanelOpeningRef.current) return;
     if (event.button !== 0) return;
 
     dragRef.current = {
@@ -343,11 +333,9 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
-    if (isPlaylistPanelOpen) return;
-
     motionRef.current.targetX -= event.deltaX * 0.72;
     motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
-  }, [isPlaylistPanelOpen]);
+  }, []);
 
   const handleNativeDragStart = useCallback((event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
