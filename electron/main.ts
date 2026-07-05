@@ -4,6 +4,7 @@ import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
 import { registerAudioProtocol } from './protocols/audioProtocol';
 import { registerStreamProtocol } from './protocols/streamProtocol';
+import { registerAppProtocol } from './protocols/appProtocol';
 import {
   registerFileHandlers,
   registerLibraryHandlers,
@@ -25,6 +26,7 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 app.commandLine.appendSwitch('log-level', '3');
 
+registerAppProtocol();
 registerCoverProtocol();
 registerAudioProtocol();
 registerStreamProtocol();
