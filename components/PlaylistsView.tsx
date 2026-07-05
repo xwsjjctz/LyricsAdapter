@@ -10,6 +10,12 @@ import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
 import type { PlaylistsViewPersistence } from '../services/libraryStorage';
+import {
+  loadOverrides,
+  setOverride,
+  applyOverrides,
+  type PlaylistOverride,
+} from '../services/playlistOverrides';
 import LibraryTrackRow from './LibraryTrackRow';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 
@@ -102,6 +108,12 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const [currentTheme, setCurrentTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
   // Floating highlight band ("滑块") position — same model as LibraryView.
   const [highlightStyle, setHighlightStyle] = React.useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
+  const [isEditMode, setIsEditMode] = React.useState(false);
+  const [overrides, setOverrides] = React.useState<Record<string, PlaylistOverride>>({});
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingName, setEditingName] = React.useState('');
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
+  const coverTargetRef = React.useRef<{ source: 'qq' | 'netease'; id: string } | null>(null);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const gridScrollRef = React.useRef<HTMLDivElement>(null);
@@ -120,6 +132,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
   // On mount, load playlists from all logged-in providers.
   React.useEffect(() => {
+    loadOverrides().then(setOverrides);
     const load = async () => {
       setLoadingPlaylists(true);
       const results: PlaylistInfo[] = [];
@@ -146,14 +159,67 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }, []);
 
   const grouped = React.useMemo(() => {
+    const { visible, all } = applyOverrides(playlists, overrides);
+    const list = isEditMode ? all : visible;
     const map = new Map<'qq' | 'netease', PlaylistInfo[]>();
-    for (const p of playlists) {
+    for (const p of list) {
       const arr = map.get(p.source) ?? [];
       arr.push(p);
       map.set(p.source, arr);
     }
     return map;
-  }, [playlists]);
+  }, [playlists, overrides, isEditMode]);
+
+  const handleToggleVisibility = React.useCallback(async (pl: PlaylistInfo) => {
+    const key = `${pl.source}:${pl.id}`;
+    const current = overrides[key];
+    const next = await setOverride(pl.source, pl.id, { ...current, hidden: !current?.hidden });
+    setOverrides({ ...next });
+  }, [overrides]);
+
+  const handleStartEditName = React.useCallback((pl: PlaylistInfo) => {
+    setEditingId(`${pl.source}:${pl.id}`);
+    const key = `${pl.source}:${pl.id}`;
+    setEditingName(overrides[key]?.name ?? pl.name);
+  }, [overrides]);
+
+  const handleSaveName = React.useCallback(async (pl: PlaylistInfo) => {
+    const key = `${pl.source}:${pl.id}`;
+    const current = overrides[key];
+    const trimmed = editingName.trim();
+    const nameOverride = trimmed && trimmed !== pl.name ? trimmed : undefined;
+    const patch: Partial<PlaylistOverride> = { ...current };
+    if (nameOverride !== undefined) {
+      patch.name = nameOverride;
+    } else {
+      delete patch.name;
+    }
+    const next = await setOverride(pl.source, pl.id, patch);
+    setOverrides({ ...next });
+    setEditingId(null);
+  }, [overrides, editingName]);
+
+  const handleCoverChange = React.useCallback((pl: PlaylistInfo) => {
+    coverTargetRef.current = { source: pl.source, id: pl.id };
+    coverInputRef.current?.click();
+  }, []);
+
+  const handleCoverFileSelected = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !coverTargetRef.current) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      const { source, id } = coverTargetRef.current!;
+      const key = `${source}:${id}`;
+      const current = overrides[key];
+      const next = await setOverride(source, id, { ...current, coverUrl: dataUrl });
+      setOverrides({ ...next });
+      coverTargetRef.current = null;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [overrides]);
 
   const sourceLabel = (s: 'qq' | 'netease'): string =>
     s === 'qq' ? 'QQ 音乐' : '网易云音乐';
@@ -500,6 +566,11 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }
 
   // ── Grid view ──
+  const isHidden = (pl: PlaylistInfo) => {
+    const key = `${pl.source}:${pl.id}`;
+    return !!overrides[key]?.hidden;
+  };
+
   return (
     <div className="w-full min-w-0 flex flex-col h-full" style={{ color: colors.textPrimary }}>
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
@@ -508,7 +579,29 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
             {i18n.t('playlists.title')}
           </h1>
         </div>
+        <button
+          onClick={() => { setIsEditMode(v => !v); setEditingId(null); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all"
+          style={{
+            backgroundColor: isEditMode ? `${colors.primary}20` : colors.backgroundCard,
+            color: isEditMode ? colors.primary : colors.textSecondary,
+            borderRadius: 'var(--theme-control-radius)',
+            border: `1px solid ${isEditMode ? colors.primary + '40' : colors.borderLight}`,
+          }}
+          title={isEditMode ? '完成编辑' : '编辑歌单'}
+        >
+          <span className="material-symbols-outlined text-base">{isEditMode ? 'check' : 'edit'}</span>
+          <span>{isEditMode ? '完成' : '编辑'}</span>
+        </button>
       </div>
+
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverFileSelected}
+      />
 
       <div
         ref={gridScrollRef}
@@ -548,26 +641,83 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
               {sourceLabel(src)}
             </h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 p-2">
-              {list.map((pl) => (
-                <button
-                  key={pl.id}
-                  className="w-full text-left transition-transform hover:scale-105"
-                  onClick={() => handlePlaylistClick(pl)}
-                >
-                  <div
-                    className="w-full aspect-square rounded-lg overflow-hidden bg-cover bg-center shadow-md"
-                    style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
-                  >
-                    {!pl.coverUrl && (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-4xl" style={{ color: colors.textMuted }}>music_note</span>
+              {list.map((pl) => {
+                const plKey = `${pl.source}:${pl.id}`;
+                const hidden = isHidden(pl);
+                const isEditing = editingId === plKey;
+                return (
+                  <div key={pl.id} className="w-full text-left relative group">
+                    {/* Cover area */}
+                    <button
+                      className={`w-full aspect-square rounded-lg overflow-hidden bg-cover bg-center shadow-md block ${hidden ? 'opacity-40' : ''}`}
+                      style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
+                      onClick={() => !isEditMode && handlePlaylistClick(pl)}
+                      disabled={isEditMode}
+                    >
+                      {!pl.coverUrl && (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="material-symbols-outlined text-4xl" style={{ color: colors.textMuted }}>music_note</span>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Eye toggle — top-right of cover */}
+                    {isEditMode && (
+                      <button
+                        onClick={() => handleToggleVisibility(pl)}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
+                        style={{
+                          backgroundColor: 'rgba(0,0,0,0.55)',
+                          color: hidden ? colors.textMuted : '#fff',
+                        }}
+                        title={hidden ? '显示歌单' : '隐藏歌单'}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {hidden ? 'visibility_off' : 'visibility'}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Edit controls — bottom of cover */}
+                    {isEditMode && (
+                      <div className="absolute bottom-1 left-1 right-1 flex gap-1 z-10">
+                        <button
+                          onClick={() => handleCoverChange(pl)}
+                          className="flex-1 h-6 rounded text-[10px] flex items-center justify-center gap-0.5 transition-colors"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff' }}
+                          title="更换封面"
+                        >
+                          <span className="material-symbols-outlined text-xs">image</span>
+                        </button>
+                        <button
+                          onClick={() => handleStartEditName(pl)}
+                          className="flex-1 h-6 rounded text-[10px] flex items-center justify-center gap-0.5 transition-colors"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff' }}
+                          title="编辑名称"
+                        >
+                          <span className="material-symbols-outlined text-xs">drive_file_rename_outline</span>
+                        </button>
                       </div>
                     )}
+
+                    {/* Name */}
+                    {isEditing ? (
+                      <input
+                        className="mt-1 w-full text-xs font-medium truncate rounded px-1 py-0.5 outline-none"
+                        style={{ backgroundColor: `${colors.primary}15`, border: `1px solid ${colors.primary}40`, color: colors.textPrimary }}
+                        value={editingName}
+                        autoFocus
+                        onChange={e => setEditingName(e.target.value)}
+                        onBlur={() => handleSaveName(pl)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveName(pl); if (e.key === 'Escape') setEditingId(null); }}
+                      />
+                    ) : (
+                      <p className={`mt-1 text-xs font-medium truncate ${hidden ? 'opacity-40' : ''}`} style={{ color: colors.textPrimary }}>{pl.name}</p>
+                    )}
+                    <p className={`text-[10px] leading-tight ${hidden ? 'opacity-40' : ''}`} style={{ color: colors.textMuted }}>{pl.songCount} 首</p>
                   </div>
-                  <p className="mt-1 text-xs font-medium truncate" style={{ color: colors.textPrimary }}>{pl.name}</p>
-                  <p className="text-[10px] leading-tight" style={{ color: colors.textMuted }}>{pl.songCount} 首</p>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
