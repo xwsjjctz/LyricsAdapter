@@ -50,6 +50,8 @@ const MainView: React.FC<MainViewProps> = ({
   const cardRefCallbacks = useRef<Record<string, CardRefCallback>>({});
   const layoutRef = useRef<CardLayout[]>([]);
   const isPanelOpeningRef = useRef(false);
+  const cachedRectRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const prevZIndexRef = useRef<Record<string, number>>({});
   const motionRef = useRef({
     x: 0,
     y: 0,
@@ -153,6 +155,26 @@ const MainView: React.FC<MainViewProps> = ({
     layoutRef.current = cardLayouts;
   }, [cardLayouts]);
 
+  // Cache the space element's dimensions via ResizeObserver so the rAF loop
+  // never calls getBoundingClientRect (which forces synchronous layout).
+  useEffect(() => {
+    const el = spaceRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        cachedRectRef.current = {
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        };
+      }
+    });
+    ro.observe(el);
+    // Seed initial value
+    const rect = el.getBoundingClientRect();
+    cachedRectRef.current = { width: rect.width, height: rect.height };
+    return () => ro.disconnect();
+  }, []);
+
   // The animation loop is the single writer of wall motion and per-card focus
   // accents. Wall motion lives on the parent space, so a temporarily stale card
   // ref cannot leave one card pinned after opening/closing a panel.
@@ -163,7 +185,7 @@ const MainView: React.FC<MainViewProps> = ({
       const space = spaceRef.current;
 
       if (space) {
-        const rect = space.getBoundingClientRect();
+        const rect = cachedRectRef.current;
         const motion = motionRef.current;
 
         if (!dragRef.current.active) {
@@ -218,7 +240,13 @@ const MainView: React.FC<MainViewProps> = ({
           node.style.setProperty('--card-rot-y', `${rotY}deg`);
           node.style.setProperty('--card-scale', `${scale}`);
           node.style.setProperty('--card-opacity', `${opacity}`);
-          node.style.zIndex = String(Math.round(1000 + focus * 100 - index));
+
+          // Throttle zIndex: only write when the rounded value actually changes
+          const newZ = Math.round(1000 + focus * 100 - index);
+          if (prevZIndexRef.current[layout.id] !== newZ) {
+            node.style.zIndex = String(newZ);
+            prevZIndexRef.current[layout.id] = newZ;
+          }
         });
 
         space.style.setProperty('--wall-x', `${motion.x}px`);
@@ -516,4 +544,4 @@ const MainView: React.FC<MainViewProps> = ({
   );
 };
 
-export default MainView;
+export default React.memo(MainView);

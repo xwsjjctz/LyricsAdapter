@@ -90,9 +90,7 @@
     rotateY(var(--card-rot-y))
     rotate(var(--card-rotate))
     scale(var(--card-scale));
-  transition:
-    box-shadow var(--new-ux-transition-fast),
-    opacity var(--new-ux-transition-medium);
+  transition: box-shadow var(--new-ux-transition-fast);
   transform-style: preserve-3d;
   will-change: transform, opacity;
   touch-action: none;
