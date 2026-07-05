@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
+import SquareCropModal from './SquareCropModal';
 import { toCoverThumb } from '../../services/coverUrl';
 import { i18n } from '../../services/i18n';
 import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit';
@@ -390,19 +391,27 @@ const MainView: React.FC<MainViewProps> = ({
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverTargetRef = useRef<string | null>(null);
+  const [cropSource, setCropSource] = useState<File | null>(null);
 
-  const handleCoverFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !coverTargetRef.current || !onCardOverrideChange) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      onCardOverrideChange(coverTargetRef.current!, { coverUrl: dataUrl });
-      coverTargetRef.current = null;
-    };
-    reader.readAsDataURL(file);
+    if (!file || !coverTargetRef.current) return;
+    setCropSource(file);
     e.target.value = '';
+  }, []);
+
+  const handleCropConfirm = useCallback((croppedDataUrl: string) => {
+    if (coverTargetRef.current && onCardOverrideChange) {
+      onCardOverrideChange(coverTargetRef.current, { coverUrl: croppedDataUrl });
+    }
+    coverTargetRef.current = null;
+    setCropSource(null);
   }, [onCardOverrideChange]);
+
+  const handleCropCancel = useCallback(() => {
+    coverTargetRef.current = null;
+    setCropSource(null);
+  }, []);
 
   return (
     <section
@@ -493,6 +502,15 @@ const MainView: React.FC<MainViewProps> = ({
             })}
           </div>
         </div>
+      )}
+
+      {/* Square crop modal for cover images */}
+      {cropSource && (
+        <SquareCropModal
+          source={cropSource}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
       )}
     </section>
   );

@@ -1213,6 +1213,119 @@
   height: 32px;
 }
 
+/* ─── Square Crop Modal ───────────────────────────────────────────────────── */
+.sq-crop-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.sq-crop-modal {
+  width: min(600px, 90vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(16, 22, 32, 0.95);
+  box-shadow: 0 32px 80px -20px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+
+.sq-crop-modal__loading {
+  padding: 40px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
+
+.sq-crop-modal__canvas {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  max-height: 65vh;
+  overflow: hidden;
+  cursor: default;
+  touch-action: none;
+}
+
+.sq-crop-modal__crop-region {
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.sq-crop-modal__crop-region:active {
+  cursor: grabbing;
+}
+
+/* Rule-of-thirds grid */
+.sq-crop-modal__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, transparent 33.33%, rgba(255,255,255,0.2) 33.33%, rgba(255,255,255,0.2) 33.53%, transparent 33.53%, transparent 66.66%, rgba(255,255,255,0.2) 66.66%, rgba(255,255,255,0.2) 66.86%, transparent 66.86%),
+    linear-gradient(to bottom, transparent 33.33%, rgba(255,255,255,0.2) 33.33%, rgba(255,255,255,0.2) 33.53%, transparent 33.53%, transparent 66.66%, rgba(255,255,255,0.2) 66.66%, rgba(255,255,255,0.2) 66.86%, transparent 66.86%);
+}
+
+/* Bottom-right resize handle */
+.sq-crop-modal__handle {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 16px;
+  height: 16px;
+  border-right: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+
+.sq-crop-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sq-crop-modal__btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.sq-crop-modal__btn--cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sq-crop-modal__btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.sq-crop-modal__btn--confirm {
+  background: color-mix(in srgb, var(--theme-primary, #2b8cee) 80%, transparent);
+  color: #fff;
+}
+
+.sq-crop-modal__btn--confirm:hover {
+  background: var(--theme-primary, #2b8cee);
+}
+
 @media (max-width: 640px) {
   .new-ux-player {
     grid-template-columns: minmax(0, 1fr);
