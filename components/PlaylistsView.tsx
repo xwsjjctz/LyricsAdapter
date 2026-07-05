@@ -512,7 +512,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
       <div
         ref={gridScrollRef}
-        className="flex-1 min-w-0 overflow-y-auto"
+        className="flex-1 min-w-0 overflow-y-auto no-scrollbar"
         onScroll={() => setGridScrollTop(gridScrollRef.current?.scrollTop ?? 0)}
       >
         {loadingPlaylists && (
@@ -547,15 +547,15 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
             <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
               {sourceLabel(src)}
             </h2>
-            <div className="flex gap-3 overflow-x-auto p-2 no-scrollbar">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-2">
               {list.map((pl) => (
                 <button
                   key={pl.id}
-                  className="flex-shrink-0 w-[140px] text-left transition-transform hover:scale-105"
+                  className="w-full text-left transition-transform hover:scale-105"
                   onClick={() => handlePlaylistClick(pl)}
                 >
                   <div
-                    className="w-[140px] h-[140px] rounded-xl overflow-hidden bg-cover bg-center shadow-md"
+                    className="w-full aspect-square rounded-xl overflow-hidden bg-cover bg-center shadow-md"
                     style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
                   >
                     {!pl.coverUrl && (
