@@ -22,8 +22,8 @@ interface CardLayout {
 type CardRefCallback = (node: HTMLButtonElement | null) => void;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
-const gridColumnGap = 220;
-const gridRowGap = 280;
+const gridColumnGap = 196;
+const gridRowGap = 252;
 
 const MainView: React.FC<MainViewProps> = ({
   entries,
@@ -114,7 +114,7 @@ const MainView: React.FC<MainViewProps> = ({
         id: entry.id,
         x: (column - (rowColumns - 1) / 2) * gridColumnGap + rowOffset,
         y: row * gridRowGap - yOffset,
-        rotate: (column % 2 === 0 ? -5 : 4) + (row % 2 === 0 ? 0 : 2),
+        rotate: Math.round(Math.sin(index * 2.4 + 0.7) * 7 + Math.cos(index * 1.1) * 2),
         scale: entries.length <= 2 ? 1.1 : 1,
       };
     });
@@ -158,7 +158,7 @@ const MainView: React.FC<MainViewProps> = ({
         motion.x += (motion.targetX - motion.x) * 0.15;
         motion.y += (motion.targetY - motion.y) * 0.15;
 
-        const radius = Math.max(300, Math.min(rect.width, rect.height) * 0.72);
+        const radius = Math.max(260, Math.min(rect.width, rect.height) * 0.62);
 
         layoutRef.current.forEach((layout, index) => {
           const node = cardRefs.current[layout.id];
@@ -168,12 +168,12 @@ const MainView: React.FC<MainViewProps> = ({
           const y = layout.y + motion.y;
           const distance = Math.hypot(x, y);
           const focus = Math.exp(-Math.pow(distance / radius, 2));
-          const scale = layout.scale * (0.74 + focus * 0.34);
-          const z = -180 + focus * 300;
-          const rotX = clamp((y / radius) * -22, -18, 18);
-          const rotY = clamp((x / radius) * 24, -22, 22);
-          const opacity = 0.5 + Math.exp(-Math.pow(distance / (radius * 1.9), 2)) * 0.5;
-          const blur = (1 - focus) * 2.8;
+          const scale = layout.scale * (0.68 + focus * 0.40);
+          const z = -220 + focus * 380;
+          const rotX = clamp((y / radius) * -24, -20, 20);
+          const rotY = clamp((x / radius) * 26, -24, 24);
+          const opacity = 0.42 + Math.exp(-Math.pow(distance / (radius * 1.6), 2)) * 0.58;
+          const blur = (1 - focus) * 3.6;
 
           node.style.setProperty('--card-z', `${z}px`);
           node.style.setProperty('--card-rot-x', `${rotX}deg`);

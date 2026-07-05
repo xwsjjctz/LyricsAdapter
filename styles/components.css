@@ -61,8 +61,8 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: clamp(154px, 16vw, 230px);
-  aspect-ratio: 0.68;
+  width: clamp(164px, 17vw, 240px);
+  aspect-ratio: 0.65;
   display: flex;
   flex-direction: column;
   overflow: visible;
