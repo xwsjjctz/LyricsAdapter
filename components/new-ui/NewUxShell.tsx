@@ -124,14 +124,55 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const [cardOverrides, setCardOverrides] = useState<CardOverrideMap>({});
   const [bgImage, setBgImage] = useState('');
   const [bgBlur, setBgBlur] = useState(80);
-  const [showBgSettings, setShowBgSettings] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Left panel state machine (mutual exclusivity + exit animation) ──
+  // 'hidden' = hidden cards tray, 'bg' = background settings tray, null = none
+  const [leftPanel, setLeftPanel] = useState<'hidden' | 'bg' | null>(null);
+  const [exitingPanel, setExitingPanel] = useState<'hidden' | 'bg' | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleLeftPanel = useCallback((panel: 'hidden' | 'bg') => {
+    if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null; }
+
+    if (leftPanel === panel) {
+      // Toggle off: play exit animation, then clear
+      setExitingPanel(panel);
+      setLeftPanel(null);
+      exitTimerRef.current = setTimeout(() => setExitingPanel(null), 220);
+    } else if (leftPanel !== null) {
+      // Switch: exit current, then enter new
+      setExitingPanel(leftPanel);
+      setLeftPanel(null);
+      exitTimerRef.current = setTimeout(() => {
+        setExitingPanel(null);
+        setLeftPanel(panel);
+      }, 220);
+    } else {
+      // Open fresh
+      setLeftPanel(panel);
+    }
+  }, [leftPanel]);
 
   useEffect(() => {
     loadCardOverrides().then(setCardOverrides);
     loadBgImage().then(setBgImage);
     loadBgBlur().then(setBgBlur);
   }, []);
+
+  // Auto-show hidden tray when edit mode activates with hidden cards,
+  // auto-hide when edit mode deactivates or no hidden cards remain.
+  const hasHiddenCards = Object.values(cardOverrides).some(o => o.hidden);
+  useEffect(() => {
+    if (exitTimerRef.current) return; // Don't interfere with ongoing transition
+    if (isCardEditMode && hasHiddenCards && leftPanel === null && exitingPanel === null) {
+      setLeftPanel('hidden');
+    } else if ((!isCardEditMode || !hasHiddenCards) && leftPanel === 'hidden') {
+      setExitingPanel('hidden');
+      setLeftPanel(null);
+      exitTimerRef.current = setTimeout(() => { setExitingPanel(null); exitTimerRef.current = null; }, 220);
+    }
+  }, [isCardEditMode, hasHiddenCards, leftPanel, exitingPanel]);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
   const [focusTransitionSnapshot, setFocusTransitionSnapshot] =
     useState<FocusTransitionSnapshot | null>(null);
@@ -371,6 +412,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
               const next = await setCardOverride(entryId, patch);
               setCardOverrides(next);
             }}
+            leftPanel={leftPanel}
+            exitingPanel={exitingPanel}
           />
           <div className="new-ux-panel-layer">
             <PanelStack>
@@ -458,13 +501,13 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
         onOpenSettings={panels.openSettings}
         onOpenTheme={panels.openTheme}
-        showBgSettings={showBgSettings}
-        onToggleBgSettings={() => setShowBgSettings(v => !v)}
+        showBgSettings={leftPanel === 'bg'}
+        onToggleBgSettings={() => toggleLeftPanel('bg')}
       />
 
       {/* Left-side background settings panel */}
-      {showBgSettings && (
-        <div className={`new-ux-bg-tray${isCardEditMode && Object.values(cardOverrides).some(o => o.hidden) ? ' new-ux-bg-tray--offset' : ''}`}>
+      {(leftPanel === 'bg' || exitingPanel === 'bg') && (
+        <div className={`new-ux-bg-tray${exitingPanel === 'bg' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-bg-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>
             {i18n.t('newui.bgSettings')}

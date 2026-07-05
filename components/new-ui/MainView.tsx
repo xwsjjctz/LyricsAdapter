@@ -13,6 +13,8 @@ interface MainViewProps {
   isCardEditMode?: boolean;
   cardOverrides?: CardOverrideMap;
   onCardOverrideChange?: (entryId: string, patch: Partial<CardOverride>) => void;
+  leftPanel?: 'hidden' | 'bg' | null;
+  exitingPanel?: 'hidden' | 'bg' | null;
 }
 
 type CardCssVars = React.CSSProperties & Record<`--card-${string}`, string | number>;
@@ -39,6 +41,8 @@ const MainView: React.FC<MainViewProps> = ({
   isCardEditMode,
   cardOverrides,
   onCardOverrideChange,
+  leftPanel,
+  exitingPanel,
 }) => {
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -452,9 +456,9 @@ const MainView: React.FC<MainViewProps> = ({
         })}
       </div>
 
-      {/* Hidden cards tray — only visible in edit mode when there are hidden cards */}
-      {isCardEditMode && hiddenEntries.length > 0 && (
-        <div className="new-ux-hidden-tray">
+      {/* Hidden cards tray — managed by left panel state machine */}
+      {isCardEditMode && hiddenEntries.length > 0 && (leftPanel === 'hidden' || exitingPanel === 'hidden') && (
+        <div className={`new-ux-hidden-tray${exitingPanel === 'hidden' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-hidden-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>visibility_off</span>
             {i18n.t('newui.hiddenCards')} ({hiddenEntries.length})

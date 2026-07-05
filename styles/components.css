@@ -732,6 +732,16 @@
   to   { opacity: 1; transform: translateY(-50%) translateX(0); }
 }
 
+@keyframes traySlideOut {
+  from { opacity: 1; transform: translateY(-50%) translateX(0); }
+  to   { opacity: 0; transform: translateY(-50%) translateX(-20px); }
+}
+
+.new-ux-tray--exiting {
+  animation: traySlideOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
 .new-ux-hidden-tray__header {
   padding: 10px 12px 8px;
   font-size: 10px;
@@ -1047,12 +1057,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.new-ux-bg-tray--offset {
-  top: auto;
-  bottom: calc(var(--new-ux-stage-padding) + 180px);
-  transform: none;
 }
 
 /* Standalone locate button */
