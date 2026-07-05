@@ -173,14 +173,12 @@ const MainView: React.FC<MainViewProps> = ({
           const rotX = clamp((y / radius) * -24, -20, 20);
           const rotY = clamp((x / radius) * 26, -24, 24);
           const opacity = 0.42 + Math.exp(-Math.pow(distance / (radius * 1.6), 2)) * 0.58;
-          const blur = (1 - focus) * 3.6;
 
           node.style.setProperty('--card-z', `${z}px`);
           node.style.setProperty('--card-rot-x', `${rotX}deg`);
           node.style.setProperty('--card-rot-y', `${rotY}deg`);
           node.style.setProperty('--card-scale', `${scale}`);
           node.style.setProperty('--card-opacity', `${opacity}`);
-          node.style.setProperty('--card-blur', `${blur}px`);
           node.style.zIndex = String(Math.round(1000 + focus * 100 - index));
         });
 
