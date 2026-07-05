@@ -12,7 +12,14 @@ import MetadataEditPanel from './MetadataEditPanel';
 import SettingsPanel from './SettingsPanel';
 import ThemePanel from './ThemePanel';
 import NewUxSearchBox from './NewUxSearchBox';
-import LocateNowPlayingButton from './LocateNowPlayingButton';
+import CapsuleButtons from './CapsuleButtons';
+import {
+  loadCardOverrides,
+  loadBgImage,
+  loadBgBlur,
+  setCardOverride,
+  type CardOverrideMap,
+} from '../../services/newUxCardEdit';
 import FocusAmbientLight from './focus/FocusAmbientLight';
 import FocusTransitionLayer, {
   createFocusTransitionSnapshot,
@@ -107,6 +114,18 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const entries = usePlaylistEntries(slots, onlinePlaylists);
   const panels = useNewUxStore();
   const playerTransitionRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Card edit mode ──
+  const [isCardEditMode, setIsCardEditMode] = useState(false);
+  const [cardOverrides, setCardOverrides] = useState<CardOverrideMap>({});
+  const [bgImage, setBgImage] = useState('');
+  const [bgBlur, setBgBlur] = useState(80);
+
+  useEffect(() => {
+    loadCardOverrides().then(setCardOverrides);
+    loadBgImage().then(setBgImage);
+    loadBgBlur().then(setBgBlur);
+  }, []);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
   const [focusTransitionSnapshot, setFocusTransitionSnapshot] =
     useState<FocusTransitionSnapshot | null>(null);
@@ -313,6 +332,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
             Exiting back to the legacy UI is exposed from the Settings card (see
             SettingsPanel) to keep the chrome minimal. */}
       </div>
+      {bgImage && (
+        <div
+          className="new-ux-bg-image"
+          style={{
+            backgroundImage: `url(${bgImage})`,
+            filter: `blur(${bgBlur}px)`,
+            transform: 'scale(1.1)',
+          }}
+        />
+      )}
       <NewUxSearchBox
         {...(isWindowFocused !== undefined ? { isWindowFocused } : {})}
         localTracks={slots.local.tracks}
@@ -330,6 +359,12 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
             isPlaylistPanelOpen={Boolean(openPanel) || Boolean(panels.state.openOverlayPanel)}
             onOpenPlaylist={handleOpenPlaylist}
             onPlaylistContextMenu={handlePlaylistContextMenu}
+            isCardEditMode={isCardEditMode}
+            cardOverrides={cardOverrides}
+            onCardOverrideChange={async (entryId, patch) => {
+              const next = await setCardOverride(entryId, patch);
+              setCardOverrides(next);
+            }}
           />
           <div className="new-ux-panel-layer">
             <PanelStack>
@@ -410,7 +445,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         />
       )}
       {currentTrack && nowPlayingLocator.visible && (
-        <LocateNowPlayingButton track={currentTrack} onLocate={handleLocateNowPlaying} />
+        <CapsuleButtons
+          track={currentTrack}
+          onLocate={handleLocateNowPlaying}
+          isCardEditMode={isCardEditMode}
+          onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
+          bgImage={bgImage}
+          bgBlur={bgBlur}
+          onBgImageChange={setBgImage}
+          onBgBlurChange={setBgBlur}
+        />
       )}
       <FloatingPlayerPanel
         track={currentTrack}

@@ -649,30 +649,156 @@
 }
 
 /* [floating UI] */
-.new-ux-locate-button {
+.new-ux-capsule-buttons {
   position: absolute;
   right: var(--new-ux-stage-padding);
   bottom: 118px;
   z-index: 35;
+  display: flex;
+  flex-direction: column;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 70%, transparent);
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.86)) 68%, transparent);
+  box-shadow: 0 18px 52px -18px rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+.new-ux-capsule-btn {
   display: inline-flex;
   width: 44px;
   height: 44px;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 70%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.86)) 68%, transparent);
+  border: none;
+  background: transparent;
   color: var(--theme-control-icon-fg-hover, #fff);
+  cursor: pointer;
+  transition: background-color var(--new-ux-transition-fast);
+}
+
+.new-ux-capsule-btn:hover {
+  background: color-mix(in srgb, var(--theme-primary, #2b8cee) 24%, transparent);
+}
+
+.new-ux-capsule-btn + .new-ux-capsule-btn {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.new-ux-capsule-btn--active {
+  background: color-mix(in srgb, var(--theme-primary, #2b8cee) 32%, transparent);
+  color: var(--theme-primary, #2b8cee);
+}
+
+/* Background image layer */
+.new-ux-bg-image {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: filter 0.4s ease;
+}
+
+/* Edit mode card overlay */
+.new-ux-edit-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 14px;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.new-ux-playlist-card:hover .new-ux-edit-overlay {
+  opacity: 1;
+}
+
+.new-ux-edit-overlay__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.new-ux-edit-overlay__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+  pointer-events: auto;
+}
+
+.new-ux-edit-overlay__btn:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.new-ux-playlist-card--hidden {
+  opacity: 0.35 !important;
+  filter: grayscale(0.6) !important;
+}
+
+/* Background settings popover */
+.new-ux-bg-settings {
+  position: absolute;
+  right: calc(var(--new-ux-stage-padding) + 52px);
+  bottom: 118px;
+  z-index: 36;
+  width: 240px;
+  padding: 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.92)) 92%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: 0 18px 52px -18px rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
-  transition: transform var(--new-ux-transition-fast), background-color var(--new-ux-transition-fast);
 }
 
-.new-ux-locate-button:hover {
-  transform: translateY(-2px);
-  background: color-mix(in srgb, var(--theme-primary, #2b8cee) 24%, rgba(16, 25, 34, 0.82));
+.new-ux-bg-settings__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--theme-text-muted, rgba(255, 255, 255, 0.46));
+  margin-bottom: 8px;
+}
+
+.new-ux-bg-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.new-ux-bg-settings__slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+}
+
+.new-ux-bg-settings__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--theme-primary, #2b8cee);
+  cursor: pointer;
 }
 
 .new-ux-player__controls {

@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
+import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit';
 
 interface MainViewProps {
   entries: CardEntry[];
   isPlaylistPanelOpen: boolean;
   onOpenPlaylist: (entry: CardEntry) => void | Promise<void>;
   onPlaylistContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
+  isCardEditMode?: boolean;
+  cardOverrides?: CardOverrideMap;
+  onCardOverrideChange?: (entryId: string, patch: Partial<CardOverride>) => void;
 }
 
 type CardCssVars = React.CSSProperties & Record<`--card-${string}`, string | number>;
@@ -30,6 +34,9 @@ const MainView: React.FC<MainViewProps> = ({
   isPlaylistPanelOpen,
   onOpenPlaylist,
   onPlaylistContextMenu,
+  isCardEditMode,
+  cardOverrides,
+  onCardOverrideChange,
 }) => {
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -360,6 +367,22 @@ const MainView: React.FC<MainViewProps> = ({
     }, {});
   }, [cardLayouts]);
 
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const coverTargetRef = useRef<string | null>(null);
+
+  const handleCoverFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !coverTargetRef.current || !onCardOverrideChange) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      onCardOverrideChange(coverTargetRef.current!, { coverUrl: dataUrl });
+      coverTargetRef.current = null;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [onCardOverrideChange]);
+
   return (
     <section
       className="new-ux-mainview new-ux-scrollbar"
@@ -370,21 +393,48 @@ const MainView: React.FC<MainViewProps> = ({
       onDragStartCapture={handleNativeDragStart}
       onWheel={handleWheel}
     >
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverFileSelected}
+      />
       <div
         ref={spaceRef}
         className={`new-ux-playlist-space${isDragging ? ' new-ux-playlist-space--dragging' : ''}`}
         onDoubleClick={handleDoubleClick}
       >
-        {entries.map(entry => (
-          <PlaylistCard
-            key={`${entry.id}:${panelCloseEpoch}`}
-            entry={entry}
-            cardRef={registerCard(entry.id)}
-            {...(cardStyles[entry.id] ? { style: cardStyles[entry.id] } : {})}
-            onOpen={handleOpenPlaylist}
-            onContextMenu={onPlaylistContextMenu}
-          />
-        ))}
+        {entries.map(entry => {
+          const override = cardOverrides?.[entry.id];
+          const isHidden = !!override?.hidden;
+          return (
+            <PlaylistCard
+              key={`${entry.id}:${panelCloseEpoch}`}
+              entry={entry}
+              cardRef={registerCard(entry.id)}
+              {...(cardStyles[entry.id] ? { style: cardStyles[entry.id] } : {})}
+              onOpen={handleOpenPlaylist}
+              onContextMenu={onPlaylistContextMenu}
+              {...(isCardEditMode ? { isCardEditMode: true } : {})}
+              {...(isHidden ? { isHidden: true } : {})}
+              {...(override?.coverUrl ? { overrideCover: override.coverUrl } : {})}
+              {...(override?.name ? { overrideName: override.name } : {})}
+              onToggleHidden={() => onCardOverrideChange?.(entry.id, { hidden: !isHidden })}
+              onChangeCover={() => {
+                coverTargetRef.current = entry.id;
+                coverInputRef.current?.click();
+              }}
+              onChangeName={(name) => {
+                if (name) {
+                  onCardOverrideChange?.(entry.id, { name });
+                } else {
+                  onCardOverrideChange?.(entry.id, { name: undefined as unknown as string });
+                }
+              }}
+            />
+          );
+        })}
       </div>
     </section>
   );

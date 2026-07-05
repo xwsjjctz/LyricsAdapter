@@ -162,10 +162,14 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        trackRefs.current[locateTrackId]?.scrollIntoView({
-          block: 'center',
-          behavior: 'smooth',
-        });
+        const node = trackRefs.current[locateTrackId];
+        const list = listRef.current;
+        if (!node || !list) return;
+        // Scroll only within the panel's own list container — never bubble to ancestors.
+        const nodeRect = node.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const offset = nodeRect.top - listRect.top - (listRect.height / 2 - nodeRect.height / 2);
+        list.scrollTo({ top: list.scrollTop + offset, behavior: 'smooth' });
       });
     });
   }, [locateToken, locateTrackId]);
