@@ -96,12 +96,20 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
     setOffsetY((ch - imgH * fit) / 2);
   }, [imgW, imgH]);
 
-  // ── Wheel handler: zoom image around viewport center ──
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
-    setZoom(prev => Math.max(0.3, Math.min(8, prev * factor)));
+  // ── Wheel handler: zoom image (native listener for non-passive preventDefault) ──
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+      setZoom(prev => Math.max(0.3, Math.min(8, prev * factor)));
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
   // ── Pointer handlers ──
@@ -195,7 +203,6 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
           className="sq-crop-modal__canvas"
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onWheel={handleWheel}
         >
           {/* Full image (dimmed) — zoomed */}
           <img
