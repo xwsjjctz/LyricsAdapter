@@ -73,7 +73,7 @@ const MainView: React.FC<MainViewProps> = ({
     const releasePointerId = pointerId ?? drag.pointerId;
     const space = spaceRef.current;
 
-    if (guardClick && drag.moved > 8) {
+    if (guardClick && drag.moved > 12) {
       clickGuardUntilRef.current = performance.now() + 180;
     }
 
@@ -229,7 +229,7 @@ const MainView: React.FC<MainViewProps> = ({
       drag.lastY = event.clientY;
       drag.moved += Math.abs(dx) + Math.abs(dy);
 
-      if (drag.moved > 6) {
+      if (drag.moved > 12) {
         event.preventDefault();
         if (!drag.thresholdExceeded) {
           drag.thresholdExceeded = true;
@@ -310,7 +310,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.active && dragRef.current.pointerId === event.pointerId && dragRef.current.moved > 6) {
+    if (dragRef.current.active && dragRef.current.pointerId === event.pointerId && dragRef.current.moved > 12) {
       event.preventDefault();
     }
   }, []);
