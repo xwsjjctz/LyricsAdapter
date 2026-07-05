@@ -17,7 +17,6 @@ interface UseShortcutsProps {
   setVolume: (volume: number) => void;
   handleToggleMute: () => void;
   handleTogglePlaybackMode: () => void;
-  onImportClick: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
   currentTime: number;
   duration: number;
@@ -37,7 +36,6 @@ export const useShortcuts = ({
   setVolume,
   handleToggleMute,
   handleTogglePlaybackMode,
-  onImportClick,
   searchInputRef: _searchInputRef,
   currentTime,
   duration
@@ -57,7 +55,6 @@ export const useShortcuts = ({
   const setVolumeRef = useRef(setVolume);
   const handleToggleMuteRef = useRef(handleToggleMute);
   const handleTogglePlaybackModeRef = useRef(handleTogglePlaybackMode);
-  const onImportClickRef = useRef(onImportClick);
   const setIsFocusModeRef = useRef(setIsFocusMode);
   const setViewModeRef = useRef(setViewMode);
   
@@ -74,7 +71,6 @@ export const useShortcuts = ({
   useEffect(() => { setVolumeRef.current = setVolume; }, [setVolume]);
   useEffect(() => { handleToggleMuteRef.current = handleToggleMute; }, [handleToggleMute]);
   useEffect(() => { handleTogglePlaybackModeRef.current = handleTogglePlaybackMode; }, [handleTogglePlaybackMode]);
-  useEffect(() => { onImportClickRef.current = onImportClick; }, [onImportClick]);
   useEffect(() => { setIsFocusModeRef.current = setIsFocusMode; }, [setIsFocusMode]);
   useEffect(() => { setViewModeRef.current = setViewMode; }, [setViewMode]);
 
@@ -151,7 +147,6 @@ export const useShortcuts = ({
     const setVolume = setVolumeRef.current;
     const handleToggleMute = handleToggleMuteRef.current;
     const handleTogglePlaybackMode = handleTogglePlaybackModeRef.current;
-    const onImportClick = onImportClickRef.current;
     const setIsFocusMode = setIsFocusModeRef.current;
     const setViewMode = setViewModeRef.current;
 
@@ -218,15 +213,6 @@ export const useShortcuts = ({
         if (searchInput) {
           searchInput.focus();
         }
-        break;
-
-      case 'importFiles':
-        onImportClick();
-        break;
-
-      case 'gotoLibrary':
-        setViewMode(ViewMode.PLAYER);
-        setIsFocusMode(false);
         break;
 
       // case 'gotoBrowse':

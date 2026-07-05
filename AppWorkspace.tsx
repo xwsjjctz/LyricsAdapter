@@ -702,7 +702,6 @@ const AppWorkspace: React.FC = () => {
     setVolume,
     handleToggleMute,
     handleTogglePlaybackMode,
-    onImportClick: handleImportClick,
     currentTime,
     duration: currentTrack?.duration || 0
   });

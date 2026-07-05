@@ -25,8 +25,6 @@ export type ShortcutAction =
   | 'togglePlaybackMode'
   | 'toggleFocusMode'
   | 'focusSearch'
-  | 'importFiles'
-  | 'gotoLibrary'
   | 'gotoBrowse'
   | 'gotoSettings'
   | 'gotoTheme'
@@ -151,22 +149,6 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     description: 'shortcut.focusSearchDesc',
     defaultKey: 'CmdOrCtrl+F',
     currentKey: 'CmdOrCtrl+F',
-    scope: 'navigation'
-  },
-  importFiles: {
-    id: 'importFiles',
-    name: 'shortcut.importFiles',
-    description: 'shortcut.importFilesDesc',
-    defaultKey: 'CmdOrCtrl+I',
-    currentKey: 'CmdOrCtrl+I',
-    scope: 'navigation'
-  },
-  gotoLibrary: {
-    id: 'gotoLibrary',
-    name: 'shortcut.gotoLibrary',
-    description: 'shortcut.gotoLibraryDesc',
-    defaultKey: 'CmdOrCtrl+L',
-    currentKey: 'CmdOrCtrl+L',
     scope: 'navigation'
   },
   gotoBrowse: {
