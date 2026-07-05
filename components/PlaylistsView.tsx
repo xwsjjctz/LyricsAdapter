@@ -581,17 +581,19 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         </div>
         <button
           onClick={() => { setIsEditMode(v => !v); setEditingId(null); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all"
+          className="w-10 h-10 flex items-center justify-center relative"
           style={{
-            backgroundColor: isEditMode ? `${colors.primary}20` : colors.backgroundCard,
-            color: isEditMode ? colors.primary : colors.textSecondary,
             borderRadius: 'var(--theme-control-radius)',
-            border: `1px solid ${isEditMode ? colors.primary + '40' : colors.borderLight}`,
+            color: isEditMode ? '#fff' : colors.textSecondary,
+            backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
+            boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : 'var(--theme-elevated-shadow)',
+            border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+            transition: 'background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
           }}
           title={isEditMode ? '完成编辑' : '编辑歌单'}
         >
-          <span className="material-symbols-outlined text-base">{isEditMode ? 'check' : 'edit'}</span>
-          <span>{isEditMode ? '完成' : '编辑'}</span>
+          <span className="material-symbols-outlined absolute" style={{ opacity: isEditMode ? 1 : 0, transform: isEditMode ? 'scale(1)' : 'scale(0.4)', transition: 'opacity 0.2s ease, transform 0.25s ease' }}>check</span>
+          <span className="material-symbols-outlined absolute" style={{ opacity: isEditMode ? 0 : 1, transform: isEditMode ? 'scale(0.4)' : 'scale(1)', transition: 'opacity 0.2s ease, transform 0.25s ease' }}>edit</span>
         </button>
       </div>
 
@@ -649,10 +651,14 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                   <div key={pl.id} className="w-full text-left relative group">
                     {/* Cover area */}
                     <button
-                      className={`w-full aspect-square rounded-lg overflow-hidden bg-cover bg-center shadow-md block ${hidden ? 'opacity-40' : ''}`}
-                      style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
-                      onClick={() => !isEditMode && handlePlaylistClick(pl)}
-                      disabled={isEditMode}
+                      className={`w-full aspect-square rounded-lg overflow-hidden bg-cover bg-center shadow-md block ${hidden ? 'opacity-40' : ''} ${isEditMode ? 'cursor-pointer ring-2 ring-transparent hover:ring-offset-1 hover:ring-offset-transparent' : ''}`}
+                      style={{
+                        backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined,
+                        backgroundColor: colors.backgroundCard,
+                        ...(isEditMode ? { outlineColor: colors.primary + '40' } : {}),
+                      }}
+                      onClick={() => isEditMode ? handleCoverChange(pl) : handlePlaylistClick(pl)}
+                      title={isEditMode ? '更换封面' : undefined}
                     >
                       {!pl.coverUrl && (
                         <div className="w-full h-full flex items-center justify-center">
@@ -664,7 +670,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                     {/* Eye toggle — top-right of cover */}
                     {isEditMode && (
                       <button
-                        onClick={() => handleToggleVisibility(pl)}
+                        onClick={(e) => { e.stopPropagation(); handleToggleVisibility(pl); }}
                         className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
                         style={{
                           backgroundColor: 'rgba(0,0,0,0.55)',
@@ -678,32 +684,10 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                       </button>
                     )}
 
-                    {/* Edit controls — bottom of cover */}
-                    {isEditMode && (
-                      <div className="absolute bottom-1 left-1 right-1 flex gap-1 z-10">
-                        <button
-                          onClick={() => handleCoverChange(pl)}
-                          className="flex-1 h-6 rounded text-[10px] flex items-center justify-center gap-0.5 transition-colors"
-                          style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff' }}
-                          title="更换封面"
-                        >
-                          <span className="material-symbols-outlined text-xs">image</span>
-                        </button>
-                        <button
-                          onClick={() => handleStartEditName(pl)}
-                          className="flex-1 h-6 rounded text-[10px] flex items-center justify-center gap-0.5 transition-colors"
-                          style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff' }}
-                          title="编辑名称"
-                        >
-                          <span className="material-symbols-outlined text-xs">drive_file_rename_outline</span>
-                        </button>
-                      </div>
-                    )}
-
                     {/* Name */}
                     {isEditing ? (
                       <input
-                        className="mt-1 w-full text-xs font-medium truncate rounded px-1 py-0.5 outline-none"
+                        className="mt-1 w-full text-xs font-medium rounded px-1.5 py-0.5 outline-none"
                         style={{ backgroundColor: `${colors.primary}15`, border: `1px solid ${colors.primary}40`, color: colors.textPrimary }}
                         value={editingName}
                         autoFocus
@@ -711,6 +695,15 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                         onBlur={() => handleSaveName(pl)}
                         onKeyDown={e => { if (e.key === 'Enter') handleSaveName(pl); if (e.key === 'Escape') setEditingId(null); }}
                       />
+                    ) : isEditMode ? (
+                      <button
+                        className={`mt-1 w-full text-xs font-medium truncate rounded px-1.5 py-0.5 text-left cursor-text ${hidden ? 'opacity-40' : ''}`}
+                        style={{ color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, backgroundColor: 'transparent' }}
+                        onClick={() => handleStartEditName(pl)}
+                        title="点击编辑名称"
+                      >
+                        {pl.name}
+                      </button>
                     ) : (
                       <p className={`mt-1 text-xs font-medium truncate ${hidden ? 'opacity-40' : ''}`} style={{ color: colors.textPrimary }}>{pl.name}</p>
                     )}
