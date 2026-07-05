@@ -1081,7 +1081,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                         : setCookie(e.target.value)
                     }
                     placeholder={i18n.t('settingsDialog.pasteCookie')}
-                    className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
+                    className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar cookie-textarea"
                     style={inputStyle}
                     onFocus={inputFocus}
                     onBlur={inputBlur}

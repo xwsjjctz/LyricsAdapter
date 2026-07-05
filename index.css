@@ -430,6 +430,25 @@ textarea.no-scrollbar::-webkit-scrollbar {
   display: none !important;
 }
 
+.cookie-textarea {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.cookie-textarea::-webkit-scrollbar,
+textarea.cookie-textarea::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+}
+
+.cookie-textarea::-webkit-scrollbar-thumb,
+textarea.cookie-textarea::-webkit-scrollbar-thumb {
+  display: none !important;
+  background: transparent !important;
+}
+
 /* Frosted-glass bars for the experimental "Glass UI" feature.
    Used by the library header band and the global ControlBar.
    Translucent background is applied inline per component (theme-aware);
