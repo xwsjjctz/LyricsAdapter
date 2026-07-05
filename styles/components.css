@@ -61,12 +61,19 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: clamp(164px, 17vw, 240px);
-  aspect-ratio: 0.65;
+  width: clamp(128px, 13.5vw, 186px);
   display: flex;
   flex-direction: column;
   overflow: visible;
-  border-radius: 26px;
+  border-radius: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  box-shadow:
+    0 20px 60px -20px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
   text-align: left;
   opacity: var(--card-opacity);
   filter: blur(var(--card-blur));
@@ -106,21 +113,23 @@
     translate(-50%, -50%)
     translate3d(
       calc(var(--card-layout-x) + var(--wall-x)),
-      calc(var(--card-layout-y) + var(--wall-y) - 24px),
-      calc(var(--card-z) + 100px)
+      calc(var(--card-layout-y) + var(--wall-y) - 18px),
+      calc(var(--card-z) + 80px)
     )
     rotateX(var(--card-rot-x))
     rotateY(var(--card-rot-y))
     rotate(var(--card-rotate))
     scale(calc(var(--card-scale) * 1.06));
   filter: none;
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .new-ux-playlist-card__stack {
   position: relative;
-  flex: 1;
-  min-height: 0;
-  border-radius: 26px 26px 20px 20px;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16px 16px 12px 12px;
+  overflow: hidden;
   transform-style: preserve-3d;
 }
 
@@ -129,16 +138,11 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 60%, transparent);
-  border-radius: 26px 26px 20px 20px;
+  border-radius: 16px 16px 12px 12px;
   background:
     linear-gradient(145deg,
       color-mix(in srgb, var(--theme-primary, #2b8cee) 20%, var(--theme-background-card, rgba(255, 255, 255, 0.08))),
       var(--theme-background-sidebar, #16212e));
-  box-shadow:
-    0 40px 90px -30px rgba(0, 0, 0, 0.92),
-    0 12px 40px -20px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* Ambient glow beneath the card */
@@ -164,18 +168,18 @@
 }
 
 .new-ux-playlist-card__back-cover {
-  inset: 10px -12px -12px 12px;
+  inset: 8px -10px -10px 10px;
   z-index: 2;
   opacity: 0.72;
   filter: saturate(0.9) brightness(0.78);
-  transform: translateZ(-26px) rotate(5deg);
+  transform: translateZ(-20px) rotate(5deg);
 }
 
 .new-ux-playlist-card__back-cover:nth-child(1) {
-  inset: 18px 16px -18px -16px;
+  inset: 14px 12px -14px -12px;
   z-index: 1;
   opacity: 0.5;
-  transform: translateZ(-48px) rotate(-7deg);
+  transform: translateZ(-38px) rotate(-7deg);
 }
 
 .new-ux-playlist-card__main-cover img,
@@ -194,7 +198,7 @@
   align-items: center;
   justify-content: center;
   color: var(--theme-text-primary, #fff);
-  font-size: 58px;
+  font-size: 42px;
 }
 
 .new-ux-playlist-card__title {
@@ -202,34 +206,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.3;
 }
 
 .new-ux-playlist-card__meta {
-  margin-top: 3px;
-  color: rgba(255, 255, 255, 0.52);
-  font-size: 11px;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 10px;
   line-height: 1.2;
 }
 
 .new-ux-playlist-card__info {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px;
+  grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 10px;
-  min-height: 76px;
-  margin-top: -22px;
-  padding: 28px 14px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-top: 0;
-  border-radius: 0 0 24px 24px;
-  background: linear-gradient(180deg, rgba(8, 11, 16, 0.72) 0%, rgba(3, 5, 8, 0.92) 100%);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 22px 48px -28px rgba(0, 0, 0, 0.92);
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-radius: 0 0 16px 16px;
 }
 
 /* Overlay cards (settings / theme) have no play button — use single column */
@@ -239,19 +235,19 @@
 
 .new-ux-playlist-card__play {
   display: flex;
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.88) 100%);
   color: #0a0f18;
-  font-size: 24px;
+  font-size: 16px;
   font-variation-settings: 'FILL' 1;
   box-shadow:
-    0 4px 18px rgba(0, 0, 0, 0.36),
-    0 0 20px rgba(255, 255, 255, 0.12);
+    0 3px 12px rgba(0, 0, 0, 0.32),
+    0 0 14px rgba(255, 255, 255, 0.1);
   transition: transform 160ms ease, box-shadow 200ms ease;
 }
 
@@ -259,8 +255,8 @@
   background: #fff;
   transform: scale(1.12);
   box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.4),
-    0 0 28px rgba(255, 255, 255, 0.18);
+    0 4px 18px rgba(0, 0, 0, 0.38),
+    0 0 20px rgba(255, 255, 255, 0.16);
 }
 
 /* [panels] */

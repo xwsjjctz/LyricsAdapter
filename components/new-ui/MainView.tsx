@@ -22,8 +22,8 @@ interface CardLayout {
 type CardRefCallback = (node: HTMLButtonElement | null) => void;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
-const gridColumnGap = 196;
-const gridRowGap = 252;
+const gridColumnGap = 210;
+const gridRowGap = 280;
 
 const MainView: React.FC<MainViewProps> = ({
   entries,
