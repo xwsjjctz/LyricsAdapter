@@ -172,10 +172,12 @@ const MainView: React.FC<MainViewProps> = ({
           const focus = Math.exp(-Math.pow(distance / radius, 2));
           const baseScale = layout.scale * (0.55 + focus * 0.60);
 
-          // Smooth hover scale interpolation (lerp towards 1.18 on hover, 1.0 off)
+          // Smooth hover scale interpolation
           const hoverTarget = hoveredIdRef.current === layout.id ? 1.18 : 1.0;
           const prevHoverScale = hoverScaleRef.current[layout.id] ?? 1.0;
-          const hoverScale = prevHoverScale + (hoverTarget - prevHoverScale) * 0.10;
+          // Faster spring-back (0.18) than grow-in (0.10) for snappy un-hover
+          const lerpRate = hoverTarget < prevHoverScale ? 0.18 : 0.10;
+          const hoverScale = prevHoverScale + (hoverTarget - prevHoverScale) * lerpRate;
           hoverScaleRef.current[layout.id] = hoverScale;
 
           const scale = baseScale * hoverScale;
@@ -209,7 +211,15 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isPlaylistPanelOpen) return;
+    if (isPlaylistPanelOpen) {
+      // Panel opened — snap all hover scales back to 1.0 immediately so cards
+      // don't appear stuck at an intermediate size.
+      hoveredIdRef.current = null;
+      for (const id of Object.keys(hoverScaleRef.current)) {
+        hoverScaleRef.current[id] = 1.0;
+      }
+      return;
+    }
 
     resetDragState(undefined, true);
   }, [isPlaylistPanelOpen, resetDragState]);
