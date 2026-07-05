@@ -18,6 +18,8 @@ import {
   loadCardOverrides,
   loadBgImage,
   loadBgBlur,
+  saveBgImage,
+  saveBgBlur,
   setCardOverride,
   type CardOverrideMap,
 } from '../../services/newUxCardEdit';
@@ -121,6 +123,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const [cardOverrides, setCardOverrides] = useState<CardOverrideMap>({});
   const [bgImage, setBgImage] = useState('');
   const [bgBlur, setBgBlur] = useState(80);
+  const [showBgSettings, setShowBgSettings] = useState(false);
+  const bgInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadCardOverrides().then(setCardOverrides);
@@ -453,10 +457,73 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
         onOpenSettings={panels.openSettings}
         onOpenTheme={panels.openTheme}
-        bgImage={bgImage}
-        bgBlur={bgBlur}
-        onBgImageChange={setBgImage}
-        onBgBlurChange={setBgBlur}
+        showBgSettings={showBgSettings}
+        onToggleBgSettings={() => setShowBgSettings(v => !v)}
+      />
+
+      {/* Left-side background settings panel */}
+      {showBgSettings && (
+        <div className={`new-ux-bg-tray${isCardEditMode && Object.values(cardOverrides).some(o => o.hidden) ? ' new-ux-bg-tray--offset' : ''}`}>
+          <div className="new-ux-bg-tray__header">
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>
+            背景设置
+          </div>
+          <div className="new-ux-bg-tray__body">
+            <div className="new-ux-bg-settings__label">背景图片</div>
+            <div className="new-ux-bg-settings__row">
+              <button
+                className="new-ux-bg-tray__btn"
+                onClick={() => bgInputRef.current?.click()}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
+                选择图片
+              </button>
+              {bgImage && (
+                <button
+                  className="new-ux-bg-tray__btn"
+                  onClick={() => { setBgImage(''); saveBgImage(''); }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                  清除
+                </button>
+              )}
+            </div>
+            {bgImage && (
+              <div className="new-ux-bg-tray__preview">
+                <img src={bgImage} alt="" />
+              </div>
+            )}
+            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>模糊半径</div>
+            <div className="new-ux-bg-settings__row">
+              <input
+                type="range"
+                min={0}
+                max={200}
+                value={bgBlur}
+                onChange={e => { const v = Number(e.target.value); setBgBlur(v); saveBgBlur(v); }}
+                className="new-ux-bg-settings__slider"
+              />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 36, textAlign: 'right' }}>
+                {bgBlur}px
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={bgInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => { const d = reader.result as string; setBgImage(d); saveBgImage(d); };
+          reader.readAsDataURL(file);
+          e.target.value = '';
+        }}
       />
       <FloatingPlayerPanel
         track={currentTrack}
