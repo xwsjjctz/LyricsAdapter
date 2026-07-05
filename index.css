@@ -417,14 +417,17 @@ html.electron[data-window-effect] #root {
 
 /* Hide scrollbars on elements that should scroll without showing a thumb
    (e.g. the cookie textarea, the online-source list). The element still
-   scrolls — only the scrollbar is hidden. */
+   scrolls — only the scrollbar is hidden. Chromium needs an explicit rule
+   for replaced elements like textarea, where the generic class pseudo-element
+   match is unreliable, so we declare both. */
 .no-scrollbar {
-  scrollbar-width: none;
+  scrollbar-width: none !important;
 }
-.no-scrollbar::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+.no-scrollbar::-webkit-scrollbar,
+textarea.no-scrollbar::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 /* Frosted-glass bars for the experimental "Glass UI" feature.
