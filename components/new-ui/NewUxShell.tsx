@@ -12,7 +12,8 @@ import MetadataEditPanel from './MetadataEditPanel';
 import SettingsPanel from './SettingsPanel';
 import ThemePanel from './ThemePanel';
 import NewUxSearchBox from './NewUxSearchBox';
-import CapsuleButtons from './CapsuleButtons';
+import LocateNowPlayingButton from './LocateNowPlayingButton';
+import RightDrawer from './RightDrawer';
 import {
   loadCardOverrides,
   loadBgImage,
@@ -445,17 +446,18 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         />
       )}
       {currentTrack && nowPlayingLocator.visible && (
-        <CapsuleButtons
-          track={currentTrack}
-          onLocate={handleLocateNowPlaying}
-          isCardEditMode={isCardEditMode}
-          onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
-          bgImage={bgImage}
-          bgBlur={bgBlur}
-          onBgImageChange={setBgImage}
-          onBgBlurChange={setBgBlur}
-        />
+        <LocateNowPlayingButton track={currentTrack} onLocate={handleLocateNowPlaying} />
       )}
+      <RightDrawer
+        isCardEditMode={isCardEditMode}
+        onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
+        onOpenSettings={panels.openSettings}
+        onOpenTheme={panels.openTheme}
+        bgImage={bgImage}
+        bgBlur={bgBlur}
+        onBgImageChange={setBgImage}
+        onBgBlurChange={setBgBlur}
+      />
       <FloatingPlayerPanel
         track={currentTrack}
         isPlaying={isPlaying}

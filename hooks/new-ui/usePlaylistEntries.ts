@@ -68,29 +68,6 @@ export function usePlaylistEntries(slots: LibrarySlotsById, onlinePlaylists: Pla
       return { kind: 'online-playlist', source: p.source, playlistId: p.id, ...meta };
     });
 
-    // Overlay cards (settings / theme) sit alongside the library cards so the
-    // user reaches them from the same card wall.
-    const overlayEntries: CardEntry[] = [
-      {
-        kind: 'overlay',
-        overlay: 'settings',
-        id: 'overlay-settings',
-        title: i18n.t('settings.title'),
-        subtitle: i18n.t('settings.description'),
-        icon: 'settings',
-        coverUrls: [],
-      },
-      {
-        kind: 'overlay',
-        overlay: 'theme',
-        id: 'overlay-theme',
-        title: i18n.t('theme.title'),
-        subtitle: i18n.t('theme.description'),
-        icon: 'palette',
-        coverUrls: [],
-      },
-    ];
-
-    return [...slotEntries, ...playlistInfoEntries, ...overlayEntries];
+    return [...slotEntries, ...playlistInfoEntries];
   }, [slots, onlinePlaylists]);
 }
