@@ -116,22 +116,20 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
     return shortcutManager.formatKeyForDisplay(key);
   }, []);
 
-  const groupedShortcuts = {
-    player: Object.entries(shortcuts).filter(([, config]) => config?.scope === 'player') as [ShortcutAction, ShortcutConfig][],
-    navigation: Object.entries(shortcuts).filter(([action, config]) =>
-      config?.scope === 'navigation' && action !== 'gotoBrowse' && action !== 'gotoMetadata'
-    ) as [ShortcutAction, ShortcutConfig][]
-  };
+  const allShortcuts = React.useMemo(() => {
+    return (Object.entries(shortcuts) as [ShortcutAction, ShortcutConfig][])
+      .filter(([action, config]) => config && action !== 'gotoBrowse' && action !== 'gotoMetadata');
+  }, [shortcuts]);
 
   if (Object.keys(shortcuts).length === 0) {
     return null;
   }
 
   // 渲染单行快捷键
-  const renderShortcutRow = (action: ShortcutAction, config: ShortcutConfig, isLast: boolean) => (
+  const renderShortcutRow = (action: ShortcutAction, config: ShortcutConfig) => (
     <div
       key={action}
-      className={`flex items-center justify-between py-2 px-3 ${!isLast ? 'border-b' : ''}`}
+      className="flex items-center justify-between py-1.5 px-3 border-b"
       style={{ borderColor: colors.borderLight }}
     >
       <span className="text-xs min-w-[80px]" style={{ color: colors.textSecondary }}>{i18n.t(config.name)}</span>
@@ -209,7 +207,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       {/* Header with Reset All button */}
-      <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="flex items-center justify-between gap-2 mb-2">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>keyboard</span>
           {i18n.t('settings.shortcuts.title')}
@@ -225,35 +223,17 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         </button>
       </div>
 
-      {/* 双列布局：播放器 + 导航 */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Player Shortcuts */}
-        <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-          <div className="px-3 py-1.5 border-b" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
-            <span className="text-xs font-medium" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.playerGroup')}</span>
-          </div>
-          <div>
-            {groupedShortcuts.player?.map(([action, config], index) =>
-              renderShortcutRow(action, config, index === (groupedShortcuts.player?.length || 0) - 1)
-            )}
-          </div>
-        </div>
-
-        {/* Navigation Shortcuts */}
-        <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-          <div className="px-3 py-1.5 border-b" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
-            <span className="text-xs font-medium" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.navigationGroup')}</span>
-          </div>
-          <div>
-            {groupedShortcuts.navigation?.map(([action, config], index) =>
-              renderShortcutRow(action, config, index === (groupedShortcuts.navigation?.length || 0) - 1)
-            )}
-          </div>
+      {/* 两列均匀分布 */}
+      <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+        <div className="grid grid-cols-2">
+          {allShortcuts.map(([action, config]) =>
+            renderShortcutRow(action, config)
+          )}
         </div>
       </div>
 
       {/* 提示信息 */}
-      <div className="flex items-center gap-2 px-3 py-2 r-card border mt-3" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
+      <div className="flex items-center gap-2 px-3 py-2 r-card border mt-2" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
         <span className="material-symbols-outlined text-sm" style={{ color: colors.textMuted }}>info</span>
         <span className="text-xs" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.legend')}</span>
       </div>

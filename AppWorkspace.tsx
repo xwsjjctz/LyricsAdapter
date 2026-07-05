@@ -36,7 +36,6 @@ import type { OnlineSong } from './services/onlineMusicProvider';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
-import { settingsManager } from './services/settingsManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
@@ -246,11 +245,6 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
-  const handleOpenNewUxSettings = useCallback(() => {
-    setIsFocusMode(false);
-    transitionToView(ViewMode.SETTINGS);
-    settingsManager.setNewUxEnabled(false);
-  }, [setIsFocusMode, transitionToView]);
   // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
   // This ensures deletion works correctly when browsing a different slot than the one playing.
   const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
@@ -510,22 +504,27 @@ const AppWorkspace: React.FC = () => {
     // Sync view to match the playing slot
     setViewSlot(targetSlot);
   }, [activeSlotId, viewSlot, slots.local.tracks, slots.cloud.tracks, selectTrack, audioRef, updateSlot, switchTo, setIsPlaying]);
-  // Track selection handler that handles cross-slot selection
-  // When viewing a different slot than what's playing, clicking a track
-  // switches the active slot to the view slot without pausing audio.
-  const handleTrackSelect = useCallback((trackIndex: number) => {
-    if (viewSlot !== activeSlotId) {
-      // Cross-slot: save playing slot's time, switch active slot, then play
-      updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-      updateSlot(viewSlot, s => ({ ...s, currentTrackIndex: trackIndex }));
-      setRestoreTime(0);
-      markTrackSwitch();
-      switchTo(viewSlot);
-      shouldAutoPlayRef.current = true;
-      setIsPlaying(true);
-    } else {
+  // Track selection handler that handles cross-slot selection.
+  // `targetSlotId` lets New-UI callers state explicitly which slot the clicked
+  // row belongs to (the open panel may show local/cloud tracks while the active
+  // play context is the 'playlist' slot — e.g. after opening a third-party
+  // playlist card). Legacy callers omit it and fall back to viewSlot.
+  const handleTrackSelect = useCallback((trackIndex: number, targetSlotId?: SlotId) => {
+    const playSlot = targetSlotId ?? viewSlot;
+
+    if (playSlot === activeSlotId) {
       selectTrack(trackIndex);
+      return;
     }
+
+    // Cross-slot: save playing slot's time, switch active slot, then play.
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    updateSlot(playSlot, s => ({ ...s, currentTrackIndex: trackIndex }));
+    setRestoreTime(0);
+    markTrackSwitch();
+    switchTo(playSlot);
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
   }, [viewSlot, activeSlotId, selectTrack, updateSlot, switchTo, setIsPlaying, audioRef, markTrackSwitch]);
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
     setViewMode,
@@ -610,6 +609,30 @@ const AppWorkspace: React.FC = () => {
     // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
   }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
+  // New UI: opening a third-party playlist card loads its songs into the
+  // playlist slot (without auto-playing) so the playlist panel can browse them.
+  // Playback starts when the user clicks a track inside the panel.
+  const handleOpenOnlinePlaylist = useCallback(async (source: 'qq' | 'netease', playlistId: string, _name: string) => {
+    const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const songs = await provider.getPlaylistSongs(playlistId);
+    const tracks: Track[] = songs.map(s => ({
+      id: `online-${source}-${s.songmid}`,
+      title: s.songname,
+      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+      album: s.albumname || 'Unknown Album',
+      duration: s.interval || 0,
+      coverUrl: s.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: s.songmid,
+    }));
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: -1 }));
+    setRestoreTime(0);
+    switchTo('playlist');
+  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo]);
+
   // Playlist-only lyrics sliding window (size 3): prefetch the current track and
   // its two neighbours, and evict lyrics outside that window to bound memory.
   // Other slots are unaffected — online uses per-click enrichment, local/cloud
@@ -679,7 +702,6 @@ const AppWorkspace: React.FC = () => {
     setVolume,
     handleToggleMute,
     handleTogglePlaybackMode,
-    onImportClick: handleImportClick,
     currentTime,
     duration: currentTrack?.duration || 0
   });
@@ -758,55 +780,79 @@ const AppWorkspace: React.FC = () => {
   const desktopAPISync = getDesktopAPI();
   const platform = desktopAPISync?.platform || '';
   const isLinux = platform === 'linux';
+  const audioElement = currentTrack ? (
+    <audio
+      ref={setAudioRef}
+      src={currentTrack.audioUrl}
+      onTimeUpdate={handleTimeUpdate}
+      onLoadedMetadata={handleLoadedMetadata}
+      onLoadedData={handleLoadedMetadata}
+      onEnded={handleTrackEnded}
+      onCanPlay={handleCanPlay}
+      onError={handleAudioError}
+    />
+  ) : null;
 
   if (newUxEnabled) {
     return (
-      <NewUxShell
-        slots={slots}
-        activeSlotId={activeSlotId}
-        currentTrack={currentTrack}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        volume={volume}
-        playbackMode={playbackMode}
-        isFocusMode={isFocusMode}
-        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-        onOpenSlot={handleSwitchSlot}
-        onTrackSelect={handleTrackSelect}
-        onRemoveTrack={handleRemoveTrackFromView}
-        onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
-        onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
-        onTogglePlay={togglePlay}
-        onSkipNext={skipForward}
-        onSkipPrev={skipBackward}
-        onSeek={handleSeek}
-        onVolumeChange={handleVolumeChange}
-        onToggleMute={handleToggleMute}
-        onTogglePlaybackMode={handleTogglePlaybackMode}
-        onImportIntoSlot={handleNewUxImportIntoSlot}
-        onReloadUnavailable={handleReloadLocalFiles}
-        onOpenSettings={handleOpenNewUxSettings}
-        cloudImportDisabled={cloudWritable !== true}
-        cloudImportDisabledReason={
-          cloudWritable === null
-            ? i18n.t('sidebar.importChecking')
-            : i18n.t('sidebar.importReadOnly')
-        }
-        audioRef={audioRef}
-        setAudioRef={setAudioRef}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onTrackEnded={handleTrackEnded}
-        onCanPlay={handleCanPlay}
-        onAudioError={handleAudioError}
-        fileInputRef={fileInputRef}
-        onFileInputChange={handleFileInputChange}
-      />
+      <>
+        {audioElement}
+        <NewUxShell
+          slots={slots}
+          activeSlotId={activeSlotId}
+          currentTrack={currentTrack}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          volume={volume}
+          playbackMode={playbackMode}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+          onOpenSlot={handleSwitchSlot}
+          onTrackSelect={handleTrackSelect}
+          onRemoveTrack={handleRemoveTrackFromView}
+          onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+          onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
+          onTogglePlay={togglePlay}
+          onSkipNext={skipForward}
+          onSkipPrev={skipBackward}
+          onSeek={handleSeek}
+          onVolumeChange={handleVolumeChange}
+          onToggleMute={handleToggleMute}
+          onTogglePlaybackMode={handleTogglePlaybackMode}
+          onImportIntoSlot={handleNewUxImportIntoSlot}
+          onReloadUnavailable={handleReloadLocalFiles}
+          onOpenOnlinePlaylist={handleOpenOnlinePlaylist}
+          onClearOrphanCache={handleClearOrphanCache}
+          isWindowFocused={isWindowFocused}
+          onNavigateToTrack={handleSearchNavigate}
+          onOnlineDownload={handleOnlineDownload}
+          onOnlineUpload={handleOnlineUpload}
+          onOnlineStreamPlay={(song, source) => handleOnlineStreamPlay({
+            songmid: song.songmid, title: song.songname,
+            artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
+            album: song.albumname || 'Unknown Album',
+            ...(song.coverUrl ? { coverUrl: song.coverUrl } : {}),
+            duration: song.interval || 0,
+            singer: song.singer,
+          }, source)}
+          onlineProgress={onlineProgress}
+          cloudImportDisabled={cloudWritable !== true}
+          cloudImportDisabledReason={
+            cloudWritable === null
+              ? i18n.t('sidebar.importChecking')
+              : i18n.t('sidebar.importReadOnly')
+          }
+          audioRef={audioRef}
+          fileInputRef={fileInputRef}
+          onFileInputChange={handleFileInputChange}
+        />
+      </>
     );
   }
 
   return (
     <>
+      {audioElement}
       <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
         background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
       } : {
@@ -827,7 +873,7 @@ const AppWorkspace: React.FC = () => {
           onSlotChange={handleSwitchSlot}
           floating={floatingPanel}
         />
-        <main className="flex-1 flex flex-col relative overflow-hidden pt-8"
+        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
           style={floatingPanel ? {} : {
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}
@@ -839,18 +885,6 @@ const AppWorkspace: React.FC = () => {
             <div
               className="frosted-header absolute top-0 left-0 right-0 z-20"
               style={{ height: 40 + headerHeight }}
-            />
-          )}
-          {currentTrack && (
-            <audio
-              ref={setAudioRef}
-              src={currentTrack.audioUrl}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              onLoadedData={handleLoadedMetadata}
-              onEnded={handleTrackEnded}
-              onCanPlay={handleCanPlay}
-              onError={handleAudioError}
             />
           )}
           <input

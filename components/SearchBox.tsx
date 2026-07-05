@@ -54,6 +54,8 @@ interface SearchBoxProps {
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
+  /** 'new-ux' strips legacy inline styles; CSS in components.css takes over. */
+  variant?: 'new-ux';
 }
 
 const SearchBox: React.FC<SearchBoxProps> = ({
@@ -65,6 +67,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   onOnlineUpload,
   onOnlineStreamPlay,
   onlineProgress,
+  variant,
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -181,12 +184,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     <div
       ref={containerRef}
       className="relative"
-      style={{ width: '360px' }}
+      style={variant === 'new-ux' ? undefined : { width: '360px' }}
     >
       {/* Input bar */}
       <div
-        className="flex items-center shrink-0 relative"
-        style={{
+        className={`flex items-center shrink-0 relative${variant === 'new-ux' ? ' new-ux-search-bar' : ''}`}
+        style={variant === 'new-ux' ? undefined : {
           height: '36px',
           background: colors.backgroundDark,
           backdropFilter: 'blur(16px)',
@@ -221,10 +224,20 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         )}
       </div>
 
-      {/* Results panel (absolute定位，不占文档流，scaleY+opacity过渡无延迟) */}
+      {/* Results panel */}
       <div
-        className="overflow-hidden"
-        style={{
+        className={`overflow-hidden${variant === 'new-ux' ? ' new-ux-search-results' : ''}`}
+        style={variant === 'new-ux' ? {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: '100%',
+          zIndex: 50,
+          transform: isExpanded ? 'scaleY(1)' : 'scaleY(0)',
+          transformOrigin: 'top center',
+          opacity: isExpanded ? 1 : 0,
+          transition: 'transform 0.22s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.18s ease',
+        } : {
           position: 'absolute',
           left: 0,
           right: 0,

@@ -5,7 +5,7 @@ import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
-import { ThemeConfig } from '../types/theme';
+import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { toCoverThumb } from '../services/coverUrl';
 import FocusBackdrop from './focus-mode/FocusBackdrop';
@@ -130,6 +130,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const colors = currentTheme.colors;
   // FocusMode uses fixed dark colors for immersive experience (except player controls)
   const focusColors = FOCUS_MODE_COLORS;
+  const useDefaultThemeControlGlass =
+    !isNewUxFocus &&
+    (currentTheme.id === THEME_IDS.DEFAULT_DARK || currentTheme.id === THEME_IDS.DEFAULT);
 
   // Use RAF to get more accurate currentTime, with higher frequency for better sync
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
@@ -294,6 +297,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     }
     return [];
   }, [track?.syncedLyrics, track?.lyrics]);
+  const hasLyrics = lyricsLines.length > 0;
 
   // Find the currently active lyric line based on timestamp
   const activeIndex = useMemo(() => {
@@ -885,7 +889,9 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         <div className="shrink-0 pt-12" />
 
         {/* Content Section */}
-        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 overflow-visible mb-24 max-w-5xl mx-auto w-full translate-x-6 lg:translate-x-6">
+        <main
+          className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
+        >
 
           {/* Cover & Title */}
           <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
@@ -898,26 +904,26 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           </div>
 
           {/* Lyrics */}
-          <div
-            className={`flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none${isNewUxFocus && isVisible ? ' new-ux-focus-lyrics-enter' : ''}`}
-            ref={lyricsRef}
-
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-            style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
-          >
+          {hasLyrics && (
             <div
-              ref={lyricListRef}
-              className="flex flex-col py-36 px-8 will-change-transform"
-              style={{
-                transform: `translateY(${lyricOffsetY}px)`,
-                gap: `${lyricLineSpacing}px`,
-              }}
+              className={`flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none${isNewUxFocus && isVisible ? ' new-ux-focus-lyrics-enter' : ''}`}
+              ref={lyricsRef}
+
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
             >
-              {lyricsLines.length > 0 ? (
-                lyricsLines.map((lyric, idx) => {
+              <div
+                ref={lyricListRef}
+                className="flex flex-col py-36 px-8 will-change-transform"
+                style={{
+                  transform: `translateY(${lyricOffsetY}px)`,
+                  gap: `${lyricLineSpacing}px`,
+                }}
+              >
+                {lyricsLines.map((lyric, idx) => {
                   const isActive = idx === activeIndex;
                   const hasTimestamp = track?.syncedLyrics && lyric.time > 0;
                   return (
@@ -940,15 +946,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                       {decodeHtmlEntities(lyric.text)}
                     </p>
                   );
-                })
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-3" style={{ color: focusColors.textMuted }}>
-                  <span className="material-symbols-outlined text-4xl">lyrics</span>
-                  <p className="italic text-base">No lyrics found in metadata</p>
-                </div>
-              )}
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </main>
 
         <FocusControls
@@ -970,6 +971,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           onTogglePlaybackMode={onTogglePlaybackMode}
           onMouseEnter={handlePlayerMouseEnter}
           onMouseLeave={handlePlayerMouseLeave}
+          glassMaterial={useDefaultThemeControlGlass}
         />
       </div>
     </div>

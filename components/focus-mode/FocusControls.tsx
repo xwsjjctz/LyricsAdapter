@@ -23,6 +23,7 @@ interface FocusControlsProps {
   onTogglePlaybackMode: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
+  glassMaterial?: boolean;
 }
 
 const formatTime = (seconds: number): string => {
@@ -57,20 +58,34 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   onTogglePlaybackMode,
   onMouseEnter,
   onMouseLeave,
-}) => (
+  glassMaterial = false,
+}) => {
+  const panelStyle: React.CSSProperties = glassMaterial
+    ? {
+        opacity: isPlayerVisible ? 1 : 0,
+        borderRadius: '24px',
+        border: '1px solid color-mix(in srgb, var(--theme-border-light, rgba(255, 255, 255, 0.14)) 70%, transparent)',
+        background: 'color-mix(in srgb, var(--theme-control-panel-bg-floating, rgba(16, 25, 34, 0.86)) 56%, transparent)',
+        boxShadow: '0 22px 68px -18px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+        backdropFilter: 'blur(32px) saturate(145%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(145%)',
+      }
+    : {
+        opacity: isPlayerVisible ? 1 : 0,
+        borderRadius: 'var(--theme-surface-radius)',
+        border: `var(--theme-panel-border-width) solid ${colors.borderLight}`,
+        backgroundColor: colors.backgroundDark,
+        boxShadow: 'var(--theme-surface-shadow)',
+      };
+
+  return (
   <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
     <div
       ref={playerRef}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className="glass p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
-      style={{
-        opacity: isPlayerVisible ? 1 : 0,
-        borderRadius: 'var(--theme-surface-radius)',
-        border: `var(--theme-panel-border-width) solid ${colors.borderLight}`,
-        backgroundColor: colors.backgroundDark,
-        boxShadow: 'var(--theme-surface-shadow)',
-      }}
+      style={panelStyle}
     >
       <div className="w-full flex items-center gap-3">
         <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>
@@ -172,6 +187,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default FocusControls;

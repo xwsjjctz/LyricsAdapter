@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
 import type { Track } from '../../types';
-import type { PlaylistEntry } from './types';
 
 interface PlaylistPanelProps {
-  entry: PlaylistEntry;
+  /** Panel title (the opened card's title). */
+  title: string;
+  /** Tracks displayed in this panel. Provided by the caller from the slot. */
+  tracks: Track[];
   currentTrackId?: string;
   isEditMode: boolean;
   selectedTrackIds: Set<string>;
@@ -75,8 +77,18 @@ const TrackRow: React.FC<{
 
 type SortMode = 'default' | 'title' | 'artist' | 'album' | 'duration';
 
+const SORT_CYCLE: SortMode[] = ['default', 'title', 'artist', 'album', 'duration'];
+const SORT_LABELS: Record<SortMode, string> = {
+  default: 'Default',
+  title: 'Title',
+  artist: 'Artist',
+  album: 'Album',
+  duration: 'Duration',
+};
+
 const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
-  entry,
+  title,
+  tracks,
   currentTrackId,
   isEditMode,
   selectedTrackIds,
@@ -93,19 +105,17 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
 }) => {
   const listRef = useRef<HTMLDivElement | null>(null);
   const trackRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('default');
 
+  const cycleSortMode = useCallback(() => {
+    setSortMode(prev => {
+      const nextIndex = (SORT_CYCLE.indexOf(prev) + 1) % SORT_CYCLE.length;
+      return SORT_CYCLE[nextIndex] ?? 'default';
+    });
+  }, []);
+
   const visibleTracks = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const rows = entry.tracks
-      .map((track, index) => ({ track, index }))
-      .filter(({ track }) => {
-        if (!normalizedQuery) return true;
-        return [track.title, track.artist, track.album]
-          .filter(Boolean)
-          .some(value => value.toLowerCase().includes(normalizedQuery));
-      });
+    const rows = tracks.map((track, index) => ({ track, index }));
 
     if (sortMode === 'default') return rows;
 
@@ -113,7 +123,7 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
       if (sortMode === 'duration') return a.track.duration - b.track.duration;
       return (a.track[sortMode] || '').localeCompare(b.track[sortMode] || '');
     });
-  }, [entry.tracks, query, sortMode]);
+  }, [tracks, sortMode]);
 
   const visibleTrackIds = useMemo(() => visibleTracks.map(({ track }) => track.id), [visibleTracks]);
   const registerTrack = useCallback((trackId: string) => (node: HTMLButtonElement | null) => {
@@ -148,7 +158,6 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   useEffect(() => {
     if (!locateTrackId || locateToken <= 0) return;
 
-    setQuery('');
     setSortMode('default');
 
     window.requestAnimationFrame(() => {
@@ -165,9 +174,9 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
     <aside className="new-ux-playlist-panel new-ux-panel-in">
       <header className="new-ux-playlist-panel__header">
         <div className="min-w-0">
-          <div className="new-ux-playlist-panel__title">{entry.title}</div>
+          <div className="new-ux-playlist-panel__title">{title}</div>
           <div className="new-ux-playlist-panel__meta">
-            {isEditMode ? `${selectedTrackIds.size} selected` : `${entry.count} tracks`}
+            {isEditMode ? `${selectedTrackIds.size} selected` : `${tracks.length} tracks`}
           </div>
         </div>
         <div className="new-ux-playlist-panel__actions">
@@ -184,27 +193,21 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
               </button>
             </>
           )}
+          <button
+            type="button"
+            className="new-ux-button-reset new-ux-playlist-panel__sort"
+            onClick={cycleSortMode}
+            title={`Sort: ${SORT_LABELS[sortMode]} (click to change)`}
+            aria-label={`Sort by ${SORT_LABELS[sortMode]}`}
+          >
+            <span className="material-symbols-outlined text-[20px]">sort</span>
+            <span className="new-ux-playlist-panel__sort-label">{SORT_LABELS[sortMode]}</span>
+          </button>
           <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close playlist">
             <span className="material-symbols-outlined text-[22px]">close</span>
           </button>
         </div>
       </header>
-      <div className="new-ux-playlist-panel__tools">
-        <label className="new-ux-search-field">
-          <span className="material-symbols-outlined text-[18px]">search</span>
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search" />
-        </label>
-        <label className="new-ux-select-field">
-          <span className="material-symbols-outlined text-[18px]">sort</span>
-          <select value={sortMode} onChange={event => setSortMode(event.target.value as SortMode)}>
-            <option value="default">Default</option>
-            <option value="title">Title</option>
-            <option value="artist">Artist</option>
-            <option value="album">Album</option>
-            <option value="duration">Duration</option>
-          </select>
-        </label>
-      </div>
       <div ref={listRef} className="new-ux-track-list new-ux-scrollbar">
         {visibleTracks.length > 0 ? (
           visibleTracks.map(({ track, index }) => (

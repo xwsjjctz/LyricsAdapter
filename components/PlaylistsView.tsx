@@ -10,6 +10,12 @@ import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
 import type { PlaylistsViewPersistence } from '../services/libraryStorage';
+import {
+  loadOverrides,
+  setOverride,
+  applyOverrides,
+  type PlaylistOverride,
+} from '../services/playlistOverrides';
 import LibraryTrackRow from './LibraryTrackRow';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 
@@ -47,7 +53,6 @@ type DetailState = {
   total: number;
   loading: boolean;
   loadingMore: boolean;
-  playPendingIndex: number | null;
   error?: string;
 };
 
@@ -92,7 +97,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const [state, setState] = React.useState<ViewState>(() => {
     const restoredDetail = restoredDetailRef.current;
     return restoredDetail
-      ? { phase: 'detail', playlist: restoredDetail.playlist, songs: restoredDetail.songs, total: restoredDetail.total, loading: false, loadingMore: false, playPendingIndex: null }
+      ? { phase: 'detail', playlist: restoredDetail.playlist, songs: restoredDetail.songs, total: restoredDetail.total, loading: false, loadingMore: false }
       : { phase: 'grid' };
   });
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
@@ -103,6 +108,12 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const [currentTheme, setCurrentTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
   // Floating highlight band ("滑块") position — same model as LibraryView.
   const [highlightStyle, setHighlightStyle] = React.useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
+  const [isEditMode, setIsEditMode] = React.useState(false);
+  const [overrides, setOverrides] = React.useState<Record<string, PlaylistOverride>>({});
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingName, setEditingName] = React.useState('');
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
+  const coverTargetRef = React.useRef<{ source: 'qq' | 'netease'; id: string } | null>(null);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const gridScrollRef = React.useRef<HTMLDivElement>(null);
@@ -121,6 +132,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
   // On mount, load playlists from all logged-in providers.
   React.useEffect(() => {
+    loadOverrides().then(setOverrides);
     const load = async () => {
       setLoadingPlaylists(true);
       const results: PlaylistInfo[] = [];
@@ -147,14 +159,67 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }, []);
 
   const grouped = React.useMemo(() => {
+    const { visible, all } = applyOverrides(playlists, overrides);
+    const list = isEditMode ? all : visible;
     const map = new Map<'qq' | 'netease', PlaylistInfo[]>();
-    for (const p of playlists) {
+    for (const p of list) {
       const arr = map.get(p.source) ?? [];
       arr.push(p);
       map.set(p.source, arr);
     }
     return map;
-  }, [playlists]);
+  }, [playlists, overrides, isEditMode]);
+
+  const handleToggleVisibility = React.useCallback(async (pl: PlaylistInfo) => {
+    const key = `${pl.source}:${pl.id}`;
+    const current = overrides[key];
+    const next = await setOverride(pl.source, pl.id, { ...current, hidden: !current?.hidden });
+    setOverrides({ ...next });
+  }, [overrides]);
+
+  const handleStartEditName = React.useCallback((pl: PlaylistInfo) => {
+    setEditingId(`${pl.source}:${pl.id}`);
+    const key = `${pl.source}:${pl.id}`;
+    setEditingName(overrides[key]?.name ?? pl.name);
+  }, [overrides]);
+
+  const handleSaveName = React.useCallback(async (pl: PlaylistInfo) => {
+    const key = `${pl.source}:${pl.id}`;
+    const current = overrides[key];
+    const trimmed = editingName.trim();
+    const nameOverride = trimmed && trimmed !== pl.name ? trimmed : undefined;
+    const patch: Partial<PlaylistOverride> = { ...current };
+    if (nameOverride !== undefined) {
+      patch.name = nameOverride;
+    } else {
+      delete patch.name;
+    }
+    const next = await setOverride(pl.source, pl.id, patch);
+    setOverrides({ ...next });
+    setEditingId(null);
+  }, [overrides, editingName]);
+
+  const handleCoverChange = React.useCallback((pl: PlaylistInfo) => {
+    coverTargetRef.current = { source: pl.source, id: pl.id };
+    coverInputRef.current?.click();
+  }, []);
+
+  const handleCoverFileSelected = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !coverTargetRef.current) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      const { source, id } = coverTargetRef.current!;
+      const key = `${source}:${id}`;
+      const current = overrides[key];
+      const next = await setOverride(source, id, { ...current, coverUrl: dataUrl });
+      setOverrides({ ...next });
+      coverTargetRef.current = null;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [overrides]);
 
   const sourceLabel = (s: 'qq' | 'netease'): string =>
     s === 'qq' ? 'QQ 音乐' : '网易云音乐';
@@ -166,7 +231,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
   /** Load the first page and transition to detail. */
   const handlePlaylistClick = async (pl: PlaylistInfo) => {
-    setState({ phase: 'detail', playlist: pl, songs: [], total: Math.max(pl.songCount, 0), loading: true, loadingMore: false, playPendingIndex: null });
+    setState({ phase: 'detail', playlist: pl, songs: [], total: Math.max(pl.songCount, 0), loading: true, loadingMore: false });
     setScrollTop(0);
     pendingDetailScrollRestoreRef.current = 0;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -174,11 +239,11 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
       const first = await fetchPage(pl, 0);
       const total = supportsPaging(pl.source) ? Math.max(pl.songCount, first.length) : first.length;
       lastDetail = { playlist: pl, songs: first, total, scrollPosition: 0 };
-      setState({ phase: 'detail', playlist: pl, songs: first, total, loading: false, loadingMore: false, playPendingIndex: null });
+      setState({ phase: 'detail', playlist: pl, songs: first, total, loading: false, loadingMore: false });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '加载失败';
       logger.error('[PlaylistsView] load songs failed:', e);
-      setState({ phase: 'detail', playlist: pl, songs: [], total: 0, loading: false, loadingMore: false, playPendingIndex: null, error: message });
+      setState({ phase: 'detail', playlist: pl, songs: [], total: 0, loading: false, loadingMore: false, error: message });
     }
   };
 
@@ -186,7 +251,6 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const source = state.phase === 'detail' ? state.playlist.source : 'qq';
   const detailSongs = state.phase === 'detail' ? state.songs : [];
   const loadingMore = state.phase === 'detail' ? state.loadingMore : false;
-  const playPendingIndex = state.phase === 'detail' ? state.playPendingIndex : null;
   const total = state.phase === 'detail' ? state.total : 0;
   const hasMore = state.phase === 'detail' && supportsPaging(source) && detailSongs.length < total;
 
@@ -334,38 +398,18 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }, [detailSongs.length, hasMore, loadingMore, loadMore]);
 
   /**
-   * Ensure the whole playlist is loaded, then hand it off as the play queue.
-   * (If only the first pages are loaded, next/prev would otherwise stop early.)
+   * Play the clicked row immediately using whatever songs are already loaded.
+   * Previously this blocked on a serial while-loop that fetched the ENTIRE
+   * playlist (page by page) before starting playback — a 660-song playlist
+   * meant ~44 sequential network round-trips (~22s) of frozen UI. Remaining
+   * songs are still loaded lazily by scrolling (loadMore), and a user who
+   * wants the full queue can scroll to load more then replay.
    */
-  const handleRowSelect = React.useCallback(async (idx: number) => {
+  const handleRowSelect = React.useCallback((idx: number) => {
     const s = stateRef.current;
     if (s.phase !== 'detail') return;
-    if (playPendingIndex !== null) return;
-    if (!supportsPaging(s.playlist.source) || s.songs.length >= s.total) {
-      onPlayPlaylist(s.playlist.source, s.songs, idx);
-      return;
-    }
-    setState(prev => (prev.phase === 'detail' ? { ...prev, playPendingIndex: idx, loadingMore: true } : prev));
-    try {
-      let songs = s.songs;
-      let offset = songs.length;
-      while (offset < s.total) {
-        const page = await fetchPage(s.playlist, offset);
-        if (page.length === 0) break;
-        songs = [...songs, ...page];
-        offset = songs.length;
-        lastDetail = { playlist: s.playlist, songs, total: s.total, scrollPosition: scrollRef.current?.scrollTop ?? scrollTop };
-        setState(prev => (prev.phase === 'detail' ? { ...prev, songs } : prev));
-      }
-      onPlayPlaylist(s.playlist.source, songs, idx);
-    } catch (e) {
-      logger.warn('[PlaylistsView] load all for playback failed:', e);
-      const fallback = stateRef.current;
-      if (fallback.phase === 'detail') onPlayPlaylist(fallback.playlist.source, fallback.songs, idx);
-    } finally {
-      setState(prev => (prev.phase === 'detail' ? { ...prev, playPendingIndex: null, loadingMore: false } : prev));
-    }
-  }, [onPlayPlaylist, playPendingIndex]);
+    onPlayPlaylist(s.playlist.source, s.songs, idx);
+  }, [onPlayPlaylist]);
 
   const handleScroll = React.useCallback(() => {
     const el = scrollRef.current;
@@ -385,7 +429,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
     const visibleTracks = tracksAsTracks.slice(startIndex, endIndex);
     const showList = (!loading || detailSongs.length > 0) && !error;
     return (
-      <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
+      <div className="w-full min-w-0 flex flex-col h-full" style={{ color: colors.textPrimary }}>
         <div className="mb-4 flex-shrink-0 flex items-center gap-3">
           <button
             onClick={() => {
@@ -495,11 +539,9 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                   <div className="flex items-center justify-center py-4" style={{ color: colors.textMuted }}>
                     <span className="material-symbols-outlined animate-spin mr-2 text-lg">progress_activity</span>
                     <span className="text-xs">
-                      {playPendingIndex !== null
-                        ? '准备播放…'
-                        : loadingMore
-                          ? '加载更多…'
-                          : `已加载 ${detailSongs.length}/${total}`}
+                      {loadingMore
+                        ? '加载更多…'
+                        : `已加载 ${detailSongs.length}/${total}`}
                     </span>
                   </div>
                 )}
@@ -524,19 +566,48 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }
 
   // ── Grid view ──
+  const isHidden = (pl: PlaylistInfo) => {
+    const key = `${pl.source}:${pl.id}`;
+    return !!overrides[key]?.hidden;
+  };
+
   return (
-    <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
+    <div className="w-full min-w-0 flex flex-col h-full" style={{ color: colors.textPrimary }}>
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
             {i18n.t('playlists.title')}
           </h1>
         </div>
+        <button
+          onClick={() => { setIsEditMode(v => !v); setEditingId(null); }}
+          className="w-10 h-10 flex items-center justify-center relative"
+          style={{
+            borderRadius: 'var(--theme-control-radius)',
+            color: isEditMode ? '#fff' : colors.textSecondary,
+            backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
+            boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : 'var(--theme-elevated-shadow)',
+            border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
+            transition: 'background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
+          }}
+          title={isEditMode ? '完成编辑' : '编辑歌单'}
+        >
+          <span className="material-symbols-outlined absolute" style={{ opacity: isEditMode ? 1 : 0, transform: isEditMode ? 'scale(1)' : 'scale(0.4)', transition: 'opacity 0.2s ease, transform 0.25s ease' }}>check</span>
+          <span className="material-symbols-outlined absolute" style={{ opacity: isEditMode ? 0 : 1, transform: isEditMode ? 'scale(0.4)' : 'scale(1)', transition: 'opacity 0.2s ease, transform 0.25s ease' }}>edit</span>
+        </button>
       </div>
+
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverFileSelected}
+      />
 
       <div
         ref={gridScrollRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 min-w-0 overflow-y-auto no-scrollbar"
         onScroll={() => setGridScrollTop(gridScrollRef.current?.scrollTop ?? 0)}
       >
         {loadingPlaylists && (
@@ -571,27 +642,75 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
             <h2 className="text-base font-semibold mb-3" style={{ color: colors.textSecondary }}>
               {sourceLabel(src)}
             </h2>
-            <div className="flex gap-3 overflow-x-auto p-2 no-scrollbar">
-              {list.map((pl) => (
-                <button
-                  key={pl.id}
-                  className="flex-shrink-0 w-[140px] text-left transition-transform hover:scale-105"
-                  onClick={() => handlePlaylistClick(pl)}
-                >
-                  <div
-                    className="w-[140px] h-[140px] rounded-xl overflow-hidden bg-cover bg-center shadow-md"
-                    style={{ backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined, backgroundColor: colors.backgroundCard }}
-                  >
-                    {!pl.coverUrl && (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-5xl" style={{ color: colors.textMuted }}>music_note</span>
-                      </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 p-2">
+              {list.map((pl) => {
+                const plKey = `${pl.source}:${pl.id}`;
+                const hidden = isHidden(pl);
+                const isEditing = editingId === plKey;
+                return (
+                  <div key={pl.id} className="w-full text-left relative group">
+                    {/* Cover area */}
+                    <button
+                      className={`w-full aspect-square rounded-lg overflow-hidden bg-cover bg-center shadow-md block ${hidden ? 'opacity-40' : ''} ${isEditMode ? 'cursor-pointer ring-2 ring-transparent hover:ring-offset-1 hover:ring-offset-transparent' : ''}`}
+                      style={{
+                        backgroundImage: pl.coverUrl ? `url(${pl.coverUrl})` : undefined,
+                        backgroundColor: colors.backgroundCard,
+                        ...(isEditMode ? { outlineColor: colors.primary + '40' } : {}),
+                      }}
+                      onClick={() => isEditMode ? handleCoverChange(pl) : handlePlaylistClick(pl)}
+                      title={isEditMode ? '更换封面' : undefined}
+                    >
+                      {!pl.coverUrl && (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="material-symbols-outlined text-4xl" style={{ color: colors.textMuted }}>music_note</span>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Eye toggle — top-right of cover */}
+                    {isEditMode && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleToggleVisibility(pl); }}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
+                        style={{
+                          backgroundColor: 'rgba(0,0,0,0.55)',
+                          color: hidden ? colors.textMuted : '#fff',
+                        }}
+                        title={hidden ? '显示歌单' : '隐藏歌单'}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {hidden ? 'visibility_off' : 'visibility'}
+                        </span>
+                      </button>
                     )}
+
+                    {/* Name */}
+                    {isEditing ? (
+                      <input
+                        className="mt-1 w-full text-xs font-medium rounded px-1.5 py-0.5 outline-none"
+                        style={{ backgroundColor: `${colors.primary}15`, border: `1px solid ${colors.primary}40`, color: colors.textPrimary }}
+                        value={editingName}
+                        autoFocus
+                        onChange={e => setEditingName(e.target.value)}
+                        onBlur={() => handleSaveName(pl)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveName(pl); if (e.key === 'Escape') setEditingId(null); }}
+                      />
+                    ) : isEditMode ? (
+                      <button
+                        className={`mt-1 w-full text-xs font-medium truncate rounded px-1.5 py-0.5 text-left cursor-text ${hidden ? 'opacity-40' : ''}`}
+                        style={{ color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, backgroundColor: 'transparent' }}
+                        onClick={() => handleStartEditName(pl)}
+                        title="点击编辑名称"
+                      >
+                        {pl.name}
+                      </button>
+                    ) : (
+                      <p className={`mt-1 text-xs font-medium truncate ${hidden ? 'opacity-40' : ''}`} style={{ color: colors.textPrimary }}>{pl.name}</p>
+                    )}
+                    <p className={`text-[10px] leading-tight ${hidden ? 'opacity-40' : ''}`} style={{ color: colors.textMuted }}>{pl.songCount} 首</p>
                   </div>
-                  <p className="mt-1.5 text-sm font-medium truncate" style={{ color: colors.textPrimary }}>{pl.name}</p>
-                  <p className="text-xs" style={{ color: colors.textMuted }}>{pl.songCount} 首</p>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
