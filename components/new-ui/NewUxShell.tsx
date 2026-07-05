@@ -31,6 +31,7 @@ import FocusTransitionLayer, {
 import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
+import { i18n } from '../../services/i18n';
 import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -466,17 +467,17 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         <div className={`new-ux-bg-tray${isCardEditMode && Object.values(cardOverrides).some(o => o.hidden) ? ' new-ux-bg-tray--offset' : ''}`}>
           <div className="new-ux-bg-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>
-            背景设置
+            {i18n.t('newui.bgSettings')}
           </div>
           <div className="new-ux-bg-tray__body">
-            <div className="new-ux-bg-settings__label">背景图片</div>
+            <div className="new-ux-bg-settings__label">{i18n.t('newui.bgImage')}</div>
             <div className="new-ux-bg-settings__row">
               <button
                 className="new-ux-bg-tray__btn"
                 onClick={() => bgInputRef.current?.click()}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
-                选择图片
+                {i18n.t('newui.pickImage')}
               </button>
               {bgImage && (
                 <button
@@ -484,7 +485,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onClick={() => { setBgImage(''); saveBgImage(''); }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
-                  清除
+                  {i18n.t('newui.clear')}
                 </button>
               )}
             </div>
@@ -493,7 +494,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                 <img src={bgImage} alt="" />
               </div>
             )}
-            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>模糊半径</div>
+            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>{i18n.t('newui.blurRadius')}</div>
             <div className="new-ux-bg-settings__row">
               <input
                 type="range"

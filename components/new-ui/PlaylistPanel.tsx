@@ -201,8 +201,6 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
             type="button"
             className="new-ux-button-reset new-ux-playlist-panel__sort"
             onClick={cycleSortMode}
-            title={`Sort: ${SORT_LABELS[sortMode]} (click to change)`}
-            aria-label={`Sort by ${SORT_LABELS[sortMode]}`}
           >
             <span className="material-symbols-outlined text-[20px]">sort</span>
             <span className="new-ux-playlist-panel__sort-label">{SORT_LABELS[sortMode]}</span>

@@ -27,7 +27,6 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
   x,
   y,
   cloudImportDisabled,
-  cloudImportDisabledReason,
   onOpen,
   onImport,
   onReloadUnavailable,
@@ -79,7 +78,6 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
           className="new-ux-button-reset new-ux-context-menu__item"
           onClick={runAction(() => onImport(slotId))}
           disabled={importDisabled}
-          title={importDisabled ? cloudImportDisabledReason : undefined}
         >
           <span className="material-symbols-outlined text-[18px]">add_circle</span>
           <span>{i18n.t('sidebar.importFiles')}</span>
@@ -91,7 +89,6 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
           className="new-ux-button-reset new-ux-context-menu__item"
           onClick={runAction(onReloadUnavailable)}
           disabled={!hasUnavailableTracks}
-          title={hasUnavailableTracks ? undefined : '当前没有不可用歌曲'}
         >
           <span className="material-symbols-outlined text-[18px]">sync_problem</span>
           <span>重新加载不可用歌曲</span>
@@ -103,7 +100,6 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
             type="button"
             className="new-ux-button-reset new-ux-context-menu__item"
             disabled
-            title="后续接入云端刷新流程"
           >
             <span className="material-symbols-outlined text-[18px]">sync</span>
             <span>刷新云端歌曲</span>
@@ -123,7 +119,6 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
           type="button"
           className="new-ux-button-reset new-ux-context-menu__item"
           disabled
-          title="在线播放历史管理后续接入"
         >
           <span className="material-symbols-outlined text-[18px]">playlist_remove</span>
           <span>清空在线播放历史</span>

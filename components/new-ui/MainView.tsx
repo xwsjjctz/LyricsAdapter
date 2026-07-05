@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
 import { toCoverThumb } from '../../services/coverUrl';
+import { i18n } from '../../services/i18n';
 import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit';
 
 interface MainViewProps {
@@ -456,7 +457,7 @@ const MainView: React.FC<MainViewProps> = ({
         <div className="new-ux-hidden-tray">
           <div className="new-ux-hidden-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>visibility_off</span>
-            已隐藏 ({hiddenEntries.length})
+            {i18n.t('newui.hiddenCards')} ({hiddenEntries.length})
           </div>
           <div className="new-ux-hidden-tray__list">
             {hiddenEntries.map(entry => {
@@ -480,7 +481,6 @@ const MainView: React.FC<MainViewProps> = ({
                   <button
                     className="new-ux-hidden-tray__restore"
                     onClick={() => onCardOverrideChange?.(entry.id, { hidden: false })}
-                    title="恢复显示"
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 14 }}>visibility</span>
                   </button>

@@ -3086,6 +3086,75 @@ const translations: Translations = {
     ko: '메타데이터가 파일에 저장되었습니다',
     de: 'Metadaten in Datei gespeichert',
     fr: 'Métadonnées enregistrées dans le fichier'
+  },
+  // ── New UI ──
+  'newui.drawer.expand': {
+    zh: '展开工具栏', en: 'Expand toolbar', ja: 'ツールバーを展開',
+    ko: '도구 모음 펼치기', de: 'Symbolleiste erweitern', fr: 'Développer la barre d\'outils'
+  },
+  'newui.drawer.collapse': {
+    zh: '收起', en: 'Collapse', ja: '折りたたむ',
+    ko: '접기', de: 'Einklappen', fr: 'Réduire'
+  },
+  'newui.settings': {
+    zh: '设置', en: 'Settings', ja: '設定',
+    ko: '설정', de: 'Einstellungen', fr: 'Paramètres'
+  },
+  'newui.theme': {
+    zh: '主题', en: 'Theme', ja: 'テーマ',
+    ko: '테마', de: 'Design', fr: 'Thème'
+  },
+  'newui.editCards': {
+    zh: '编辑卡片', en: 'Edit cards', ja: 'カードを編集',
+    ko: '카드 편집', de: 'Karten bearbeiten', fr: 'Modifier les cartes'
+  },
+  'newui.editDone': {
+    zh: '完成编辑', en: 'Done editing', ja: '編集完了',
+    ko: '편집 완료', de: 'Bearbeitung fertig', fr: 'Terminé'
+  },
+  'newui.bgSettings': {
+    zh: '背景设置', en: 'Background settings', ja: '背景設定',
+    ko: '배경 설정', de: 'Hintergrundeinstellungen', fr: 'Paramètres d\'arrière-plan'
+  },
+  'newui.bgImage': {
+    zh: '背景图片', en: 'Background image', ja: '背景画像',
+    ko: '배경 이미지', de: 'Hintergrundbild', fr: 'Image d\'arrière-plan'
+  },
+  'newui.pickImage': {
+    zh: '选择图片', en: 'Pick image', ja: '画像を選択',
+    ko: '이미지 선택', de: 'Bild auswählen', fr: 'Choisir une image'
+  },
+  'newui.clear': {
+    zh: '清除', en: 'Clear', ja: 'クリア',
+    ko: '지우기', de: 'Löschen', fr: 'Effacer'
+  },
+  'newui.blurRadius': {
+    zh: '模糊半径', en: 'Blur radius', ja: 'ぼかし半径',
+    ko: '블러 반경', de: 'Weichzeichnerradius', fr: 'Rayon de flou'
+  },
+  'newui.changeCover': {
+    zh: '更换封面', en: 'Change cover', ja: 'カバーを変更',
+    ko: '커버 변경', de: 'Cover ändern', fr: 'Changer la couverture'
+  },
+  'newui.editName': {
+    zh: '编辑名称', en: 'Edit name', ja: '名前を編集',
+    ko: '이름 편집', de: 'Name bearbeiten', fr: 'Modifier le nom'
+  },
+  'newui.hide': {
+    zh: '隐藏', en: 'Hide', ja: '非表示',
+    ko: '숨기기', de: 'Ausblenden', fr: 'Masquer'
+  },
+  'newui.hiddenCards': {
+    zh: '已隐藏', en: 'Hidden', ja: '非表示',
+    ko: '숨김', de: 'Ausgeblendet', fr: 'Masqués'
+  },
+  'newui.restore': {
+    zh: '恢复显示', en: 'Restore', ja: '復元',
+    ko: '복원', de: 'Wiederherstellen', fr: 'Restaurer'
+  },
+  'newui.locate': {
+    zh: '定位当前播放', en: 'Locate now playing', ja: '再生中を特定',
+    ko: '현재 재생 위치 찾기', de: 'Aktuelle Wiedergabe finden', fr: 'Localiser la lecture en cours'
   }
 };
 

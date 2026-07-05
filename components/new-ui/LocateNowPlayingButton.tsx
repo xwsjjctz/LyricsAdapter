@@ -13,8 +13,6 @@ const LocateNowPlayingButton: React.FC<LocateNowPlayingButtonProps> = ({ onLocat
     type="button"
     className="new-ux-button-reset new-ux-icon-button new-ux-locate-button"
     onClick={onLocate}
-    title="Locate now playing"
-    aria-label="Locate now playing"
   >
     <span className="material-symbols-outlined text-[20px]">gps_fixed</span>
   </button>

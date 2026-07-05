@@ -69,21 +69,18 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
                 <button
                   className="new-ux-edit-overlay__btn"
                   onClick={(e) => { e.stopPropagation(); onChangeCover?.(); }}
-                  title="更换封面"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>image</span>
                 </button>
                 <button
                   className="new-ux-edit-overlay__btn"
                   onClick={(e) => { e.stopPropagation(); handleStartEditName(); }}
-                  title="编辑名称"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>drive_file_rename_outline</span>
                 </button>
                 <button
                   className="new-ux-edit-overlay__btn"
                   onClick={(e) => { e.stopPropagation(); onToggleHidden?.(); }}
-                  title="隐藏"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                     visibility_off
