@@ -363,7 +363,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
     const visibleTracks = tracksAsTracks.slice(startIndex, endIndex);
     const showList = (!loading || detailSongs.length > 0) && !error;
     return (
-      <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
+      <div className="w-full min-w-0 flex flex-col h-full" style={{ color: colors.textPrimary }}>
         <div className="mb-4 flex-shrink-0 flex items-center gap-3">
           <button
             onClick={() => {
@@ -501,7 +501,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
   // ── Grid view ──
   return (
-    <div className="w-full flex flex-col h-full" style={{ color: colors.textPrimary }}>
+    <div className="w-full min-w-0 flex flex-col h-full" style={{ color: colors.textPrimary }}>
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
@@ -512,7 +512,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
 
       <div
         ref={gridScrollRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 min-w-0 overflow-y-auto"
         onScroll={() => setGridScrollTop(gridScrollRef.current?.scrollTop ?? 0)}
       >
         {loadingPlaylists && (
