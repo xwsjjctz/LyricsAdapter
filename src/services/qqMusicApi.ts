@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { cookieManager } from './cookieManager';
+import { getDesktopAPI } from './desktopAdapter';
 import type {
   OnlineMusicProvider,
   OnlineQuality,
@@ -99,8 +100,9 @@ class QQMusicAPI implements OnlineMusicProvider {
       cookie?: string;
     } = {}
   ): Promise<any> {
-    if (window.electron?.qqMusicRequest) {
-      const result = await window.electron.qqMusicRequest({
+    const desktopAPI = getDesktopAPI();
+    if (desktopAPI?.qqMusicRequest) {
+      const result = await desktopAPI.qqMusicRequest({
         ...options,
         url,
         cookie: options.cookie ?? cookieManager.getCookie(),
@@ -310,7 +312,8 @@ class QQMusicAPI implements OnlineMusicProvider {
       const rawCookie = cookieManager.getCookie();
       logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
 
-      const ipcResult = await window.electron!.getQQMusicUrl!(reqData, rawCookie) as { success: boolean; error?: string; data?: unknown };
+      const desktopAPI = getDesktopAPI();
+      const ipcResult = await desktopAPI!.getQQMusicUrl!(reqData, rawCookie) as { success: boolean; error?: string; data?: unknown };
 
       if (!ipcResult.success) {
         throw new Error(ipcResult.error || 'Failed to get music URL');
@@ -659,21 +662,22 @@ class QQMusicAPI implements OnlineMusicProvider {
       logger.debug('[QQMusicAPI] Raw cookie length:', rawCookie.length);
 
       // Set up progress listener if available
+      const desktopAPI = getDesktopAPI();
       let progressListener: ((data: { downloaded: number; total: number; progress: number }) => void) | null = null;
-      if (onProgress && window.electron?.onDownloadProgress) {
+      if (onProgress && desktopAPI?.onDownloadProgress) {
         progressListener = (data: { downloaded: number; total: number; progress: number }) => {
           onProgress(data.downloaded, data.total);
         };
-        window.electron.onDownloadProgress(progressListener);
+        desktopAPI.onDownloadProgress(progressListener);
       }
 
       let result;
       try {
-        result = await window.electron!.downloadAudioFile!(url, rawCookie);
+        result = await desktopAPI!.downloadAudioFile!(url, rawCookie);
       } finally {
         // Clean up progress listener
-        if (progressListener && window.electron?.offDownloadProgress) {
-          window.electron.offDownloadProgress(progressListener);
+        if (progressListener && desktopAPI?.offDownloadProgress) {
+          desktopAPI.offDownloadProgress(progressListener);
         }
       }
 
@@ -714,13 +718,12 @@ class QQMusicAPI implements OnlineMusicProvider {
       logger.debug('[QQMusicAPI] Getting lyrics via IPC for:', songmid);
 
       // Use the main-process IPC (proven reliable, bypasses CORS/header issues)
-      if (!window.electron?.getQQMusicLyrics) {
+      const desktopAPI = getDesktopAPI();
+      if (!desktopAPI?.getQQMusicLyrics) {
         throw new Error('Desktop API not available');
       }
       const rawCookie = cookieManager.getCookie();
-      const result = await window.electron.getQQMusicLyrics(songmid, rawCookie) as {
-        success: boolean; lyrics?: string; error?: string;
-      };
+      const result = await desktopAPI.getQQMusicLyrics(songmid, rawCookie);
 
       if (!result.success) {
         logger.warn('[QQMusicAPI] Lyrics IPC returned error:', result.error);
