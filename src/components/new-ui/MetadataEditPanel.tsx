@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
 import { i18n } from '../../services/i18n';
 import { logger } from '../../services/logger';
+import { getDesktopAPI } from '../../services/desktopAdapter';
 import { parseLRCLyrics } from '../../services/metadataService';
 import { notify } from '../../services/notificationService';
 import type { Track } from '../../types';
@@ -47,8 +48,9 @@ const MetadataEditPanel: React.FC<MetadataEditPanelProps> = ({ track, onClose, o
     };
 
     try {
-      if (finalTrack.filePath && window.electron?.writeAudioMetadata) {
-        const result = await window.electron.writeAudioMetadata(finalTrack.filePath, {
+      const desktopAPI = getDesktopAPI();
+      if (finalTrack.filePath && desktopAPI?.writeAudioMetadata) {
+        const result = await desktopAPI.writeAudioMetadata(finalTrack.filePath, {
           title: finalTrack.title || undefined,
           artist: finalTrack.artist || undefined,
           album: finalTrack.album || undefined,

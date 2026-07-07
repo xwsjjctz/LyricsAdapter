@@ -9,7 +9,7 @@ import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { getDesktopAPIAsync } from '../services/desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -363,9 +363,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     provider: OnlineMusicProvider,
     rawCookie: string
   ): Promise<string | undefined> => {
-    if (provider.id === 'qq' && window.electron?.getQQMusicLyrics) {
+    if (provider.id === 'qq' && getDesktopAPI()?.getQQMusicLyrics) {
       try {
-        const r = await window.electron.getQQMusicLyrics(song.songmid, rawCookie);
+        const r = await getDesktopAPI()!.getQQMusicLyrics!(song.songmid, rawCookie);
         if (r?.success && r.lyrics) return r.lyrics;
       } catch (e) {
         logger.warn('[BrowseView] Failed to get lyrics via main process:', e);
@@ -431,8 +431,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       const lyricsPromise = fetchSongLyrics(song, provider, rawCookie);
 
       // Download and save via Electron main process
+      const desktopAPI = getDesktopAPI();
       try {
-        const downloadResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
+        const downloadResult = await desktopAPI?.downloadAndSave?.(url, rawCookie, fullPath);
 
         if (!downloadResult || !downloadResult.success) {
           throw new Error(`下载失败: ${downloadResult?.error || 'downloadAndSave unavailable'}`);
@@ -453,7 +454,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
 
       lyrics = await lyricsPromise;
 
-      if (savedFilePath && window.electron?.writeAudioMetadata) {
+      if (savedFilePath && desktopAPI?.writeAudioMetadata) {
         try {
           logger.info('[BrowseView] Attempting to write metadata to file:', savedFilePath);
           logger.info('[BrowseView] Metadata payload:', {
@@ -464,7 +465,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
             coverUrl: coverUrl ? `${coverUrl.substring(0, 50)}...` : undefined
           });
 
-          const metadataResult = await window.electron.writeAudioMetadata(savedFilePath, {
+          const metadataResult = await desktopAPI.writeAudioMetadata(savedFilePath, {
             title: song.songname,
             artist: singer,
             album: song.albumname || '',
@@ -593,7 +594,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
       }
       const fullPath = joinDownloadPath(downloadPath, fileName);
 
-      const downloadResult = await window.electron?.downloadAndSave?.(url, rawCookie, fullPath);
+      const desktopAPI = getDesktopAPI();
+      const downloadResult = await desktopAPI?.downloadAndSave?.(url, rawCookie, fullPath);
       if (!downloadResult || !downloadResult.success) {
         throw new Error(`Download failed: ${downloadResult?.error || 'unavailable'}`);
       }
@@ -605,8 +607,8 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
 
       // Write metadata to downloaded file
       const lyrics = await lyricsPromise;
-      if (window.electron?.writeAudioMetadata) {
-        await window.electron.writeAudioMetadata(savedFilePath, {
+      if (desktopAPI?.writeAudioMetadata) {
+        await desktopAPI.writeAudioMetadata(savedFilePath, {
           title: song.songname,
           artist: singer,
           album: song.albumname || '',
@@ -619,7 +621,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
 
       // Upload audio to WebDAV
       const webdavFilePath = `/music/${fileName}`;
-      const readResult = await window.electron?.readFile?.(savedFilePath);
+      const readResult = await desktopAPI?.readFile?.(savedFilePath);
       if (!readResult?.success || !readResult.data) {
         throw new Error('Failed to read file for WebDAV upload');
       }

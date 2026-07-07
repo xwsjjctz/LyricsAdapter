@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
+import { getDesktopAPI } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { notify } from '../services/notificationService';
 import { themeManager } from '../services/themeManager';
@@ -72,9 +73,10 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
     setSaving(true);
     try {
       const lyrics = edited.lyrics;
-      if (edited.filePath && window.electron?.writeAudioMetadata) {
+      const desktopAPI = getDesktopAPI();
+      if (edited.filePath && desktopAPI?.writeAudioMetadata) {
         const coverUrl = pendingCoverDataUrl || edited.coverUrl;
-        const result = await window.electron.writeAudioMetadata(edited.filePath, {
+        const result = await desktopAPI.writeAudioMetadata(edited.filePath, {
           title: edited.title || undefined,
           artist: edited.artist || undefined,
           album: edited.album || undefined,
@@ -91,8 +93,8 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
 
       if (pendingCoverDataUrl) {
         const parsedCover = parseCoverDataUrl(pendingCoverDataUrl);
-        if (parsedCover && window.electron?.saveCoverThumbnail) {
-          const coverResult = await window.electron.saveCoverThumbnail({
+        if (parsedCover && desktopAPI?.saveCoverThumbnail) {
+          const coverResult = await desktopAPI.saveCoverThumbnail({
             id: edited.id,
             data: parsedCover.base64,
             mime: parsedCover.mime,
