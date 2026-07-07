@@ -4,6 +4,7 @@ import type { LibrarySlot, SlotId, Track } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { coverArtService } from '../services/coverArtService';
 import { indexedDBStorage } from '../services/indexedDBStorage';
+import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { reorderTracks } from '../services/libraryReorder';
 import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
@@ -35,6 +36,8 @@ export interface LibraryControllerOptions {
   slotsRef: MutableRefObject<Record<SlotId, LibrarySlot>>;
   /** Mutate a slot's state imperatively (from useLibrarySlots). */
   updateSlot: (slotId: SlotId, updater: (slot: any) => any) => void;
+  /** Replace the local slot's tracks (from useLibrarySlots). */
+  updateLocalTracks: (tracks: Track[]) => void;
   /** Build the persistence payload (from AppWorkspace). */
   getAppPersistenceData: () => LibrarySettings;
 
@@ -51,6 +54,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
     slots,
     slotsRef,
     updateSlot,
+    updateLocalTracks,
     getAppPersistenceData,
     audioRef,
     setIsPlaying,
@@ -233,10 +237,31 @@ export function useLibraryController(options: LibraryControllerOptions) {
     updateSlot(viewSlot, (s: LibrarySlot) => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }));
   }, [viewSlot, updateSlot]);
 
+  // Add a freshly downloaded track to the local slot. Dedupes by filePath,
+  // appends, persists the metadata cache, and saves the library index
+  // immediately (not debounced). Moved verbatim from AppWorkspace.
+  const addDownloadedTrack = useCallback(async (track: Track) => {
+    logger.debug('[App] Download complete, adding track to library:', track.title);
+    const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
+    if (existingTrack) {
+      logger.debug('[App] Track already exists in library, skipping:', track.title);
+      return;
+    }
+    const newTracks = [...slots.local.tracks, track];
+    updateLocalTracks(newTracks);
+    logger.debug('[App] Track added to library:', track.title);
+    await metadataCacheService.save();
+    const persistData = getAppPersistenceData();
+    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData, slots.online.tracks, slots.playlist.tracks);
+    await libraryStorage.saveLibrary(libraryData);
+    logger.debug('[App] Library saved after download');
+  }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, slots.playlist.tracks, updateLocalTracks, getAppPersistenceData]);
+
   return {
     removeTrack,
     removeTracks,
     reorderTracks: reorderTracksHandler,
     updateTrack,
+    addDownloadedTrack,
   };
 }

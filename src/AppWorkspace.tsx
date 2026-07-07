@@ -3,9 +3,7 @@ import { LibrarySlot, SlotId, Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
-import { libraryStorage } from './services/libraryStorage';
 import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
-import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
 import { cookieManager, neteaseCookieManager } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
@@ -251,6 +249,7 @@ const AppWorkspace: React.FC = () => {
     slots,
     slotsRef,
     updateSlot,
+    updateLocalTracks,
     getAppPersistenceData,
     audioRef,
     setIsPlaying,
@@ -320,22 +319,12 @@ const AppWorkspace: React.FC = () => {
   }, []);
   useEffect(() => { void syncOnlineCookies(); }, [syncOnlineCookies]);
 
-  const handleDownloadComplete = useCallback(async (track: Track) => {
-    logger.debug('[App] Download complete, adding track to library:', track.title);
-    const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
-    if (existingTrack) {
-      logger.debug('[App] Track already exists in library, skipping:', track.title);
-      return;
-    }
-    const newTracks = [...slots.local.tracks, track];
-    updateLocalTracks(newTracks);
-    logger.debug('[App] Track added to library:', track.title);
-    await metadataCacheService.save();
-    const persistData = getAppPersistenceData();
-    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData, slots.online.tracks, slots.playlist.tracks);
-    await libraryStorage.saveLibrary(libraryData);
-    logger.debug('[App] Library saved after download');
-  }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, slots.playlist.tracks, updateLocalTracks, getAppPersistenceData]);
+  // Download-complete (add to local library) now lives in the library controller;
+  // AppWorkspace delegates. (Phase 2 boundary completion — see roadmap §4.)
+  const handleDownloadComplete = useCallback(
+    (track: Track) => libraryController.addDownloadedTrack(track),
+    [libraryController],
+  );
   // Reorder now lives in the library controller; AppWorkspace delegates.
   // (Phase 2 migration — see docs/refactor-roadmap.md §4.)
   const handleReorderTracks = useCallback(
