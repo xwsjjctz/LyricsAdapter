@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { neteaseCookieManager } from './cookieManager';
+import { getDesktopAPI } from './desktopAdapter';
 import type {
   OnlineMusicProvider,
   OnlineQuality,
@@ -87,11 +88,12 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     channel: string,
     params: Record<string, unknown>
   ): Promise<unknown> {
-    if (!window.electron?.neteaseRequest) {
+    const desktopAPI = getDesktopAPI();
+    if (!desktopAPI?.neteaseRequest) {
       throw new Error('网易云 API 不可用（需要桌面端运行）');
     }
     const cookie = neteaseCookieManager.getCookie();
-    const result = await window.electron.neteaseRequest(channel, params, cookie || undefined);
+    const result = await desktopAPI.neteaseRequest(channel, params, cookie || undefined);
     if (!result.success) {
       throw new Error(result.error || `${channel} 失败`);
     }

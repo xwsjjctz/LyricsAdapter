@@ -1,6 +1,6 @@
 import { logger } from './logger';
 import { indexedDBStorage } from './indexedDBStorage';
-import { getDesktopAPIAsync } from './desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync } from './desktopAdapter';
 
 const COOKIE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
@@ -176,10 +176,11 @@ const validateQQCookie: CookieValidator = async (cookie: string): Promise<Cookie
  * A valid login cookie returns an account/profile; anonymous returns neither.
  */
 const validateNetEaseCookie: CookieValidator = async (cookie: string): Promise<CookieStatus> => {
-  if (!window.electron?.neteaseRequest) {
+  const desktopAPI = getDesktopAPI();
+  if (!desktopAPI?.neteaseRequest) {
     return { valid: false, message: 'Main process bridge unavailable' };
   }
-  const result = await window.electron.neteaseRequest('/nuser/account/get', { csrf_token: '' }, cookie);
+  const result = await desktopAPI.neteaseRequest('/nuser/account/get', { csrf_token: '' }, cookie);
   if (!result.success) {
     return { valid: false, message: result.error || '验证失败' };
   }

@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { getDesktopAPI } from './desktopAdapter';
 
 /**
  * Renderer-side wrappers around the main-process QR-scan-login bridge.
@@ -26,11 +27,11 @@ export interface QRPollResult {
 }
 
 function ensureBridge(method: string): void {
-  const api = window.electron as unknown as Record<string, unknown> | undefined;
+  const api = getDesktopAPI();
   if (!api) {
     throw new Error('扫码登录仅在桌面端可用');
   }
-  if (typeof api[method] !== 'function') {
+  if (typeof (api as unknown as Record<string, unknown>)[method] !== 'function') {
     throw new Error(`桌面端版本过低，缺少 ${method}`);
   }
 }
@@ -38,7 +39,8 @@ function ensureBridge(method: string): void {
 // ===== QQ Music =====
 export async function startQQLogin(): Promise<QRStartResult> {
   ensureBridge('qqLoginQrStart');
-  const r = await window.electron!.qqLoginQrStart!();
+  const api = getDesktopAPI()!;
+  const r = await api.qqLoginQrStart!();
   if (!r.success || !r.token || !r.qrcode) {
     throw new Error(r.error || '获取 QQ 二维码失败');
   }
@@ -46,7 +48,8 @@ export async function startQQLogin(): Promise<QRStartResult> {
 }
 
 export async function pollQQLogin(token: string): Promise<QRPollResult> {
-  const r = await window.electron!.qqLoginQrPoll!(token);
+  const api = getDesktopAPI()!;
+  const r = await api.qqLoginQrPoll!(token);
   if (!r.success || !r.status) {
     return { status: 'error', msg: r.error };
   }
@@ -60,11 +63,12 @@ export async function pollQQLogin(token: string): Promise<QRPollResult> {
 // ===== NetEase Cloud Music =====
 export async function startNetEaseQR(): Promise<QRStartResult> {
   ensureBridge('neteaseQrKey');
-  const keyRes = await window.electron!.neteaseQrKey!();
+  const api = getDesktopAPI()!;
+  const keyRes = await api.neteaseQrKey!();
   if (!keyRes.success || !keyRes.unikey) {
     throw new Error(keyRes.error || '获取网易云二维码失败');
   }
-  const qrRes = await window.electron!.neteaseQrCreate!(keyRes.unikey);
+  const qrRes = await api.neteaseQrCreate!(keyRes.unikey);
   if (!qrRes.success || !qrRes.qrcode) {
     throw new Error(qrRes.error || '渲染网易云二维码失败');
   }
@@ -72,7 +76,8 @@ export async function startNetEaseQR(): Promise<QRStartResult> {
 }
 
 export async function pollNetEaseQR(key: string): Promise<QRPollResult> {
-  const r = await window.electron!.neteaseQrCheck!(key);
+  const api = getDesktopAPI()!;
+  const r = await api.neteaseQrCheck!(key);
   if (!r.success) {
     return { status: 'error', msg: r.error };
   }
