@@ -9,6 +9,7 @@ import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
+import { onlineSongToTrack } from '../domain/trackFactory';
 import type { PlaylistsViewPersistence } from '../services/libraryStorage';
 import {
   loadOverrides,
@@ -66,19 +67,6 @@ type ViewState = { phase: 'grid' } | DetailState;
  * switch, so this lives in module scope.)
  */
 let lastDetail: { playlist: PlaylistInfo; songs: OnlineSong[]; total: number; scrollPosition: number } | null = null;
-
-/** Build a synthetic Track whose id matches the one assigned to online-slot tracks. */
-const songToTrack = (s: OnlineSong, source: 'qq' | 'netease'): Track => ({
-  id: `online-${source}-${s.songmid}`,
-  title: s.songname,
-  artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
-  album: s.albumname || 'Unknown Album',
-  duration: s.interval || 0,
-  coverUrl: s.coverUrl || undefined,
-  audioUrl: '',
-  source,
-  songmid: s.songmid,
-});
 
 /** Third-party playlist providers support offset/limit paging here. */
 const supportsPaging = (_s: 'qq' | 'netease'): boolean => true;
@@ -347,7 +335,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   }, [state.phase, playlists.length, loadingPlaylists]);
 
   const tracksAsTracks = React.useMemo<Track[]>(
-    () => detailSongs.map(s => songToTrack(s, source)),
+    () => detailSongs.map(s => onlineSongToTrack(s, source)),
     [detailSongs, source]
   );
   const currentRowIndex = currentTrackId

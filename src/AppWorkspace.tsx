@@ -29,6 +29,7 @@ import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSong } from './services/onlineMusicProvider';
+import { onlineSongToTrack } from './domain/trackFactory';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
@@ -379,17 +380,7 @@ const AppWorkspace: React.FC = () => {
   const handleOpenOnlinePlaylist = useCallback(async (source: 'qq' | 'netease', playlistId: string, _name: string) => {
     const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
     const songs = await provider.getPlaylistSongs(playlistId);
-    const tracks: Track[] = songs.map(s => ({
-      id: `online-${source}-${s.songmid}`,
-      title: s.songname,
-      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
-      album: s.albumname || 'Unknown Album',
-      duration: s.interval || 0,
-      coverUrl: s.coverUrl,
-      audioUrl: '',
-      source,
-      songmid: s.songmid,
-    }));
+    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
     updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
     loadPlaylistTracks(tracks);
     updateSlot('playlist', s => ({ ...s, currentTrackIndex: -1 }));

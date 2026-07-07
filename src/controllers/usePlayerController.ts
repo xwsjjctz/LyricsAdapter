@@ -6,6 +6,7 @@ import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { parseLRCLyrics } from '../services/metadataService';
+import { onlineSongToTrack } from '../domain/trackFactory';
 
 /**
  * Player Controller (Phase 1 of the refactor roadmap).
@@ -206,17 +207,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
   // view (only activeSlot/viewSlot move to 'playlist'); the detail list highlights
   // the current track via currentTrackId.
   const handlePlayPlaylist = useCallback((source: OnlineSource, songs: OnlineSong[], clickedIndex: number) => {
-    const tracks: Track[] = songs.map(s => ({
-      id: `online-${source}-${s.songmid}`,
-      title: s.songname,
-      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
-      album: s.albumname || 'Unknown Album',
-      duration: s.interval || 0,
-      coverUrl: s.coverUrl,
-      audioUrl: '',
-      source,
-      songmid: s.songmid,
-    }));
+    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
     const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
     // Save current slot's playback position
     updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
