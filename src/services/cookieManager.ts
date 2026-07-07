@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { indexedDBStorage } from './indexedDBStorage';
+import { getDesktopAPIAsync } from './desktopAdapter';
 
 const COOKIE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
@@ -204,3 +205,30 @@ export const neteaseCookieManager = new CookieStore({
   scope: 'NetEase',
   validate: validateNetEaseCookie,
 });
+
+/**
+ * Push the current QQ + NetEase cookies from the renderer cookie stores into
+ * the main-process `stream://` proxy. Ensures both stores are loaded first.
+ *
+ * Single source of truth for the cookie-sync side effect that was previously
+ * duplicated in AppWorkspace (startup sync), SettingsView and
+ * useOnlineMusicSettings (post-login push). Callers may pass a `source` to
+ * sync only one provider (used after a single-provider login); omit it to sync
+ * both.
+ */
+export async function syncOnlineCookiesToMain(source?: 'qq' | 'netease'): Promise<void> {
+  const api = await getDesktopAPIAsync();
+  if (!api?.setOnlineCookie) return;
+  await Promise.all([
+    (source === undefined || source === 'qq') ? cookieManager.ensureLoaded() : Promise.resolve(),
+    (source === undefined || source === 'netease') ? neteaseCookieManager.ensureLoaded() : Promise.resolve(),
+  ]);
+  if (source === undefined || source === 'qq') {
+    const qq = cookieManager.getCookie();
+    if (qq) void api.setOnlineCookie('qq', qq);
+  }
+  if (source === undefined || source === 'netease') {
+    const netease = neteaseCookieManager.getCookie();
+    if (netease) void api.setOnlineCookie('netease', netease);
+  }
+}

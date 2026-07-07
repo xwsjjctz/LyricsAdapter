@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { i18n, type Language } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, THEME_IDS } from '../types/theme';
-import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
 import { settingsManager, type OnlineSource } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -332,12 +332,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           await cookieManager.setCookie(res.cookie);
           setCookie(cookieManager.getCookie());
           setQqLoggedIn(true);
-          window.electron?.setOnlineCookie?.('qq', cookieManager.getCookie());
+          void syncOnlineCookiesToMain('qq');
         } else {
           await neteaseCookieManager.setCookie(res.cookie);
           setNeteaseCookie(neteaseCookieManager.getCookie());
           setNeteaseLoggedIn(true);
-          window.electron?.setOnlineCookie?.('netease', neteaseCookieManager.getCookie());
+          void syncOnlineCookiesToMain('netease');
         }
         showOnlineMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
       }

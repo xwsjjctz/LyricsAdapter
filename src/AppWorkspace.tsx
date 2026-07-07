@@ -5,7 +5,7 @@ import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
 import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
 import { logger } from './services/logger';
-import { cookieManager, neteaseCookieManager } from './services/cookieManager';
+import { syncOnlineCookiesToMain } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -304,20 +304,7 @@ const AppWorkspace: React.FC = () => {
   });
 
   // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
-  const syncOnlineCookies = useCallback(async () => {
-    const api = window.electron;
-    if (!api?.setOnlineCookie) return;
-    // Ensure both cookie stores are loaded from IndexedDB (lazy load).
-    await Promise.all([
-      cookieManager.ensureLoaded(),
-      neteaseCookieManager.ensureLoaded(),
-    ]);
-    const qq = cookieManager.getCookie();
-    const netease = neteaseCookieManager.getCookie();
-    if (qq) void api.setOnlineCookie('qq', qq);
-    if (netease) void api.setOnlineCookie('netease', netease);
-  }, []);
-  useEffect(() => { void syncOnlineCookies(); }, [syncOnlineCookies]);
+  useEffect(() => { void syncOnlineCookiesToMain(); }, []);
 
   // Download-complete (add to local library) now lives in the library controller;
   // AppWorkspace delegates. (Phase 2 boundary completion — see roadmap §4.)

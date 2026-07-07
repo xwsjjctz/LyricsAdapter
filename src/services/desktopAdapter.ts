@@ -92,6 +92,8 @@ export interface DesktopAPI {
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
   showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
+  // Online music: push a QQ/NetEase cookie to the main-process stream:// proxy.
+  setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
 }
 
 class ElectronAdapter implements DesktopAPI {
@@ -485,6 +487,13 @@ class ElectronAdapter implements DesktopAPI {
     }
     logger.warn('[DesktopAPI] showNotification not available');
     return { ok: false, reason: 'not available' };
+  }
+
+  async setOnlineCookie(source: string, cookie: string): Promise<void> {
+    // Optional on the underlying API; no-op when unavailable (e.g. browser mode).
+    if (typeof this.api.setOnlineCookie === 'function') {
+      return this.api.setOnlineCookie(source, cookie);
+    }
   }
 
 }
