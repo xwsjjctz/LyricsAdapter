@@ -8,6 +8,10 @@ import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 import { logger } from './logger';
 import { APP } from '../constants/config';
 import type { TypedElectronIPC } from '../types/typedIpc';
+import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
+
+/** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
+export type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
 
 /** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
 export interface UpdateInfo {
@@ -96,7 +100,7 @@ export interface DesktopAPI {
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
 }
 
-class ElectronAdapter implements DesktopAPI {
+class ElectronAdapter implements FullDesktopAPI {
   private metadataCache: Record<string, ValidatedMetadata> = {};
 
   // Return actual OS platform from underlying API
@@ -104,7 +108,7 @@ class ElectronAdapter implements DesktopAPI {
     return this.api.platform;
   }
 
-  constructor(private api: DesktopAPI) {
+  constructor(private api: FullDesktopAPI) {
     // Initialize with empty cache, will be loaded from IndexedDB if needed
     this.metadataCache = {};
   }
@@ -496,9 +500,61 @@ class ElectronAdapter implements DesktopAPI {
     }
   }
 
+  // ---- Online music channels (OnlineMusicElectronAPI) ----
+  // Thin passthroughs to the underlying window.electron proxy. The adapter only
+  // exists in Electron mode (getDesktopAPI() returns null in the browser), so
+  // these channels are guaranteed present on this.api — hence the non-null
+  // assertions. Moving these through the adapter lets renderer code stop
+  // touching window.electron directly (RF-008).
+
+  async getQQMusicUrl(reqData: Record<string, unknown>, cookie: string) {
+    return this.api.getQQMusicUrl!(reqData, cookie);
+  }
+  async qqMusicRequest(options: {
+    url: string; method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; cookie?: string;
+  }) {
+    return this.api.qqMusicRequest!(options);
+  }
+  async getQQMusicLyrics(songmid: string, cookie: string) {
+    return this.api.getQQMusicLyrics!(songmid, cookie);
+  }
+  async neteaseRequest(channel: string, params: Record<string, unknown>, cookie?: string) {
+    return this.api.neteaseRequest!(channel, params, cookie);
+  }
+  async downloadAndSave(url: string, cookie: string, filePath: string) {
+    return this.api.downloadAndSave!(url, cookie, filePath);
+  }
+  async downloadAudioFile(url: string, cookie: string) {
+    return this.api.downloadAudioFile!(url, cookie);
+  }
+  async fetchCoverBase64(coverUrl: string) {
+    return this.api.fetchCoverBase64!(coverUrl);
+  }
+  onDownloadProgress(callback: (progress: { downloaded: number; total: number; progress: number }) => void): void {
+    this.api.onDownloadProgress!(callback);
+  }
+  offDownloadProgress(callback: (progress: { downloaded: number; total: number; progress: number }) => void): void {
+    this.api.offDownloadProgress!(callback);
+  }
+  async qqLoginQrStart() {
+    return this.api.qqLoginQrStart!();
+  }
+  async qqLoginQrPoll(token: string) {
+    return this.api.qqLoginQrPoll!(token);
+  }
+  async neteaseQrKey() {
+    return this.api.neteaseQrKey!();
+  }
+  async neteaseQrCreate(key: string) {
+    return this.api.neteaseQrCreate!(key);
+  }
+  async neteaseQrCheck(key: string) {
+    return this.api.neteaseQrCheck!(key);
+  }
+
 }
 
-let desktopAPI: DesktopAPI | null = null;
+let desktopAPI: FullDesktopAPI | null = null;
 
 function createElectronAdapter(): ElectronAdapter | null {
   if (typeof window !== 'undefined' && window.electron) {
@@ -507,7 +563,7 @@ function createElectronAdapter(): ElectronAdapter | null {
   return null;
 }
 
-export function getDesktopAPI(): DesktopAPI | null {
+export function getDesktopAPI(): FullDesktopAPI | null {
   if (desktopAPI) {
     logger.debug('[DesktopAdapter] Returning cached desktopAPI, platform:', desktopAPI.platform);
     return desktopAPI;
@@ -525,7 +581,7 @@ export function getDesktopAPI(): DesktopAPI | null {
 }
 
 // Async version for when you need to wait for initialization
-export async function getDesktopAPIAsync(): Promise<DesktopAPI | null> {
+export async function getDesktopAPIAsync(): Promise<FullDesktopAPI | null> {
   return getDesktopAPI();
 }
 
