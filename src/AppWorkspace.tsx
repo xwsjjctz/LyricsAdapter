@@ -29,9 +29,6 @@ import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSong } from './services/onlineMusicProvider';
-import { onlineSongToTrack } from './domain/trackFactory';
-import { qqMusicApi } from './services/qqMusicApi';
-import { neteaseMusicApi } from './services/neteaseMusicApi';
 import { themeManager } from './services/themeManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
@@ -374,19 +371,14 @@ const AppWorkspace: React.FC = () => {
     [playerController],
   );
 
-  // New UI: opening a third-party playlist card loads its songs into the
-  // playlist slot (without auto-playing) so the playlist panel can browse them.
-  // Playback starts when the user clicks a track inside the panel.
-  const handleOpenOnlinePlaylist = useCallback(async (source: 'qq' | 'netease', playlistId: string, _name: string) => {
-    const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
-    const songs = await provider.getPlaylistSongs(playlistId);
-    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    loadPlaylistTracks(tracks);
-    updateSlot('playlist', s => ({ ...s, currentTrackIndex: -1 }));
-    setRestoreTime(0);
-    switchTo('playlist');
-  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo]);
+  // Opening a third-party playlist (load without auto-play) now lives in the
+  // player controller; AppWorkspace delegates. (Completes the Phase 1 player
+  // boundary — see docs/refactor-roadmap.md §3.)
+  const handleOpenOnlinePlaylist = useCallback(
+    (source: 'qq' | 'netease', playlistId: string, _name: string) =>
+      playerController.openOnlinePlaylist(source, playlistId),
+    [playerController],
+  );
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.

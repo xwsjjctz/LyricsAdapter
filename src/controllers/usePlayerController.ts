@@ -223,6 +223,21 @@ export function usePlayerController(options: PlayerControllerOptions) {
     // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
   }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
+  // New UI: opening a third-party playlist card loads its songs into the
+  // playlist slot (without auto-playing) so the playlist panel can browse them.
+  // Playback starts when the user clicks a track inside the panel. This is the
+  // load-without-play twin of handlePlayPlaylist.
+  const openOnlinePlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
+    const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const songs = await provider.getPlaylistSongs(playlistId);
+    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: -1 }));
+    setRestoreTime(0);
+    switchTo('playlist');
+  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo]);
+
   // Playlist-only lyrics sliding window (size 3): prefetch the current track and
   // its two neighbours, and evict lyrics outside that window to bound memory.
   // Other slots are unaffected — online uses per-click enrichment, local/cloud
@@ -285,5 +300,6 @@ export function usePlayerController(options: PlayerControllerOptions) {
     handleOnlineStreamPlay,
     playOnlineSong,
     handlePlayPlaylist,
+    openOnlinePlaylist,
   };
 }
