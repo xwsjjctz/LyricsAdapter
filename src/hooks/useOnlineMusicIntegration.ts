@@ -14,6 +14,7 @@ import { parseLRCLyrics } from '../services/metadataService';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
+import { getDesktopAPI } from '../services/desktopAdapter';
 
 interface UseOnlineMusicIntegrationParams {
   setViewMode: (mode: ViewMode) => void;
@@ -39,8 +40,9 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
   // Lyrics: QQ prefers the dedicated IPC channel (avoids CORS), then falls back
   // to the provider. NetEase resolves entirely through its provider (IPC).
   const fetchLyrics = async (song: OnlineSong, provider: OnlineMusicProvider): Promise<string | undefined> => {
-    if (provider.id === 'qq' && window.electron?.getQQMusicLyrics) {
-      const r = await window.electron.getQQMusicLyrics(song.songmid, provider.getRawCookie());
+    const desktopAPI = getDesktopAPI();
+    if (provider.id === 'qq' && desktopAPI?.getQQMusicLyrics) {
+      const r = await desktopAPI.getQQMusicLyrics(song.songmid, provider.getRawCookie());
       if (r?.success && r.lyrics) return r.lyrics;
     }
     return (await provider.getLyrics(song.songmid)) || undefined;
@@ -49,8 +51,9 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
   // Fetch cover as a base64 data URL (via IPC to avoid CORS).
   const fetchCoverBase64 = async (coverUrl: string): Promise<string | undefined> => {
     if (!coverUrl) return undefined;
-    if (window.electron?.fetchCoverBase64) {
-      const r = await window.electron.fetchCoverBase64(coverUrl);
+    const desktopAPI = getDesktopAPI();
+    if (desktopAPI?.fetchCoverBase64) {
+      const r = await desktopAPI.fetchCoverBase64(coverUrl);
       if (r?.success && r.dataUrl) return r.dataUrl;
     }
     try {
@@ -86,11 +89,12 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
         provider.getMusicUrl(song.songmid, quality),
       ]);
       const fullPath = joinDownloadPath(downloadPath, fileName);
-      const result = await window.electron?.downloadAndSave?.(url, cookie, fullPath);
+      const desktopAPI = getDesktopAPI();
+      const result = await desktopAPI?.downloadAndSave?.(url, cookie, fullPath);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
-      if (window.electron?.writeAudioMetadata) {
-        await window.electron.writeAudioMetadata(result.filePath, {
+      if (desktopAPI?.writeAudioMetadata) {
+        await desktopAPI.writeAudioMetadata(result.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
           ...(lyrics != null && { lyrics }),
           ...(coverUrl != null && { coverUrl }),
@@ -128,18 +132,19 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
         coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
       ]);
       const fullPath = joinDownloadPath(downloadPath, fileName);
-      const dlResult = await window.electron?.downloadAndSave?.(url, cookie, fullPath);
+      const desktopAPI = getDesktopAPI();
+      const dlResult = await desktopAPI?.downloadAndSave?.(url, cookie, fullPath);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 35 } }));
-      if (window.electron?.writeAudioMetadata) {
-        await window.electron.writeAudioMetadata(dlResult.filePath, {
+      if (desktopAPI?.writeAudioMetadata) {
+        await desktopAPI.writeAudioMetadata(dlResult.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
           ...(lyrics != null && { lyrics }),
           ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
         });
       }
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 50 } }));
-      const readResult = await window.electron?.readFile?.(dlResult.filePath);
+      const readResult = await desktopAPI?.readFile?.(dlResult.filePath);
       if (!readResult?.success || !readResult.data) throw new Error('Failed to read file for upload');
       const webdavPath = `/${fileName}`;
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 65 } }));
@@ -193,8 +198,9 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
       if (!songId) return;
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: Math.round(data.progress) } }));
     };
-    window.electron?.onDownloadProgress?.(handler);
-    return () => { window.electron?.offDownloadProgress?.(handler); };
+    const desktopAPI = getDesktopAPI();
+    desktopAPI?.onDownloadProgress?.(handler);
+    return () => { desktopAPI?.offDownloadProgress?.(handler); };
   }, []);
 
   return { onlineProgress, handleOnlineDownload, handleOnlineUpload };
