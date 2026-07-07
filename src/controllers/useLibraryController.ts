@@ -5,6 +5,10 @@ import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { coverArtService } from '../services/coverArtService';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
+import { reorderTracks } from '../services/libraryReorder';
+import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
+import { libraryStorage } from '../services/libraryStorage';
+import type { LibrarySettings } from '../services/libraryStorage';
 
 /**
  * Library Controller (Phase 2 of the refactor roadmap, §4).
@@ -25,10 +29,14 @@ export interface LibraryControllerOptions {
   /** Library store state */
   viewSlot: SlotId;
   activeSlotId: SlotId;
+  /** All slots (read by reorder for persist serialization). */
+  slots: Record<SlotId, LibrarySlot>;
   /** Live snapshot ref of all slots (avoids stale closures without re-renders). */
   slotsRef: MutableRefObject<Record<SlotId, LibrarySlot>>;
   /** Mutate a slot's state imperatively (from useLibrarySlots). */
   updateSlot: (slotId: SlotId, updater: (slot: any) => any) => void;
+  /** Build the persistence payload (from AppWorkspace). */
+  getAppPersistenceData: () => LibrarySettings;
 
   /** Player store (from usePlayback) */
   audioRef: MutableRefObject<HTMLAudioElement | null>;
@@ -40,8 +48,10 @@ export function useLibraryController(options: LibraryControllerOptions) {
   const {
     viewSlot,
     activeSlotId,
+    slots,
     slotsRef,
     updateSlot,
+    getAppPersistenceData,
     audioRef,
     setIsPlaying,
     revokeBlobUrl,
@@ -190,8 +200,33 @@ export function useLibraryController(options: LibraryControllerOptions) {
     logger.debug(`[App] ✓ Batch removal complete: ${trackIds.length} tracks removed from ${viewSlot}`);
   }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying, slotsRef]);
 
+  const reorderTracksHandler = useCallback(async (fromIndex: number, toIndex: number) => {
+    logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
+    const sourceSlot = slots[viewSlot];
+    const result = reorderTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, fromIndex, toIndex);
+    if (!result.changed) return;
+
+    updateSlot(viewSlot, slot => ({
+      ...slot,
+      tracks: result.tracks,
+      currentTrackIndex: result.currentTrackIndex,
+    }));
+
+    const persistData = getAppPersistenceData();
+    const libraryData = buildLibraryIndexDataForSlots(
+      viewSlot === 'local' ? result.tracks : slots.local.tracks,
+      viewSlot === 'cloud' ? result.tracks : slots.cloud.tracks,
+      persistData,
+      viewSlot === 'online' ? result.tracks : slots.online.tracks,
+      viewSlot === 'playlist' ? result.tracks : slots.playlist.tracks
+    );
+    await libraryStorage.saveLibrary(libraryData);
+    logger.debug('[App] Library saved after reordering');
+  }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
+
   return {
     removeTrack,
     removeTracks,
+    reorderTracks: reorderTracksHandler,
   };
 }

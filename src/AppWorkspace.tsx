@@ -7,7 +7,6 @@ import { libraryStorage } from './services/libraryStorage';
 import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
 import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
-import { reorderTracks } from './services/libraryReorder';
 import { cookieManager, neteaseCookieManager } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
@@ -268,8 +267,10 @@ const AppWorkspace: React.FC = () => {
   const libraryController = useLibraryController({
     viewSlot,
     activeSlotId,
+    slots,
     slotsRef,
     updateSlot,
+    getAppPersistenceData,
     audioRef,
     setIsPlaying,
     revokeBlobUrl,
@@ -354,29 +355,12 @@ const AppWorkspace: React.FC = () => {
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after download');
   }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, slots.playlist.tracks, updateLocalTracks, getAppPersistenceData]);
-  const handleReorderTracks = useCallback(async (fromIndex: number, toIndex: number) => {
-    logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
-    const sourceSlot = slots[viewSlot];
-    const result = reorderTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, fromIndex, toIndex);
-    if (!result.changed) return;
-
-    updateSlot(viewSlot, slot => ({
-      ...slot,
-      tracks: result.tracks,
-      currentTrackIndex: result.currentTrackIndex,
-    }));
-
-    const persistData = getAppPersistenceData();
-    const libraryData = buildLibraryIndexDataForSlots(
-      viewSlot === 'local' ? result.tracks : slots.local.tracks,
-      viewSlot === 'cloud' ? result.tracks : slots.cloud.tracks,
-      persistData,
-      viewSlot === 'online' ? result.tracks : slots.online.tracks,
-      viewSlot === 'playlist' ? result.tracks : slots.playlist.tracks
-    );
-    await libraryStorage.saveLibrary(libraryData);
-    logger.debug('[App] Library saved after reordering');
-  }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
+  // Reorder now lives in the library controller; AppWorkspace delegates.
+  // (Phase 2 migration — see docs/refactor-roadmap.md §4.)
+  const handleReorderTracks = useCallback(
+    (fromIndex: number, toIndex: number) => libraryController.reorderTracks(fromIndex, toIndex),
+    [libraryController],
+  );
   // Global-search navigation now lives in the player controller; AppWorkspace delegates.
   // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
   const handleSearchNavigate = useCallback(
