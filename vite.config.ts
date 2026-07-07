@@ -8,12 +8,11 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
     return {
       base: './',
-      // Renderer source lives under src/. Keeping the Vite root there lets
-      // index.html's root-relative `/index.tsx` and `/index.css` resolve to
-      // src/index.tsx / src/index.css, while `publicDir` below keeps the
-      // repo-root public/ (fonts) served at /fonts/... unchanged.
-      root: 'src',
-      publicDir: path.resolve(__dirname, 'public'),
+      // Vite root stays at the repo root: vite-plugin-electron spawns Electron
+      // with cwd = server.config.root, so it must be the repo root for Electron
+      // to find package.json's `main`. Renderer source lives under src/ and is
+      // referenced from index.html via /src/index.tsx, /src/index.css. The `@`
+      // alias below also points at src/.
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -31,13 +30,10 @@ export default defineConfig(({ mode }) => {
         tailwindcss({ optimize: false }),
         electron([
           {
-            // Entry/out paths resolve relative to Vite `root` (now src/), so
-            // make them repo-root-absolute to keep electron/ at the project
-            // root and its build output at repo-root dist-electron/.
-            entry: path.resolve(__dirname, 'electron/main.ts'),
+            entry: 'electron/main.ts',
             vite: {
               build: {
-                outDir: path.resolve(__dirname, 'dist-electron'),
+                outDir: 'dist-electron',
                 rollupOptions: {
                   external: ['electron']
                 }
@@ -45,15 +41,15 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            entry: path.resolve(__dirname, 'electron/preload.ts'),
+            entry: 'electron/preload.ts',
             onstart(args) {
               args.reload();
             },
             vite: {
               build: {
-                outDir: path.resolve(__dirname, 'dist-electron'),
+                outDir: 'dist-electron',
                 lib: {
-                  entry: path.resolve(__dirname, 'electron/preload.ts'),
+                  entry: 'electron/preload.ts',
                   formats: ['cjs'],
                   fileName: () => 'preload.cjs'
                 },
@@ -64,10 +60,10 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            entry: path.resolve(__dirname, 'electron/cleanup.ts'),
+            entry: 'electron/cleanup.ts',
             vite: {
               build: {
-                outDir: path.resolve(__dirname, 'dist-electron'),
+                outDir: 'dist-electron',
                 rollupOptions: {
                   external: ['electron']
                 }
