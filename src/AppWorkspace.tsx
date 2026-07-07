@@ -7,7 +7,6 @@ import { libraryStorage } from './services/libraryStorage';
 import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
 import { buildLibraryIndexDataForSlots } from './services/librarySerializer';
 import { logger } from './services/logger';
-import { coverArtService } from './services/coverArtService';
 import { reorderTracks } from './services/libraryReorder';
 import { cookieManager, neteaseCookieManager } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
@@ -39,6 +38,7 @@ import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
 import NewUxShell from './components/new-ui/NewUxShell';
 import { usePlayerController } from './controllers/usePlayerController';
+import { useLibraryController } from './controllers/useLibraryController';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -265,70 +265,21 @@ const AppWorkspace: React.FC = () => {
     revokeBlobUrl,
     audioRef,
   });
-  // View-slot-aware track removal — operates on slots[viewSlot] instead of slots[activeSlotId].
-  // This ensures deletion works correctly when browsing a different slot than the one playing.
-  const handleRemoveTrackFromView = useCallback(async (trackId: string, deleteFile = false) => {
-    const slotTracks = slotsRef.current[viewSlot].tracks;
-    const trackToRemove = slotTracks.find(t => t.id === trackId);
-
-    // Delete physical audio file if requested
-    if (deleteFile && trackToRemove?.filePath) {
-      const desktopAPI = await getDesktopAPIAsync();
-      if (desktopAPI?.deleteAudioFile) {
-        try {
-          const result = await desktopAPI.deleteAudioFile(trackToRemove.filePath);
-          if (result.success && result.deleted) {
-            logger.debug(`[App] ✓ Deleted audio file: ${trackToRemove.filePath}`);
-          } else if (!result.success) {
-            logger.warn(`[App] Failed to delete audio file: ${trackToRemove.filePath}`, result.error);
-          }
-        } catch (error) {
-          logger.warn('[App] deleteAudioFile error:', error);
-        }
-      }
-    }
-
-    // Update the view slot's tracks and currentTrackIndex atomically
-    updateSlot(viewSlot, (slot) => {
-      const newTracks = slot.tracks.filter(t => t.id !== trackId);
-      const removedIndex = slot.tracks.findIndex(t => t.id === trackId);
-      const removedTrack = slot.tracks[removedIndex];
-      let newIndex = slot.currentTrackIndex;
-
-      if (newTracks.length === 0) {
-        newIndex = -1;
-        if (viewSlot === activeSlotId) {
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
-          }
-          setIsPlaying(false);
-        }
-      } else if (removedIndex >= 0) {
-        if (removedIndex < slot.currentTrackIndex) {
-          newIndex = Math.max(0, slot.currentTrackIndex - 1);
-        } else if (removedIndex === slot.currentTrackIndex) {
-          newIndex = Math.min(slot.currentTrackIndex, newTracks.length - 1);
-        }
-      }
-
-      if (removedTrack) {
-        if (removedTrack.audioUrl?.startsWith('blob:')) revokeBlobUrl(removedTrack.audioUrl);
-        if (removedTrack.coverUrl?.startsWith('blob:')) revokeBlobUrl(removedTrack.coverUrl);
-      }
-
-      return { ...slot, tracks: newTracks, currentTrackIndex: newIndex };
-    });
-
-    // Clean up cover and metadata (trackId-based, independent of slot)
-    try {
-      await coverArtService.deleteCover(trackId);
-      await indexedDBStorage.deleteMetadata(trackId);
-      logger.debug(`[App] ✅ Resources cleaned up for track: ${trackToRemove?.title || trackId}`);
-    } catch (error) {
-      logger.warn('[App] Failed to cleanup resources for track:', error);
-    }
-  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying]);
+  const libraryController = useLibraryController({
+    viewSlot,
+    activeSlotId,
+    slotsRef,
+    updateSlot,
+    audioRef,
+    setIsPlaying,
+    revokeBlobUrl,
+  });
+  // View-slot-aware track removal now lives in the library controller; AppWorkspace delegates.
+  // (Phase 2 migration — see docs/refactor-roadmap.md §4.)
+  const handleRemoveTrackFromView = useCallback(
+    (trackId: string, deleteFile = false) => libraryController.removeTrack(trackId, deleteFile),
+    [libraryController],
+  );
 
   const handleRemoveMultipleTracksFromView = useCallback(async (trackIds: string[], deleteFile = false) => {
     const slotTracks = slotsRef.current[viewSlot].tracks;
