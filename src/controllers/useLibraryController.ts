@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { MutableRefObject } from 'react';
-import type { LibrarySlot, SlotId } from '../types';
+import type { LibrarySlot, SlotId, Track } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { coverArtService } from '../services/coverArtService';
 import { indexedDBStorage } from '../services/indexedDBStorage';
@@ -224,9 +224,19 @@ export function useLibraryController(options: LibraryControllerOptions) {
     logger.debug('[App] Library saved after reordering');
   }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
 
+  // Update a single track's metadata in the view slot. Equivalent to the
+  // inline `(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(...) }))`
+  // that previously appeared at the NewUxShell + LibraryView call sites.
+  // NOTE: the MetadataView call site updates the *active* slot (setActiveTracks),
+  // not viewSlot, so it deliberately stays out of this controller — see backlog.
+  const updateTrack = useCallback((track: Track) => {
+    updateSlot(viewSlot, (s: LibrarySlot) => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }));
+  }, [viewSlot, updateSlot]);
+
   return {
     removeTrack,
     removeTracks,
     reorderTracks: reorderTracksHandler,
+    updateTrack,
   };
 }

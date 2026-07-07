@@ -539,7 +539,7 @@ const AppWorkspace: React.FC = () => {
           onTrackSelect={handleTrackSelect}
           onRemoveTrack={handleRemoveTrackFromView}
           onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
-          onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
+          onUpdateTrack={libraryController.updateTrack}
           onTogglePlay={togglePlay}
           onSkipNext={skipForward}
           onSkipPrev={skipBackward}
@@ -672,7 +672,7 @@ const AppWorkspace: React.FC = () => {
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleViewDropFilePaths}
                 onReorderTracks={handleReorderTracks}
-                onUpdateTrack={(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }))}
+                onUpdateTrack={libraryController.updateTrack}
                 isFocusMode={isFocusMode}
                 savedScrollPosition={slots[viewSlot].scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
