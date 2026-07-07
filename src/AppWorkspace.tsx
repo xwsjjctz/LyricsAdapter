@@ -185,6 +185,8 @@ const AppWorkspace: React.FC = () => {
   const playerController = usePlayerController({
     activeSlotId,
     viewSlot,
+    localTracks: slots.local.tracks,
+    cloudTracks: slots.cloud.tracks,
     setViewSlot,
     updateSlot,
     switchTo,
@@ -492,32 +494,12 @@ const AppWorkspace: React.FC = () => {
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
   }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
-  // Global search handlers
-  const handleSearchNavigate = useCallback((track: Track) => {
-    const targetSlot: 'local' | 'cloud' = track.source === 'webdav' ? 'cloud' : 'local';
-    const targetTracks = targetSlot === 'local' ? slots.local.tracks : slots.cloud.tracks;
-    const idx = targetTracks.findIndex(t => t.id === track.id);
-    if (idx < 0) return;
-    if (targetSlot === activeSlotId && targetSlot === viewSlot) {
-      // Same slot, same view: simple track selection
-      selectTrack(idx);
-      return;
-    }
-    // Cross-slot or cross-view: save playing slot's time, update target, switch
-    if (targetSlot !== activeSlotId) {
-      updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-      updateSlot(targetSlot, s => ({ ...s, currentTrackIndex: idx }));
-      setRestoreTime(0);
-      switchTo(targetSlot);
-      shouldAutoPlayRef.current = true;
-      setIsPlaying(true);
-    } else {
-      // Same slot, different view: just select track (view will sync below)
-      selectTrack(idx);
-    }
-    // Sync view to match the playing slot
-    setViewSlot(targetSlot);
-  }, [activeSlotId, viewSlot, slots.local.tracks, slots.cloud.tracks, selectTrack, audioRef, updateSlot, switchTo, setIsPlaying]);
+  // Global-search navigation now lives in the player controller; AppWorkspace delegates.
+  // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
+  const handleSearchNavigate = useCallback(
+    (track: Track) => playerController.handleSearchNavigate(track),
+    [playerController],
+  );
   // Track selection now lives in the player controller; AppWorkspace delegates.
   // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
   const handleTrackSelect = useCallback(
