@@ -1,12 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
+import SquareCropModal from './SquareCropModal';
+import { toCoverThumb } from '../../services/coverUrl';
+import { i18n } from '../../services/i18n';
+import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit';
 
 interface MainViewProps {
   entries: CardEntry[];
   isPlaylistPanelOpen: boolean;
   onOpenPlaylist: (entry: CardEntry) => void | Promise<void>;
   onPlaylistContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
+  isCardEditMode?: boolean;
+  cardOverrides?: CardOverrideMap;
+  onCardOverrideChange?: (entryId: string, patch: Partial<CardOverride>) => void;
+  activePanel?: 'hidden' | 'bg' | null;
+  exitingPanel?: 'hidden' | 'bg' | null;
 }
 
 type CardCssVars = React.CSSProperties & Record<`--card-${string}`, string | number>;
@@ -30,12 +39,19 @@ const MainView: React.FC<MainViewProps> = ({
   isPlaylistPanelOpen,
   onOpenPlaylist,
   onPlaylistContextMenu,
+  isCardEditMode,
+  cardOverrides,
+  onCardOverrideChange,
+  activePanel,
+  exitingPanel,
 }) => {
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const cardRefCallbacks = useRef<Record<string, CardRefCallback>>({});
   const layoutRef = useRef<CardLayout[]>([]);
   const isPanelOpeningRef = useRef(false);
+  const cachedRectRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const prevZIndexRef = useRef<Record<string, number>>({});
   const motionRef = useRef({
     x: 0,
     y: 0,
@@ -53,14 +69,14 @@ const MainView: React.FC<MainViewProps> = ({
     thresholdExceeded: false,
   });
   const wasPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
-  const isPlaylistPanelOpenRef = useRef(isPlaylistPanelOpen);
   const clickGuardUntilRef = useRef(0);
+  const hoveredIdRef = useRef<string | null>(null);
+  const hoverScaleRef = useRef<Record<string, number>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [panelCloseEpoch, setPanelCloseEpoch] = useState(0);
 
   useEffect(() => {
     const wasOpen = wasPlaylistPanelOpenRef.current;
-    isPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
     wasPlaylistPanelOpenRef.current = isPlaylistPanelOpen;
 
     if (wasOpen && !isPlaylistPanelOpen) {
@@ -73,7 +89,7 @@ const MainView: React.FC<MainViewProps> = ({
     const releasePointerId = pointerId ?? drag.pointerId;
     const space = spaceRef.current;
 
-    if (guardClick && drag.moved > 8) {
+    if (guardClick && drag.moved > 12) {
       clickGuardUntilRef.current = performance.now() + 180;
     }
 
@@ -99,15 +115,30 @@ const MainView: React.FC<MainViewProps> = ({
     setIsDragging(false);
   }, []);
 
+  // Split entries into visible (on the wall) and hidden (in the tray)
+  const { visibleEntries, hiddenEntries } = useMemo(() => {
+    const vis: CardEntry[] = [];
+    const hid: CardEntry[] = [];
+    for (const entry of entries) {
+      if (cardOverrides?.[entry.id]?.hidden) {
+        hid.push(entry);
+      } else {
+        vis.push(entry);
+      }
+    }
+    return { visibleEntries: vis, hiddenEntries: hid };
+  }, [entries, cardOverrides]);
+
   const cardLayouts = useMemo<CardLayout[]>(() => {
-    const columns = entries.length <= 3 ? Math.max(entries.length, 1) : Math.min(4, entries.length);
-    const rows = Math.ceil(entries.length / columns);
+    const list = visibleEntries;
+    const columns = list.length <= 3 ? Math.max(list.length, 1) : Math.min(4, list.length);
+    const rows = Math.ceil(list.length / columns);
     const yOffset = rows <= 2 ? ((rows - 1) * gridRowGap) / 2 : gridRowGap * 0.62;
 
-    return entries.map((entry, index) => {
+    return list.map((entry, index) => {
       const row = Math.floor(index / columns);
       const column = index % columns;
-      const rowColumns = Math.min(columns, entries.length - row * columns);
+      const rowColumns = Math.min(columns, list.length - row * columns);
       const rowOffset = row % 2 === 0 ? 0 : gridColumnGap * 0.18;
 
       return {
@@ -115,14 +146,34 @@ const MainView: React.FC<MainViewProps> = ({
         x: (column - (rowColumns - 1) / 2) * gridColumnGap + rowOffset,
         y: row * gridRowGap - yOffset,
         rotate: Math.round(Math.sin(index * 2.4 + 0.7) * 7 + Math.cos(index * 1.1) * 2),
-        scale: entries.length <= 2 ? 1.1 : 1,
+        scale: list.length <= 2 ? 1.1 : 1,
       };
     });
-  }, [entries]);
+  }, [visibleEntries]);
 
   useEffect(() => {
     layoutRef.current = cardLayouts;
   }, [cardLayouts]);
+
+  // Cache the space element's dimensions via ResizeObserver so the rAF loop
+  // never calls getBoundingClientRect (which forces synchronous layout).
+  useEffect(() => {
+    const el = spaceRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        cachedRectRef.current = {
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        };
+      }
+    });
+    ro.observe(el);
+    // Seed initial value
+    const rect = el.getBoundingClientRect();
+    cachedRectRef.current = { width: rect.width, height: rect.height };
+    return () => ro.disconnect();
+  }, []);
 
   // The animation loop is the single writer of wall motion and per-card focus
   // accents. Wall motion lives on the parent space, so a temporarily stale card
@@ -134,7 +185,7 @@ const MainView: React.FC<MainViewProps> = ({
       const space = spaceRef.current;
 
       if (space) {
-        const rect = space.getBoundingClientRect();
+        const rect = cachedRectRef.current;
         const motion = motionRef.current;
 
         if (!dragRef.current.active) {
@@ -151,14 +202,14 @@ const MainView: React.FC<MainViewProps> = ({
           }),
           { maxX: 0, maxY: 0 }
         );
-        const maxX = Math.max(280, rect.width * 0.32, layoutBounds.maxX - rect.width * 0.28);
-        const maxY = Math.max(150, rect.height * 0.22, layoutBounds.maxY - rect.height * 0.24);
+        const maxX = Math.max(400, rect.width * 0.65, layoutBounds.maxX + 120);
+        const maxY = Math.max(280, rect.height * 0.55, layoutBounds.maxY + 120);
         motion.targetX = clamp(motion.targetX, -maxX, maxX);
         motion.targetY = clamp(motion.targetY, -maxY, maxY);
         motion.x += (motion.targetX - motion.x) * 0.15;
         motion.y += (motion.targetY - motion.y) * 0.15;
 
-        const radius = Math.max(260, Math.min(rect.width, rect.height) * 0.62);
+        const radius = Math.max(200, Math.min(rect.width, rect.height) * 0.48);
 
         layoutRef.current.forEach((layout, index) => {
           const node = cardRefs.current[layout.id];
@@ -168,20 +219,34 @@ const MainView: React.FC<MainViewProps> = ({
           const y = layout.y + motion.y;
           const distance = Math.hypot(x, y);
           const focus = Math.exp(-Math.pow(distance / radius, 2));
-          const scale = layout.scale * (0.68 + focus * 0.40);
-          const z = -220 + focus * 380;
-          const rotX = clamp((y / radius) * -24, -20, 20);
-          const rotY = clamp((x / radius) * 26, -24, 24);
-          const opacity = 0.42 + Math.exp(-Math.pow(distance / (radius * 1.6), 2)) * 0.58;
-          const blur = (1 - focus) * 3.6;
+          const baseScale = layout.scale * (0.55 + focus * 0.60);
+
+          // Smooth hover scale interpolation
+          const hoverTarget = hoveredIdRef.current === layout.id ? 1.18 : 1.0;
+          const prevHoverScale = hoverScaleRef.current[layout.id] ?? 1.0;
+          // Faster spring-back (0.18) than grow-in (0.10) for snappy un-hover
+          const lerpRate = hoverTarget < prevHoverScale ? 0.18 : 0.10;
+          const hoverScale = prevHoverScale + (hoverTarget - prevHoverScale) * lerpRate;
+          hoverScaleRef.current[layout.id] = hoverScale;
+
+          const scale = baseScale * hoverScale;
+          const z = -260 + focus * 460 + (hoverScale > 1.01 ? (hoverScale - 1.0) * 200 : 0);
+          const rotX = clamp((y / radius) * -26, -22, 22);
+          const rotY = clamp((x / radius) * 28, -26, 26);
+          const opacity = 0.35 + Math.exp(-Math.pow(distance / (radius * 1.4), 2)) * 0.65;
 
           node.style.setProperty('--card-z', `${z}px`);
           node.style.setProperty('--card-rot-x', `${rotX}deg`);
           node.style.setProperty('--card-rot-y', `${rotY}deg`);
           node.style.setProperty('--card-scale', `${scale}`);
           node.style.setProperty('--card-opacity', `${opacity}`);
-          node.style.setProperty('--card-blur', `${blur}px`);
-          node.style.zIndex = String(Math.round(1000 + focus * 100 - index));
+
+          // Throttle zIndex: only write when the rounded value actually changes
+          const newZ = Math.round(1000 + focus * 100 - index);
+          if (prevZIndexRef.current[layout.id] !== newZ) {
+            node.style.zIndex = String(newZ);
+            prevZIndexRef.current[layout.id] = newZ;
+          }
         });
 
         space.style.setProperty('--wall-x', `${motion.x}px`);
@@ -209,7 +274,7 @@ const MainView: React.FC<MainViewProps> = ({
   useEffect(() => {
     const handleWindowPointerMove = (event: PointerEvent) => {
       const drag = dragRef.current;
-      if (isPlaylistPanelOpenRef.current || isPanelOpeningRef.current) {
+      if (isPanelOpeningRef.current) {
         resetDragState(event.pointerId, true);
         return;
       }
@@ -221,7 +286,7 @@ const MainView: React.FC<MainViewProps> = ({
       drag.lastY = event.clientY;
       drag.moved += Math.abs(dx) + Math.abs(dy);
 
-      if (drag.moved > 6) {
+      if (drag.moved > 12) {
         event.preventDefault();
         if (!drag.thresholdExceeded) {
           drag.thresholdExceeded = true;
@@ -254,7 +319,21 @@ const MainView: React.FC<MainViewProps> = ({
 
   const registerCard = useCallback((id: CardEntry['id']) => {
     cardRefCallbacks.current[id] ??= (node: HTMLButtonElement | null) => {
+      const prev = cardRefs.current[id];
+      if (prev) {
+        const p = prev as any;
+        if (p._hoverEnter) prev.removeEventListener('mouseenter', p._hoverEnter);
+        if (p._hoverLeave) prev.removeEventListener('mouseleave', p._hoverLeave);
+      }
       cardRefs.current[id] = node;
+      if (node) {
+        const enter = () => { hoveredIdRef.current = id; };
+        const leave = () => { if (hoveredIdRef.current === id) hoveredIdRef.current = null; };
+        (node as any)._hoverEnter = enter;
+        (node as any)._hoverLeave = leave;
+        node.addEventListener('mouseenter', enter);
+        node.addEventListener('mouseleave', leave);
+      }
     };
 
     return cardRefCallbacks.current[id];
@@ -270,7 +349,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, [onOpenPlaylist, resetDragState]);
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
-    if (isPlaylistPanelOpenRef.current || isPanelOpeningRef.current) return;
+    if (isPanelOpeningRef.current) return;
     if (event.button !== 0) return;
 
     dragRef.current = {
@@ -288,7 +367,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.active && dragRef.current.pointerId === event.pointerId && dragRef.current.moved > 6) {
+    if (dragRef.current.active && dragRef.current.pointerId === event.pointerId && dragRef.current.moved > 12) {
       event.preventDefault();
     }
   }, []);
@@ -311,11 +390,9 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
-    if (isPlaylistPanelOpen) return;
-
     motionRef.current.targetX -= event.deltaX * 0.72;
     motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
-  }, [isPlaylistPanelOpen]);
+  }, []);
 
   const handleNativeDragStart = useCallback((event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -340,6 +417,30 @@ const MainView: React.FC<MainViewProps> = ({
     }, {});
   }, [cardLayouts]);
 
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const coverTargetRef = useRef<string | null>(null);
+  const [cropSource, setCropSource] = useState<File | null>(null);
+
+  const handleCoverFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !coverTargetRef.current) return;
+    setCropSource(file);
+    e.target.value = '';
+  }, []);
+
+  const handleCropConfirm = useCallback((croppedDataUrl: string) => {
+    if (coverTargetRef.current && onCardOverrideChange) {
+      onCardOverrideChange(coverTargetRef.current, { coverUrl: croppedDataUrl });
+    }
+    coverTargetRef.current = null;
+    setCropSource(null);
+  }, [onCardOverrideChange]);
+
+  const handleCropCancel = useCallback(() => {
+    coverTargetRef.current = null;
+    setCropSource(null);
+  }, []);
+
   return (
     <section
       className="new-ux-mainview new-ux-scrollbar"
@@ -350,24 +451,97 @@ const MainView: React.FC<MainViewProps> = ({
       onDragStartCapture={handleNativeDragStart}
       onWheel={handleWheel}
     >
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverFileSelected}
+      />
       <div
         ref={spaceRef}
         className={`new-ux-playlist-space${isDragging ? ' new-ux-playlist-space--dragging' : ''}`}
         onDoubleClick={handleDoubleClick}
       >
-        {entries.map(entry => (
-          <PlaylistCard
-            key={`${entry.id}:${panelCloseEpoch}`}
-            entry={entry}
-            cardRef={registerCard(entry.id)}
-            {...(cardStyles[entry.id] ? { style: cardStyles[entry.id] } : {})}
-            onOpen={handleOpenPlaylist}
-            onContextMenu={onPlaylistContextMenu}
-          />
-        ))}
+        {visibleEntries.map(entry => {
+          const override = cardOverrides?.[entry.id];
+          return (
+            <PlaylistCard
+              key={`${entry.id}:${panelCloseEpoch}`}
+              entry={entry}
+              cardRef={registerCard(entry.id)}
+              {...(cardStyles[entry.id] ? { style: cardStyles[entry.id] } : {})}
+              onOpen={handleOpenPlaylist}
+              onContextMenu={onPlaylistContextMenu}
+              {...(isCardEditMode ? { isCardEditMode: true } : {})}
+              {...(override?.coverUrl ? { overrideCover: override.coverUrl } : {})}
+              {...(override?.name ? { overrideName: override.name } : {})}
+              onToggleHidden={() => onCardOverrideChange?.(entry.id, { hidden: true })}
+              onChangeCover={() => {
+                coverTargetRef.current = entry.id;
+                coverInputRef.current?.click();
+              }}
+              onChangeName={(name) => {
+                if (name) {
+                  onCardOverrideChange?.(entry.id, { name });
+                } else {
+                  onCardOverrideChange?.(entry.id, { name: undefined as unknown as string });
+                }
+              }}
+            />
+          );
+        })}
       </div>
+
+      {/* Hidden cards tray — managed by left panel state machine */}
+      {isCardEditMode && hiddenEntries.length > 0 && (activePanel === 'hidden' || exitingPanel === 'hidden') && (
+        <div className={`new-ux-hidden-tray${exitingPanel === 'hidden' ? ' new-ux-tray--exiting' : ''}`}>
+          <div className="new-ux-hidden-tray__header">
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>visibility_off</span>
+            {i18n.t('newui.hiddenCards')} ({hiddenEntries.length})
+          </div>
+          <div className="new-ux-hidden-tray__list">
+            {hiddenEntries.map(entry => {
+              const override = cardOverrides?.[entry.id];
+              const coverUrl = override?.coverUrl ?? (entry.coverUrls[0] || undefined);
+              const displayName = override?.name ?? entry.title;
+              return (
+                <div key={entry.id} className="new-ux-hidden-tray__item">
+                  <div className="new-ux-hidden-tray__cover">
+                    {coverUrl ? (
+                      <img src={toCoverThumb(coverUrl, 128)} alt="" />
+                    ) : (
+                      <div className="new-ux-hidden-tray__cover-fallback">
+                        <span className="material-symbols-outlined">music_note</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="new-ux-hidden-tray__info">
+                    <div className="new-ux-hidden-tray__title">{displayName}</div>
+                  </div>
+                  <button
+                    className="new-ux-hidden-tray__restore"
+                    onClick={() => onCardOverrideChange?.(entry.id, { hidden: false })}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>visibility</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Square crop modal for cover images */}
+      {cropSource && (
+        <SquareCropModal
+          source={cropSource}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
     </section>
   );
 };
 
-export default MainView;
+export default React.memo(MainView);

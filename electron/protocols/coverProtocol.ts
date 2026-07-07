@@ -8,19 +8,6 @@ import { logger } from '../logger';
 const MAX_THUMBNAIL_SIZE = 512;
 
 export function registerCoverProtocol(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: 'cover',
-      privileges: {
-        secure: true,
-        standard: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        bypassCSP: false
-      }
-    }
-  ]);
-
   app.whenReady().then(() => {
     const coverDir = path.join(app.getPath('userData'), 'covers');
     protocol.handle('cover', (request) => {

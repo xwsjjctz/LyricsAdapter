@@ -1,0 +1,109 @@
+/*
+ * New UI Focus Mode — independent layout styles.
+ *
+ * These classes replace the shared Tailwind layout classes when
+ * variant="new-ux". The legacy FocusMode layout remains untouched.
+ */
+
+/* ── Outer shell ──────────────────────────────────────────────────────────── */
+.newux-focus-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  overflow: hidden;
+  /* No slide animation — GSAP hero handles entry */
+}
+
+.newux-focus-shell--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Inner content column ─────────────────────────────────────────────────── */
+.newux-focus-content {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  overflow: hidden;
+}
+
+/* ── Main stage (cover + lyrics) ──────────────────────────────────────────── */
+.newux-focus-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  margin-bottom: 96px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 960px;
+  flex-direction: column;
+  gap: 48px;
+  padding: 0 24px;
+}
+
+@media (min-width: 1024px) {
+  .newux-focus-main {
+    flex-direction: row;
+    gap: 80px;
+    padding: 0 32px;
+  }
+}
+
+/* ── Cover & meta column ──────────────────────────────────────────────────── */
+.newux-focus-cover-col {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  padding: 16px;
+}
+
+/* ── Lyrics column ────────────────────────────────────────────────────────── */
+.newux-focus-lyrics {
+  flex: 1;
+  height: 100%;
+  max-height: 50vh;
+  overflow: hidden;
+  position: relative;
+  padding: 0 24px;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+
+@media (min-width: 1024px) {
+  .newux-focus-lyrics {
+    max-height: 60vh;
+  }
+}
+
+/* ── Controls wrapper ─────────────────────────────────────────────────────── */
+.newux-focus-controls-wrap {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 540px;
+  padding: 0 20px;
+  z-index: 20;
+}

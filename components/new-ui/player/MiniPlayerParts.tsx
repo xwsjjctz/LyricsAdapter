@@ -147,7 +147,6 @@ export const MiniVolume: React.FC<MiniVolumeProps> = ({
         type="button"
         className="new-ux-button-reset new-ux-icon-button new-ux-icon-button--compact"
         onClick={onTogglePlaybackMode}
-        title={playbackModeLabel[playbackMode]}
         aria-label={playbackModeLabel[playbackMode]}
       >
         <span className="material-symbols-outlined text-[20px]">{playbackModeIcon[playbackMode]}</span>

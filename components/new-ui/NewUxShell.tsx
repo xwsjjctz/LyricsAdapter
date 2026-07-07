@@ -13,14 +13,21 @@ import SettingsPanel from './SettingsPanel';
 import ThemePanel from './ThemePanel';
 import NewUxSearchBox from './NewUxSearchBox';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
+import RightDrawer from './RightDrawer';
+import {
+  loadCardOverrides,
+  loadBgImage,
+  loadBgBlur,
+  saveBgImage,
+  saveBgBlur,
+  setCardOverride,
+  type CardOverrideMap,
+} from '../../services/newUxCardEdit';
 import FocusAmbientLight from './focus/FocusAmbientLight';
-import FocusTransitionLayer, {
-  createFocusTransitionSnapshot,
-  type FocusTransitionSnapshot,
-} from './focus/FocusTransitionLayer';
 import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
+import { i18n } from '../../services/i18n';
 import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -107,9 +114,73 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const entries = usePlaylistEntries(slots, onlinePlaylists);
   const panels = useNewUxStore();
   const playerTransitionRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Card edit mode ──
+  const [isCardEditMode, setIsCardEditMode] = useState(false);
+  const [cardOverrides, setCardOverrides] = useState<CardOverrideMap>({});
+  const [bgImage, setBgImage] = useState('');
+  const [bgBlur, setBgBlur] = useState(80);
+  const bgInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Left panel state machine (mutual exclusivity + exit animation) ──
+  const [activePanel, setActivePanel] = useState<'hidden' | 'bg' | null>(null);
+  const [exitingPanel, setExitingPanel] = useState<'hidden' | 'bg' | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleLeftPanel = useCallback((panel: 'hidden' | 'bg') => {
+    // Cancel any pending exit timer to prevent stale callbacks
+    if (exitTimerRef.current) {
+      clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
+    }
+
+    setActivePanel(current => {
+      if (current === panel) {
+        // Toggle off: start exit animation, clear after 220ms
+        setExitingPanel(panel);
+        exitTimerRef.current = setTimeout(() => {
+          setExitingPanel(null);
+          exitTimerRef.current = null;
+        }, 220);
+        return null;
+      } else if (current !== null) {
+        // Switch: exit current immediately, show new one
+        setExitingPanel(current);
+        exitTimerRef.current = setTimeout(() => {
+          setExitingPanel(null);
+          exitTimerRef.current = null;
+        }, 220);
+        return panel;
+      } else {
+        // Open fresh (no current panel, or previous already exited)
+        setExitingPanel(null);
+        return panel;
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    loadCardOverrides().then(setCardOverrides);
+    loadBgImage().then(setBgImage);
+    loadBgBlur().then(setBgBlur);
+  }, []);
+
+  // Auto-show hidden tray when entering edit mode with hidden cards,
+  // auto-hide when leaving edit mode or all cards become visible.
+  const hasHiddenCards = Object.values(cardOverrides).some(o => o.hidden);
+  useEffect(() => {
+    if (isCardEditMode && hasHiddenCards && activePanel === null && exitingPanel === null) {
+      setActivePanel('hidden');
+    } else if ((!isCardEditMode || !hasHiddenCards) && activePanel === 'hidden') {
+      setExitingPanel('hidden');
+      setActivePanel(null);
+      exitTimerRef.current = setTimeout(() => {
+        setExitingPanel(null);
+        exitTimerRef.current = null;
+      }, 220);
+    }
+  }, [isCardEditMode, hasHiddenCards, activePanel, exitingPanel]);
   const [isCurrentTrackVisible, setIsCurrentTrackVisible] = useState(false);
-  const [focusTransitionSnapshot, setFocusTransitionSnapshot] =
-    useState<FocusTransitionSnapshot | null>(null);
   const [locateRequest, setLocateRequest] = useState<{ trackId: string | null; token: number }>({
     trackId: null,
     token: 0,
@@ -184,6 +255,10 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     () => <FocusAmbientLight track={currentTrack} isPlaying={isPlaying} />,
     [currentTrack, isPlaying]
   );
+  const shellStyle = useMemo(() => ({
+    '--new-ux-glass-backdrop-image': bgImage ? `url("${bgImage}")` : 'none',
+    '--new-ux-glass-backdrop-opacity': bgImage ? '0.38' : '0',
+  }) as React.CSSProperties, [bgImage]);
 
   useEffect(() => {
     setIsCurrentTrackVisible(false);
@@ -282,23 +357,11 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   const handleOpenFocusMode = useCallback(() => {
     if (!currentTrack) return;
-    // Attempt to capture a snapshot of the mini player for the hero transition.
-    const panelRoot = playerTransitionRef.current;
-    const snapshot =
-      panelRoot ? createFocusTransitionSnapshot(panelRoot, currentTrack) : null;
-    if (snapshot) {
-      // Show Focus Mode immediately (it renders below the transition layer),
-      // then let the hero animation play on top.
-      onToggleFocusMode();
-      setFocusTransitionSnapshot(snapshot);
-    } else {
-      // No snapshot available (e.g. panel not yet mounted) — fall back to direct toggle.
-      onToggleFocusMode();
-    }
+    onToggleFocusMode();
   }, [currentTrack, onToggleFocusMode]);
 
   return (
-    <div className="new-ux-shell font-sans">
+    <div className="new-ux-shell font-sans" style={shellStyle}>
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
       <input
         type="file"
@@ -313,6 +376,16 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
             Exiting back to the legacy UI is exposed from the Settings card (see
             SettingsPanel) to keep the chrome minimal. */}
       </div>
+      {bgImage && (
+        <div
+          className="new-ux-bg-image"
+          style={{
+            backgroundImage: `url(${bgImage})`,
+            filter: `blur(${bgBlur}px)`,
+            transform: 'scale(1.1)',
+          }}
+        />
+      )}
       <NewUxSearchBox
         {...(isWindowFocused !== undefined ? { isWindowFocused } : {})}
         localTracks={slots.local.tracks}
@@ -330,6 +403,14 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
             isPlaylistPanelOpen={Boolean(openPanel) || Boolean(panels.state.openOverlayPanel)}
             onOpenPlaylist={handleOpenPlaylist}
             onPlaylistContextMenu={handlePlaylistContextMenu}
+            isCardEditMode={isCardEditMode}
+            cardOverrides={cardOverrides}
+            onCardOverrideChange={async (entryId, patch) => {
+              const next = await setCardOverride(entryId, patch);
+              setCardOverrides(next);
+            }}
+            activePanel={activePanel}
+            exitingPanel={exitingPanel}
           />
           <div className="new-ux-panel-layer">
             <PanelStack>
@@ -412,6 +493,79 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       {currentTrack && nowPlayingLocator.visible && (
         <LocateNowPlayingButton track={currentTrack} onLocate={handleLocateNowPlaying} />
       )}
+      <RightDrawer
+        isCardEditMode={isCardEditMode}
+        onToggleCardEditMode={() => setIsCardEditMode(v => !v)}
+        onOpenSettings={panels.openSettings}
+        onOpenTheme={panels.openTheme}
+        showBgSettings={activePanel === 'bg'}
+        onToggleBgSettings={() => toggleLeftPanel('bg')}
+      />
+
+      {/* Left-side background settings panel */}
+      {(activePanel === 'bg' || exitingPanel === 'bg') && (
+        <div className={`new-ux-bg-tray${exitingPanel === 'bg' ? ' new-ux-tray--exiting' : ''}`}>
+          <div className="new-ux-bg-tray__header">
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>
+            {i18n.t('newui.bgSettings')}
+          </div>
+          <div className="new-ux-bg-tray__body">
+            <div className="new-ux-bg-settings__label">{i18n.t('newui.bgImage')}</div>
+            <div className="new-ux-bg-settings__row">
+              <button
+                className="new-ux-bg-tray__btn"
+                onClick={() => bgInputRef.current?.click()}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
+                {i18n.t('newui.pickImage')}
+              </button>
+              {bgImage && (
+                <button
+                  className="new-ux-bg-tray__btn"
+                  onClick={() => { setBgImage(''); saveBgImage(''); }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                  {i18n.t('newui.clear')}
+                </button>
+              )}
+            </div>
+            {bgImage && (
+              <div className="new-ux-bg-tray__preview">
+                <img src={bgImage} alt="" />
+              </div>
+            )}
+            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>{i18n.t('newui.blurRadius')}</div>
+            <div className="new-ux-bg-settings__row">
+              <input
+                type="range"
+                min={0}
+                max={200}
+                value={bgBlur}
+                onChange={e => { const v = Number(e.target.value); setBgBlur(v); saveBgBlur(v); }}
+                className="new-ux-bg-settings__slider"
+              />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 36, textAlign: 'right' }}>
+                {bgBlur}px
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={bgInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => { const d = reader.result as string; setBgImage(d); saveBgImage(d); };
+          reader.readAsDataURL(file);
+          e.target.value = '';
+        }}
+      />
       <FloatingPlayerPanel
         track={currentTrack}
         isPlaying={isPlaying}
@@ -428,12 +582,6 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onTogglePlaybackMode={onTogglePlaybackMode}
         onToggleFocus={handleOpenFocusMode}
       />
-      {focusTransitionSnapshot && (
-        <FocusTransitionLayer
-          snapshot={focusTransitionSnapshot}
-          onComplete={() => setFocusTransitionSnapshot(null)}
-        />
-      )}
       <FocusMode
         track={currentTrack}
         isVisible={isFocusMode}

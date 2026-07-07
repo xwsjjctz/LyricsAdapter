@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
 import type { CardEntry } from './types';
 
@@ -8,11 +8,36 @@ interface PlaylistCardProps {
   onContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
   cardRef?: (node: HTMLButtonElement | null) => void;
   style?: React.CSSProperties;
+  isCardEditMode?: boolean;
+  overrideCover?: string;
+  overrideName?: string;
+  onToggleHidden?: () => void;
+  onChangeCover?: () => void;
+  onChangeName?: (name: string) => void;
 }
 
-const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMenu, cardRef, style }) => {
+const PlaylistCard: React.FC<PlaylistCardProps> = ({
+  entry, onOpen, onContextMenu, cardRef, style,
+  isCardEditMode, overrideCover, overrideName,
+  onToggleHidden, onChangeCover, onChangeName,
+}) => {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+
   const covers = entry.coverUrls.length > 0 ? entry.coverUrls : [undefined, undefined, undefined];
-  const primaryCover = covers[0];
+  const primaryCover = overrideCover ?? covers[0];
+  const displayName = overrideName ?? entry.title;
+
+  const handleStartEditName = () => {
+    setNameValue(overrideName ?? entry.title);
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    setIsEditingName(false);
+    const trimmed = nameValue.trim();
+    onChangeName?.(trimmed !== entry.title ? trimmed : '');
+  };
 
   return (
     <button
@@ -22,7 +47,7 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMen
       style={style}
       draggable={false}
       onDragStart={(event) => event.preventDefault()}
-      onClick={() => onOpen(entry)}
+      onClick={() => !isCardEditMode && onOpen(entry)}
       onContextMenu={(event) => onContextMenu(entry, event)}
     >
       <div className="new-ux-playlist-card__stack" aria-hidden="true">
@@ -37,14 +62,54 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ entry, onOpen, onContextMen
           ) : (
             <span className="new-ux-playlist-card__icon material-symbols-outlined">{entry.icon}</span>
           )}
+          {/* Edit mode overlay */}
+          {isCardEditMode && (
+            <div className="new-ux-edit-overlay">
+              <div className="new-ux-edit-overlay__actions">
+                <button
+                  className="new-ux-edit-overlay__btn"
+                  onClick={(e) => { e.stopPropagation(); onChangeCover?.(); }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>image</span>
+                </button>
+                <button
+                  className="new-ux-edit-overlay__btn"
+                  onClick={(e) => { e.stopPropagation(); handleStartEditName(); }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>drive_file_rename_outline</span>
+                </button>
+                <button
+                  className="new-ux-edit-overlay__btn"
+                  onClick={(e) => { e.stopPropagation(); onToggleHidden?.(); }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                    visibility_off
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <div className={`new-ux-playlist-card__info${entry.kind === 'overlay' ? ' new-ux-playlist-card__info--no-play' : ''}`}>
         <div className="min-w-0">
-          <div className="new-ux-playlist-card__title">{entry.title}</div>
+          {isEditingName ? (
+            <input
+              className="new-ux-playlist-card__title w-full bg-transparent outline-none"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}
+              value={nameValue}
+              autoFocus
+              onChange={e => setNameValue(e.target.value)}
+              onBlur={handleSaveName}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setIsEditingName(false); }}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <div className="new-ux-playlist-card__title">{displayName}</div>
+          )}
           <div className="new-ux-playlist-card__meta">{entry.subtitle}</div>
         </div>
-        {entry.kind !== 'overlay' && (
+        {entry.kind !== 'overlay' && !isCardEditMode && (
           <span className="new-ux-playlist-card__play material-symbols-outlined">play_arrow</span>
         )}
       </div>

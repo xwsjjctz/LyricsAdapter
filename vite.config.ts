@@ -14,7 +14,15 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [
         react(),
-        tailwindcss(),
+        // `optimize: { minify: false }` disables Tailwind v4's internal
+        // lightningcss pass, which otherwise strips the standard
+        // `backdrop-filter` declaration and keeps only the `-webkit-` form.
+        // Chromium 148 / Electron 42 no longer honours the `-webkit-` prefix
+        // for backdrop-filter, so the packaged app lost every frosted-glass
+        // surface (dev was fine because Tailwind skips this pass in serve
+        // mode). With Tailwind's pass off, Vite's CSS minifier (esbuild,
+        // configured below) does the minification and preserves both forms.
+        tailwindcss({ optimize: false }),
         electron([
           {
             entry: 'electron/main.ts',
@@ -66,6 +74,11 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         chunkSizeWarningLimit: 2000,
+        // Use esbuild for CSS minification. Vite's default ('lightningcss'
+        // when installed) strips the standard `backdrop-filter` and keeps only
+        // the `-webkit-` form, which Chromium 148 / Electron 42 ignores.
+        // esbuild preserves both declarations.
+        cssMinify: 'esbuild',
         rollupOptions: {
           external: mode === 'production' ? ['electron'] : []
         }

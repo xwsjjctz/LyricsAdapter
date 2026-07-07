@@ -158,15 +158,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       </button>
 
                       <div
-                        className="absolute left-0 right-0 top-full overflow-hidden z-50"
+                        className="new-ux-inline-popover absolute left-0 right-0 top-full overflow-hidden z-50"
                         style={{
                           transform: isLangDropdownOpen ? 'scaleY(1)' : 'scaleY(0)',
                           transformOrigin: 'top center',
                           opacity: isLangDropdownOpen ? 1 : 0,
                           pointerEvents: isLangDropdownOpen ? 'auto' : 'none',
                           transition: 'transform 0.25s ease, opacity 0.2s ease',
-                          background: colors.backgroundDark,
-                          backdropFilter: 'blur(20px)',
                           borderWidth: '0 1px 1px',
                           borderStyle: 'solid',
                           borderColor: isLangDropdownOpen ? colors.borderLight : 'transparent',

@@ -6,9 +6,13 @@ import { logger } from './logger';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-process.env['DIST'] = path.join(__dirname, '../dist');
+const rendererDist = app.isPackaged
+  ? path.join(process.resourcesPath, 'dist')
+  : path.join(__dirname, '../dist');
+
+process.env['DIST'] = rendererDist;
 process.env['VITE_PUBLIC'] = app.isPackaged
-  ? process.env['DIST']
+  ? rendererDist
   : path.join(__dirname, '../../public');
 
 let win: BrowserWindow | null = null;
@@ -45,7 +49,10 @@ export async function createWindow(): Promise<BrowserWindow> {
       contextIsolation: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      sandbox: true
+      // sandbox disabled: custom app:// protocol (protocol.handle) is
+      // incompatible with OS-level renderer sandbox. contextIsolation
+      // provides the security boundary instead.
+      sandbox: false
     },
   });
 
@@ -76,7 +83,7 @@ export async function createWindow(): Promise<BrowserWindow> {
 
   if (app.isPackaged) {
     session.webRequest.onHeadersReceived((details, callback) => {
-      const csp = `default-src 'self' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' blob: data: https: http: file: cover: https://*.gtimg.cn; media-src 'self' blob: data: file: https: audio: stream:; connect-src 'self' blob: data: ws://localhost:* http://localhost:* https://esm.sh https://u.y.qq.com https://y.qq.com https://c.y.qq.com https://shc.y.qq.com https://i.y.qq.com https://dl.stream.qqmusic.qq.com https://webdav.123pan.cn https://*.123pan.cn https://*.baidubce.com https://*.cjjd19.com; worker-src 'self' blob:; frame-src 'self' blob:; font-src 'self' blob: data: https://esm.sh;`;
+      const csp = `default-src 'self' app: blob: data:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' app: 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' app: blob: data: https: http: file: cover: https://*.gtimg.cn; media-src 'self' app: blob: data: file: https: audio: stream:; connect-src 'self' app: blob: data: ws://localhost:* http://localhost:* https://esm.sh https://u.y.qq.com https://y.qq.com https://c.y.qq.com https://shc.y.qq.com https://i.y.qq.com https://dl.stream.qqmusic.qq.com https://webdav.123pan.cn https://*.123pan.cn https://*.baidubce.com https://*.cjjd19.com; worker-src 'self' app: blob:; frame-src 'self' app: blob:; font-src 'self' app: blob: data: https://esm.sh;`;
       callback({
         responseHeaders: {
           ...details.responseHeaders,
@@ -94,12 +101,8 @@ export async function createWindow(): Promise<BrowserWindow> {
   };
 
   if (app.isPackaged) {
-    const htmlPath = path.join(__dirname, '../../dist/index.html');
-    log('Loading HTML from:', htmlPath);
-    log('__dirname:', __dirname);
-
-    const fs = await import('fs');
-    log('HTML file exists:', fs.existsSync(htmlPath));
+    const appUrl = 'app://localhost/index.html';
+    log('Loading URL:', appUrl);
 
     win.webContents.on('did-finish-load', () => {
       log('Page loaded successfully');
@@ -110,9 +113,7 @@ export async function createWindow(): Promise<BrowserWindow> {
       log('Failed to load:', errorCode, errorDescription);
     });
 
-    const fileUrl = `file://${htmlPath}`;
-    log('Loading URL:', fileUrl);
-    await win.loadURL(fileUrl);
+    await win.loadURL(appUrl);
   } else {
     win.loadURL('http://localhost:3000');
   }

@@ -21,10 +21,14 @@ interface NewUxSearchBoxProps {
  * results, and "input bar + results panel join into one card" interaction are
  * all preserved) — only the placement changes.
  */
-const NewUxSearchBox: React.FC<NewUxSearchBoxProps> = (props) => (
-  <div className="new-ux-global-search">
-    <SearchBox {...props} variant="new-ux" />
-  </div>
-);
+const NewUxSearchBox: React.FC<NewUxSearchBoxProps> = (props) => {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  return (
+    <div className={`new-ux-global-search${isExpanded ? ' new-ux-global-search--expanded' : ''}`}>
+      <SearchBox {...props} variant="new-ux" onExpandedChange={setIsExpanded} />
+    </div>
+  );
+};
 
 export default NewUxSearchBox;

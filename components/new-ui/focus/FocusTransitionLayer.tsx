@@ -89,7 +89,6 @@ const FocusTransitionLayer: React.FC<FocusTransitionLayerProps> = ({
   snapshot,
   onComplete,
 }) => {
-  const panelRef   = useRef<HTMLDivElement>(null);
   const coverRef   = useRef<HTMLDivElement>(null);
   const titleRef   = useRef<HTMLDivElement>(null);
   const artistRef  = useRef<HTMLDivElement>(null);
@@ -105,30 +104,8 @@ const FocusTransitionLayer: React.FC<FocusTransitionLayerProps> = ({
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ onComplete });
 
-      // ── Background panel expands from mini-player to full-screen ──────────
-      tl.fromTo(
-        panelRef.current,
-        {
-          x:            src.panel.left,
-          y:            src.panel.top,
-          width:        src.panel.width,
-          height:       src.panel.height,
-          borderRadius: 24,
-          opacity:      1,
-        },
-        {
-          x:            tgt.panel.left,
-          y:            tgt.panel.top,
-          width:        tgt.panel.width,
-          height:       tgt.panel.height,
-          borderRadius: 0,
-          duration:     dur,
-          ease,
-        },
-        0,
-      );
-
       // ── Cover flies from mini-player to focus position ────────────────────
+      // No background panel expansion — FocusMode is already visible beneath.
       tl.fromTo(
         coverRef.current,
         {
@@ -137,6 +114,7 @@ const FocusTransitionLayer: React.FC<FocusTransitionLayerProps> = ({
           width:        src.cover.width,
           height:       src.cover.height,
           borderRadius: 14,
+          opacity:      1,
         },
         {
           x:            tgt.cover.left,
@@ -147,37 +125,34 @@ const FocusTransitionLayer: React.FC<FocusTransitionLayerProps> = ({
           duration:     dur,
           ease,
         },
-        0.04,  // 40 ms after panel starts
+        0,
       );
 
-      // ── Title ─────────────────────────────────────────────────────────────
+      // ── Text elements fade in at target positions ───────────────────────
+      // (No flying from source — text just appears where it belongs.)
       tl.fromTo(
         titleRef.current,
-        { x: src.title.left, y: src.title.top, opacity: 1 },
-        { x: tgt.title.left, y: tgt.title.top, opacity: 1, duration: dur * 0.9, ease },
-        0.07,
+        { x: tgt.title.left, y: tgt.title.top, opacity: 0 },
+        { opacity: 1, duration: dur * 0.6, ease: 'power2.out' },
+        dur * 0.3,
       );
-
-      // ── Artist ────────────────────────────────────────────────────────────
       tl.fromTo(
         artistRef.current,
-        { x: src.artist.left, y: src.artist.top, opacity: 1 },
-        { x: tgt.artist.left, y: tgt.artist.top, opacity: 1, duration: dur * 0.9, ease },
-        0.09,
+        { x: tgt.artist.left, y: tgt.artist.top, opacity: 0 },
+        { opacity: 1, duration: dur * 0.6, ease: 'power2.out' },
+        dur * 0.4,
       );
-
-      // ── Album (optional) ──────────────────────────────────────────────────
       if (snapshot.album && albumRef.current) {
         tl.fromTo(
           albumRef.current,
-          { x: src.album!.left, y: src.album!.top, opacity: 1 },
-          { x: tgt.album.left,  y: tgt.album.top,  opacity: 1, duration: dur * 0.9, ease },
-          0.11,
+          { x: tgt.album.left, y: tgt.album.top, opacity: 0 },
+          { opacity: 1, duration: dur * 0.6, ease: 'power2.out' },
+          dur * 0.5,
         );
       }
 
-      // ── Fade out the whole overlay once elements have landed ───────────────
-      tl.to(rootRef.current, { opacity: 0, duration: 0.18, ease: 'power1.in' }, dur - 0.08);
+      // ── Fade out the overlay to reveal FocusMode beneath ────────────────
+      tl.to(rootRef.current, { opacity: 0, duration: 0.22, ease: 'power1.in' }, dur * 0.75);
     });
 
     return () => ctx.revert();
@@ -199,21 +174,6 @@ const FocusTransitionLayer: React.FC<FocusTransitionLayerProps> = ({
         overflow:      'hidden',
       }}
     >
-      {/* Expanding background panel */}
-      <div
-        ref={panelRef}
-        style={{
-          position:          'fixed',
-          left:              0,
-          top:               0,
-          transformOrigin:   'top left',
-          border:            '1px solid rgba(255,255,255,0.12)',
-          background:        'rgba(10,14,22,0.9)',
-          backdropFilter:    'blur(32px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(150%)',
-        }}
-      />
-
       {/* Hero: album cover */}
       <div
         ref={coverRef}
