@@ -40,6 +40,7 @@ import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
 import NewUxShell from './components/new-ui/NewUxShell';
+import { usePlayerController } from './controllers/usePlayerController';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -180,6 +181,19 @@ const AppWorkspace: React.FC = () => {
     setActiveCurrentTime,
     updateSlot,
     onTrackSwitch: markTrackSwitch,
+  });
+  const playerController = usePlayerController({
+    activeSlotId,
+    viewSlot,
+    setViewSlot,
+    updateSlot,
+    switchTo,
+    audioRef,
+    shouldAutoPlayRef,
+    selectTrack,
+    setIsPlaying,
+    setRestoreTime,
+    markTrackSwitch,
   });
   const {
     fileInputRef,
@@ -504,28 +518,12 @@ const AppWorkspace: React.FC = () => {
     // Sync view to match the playing slot
     setViewSlot(targetSlot);
   }, [activeSlotId, viewSlot, slots.local.tracks, slots.cloud.tracks, selectTrack, audioRef, updateSlot, switchTo, setIsPlaying]);
-  // Track selection handler that handles cross-slot selection.
-  // `targetSlotId` lets New-UI callers state explicitly which slot the clicked
-  // row belongs to (the open panel may show local/cloud tracks while the active
-  // play context is the 'playlist' slot — e.g. after opening a third-party
-  // playlist card). Legacy callers omit it and fall back to viewSlot.
-  const handleTrackSelect = useCallback((trackIndex: number, targetSlotId?: SlotId) => {
-    const playSlot = targetSlotId ?? viewSlot;
-
-    if (playSlot === activeSlotId) {
-      selectTrack(trackIndex);
-      return;
-    }
-
-    // Cross-slot: save playing slot's time, switch active slot, then play.
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    updateSlot(playSlot, s => ({ ...s, currentTrackIndex: trackIndex }));
-    setRestoreTime(0);
-    markTrackSwitch();
-    switchTo(playSlot);
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-  }, [viewSlot, activeSlotId, selectTrack, updateSlot, switchTo, setIsPlaying, audioRef, markTrackSwitch]);
+  // Track selection now lives in the player controller; AppWorkspace delegates.
+  // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
+  const handleTrackSelect = useCallback(
+    (trackIndex: number, targetSlotId?: SlotId) => playerController.handleTrackSelect(trackIndex, targetSlotId),
+    [playerController],
+  );
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
     setViewMode,
     mergeCloudTracks,
