@@ -1,6 +1,11 @@
 import { useCallback } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
+import { getOnlineProvider } from '../services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
+import { qqMusicApi } from '../services/qqMusicApi';
+import { neteaseMusicApi } from '../services/neteaseMusicApi';
+import { parseLRCLyrics } from '../services/metadataService';
 
 /**
  * Player Controller (Phase 1 of the refactor roadmap).
@@ -29,6 +34,10 @@ export interface PlayerControllerOptions {
   updateSlot: (slotId: SlotId, updater: (slot: any) => any) => void;
   /** Switch the active play context to another slot (from useLibrarySlots). */
   switchTo: (slotId: SlotId) => void;
+  /** Push a track onto the front of the online (LRU) slot (from useLibrarySlots). */
+  addOnlineTrack: (track: Track) => void;
+  /** Replace the online slot's tracks (from useLibrarySlots). */
+  updateOnlineTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
 
   /** Player store (from usePlayback) */
   audioRef: MutableRefObject<HTMLAudioElement | null>;
@@ -51,6 +60,8 @@ export function usePlayerController(options: PlayerControllerOptions) {
     setViewSlot,
     updateSlot,
     switchTo,
+    addOnlineTrack,
+    updateOnlineTracks,
     audioRef,
     shouldAutoPlayRef,
     selectTrack,
@@ -111,8 +122,77 @@ export function usePlayerController(options: PlayerControllerOptions) {
     setViewSlot(targetSlot);
   }, [activeSlotId, viewSlot, localTracks, cloudTracks, selectTrack, audioRef, updateSlot, switchTo, setIsPlaying]);
 
+  // Click a third-party search result → stream it via stream:// protocol
+  // and record in the online-playback slot (LRU, most-recent at head).
+  // Accepts the pre-normalized inline shape used by the original AppWorkspace
+  // handler; UI callers use playOnlineSong below which normalizes OnlineSong.
+  const handleOnlineStreamPlay = useCallback(async (song: {
+    songmid: string; title: string; artist: string; album: string;
+    coverUrl?: string; duration: number; singer?: { name: string }[];
+  }, sourceOverride?: OnlineSource) => {
+    const source = sourceOverride ?? getOnlineProvider().id;
+    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const track: Track = {
+      id: `online-${source}-${song.songmid}`,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration || 0,
+      coverUrl: song.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: song.songmid,
+    };
+    // Save current slot's playback position
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    // Add to online slot (LRU push to front → always at index 0)
+    addOnlineTrack(track);
+    updateSlot('online', s => ({ ...s, currentTrackIndex: 0 }));
+    // Cross-slot switch (active + view)
+    setRestoreTime(0);
+    switchTo('online');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+    setViewSlot('online');
+    // Async metadata/lyrics enrichment
+    lyricsProvider?.getLyrics?.(song.songmid).then(rawLyrics => {
+      if (rawLyrics) {
+        const parsed = parseLRCLyrics(rawLyrics);
+        updateOnlineTracks(prev => prev.map(t =>
+          t.id === track.id
+            ? {
+              ...t,
+              lyrics: parsed.plainText || rawLyrics,
+              ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+            }
+            : t
+        ));
+      }
+    }).catch(() => {});
+  }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
+
+  // UI-facing adapter: normalize an OnlineSong into the shape the internal
+  // handler expects. Moved here from AppWorkspace's two call-site wrappers
+  // (NewUxShell + SearchBox). Uses the NewUxShell variant's conditional
+  // coverUrl inclusion; the SearchBox variant passed coverUrl unconditionally,
+  // but for the resulting Track the two are behaviourally equivalent (an
+  // undefined coverUrl vs. an absent key both fall back to the placeholder).
+  const playOnlineSong = useCallback((song: OnlineSong, sourceOverride?: OnlineSource) => {
+    void handleOnlineStreamPlay({
+      songmid: song.songmid,
+      title: song.songname,
+      artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
+      album: song.albumname || 'Unknown Album',
+      ...(song.coverUrl ? { coverUrl: song.coverUrl } : {}),
+      duration: song.interval || 0,
+      singer: song.singer,
+    }, sourceOverride);
+  }, [handleOnlineStreamPlay]);
+
   return {
     handleTrackSelect,
     handleSearchNavigate,
+    handleOnlineStreamPlay,
+    playOnlineSong,
   };
 }

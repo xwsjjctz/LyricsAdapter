@@ -31,7 +31,6 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
-import { getOnlineProvider } from './services/onlineMusicProvider';
 import type { OnlineSong } from './services/onlineMusicProvider';
 import { qqMusicApi } from './services/qqMusicApi';
 import { neteaseMusicApi } from './services/neteaseMusicApi';
@@ -190,6 +189,8 @@ const AppWorkspace: React.FC = () => {
     setViewSlot,
     updateSlot,
     switchTo,
+    addOnlineTrack,
+    updateOnlineTracks,
     audioRef,
     shouldAutoPlayRef,
     selectTrack,
@@ -511,52 +512,9 @@ const AppWorkspace: React.FC = () => {
     mergeCloudTracks,
   });
 
-  // Click a third-party search result → stream it via stream:// protocol
-  // and record in the online-playback slot (LRU, most-recent at head).
-  const handleOnlineStreamPlay = useCallback(async (song: {
-    songmid: string; title: string; artist: string; album: string;
-    coverUrl?: string; duration: number; singer?: { name: string }[];
-  }, sourceOverride?: 'qq' | 'netease') => {
-    const source = sourceOverride ?? getOnlineProvider().id;
-    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
-    const track: Track = {
-      id: `online-${source}-${song.songmid}`,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      duration: song.duration || 0,
-      coverUrl: song.coverUrl,
-      audioUrl: '',
-      source,
-      songmid: song.songmid,
-    };
-    // Save current slot's playback position
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    // Add to online slot (LRU push to front → always at index 0)
-    addOnlineTrack(track);
-    updateSlot('online', s => ({ ...s, currentTrackIndex: 0 }));
-    // Cross-slot switch (active + view)
-    setRestoreTime(0);
-    switchTo('online');
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-    setViewSlot('online');
-    // Async metadata/lyrics enrichment
-    lyricsProvider?.getLyrics?.(song.songmid).then(rawLyrics => {
-      if (rawLyrics) {
-        const parsed = parseLRCLyrics(rawLyrics);
-        updateOnlineTracks(prev => prev.map(t =>
-          t.id === track.id
-            ? {
-                ...t,
-                lyrics: parsed.plainText || rawLyrics,
-                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
-              }
-            : t
-        ));
-      }
-    }).catch(() => {});
-  }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
+  // Online stream play now lives in the player controller; AppWorkspace delegates
+  // via playerController.playOnlineSong (which normalizes OnlineSong for the
+  // controller's internal handler). (Phase 1 migration — see docs/refactor-roadmap.md §3.)
 
   // Play a whole playlist: load every song into the playlist slot as the queue so
   // next/prev traverses the playlist in order. Keeps the user in the Playlists
@@ -807,14 +765,7 @@ const AppWorkspace: React.FC = () => {
           onNavigateToTrack={handleSearchNavigate}
           onOnlineDownload={handleOnlineDownload}
           onOnlineUpload={handleOnlineUpload}
-          onOnlineStreamPlay={(song, source) => handleOnlineStreamPlay({
-            songmid: song.songmid, title: song.songname,
-            artist: song.singer?.map(s => s.name).join(' & ') || 'Unknown Artist',
-            album: song.albumname || 'Unknown Album',
-            ...(song.coverUrl ? { coverUrl: song.coverUrl } : {}),
-            duration: song.interval || 0,
-            singer: song.singer,
-          }, source)}
+          onOnlineStreamPlay={playerController.playOnlineSong}
           onlineProgress={onlineProgress}
           cloudImportDisabled={cloudWritable !== true}
           cloudImportDisabledReason={
@@ -957,13 +908,7 @@ const AppWorkspace: React.FC = () => {
 	                    cloudTracks={slots.cloud.tracks}
 	                    onNavigateToTrack={handleSearchNavigate}
 	                    onOnlineDownload={handleOnlineDownload}
-                    onOnlineStreamPlay={(song: any, source?: string) => handleOnlineStreamPlay({
-                      songmid: song.songmid, title: song.songname,
-                      artist: song.singer?.map((s: any) => s.name).join(' & ') || 'Unknown Artist',
-                      album: song.albumname || 'Unknown Album',
-                      coverUrl: song.coverUrl, duration: song.interval || 0,
-                      singer: song.singer,
-                    }, source as 'qq' | 'netease' | undefined)}
+                    onOnlineStreamPlay={playerController.playOnlineSong}
 	                    onOnlineUpload={handleOnlineUpload}
 	                    onlineProgress={onlineProgress}
 	                  />
