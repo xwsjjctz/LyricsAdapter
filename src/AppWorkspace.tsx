@@ -240,29 +240,12 @@ const AppWorkspace: React.FC = () => {
   const { handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
     setTracks: setActiveTracks,
-    currentTrackIndex: activeTrackIndex,
-    setCurrentTrackIndex: setActiveTrackIndex,
-    isPlaying,
-    setIsPlaying,
     createTrackedBlobUrl,
-    revokeBlobUrl,
-    audioRef,
   });
   const { handleReloadFiles: handleReloadLocalFiles } = useLibraryActions({
     tracks: slots.local.tracks,
     setTracks: updateLocalTracks,
-    currentTrackIndex: slots.local.currentTrackIndex,
-    setCurrentTrackIndex: (index) => {
-      updateSlot('local', slot => ({
-        ...slot,
-        currentTrackIndex: typeof index === 'function' ? index(slot.currentTrackIndex) : index,
-      }));
-    },
-    isPlaying,
-    setIsPlaying,
     createTrackedBlobUrl,
-    revokeBlobUrl,
-    audioRef,
   });
   const libraryController = useLibraryController({
     viewSlot,
