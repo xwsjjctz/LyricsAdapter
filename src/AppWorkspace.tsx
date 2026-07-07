@@ -10,7 +10,6 @@ import { logger } from './services/logger';
 import { coverArtService } from './services/coverArtService';
 import { reorderTracks } from './services/libraryReorder';
 import { cookieManager, neteaseCookieManager } from './services/cookieManager';
-import { parseLRCLyrics } from './services/metadataService';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -191,6 +190,10 @@ const AppWorkspace: React.FC = () => {
     switchTo,
     addOnlineTrack,
     updateOnlineTracks,
+    loadPlaylistTracks,
+    updatePlaylistTracks,
+    playlistTracks: slots.playlist.tracks,
+    playlistCurrentIndex: slots.playlist.currentTrackIndex,
     audioRef,
     shouldAutoPlayRef,
     selectTrack,
@@ -516,36 +519,13 @@ const AppWorkspace: React.FC = () => {
   // via playerController.playOnlineSong (which normalizes OnlineSong for the
   // controller's internal handler). (Phase 1 migration — see docs/refactor-roadmap.md §3.)
 
-  // Play a whole playlist: load every song into the playlist slot as the queue so
-  // next/prev traverses the playlist in order. Keeps the user in the Playlists
-  // view (only activeSlot/viewSlot move to 'online'); the detail list highlights
-  // the current track via currentTrackId.
-  const handlePlayPlaylist = useCallback((source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => {
-    const tracks: Track[] = songs.map(s => ({
-      id: `online-${source}-${s.songmid}`,
-      title: s.songname,
-      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
-      album: s.albumname || 'Unknown Album',
-      duration: s.interval || 0,
-      coverUrl: s.coverUrl,
-      audioUrl: '',
-      source,
-      songmid: s.songmid,
-    }));
-    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
-    // Save current slot's playback position
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    // Load the full playlist into the dedicated playlist slot (isolated from the
-    // online/search LRU queue) and make it the active play context. The user
-    // stays in the Playlists view; viewSlot is left untouched.
-    loadPlaylistTracks(tracks);
-    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
-    setRestoreTime(0);
-    switchTo('playlist');
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-    // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
-  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
+  // Whole-playlist play now lives in the player controller; AppWorkspace delegates.
+  // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
+  const handlePlayPlaylist = useCallback(
+    (source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) =>
+      playerController.handlePlayPlaylist(source, songs, clickedIndex),
+    [playerController],
+  );
 
   // New UI: opening a third-party playlist card loads its songs into the
   // playlist slot (without auto-playing) so the playlist panel can browse them.
@@ -571,61 +551,8 @@ const AppWorkspace: React.FC = () => {
     switchTo('playlist');
   }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo]);
 
-  // Playlist-only lyrics sliding window (size 3): prefetch the current track and
-  // its two neighbours, and evict lyrics outside that window to bound memory.
-  // Other slots are unaffected — online uses per-click enrichment, local/cloud
-  // read lyrics from file metadata.
-  useEffect(() => {
-    const playlistTracks = slots.playlist.tracks;
-    const i = slots.playlist.currentTrackIndex;
-    if (i < 0 || playlistTracks.length === 0) return;
-    const lo = Math.max(0, i - 1);
-    const hi = Math.min(playlistTracks.length - 1, i + 1);
-
-    // Prefetch the window's missing lyrics (current ± 1).
-    for (let k = lo; k <= hi; k++) {
-      const t = playlistTracks[k];
-      if (!t || (t.source !== 'qq' && t.source !== 'netease') || !t.songmid) continue;
-      if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) continue;
-      const provider = t.source === 'qq' ? qqMusicApi : neteaseMusicApi;
-      const trackId = t.id;
-      provider.getLyrics(t.songmid)
-        .then(raw => {
-          if (!raw) return;
-          const parsed = parseLRCLyrics(raw);
-          updatePlaylistTracks(prev => prev.map(x =>
-            x.id === trackId && !x.lyrics
-              ? {
-                ...x,
-                lyrics: parsed.plainText || raw,
-                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
-              }
-              : x
-          ));
-        })
-        .catch(() => { /* lyrics are best-effort */ });
-    }
-
-    // Evict lyrics outside the window so only the current ± 1 stay cached.
-    updatePlaylistTracks(prev => {
-      const evictLo = Math.max(0, i - 1);
-      const evictHi = Math.min(prev.length - 1, i + 1);
-      let changed = false;
-      const next = prev.map((t, k) => {
-        if (k < evictLo || k > evictHi) {
-          if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) {
-            changed = true;
-            const clone = { ...t };
-            delete clone.lyrics;
-            delete clone.syncedLyrics;
-            return clone;
-          }
-        }
-        return t;
-      });
-      return changed ? next : prev;
-    });
-  }, [slots.playlist.currentTrackIndex, slots.playlist.tracks.length, updatePlaylistTracks]);
+  // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
+  // now runs inside the player controller, keyed on playlistCurrentIndex.
   useShortcuts({
     viewMode,
     isFocusMode,

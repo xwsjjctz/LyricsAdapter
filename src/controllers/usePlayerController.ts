@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
 import { getOnlineProvider } from '../services/onlineMusicProvider';
@@ -38,6 +38,14 @@ export interface PlayerControllerOptions {
   addOnlineTrack: (track: Track) => void;
   /** Replace the online slot's tracks (from useLibrarySlots). */
   updateOnlineTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
+  /** Load a full track list into the playlist slot (from useLibrarySlots). */
+  loadPlaylistTracks: (tracks: Track[]) => void;
+  /** Replace the playlist slot's tracks (from useLibrarySlots). */
+  updatePlaylistTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
+  /** Playlist slot tracks (read by the lyrics sliding-window effect). */
+  playlistTracks: Track[];
+  /** Playlist slot current index (read by the lyrics sliding-window effect). */
+  playlistCurrentIndex: number;
 
   /** Player store (from usePlayback) */
   audioRef: MutableRefObject<HTMLAudioElement | null>;
@@ -62,6 +70,10 @@ export function usePlayerController(options: PlayerControllerOptions) {
     switchTo,
     addOnlineTrack,
     updateOnlineTracks,
+    loadPlaylistTracks,
+    updatePlaylistTracks,
+    playlistTracks,
+    playlistCurrentIndex,
     audioRef,
     shouldAutoPlayRef,
     selectTrack,
@@ -189,10 +201,98 @@ export function usePlayerController(options: PlayerControllerOptions) {
     }, sourceOverride);
   }, [handleOnlineStreamPlay]);
 
+  // Play a whole playlist: load every song into the playlist slot as the queue so
+  // next/prev traverses the playlist in order. Keeps the user in the Playlists
+  // view (only activeSlot/viewSlot move to 'playlist'); the detail list highlights
+  // the current track via currentTrackId.
+  const handlePlayPlaylist = useCallback((source: OnlineSource, songs: OnlineSong[], clickedIndex: number) => {
+    const tracks: Track[] = songs.map(s => ({
+      id: `online-${source}-${s.songmid}`,
+      title: s.songname,
+      artist: s.singer?.map(a => a.name).join(' & ') || 'Unknown Artist',
+      album: s.albumname || 'Unknown Album',
+      duration: s.interval || 0,
+      coverUrl: s.coverUrl,
+      audioUrl: '',
+      source,
+      songmid: s.songmid,
+    }));
+    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
+    // Save current slot's playback position
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    // Load the full playlist into the dedicated playlist slot (isolated from the
+    // online/search LRU queue) and make it the active play context. The user
+    // stays in the Playlists view; viewSlot is left untouched.
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
+    setRestoreTime(0);
+    switchTo('playlist');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+    // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
+  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
+
+  // Playlist-only lyrics sliding window (size 3): prefetch the current track and
+  // its two neighbours, and evict lyrics outside that window to bound memory.
+  // Other slots are unaffected — online uses per-click enrichment, local/cloud
+  // read lyrics from file metadata.
+  useEffect(() => {
+    const playlistTracksLocal = playlistTracks;
+    const i = playlistCurrentIndex;
+    if (i < 0 || playlistTracksLocal.length === 0) return;
+    const lo = Math.max(0, i - 1);
+    const hi = Math.min(playlistTracksLocal.length - 1, i + 1);
+
+    // Prefetch the window's missing lyrics (current ± 1).
+    for (let k = lo; k <= hi; k++) {
+      const t = playlistTracksLocal[k];
+      if (!t || (t.source !== 'qq' && t.source !== 'netease') || !t.songmid) continue;
+      if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) continue;
+      const provider = t.source === 'qq' ? qqMusicApi : neteaseMusicApi;
+      const trackId = t.id;
+      provider.getLyrics(t.songmid)
+        .then(raw => {
+          if (!raw) return;
+          const parsed = parseLRCLyrics(raw);
+          updatePlaylistTracks(prev => prev.map(x =>
+            x.id === trackId && !x.lyrics
+              ? {
+                ...x,
+                lyrics: parsed.plainText || raw,
+                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+              }
+              : x
+          ));
+        })
+        .catch(() => { /* lyrics are best-effort */ });
+    }
+
+    // Evict lyrics outside the window so only the current ± 1 stay cached.
+    updatePlaylistTracks(prev => {
+      const evictLo = Math.max(0, i - 1);
+      const evictHi = Math.min(prev.length - 1, i + 1);
+      let changed = false;
+      const next = prev.map((t, k) => {
+        if (k < evictLo || k > evictHi) {
+          if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) {
+            changed = true;
+            const clone = { ...t };
+            delete clone.lyrics;
+            delete clone.syncedLyrics;
+            return clone;
+          }
+        }
+        return t;
+      });
+      return changed ? next : prev;
+    });
+  }, [playlistCurrentIndex, playlistTracks.length, updatePlaylistTracks]);
+
   return {
     handleTrackSelect,
     handleSearchNavigate,
     handleOnlineStreamPlay,
     playOnlineSong,
+    handlePlayPlaylist,
   };
 }
