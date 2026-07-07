@@ -8,6 +8,12 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
     return {
       base: './',
+      // Renderer source lives under src/. Keeping the Vite root there lets
+      // index.html's root-relative `/index.tsx` and `/index.css` resolve to
+      // src/index.tsx / src/index.css, while `publicDir` below keeps the
+      // repo-root public/ (fonts) served at /fonts/... unchanged.
+      root: 'src',
+      publicDir: path.resolve(__dirname, 'public'),
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -25,10 +31,13 @@ export default defineConfig(({ mode }) => {
         tailwindcss({ optimize: false }),
         electron([
           {
-            entry: 'electron/main.ts',
+            // Entry/out paths resolve relative to Vite `root` (now src/), so
+            // make them repo-root-absolute to keep electron/ at the project
+            // root and its build output at repo-root dist-electron/.
+            entry: path.resolve(__dirname, 'electron/main.ts'),
             vite: {
               build: {
-                outDir: 'dist-electron',
+                outDir: path.resolve(__dirname, 'dist-electron'),
                 rollupOptions: {
                   external: ['electron']
                 }
@@ -36,15 +45,15 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            entry: 'electron/preload.ts',
+            entry: path.resolve(__dirname, 'electron/preload.ts'),
             onstart(args) {
               args.reload();
             },
             vite: {
               build: {
-                outDir: 'dist-electron',
+                outDir: path.resolve(__dirname, 'dist-electron'),
                 lib: {
-                  entry: 'electron/preload.ts',
+                  entry: path.resolve(__dirname, 'electron/preload.ts'),
                   formats: ['cjs'],
                   fileName: () => 'preload.cjs'
                 },
@@ -55,10 +64,10 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            entry: 'electron/cleanup.ts',
+            entry: path.resolve(__dirname, 'electron/cleanup.ts'),
             vite: {
               build: {
-                outDir: 'dist-electron',
+                outDir: path.resolve(__dirname, 'dist-electron'),
                 rollupOptions: {
                   external: ['electron']
                 }
@@ -69,10 +78,13 @@ export default defineConfig(({ mode }) => {
       ],
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.')
+          '@': path.resolve(__dirname, 'src')
         }
       },
       build: {
+        // Output must land at repo-root dist/ — windowManager.ts, appProtocol.ts
+        // and electron-builder extraResources all reference <root>/dist.
+        outDir: path.resolve(__dirname, 'dist'),
         chunkSizeWarningLimit: 2000,
         // Use esbuild for CSS minification. Vite's default ('lightningcss'
         // when installed) strips the standard `backdrop-filter` and keeps only
@@ -91,9 +103,9 @@ export default defineConfig(({ mode }) => {
         coverage: {
           provider: 'v8',
           include: [
-            'services/**/*.ts',
-            'hooks/**/*.ts',
-            'components/**/*.tsx',
+            'src/services/**/*.ts',
+            'src/hooks/**/*.ts',
+            'src/components/**/*.tsx',
             'electron/utils/**/*.ts',
           ],
         },
