@@ -6,9 +6,13 @@ import { logger } from './logger';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-process.env['DIST'] = path.join(__dirname, '../dist');
+const rendererDist = app.isPackaged
+  ? path.join(process.resourcesPath, 'dist')
+  : path.join(__dirname, '../dist');
+
+process.env['DIST'] = rendererDist;
 process.env['VITE_PUBLIC'] = app.isPackaged
-  ? process.env['DIST']
+  ? rendererDist
   : path.join(__dirname, '../../public');
 
 let win: BrowserWindow | null = null;
