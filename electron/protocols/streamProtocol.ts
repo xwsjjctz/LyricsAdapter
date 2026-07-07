@@ -95,20 +95,6 @@ export function registerStreamProtocol(): void {
     }
   );
 
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: 'stream',
-      privileges: {
-        secure: true,
-        standard: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        bypassCSP: false,
-        stream: true,
-      },
-    },
-  ]);
-
   app.whenReady().then(() => {
     protocol.handle('stream', async (request) => {
       try {

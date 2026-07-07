@@ -15,6 +15,132 @@
  * the legacy UI and the new UI; do not rename them here.
  */
 
+/* Shared New UI glass surface.
+   The extra image layer keeps popovers visibly frosted even when the page
+   background image has already been blurred by the background settings slider. */
+:where(
+  .new-ux-playlist-panel,
+  .new-ux-player,
+  .new-ux-search-bar,
+  .new-ux-search-results,
+  .new-ux-hidden-tray,
+  .new-ux-bg-settings,
+  .new-ux-drawer-handle,
+  .new-ux-drawer,
+  .new-ux-bg-tray,
+  .new-ux-locate-button,
+  .new-ux-context-menu,
+  .new-ux-inline-popover,
+  .new-ux-side-panel
+) {
+  --new-ux-glass-surface: var(--new-ux-glass-bg);
+  --new-ux-glass-surface-filter: var(--new-ux-glass-filter);
+  isolation: isolate;
+  overflow: hidden;
+  background: transparent !important;
+  backdrop-filter: var(--new-ux-glass-surface-filter) !important;
+  -webkit-backdrop-filter: var(--new-ux-glass-surface-filter) !important;
+}
+
+:where(
+  .new-ux-playlist-panel,
+  .new-ux-player,
+  .new-ux-search-bar,
+  .new-ux-search-results,
+  .new-ux-hidden-tray,
+  .new-ux-bg-settings,
+  .new-ux-drawer-handle,
+  .new-ux-drawer,
+  .new-ux-bg-tray,
+  .new-ux-locate-button,
+  .new-ux-context-menu,
+  .new-ux-inline-popover,
+  .new-ux-side-panel
+)::before,
+:where(
+  .new-ux-playlist-panel,
+  .new-ux-player,
+  .new-ux-search-bar,
+  .new-ux-search-results,
+  .new-ux-hidden-tray,
+  .new-ux-bg-settings,
+  .new-ux-drawer-handle,
+  .new-ux-drawer,
+  .new-ux-bg-tray,
+  .new-ux-locate-button,
+  .new-ux-context-menu,
+  .new-ux-inline-popover,
+  .new-ux-side-panel
+)::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+:where(
+  .new-ux-playlist-panel,
+  .new-ux-player,
+  .new-ux-search-bar,
+  .new-ux-search-results,
+  .new-ux-hidden-tray,
+  .new-ux-bg-settings,
+  .new-ux-drawer-handle,
+  .new-ux-drawer,
+  .new-ux-bg-tray,
+  .new-ux-locate-button,
+  .new-ux-context-menu,
+  .new-ux-inline-popover,
+  .new-ux-side-panel
+)::before {
+  inset: -42px;
+  z-index: -2;
+  background-image: var(--new-ux-glass-backdrop-image, none);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+  filter: blur(22px) saturate(1.28) brightness(1.02);
+  opacity: var(--new-ux-glass-backdrop-opacity, 0);
+  transform: scale(1.04);
+}
+
+:where(
+  .new-ux-playlist-panel,
+  .new-ux-player,
+  .new-ux-search-bar,
+  .new-ux-search-results,
+  .new-ux-hidden-tray,
+  .new-ux-bg-settings,
+  .new-ux-drawer-handle,
+  .new-ux-drawer,
+  .new-ux-bg-tray,
+  .new-ux-locate-button,
+  .new-ux-context-menu,
+  .new-ux-inline-popover,
+  .new-ux-side-panel
+)::after {
+  inset: 0;
+  z-index: -1;
+  background:
+    var(--new-ux-glass-highlight),
+    var(--new-ux-glass-surface);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  backdrop-filter: var(--new-ux-glass-surface-filter);
+  -webkit-backdrop-filter: var(--new-ux-glass-surface-filter);
+}
+
+:where(.new-ux-playlist-panel, .new-ux-side-panel, .new-ux-search-results) {
+  --new-ux-glass-surface: var(--new-ux-glass-bg-strong);
+  --new-ux-glass-surface-filter: var(--new-ux-glass-filter-strong);
+}
+
+:where(.new-ux-drawer-handle, .new-ux-locate-button) {
+  --new-ux-glass-surface: var(--new-ux-glass-bg-soft);
+}
+
 /* [card wall] */
 .new-ux-mainview {
   position: relative;

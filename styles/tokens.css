@@ -7,9 +7,28 @@
   --new-ux-panel-bg: color-mix(in srgb, var(--theme-background-sidebar, #111b28) 72%, transparent);
   --new-ux-card-bg: color-mix(in srgb, var(--theme-background-card, rgba(255, 255, 255, 0.08)) 82%, transparent);
   --new-ux-card-bg-hover: color-mix(in srgb, var(--theme-background-card-hover, rgba(255, 255, 255, 0.14)) 86%, transparent);
+  --new-ux-glass-bg-soft: rgba(16, 25, 34, 0.36);
+  --new-ux-glass-bg: rgba(16, 25, 34, 0.46);
+  --new-ux-glass-bg-strong: rgba(16, 25, 34, 0.56);
+  --new-ux-glass-highlight: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.07) 34%,
+    rgba(255, 255, 255, 0.025) 100%
+  );
+  --new-ux-glass-filter: blur(34px) saturate(170%) brightness(1.05);
+  --new-ux-glass-filter-strong: blur(44px) saturate(180%) brightness(1.08);
   --new-ux-shadow-soft: 0 24px 70px -38px rgba(0, 0, 0, 0.72);
   --new-ux-shadow-panel: 0 28px 90px -36px rgba(0, 0, 0, 0.78);
   --new-ux-transition-fast: 160ms ease;
   --new-ux-transition-medium: 260ms ease;
   --new-ux-transition-spring: 420ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+@supports (color: color-mix(in srgb, white, transparent)) {
+  :root {
+    --new-ux-glass-bg-soft: color-mix(in srgb, var(--theme-control-panel-bg-floating, var(--theme-background-sidebar, #111b28)) 36%, transparent);
+    --new-ux-glass-bg: color-mix(in srgb, var(--theme-control-panel-bg-floating, var(--theme-background-sidebar, #111b28)) 46%, transparent);
+    --new-ux-glass-bg-strong: color-mix(in srgb, var(--theme-control-panel-bg-floating, var(--theme-background-sidebar, #111b28)) 56%, transparent);
+  }
 }

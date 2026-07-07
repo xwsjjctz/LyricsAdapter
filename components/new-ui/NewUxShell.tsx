@@ -255,6 +255,10 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     () => <FocusAmbientLight track={currentTrack} isPlaying={isPlaying} />,
     [currentTrack, isPlaying]
   );
+  const shellStyle = useMemo(() => ({
+    '--new-ux-glass-backdrop-image': bgImage ? `url("${bgImage}")` : 'none',
+    '--new-ux-glass-backdrop-opacity': bgImage ? '0.38' : '0',
+  }) as React.CSSProperties, [bgImage]);
 
   useEffect(() => {
     setIsCurrentTrackVisible(false);
@@ -357,7 +361,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   }, [currentTrack, onToggleFocusMode]);
 
   return (
-    <div className="new-ux-shell font-sans">
+    <div className="new-ux-shell font-sans" style={shellStyle}>
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
       <input
         type="file"
