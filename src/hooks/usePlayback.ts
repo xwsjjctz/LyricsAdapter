@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
+import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playbackSource';
 import { UI } from '../constants/config';
 
 interface UsePlaybackOptions {
@@ -200,19 +201,27 @@ export function usePlayback({
     // This avoids loading the entire file into memory via IPC readFile.
     // The browser's <audio> element will issue Range requests as needed.
     if (track.source !== 'webdav') {
-      // Format: audio://localhost/absolute/path/to/file.flac
-      // Normalize Windows drive-letter paths (C:\Users\...) so the URL parser
-      // sees localhost as the host and a proper pathname starting with /.
-      // Without this, encodeURI("C:\\...") → "C%3A%5C..." producing
-      // audio://localhostC%3A... — the whole thing becomes the hostname.
-      const normalizedPath = track.filePath.replace(/\\/g, '/');
-      const urlPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
-      const audioUrl = `audio://localhost${encodeURI(urlPath)}`;
+      const audioUrl = buildLocalAudioUrl(track.filePath);
       logger.debug('[Playback] Using audio:// for:', track.title);
       return { ...track, audioUrl };
     }
 
     return track;
+  }, []);
+
+  // Shared play/pause helper used by the await-style branches (WebDAV + Online).
+  // Normalises the play/pause tail that was previously duplicated inline.
+  // The caller is responsible for any `.catch()` adaptor (Online branch needs
+  // one; WebDAV relies on the outer try/catch in handleWebdav).
+  const playOrPause = useCallback(async (shouldPlay: boolean) => {
+    if (!audioRef.current) return;
+    if (shouldPlay) {
+      await audioRef.current.play();
+      shouldAutoPlayRef.current = false;
+      setIsPlaying(true);
+    } else {
+      audioRef.current.pause();
+    }
   }, []);
 
   const skipForward = useCallback(() => {
@@ -347,16 +356,10 @@ export function usePlayback({
           const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
           if (currentTrackIndexRef.current !== capturedIndex || !audioRef.current) return;
           logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
-          if (cdnUrl) {
-            audioRef.current.src = cdnUrl;
-            audioUrlReadyRef.current = true;
-            if (shouldPlay) {
-              await audioRef.current.play();
-              shouldAutoPlayRef.current = false;
-              setIsPlaying(true);
-            } else {
-              audioRef.current.pause();
-            }
+            if (cdnUrl) {
+	            audioRef.current.src = cdnUrl;
+	            audioUrlReadyRef.current = true;
+	            await playOrPause(shouldPlay);
           } else {
             logger.error('[Playback] Failed to get CDN URL for:', currentTrack.webdavPath);
           }
@@ -382,17 +385,15 @@ export function usePlayback({
           return;
         }
         if (currentTrackIndexRef.current !== capturedIndex || !audioRef.current) return;
-        const audioUrl = `stream://${source}/${encodeURIComponent(songmid)}?q=320`;
+        const audioUrl = buildOnlineStreamUrl(source!, songmid!);
         logger.info('[Playback] Loading online audio:', audioUrl.slice(0, 60));
         audioRef.current.src = audioUrl;
-        audioUrlReadyRef.current = true;
-        if (shouldPlay) {
-          await audioRef.current.play().catch(() => {});
-          shouldAutoPlayRef.current = false;
-          setIsPlaying(true);
-        } else {
-          audioRef.current.pause();
-        }
+	        audioUrlReadyRef.current = true;
+	        if (shouldPlay) {
+	          await playOrPause(true).catch(() => {});
+	        } else {
+	          await playOrPause(false);
+	        }
       };
       streamOnline();
       return;
