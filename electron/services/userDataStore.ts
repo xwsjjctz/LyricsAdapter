@@ -22,6 +22,7 @@ import { logger } from '../logger';
 /** users.json 中一条曲目的最小化结构（仅用户不可重建的字段）。 */
 export interface UserTrackRecord {
   id: string;
+  slotId?: 'local' | 'cloud' | 'online' | 'playlist';
   filePath?: string;
   webdavPath?: string;
   fileName?: string;

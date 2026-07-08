@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
-import type { LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
+import type { LibraryIndexData, LibraryIndexSong, LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong, type UserTrackRecord } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
@@ -26,6 +26,161 @@ interface UseLibraryLoadOptions {
   persistedTimeRef: React.MutableRefObject<number>;
   onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number; playlistsView?: PlaylistsViewPersistence }) => void;
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
+}
+
+interface UserDataSnapshot {
+  tracks?: unknown[];
+  settings?: Record<string, string>;
+  playback?: Record<string, string>;
+}
+
+const SLOT_IDS: SlotId[] = ['local', 'cloud', 'online', 'playlist'];
+
+function isSlotId(value: unknown): value is SlotId {
+  return typeof value === 'string' && SLOT_IDS.includes(value as SlotId);
+}
+
+function hasPersistedTracks(libraryData: Partial<LibraryIndexData>): boolean {
+  return Boolean(
+    libraryData.songs?.length ||
+    libraryData.cloudSongs?.length ||
+    libraryData.onlineSongs?.length ||
+    libraryData.playlistSongs?.length
+  );
+}
+
+function selectSettingsSource(userData: UserDataSnapshot, settingsFromStore?: Record<string, string>): Record<string, string> {
+  return settingsFromStore && Object.keys(settingsFromStore).length > 0
+    ? settingsFromStore
+    : userData.settings || {};
+}
+
+function parsePlaybackSettings(userData: UserDataSnapshot, settingsSource?: Record<string, string>): LibrarySettings {
+  const raw = userData.playback?.['_json'] || settingsSource?.['playback'] || userData.settings?.['playback'];
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function buildSettingsFromUserData(
+  userData: UserDataSnapshot,
+  fallbackSettings: LibrarySettings,
+  settingsFromStore?: Record<string, string>
+): LibrarySettings {
+  const settingsSource = selectSettingsSource(userData, settingsFromStore);
+  return {
+    ...fallbackSettings,
+    ...parsePlaybackSettings(userData, settingsSource),
+  };
+}
+
+function getUserTrackRecords(userData: UserDataSnapshot): UserTrackRecord[] {
+  return (userData.tracks || []).filter((record): record is UserTrackRecord => {
+    return Boolean(record && typeof record === 'object' && typeof (record as UserTrackRecord).id === 'string');
+  });
+}
+
+function inferSlotId(record: UserTrackRecord): SlotId {
+  if (isSlotId(record.slotId)) return record.slotId;
+  if (record.source === 'webdav') return 'cloud';
+  if (record.source === 'qq' || record.source === 'netease') return 'online';
+  return 'local';
+}
+
+function collectCachedSongsById(libraryData: Partial<LibraryIndexData>): Map<string, LibraryIndexSong> {
+  const cachedSongs = [
+    ...(libraryData.songs || []),
+    ...(libraryData.cloudSongs || []),
+    ...(libraryData.onlineSongs || []),
+    ...(libraryData.playlistSongs || []),
+  ];
+  return new Map(cachedSongs.map(song => [song.id, song]));
+}
+
+function mergeUserTrackWithCachedSong(record: UserTrackRecord, cached?: LibraryIndexSong): LibraryIndexSong {
+  const userSong = minimalTrackToLibrarySong(record);
+  if (!cached) return userSong;
+
+  const merged: LibraryIndexSong = {
+    ...cached,
+    ...userSong,
+    title: cached.title || userSong.title,
+    artist: cached.artist || userSong.artist,
+    album: cached.album || userSong.album,
+    duration: cached.duration || userSong.duration,
+  };
+  const lyrics = cached.lyrics || userSong.lyrics;
+  const syncedLyrics = cached.syncedLyrics || userSong.syncedLyrics;
+  const coverUrl = cached.coverUrl || userSong.coverUrl;
+  if (lyrics) merged.lyrics = lyrics;
+  if (syncedLyrics) merged.syncedLyrics = syncedLyrics;
+  if (coverUrl) merged.coverUrl = coverUrl;
+  return merged;
+}
+
+function buildLibraryDataFromUserData(
+  userData: UserDataSnapshot,
+  fallbackSettings: LibrarySettings,
+  settingsFromStore?: Record<string, string>,
+  cachedLibraryData?: Partial<LibraryIndexData>
+): LibraryIndexData | null {
+  const records = getUserTrackRecords(userData);
+  if (records.length === 0) return null;
+  const cachedById = collectCachedSongsById(cachedLibraryData || {});
+
+  const bySlot: Record<SlotId, UserTrackRecord[]> = {
+    local: [],
+    cloud: [],
+    online: [],
+    playlist: [],
+  };
+
+  for (const record of records) {
+    bySlot[inferSlotId(record)].push(record);
+  }
+
+  const toLibrarySong = (record: UserTrackRecord) => mergeUserTrackWithCachedSong(record, cachedById.get(record.id));
+  const cloudSongs = bySlot.cloud.map(toLibrarySong);
+  const onlineSongs = bySlot.online.map(toLibrarySong);
+  const playlistSongs = bySlot.playlist.map(toLibrarySong);
+
+  return {
+    songs: bySlot.local.map(toLibrarySong),
+    ...(cloudSongs.length > 0 ? { cloudSongs } : {}),
+    ...(onlineSongs.length > 0 ? { onlineSongs } : {}),
+    ...(playlistSongs.length > 0 ? { playlistSongs } : {}),
+    settings: buildSettingsFromUserData(userData, fallbackSettings, settingsFromStore),
+  };
+}
+
+async function syncSettingsToAppStorage(settings: Record<string, string>, playbackJson?: string): Promise<void> {
+  if (Object.keys(settings).length === 0 && !playbackJson) return;
+
+  if (Object.keys(settings).length > 0) {
+    for (const [key, value] of Object.entries(settings)) {
+      localStorage.setItem(key, value);
+    }
+    await appStorage.setMany(settings);
+  }
+
+  if (playbackJson) {
+    localStorage.setItem('playback', playbackJson);
+    await appStorage.setItem('playback', playbackJson);
+  }
+}
+
+async function syncUserSettingsToAppStorage(
+  userData: UserDataSnapshot,
+  settingsFromStore?: Record<string, string>
+): Promise<void> {
+  const settings = selectSettingsSource(userData, settingsFromStore);
+  const playbackJson = userData.playback?.['_json'] || settings['playback'] || userData.settings?.['playback'];
+  await syncSettingsToAppStorage(settings, playbackJson);
 }
 
 export function useLibraryLoad({
@@ -218,64 +373,50 @@ export function useLibraryLoad({
       logger.debug('[LibraryLoad] Loading library from disk...');
       try {
         const libraryData = await libraryStorage.loadLibrary();
+        let restoredLibraryData = libraryData;
 
-        // 如果 library-index.json 为空（缓存已清），尝试从 users.json 恢复
-        if ((!libraryData.songs || libraryData.songs.length === 0) && isDesktop()) {
+        if (isDesktop()) {
           try {
             const api = await getDesktopAPIAsync();
+            const mainSettings = await api?.settingsGetAll?.() ?? {};
             const userData = await api?.userDataLoad?.();
-            if (userData && userData.tracks && userData.tracks.length > 0) {
-              logger.info('[LibraryLoad] Recovering', userData.tracks.length, 'tracks from ~/.la/users.json');
-              const tracks = (userData.tracks as any[]).map(minimalTrackToLibrarySong);
-              const cloudTracks = tracks.filter(t => t.source === 'webdav');
-              const localTracks = tracks.filter(t => !t.source || t.source === 'local');
-              // 同时恢复 settings 到 appStorage/localStorage
-              if (userData.settings && Object.keys(userData.settings).length > 0) {
-                for (const [key, value] of Object.entries(userData.settings)) {
-                  localStorage.setItem(key, value);
-                }
-                // 异步持久化到 settings.json
-                appStorage.replaceAll(userData.settings).catch(() => {});
-              } else {
-                // users.json 无 settings 时，尝试从主进程 settings.json 恢复
-                try {
-                  const api = await getDesktopAPIAsync();
-                  const mpSettings = await api?.settingsGetAll?.();
-                  if (mpSettings && Object.keys(mpSettings).length > 0) {
-                    for (const [key, value] of Object.entries(mpSettings)) {
-                      localStorage.setItem(key, value);
-                    }
-                    logger.info('[LibraryLoad] Restored', Object.keys(mpSettings).length, 'settings from settings.json');
-                  }
-                } catch (e2) {
-                  logger.warn('[LibraryLoad] Failed to restore settings from settings.json:', e2);
-                }
+            if (userData) {
+              try {
+                await syncUserSettingsToAppStorage(userData, mainSettings);
+              } catch (e) {
+                logger.warn('[LibraryLoad] Failed to sync ~/.la user settings:', e);
               }
-              // 恢复 playback 状态
-              const pbJson = userData.playback?.['_json'];
-              if (pbJson) {
-                try {
-                  const pb = JSON.parse(pbJson);
-                  const slotKey = pb.activeSlotId === 'cloud' ? 'cloudSlot' : 'localSlot';
-                  const slot = pb[slotKey];
-                  if (slot?.volume !== undefined) localStorage.setItem('playback', pbJson);
-                  appStorage.setItem('playback', pbJson).catch(() => {});
-                } catch {}
+
+              const rebuiltLibrary = buildLibraryDataFromUserData(userData, libraryData.settings || {}, mainSettings, libraryData);
+              if (rebuiltLibrary && hasPersistedTracks(rebuiltLibrary)) {
+                logger.info('[LibraryLoad] Loading user library from ~/.la/users.json, tracks:', getUserTrackRecords(userData).length);
+                restoredLibraryData = rebuiltLibrary;
+                const saved = await libraryStorage.saveLibrary(rebuiltLibrary);
+                if (!saved) {
+                  logger.warn('[LibraryLoad] Failed to rebuild library-index cache from user data');
+                }
+              } else if (hasPersistedTracks(libraryData)) {
+                restoredLibraryData = {
+                  ...libraryData,
+                  settings: buildSettingsFromUserData(userData, libraryData.settings || {}, mainSettings),
+                };
               }
-              await loadAndRestoreLibrary({
-                songs: localTracks,
-                ...(cloudTracks.length > 0 ? { cloudSongs: cloudTracks } : {}),
-                settings: libraryData.settings,
-              } as any);
-              isFirstLoadRef.current = false;
-              return;
+            } else {
+              try {
+                if (Object.keys(mainSettings).length > 0) {
+                  await syncSettingsToAppStorage(mainSettings);
+                  logger.info('[LibraryLoad] Restored', Object.keys(mainSettings).length, 'settings from settings.json');
+                }
+              } catch (e2) {
+                logger.warn('[LibraryLoad] Failed to restore settings from settings.json:', e2);
+              }
             }
           } catch (e) {
-            logger.warn('[LibraryLoad] Failed to recover from users.json:', e);
+            logger.warn('[LibraryLoad] Failed to load ~/.la user data:', e);
           }
         }
 
-        await loadAndRestoreLibrary(libraryData);
+        await loadAndRestoreLibrary(restoredLibraryData);
         isFirstLoadRef.current = false;
       } catch (error) {
         logger.error('[LibraryLoad] Failed to load library:', error);
@@ -305,10 +446,10 @@ export function useLibraryLoad({
     // 并行写入完整用户数据快照到 ~/.la/users.json（含 tracks + settings + playback）
     if (isDesktop()) {
       const allMinimal = [
-        ...buildMinimalTracks(slotsSnapshot.local.tracks),
-        ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
-        ...buildMinimalTracks(slotsSnapshot.online.tracks),
-        ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
+        ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
+        ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
+        ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
+        ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
       ];
       const allSettings: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {
@@ -362,29 +503,29 @@ export function useLibraryLoad({
         } catch (e) {
           logger.warn('[LibraryLoad] Failed to flush playback settings:', e);
         }
-	        if (isDesktop()) {
-	          try {
-	            const api = await getDesktopAPIAsync();
-	            const allMinimal = [
-	              ...buildMinimalTracks(slotsSnapshot.local.tracks),
-	              ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
-	              ...buildMinimalTracks(slotsSnapshot.online.tracks),
-	              ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
-	            ];
-	            const allSettings: Record<string, string> = {};
-	            for (let i = 0; i < localStorage.length; i++) {
-	              const key = localStorage.key(i);
-	              if (key) allSettings[key] = localStorage.getItem(key) ?? '';
-	            }
-	            await api?.userDataSave?.({
-	              tracks: allMinimal,
-	              settings: allSettings,
-	              playback: { _json: JSON.stringify(persistData) },
-	            });
-	          } catch (e) {
-	            logger.warn('[LibraryLoad] Failed to flush user data:', e);
-	          }
-	        }
+        if (isDesktop()) {
+          try {
+            const api = await getDesktopAPIAsync();
+            const allMinimal = [
+              ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
+              ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
+              ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
+              ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
+            ];
+            const allSettings: Record<string, string> = {};
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key) allSettings[key] = localStorage.getItem(key) ?? '';
+            }
+            await api?.userDataSave?.({
+              tracks: allMinimal,
+              settings: allSettings,
+              playback: { _json: JSON.stringify(persistData) },
+            });
+          } catch (e) {
+            logger.warn('[LibraryLoad] Failed to flush user data:', e);
+          }
+        }
         // 至少确保 library-index.json 写入
         return libraryStorage.flushPendingSave(libraryData);
       } catch (e) {

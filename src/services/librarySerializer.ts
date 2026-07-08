@@ -1,4 +1,4 @@
-import { Track } from '../types';
+import { Track, type SlotId } from '../types';
 import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from './libraryStorage';
 import { sanitizePersistedCoverUrl } from './coverUrl';
 
@@ -54,12 +54,9 @@ export function buildLibraryIndexDataForSlots(
   return buildLibraryIndexData(localTracks, settings, cloudTracks, onlineTracks, playlistTracks);
 }
 
-/**
- * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
- * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
- */
-export function buildMinimalTrack(track: Track): {
+export interface UserTrackRecord {
   id: string;
+  slotId?: SlotId;
   filePath?: string;
   webdavPath?: string;
   fileName?: string;
@@ -71,9 +68,16 @@ export function buildMinimalTrack(track: Track): {
   lastPlayed?: string | null;
   songmid?: string;
   available?: boolean;
-} {
+}
+
+/**
+ * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
+ * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
+ */
+export function buildMinimalTrack(track: Track, slotId?: SlotId): UserTrackRecord {
   return {
     id: track.id,
+    ...(slotId ? { slotId } : undefined),
     ...(track.filePath ? { filePath: track.filePath } : undefined),
     ...(track.webdavPath ? { webdavPath: track.webdavPath } : undefined),
     ...(track.fileName ? { fileName: track.fileName } : undefined),
@@ -88,27 +92,8 @@ export function buildMinimalTrack(track: Track): {
   };
 }
 
-export function buildMinimalTracks(tracks: Track[]): ReturnType<typeof buildMinimalTrack>[] {
-  return tracks.map(buildMinimalTrack);
-}
-
-/**
- * users.json 中存储的最小化曲目记录结构（对应 buildMinimalTrack 的输出）。
- * 用于从 users.json 恢复到 library-index.json 的反向转换。
- */
-export interface UserTrackRecord {
-  id: string;
-  filePath?: string;
-  webdavPath?: string;
-  fileName?: string;
-  fileSize?: number;
-  lastModified?: number;
-  source?: string;
-  addedAt?: string;
-  playCount?: number;
-  lastPlayed?: string | null;
-  songmid?: string;
-  available?: boolean;
+export function buildMinimalTracks(tracks: Track[], slotId?: SlotId): UserTrackRecord[] {
+  return tracks.map(track => buildMinimalTrack(track, slotId));
 }
 
 /**
@@ -130,9 +115,9 @@ export function minimalTrackToLibrarySong(t: UserTrackRecord): LibraryIndexSong 
     lastModified: t.lastModified || 0,
     addedAt: t.addedAt || new Date().toISOString(),
     playCount: t.playCount || 0,
-  lastPlayed: t.lastPlayed ?? null,
-  available: t.available ?? true,
-  source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : 'local'),
+    lastPlayed: t.lastPlayed ?? null,
+    available: t.available ?? true,
+    source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : 'local'),
     webdavPath: t.webdavPath || '',
     songmid: t.songmid || '',
   };
