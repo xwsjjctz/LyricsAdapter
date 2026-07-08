@@ -412,6 +412,30 @@ class IndexedDBStorageService {
     }
   }
 
+  /**
+   * 原子替换全部 webdavMetadata：清空 + 批量写入在同一个事务中完成。
+   * 解决 saveMetadataCache 先 clear 再逐条 set 的竞态问题——
+   * 中途崩溃不会导致 IndexedDB 中的元数据只剩半份。
+   */
+  async replaceAllWebdavMetadata(entries: Record<string, any>): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      const tx = this.db.transaction('webdavMetadata', 'readwrite');
+      const store = tx.objectStore('webdavMetadata');
+      await store.clear();
+      for (const [key, value] of Object.entries(entries)) {
+        await store.put({ key, ...value });
+      }
+      await tx.done;
+      logger.debug(`[IndexedDB] ✓ Atomically replaced webdav metadata (${Object.keys(entries).length} entries)`);
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to atomically replace webdav metadata:', error);
+      throw error; // 让调用方感知失败
+    }
+  }
+
   // ========== WebDAV File List Snapshot Operations ==========
 
   async getFileListSnapshot(): Promise<Record<string, { size: number; lastModified: string }> | null> {
