@@ -37,6 +37,7 @@ import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
 import { useLibraryViewModel } from './viewmodels/useLibraryViewModel';
 import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
+import { useImportViewModel } from './viewmodels/useImportViewModel';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -260,6 +261,18 @@ const AppWorkspace: React.FC = () => {
     tracks: slots.local.tracks,
     setTracks: updateLocalTracks,
     createTrackedBlobUrl,
+  });
+  const importVm = useImportViewModel({
+    fileInputRef,
+    importProgress,
+    importDisabled,
+    importClick: handleImportClick,
+    importIntoSlot: handleNewUxImportIntoSlot,
+    dropFiles: handleDropFiles,
+    dropFilePaths: handleViewDropFilePaths,
+    onFileInputChange: handleFileInputChange,
+    reloadFiles: handleReloadFiles,
+    reloadUnavailable: handleReloadLocalFiles,
   });
   const libraryController = useLibraryController({
     viewSlot,
@@ -491,8 +504,8 @@ const AppWorkspace: React.FC = () => {
           onVolumeChange={player.changeVolume}
           onToggleMute={player.toggleMute}
           onTogglePlaybackMode={player.togglePlaybackMode}
-          onImportIntoSlot={handleNewUxImportIntoSlot}
-          onReloadUnavailable={handleReloadLocalFiles}
+          onImportIntoSlot={importVm.importIntoSlot}
+          onReloadUnavailable={importVm.reloadUnavailable}
           onOpenOnlinePlaylist={online.openPlaylist}
           onClearOrphanCache={handleClearOrphanCache}
           isWindowFocused={isWindowFocused}
@@ -504,8 +517,8 @@ const AppWorkspace: React.FC = () => {
           cloudImportDisabled={library.cloudImportDisabled}
           cloudImportDisabledReason={library.cloudImportDisabledReason}
           audioRef={audioRef}
-          fileInputRef={fileInputRef}
-          onFileInputChange={handleFileInputChange}
+          fileInputRef={importVm.fileInputRef}
+          onFileInputChange={importVm.onFileInputChange}
         />
       </>
     );
@@ -526,7 +539,7 @@ const AppWorkspace: React.FC = () => {
         <div className="flex flex-1">
           <Sidebar
           onNavigate={handleNavigate}
-          onReloadFiles={handleReloadFiles}
+          onReloadFiles={importVm.reloadFiles}
           hasUnavailableTracks={activeTracks.some(t => t.available === false)}
           currentView={viewMode}
           viewMode={viewMode}
@@ -550,11 +563,11 @@ const AppWorkspace: React.FC = () => {
           )}
           <input
             type="file"
-            ref={fileInputRef}
+            ref={importVm.fileInputRef}
             multiple
             accept=".flac,.mp3"
             className="hidden"
-            onChange={handleFileInputChange}
+            onChange={importVm.onFileInputChange}
           />
           <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.BROWSE ? (
@@ -599,21 +612,21 @@ const AppWorkspace: React.FC = () => {
                 onTrackSelect={library.selectTrack}
                 onRemoveTrack={library.removeTrack}
                 onRemoveMultipleTracks={library.removeTracks}
-                onImportClick={handleImportClick}
-                importDisabled={importDisabled}
+                onImportClick={importVm.importClick}
+                importDisabled={importVm.importDisabled}
                 importDisabledReason={
                   library.viewSlot === 'cloud' ? library.cloudImportDisabledReason : undefined
                 }
                 onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
-                onDropFiles={handleDropFiles}
-                onDropFilePaths={handleViewDropFilePaths}
+                onDropFiles={importVm.dropFiles}
+                onDropFilePaths={importVm.dropFilePaths}
                 onReorderTracks={library.reorder}
                 onUpdateTrack={library.updateTrack}
                 isFocusMode={isFocusMode}
                 savedScrollPosition={library.slots[library.viewSlot].scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
                 autoLocateToken={autoLocateToken}
-                importProgress={importProgress}
+                importProgress={importVm.importProgress}
                 dataSource={library.viewSlot}
                 activeSlotId={library.activeSlotId}
                 onSwitchSlot={library.switchViewSlot}
