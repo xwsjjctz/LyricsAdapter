@@ -277,32 +277,45 @@ export function useLibraryLoad({
   }, [persistedTimeRef, audioRef]);
 
   useEffect(() => {
-    const flushCurrentLibrary = async () => {
-      const slotsSnapshot = getSlotsSnapshot?.() ?? slots;
-      const persistData = getPersistenceData();
-      const libraryData = buildLibraryIndexDataForSlots(
-        slotsSnapshot.local.tracks,
-        slotsSnapshot.cloud.tracks,
-        persistData,
-        slotsSnapshot.online.tracks,
-        slotsSnapshot.playlist.tracks
-      );
+    const flushCurrentLibrary = async (): Promise<boolean> => {
+      try {
+        const slotsSnapshot = getSlotsSnapshot?.() ?? slots;
+        const persistData = getPersistenceData();
+        const libraryData = buildLibraryIndexDataForSlots(
+          slotsSnapshot.local.tracks,
+          slotsSnapshot.cloud.tracks,
+          persistData,
+          slotsSnapshot.online.tracks,
+          slotsSnapshot.playlist.tracks
+        );
 
-      logger.debug('[LibraryLoad] Flushing library before close');
-      // 同时 flush playback 状态到 settings.json
-      await appStorage.setItem('playback', JSON.stringify(persistData));
-      // flush 最小化曲目列表到 ~/.la/users.json
-      if (isDesktop()) {
-        const api = await getDesktopAPIAsync();
-        const allMinimal = [
-          ...buildMinimalTracks(slotsSnapshot.local.tracks),
-          ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
-          ...buildMinimalTracks(slotsSnapshot.online.tracks),
-          ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
-        ];
-        await api?.userDataSaveTracks?.(allMinimal);
+        logger.debug('[LibraryLoad] Flushing library before close');
+        // Best-effort: settings + userData save 失败不阻塞窗口关闭
+        try {
+          await appStorage.setItem('playback', JSON.stringify(persistData));
+        } catch (e) {
+          logger.warn('[LibraryLoad] Failed to flush playback settings:', e);
+        }
+        if (isDesktop()) {
+          try {
+            const api = await getDesktopAPIAsync();
+            const allMinimal = [
+              ...buildMinimalTracks(slotsSnapshot.local.tracks),
+              ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
+              ...buildMinimalTracks(slotsSnapshot.online.tracks),
+              ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
+            ];
+            await api?.userDataSaveTracks?.(allMinimal);
+          } catch (e) {
+            logger.warn('[LibraryLoad] Failed to flush user data tracks:', e);
+          }
+        }
+        // 至少确保 library-index.json 写入
+        return libraryStorage.flushPendingSave(libraryData);
+      } catch (e) {
+        logger.error('[LibraryLoad] Flush failed:', e);
+        return false;
       }
-      return libraryStorage.flushPendingSave(libraryData);
     };
 
     const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
