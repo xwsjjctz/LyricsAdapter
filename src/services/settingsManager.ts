@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 
 const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
@@ -40,11 +41,11 @@ class SettingsManager {
 
   private loadFromStorage(): void {
     try {
-      this.downloadPath = localStorage.getItem(DOWNLOAD_PATH_KEY) || '';
+      this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';
 
-      this.floatingPanel = localStorage.getItem(FLOATING_PANEL_KEY) === 'true';
+      this.floatingPanel = appStorage.getItem(FLOATING_PANEL_KEY) === 'true';
 
-      const bt = localStorage.getItem(BG_BLUR_TRANS_KEY);
+      const bt = appStorage.getItem(BG_BLUR_TRANS_KEY);
       if (bt) {
         const parsed = parseFloat(bt);
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
@@ -52,18 +53,18 @@ class SettingsManager {
         }
       }
 
-      this.qqMusicEnabled = localStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
+      this.qqMusicEnabled = appStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
 
-      const storedSource = localStorage.getItem(ONLINE_SOURCE_KEY);
+      const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
       this.onlineSource = storedSource === 'netease' ? 'netease' : 'qq';
 
-      this.glassUI = localStorage.getItem(GLASS_UI_KEY) === 'true';
+      this.glassUI = appStorage.getItem(GLASS_UI_KEY) === 'true';
 
-      this.gsapButtonBounce = localStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
+      this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
 
-      this.newUxEnabled = localStorage.getItem(NEW_UX_ENABLED_KEY) === 'true';
+      this.newUxEnabled = appStorage.getItem(NEW_UX_ENABLED_KEY) === 'true';
 
-      const blurRadius = localStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
+      const blurRadius = appStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
       if (blurRadius) {
         const parsed = parseFloat(blurRadius);
         if (!isNaN(parsed)) {
@@ -71,7 +72,7 @@ class SettingsManager {
         }
       }
 
-      const lyricFontSize = localStorage.getItem(FOCUS_LYRICS_FONT_SIZE_KEY);
+      const lyricFontSize = appStorage.getItem(FOCUS_LYRICS_FONT_SIZE_KEY);
       if (lyricFontSize) {
         const parsed = parseFloat(lyricFontSize);
         if (!isNaN(parsed)) {
@@ -79,7 +80,7 @@ class SettingsManager {
         }
       }
 
-      const lyricLineSpacing = localStorage.getItem(FOCUS_LYRIC_LINE_SPACING_KEY);
+      const lyricLineSpacing = appStorage.getItem(FOCUS_LYRIC_LINE_SPACING_KEY);
       if (lyricLineSpacing) {
         const parsed = parseFloat(lyricLineSpacing);
         if (!isNaN(parsed)) {
@@ -87,7 +88,7 @@ class SettingsManager {
         }
       }
 
-      const inactiveLyricBlur = localStorage.getItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY);
+      const inactiveLyricBlur = appStorage.getItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY);
       if (inactiveLyricBlur) {
         const parsed = parseFloat(inactiveLyricBlur);
         if (!isNaN(parsed)) {
@@ -95,7 +96,7 @@ class SettingsManager {
         }
       }
     } catch (error) {
-      logger.error('[SettingsManager] Failed to load from localStorage:', error);
+      logger.error('[SettingsManager] Failed to load from settings store:', error);
     }
   }
 
@@ -116,6 +117,7 @@ class SettingsManager {
     this.downloadPath = path;
     try {
       localStorage.setItem(DOWNLOAD_PATH_KEY, path);
+      appStorage.setItem(DOWNLOAD_PATH_KEY, path).catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save download path:', error);
     }
@@ -143,6 +145,7 @@ class SettingsManager {
     this.floatingPanel = enabled;
     try {
       localStorage.setItem(FLOATING_PANEL_KEY, enabled ? 'true' : 'false');
+      appStorage.setItem(FLOATING_PANEL_KEY, enabled ? 'true' : 'false').catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save floating panel:', error);
     }
@@ -160,6 +163,7 @@ class SettingsManager {
     this.bgBlurTrans = Math.max(0, Math.min(1, value));
     try {
       localStorage.setItem(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans));
+      appStorage.setItem(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans)).catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save bgBlurTrans:', error);
     }
@@ -177,6 +181,7 @@ class SettingsManager {
     this.qqMusicEnabled = enabled;
     try {
       localStorage.setItem(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false');
+      appStorage.setItem(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false').catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save QQ Music enabled:', error);
     }
@@ -194,6 +199,7 @@ class SettingsManager {
     this.onlineSource = source;
     try {
       localStorage.setItem(ONLINE_SOURCE_KEY, source);
+      appStorage.setItem(ONLINE_SOURCE_KEY, source).catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save online source:', error);
     }
@@ -214,6 +220,7 @@ class SettingsManager {
     this.glassUI = enabled;
     try {
       localStorage.setItem(GLASS_UI_KEY, enabled ? 'true' : 'false');
+      appStorage.setItem(GLASS_UI_KEY, enabled ? 'true' : 'false').catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save glass UI:', error);
     }
@@ -231,6 +238,7 @@ class SettingsManager {
     this.gsapButtonBounce = enabled;
     try {
       localStorage.setItem(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false');
+      appStorage.setItem(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false').catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save GSAP button bounce:', error);
     }
@@ -248,6 +256,7 @@ class SettingsManager {
     this.newUxEnabled = enabled;
     try {
       localStorage.setItem(NEW_UX_ENABLED_KEY, enabled ? 'true' : 'false');
+      appStorage.setItem(NEW_UX_ENABLED_KEY, enabled ? 'true' : 'false').catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save New UI/UX enabled:', error);
     }
@@ -265,6 +274,7 @@ class SettingsManager {
     this.focusBgBlurRadius = Math.max(40, Math.min(80, value));
     try {
       localStorage.setItem(FOCUS_BG_BLUR_RADIUS_KEY, String(this.focusBgBlurRadius));
+      appStorage.setItem(FOCUS_BG_BLUR_RADIUS_KEY, String(this.focusBgBlurRadius)).catch(() => {});
     } catch (error) {
       logger.error('[SettingsManager] Failed to save Focus Mode blur radius:', error);
     }
@@ -282,8 +292,9 @@ class SettingsManager {
     this.focusLyricsFontSize = Math.max(16, Math.min(40, value));
     try {
       localStorage.setItem(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize));
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save Focus Mode lyric font size:', error);
+      appStorage.setItem(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize)).catch(() => {});
+	    } catch (error) {
+	      logger.error('[SettingsManager] Failed to save Focus Mode lyric font size:', error);
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric font size set to: ${this.focusLyricsFontSize}`);
@@ -299,8 +310,9 @@ class SettingsManager {
     this.focusLyricLineSpacing = Math.max(12, Math.min(48, value));
     try {
       localStorage.setItem(FOCUS_LYRIC_LINE_SPACING_KEY, String(this.focusLyricLineSpacing));
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save Focus Mode lyric line spacing:', error);
+      appStorage.setItem(FOCUS_LYRIC_LINE_SPACING_KEY, String(this.focusLyricLineSpacing)).catch(() => {});
+	    } catch (error) {
+	      logger.error('[SettingsManager] Failed to save Focus Mode lyric line spacing:', error);
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric line spacing set to: ${this.focusLyricLineSpacing}`);
@@ -316,8 +328,9 @@ class SettingsManager {
     this.focusInactiveLyricBlur = Math.max(0, Math.min(12, value));
     try {
       localStorage.setItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur));
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save Focus Mode inactive lyric blur:', error);
+      appStorage.setItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur)).catch(() => {});
+	    } catch (error) {
+	      logger.error('[SettingsManager] Failed to save Focus Mode inactive lyric blur:', error);
     }
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);

@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 
 export type Language = 'zh' | 'en' | 'ja' | 'ko' | 'de' | 'fr';
 
@@ -3165,8 +3166,8 @@ class I18nManager {
   private listeners: Set<(lang: Language) => void> = new Set();
 
   constructor() {
-    // Load saved language preference from localStorage
-    const savedLang = localStorage.getItem('app-language') as Language;
+    // Load saved language preference from settings store
+    const savedLang = appStorage.getItem('app-language') as Language;
     if (savedLang && VALID_LANGUAGES.includes(savedLang)) {
       this.currentLanguage = savedLang;
       logger.debug('[I18n] Loaded saved language:', savedLang);
@@ -3181,6 +3182,7 @@ class I18nManager {
     if (this.currentLanguage !== lang) {
       this.currentLanguage = lang;
       localStorage.setItem('app-language', lang);
+      appStorage.setItem('app-language', lang).catch(() => {});
       logger.debug('[I18n] Language changed to:', lang);
       this.notifyListeners();
     }

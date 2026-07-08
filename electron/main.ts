@@ -18,6 +18,7 @@ import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
 import { registerQQLoginHandlers } from './ipc/qqLoginHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
+import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
@@ -63,6 +64,7 @@ app.whenReady().then(async () => {
   registerQQLoginHandlers();
   registerWebDAVHandlers();
   registerCleanupHandlers();
+  registerSettingsHandlers();
   registerNotificationHandlers();
 
   initUpdater();

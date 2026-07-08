@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 
 export interface ShortcutConfig {
   id: string;
@@ -222,7 +223,7 @@ class ShortcutManager {
     }
 
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = appStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         const merged = { ...defaults };
@@ -242,6 +243,7 @@ class ShortcutManager {
   private saveShortcuts(): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.shortcuts));
+      appStorage.setItem(STORAGE_KEY, JSON.stringify(this.shortcuts)).catch(() => {});
     } catch (e) {
       logger.error('[Shortcuts] Failed to save shortcuts:', e);
     }

@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 import { getDesktopAPI } from './desktopAdapter';
 import { buildWebDAVUrl, webDAVHrefToPath } from './webdavPath';
 
@@ -58,7 +59,7 @@ class WebDAVClient {
 
   private loadConfig(): void {
     try {
-      const saved = localStorage.getItem(WEBDAV_CONFIG_KEY);
+      const saved = appStorage.getItem(WEBDAV_CONFIG_KEY) || localStorage.getItem(WEBDAV_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
       }
@@ -69,7 +70,7 @@ class WebDAVClient {
 
   private loadCdnCache(): void {
     try {
-      const saved = localStorage.getItem(CDN_CACHE_KEY);
+      const saved = appStorage.getItem(CDN_CACHE_KEY) || localStorage.getItem(CDN_CACHE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         this.cdnCache = new Map(Object.entries(parsed));
@@ -88,7 +89,9 @@ class WebDAVClient {
   private saveCdnCache(): void {
     try {
       const obj = Object.fromEntries(this.cdnCache);
-      localStorage.setItem(CDN_CACHE_KEY, JSON.stringify(obj));
+      const json = JSON.stringify(obj);
+      localStorage.setItem(CDN_CACHE_KEY, json);
+      appStorage.setItem(CDN_CACHE_KEY, json).catch(() => {});
     } catch (e) {
       logger.error('[WebDAV] Failed to save CDN cache:', e);
     }
@@ -111,7 +114,9 @@ class WebDAVClient {
 
   saveConfig(config: WebDAVConfig): void {
     this.config = config;
-    localStorage.setItem(WEBDAV_CONFIG_KEY, JSON.stringify(config));
+    const json = JSON.stringify(config);
+    localStorage.setItem(WEBDAV_CONFIG_KEY, json);
+    appStorage.setItem(WEBDAV_CONFIG_KEY, json).catch(() => {});
     this.writableCache = null; // 配置变更后可写性需重新检测
     logger.info('[WebDAV] Config saved');
   }
@@ -129,6 +134,7 @@ class WebDAVClient {
   clearCdnCache(): void {
     this.cdnCache.clear();
     localStorage.removeItem(CDN_CACHE_KEY);
+    appStorage.removeItem(CDN_CACHE_KEY).catch(() => {});
     logger.info('[WebDAV] CDN cache cleared');
   }
 

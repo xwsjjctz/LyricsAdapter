@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
@@ -23,7 +24,7 @@ class ThemeManagerClass {
 
   private loadFromStorage(): void {
     try {
-      const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
+      const storedTheme = appStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
       const normalizedTheme = this.normalizeThemeId(storedTheme);
       if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
         this.currentThemeId = normalizedTheme;
@@ -45,9 +46,10 @@ class ThemeManagerClass {
   private saveToStorage(themeId: ThemeId): void {
     try {
       localStorage.setItem(THEME_STORAGE_KEY, themeId);
-      logger.debug('[ThemeManager] Theme saved to localStorage:', themeId);
+      appStorage.setItem(THEME_STORAGE_KEY, themeId).catch(() => {});
+      logger.debug('[ThemeManager] Theme saved', themeId);
     } catch (error) {
-      logger.error('[ThemeManager] Failed to save to localStorage:', error);
+      logger.error('[ThemeManager] Failed to save theme:', error);
     }
   }
 

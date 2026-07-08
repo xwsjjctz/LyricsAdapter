@@ -42,10 +42,17 @@ contextBridge.exposeInMainWorld('electron', {
       put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
       delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
     },
-    download: {
-      audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
+      download: {
+        audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
+      },
+      settings: {
+        get: async (key: string) => ipcRenderer.invoke('settings:get', key),
+        getAll: async () => ipcRenderer.invoke('settings:getAll'),
+        set: async (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+        delete: async (key: string) => ipcRenderer.invoke('settings:delete', key),
+        replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:replaceAll', entries),
+      },
     },
-  },
 
   // Read file from path
   readFile: async (filePath: string) => {
@@ -323,6 +330,23 @@ contextBridge.exposeInMainWorld('electron', {
   // Cleanup orphan cover files (covers for tracks no longer in library)
   cleanupOrphanCovers: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('cleanup-orphan-covers', activeTrackIds);
+  },
+
+  // ---- Settings store (IPC to main process settings.json) ----
+  settingsGet: async (key: string) => {
+    return ipcRenderer.invoke('settings:get', key);
+  },
+  settingsGetAll: async () => {
+    return ipcRenderer.invoke('settings:getAll');
+  },
+  settingsSet: async (key: string, value: string) => {
+    return ipcRenderer.invoke('settings:set', key, value);
+  },
+  settingsDelete: async (key: string) => {
+    return ipcRenderer.invoke('settings:delete', key);
+  },
+  settingsReplaceAll: async (entries: Record<string, string>) => {
+    return ipcRenderer.invoke('settings:replaceAll', entries);
   },
 
   // ---- Auto-updater (electron-updater) ----

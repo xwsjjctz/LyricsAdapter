@@ -98,6 +98,12 @@ export interface DesktopAPI {
   showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
   // Online music: push a QQ/NetEase cookie to the main-process stream:// proxy.
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
+  // Settings store (Electron Store–style JSON file in main process)
+  settingsGet?: (key: string) => Promise<string | undefined>;
+  settingsGetAll?: () => Promise<Record<string, string>>;
+  settingsSet?: (key: string, value: string) => Promise<void>;
+  settingsDelete?: (key: string) => Promise<void>;
+  settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
 }
 
 class ElectronAdapter implements FullDesktopAPI {
@@ -497,6 +503,60 @@ class ElectronAdapter implements FullDesktopAPI {
     // Optional on the underlying API; no-op when unavailable (e.g. browser mode).
     if (typeof this.api.setOnlineCookie === 'function') {
       return this.api.setOnlineCookie(source, cookie);
+    }
+  }
+
+  // ---- Settings store (passthrough to main-process settings.json) ----
+  async settingsGet(key: string): Promise<string | undefined> {
+    // Prefer typed IPC path, fall back to legacy top-level method
+    if (this.api.ipc?.settings.get) {
+      const result = await this.api.ipc.settings.get(key);
+      return result.ok ? result.data : undefined;
+    }
+    if (typeof this.api.settingsGet === 'function') {
+      return this.api.settingsGet(key);
+    }
+    return undefined;
+  }
+
+  async settingsGetAll(): Promise<Record<string, string>> {
+    if (this.api.ipc?.settings.getAll) {
+      const result = await this.api.ipc.settings.getAll();
+      return result.ok ? result.data : {};
+    }
+    if (typeof this.api.settingsGetAll === 'function') {
+      return this.api.settingsGetAll();
+    }
+    return {};
+  }
+
+  async settingsSet(key: string, value: string): Promise<void> {
+    if (this.api.ipc?.settings.set) {
+      await this.api.ipc.settings.set(key, value);
+      return;
+    }
+    if (typeof this.api.settingsSet === 'function') {
+      return this.api.settingsSet(key, value);
+    }
+  }
+
+  async settingsDelete(key: string): Promise<void> {
+    if (this.api.ipc?.settings.delete) {
+      await this.api.ipc.settings.delete(key);
+      return;
+    }
+    if (typeof this.api.settingsDelete === 'function') {
+      return this.api.settingsDelete(key);
+    }
+  }
+
+  async settingsReplaceAll(entries: Record<string, string>): Promise<void> {
+    if (this.api.ipc?.settings.replaceAll) {
+      await this.api.ipc.settings.replaceAll(entries);
+      return;
+    }
+    if (typeof this.api.settingsReplaceAll === 'function') {
+      return this.api.settingsReplaceAll(entries);
     }
   }
 
