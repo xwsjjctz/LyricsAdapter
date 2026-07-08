@@ -8,6 +8,7 @@ import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
+import { appStorage } from '../services/appStorage';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
@@ -242,6 +243,8 @@ export function useLibraryLoad({
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
+    // 并行写入 playback 状态到 settings.json（音量/模式/进度/激活插槽）
+    appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
   }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.currentTime, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.currentTime, slots.playlist.volume, slots.playlist.playbackMode]);
 
   useEffect(() => {
@@ -274,6 +277,8 @@ export function useLibraryLoad({
       );
 
       logger.debug('[LibraryLoad] Flushing library before close');
+      // 同时 flush playback 状态到 settings.json
+      await appStorage.setItem('playback', JSON.stringify(persistData));
       return libraryStorage.flushPendingSave(libraryData);
     };
 

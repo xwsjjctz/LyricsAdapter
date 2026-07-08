@@ -123,6 +123,25 @@ class AppStorage {
   }
 
   /**
+   * 批量写入多个键值对。比逐个调用 setItem 更高效（只 flush 一次磁盘）。
+   */
+  async setMany(entries: Record<string, string>): Promise<void> {
+    for (const [key, value] of Object.entries(entries)) {
+      this.cache.set(key, value);
+      localStorage.setItem(key, value);
+    }
+
+    if (isDesktop()) {
+      try {
+        const api = await getDesktopAPIAsync();
+        await api?.settingsSetMany?.(entries);
+      } catch (e) {
+        logger.warn('[AppStorage] Failed to persist setMany to main process:', e);
+      }
+    }
+  }
+
+  /**
    * Remove a key.
    * Removes from cache + localStorage, then async from main process.
    */

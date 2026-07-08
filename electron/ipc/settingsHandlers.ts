@@ -1,10 +1,9 @@
 /**
  * IPC handlers for the file‑based settings store.
  *
- * Exposes get/set/getAll/delete operations on the main‑process settings.json
- * so the renderer can persist UI settings, WebDAV credentials, theme,
- * language, shortcuts etc. without relying on localStorage (which is per‑origin
- * and can be cleared by the user).
+ * Exposes get/set/setMany/getAll/delete/replaceAll operations on the main‑process
+ * settings.json (~/.la/settings.json). Sensitive fields are transparently
+ * encrypted/decrypted via Electron safeStorage.
  *
  * Compatible with the unified origin (app://localhost) from Plan A.
  */
@@ -25,6 +24,10 @@ export function registerSettingsHandlers(): void {
     settingsStore.set(key, value);
   });
 
+  ipcMain.handle('settings:setMany', (_event, entries: Record<string, string>): void => {
+    settingsStore.setMany(entries);
+  });
+
   ipcMain.handle('settings:delete', (_event, key: string): void => {
     settingsStore.delete(key);
   });
@@ -33,5 +36,5 @@ export function registerSettingsHandlers(): void {
     settingsStore.replaceAll(entries);
   });
 
-  logger.info('[SettingsHandlers] Registered');
+  logger.info('[SettingsHandlers] Registered (store path: ' + settingsStore.getDirectoryPath() + ')');
 }

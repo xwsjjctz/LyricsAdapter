@@ -102,6 +102,7 @@ export interface DesktopAPI {
   settingsGet?: (key: string) => Promise<string | undefined>;
   settingsGetAll?: () => Promise<Record<string, string>>;
   settingsSet?: (key: string, value: string) => Promise<void>;
+  settingsSetMany?: (entries: Record<string, string>) => Promise<void>;
   settingsDelete?: (key: string) => Promise<void>;
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
 }
@@ -547,6 +548,20 @@ class ElectronAdapter implements FullDesktopAPI {
     }
     if (typeof this.api.settingsDelete === 'function') {
       return this.api.settingsDelete(key);
+    }
+  }
+
+  async settingsSetMany(entries: Record<string, string>): Promise<void> {
+    if (this.api.ipc?.settings.setMany) {
+      await this.api.ipc.settings.setMany(entries);
+      return;
+    }
+    if (typeof this.api.settingsSetMany === 'function') {
+      return this.api.settingsSetMany(entries);
+    }
+    // Fallback: set individually
+    for (const [key, value] of Object.entries(entries)) {
+      await this.settingsSet(key, value);
     }
   }
 

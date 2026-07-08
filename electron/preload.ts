@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electron', {
         get: async (key: string) => ipcRenderer.invoke('settings:get', key),
         getAll: async () => ipcRenderer.invoke('settings:getAll'),
         set: async (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+        setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:setMany', entries),
         delete: async (key: string) => ipcRenderer.invoke('settings:delete', key),
         replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:replaceAll', entries),
       },
@@ -341,6 +342,9 @@ contextBridge.exposeInMainWorld('electron', {
   },
   settingsSet: async (key: string, value: string) => {
     return ipcRenderer.invoke('settings:set', key, value);
+  },
+  settingsSetMany: async (entries: Record<string, string>) => {
+    return ipcRenderer.invoke('settings:setMany', entries);
   },
   settingsDelete: async (key: string) => {
     return ipcRenderer.invoke('settings:delete', key);
