@@ -123,6 +123,65 @@ function mergeUserTrackWithCachedSong(record: UserTrackRecord, cached?: LibraryI
   return merged;
 }
 
+/**
+ * 将缓存层（library-index.json）的歌曲按 slot 提取为最小化用户记录，
+ * 用于在 ~/.la/users.json 尚未被填充时把现有库"播种"进用户数据。
+ * 这是"清缓存后可从用户数据重建"目标的兜底：只要 cache 还在，
+ * 首次启动就把归属信息写入 users.json，之后清掉 cache 也能恢复。
+ */
+function songsToMinimalRecords(songs: LibraryIndexSong[] | undefined, slotId: SlotId): UserTrackRecord[] {
+  if (!songs || songs.length === 0) return [];
+  return songs.map(song => ({
+    id: song.id,
+    slotId,
+    ...(song.filePath ? { filePath: song.filePath } : undefined),
+    ...(song.webdavPath ? { webdavPath: song.webdavPath } : undefined),
+    ...(song.fileName ? { fileName: song.fileName } : undefined),
+    ...(song.fileSize ? { fileSize: song.fileSize } : undefined),
+    ...(song.lastModified ? { lastModified: song.lastModified } : undefined),
+    ...(song.source ? { source: song.source } : undefined),
+    ...(song.addedAt ? { addedAt: song.addedAt } : undefined),
+    ...(song.playCount != null ? { playCount: song.playCount } : undefined),
+    ...(song.lastPlayed !== undefined ? { lastPlayed: song.lastPlayed } : undefined),
+    ...(song.songmid ? { songmid: song.songmid } : undefined),
+    ...(song.available !== undefined ? { available: song.available } : undefined),
+  }));
+}
+
+function collectLocalStorageSnapshot(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key) out[key] = localStorage.getItem(key) ?? '';
+  }
+  return out;
+}
+
+async function seedUserDataFromCache(
+  libraryData: LibraryIndexData,
+  persistData: LibrarySettings
+): Promise<void> {
+  try {
+    const api = await getDesktopAPIAsync();
+    if (!api?.userDataSave) return;
+    const tracks: UserTrackRecord[] = [
+      ...songsToMinimalRecords(libraryData.songs, 'local'),
+      ...songsToMinimalRecords(libraryData.cloudSongs, 'cloud'),
+      ...songsToMinimalRecords(libraryData.onlineSongs, 'online'),
+      ...songsToMinimalRecords(libraryData.playlistSongs, 'playlist'),
+    ];
+    if (tracks.length === 0) return;
+    await api.userDataSave({
+      tracks,
+      settings: collectLocalStorageSnapshot(),
+      playback: { _json: JSON.stringify(persistData) },
+    });
+    logger.info('[LibraryLoad] Seeded ~/.la/users.json from cache, tracks:', tracks.length);
+  } catch (e) {
+    logger.warn('[LibraryLoad] Failed to seed ~/.la/users.json from cache:', e);
+  }
+}
+
 function buildLibraryDataFromUserData(
   userData: UserDataSnapshot,
   fallbackSettings: LibrarySettings,
@@ -385,6 +444,12 @@ export function useLibraryLoad({
                 await syncUserSettingsToAppStorage(userData, mainSettings);
               } catch (e) {
                 logger.warn('[LibraryLoad] Failed to sync ~/.la user settings:', e);
+              }
+
+              // 兜底播种：users.json 的 tracks 为空但 cache 有内容时，
+              // 把 cache 的归属信息写入 users.json，确保清缓存后可重建。
+              if (getUserTrackRecords(userData).length === 0 && hasPersistedTracks(libraryData)) {
+                await seedUserDataFromCache(libraryData, libraryData.settings || {});
               }
 
               const rebuiltLibrary = buildLibraryDataFromUserData(userData, libraryData.settings || {}, mainSettings, libraryData);

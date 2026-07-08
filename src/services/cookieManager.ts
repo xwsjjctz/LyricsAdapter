@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { indexedDBStorage } from './indexedDBStorage';
+import { appStorage } from './appStorage';
 import { getDesktopAPI, getDesktopAPIAsync } from './desktopAdapter';
 
 const COOKIE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
@@ -36,10 +37,39 @@ export class CookieStore {
 
   private async loadFromStorage(): Promise<void> {
     try {
-      await indexedDBStorage.initialize();
+      // 凭据存到 ~/.la/settings.json（safeStorage 加密），与 IndexedDB 缓存解耦：
+      // 即使 IndexedDB 损坏被清，登录态也保留。appStorage.getItem 同步读，
+      // 这里 await init 仅为确保主进程数据已载入内存 cache。
+      await appStorage.init();
 
-      const storedCookie = await indexedDBStorage.getSetting(this.opts.storageKey);
-      const storedCheckTime = await indexedDBStorage.getSetting(this.opts.checkTimeKey);
+      let storedCookie = appStorage.getItem(this.opts.storageKey);
+      let storedCheckTime = appStorage.getItem(this.opts.checkTimeKey);
+
+      // 一次性迁移：旧版本把 cookie 存在 IndexedDB settings store 里。
+      // 若 appStorage 里没有但 IndexedDB 里有，搬过来并清掉旧位置。
+      if (!storedCookie) {
+        try {
+          await indexedDBStorage.initialize();
+          const idbCookie = await indexedDBStorage.getSetting(this.opts.storageKey);
+          const idbCheckTime = await indexedDBStorage.getSetting(this.opts.checkTimeKey);
+          if (idbCookie) {
+            storedCookie = idbCookie;
+            storedCheckTime = idbCheckTime;
+            await appStorage.setItem(this.opts.storageKey, idbCookie);
+            if (idbCheckTime) await appStorage.setItem(this.opts.checkTimeKey, idbCheckTime);
+            try {
+              await indexedDBStorage.deleteSetting(this.opts.storageKey);
+              await indexedDBStorage.deleteSetting(this.opts.checkTimeKey);
+            } catch {
+              // 迁移后清理旧条目失败无碍，下次仍以 appStorage 为准
+            }
+            logger.info(`[CookieManager:${this.opts.scope}] Migrated cookie from IndexedDB to settings.json`);
+          }
+        } catch (idbError) {
+          // IndexedDB 打不开也无妨——cookie 本就不在那里（新版），降级为空 cookie
+          logger.debug(`[CookieManager:${this.opts.scope}] IndexedDB unavailable during cookie load:`, idbError);
+        }
+      }
 
       if (storedCookie) {
         this.cookie = storedCookie;
@@ -56,8 +86,8 @@ export class CookieStore {
 
   private async saveToStorage(): Promise<void> {
     try {
-      await indexedDBStorage.setSetting(this.opts.storageKey, this.cookie);
-      await indexedDBStorage.setSetting(this.opts.checkTimeKey, this.lastCheckTime.toString());
+      await appStorage.setItem(this.opts.storageKey, this.cookie);
+      await appStorage.setItem(this.opts.checkTimeKey, this.lastCheckTime.toString());
     } catch (error) {
       logger.error(`[CookieManager:${this.opts.scope}] Failed to save to storage:`, error);
     }
@@ -92,8 +122,8 @@ export class CookieStore {
     this.cookie = '';
     this.lastCheckTime = 0;
     try {
-      await indexedDBStorage.deleteSetting(this.opts.storageKey);
-      await indexedDBStorage.deleteSetting(this.opts.checkTimeKey);
+      await appStorage.removeItem(this.opts.storageKey);
+      await appStorage.removeItem(this.opts.checkTimeKey);
     } catch (error) {
       logger.error(`[CookieManager:${this.opts.scope}] Failed to clear storage:`, error);
     }

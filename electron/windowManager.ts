@@ -83,7 +83,7 @@ export async function createWindow(): Promise<BrowserWindow> {
 
   if (app.isPackaged) {
     session.webRequest.onHeadersReceived((details, callback) => {
-      const csp = `default-src 'self' app: blob: data:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' app: 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' app: blob: data: https: http: file: cover: https://*.gtimg.cn; media-src 'self' app: blob: data: file: https: audio: stream:; connect-src 'self' app: blob: data: ws://localhost:* http://localhost:* https://esm.sh https://u.y.qq.com https://y.qq.com https://c.y.qq.com https://shc.y.qq.com https://i.y.qq.com https://dl.stream.qqmusic.qq.com https://webdav.123pan.cn https://*.123pan.cn https://*.baidubce.com https://*.cjjd19.com; worker-src 'self' app: blob:; frame-src 'self' app: blob:; font-src 'self' app: blob: data: https://esm.sh;`;
+      const csp = `default-src 'self' app: blob: data:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' app: 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' app: blob: data: https: http: file: cover: https://*.gtimg.cn; media-src 'self' app: blob: data: file: https: audio: stream:; connect-src 'self' app: blob: data: cover: ws://localhost:* http://localhost:* https://esm.sh https://u.y.qq.com https://y.qq.com https://c.y.qq.com https://shc.y.qq.com https://i.y.qq.com https://dl.stream.qqmusic.qq.com https://webdav.123pan.cn https://*.123pan.cn https://*.baidubce.com https://*.cjjd19.com; worker-src 'self' app: blob:; frame-src 'self' app: blob:; font-src 'self' app: blob: data: https://esm.sh;`;
       callback({
         responseHeaders: {
           ...details.responseHeaders,

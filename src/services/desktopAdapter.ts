@@ -583,7 +583,7 @@ class ElectronAdapter implements FullDesktopAPI {
   // ---- User Data Store (~/.la/users.json) ----
 
   async userDataLoad(): Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }> {
-    if (this.api.ipc?.userData.load) {
+    if (this.api.ipc?.userData?.load) {
       const result = await this.api.ipc.userData.load();
       if (result.ok) return result.data as any;
     }
@@ -594,7 +594,7 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async userDataSave(data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }): Promise<void> {
-    if (this.api.ipc?.userData.save) {
+    if (this.api.ipc?.userData?.save) {
       await this.api.ipc.userData.save(data);
       return;
     }
@@ -604,7 +604,7 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async userDataSaveTracks(tracks: unknown[]): Promise<void> {
-    if (this.api.ipc?.userData.saveTracks) {
+    if (this.api.ipc?.userData?.saveTracks) {
       await this.api.ipc.userData.saveTracks(tracks);
       return;
     }
