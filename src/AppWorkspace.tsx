@@ -354,6 +354,7 @@ const AppWorkspace: React.FC = () => {
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
     setViewMode,
     mergeCloudTracks,
+    onDownloadComplete: handleDownloadComplete,
   });
   const online = useOnlineViewModel({
     progress: onlineProgress,
@@ -572,7 +573,7 @@ const AppWorkspace: React.FC = () => {
           <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
-                onDownloadComplete={handleDownloadComplete}
+                online={online}
                 onNavigateToSettings={() => transitionToView(ViewMode.SETTINGS)}
               />
             ) : viewMode === ViewMode.METADATA ? (

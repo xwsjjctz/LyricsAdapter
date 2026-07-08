@@ -2,32 +2,23 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getOnlineProvider,
   getActiveCookieManager,
-  type OnlineMusicProvider,
   type OnlineSong,
 } from '../services/onlineMusicProvider';
-import { settingsManager } from '../services/settingsManager';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
-import { metadataCacheService } from '../services/metadataCacheService';
-import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
-import { Track } from '../types';
-import { webdavClient } from '../services/webdavClient';
-import { generateMetaJson } from '../services/webdavMetaService';
-import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
+import type { OnlineProgressEntry } from '../hooks/useOnlineMusicIntegration';
 
 interface BrowseViewProps {
-  onDownloadComplete?: (track: Track) => void;
-  onNavigateToSettings?: () => void;
-}
-
-interface DownloadProgress {
-  [songmid: string]: {
-    progress: number;
-    status: 'downloading' | 'completed' | 'error';
+  /** Online-music download/upload progress + action callbacks. */
+  online: {
+    progress: Record<string, OnlineProgressEntry>;
+    download: (song: OnlineSong, quality: '128' | '320' | 'flac' | 'm4a') => Promise<void>;
+    upload: (song: OnlineSong, quality: '128' | '320' | 'flac' | 'm4a') => Promise<void>;
   };
+  onNavigateToSettings?: () => void;
 }
 
 type QualityOption = {
@@ -43,52 +34,15 @@ const qualityOptions: QualityOption[] = [
 
 const ONLINE_SEARCH_DEBOUNCE_MS = 500;
 
-function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] } {
-  const lines = lrc.split(/\r?\n/);
-  const syncedLyrics: { time: number; text: string }[] = [];
-  const plainTextLines: string[] = [];
-  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (!trimmedLine) continue;
-
-    const matches = [...trimmedLine.matchAll(timeRegex)];
-    const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
-    if (!textWithoutTimestamps || textWithoutTimestamps === '//') continue;
-
-    if (matches.length > 0) {
-      for (const match of matches) {
-        const minutes = parseInt(match[1]!, 10);
-        const seconds = parseInt(match[2]!, 10);
-        const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
-        syncedLyrics.push({
-          time: minutes * 60 + seconds + milliseconds / 1000,
-          text: textWithoutTimestamps
-        });
-      }
-    }
-    plainTextLines.push(textWithoutTimestamps);
-  }
-
-  syncedLyrics.sort((a, b) => a.time - b.time);
-  return {
-    plainText: plainTextLines.join('\n'),
-    ...(syncedLyrics.length > 0 && { syncedLyrics })
-  };
-}
-
-const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateToSettings }) => {
+const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings }) => {
   const [songs, setSongs] = useState<OnlineSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [hasSearched, setHasSearched] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [executedSearchQuery, setExecutedSearchQuery] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [openUploadDropdownId, setOpenUploadDropdownId] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<DownloadProgress>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, setLanguageVersion] = useState(0);
@@ -246,446 +200,16 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
     }
   }, []);
 
-  const createTrackFromDownloadedFile = async (
-    filePath: string,
-    fileName: string,
-    song: OnlineSong,
-    lyrics?: string
-  ): Promise<Track | null> => {
-    try {
-      const desktopAPI = await getDesktopAPIAsync();
-      if (!desktopAPI) {
-        logger.error('[BrowseView] Desktop API not available');
-        return null;
-      }
-
-      // Parse metadata from the downloaded file
-      let metadata: {
-        lyrics?: string;
-        syncedLyrics?: { time: number; text: string }[];
-        duration?: number;
-        fileSize?: number;
-      } | undefined;
-      try {
-        const parseResult = await desktopAPI.parseAudioMetadata(filePath);
-        if (parseResult.success && parseResult.metadata) {
-          metadata = parseResult.metadata;
-        }
-      } catch (error) {
-        logger.error('[BrowseView] Failed to parse metadata:', error);
-      }
-
-      const parsedLyrics = lyrics ? parseLRCLyrics(lyrics) : null;
-      const finalLyrics = parsedLyrics?.plainText || metadata?.lyrics || lyrics || '';
-      const finalSyncedLyrics = parsedLyrics?.syncedLyrics || metadata?.syncedLyrics;
-
-      const trackId = Math.random().toString(36).substr(2, 9);
-      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
-
-      // Build cover URL from the active provider (QQ album crop / NetEase picUrl)
-      const coverUrl = getOnlineProvider().getCoverUrl(song)
-        || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
-
-      // Save cover thumbnail if possible
-      let finalCoverUrl = coverUrl;
-      if (coverUrl && desktopAPI.saveCoverThumbnail) {
-        try {
-          // Fetch cover image and convert to base64
-          const coverResponse = await fetch(coverUrl);
-          if (coverResponse.ok) {
-            const coverBlob = await coverResponse.blob();
-            const reader = new FileReader();
-            const base64Promise = new Promise<string>((resolve) => {
-              reader.onloadend = () => {
-                const base64 = reader.result as string;
-                resolve(base64.split(',')[1] ?? '');
-              };
-            });
-            reader.readAsDataURL(coverBlob);
-            const base64Data = await base64Promise;
-            
-            const coverResult = await desktopAPI.saveCoverThumbnail({
-              id: trackId,
-              data: base64Data,
-              mime: 'image/jpeg'
-            });
-            if (coverResult?.success && coverResult.coverUrl) {
-              finalCoverUrl = coverResult.coverUrl;
-            }
-          }
-        } catch (error) {
-          logger.warn('[BrowseView] Failed to save cover thumbnail:', error);
-        }
-      }
-
-      // Cache metadata
-      metadataCacheService.set(trackId, {
-        title: song.songname,
-        artist: singer,
-        album: song.albumname || '',
-        duration: metadata?.duration || song.interval || 0,
-        lyrics: finalLyrics,
-        syncedLyrics: finalSyncedLyrics,
-        fileName: fileName,
-        fileSize: metadata?.fileSize || 0,
-        lastModified: Date.now(),
-      });
-
-      const track: Track = {
-        id: trackId,
-        title: song.songname,
-        artist: singer,
-        album: song.albumname || 'Unknown Album',
-        duration: metadata?.duration || song.interval || 0,
-        lyrics: finalLyrics,
-        syncedLyrics: finalSyncedLyrics,
-        coverUrl: finalCoverUrl,
-        audioUrl: '',
-        fileName: fileName,
-        filePath: filePath,
-        fileSize: metadata?.fileSize || 0,
-        lastModified: Date.now(),
-        addedAt: new Date().toISOString(),
-        available: true
-      };
-
-      return track;
-    } catch (error) {
-      logger.error('[BrowseView] Failed to create track:', error);
-      return null;
-    }
-  };
-
-  // Lyrics: QQ prefers the dedicated IPC channel, then falls back to the
-  // provider; NetEase resolves entirely through its provider (IPC weapi).
-  const fetchSongLyrics = async (
-    song: OnlineSong,
-    provider: OnlineMusicProvider,
-    rawCookie: string
-  ): Promise<string | undefined> => {
-    if (provider.id === 'qq' && getDesktopAPI()?.getQQMusicLyrics) {
-      try {
-        const r = await getDesktopAPI()!.getQQMusicLyrics!(song.songmid, rawCookie);
-        if (r?.success && r.lyrics) return r.lyrics;
-      } catch (e) {
-        logger.warn('[BrowseView] Failed to get lyrics via main process:', e);
-      }
-    }
-    try {
-      return (await provider.getLyrics(song.songmid)) || undefined;
-    } catch (e) {
-      logger.warn('[BrowseView] Failed to get lyrics via renderer API:', e);
-      return undefined;
-    }
-  };
+  // Download, upload, lyrics fetching and track-creation are handled by the
+  // online-music hook (useOnlineMusicIntegration), exposed via `online` VM prop.
 
   const handleDownload = async (song: OnlineSong, quality: 'm4a' | '128' | '320' | 'flac' = '128') => {
-    const provider = getOnlineProvider();
-    // Prevent re-download if already downloading or completed
-    const currentStatus = downloadProgress[song.songmid]?.status;
-    if (currentStatus === 'downloading' || currentStatus === 'completed') return;
-
-    // Close dropdown
-    setOpenDropdownId(null);
-
-    // Get download path from settings
-    const downloadPath = settingsManager.getDownloadPath();
-
-    // Check if download path is set
-    if (!downloadPath) {
-      setError(i18n.t('browse.selectDownloadPath'));
-      notify(i18n.t('browse.selectDownloadPath'), i18n.t('browse.pleaseSetCookie'));
-      onNavigateToSettings?.();
-      return;
-    }
-
-    setDownloadProgress(prev => ({
-      ...prev,
-      [song.songmid]: { progress: 0, status: 'downloading' }
-    }));
-
-    try {
-      logger.debug('[BrowseView] Starting download for:', song.songname, 'quality:', quality);
-      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
-      // For filename, use & to separate multiple artists (cleaner for filesystem)
-      const singerForFileName = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
-
-      // Get download URL first
-      const { url } = await provider.getMusicUrl(song.songmid, quality);
-      logger.debug('[BrowseView] Got download URL:', url);
-
-      logger.debug('[BrowseView] Download path:', downloadPath);
-
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const fileName = buildSafeMusicFileName(singerForFileName, song.songname, ext);
-
-      let savedFilePath: string | undefined;
-      let lyrics: string | undefined;
-
-      const fullPath = joinDownloadPath(downloadPath, fileName);
-      logger.debug('[BrowseView] Downloading directly to:', fullPath);
-
-      const rawCookie = provider.getRawCookie();
-      const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-
-      const lyricsPromise = fetchSongLyrics(song, provider, rawCookie);
-
-      // Download and save via Electron main process
-      const desktopAPI = getDesktopAPI();
-      try {
-        const downloadResult = await desktopAPI?.downloadAndSave?.(url, rawCookie, fullPath);
-
-        if (!downloadResult || !downloadResult.success) {
-          throw new Error(`下载失败: ${downloadResult?.error || 'downloadAndSave unavailable'}`);
-        }
-
-        savedFilePath = downloadResult.filePath;
-        logger.debug('[BrowseView] File saved successfully to:', savedFilePath);
-
-        // Update progress to 100%
-        setDownloadProgress(prev => ({
-          ...prev,
-          [song.songmid]: { progress: 100, status: 'downloading' }
-        }));
-      } catch (error) {
-        logger.error('[BrowseView] Download failed:', error);
-        throw error;
-      }
-
-      lyrics = await lyricsPromise;
-
-      if (savedFilePath && desktopAPI?.writeAudioMetadata) {
-        try {
-          logger.info('[BrowseView] Attempting to write metadata to file:', savedFilePath);
-          logger.info('[BrowseView] Metadata payload:', {
-            title: song.songname,
-            artist: singer,
-            album: song.albumname || '',
-            lyricsLength: lyrics?.length || 0,
-            coverUrl: coverUrl ? `${coverUrl.substring(0, 50)}...` : undefined
-          });
-
-          const metadataResult = await desktopAPI.writeAudioMetadata(savedFilePath, {
-            title: song.songname,
-            artist: singer,
-            album: song.albumname || '',
-            ...(lyrics != null && { lyrics }),
-            ...(coverUrl != null && { coverUrl })
-          });
-
-          logger.info('[BrowseView] Metadata write result:', metadataResult);
-
-          if (!metadataResult?.success) {
-            logger.error('[BrowseView] Metadata write FAILED:', metadataResult?.error);
-          } else {
-            logger.info('[BrowseView] ✅ Metadata written successfully to file');
-          }
-        } catch (error) {
-          logger.error('[BrowseView] Metadata write EXCEPTION:', error);
-        }
-      } else {
-        logger.warn('[BrowseView] writeAudioMetadata not available or no file path');
-      }
-
-      // Create track and add to library
-      if (savedFilePath && onDownloadComplete) {
-        logger.debug('[BrowseView] Creating track from downloaded file...');
-        const track = await createTrackFromDownloadedFile(savedFilePath, fileName, song, lyrics);
-        if (track) {
-          onDownloadComplete(track);
-          logger.debug('[BrowseView] Track added to library:', track.title);
-        }
-      }
-
-      setDownloadProgress(prev => ({
-        ...prev,
-        [song.songmid]: { progress: 100, status: 'completed' }
-      }));
-
-      notify(
-        i18n.t('notifications.downloadComplete'),
-        `${song.songname} ${i18n.t('notifications.addedToLibrary')}`,
-        { silent: true }
-      );
-
-      // Clear progress after 3 seconds
-      setTimeout(() => {
-        setDownloadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[song.songmid];
-          return newProgress;
-        });
-      }, 3000);
-    } catch (err: any) {
-      logger.error('[BrowseView] Download failed:', err);
-      logger.error('[BrowseView] Download error:', err);
-      
-      const errorMsg = err.message || '';
-      // If it's a cookie error, show settings dialog
-      if (errorMsg.includes('Cookie') || errorMsg.includes('cookie')) {
-        setError(i18n.t('browse.cookieExpired'));
-        if (!cookiePromptShown) {
-          sessionStorage.setItem('cookiePromptShown', 'true');
-          onNavigateToSettings?.();
-        }
-      }
-      
-      setDownloadProgress(prev => ({
-        ...prev,
-        [song.songmid]: { progress: 0, status: 'error' }
-      }));
-
-      notify(
-        i18n.t('notifications.downloadFailed'),
-        `${song.songname} ${i18n.t('notifications.downloadFailedBody')}`
-      );
-
-      // Clear error state after 5 seconds
-      setTimeout(() => {
-        setDownloadProgress(prev => {
-          // Only clear if still in error state (not if user started new download)
-          if (prev[song.songmid]?.status === 'error') {
-            const newProgress = { ...prev };
-            delete newProgress[song.songmid];
-            return newProgress;
-          }
-          return prev;
-        });
-      }, 5000);
-    }
+    await online.download(song, quality);
   };
 
   const handleUploadToWebdav = async (song: OnlineSong, quality: 'm4a' | '128' | '320' | 'flac' = 'flac') => {
-    if (!webdavClient.hasConfig()) {
-      notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
-      onNavigateToSettings?.();
-      return;
-    }
-
-    const provider = getOnlineProvider();
-    const currentStatus = uploadProgress[song.songmid]?.status;
-    if (currentStatus === 'downloading' || currentStatus === 'completed') return;
-
-    setOpenUploadDropdownId(null);
-
-    setUploadProgress(prev => ({
-      ...prev,
-      [song.songmid]: { progress: 0, status: 'downloading' }
-    }));
-
-    try {
-      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
-      const singerForFileName = song.singer?.map(s => s.name).join(' & ') || 'Unknown';
-
-      const { url } = await provider.getMusicUrl(song.songmid, quality);
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const fileName = buildSafeMusicFileName(singerForFileName, song.songname, ext);
-
-      const rawCookie = provider.getRawCookie();
-      const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-
-      const lyricsPromise = fetchSongLyrics(song, provider, rawCookie);
-
-      // Download via Electron
-      const downloadPath = settingsManager.getDownloadPath();
-      if (!downloadPath) {
-        setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 0, status: 'error' } }));
-        return;
-      }
-      const fullPath = joinDownloadPath(downloadPath, fileName);
-
-      const desktopAPI = getDesktopAPI();
-      const downloadResult = await desktopAPI?.downloadAndSave?.(url, rawCookie, fullPath);
-      if (!downloadResult || !downloadResult.success) {
-        throw new Error(`Download failed: ${downloadResult?.error || 'unavailable'}`);
-      }
-      const savedFilePath = downloadResult.filePath;
-      if (!savedFilePath) throw new Error('Download succeeded but no file path returned');
-      logger.debug('[BrowseView] Upload: file downloaded to', savedFilePath);
-
-      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 30, status: 'downloading' } }));
-
-      // Write metadata to downloaded file
-      const lyrics = await lyricsPromise;
-      if (desktopAPI?.writeAudioMetadata) {
-        await desktopAPI.writeAudioMetadata(savedFilePath, {
-          title: song.songname,
-          artist: singer,
-          album: song.albumname || '',
-          ...(lyrics != null && { lyrics }),
-          ...(coverUrl != null && { coverUrl })
-        });
-      }
-
-      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 50, status: 'downloading' } }));
-
-      // Upload audio to WebDAV
-      const webdavFilePath = `/music/${fileName}`;
-      const readResult = await desktopAPI?.readFile?.(savedFilePath);
-      if (!readResult?.success || !readResult.data) {
-        throw new Error('Failed to read file for WebDAV upload');
-      }
-
-      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 60, status: 'downloading' } }));
-
-      const uploadResult = await webdavClient.uploadFile(webdavFilePath, readResult.data, `audio/${ext}`);
-      if (!uploadResult.success) {
-        throw new Error(`WebDAV upload failed: ${uploadResult.error}`);
-      }
-
-      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 80, status: 'downloading' } }));
-
-      // Upload meta.json
-      const metaJson = generateMetaJson({
-        id: `webdav-${webdavFilePath}`,
-        title: song.songname,
-        artist: singer,
-        album: song.albumname || '',
-        duration: song.interval || 0,
-        audioUrl: '',
-        source: 'webdav',
-        webdavPath: webdavFilePath,
-        fileName,
-        fileSize: readResult.data.byteLength,
-        ...(lyrics != null && { lyrics }),
-      });
-      await webdavClient.uploadMetaJson(webdavFilePath, metaJson);
-
-      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 100, status: 'completed' } }));
-
-      notify(
-        i18n.t('notifications.uploadComplete'),
-        `${song.songname} → WebDAV`,
-        { silent: true }
-      );
-
-      setTimeout(() => {
-        setUploadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[song.songmid];
-          return newProgress;
-        });
-      }, 3000);
-    } catch (err: any) {
-      logger.error('[BrowseView] WebDAV upload failed:', err);
-      setUploadProgress(prev => ({ ...prev, [song.songmid]: { progress: 0, status: 'error' } }));
-      notify(
-        i18n.t('notifications.uploadFailed'),
-        `${song.songname}: ${err.message || 'Unknown error'}`
-      );
-      setTimeout(() => {
-        setUploadProgress(prev => {
-          if (prev[song.songmid]?.status === 'error') {
-            const newProgress = { ...prev };
-            delete newProgress[song.songmid];
-            return newProgress;
-          }
-          return prev;
-        });
-      }, 5000);
-    }
+    await online.upload(song, quality);
   };
-
   const toggleDropdown = (songmid: string) => {
     setOpenDropdownId(openDropdownId === songmid ? null : songmid);
   };
@@ -839,14 +363,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
             {/* Song List */}
             <div className="grid gap-2">
               {songs.map((song, index) => {
-                const dlProgress = downloadProgress[song.songmid];
-                const isDownloading = dlProgress?.status === 'downloading';
-                const isDlCompleted = dlProgress?.status === 'completed';
+                const prog = online.progress[song.songmid];
+                const isDownloading = prog?.type === 'download' && !prog.status;
+                const isDlCompleted = prog?.type === 'download' && prog.status === 'completed';
                 const isDropdownOpen = openDropdownId === song.songmid;
 
-                const ulProgress = uploadProgress[song.songmid];
-                const isUploading = ulProgress?.status === 'downloading';
-                const isUlCompleted = ulProgress?.status === 'completed';
+                const isUploading = prog?.type === 'upload' && !prog.status;
+                const isUlCompleted = prog?.type === 'upload' && prog.status === 'completed';
                 const isUploadDropdownOpen = openUploadDropdownId === song.songmid;
 
                 return (
@@ -884,9 +407,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
                       {isDownloading ? (
                         <div className="flex items-center gap-1">
                           <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
-                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${dlProgress.progress}%` }} />
+                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${prog.percent}%` }} />
                           </div>
-                          <span className="text-xs" style={{ color: colors.textMuted }}>{dlProgress.progress}%</span>
+                          <span className="text-xs" style={{ color: colors.textMuted }}>{prog.percent}%</span>
                         </div>
                       ) : isDlCompleted ? (
                         <span className="text-xs flex items-center gap-1" style={{ color: colors.success }}>
@@ -930,9 +453,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ onDownloadComplete, onNavigateT
                       {isUploading ? (
                         <div className="flex items-center gap-1">
                           <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
-                            <div className="h-full rounded-full transition-all" style={{ width: `${ulProgress.progress}%`, backgroundColor: colors.accent }} />
+                            <div className="h-full rounded-full transition-all" style={{ width: `${prog.percent}%`, backgroundColor: colors.accent }} />
                           </div>
-                          <span className="text-xs" style={{ color: colors.textMuted }}>{ulProgress.progress}%</span>
+                          <span className="text-xs" style={{ color: colors.textMuted }}>{prog.percent}%</span>
                         </div>
                       ) : isUlCompleted ? (
                         <span className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
