@@ -8,6 +8,11 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
     return {
       base: './',
+      // Vite root stays at the repo root: vite-plugin-electron spawns Electron
+      // with cwd = server.config.root, so it must be the repo root for Electron
+      // to find package.json's `main`. Renderer source lives under src/ and is
+      // referenced from index.html via /src/index.tsx, /src/index.css. The `@`
+      // alias below also points at src/.
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -69,10 +74,13 @@ export default defineConfig(({ mode }) => {
       ],
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.')
+          '@': path.resolve(__dirname, 'src')
         }
       },
       build: {
+        // Output must land at repo-root dist/ — windowManager.ts, appProtocol.ts
+        // and electron-builder extraResources all reference <root>/dist.
+        outDir: path.resolve(__dirname, 'dist'),
         chunkSizeWarningLimit: 2000,
         // Use esbuild for CSS minification. Vite's default ('lightningcss'
         // when installed) strips the standard `backdrop-filter` and keeps only
@@ -80,7 +88,14 @@ export default defineConfig(({ mode }) => {
         // esbuild preserves both declarations.
         cssMinify: 'esbuild',
         rollupOptions: {
-          external: mode === 'production' ? ['electron'] : []
+          external: mode === 'production' ? ['electron'] : [],
+          output: {
+            // Rolldown (Vite 8) requires manualChunks as a function, not an object.
+            manualChunks(id: string) {
+              if (id.includes('node_modules/gsap')) return 'gsap';
+              if (id.includes('node_modules/pinyin-pro')) return 'pinyin-pro';
+            },
+          },
         }
       },
       test: {
@@ -91,9 +106,9 @@ export default defineConfig(({ mode }) => {
         coverage: {
           provider: 'v8',
           include: [
-            'services/**/*.ts',
-            'hooks/**/*.ts',
-            'components/**/*.tsx',
+            'src/services/**/*.ts',
+            'src/hooks/**/*.ts',
+            'src/components/**/*.tsx',
             'electron/utils/**/*.ts',
           ],
         },

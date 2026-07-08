@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWebDAVUrl, webDAVHrefToPath } from '../../services/webdavPath';
+import { buildWebDAVUrl, webDAVHrefToPath } from '@/services/webdavPath';
 
 describe('webdavPath', () => {
   it('encodes input paths by segment', () => {

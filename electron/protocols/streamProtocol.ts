@@ -1,6 +1,6 @@
 import { protocol, app, ipcMain } from 'electron';
 import { logger } from '../logger';
-import { qqResolveStreamUrl } from '../ipc/handlers';
+import { qqResolveStreamUrl } from '../ipc/metadataHandlers';
 import { resolveNetEaseStreamUrl } from '../ipc/neteaseHandlers';
 
 /**

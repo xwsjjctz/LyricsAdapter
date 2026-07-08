@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '@/electron/utils/webdavRange';
+import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../../../electron/utils/webdavRange';
 
 describe('validateWebDAVRangeResponse', () => {
   it('allows full non-range responses for small metadata files', () => {

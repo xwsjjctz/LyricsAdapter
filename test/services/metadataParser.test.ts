@@ -55,7 +55,7 @@ function toArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
-import { parseMetadataFromBuffer } from '../../services/metadataService';
+import { parseMetadataFromBuffer } from '@/services/metadataService';
 
 // =====================
 // ID3v2 / MP3 tests

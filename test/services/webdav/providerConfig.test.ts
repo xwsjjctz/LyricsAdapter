@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectProvider, getEffectiveConfig } from '../../../services/webdav/providerConfig';
+import { detectProvider, getEffectiveConfig } from '@/services/webdav/providerConfig';
 
 describe('detectProvider', () => {
   it('should detect 123pan provider from 123pan.cn URL', () => {

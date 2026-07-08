@@ -14,7 +14,7 @@ import {
   buildFfmetadataContent,
   createVorbisComment,
   createPictureBlock,
-} from '@/electron/utils/metadataUtils';
+} from '../../../electron/utils/metadataUtils';
 
 // ========== escapeFfmetadataValue ==========
 describe('escapeFfmetadataValue', () => {

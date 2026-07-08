@@ -4,7 +4,7 @@ import path from 'path';
 import { logger } from '../logger';
 import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../utils/webdavRange';
 import { typedIpcSchemas } from './typedSchemas';
-import type { IpcResult } from '../../types/typedIpc';
+import type { IpcResult } from '../../src/types/typedIpc';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac']);
 const selectedAudioPaths = new Set<string>();
