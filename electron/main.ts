@@ -5,15 +5,13 @@ import { registerCoverProtocol } from './protocols/coverProtocol';
 import { registerAudioProtocol } from './protocols/audioProtocol';
 import { registerStreamProtocol } from './protocols/streamProtocol';
 import { registerAllSchemes, registerAppProtocolHandler } from './protocols/appProtocol';
-import {
-  registerFileHandlers,
-  registerLibraryHandlers,
-  registerCoverHandlers,
-  registerWindowControls,
-  registerDownloadHandlers,
-  registerMetadataHandlers,
-  registerQQMusicHandlers
-} from './ipc/handlers';
+import { registerFileHandlers } from './ipc/fileHandlers';
+import { registerLibraryHandlers } from './ipc/libraryHandlers';
+import { registerCoverHandlers } from './ipc/coverHandlers';
+import { registerWindowControls } from './ipc/windowHandlers';
+import { registerDownloadHandlers } from './ipc/downloadHandlers';
+import { registerMetadataHandlers } from './ipc/metadataHandlers';
+import { registerQQMusicHandlers } from './ipc/qqMusicHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
