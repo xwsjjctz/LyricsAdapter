@@ -1,5 +1,5 @@
 import { Track } from '../types';
-import type { LibraryIndexData, LibrarySettings } from './libraryStorage';
+import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from './libraryStorage';
 import { sanitizePersistedCoverUrl } from './coverUrl';
 
 function serializeTrack(track: Track): any {
@@ -90,4 +90,50 @@ export function buildMinimalTrack(track: Track): {
 
 export function buildMinimalTracks(tracks: Track[]): ReturnType<typeof buildMinimalTrack>[] {
   return tracks.map(buildMinimalTrack);
+}
+
+/**
+ * users.json 中存储的最小化曲目记录结构（对应 buildMinimalTrack 的输出）。
+ * 用于从 users.json 恢复到 library-index.json 的反向转换。
+ */
+export interface UserTrackRecord {
+  id: string;
+  filePath?: string;
+  webdavPath?: string;
+  fileName?: string;
+  fileSize?: number;
+  lastModified?: number;
+  source?: string;
+  addedAt?: string;
+  playCount?: number;
+  lastPlayed?: string | null;
+  songmid?: string;
+  available?: boolean;
+}
+
+/**
+ * 将 users.json 中的最小化曲目记录转换为完整的 LibraryIndexSong。
+ * title/artist/album/duration 等缓存元数据留空，后续由 metadataCacheService
+ * 或文件头重新解析填充。
+ */
+export function minimalTrackToLibrarySong(t: UserTrackRecord): LibraryIndexSong {
+  return {
+    id: t.id,
+    title: '',
+    artist: '',
+    album: '',
+    duration: 0,
+    coverUrl: '',
+    filePath: t.filePath || '',
+    fileName: t.fileName || '',
+    fileSize: t.fileSize || 0,
+    lastModified: t.lastModified || 0,
+    addedAt: t.addedAt || new Date().toISOString(),
+    playCount: t.playCount || 0,
+  lastPlayed: t.lastPlayed ?? null,
+  available: t.available ?? true,
+  source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : 'local'),
+    webdavPath: t.webdavPath || '',
+    songmid: t.songmid || '',
+  };
 }

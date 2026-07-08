@@ -4,7 +4,7 @@ import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexDataForSlots, buildMinimalTracks } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
@@ -218,6 +218,49 @@ export function useLibraryLoad({
       logger.debug('[LibraryLoad] Loading library from disk...');
       try {
         const libraryData = await libraryStorage.loadLibrary();
+
+        // 如果 library-index.json 为空（缓存已清），尝试从 users.json 恢复
+        if ((!libraryData.songs || libraryData.songs.length === 0) && isDesktop()) {
+          try {
+            const api = await getDesktopAPIAsync();
+            const userData = await api?.userDataLoad?.();
+            if (userData && userData.tracks && userData.tracks.length > 0) {
+              logger.info('[LibraryLoad] Recovering', userData.tracks.length, 'tracks from ~/.la/users.json');
+              const tracks = (userData.tracks as any[]).map(minimalTrackToLibrarySong);
+              const cloudTracks = tracks.filter(t => t.source === 'webdav');
+              const localTracks = tracks.filter(t => !t.source || t.source === 'local');
+              // 同时恢复 settings 到 appStorage/localStorage
+              if (userData.settings && Object.keys(userData.settings).length > 0) {
+                for (const [key, value] of Object.entries(userData.settings)) {
+                  localStorage.setItem(key, value);
+                }
+                // 异步持久化到 settings.json
+                appStorage.replaceAll(userData.settings).catch(() => {});
+              }
+              // 恢复 playback 状态
+              const pbJson = userData.playback?.['_json'];
+              if (pbJson) {
+                try {
+                  const pb = JSON.parse(pbJson);
+                  const slotKey = pb.activeSlotId === 'cloud' ? 'cloudSlot' : 'localSlot';
+                  const slot = pb[slotKey];
+                  if (slot?.volume !== undefined) localStorage.setItem('playback', pbJson);
+                  appStorage.setItem('playback', pbJson).catch(() => {});
+                } catch {}
+              }
+              await loadAndRestoreLibrary({
+                songs: localTracks,
+                ...(cloudTracks.length > 0 ? { cloudSongs: cloudTracks } : {}),
+                settings: libraryData.settings,
+              } as any);
+              isFirstLoadRef.current = false;
+              return;
+            }
+          } catch (e) {
+            logger.warn('[LibraryLoad] Failed to recover from users.json:', e);
+          }
+        }
+
         await loadAndRestoreLibrary(libraryData);
         isFirstLoadRef.current = false;
       } catch (error) {
