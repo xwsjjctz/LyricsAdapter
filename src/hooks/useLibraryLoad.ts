@@ -4,6 +4,7 @@ import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibraryIndexData, LibraryIndexSong, LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
+import { coverArtService } from '../services/coverArtService';
 import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong, type UserTrackRecord } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
@@ -380,7 +381,49 @@ export function useLibraryLoad({
 
     setIsPlaying(false);
 
-    metadataCacheService.initialize().catch(err => {
+    metadataCacheService.initialize().then(() => {
+      // 从元数据缓存充实恢复后的本地曲目（清缓存后元数据丢失，需要重新解析）
+      const localFilePathTracks = loadedTracks.filter(t => t.filePath);
+      if (localFilePathTracks.length > 0) {
+        setLocalTracks(prev => {
+          let changed = false;
+          const next = prev.map(track => {
+            if (!track.filePath) return track;
+            const cached = metadataCacheService.get(track.id);
+            if (!cached) return track;
+
+            const fallbackTitle = track.fileName?.replace(/\.[^/.]+$/, '') || '';
+            const hasBetterInfo =
+              (track.title === fallbackTitle && !!cached.title) ||
+              (track.artist === 'Unknown Artist' && !!cached.artist) ||
+              (track.album === 'Unknown Album' && !!cached.album) ||
+              (track.duration === 0 && !!cached.duration);
+
+            if (!hasBetterInfo) return track;
+
+            changed = true;
+            return {
+              ...track,
+              title: cached.title || track.title,
+              artist: cached.artist || track.artist,
+              album: cached.album || track.album,
+              duration: cached.duration || track.duration,
+              lyrics: cached.lyrics || track.lyrics,
+              syncedLyrics: cached.syncedLyrics || track.syncedLyrics,
+            };
+          });
+          return changed ? next : prev;
+        });
+
+        // 为封面缺失的本地文件曲目触发后台封面提取
+        const tracksNeedingCover = loadedTracks.filter((t): t is Track & { filePath: string } => !!t.filePath && !t.coverUrl);
+        if (tracksNeedingCover.length > 0) {
+          coverArtService.preloadCovers(tracksNeedingCover).catch(err => {
+            logger.warn('[LibraryLoad] Background cover preload failed:', err);
+          });
+        }
+      }
+    }).catch(err => {
       logger.warn('[LibraryLoad] Metadata cache init failed:', err);
     });
 
