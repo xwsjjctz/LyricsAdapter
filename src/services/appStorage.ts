@@ -47,12 +47,33 @@ class AppStorage {
         const api = await getDesktopAPIAsync();
         if (api?.settingsGetAll) {
           const all = await api.settingsGetAll();
+          const mainKeys = new Set(Object.keys(all));
+          let migratedCount = 0;
+
+          // 1) 主进程 → 本地 cache + localStorage
           for (const [key, value] of Object.entries(all)) {
             this.cache.set(key, value);
-            // Keep localStorage in sync as a fallback cache
             localStorage.setItem(key, value);
           }
-          logger.info('[AppStorage] Loaded', this.cache.size, 'keys from main process');
+
+          // 2) 反向迁移：localStorage 中有但主进程 settings.json 中没有的键 →
+          //    推送到主进程（处理用户首次从旧版升级的场景）
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || mainKeys.has(key)) continue;
+            const value = localStorage.getItem(key);
+            if (value !== null) {
+              this.cache.set(key, value);
+              // 异步推送，不阻塞 init 完成
+              if (api.settingsSet) api.settingsSet(key, value).catch(() => {});
+              migratedCount++;
+            }
+          }
+
+          logger.info(
+            '[AppStorage] Loaded', this.cache.size, 'keys from main process',
+            migratedCount > 0 ? `(+${migratedCount} migrated from localStorage)` : ''
+          );
           this.initialized = true;
           return;
         }
