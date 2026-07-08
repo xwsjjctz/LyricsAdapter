@@ -50,14 +50,14 @@ app.whenReady().then(async () => {
   registerAudioProtocol();
   registerStreamProtocol();
 
-  await createWindow();
-
-  const win = getWindow();
+  // Register ALL IPC handlers BEFORE creating the window,
+  // so the renderer can call settings:getAll and other IPC
+  // channels immediately on page load (appStorage.init() runs
+  // at module import time in index.tsx).
   registerTypedIpcHandlers();
   registerFileHandlers();
   registerLibraryHandlers();
   registerCoverHandlers();
-  registerWindowControls(win);
   registerDownloadHandlers();
   registerMetadataHandlers();
   registerQQMusicHandlers();
@@ -68,6 +68,11 @@ app.whenReady().then(async () => {
   registerSettingsHandlers();
   registerUserDataHandlers();
   registerNotificationHandlers();
+
+  await createWindow();
+
+  const win = getWindow();
+  registerWindowControls(win);  // needs window object
 
   initUpdater();
   registerVersionIpc();

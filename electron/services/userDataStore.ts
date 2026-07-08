@@ -75,11 +75,12 @@ function decrypt(stored: string): string {
   }
 }
 
-/** 对 settings 中敏感字段加密后返回新对象。 */
+/** 对 settings 中敏感字段加密后返回新对象。已带 enc: 前缀的跳过。 */
 function encryptSettings(settings: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(settings)) {
-    out[k] = SENSITIVE_KEYS.has(k) ? encrypt(v) : v;
+    // 避免双重加密：settings.json 中敏感字段可能已被 settingsStore 加密
+    out[k] = (SENSITIVE_KEYS.has(k) && !v.startsWith(ENC_PREFIX)) ? encrypt(v) : v;
   }
   return out;
 }
