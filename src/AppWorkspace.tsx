@@ -516,7 +516,7 @@ const AppWorkspace: React.FC = () => {
           onlineProgress={online.progress}
           cloudImportDisabled={library.cloudImportDisabled}
           cloudImportDisabledReason={library.cloudImportDisabledReason}
-          audioRef={audioRef}
+          audioRef={player.audioRef}
           fileInputRef={importVm.fileInputRef}
           onFileInputChange={importVm.onFileInputChange}
         />
