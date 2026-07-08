@@ -100,8 +100,12 @@ export async function registerAppProtocolHandler(): Promise<void> {
           for (const [key, value] of request.headers.entries()) {
             headers.set(key, value);
           }
-          // Remove host header to let Vite handle it
+          // Strip host to let Vite handle it.
           headers.delete('host');
+          // Request uncompressed content — net.fetch may not decompress
+          // automatically, and Electron's protocol layer doesn't handle
+          // Content-Encoding, so gzipped CSS/JS would arrive garbled.
+          headers.set('accept-encoding', 'identity');
           return await net.fetch(targetUrl, {
             method: request.method,
             headers,
