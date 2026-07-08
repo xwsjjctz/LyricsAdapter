@@ -4,7 +4,7 @@ import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots, buildMinimalTracks } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
@@ -245,6 +245,18 @@ export function useLibraryLoad({
     libraryStorage.saveLibraryDebounced(libraryData);
     // 并行写入 playback 状态到 settings.json（音量/模式/进度/激活插槽）
     appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
+    // 并行写入最小化曲目列表到 ~/.la/users.json（纯用户数据，不含缓存元数据）
+    if (isDesktop()) {
+      const allMinimal = [
+        ...buildMinimalTracks(slotsSnapshot.local.tracks),
+        ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
+        ...buildMinimalTracks(slotsSnapshot.online.tracks),
+        ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
+      ];
+      getDesktopAPIAsync().then(api => {
+        api?.userDataSaveTracks?.(allMinimal).catch(() => {});
+      }).catch(() => {});
+    }
   }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.currentTime, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.currentTime, slots.playlist.volume, slots.playlist.playbackMode]);
 
   useEffect(() => {
@@ -279,6 +291,17 @@ export function useLibraryLoad({
       logger.debug('[LibraryLoad] Flushing library before close');
       // 同时 flush playback 状态到 settings.json
       await appStorage.setItem('playback', JSON.stringify(persistData));
+      // flush 最小化曲目列表到 ~/.la/users.json
+      if (isDesktop()) {
+        const api = await getDesktopAPIAsync();
+        const allMinimal = [
+          ...buildMinimalTracks(slotsSnapshot.local.tracks),
+          ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
+          ...buildMinimalTracks(slotsSnapshot.online.tracks),
+          ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
+        ];
+        await api?.userDataSaveTracks?.(allMinimal);
+      }
       return libraryStorage.flushPendingSave(libraryData);
     };
 

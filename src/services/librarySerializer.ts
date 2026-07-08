@@ -53,3 +53,41 @@ export function buildLibraryIndexDataForSlots(
 ): LibraryIndexData {
   return buildLibraryIndexData(localTracks, settings, cloudTracks, onlineTracks, playlistTracks);
 }
+
+/**
+ * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
+ * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
+ */
+export function buildMinimalTrack(track: Track): {
+  id: string;
+  filePath?: string;
+  webdavPath?: string;
+  fileName?: string;
+  fileSize?: number;
+  lastModified?: number;
+  source?: string;
+  addedAt?: string;
+  playCount?: number;
+  lastPlayed?: string | null;
+  songmid?: string;
+  available?: boolean;
+} {
+  return {
+    id: track.id,
+    ...(track.filePath ? { filePath: track.filePath } : undefined),
+    ...(track.webdavPath ? { webdavPath: track.webdavPath } : undefined),
+    ...(track.fileName ? { fileName: track.fileName } : undefined),
+    ...(track.fileSize ? { fileSize: track.fileSize } : undefined),
+    ...(track.lastModified ? { lastModified: track.lastModified } : undefined),
+    ...(track.source ? { source: track.source } : undefined),
+    ...(track.addedAt ? { addedAt: track.addedAt } : undefined),
+    ...(track.playCount != null ? { playCount: track.playCount } : undefined),
+    ...(track.lastPlayed !== undefined ? { lastPlayed: track.lastPlayed } : undefined),
+    ...(track.songmid ? { songmid: track.songmid } : undefined),
+    ...(track.available !== undefined ? { available: track.available } : undefined),
+  };
+}
+
+export function buildMinimalTracks(tracks: Track[]): ReturnType<typeof buildMinimalTrack>[] {
+  return tracks.map(buildMinimalTrack);
+}

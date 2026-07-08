@@ -353,6 +353,20 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('settings:replaceAll', entries);
   },
 
+  // ---- User Data Store (IPC to ~/.la/users.json) ----
+  userDataLoad: async () => {
+    return ipcRenderer.invoke('userData:load');
+  },
+  userDataSave: async (data: unknown) => {
+    return ipcRenderer.invoke('userData:save', data);
+  },
+  userDataSaveTracks: async (tracks: unknown[]) => {
+    return ipcRenderer.invoke('userData:saveTracks', tracks);
+  },
+  userDataGetFilePath: async () => {
+    return ipcRenderer.invoke('userData:getFilePath');
+  },
+
   // ---- Auto-updater (electron-updater) ----
   // Check for updates manually
   checkForUpdates: async () => {

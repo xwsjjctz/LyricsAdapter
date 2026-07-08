@@ -105,6 +105,11 @@ export interface DesktopAPI {
   settingsSetMany?: (entries: Record<string, string>) => Promise<void>;
   settingsDelete?: (key: string) => Promise<void>;
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
+  // User data store (~/.la/users.json)
+  userDataLoad?: () => Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }>;
+  userDataSave?: (data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }) => Promise<void>;
+  userDataSaveTracks?: (tracks: unknown[]) => Promise<void>;
+  userDataGetFilePath?: () => Promise<string>;
 }
 
 class ElectronAdapter implements FullDesktopAPI {
@@ -572,6 +577,39 @@ class ElectronAdapter implements FullDesktopAPI {
     }
     if (typeof this.api.settingsReplaceAll === 'function') {
       return this.api.settingsReplaceAll(entries);
+    }
+  }
+
+  // ---- User Data Store (~/.la/users.json) ----
+
+  async userDataLoad(): Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }> {
+    if (this.api.ipc?.userData.load) {
+      const result = await this.api.ipc.userData.load();
+      if (result.ok) return result.data as any;
+    }
+    if (typeof this.api.userDataLoad === 'function') {
+      return this.api.userDataLoad();
+    }
+    return { tracks: [], settings: {}, playback: {} };
+  }
+
+  async userDataSave(data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }): Promise<void> {
+    if (this.api.ipc?.userData.save) {
+      await this.api.ipc.userData.save(data);
+      return;
+    }
+    if (typeof this.api.userDataSave === 'function') {
+      return this.api.userDataSave(data);
+    }
+  }
+
+  async userDataSaveTracks(tracks: unknown[]): Promise<void> {
+    if (this.api.ipc?.userData.saveTracks) {
+      await this.api.ipc.userData.saveTracks(tracks);
+      return;
+    }
+    if (typeof this.api.userDataSaveTracks === 'function') {
+      return this.api.userDataSaveTracks(tracks);
     }
   }
 

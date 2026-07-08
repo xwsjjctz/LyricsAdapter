@@ -28,4 +28,10 @@ export interface TypedElectronIPC {
     delete: (key: string) => Promise<IpcResult<void>>;
     replaceAll: (entries: Record<string, string>) => Promise<IpcResult<void>>;
   };
+  userData: {
+    load: () => Promise<IpcResult<unknown>>;
+    save: (data: unknown) => Promise<IpcResult<void>>;
+    saveTracks: (tracks: unknown[]) => Promise<IpcResult<void>>;
+    getFilePath: () => Promise<IpcResult<string>>;
+  };
 }
