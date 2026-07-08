@@ -40,6 +40,30 @@ const translations: Translations = {
     de: 'Suche',
     fr: 'Recherche'
   },
+  'search.thirdPartySource': {
+    zh: '第三方音源',
+    en: 'Third Party Source',
+    ja: 'サードパーティ音源',
+    ko: '타사 음원',
+    de: 'Drittanbieter-Quelle',
+    fr: 'Source tierce'
+  },
+  'search.sourceQq': {
+    zh: 'QQ',
+    en: 'QQ',
+    ja: 'QQ',
+    ko: 'QQ',
+    de: 'QQ',
+    fr: 'QQ'
+  },
+  'search.sourceNetease': {
+    zh: '网易',
+    en: 'NetEase',
+    ja: 'NetEase',
+    ko: 'NetEase',
+    de: 'NetEase',
+    fr: 'NetEase'
+  },
   'sidebar.library': {
     zh: '音乐库',
     en: 'Library',

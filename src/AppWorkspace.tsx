@@ -508,6 +508,8 @@ const AppWorkspace: React.FC = () => {
           onImportIntoSlot={importVm.importIntoSlot}
           onReloadUnavailable={importVm.reloadUnavailable}
           onOpenOnlinePlaylist={online.openPlaylist}
+          browsingTracks={playerController.browsingTracks.tracks}
+          onPlayBrowsingTrack={playerController.playBrowsingTrack}
           onClearOrphanCache={handleClearOrphanCache}
           isWindowFocused={isWindowFocused}
           onNavigateToTrack={online.navigateToTrack}

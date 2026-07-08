@@ -119,20 +119,27 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const qqCookieLoaded = cookieManager.hasCookie();
-      try {
-        const [qqSongs, neteaseSongs] = await Promise.all([
-          qqCookieLoaded ? qqMusicApi.searchMusic(query.trim(), MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
-          neteaseMusicApi.searchMusic(query.trim(), MAX_RESULTS),
-        ]);
-        const merged: { source: 'qq' | 'netease'; song: OnlineSong }[] = [
-          ...qqSongs.map(song => ({ source: 'qq' as const, song })),
-          ...neteaseSongs.map(song => ({ source: 'netease' as const, song })),
-        ];
-        setOnlineResults(merged);
-      } catch (err) {
-        logger.warn('[SearchBox] online search failed:', err);
-        setOnlineResults([]);
-      } finally { setQqLoading(false); }
+      // Use allSettled (not all) so a single provider failing — e.g. QQ being
+      // blocked by CSP/CORS in a packaged build — does not also discard the
+      // successful provider's results. Each provider is handled independently.
+      const [qqResult, neteaseResult] = await Promise.allSettled([
+        qqCookieLoaded ? qqMusicApi.searchMusic(query.trim(), MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
+        neteaseMusicApi.searchMusic(query.trim(), MAX_RESULTS),
+      ]);
+      if (qqResult.status === 'rejected') {
+        logger.warn('[SearchBox] QQ search failed:', qqResult.reason);
+      }
+      if (neteaseResult.status === 'rejected') {
+        logger.warn('[SearchBox] NetEase search failed:', neteaseResult.reason);
+      }
+      const qqSongs = qqResult.status === 'fulfilled' ? qqResult.value : [];
+      const neteaseSongs = neteaseResult.status === 'fulfilled' ? neteaseResult.value : [];
+      const merged: { source: 'qq' | 'netease'; song: OnlineSong }[] = [
+        ...qqSongs.map(song => ({ source: 'qq' as const, song })),
+        ...neteaseSongs.map(song => ({ source: 'netease' as const, song })),
+      ];
+      setOnlineResults(merged);
+      setQqLoading(false);
     }, ONLINE_SEARCH_DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, isExpanded]);
@@ -312,7 +319,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <>
                   <div className="new-ux-search-card-grid__label">
                     <span className="material-symbols-outlined" style={{ fontSize: 12 }}>language</span>
-                    第三方音源
+                    {i18n.t('search.thirdPartySource')}
                     {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                   </div>
                   {onlineResults.length === 0 && qqLoading ? (
@@ -366,7 +373,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
               {hasQQ && (
                 <div>
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
-                    <span className="material-symbols-outlined text-xs">language</span>第三方音源
+                    <span className="material-symbols-outlined text-xs">language</span>{i18n.t('search.thirdPartySource')}
                     {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                   </div>
                   {onlineResults.length === 0 && qqLoading ? (
@@ -411,13 +418,13 @@ const ResultRow: React.FC<{
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-sm font-semibold truncate min-w-0" style={{ color: colors.textPrimary }}>{track.title}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ backgroundColor: source === 'local' ? `${colors.primary}20` : `${colors.accent}20`, color: source === 'local' ? colors.primary : colors.accent }}>
-          {source === 'local' ? 'Local' : 'Cloud'}
+          {source === 'local' ? i18n.t('sidebar.local') : i18n.t('sidebar.cloud')}
         </span>
       </div>
       <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
-        <span className="truncate max-w-[160px]">{track.artist || 'Unknown Artist'}</span>
+        <span className="truncate max-w-[160px]">{track.artist || i18n.t('common.unknownArtist')}</span>
         <span className="opacity-30">•</span>
-        <span className="truncate">{track.album || 'Unknown Album'}</span>
+        <span className="truncate">{track.album || i18n.t('common.unknownAlbum')}</span>
       </div>
     </div>
     <span className="text-[11px] tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
@@ -435,7 +442,7 @@ const QQRow: React.FC<{
   onDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onStreamPlay: (song: OnlineSong) => void;
-}> = ({ song, isSelected, colors, source, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload, onStreamPlay }) => { const badgeLabel = source === 'qq' ? 'QQ' : '网易'; return (
+}> = ({ song, isSelected, colors, source, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload, onStreamPlay }) => { const badgeLabel = source === 'qq' ? i18n.t('search.sourceQq') : i18n.t('search.sourceNetease'); return (
   <div onClick={() => onStreamPlay(song)}
     className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border cursor-pointer"
     style={{ backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent', borderColor: isSelected ? `${colors.warning}44` : 'transparent' }}
@@ -451,7 +458,7 @@ const QQRow: React.FC<{
       <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
         <span className="truncate max-w-[150px]">{song.singer?.map(s => s.name).join(', ')}</span>
         <span className="opacity-30">•</span>
-        <span className="truncate">{song.albumname || 'Unknown Album'}</span>
+        <span className="truncate">{song.albumname || i18n.t('common.unknownAlbum')}</span>
       </div>
     </div>
     <span className="text-[11px] tabular-nums mr-1 flex-shrink-0" style={{ color: colors.textMuted }}>

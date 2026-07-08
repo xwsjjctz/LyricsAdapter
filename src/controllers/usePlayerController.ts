@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
 import { getOnlineProvider } from '../services/onlineMusicProvider';
@@ -82,6 +82,15 @@ export function usePlayerController(options: PlayerControllerOptions) {
     setRestoreTime,
     markTrackSwitch,
   } = options;
+
+  // ── Browse/play decoupling for third-party playlists ───────────────────────
+  // Opening a third-party playlist card must NOT touch the 'playlist' play
+  // slot: doing so would overwrite the currently-playing list and set its
+  // index to -1, unmounting <audio> and pausing playback. Instead the browsed
+  // songs live here in an independent browsing state that the playlist panel
+  // reads for display. Playback only starts when the user clicks a track in
+  // the panel (playBrowsingTrack).
+  const [browsingTracks, setBrowsingTracks] = useState<{ tracks: Track[]; source: OnlineSource }>({ tracks: [], source: 'qq' });
 
   // Track selection handler that handles cross-slot selection.
   // `targetSlotId` lets New-UI callers state explicitly which slot the clicked
@@ -223,20 +232,34 @@ export function usePlayerController(options: PlayerControllerOptions) {
     // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
   }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
-  // New UI: opening a third-party playlist card loads its songs into the
-  // playlist slot (without auto-playing) so the playlist panel can browse them.
-  // Playback starts when the user clicks a track inside the panel. This is the
-  // load-without-play twin of handlePlayPlaylist.
+  // New UI: opening a third-party playlist card fetches its songs for BROWSING
+  // only. It deliberately does NOT load them into the 'playlist' play slot nor
+  // switch the active play context — that would pause whatever is currently
+  // playing (see bug: 切换歌单暂停正在播放的歌). Playback starts on demand via
+  // playBrowsingTrack when the user clicks a track inside the panel.
   const openOnlinePlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
     const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
     const songs = await provider.getPlaylistSongs(playlistId);
     const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
+    setBrowsingTracks({ tracks, source });
+  }, []);
+
+  // User clicked a track inside the browsed third-party playlist panel: load
+  // the whole browsed list into the 'playlist' play slot (so next/prev traverse
+  // it), start at the clicked index, and begin playback. This is the moment
+  // browsing becomes playing.
+  const playBrowsingTrack = useCallback((clickedIndex: number) => {
+    const { tracks } = browsingTracks;
+    if (tracks.length === 0) return;
+    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
     updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
     loadPlaylistTracks(tracks);
-    updateSlot('playlist', s => ({ ...s, currentTrackIndex: -1 }));
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
     setRestoreTime(0);
     switchTo('playlist');
-  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo]);
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+  }, [browsingTracks, loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
   // Playlist-only lyrics sliding window (size 3): prefetch the current track and
   // its two neighbours, and evict lyrics outside that window to bound memory.
@@ -301,5 +324,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     playOnlineSong,
     handlePlayPlaylist,
     openOnlinePlaylist,
+    browsingTracks,
+    playBrowsingTrack,
   };
 }

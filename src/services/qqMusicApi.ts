@@ -177,21 +177,19 @@ class QQMusicAPI implements OnlineMusicProvider {
     };
 
     try {
-      const response = await fetch(
+      // Route through the qq-music-request IPC (main process) instead of a
+      // renderer fetch(): the cross-origin POST to u.y.qq.com is blocked by
+      // CSP/CORS in packaged builds (dev has no CSP, so it works there).
+      // NetEase already uses its own IPC, which is why only QQ breaks.
+      const result = await this.requestJson(
         `https://u.y.qq.com/cgi-bin/musicu.fcg?_webcgikey=DoSearchForQQMusicDesktop&_=${Date.now()}`,
         {
           method: 'POST',
-          headers: this.getCookieHeaders(),
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
       if (result.code === 500001) {
         throw new Error('Cookie expired or invalid');
       }

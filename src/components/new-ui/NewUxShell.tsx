@@ -58,6 +58,11 @@ interface NewUxShellProps {
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
   onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
+  /** Tracks browsed by opening a third-party playlist card (browse/play decoupled
+   *  from the 'playlist' play slot so opening a card never pauses playback). */
+  browsingTracks: Track[];
+  /** Start playback of a browsed third-party playlist at the clicked index. */
+  onPlayBrowsingTrack: (index: number) => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   isWindowFocused?: boolean;
   onNavigateToTrack: (track: Track) => void;
@@ -97,6 +102,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onImportIntoSlot,
   onReloadUnavailable,
   onOpenOnlinePlaylist,
+  browsingTracks,
+  onPlayBrowsingTrack,
   onClearOrphanCache,
   isWindowFocused,
   onNavigateToTrack,
@@ -193,9 +200,10 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   // Resolve the currently open card and the tracks to display in its panel.
   // Tracks are fetched from the backing slot on demand: slot cards read their
-  // own slot; third-party playlist cards read the dedicated playlist slot
-  // (handleOpenOnlinePlaylist loads songs there). Overlay cards never reach here
-  // because they open via openOverlayPanel, not openPlaylistId.
+  // own slot; third-party playlist cards read the independent browsingTracks
+  // state (NOT the 'playlist' play slot — opening a card must not disturb
+  // whatever is currently playing). Overlay cards never reach here because they
+  // open via openOverlayPanel, not openPlaylistId.
   const openPanel = useMemo<{ entry: CardEntry; tracks: Track[] } | null>(() => {
     const openId = panels.state.openPlaylistId;
     if (!openId) return null;
@@ -205,24 +213,30 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       return { entry, tracks: slots[entry.slotId].tracks };
     }
     if (entry.kind === 'online-playlist') {
-      return { entry, tracks: slots.playlist.tracks };
+      return { entry, tracks: browsingTracks };
     }
     // overlay cards are not opened through openPlaylistId
     return null;
-  }, [entries, panels.state.openPlaylistId, slots]);
+  }, [entries, panels.state.openPlaylistId, slots, browsingTracks]);
   const openTracks = openPanel?.tracks ?? [];
-  // The slot the open panel's tracks belong to. Slot cards → their own slot;
-  // third-party playlist cards → the dedicated 'playlist' slot. Forwarded to
-  // onTrackSelect so playback targets the right slot even when the active play
-  // context is still 'playlist' after browsing a third-party playlist card.
+  // The slot the open panel's tracks belong to. Slot cards → their own slot.
+  // Third-party playlist cards have no backing slot until the user plays one —
+  // returning null keeps handlePanelTrackSelect on the browsing-play path.
   const openPanelSlotId = useMemo<SlotId | null>(() => {
     const entry = openPanel?.entry;
     if (!entry) return null;
-    return entry.kind === 'slot' ? entry.slotId : 'playlist';
+    return entry.kind === 'slot' ? entry.slotId : null;
   }, [openPanel]);
   const handlePanelTrackSelect = useCallback((index: number) => {
-    onTrackSelect(index, openPanelSlotId ?? undefined);
-  }, [onTrackSelect, openPanelSlotId]);
+    // Slot cards select into their slot directly; third-party playlist cards
+    // (openPanelSlotId null) start playback via the browsing-play handler,
+    // which loads the browsed list into the 'playlist' slot on demand.
+    if (openPanelSlotId) {
+      onTrackSelect(index, openPanelSlotId);
+    } else {
+      onPlayBrowsingTrack(index);
+    }
+  }, [onTrackSelect, onPlayBrowsingTrack, openPanelSlotId]);
   const trackMenuTrack = useMemo(() => {
     if (!openPanel || !panels.state.trackMenu) return null;
     return openTracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;

@@ -367,7 +367,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setIsUserScrolling(true);
 
       const bounds = getScrollBounds();
-      
+
       // Update manual offset based on wheel delta with bounds
       setManualOffsetY(prev => {
         const newValue = prev - e.deltaY;
@@ -377,16 +377,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         return Math.max(minManual, Math.min(maxManual, newValue));
       });
 
-      // Clear existing timeout
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-
-      // Resume auto-positioning after 3 seconds of inactivity
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsUserScrolling(false);
-        setManualOffsetY(0); // Reset manual offset when resuming auto-scroll
-      }, 3000);
+      // NOTE: manual mode now persists until the user clicks the active lyric
+      // line. A forced 3-second snap-back timer was removed because it made the
+      // lyrics feel like they "can't be scrolled" in packaged builds (the
+      // timer-driven reset racing with compositor state).
     };
 
     const handler = (e: WheelEvent) => handleWheelRef.current?.(e);
@@ -400,10 +394,6 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     dragStartYRef.current = e.clientY;
     dragStartOffsetRef.current = manualOffsetY;
     setIsUserScrolling(true);
-
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
   };
 
   // Handle mouse drag move
@@ -423,22 +413,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const handleMouseUp = () => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
-
-    // Resume auto-positioning after 3 seconds
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsUserScrolling(false);
-      setManualOffsetY(0);
-    }, 3000);
+    // Stay in manual follow mode until the user clicks the active lyric line.
   };
 
   // Handle mouse leave during drag
   const handleMouseLeave = () => {
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsUserScrolling(false);
-        setManualOffsetY(0);
-      }, 3000);
+      // Stay in manual follow mode until the user clicks the active lyric line.
     }
   };
 
@@ -662,9 +644,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     setRealtimeCurrentTime(0);
     setLyricOffsetY(0);
     setManualOffsetY(0);
+    setIsUserScrolling(false);
     autoOffsetRef.current = 0;
     currentOffsetRef.current = 0;
-    
+
     if (lyricAnimationRef.current !== null) {
       cancelAnimationFrame(lyricAnimationRef.current);
       lyricAnimationRef.current = null;
@@ -860,14 +843,21 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   }, [isTransitioning, transitionProgress, bgImage1, bgImage2, renderCanvas]);
 
   // Handle click on synced lyric line to seek
-  const handleLyricClick = (lyricTime: number) => {
+  const handleLyricClick = (lyricTime: number, idx?: number) => {
     if (lyricTime > 0 && onSeek) {
       onSeek(lyricTime);
+    }
+    // Clicking the currently-active line exits manual follow mode and resumes
+    // auto-scrolling. This is the explicit "I'm done browsing" gesture, in
+    // place of the old automatic 3-second snap-back.
+    if (isUserScrolling && idx != null && idx === activeIndex) {
+      setIsUserScrolling(false);
+      setManualOffsetY(0);
     }
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+    <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={Boolean(bgImage1)}
         bgBlurRadius={bgBlurRadius}
@@ -937,7 +927,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                         fontSize: `${lyricsFontSize}px`,
                          filter: isActive ? 'none' : `blur(${inactiveLyricBlur}px)`,
                       }}
-                      onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
+                      onClick={() => hasTimestamp && handleLyricClick(lyric.time, idx)}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = focusColors.textMuted; }}
                     >

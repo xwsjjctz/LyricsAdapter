@@ -66,7 +66,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [glassUI, setGlassUI] = useState(false);
   const [newUxEnabled, setNewUxEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
-  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
+  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(30);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
 

@@ -75,11 +75,19 @@ export function useCurrentTheme(): ThemeConfig {
   return theme;
 }
 
-/** Online music source option list. */
-export const SOURCE_OPTIONS: { value: 'qq' | 'netease'; label: string }[] = [
-  { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
-  { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
-];
+/**
+ * Online music source option list.
+ *
+ * Returned by a function (not a module-level constant) so i18n.t() runs during
+ * render rather than once at import time — otherwise switching language leaves
+ * the QQ/NetEase labels frozen in whatever language was active at first import.
+ */
+export function getSourceOptions(): { value: 'qq' | 'netease'; label: string }[] {
+  return [
+    { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
+    { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
+  ];
+}
 
 /** Language option list. */
 export const LANGUAGE_OPTIONS: { value: import('@/services/i18n').Language; label: string; nativeLabel: string }[] = [

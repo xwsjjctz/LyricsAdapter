@@ -271,6 +271,35 @@ const MainView: React.FC<MainViewProps> = ({
     resetDragState(undefined, true);
   }, [isPlaylistPanelOpen, resetDragState]);
 
+  // Wall-drag is started from a window-level pointerdown so cards covered by
+  // the open playlist panel (a higher z-index sibling) can still initiate the
+  // drag from the panel's blank area. Declared before the registration effect
+  // below so it can be referenced in that effect's dependency array.
+  const handlePointerDown = useCallback((event: PointerEvent) => {
+    if (isPanelOpeningRef.current) return;
+    if (event.button !== 0) return;
+
+    // Interactive elements inside the panel / focus mode are skipped so genuine
+    // clicks/scrolls work; presses on blank/background areas still pan the wall.
+    const target = event.target as Element | null;
+    if (target?.closest?.('.focus-mode-overlay, button, a, input, textarea, select, [role="button"], .new-ux-track-row')) {
+      return;
+    }
+
+    dragRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      moved: 0,
+      thresholdExceeded: false,
+    };
+    // Do not capture here: a plain click must still bubble to the card button.
+    // Movement is tracked on window so panel transitions cannot strand the drag.
+    motionRef.current.velocityX = 0;
+    motionRef.current.velocityY = 0;
+  }, []);
+
   useEffect(() => {
     const handleWindowPointerMove = (event: PointerEvent) => {
       const drag = dragRef.current;
@@ -307,15 +336,17 @@ const MainView: React.FC<MainViewProps> = ({
       resetDragState(event.pointerId, true);
     };
 
+    window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointermove', handleWindowPointerMove, { passive: false });
     window.addEventListener('pointerup', clearDrag);
     window.addEventListener('pointercancel', clearDrag);
     return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointermove', handleWindowPointerMove);
       window.removeEventListener('pointerup', clearDrag);
       window.removeEventListener('pointercancel', clearDrag);
     };
-  }, [resetDragState]);
+  }, [resetDragState, handlePointerDown]);
 
   const registerCard = useCallback((id: CardEntry['id']) => {
     cardRefCallbacks.current[id] ??= (node: HTMLButtonElement | null) => {
@@ -347,24 +378,6 @@ const MainView: React.FC<MainViewProps> = ({
       isPanelOpeningRef.current = false;
     });
   }, [onOpenPlaylist, resetDragState]);
-
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
-    if (isPanelOpeningRef.current) return;
-    if (event.button !== 0) return;
-
-    dragRef.current = {
-      active: true,
-      pointerId: event.pointerId,
-      lastX: event.clientX,
-      lastY: event.clientY,
-      moved: 0,
-      thresholdExceeded: false,
-    };
-    // Do not capture here: a plain click must still bubble to the card button.
-    // Movement is tracked on window so panel transitions cannot strand the drag.
-    motionRef.current.velocityX = 0;
-    motionRef.current.velocityY = 0;
-  }, []);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (dragRef.current.active && dragRef.current.pointerId === event.pointerId && dragRef.current.moved > 12) {
@@ -444,7 +457,6 @@ const MainView: React.FC<MainViewProps> = ({
   return (
     <section
       className="new-ux-mainview new-ux-scrollbar"
-      onPointerDownCapture={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}

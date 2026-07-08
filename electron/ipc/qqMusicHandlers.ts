@@ -25,6 +25,10 @@ export function registerQQMusicHandlers(): void {
         method: options.method || 'GET',
         headers: {
           'Accept': '*/*',
+          // Content-Type defaults to application/json so POST search bodies are
+          // parsed correctly by the QQ API; callers may still override it via
+          // options.headers. Without this the QQ search endpoint returns empty.
+          'Content-Type': 'application/json',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
           'Referer': 'https://y.qq.com/',

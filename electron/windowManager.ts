@@ -70,28 +70,35 @@ export async function createWindow(): Promise<BrowserWindow> {
     }
   });
 
-  session.webRequest.onHeadersReceived(filter, (details, callback) => {
+  // Single onHeadersReceived listener that injects BOTH CORS headers (for the
+  // QQ Music hosts above) and — in packaged builds only — the Content-Security-
+  // Policy. Previously these were two separate listeners; the second (CSP,
+  // packaged-only, no URL filter) received the ORIGINAL responseHeaders and so
+  // silently dropped the CORS headers the first listener had just injected,
+  // breaking cross-origin QQ requests in packaged builds. Merging into one
+  // callback closes that race. Host matching mirrors the filter pattern set
+  // (each entry is https://<glob-host>/*) by suffix-testing against details.url.
+  const corsHostSuffixes = ['y.qq.com', 'qq.com', 'qqmusic.qq.com', 'gtimg.cn'];
+  session.webRequest.onHeadersReceived((details, callback) => {
     const headers = details.responseHeaders || {};
 
-    headers['Access-Control-Allow-Origin'] = ['*'];
-    headers['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS'];
-    headers['Access-Control-Allow-Headers'] = ['Content-Type, Authorization, Cookie, Referer, User-Agent'];
-    headers['Access-Control-Allow-Credentials'] = ['true'];
+    let hostname = '';
+    try { hostname = new URL(details.url).hostname.toLowerCase(); } catch { /* non-URL: skip CORS */ }
+    const isCorsHost = hostname !== '' && corsHostSuffixes.some(suffix => hostname === suffix || hostname.endsWith('.' + suffix));
+    if (isCorsHost) {
+      headers['Access-Control-Allow-Origin'] = ['*'];
+      headers['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS'];
+      headers['Access-Control-Allow-Headers'] = ['Content-Type, Authorization, Cookie, Referer, User-Agent'];
+      headers['Access-Control-Allow-Credentials'] = ['true'];
+    }
+
+    if (app.isPackaged) {
+      const csp = `default-src 'self' app: blob: data:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' app: 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' app: blob: data: https: http: file: cover: https://*.gtimg.cn; media-src 'self' app: blob: data: file: https: audio: stream:; connect-src 'self' app: blob: data: cover: ws://localhost:* http://localhost:* https://esm.sh https://u.y.qq.com https://y.qq.com https://c.y.qq.com https://shc.y.qq.com https://i.y.qq.com https://dl.stream.qqmusic.qq.com https://webdav.123pan.cn https://*.123pan.cn https://*.baidubce.com https://*.cjjd19.com; worker-src 'self' app: blob:; frame-src 'self' app: blob:; font-src 'self' app: blob: data: https://esm.sh;`;
+      headers['Content-Security-Policy'] = [csp];
+    }
 
     callback({ responseHeaders: headers });
   });
-
-  if (app.isPackaged) {
-    session.webRequest.onHeadersReceived((details, callback) => {
-      const csp = `default-src 'self' app: blob: data:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' blob: https://esm.sh; style-src 'self' app: 'unsafe-inline' blob: data: https://esm.sh; img-src 'self' app: blob: data: https: http: file: cover: https://*.gtimg.cn; media-src 'self' app: blob: data: file: https: audio: stream:; connect-src 'self' app: blob: data: cover: ws://localhost:* http://localhost:* https://esm.sh https://u.y.qq.com https://y.qq.com https://c.y.qq.com https://shc.y.qq.com https://i.y.qq.com https://dl.stream.qqmusic.qq.com https://webdav.123pan.cn https://*.123pan.cn https://*.baidubce.com https://*.cjjd19.com; worker-src 'self' app: blob:; frame-src 'self' app: blob:; font-src 'self' app: blob: data: https://esm.sh;`;
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [csp]
-        }
-      });
-    });
-  }
 
   const log = (...args: any[]) => {
     logger.info(...args);

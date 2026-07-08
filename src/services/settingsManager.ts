@@ -29,7 +29,7 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
-  private focusLyricsFontSize: number = 24;
+  private focusLyricsFontSize: number = 30;
   private focusLyricLineSpacing: number = 32;
   private focusInactiveLyricBlur: number = 2;
   private newUxEnabled: boolean = false;

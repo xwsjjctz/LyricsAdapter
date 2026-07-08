@@ -1,7 +1,7 @@
 import React from 'react';
 import { i18n } from '@/services/i18n';
 import { getDesktopAPI } from '@/services/desktopAdapter';
-import { SOURCE_OPTIONS } from '../shared';
+import { getSourceOptions } from '../shared';
 import type { SettingsTheme } from '../shared';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
@@ -57,6 +57,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   onQrLogout,
 }) => {
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
+  // Re-derived each render so labels follow the current i18n language.
+  const sourceOptions = getSourceOptions();
 
   return (
     <section className="r-card p-4 border mb-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -97,7 +99,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               borderRadius: 'var(--theme-card-radius)',
             }}
           >
-            {SOURCE_OPTIONS.map((option) => {
+            {sourceOptions.map((option) => {
               const active = onlineSource === option.value;
               return (
                 <button
