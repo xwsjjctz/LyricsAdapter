@@ -431,20 +431,33 @@ export function useLibraryLoad({
         if (tracksToParse.length > 0) {
           logger.info('[LibraryLoad] Re-parsing metadata for', tracksToParse.length, 'tracks (cache miss)');
 
-          // 先将所有路径加入主进程 allowlist，避免 readFile 被拦截
+          // 先将所有路径加入主进程 allowlist，避免 readFile 被拦截。
+          // 注意：api 必须是 ElectronAdapter（其 ipc getter 透传 window.electron.ipc），
+          // 否则 allowlist 不会建立，readAudio/read-file 全部被 canReadAudioPath 拒绝。
           const ipc = api.ipc;
           if (ipc?.file?.allowAudioPath) {
+            let allowFailures = 0;
             for (const track of tracksToParse) {
               try {
                 await ipc.file.allowAudioPath(track.filePath!);
-              } catch {
+              } catch (e) {
+                allowFailures++;
                 // 单个路径放行失败不阻塞整体
               }
             }
+            if (allowFailures > 0) {
+              logger.warn('[LibraryLoad] allowAudioPath failed for', allowFailures, '/', tracksToParse.length, 'paths');
+            }
+          } else {
+            // 没有 typed IPC（非 Electron 或 adapter 未透传 ipc）→ re-parse 必然失败，
+            // 显式告警以便发现，而不是静默 "complete" 但 0 首恢复。
+            logger.warn('[LibraryLoad] typed IPC allowAudioPath unavailable; re-parse will likely fail to read files');
           }
 
           // 逐个解析并更新（批量 3 个并发避免阻塞 UI）
           const BATCH_SIZE = 3;
+          let parseOk = 0;
+          let parseFail = 0;
           for (let i = 0; i < tracksToParse.length; i += BATCH_SIZE) {
             const batch = tracksToParse.slice(i, i + BATCH_SIZE);
             const results = await Promise.allSettled(
@@ -485,6 +498,7 @@ export function useLibraryLoad({
             const updates: Array<{ id: string; title: string; artist: string; album: string; duration: number; lyrics: string; syncedLyrics?: { time: number; text: string }[]; coverData?: string; coverMime?: string }> = [];
             for (const result of results) {
               if (result.status === 'fulfilled' && result.value) {
+                parseOk++;
                 const { track, md } = result.value;
                 const entry: {
                   id: string; title: string; artist: string; album: string; duration: number; lyrics: string;
@@ -494,6 +508,11 @@ export function useLibraryLoad({
                 if (md.coverData) entry.coverData = md.coverData;
                 if (md.coverMime) entry.coverMime = md.coverMime;
                 updates.push(entry);
+              } else {
+                parseFail++;
+                if (result.status === 'rejected') {
+                  logger.warn('[LibraryLoad] parseAudioMetadata rejected for a track:', result.reason);
+                }
               }
             }
 
@@ -545,7 +564,7 @@ export function useLibraryLoad({
             }
           }
 
-          logger.info('[LibraryLoad] Metadata re-parse complete for', tracksToParse.length, 'tracks');
+          logger.info('[LibraryLoad] Metadata re-parse complete:', parseOk, 'succeeded /', parseFail, 'failed of', tracksToParse.length, 'tracks');
         }
       }
 
