@@ -91,11 +91,21 @@ export async function registerAppProtocolHandler(): Promise<void> {
       const url = new URL(request.url);
 
       if (!app.isPackaged) {
-        // Dev mode: proxy to Vite dev server. The app:// origin stays the same
-        // in both modes, so localStorage/IndexedDB are shared.
+        // Dev mode: proxy to Vite dev server.
+        // Forward headers + method so Vite can properly negotiate content type
+        // (especially important for CSS and JS modules).
         const targetUrl = `http://localhost:3000${url.pathname}${url.search}`;
         try {
-          return await net.fetch(targetUrl);
+          const headers = new Headers();
+          for (const [key, value] of request.headers.entries()) {
+            headers.set(key, value);
+          }
+          // Remove host header to let Vite handle it
+          headers.delete('host');
+          return await net.fetch(targetUrl, {
+            method: request.method,
+            headers,
+          });
         } catch (proxyErr) {
           logger.warn('[app://] Dev proxy failed — is Vite dev server running?', (proxyErr as Error).message);
           return new Response('Vite dev server not available', { status: 502 });
