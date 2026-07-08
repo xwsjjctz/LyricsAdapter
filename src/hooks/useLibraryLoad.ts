@@ -4,7 +4,6 @@ import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibraryIndexData, LibraryIndexSong, LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { coverArtService } from '../services/coverArtService';
 import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong, type UserTrackRecord } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
@@ -381,8 +380,9 @@ export function useLibraryLoad({
 
     setIsPlaying(false);
 
-    metadataCacheService.initialize().then(() => {
-      // 从元数据缓存充实恢复后的本地曲目（清缓存后元数据丢失，需要重新解析）
+    metadataCacheService.initialize().then(async () => {
+      // 第 1 步：从元数据缓存充实本地曲目（清缓存前已有的元数据可直接恢复）
+      let enrichedCount = 0;
       const localFilePathTracks = loadedTracks.filter(t => t.filePath);
       if (localFilePathTracks.length > 0) {
         setLocalTracks(prev => {
@@ -402,6 +402,7 @@ export function useLibraryLoad({
             if (!hasBetterInfo) return track;
 
             changed = true;
+            enrichedCount++;
             return {
               ...track,
               title: cached.title || track.title,
@@ -414,14 +415,142 @@ export function useLibraryLoad({
           });
           return changed ? next : prev;
         });
+      }
 
-        // 为封面缺失的本地文件曲目触发后台封面提取
-        const tracksNeedingCover = loadedTracks.filter((t): t is Track & { filePath: string } => !!t.filePath && !t.coverUrl);
-        if (tracksNeedingCover.length > 0) {
-          coverArtService.preloadCovers(tracksNeedingCover).catch(err => {
-            logger.warn('[LibraryLoad] Background cover preload failed:', err);
-          });
+      // 第 2 步：对缓存不存在的本地文件曲目，从音频文件重新解析元数据
+      const api = await getDesktopAPIAsync();
+      if (api) {
+        const tracksToParse = loadedTracks.filter(t => {
+          if (!t.filePath) return false;
+          const cached = metadataCacheService.get(t.id);
+          if (!cached) return true;
+          // 缓存虽有但核心字段为空仍需解析
+          return !cached.title || !cached.artist || !cached.duration;
+        });
+
+        if (tracksToParse.length > 0) {
+          logger.info('[LibraryLoad] Re-parsing metadata for', tracksToParse.length, 'tracks (cache miss)');
+
+          // 先将所有路径加入主进程 allowlist，避免 readFile 被拦截
+          const ipc = api.ipc;
+          if (ipc?.file?.allowAudioPath) {
+            for (const track of tracksToParse) {
+              try {
+                await ipc.file.allowAudioPath(track.filePath!);
+              } catch {
+                // 单个路径放行失败不阻塞整体
+              }
+            }
+          }
+
+          // 逐个解析并更新（批量 3 个并发避免阻塞 UI）
+          const BATCH_SIZE = 3;
+          for (let i = 0; i < tracksToParse.length; i += BATCH_SIZE) {
+            const batch = tracksToParse.slice(i, i + BATCH_SIZE);
+            const results = await Promise.allSettled(
+              batch.map(track =>
+                api!.parseAudioMetadata(track.filePath!).then(result => {
+                  if (result.success && result.metadata) {
+                    const md = result.metadata as {
+                      title: string;
+                      artist: string;
+                      album: string;
+                      duration: number;
+                      lyrics?: string;
+                      syncedLyrics?: { time: number; text: string }[];
+                      coverData?: string;
+                      coverMime?: string;
+                      fileSize?: number;
+                    };
+                    // 保存到元数据缓存
+                    metadataCacheService.set(track.id, {
+                      title: md.title || '',
+                      artist: md.artist || '',
+                      album: md.album || '',
+                      duration: md.duration || 0,
+                      lyrics: md.lyrics || '',
+                      syncedLyrics: md.syncedLyrics,
+                      fileName: track.fileName || '',
+                      fileSize: md.fileSize || track.fileSize || 0,
+                      lastModified: track.lastModified || 0,
+                    });
+                    return { track, md };
+                  }
+                  return null;
+                })
+              )
+            );
+
+            // 将解析结果更新到 React 状态
+            const updates: Array<{ id: string; title: string; artist: string; album: string; duration: number; lyrics: string; syncedLyrics?: { time: number; text: string }[]; coverData?: string; coverMime?: string }> = [];
+            for (const result of results) {
+              if (result.status === 'fulfilled' && result.value) {
+                const { track, md } = result.value;
+                const entry: {
+                  id: string; title: string; artist: string; album: string; duration: number; lyrics: string;
+                  syncedLyrics?: { time: number; text: string }[]; coverData?: string; coverMime?: string;
+                } = { id: track.id, title: md.title || '', artist: md.artist || '', album: md.album || '', duration: md.duration || 0, lyrics: md.lyrics || '' };
+                if (md.syncedLyrics) entry.syncedLyrics = md.syncedLyrics;
+                if (md.coverData) entry.coverData = md.coverData;
+                if (md.coverMime) entry.coverMime = md.coverMime;
+                updates.push(entry);
+              }
+            }
+
+            if (updates.length > 0) {
+              setLocalTracks(prev => {
+                let changed = false;
+                const next = prev.map(track => {
+                  const update = updates.find(u => u.id === track.id);
+                  if (!update) return track;
+                  changed = true;
+                  return {
+                    ...track,
+                    title: update.title || track.title,
+                    artist: update.artist || track.artist,
+                    album: update.album || track.album,
+                    duration: update.duration || track.duration,
+                    lyrics: update.lyrics || track.lyrics,
+                    syncedLyrics: update.syncedLyrics || track.syncedLyrics,
+                  };
+                });
+                return changed ? next : prev;
+              });
+
+              // 异步保存封面缩略图（不阻塞元数据更新）
+              for (const update of updates) {
+                if (update.coverData && update.coverMime && api.saveCoverThumbnail) {
+                  api.saveCoverThumbnail({
+                    id: update.id,
+                    data: update.coverData,
+                    mime: update.coverMime,
+                  }).then(result => {
+                    if (result.success && result.coverUrl) {
+                      // 封面保存成功后把 coverUrl 更新到 track 状态
+                      setLocalTracks(prev => {
+                        let changed = false;
+                        const next = prev.map(track => {
+                          if (track.id !== update.id || track.coverUrl) return track;
+                          changed = true;
+                          return { ...track, coverUrl: result.coverUrl };
+                        });
+                        return changed ? next : prev;
+                      });
+                    }
+                  }).catch(err => {
+                    logger.warn('[LibraryLoad] Failed to save cover thumbnail for', update.id, err);
+                  });
+                }
+              }
+            }
+          }
+
+          logger.info('[LibraryLoad] Metadata re-parse complete for', tracksToParse.length, 'tracks');
         }
+      }
+
+      if (enrichedCount > 0) {
+        logger.info('[LibraryLoad] Enriched', enrichedCount, 'tracks from metadata cache');
       }
     }).catch(err => {
       logger.warn('[LibraryLoad] Metadata cache init failed:', err);
