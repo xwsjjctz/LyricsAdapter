@@ -8,7 +8,7 @@ import {
   ManifestEntry,
   manifestEntriesEqual,
   metadataFolderService,
-} from '../../../services/webdav/metadataFolderService';
+} from '@/services/webdav/metadataFolderService';
 
 const webdavMocks = vi.hoisted(() => ({
   fetchTextFile: vi.fn(),

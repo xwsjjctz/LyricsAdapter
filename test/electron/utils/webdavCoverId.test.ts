@@ -3,7 +3,7 @@ import {
   computeWebdavCoverId,
   sanitizeTrackId,
   webdavPathHash,
-} from '@/electron/utils/webdavCoverId';
+} from '../../../electron/utils/webdavCoverId';
 
 describe('computeWebdavCoverId', () => {
   it('returns null for non-webdav track ids (local tracks need no conversion)', () => {

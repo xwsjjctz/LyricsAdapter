@@ -18,7 +18,7 @@ import {
   isCommandAvailable,
   getBundledBinaryPath,
   getBinaryPath,
-} from '@/electron/utils/binaryUtils';
+} from '../../../electron/utils/binaryUtils';
 import { spawnSync } from 'child_process';
 
 // ========== isCommandAvailable ==========

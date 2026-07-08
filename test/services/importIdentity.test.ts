@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Track } from '../../types';
+import type { Track } from '@/types';
 import {
   getDesktopImportKey,
   getTrackImportKeys,
   getUniqueWebDAVFileName,
   getWebFileImportKey,
-} from '../../services/importIdentity';
+} from '@/services/importIdentity';
 
 describe('importIdentity', () => {
   it('uses full desktop file paths instead of basenames', () => {
