@@ -11,19 +11,23 @@ import { webdavClient } from '../services/webdavClient';
 import { generateMetaJson } from '../services/webdavMetaService';
 import { notify } from '../services/notificationService';
 import { parseLRCLyrics } from '../services/metadataService';
+import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { i18n } from '../services/i18n';
 import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
-import { getDesktopAPI } from '../services/desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 
 interface UseOnlineMusicIntegrationParams {
   setViewMode: (mode: ViewMode) => void;
   mergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
+  /** Invoked after a download completes and the track is built (adds to local library). */
+  onDownloadComplete?: (track: Track) => void;
 }
 
-interface OnlineProgressEntry {
+export interface OnlineProgressEntry {
   type: 'download' | 'upload';
   percent: number;
+  status?: 'completed' | 'error';
 }
 
 /**
@@ -33,7 +37,7 @@ interface OnlineProgressEntry {
  * Source-agnostic: every call resolves the active provider fresh, so switching
  * the online source in settings takes effect immediately.
  */
-export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: UseOnlineMusicIntegrationParams) {
+export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDownloadComplete }: UseOnlineMusicIntegrationParams) {
   const [onlineProgress, setOnlineProgress] = useState<Record<string, OnlineProgressEntry>>({});
   const activeSongRef = useRef<string | null>(null);
 
@@ -71,6 +75,99 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
     }
   };
 
+  // Build a Track from a downloaded file: parse its metadata, save a cover
+  // thumbnail, cache metadata, and return a Track ready for the local library.
+  // Lifted from BrowseView.createTrackFromDownloadedFile so both flows share it.
+  const buildDownloadedTrack = useCallback(async (
+    filePath: string,
+    fileName: string,
+    song: OnlineSong,
+    lyrics?: string,
+  ): Promise<Track | null> => {
+    try {
+      const desktopAPI = await getDesktopAPIAsync();
+      if (!desktopAPI) return null;
+
+      let metadata: {
+        lyrics?: string;
+        syncedLyrics?: { time: number; text: string }[];
+        duration?: number;
+        fileSize?: number;
+      } | undefined;
+      try {
+        const parseResult = await desktopAPI.parseAudioMetadata(filePath);
+        if (parseResult.success && parseResult.metadata) {
+          metadata = parseResult.metadata as typeof metadata;
+        }
+      } catch (error) {
+        logger.error('[OnlineMusic] Failed to parse metadata:', error);
+      }
+
+      const parsedLyrics = lyrics ? parseLRCLyrics(lyrics) : null;
+      const finalLyrics = parsedLyrics?.plainText || metadata?.lyrics || lyrics || '';
+      const finalSyncedLyrics = parsedLyrics?.syncedLyrics || metadata?.syncedLyrics;
+
+      const trackId = Math.random().toString(36).substr(2, 9);
+      const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
+
+      const coverUrl = getOnlineProvider().getCoverUrl(song) || song.coverUrl
+        || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+
+      let finalCoverUrl = coverUrl;
+      if (coverUrl && desktopAPI.saveCoverThumbnail) {
+        try {
+          const coverBase64 = await fetchCoverBase64(coverUrl);
+          if (coverBase64) {
+            const base64Data = coverBase64.split(',')[1] ?? '';
+            const mimeMatch = coverBase64.match(/^data:(.*?);/);
+            const mime = mimeMatch?.[1] ?? 'image/jpeg';
+            const coverResult = await desktopAPI.saveCoverThumbnail({
+              id: trackId, data: base64Data, mime,
+            });
+            if (coverResult?.success && coverResult.coverUrl) {
+              finalCoverUrl = coverResult.coverUrl;
+            }
+          }
+        } catch (error) {
+          logger.warn('[OnlineMusic] Failed to save cover thumbnail:', error);
+        }
+      }
+
+      metadataCacheService.set(trackId, {
+        title: song.songname,
+        artist: singer,
+        album: song.albumname || '',
+        duration: metadata?.duration || song.interval || 0,
+        lyrics: finalLyrics,
+        syncedLyrics: finalSyncedLyrics,
+        fileName,
+        fileSize: metadata?.fileSize || 0,
+        lastModified: Date.now(),
+      });
+
+      return {
+        id: trackId,
+        title: song.songname,
+        artist: singer,
+        album: song.albumname || 'Unknown Album',
+        duration: metadata?.duration || song.interval || 0,
+        lyrics: finalLyrics,
+        ...(finalSyncedLyrics ? { syncedLyrics: finalSyncedLyrics } : {}),
+        coverUrl: finalCoverUrl,
+        audioUrl: '',
+        fileName,
+        filePath,
+        fileSize: metadata?.fileSize || 0,
+        lastModified: Date.now(),
+        addedAt: new Date().toISOString(),
+        available: true,
+      };
+    } catch (error) {
+      logger.error('[OnlineMusic] Failed to create track:', error);
+      return null;
+    }
+  }, []);
+
   const handleOnlineDownload = useCallback(async (song: OnlineSong, quality: OnlineQuality) => {
     const downloadPath = settingsManager.getDownloadPath();
     if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
@@ -80,10 +177,10 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : 'mp3';
+      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
-      const coverUrl = provider.getCoverUrl(song);
+      const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
       const [lyrics, { url }] = await Promise.all([
         fetchLyrics(song, provider),
         provider.getMusicUrl(song.songmid, quality),
@@ -100,17 +197,23 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
           ...(coverUrl != null && { coverUrl }),
         });
       }
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100 } }));
+      // Build a Track from the downloaded file and add it to the local library.
+      if (onDownloadComplete) {
+        const track = await buildDownloadedTrack(result.filePath, fileName, song, lyrics);
+        if (track) onDownloadComplete(track);
+      }
+      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed' } }));
       notify(i18n.t('notifications.downloadComplete'), song.songname, { silent: true });
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] download failed:', err);
-      setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; });
+      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, status: 'error' } }));
       notify(i18n.t('notifications.downloadFailed'), err instanceof Error ? err.message : '');
+      setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 5000);
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
     }
-  }, [setViewMode]);
+  }, [setViewMode, onDownloadComplete, buildDownloadedTrack]);
 
   const handleOnlineUpload = useCallback(async (song: OnlineSong, quality: OnlineQuality) => {
     if (!webdavClient.hasConfig()) { setViewMode(ViewMode.SETTINGS); return; }
@@ -122,10 +225,10 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : 'mp3';
+      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
-      const coverUrl = provider.getCoverUrl(song);
+      const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
       const [lyrics, { url }, coverBase64] = await Promise.all([
         fetchLyrics(song, provider),
         provider.getMusicUrl(song.songmid, quality),
@@ -157,7 +260,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks }: Use
         ...(lyrics != null && { lyrics }),
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : {}),
       }));
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 100 } }));
+      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 100, status: 'completed' } }));
       // Add track to cloud slot immediately
       const cloudTrack: Track = {
         id: `webdav-${webdavPath}`,
