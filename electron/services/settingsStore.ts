@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { logger } from '../logger';
+import { writeJsonAtomic, readJsonWithBackup } from '../utils/atomicWrite';
 
 /** 需要加密存储的键名集合。 */
 const SENSITIVE_KEYS = new Set([
@@ -130,10 +131,13 @@ class SettingsStore {
 
   private load(): void {
     try {
-      if (fs.existsSync(this.filePath)) {
-        const raw = fs.readFileSync(this.filePath, 'utf-8');
-        this.data = JSON.parse(raw);
-        logger.info('[SettingsStore] Loaded', Object.keys(this.data).length, 'keys from', this.filePath);
+      const result = readJsonWithBackup<Record<string, string>>(this.filePath);
+      if (result) {
+        this.data = result.data;
+        logger.info(
+          '[SettingsStore] Loaded', Object.keys(this.data).length, 'keys from', this.filePath,
+          result.source === 'backup' ? '(recovered from .bak)' : ''
+        );
       } else {
         this.data = {};
         logger.info('[SettingsStore] No existing settings file, starting fresh');
@@ -147,7 +151,7 @@ class SettingsStore {
   private save(): void {
     try {
       this.ensureDir();
-      fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+      writeJsonAtomic(this.filePath, this.data, { keepBackup: true });
     } catch (e) {
       logger.error('[SettingsStore] Failed to save settings:', e);
     }

@@ -9,6 +9,9 @@ import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 import { appStorage } from '../services/appStorage';
+import { webdavClient } from '../services/webdavClient';
+import { settingsManager } from '../services/settingsManager';
+import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
@@ -666,6 +669,21 @@ export function useLibraryLoad({
               } catch (e2) {
                 logger.warn('[LibraryLoad] Failed to restore settings from settings.json:', e2);
               }
+            }
+
+            // settings.json 已灌入 localStorage/appStorage，通知在模块导入时
+            // 就读取（早于 init 完成）的消费者重新加载，使清空 userData 后
+            // WebDAV 配置、偏好设置、登录 cookie 等能自动恢复生效，无需重启或重填。
+            try {
+              webdavClient.reloadConfig();
+              settingsManager.reload();
+              // cookieManager 构造期 loadFromStorage 同样可能读到空，需重新加载
+              // 后再把 cookie 同步到主进程 stream:// 代理。
+              cookieManager.reload();
+              neteaseCookieManager.reload();
+              void syncOnlineCookiesToMain();
+            } catch (e) {
+              logger.warn('[LibraryLoad] Failed to notify settings consumers to reload:', e);
             }
           } catch (e) {
             logger.warn('[LibraryLoad] Failed to load ~/.la user data:', e);

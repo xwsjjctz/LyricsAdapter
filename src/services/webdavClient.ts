@@ -112,6 +112,23 @@ class WebDAVClient {
     return this.config;
   }
 
+  /**
+   * 重新从 appStorage/localStorage 加载配置。
+   *
+   * webdavClient 在模块导入时同步 loadConfig()，但此时 appStorage.init() 可能
+   * 尚未完成（尤其清空 userData 后 localStorage 为空，需从 ~/.la/settings.json
+   * 异步恢复）。useLibraryLoad 在把 settings.json 灌回 localStorage 后调用本方法，
+   * 使 WebDAV 配置在不重启、不重填表单的前提下恢复生效。
+   */
+  reloadConfig(): void {
+    this.loadConfig();
+    this.loadCdnCache();
+    this.writableCache = null; // 配置可能变更，可写性需重新检测
+    if (this.config) {
+      logger.info('[WebDAV] Config reloaded after settings restore');
+    }
+  }
+
   saveConfig(config: WebDAVConfig): void {
     this.config = config;
     const json = JSON.stringify(config);

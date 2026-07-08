@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { app } from "electron";
 import { logger } from "../logger";
+import { writeJsonAtomic } from "../utils/atomicWrite";
 function toLibraryIndex(library: any): any {
   const songs = Array.isArray(library?.songs) ? library.songs.map((song: any) => ({
     id: song.id,
@@ -79,12 +80,7 @@ export function registerLibraryHandlers(): void {
       logger.info('Library path:', libraryPath);
       logger.info('Library data:', JSON.stringify(library).substring(0, 200) + '...');
 
-      if (!fs.existsSync(userDataPath)) {
-        logger.info('Creating directory:', userDataPath);
-        fs.mkdirSync(userDataPath, { recursive: true });
-      }
-
-      fs.writeFileSync(libraryPath, JSON.stringify(library, null, 2), 'utf-8');
+      writeJsonAtomic(libraryPath, library);
 
       logger.info('Library saved successfully!');
       logger.info('File exists after save:', fs.existsSync(libraryPath));
@@ -100,11 +96,7 @@ export function registerLibraryHandlers(): void {
       const userDataPath = app.getPath('userData');
       const indexPath = path.join(userDataPath, 'library-index.json');
 
-      if (!fs.existsSync(userDataPath)) {
-        fs.mkdirSync(userDataPath, { recursive: true });
-      }
-
-      fs.writeFileSync(indexPath, JSON.stringify(library, null, 2), 'utf-8');
+      writeJsonAtomic(indexPath, library);
       return { success: true };
     } catch (error) {
       logger.error('Failed to save library index:', error);
@@ -117,11 +109,8 @@ export function registerLibraryHandlers(): void {
       const userDataPath = app.getPath('userData');
       const backupPath = path.join(userDataPath, 'library-local-backup.json');
 
-      if (!fs.existsSync(userDataPath)) {
-        fs.mkdirSync(userDataPath, { recursive: true });
-      }
+      writeJsonAtomic(backupPath, library);
 
-      fs.writeFileSync(backupPath, JSON.stringify(library, null, 2), 'utf-8');
       logger.info('[IPC] Local library backup saved');
       return { success: true };
     } catch (error) {

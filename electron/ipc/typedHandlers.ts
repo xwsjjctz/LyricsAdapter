@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
 import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../utils/webdavRange';
+import { writeJsonAtomic } from '../utils/atomicWrite';
 import { typedIpcSchemas } from './typedSchemas';
 import type { IpcResult } from '../../src/types/typedIpc';
 
@@ -159,11 +160,7 @@ export function registerTypedIpcHandlers(): void {
     if (!parsed.ok) return parsed;
 
     try {
-      const userDataPath = app.getPath('userData');
-      if (!fs.existsSync(userDataPath)) {
-        fs.mkdirSync(userDataPath, { recursive: true });
-      }
-      fs.writeFileSync(libraryIndexPath(), JSON.stringify(parsed.data, null, 2), 'utf-8');
+      writeJsonAtomic(libraryIndexPath(), parsed.data);
       return ok(undefined);
     } catch (error) {
       logger.error('[TypedIPC] save library failed:', error);

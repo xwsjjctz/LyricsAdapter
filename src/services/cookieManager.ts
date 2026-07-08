@@ -165,6 +165,19 @@ export class CookieStore {
   async ensureLoaded(): Promise<void> {
     await this.initPromise;
   }
+
+  /**
+   * 重新从 appStorage 加载 cookie。
+   *
+   * cookieManager 在构造时启动 loadFromStorage()，但构造发生在模块导入时，
+   * 此时 appStorage.init() 可能尚未把 ~/.la/settings.json 灌入 cache。清空
+   * userData 后首次启动时，构造期的 loadFromStorage 读到空，this.cookie 保持
+   * 空字符串，且 initPromise 只跑一次不会重试。useLibraryLoad 在 settings 灌入
+   * 完成后调用本方法重新加载，使登录态恢复生效。
+   */
+  reload(): void {
+    this.initPromise = this.loadFromStorage();
+  }
 }
 
 /** QQ Music cookie validator — hits the QQ top-list endpoint. */

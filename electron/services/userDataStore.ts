@@ -16,6 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { logger } from '../logger';
+import { writeJsonAtomic, readJsonWithBackup } from '../utils/atomicWrite';
 
 // ========== 类型定义 ==========
 
@@ -119,12 +120,12 @@ class UserDataStore {
 
   // ========== 公开 API ==========
 
-  /** 完整读取 users.json。文件不存在返回默认结构。 */
+  /** 完整读取 users.json。主文件损坏时回退 .bak；都不存在返回默认结构。 */
   load(): UserDataFile {
     try {
-      if (fs.existsSync(this.filePath)) {
-        const raw = fs.readFileSync(this.filePath, 'utf-8');
-        const parsed: UserDataFile = JSON.parse(raw);
+      const result = readJsonWithBackup<UserDataFile>(this.filePath);
+      if (result) {
+        const parsed = result.data;
         // 解密 settings 中的敏感字段
         parsed.settings = decryptSettings(parsed.settings || {});
         return parsed;
@@ -135,7 +136,7 @@ class UserDataStore {
     return { tracks: [], settings: {}, playback: {} };
   }
 
-  /** 完整写入 users.json。settings 中的敏感字段自动加密。 */
+  /** 完整写入 users.json（原子写 + .bak 备份）。settings 中的敏感字段自动加密。 */
   save(data: UserDataFile): void {
     try {
       this.ensureDir();
@@ -144,7 +145,7 @@ class UserDataStore {
         settings: encryptSettings(data.settings || {}),
         playback: data.playback || {},
       };
-      fs.writeFileSync(this.filePath, JSON.stringify(toWrite, null, 2), 'utf-8');
+      writeJsonAtomic(this.filePath, toWrite, { keepBackup: true });
     } catch (e) {
       logger.error('[UserDataStore] Failed to save:', e);
     }

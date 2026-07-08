@@ -340,6 +340,21 @@ class SettingsManager {
 
   async ensureLoaded(): Promise<void> {
     // No-op: all settings are synchronous via localStorage
+    // 保留以兼容旧调用点；真正的初始化在构造时 loadFromStorage() 完成。
+  }
+
+  /**
+   * 重新从 appStorage/localStorage 加载全部设置并通知订阅者。
+   *
+   * settingsManager 在模块导入时同步 loadFromStorage()，但此时 appStorage.init()
+   * 可能尚未完成（尤其清空 userData 后 localStorage 为空，需从 ~/.la/settings.json
+   * 异步恢复）。useLibraryLoad 在把 settings.json 灌回 localStorage 后调用本方法，
+   * 使偏好设置（下载路径、在线源、模糊度等）在不重启的前提下恢复生效。
+   */
+  reload(): void {
+    this.loadFromStorage();
+    this.notify();
+    logger.info('[SettingsManager] Settings reloaded after settings restore');
   }
 }
 
