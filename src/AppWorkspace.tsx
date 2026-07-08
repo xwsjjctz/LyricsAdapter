@@ -34,6 +34,7 @@ import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
 import NewUxShell from './components/new-ui/NewUxShell';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
+import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -174,6 +175,21 @@ const AppWorkspace: React.FC = () => {
     setActiveCurrentTime,
     updateSlot,
     onTrackSwitch: markTrackSwitch,
+  });
+  const player = usePlayerViewModel({
+    currentTrack,
+    isPlaying,
+    currentTime,
+    volume,
+    playbackMode,
+    audioRef,
+    togglePlay,
+    skipForward,
+    skipBackward,
+    handleSeek,
+    handleVolumeChange,
+    handleToggleMute,
+    handleTogglePlaybackMode,
   });
   const playerController = usePlayerController({
     activeSlotId,
@@ -470,11 +486,11 @@ const AppWorkspace: React.FC = () => {
         <NewUxShell
           slots={slots}
           activeSlotId={activeSlotId}
-          currentTrack={currentTrack}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          volume={volume}
-          playbackMode={playbackMode}
+          currentTrack={player.currentTrack}
+          isPlaying={player.isPlaying}
+          currentTime={player.currentTime}
+          volume={player.volume}
+          playbackMode={player.playbackMode}
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
           onOpenSlot={handleSwitchSlot}
@@ -482,13 +498,13 @@ const AppWorkspace: React.FC = () => {
           onRemoveTrack={handleRemoveTrackFromView}
           onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
           onUpdateTrack={libraryController.updateTrack}
-          onTogglePlay={togglePlay}
-          onSkipNext={skipForward}
-          onSkipPrev={skipBackward}
-          onSeek={handleSeek}
-          onVolumeChange={handleVolumeChange}
-          onToggleMute={handleToggleMute}
-          onTogglePlaybackMode={handleTogglePlaybackMode}
+          onTogglePlay={player.togglePlay}
+          onSkipNext={player.next}
+          onSkipPrev={player.previous}
+          onSeek={player.seek}
+          onVolumeChange={player.changeVolume}
+          onToggleMute={player.toggleMute}
+          onTogglePlaybackMode={player.togglePlaybackMode}
           onImportIntoSlot={handleNewUxImportIntoSlot}
           onReloadUnavailable={handleReloadLocalFiles}
           onOpenOnlinePlaylist={handleOpenOnlinePlaylist}
@@ -650,41 +666,41 @@ const AppWorkspace: React.FC = () => {
             )}
           </div>
           <Controls
-            track={currentTrack}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            volume={volume}
-            onTogglePlay={togglePlay}
-            onSkipNext={skipForward}
-            onSkipPrev={skipBackward}
-            onSeek={handleSeek}
-            onVolumeChange={handleVolumeChange}
-            onToggleMute={handleToggleMute}
-            playbackMode={playbackMode}
-            onTogglePlaybackMode={handleTogglePlaybackMode}
+            track={player.currentTrack}
+            isPlaying={player.isPlaying}
+            currentTime={player.currentTime}
+            volume={player.volume}
+            onTogglePlay={player.togglePlay}
+            onSkipNext={player.next}
+            onSkipPrev={player.previous}
+            onSeek={player.seek}
+            onVolumeChange={player.changeVolume}
+            onToggleMute={player.toggleMute}
+            playbackMode={player.playbackMode}
+            onTogglePlaybackMode={player.togglePlaybackMode}
             onToggleFocus={() => setIsFocusMode(!isFocusMode)}
             isFocusMode={isFocusMode}
             forceUpdateCounter={0}
-            audioRef={audioRef}
+            audioRef={player.audioRef}
             floating={floatingPanel}
           />
         </main>
         <FocusMode
-          track={currentTrack}
+          track={player.currentTrack}
           isVisible={isFocusMode}
-          currentTime={currentTime}
-          isPlaying={isPlaying}
-          onTogglePlay={togglePlay}
-          onSkipNext={skipForward}
-          onSkipPrev={skipBackward}
-          onSeek={handleSeek}
-          volume={volume}
-          onVolumeChange={handleVolumeChange}
-          onToggleMute={handleToggleMute}
-          playbackMode={playbackMode}
-          onTogglePlaybackMode={handleTogglePlaybackMode}
+          currentTime={player.currentTime}
+          isPlaying={player.isPlaying}
+          onTogglePlay={player.togglePlay}
+          onSkipNext={player.next}
+          onSkipPrev={player.previous}
+          onSeek={player.seek}
+          volume={player.volume}
+          onVolumeChange={player.changeVolume}
+          onToggleMute={player.toggleMute}
+          playbackMode={player.playbackMode}
+          onTogglePlaybackMode={player.togglePlaybackMode}
           onToggleFocus={() => setIsFocusMode(!isFocusMode)}
-          audioRef={audioRef}
+          audioRef={player.audioRef}
         />
         </div>
       </div>
