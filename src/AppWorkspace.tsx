@@ -35,6 +35,7 @@ import NewUxShell from './components/new-ui/NewUxShell';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
+import { useLibraryViewModel } from './viewmodels/useLibraryViewModel';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -271,17 +272,22 @@ const AppWorkspace: React.FC = () => {
     setIsPlaying,
     revokeBlobUrl,
   });
-  // View-slot-aware track removal now lives in the library controller; AppWorkspace delegates.
-  // (Phase 2 migration — see docs/refactor-roadmap.md §4.)
-  const handleRemoveTrackFromView = useCallback(
-    (trackId: string, deleteFile = false) => libraryController.removeTrack(trackId, deleteFile),
-    [libraryController],
-  );
-
-  const handleRemoveMultipleTracksFromView = useCallback(
-    (trackIds: string[], deleteFile = false) => libraryController.removeTracks(trackIds, deleteFile),
-    [libraryController],
-  );
+  const library = useLibraryViewModel({
+    slots,
+    activeSlotId,
+    viewSlot,
+    cloudWritable,
+    switchViewSlot: handleSwitchSlot,
+    selectTrack: playerController.handleTrackSelect,
+    removeTrack: libraryController.removeTrack,
+    removeTracks: libraryController.removeTracks,
+    reorder: libraryController.reorderTracks,
+    updateTrack: libraryController.updateTrack,
+  });
+  // Library mutations (remove / batch-remove / reorder / updateTrack /
+  // selectTrack / switchViewSlot) are now consumed via the library ViewModel;
+  // the per-handler delegates that lived here were removed by the Phase 4
+  // LibraryViewModel wiring.
 
   useLibraryLoad({
     restoreFromPersistence,
@@ -328,22 +334,13 @@ const AppWorkspace: React.FC = () => {
     (track: Track) => libraryController.addDownloadedTrack(track),
     [libraryController],
   );
-  // Reorder now lives in the library controller; AppWorkspace delegates.
-  // (Phase 2 migration — see docs/refactor-roadmap.md §4.)
-  const handleReorderTracks = useCallback(
-    (fromIndex: number, toIndex: number) => libraryController.reorderTracks(fromIndex, toIndex),
-    [libraryController],
-  );
+  // Reorder and track-selection are now consumed via the library/player
+  // ViewModels; the per-handler delegates that lived here were removed by the
+  // Phase 4 wiring.
   // Global-search navigation now lives in the player controller; AppWorkspace delegates.
   // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
   const handleSearchNavigate = useCallback(
     (track: Track) => playerController.handleSearchNavigate(track),
-    [playerController],
-  );
-  // Track selection now lives in the player controller; AppWorkspace delegates.
-  // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
-  const handleTrackSelect = useCallback(
-    (trackIndex: number, targetSlotId?: SlotId) => playerController.handleTrackSelect(trackIndex, targetSlotId),
     [playerController],
   );
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
@@ -484,8 +481,8 @@ const AppWorkspace: React.FC = () => {
       <>
         {audioElement}
         <NewUxShell
-          slots={slots}
-          activeSlotId={activeSlotId}
+          slots={library.slots}
+          activeSlotId={library.activeSlotId}
           currentTrack={player.currentTrack}
           isPlaying={player.isPlaying}
           currentTime={player.currentTime}
@@ -493,11 +490,11 @@ const AppWorkspace: React.FC = () => {
           playbackMode={player.playbackMode}
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-          onOpenSlot={handleSwitchSlot}
-          onTrackSelect={handleTrackSelect}
-          onRemoveTrack={handleRemoveTrackFromView}
-          onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
-          onUpdateTrack={libraryController.updateTrack}
+          onOpenSlot={library.switchViewSlot}
+          onTrackSelect={library.selectTrack}
+          onRemoveTrack={library.removeTrack}
+          onRemoveMultipleTracks={library.removeTracks}
+          onUpdateTrack={library.updateTrack}
           onTogglePlay={player.togglePlay}
           onSkipNext={player.next}
           onSkipPrev={player.previous}
@@ -515,12 +512,8 @@ const AppWorkspace: React.FC = () => {
           onOnlineUpload={handleOnlineUpload}
           onOnlineStreamPlay={playerController.playOnlineSong}
           onlineProgress={onlineProgress}
-          cloudImportDisabled={cloudWritable !== true}
-          cloudImportDisabledReason={
-            cloudWritable === null
-              ? i18n.t('sidebar.importChecking')
-              : i18n.t('sidebar.importReadOnly')
-          }
+          cloudImportDisabled={library.cloudImportDisabled}
+          cloudImportDisabledReason={library.cloudImportDisabledReason}
           audioRef={audioRef}
           fileInputRef={fileInputRef}
           onFileInputChange={handleFileInputChange}
@@ -611,34 +604,30 @@ const AppWorkspace: React.FC = () => {
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView
-                tracks={slots[viewSlot].tracks}
-                currentTrackIndex={slots[viewSlot].currentTrackIndex}
-                {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
-                onTrackSelect={handleTrackSelect}
-                onRemoveTrack={handleRemoveTrackFromView}
-                onRemoveMultipleTracks={handleRemoveMultipleTracksFromView}
+                tracks={library.slots[library.viewSlot].tracks}
+                currentTrackIndex={library.slots[library.viewSlot].currentTrackIndex}
+                {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
+                onTrackSelect={library.selectTrack}
+                onRemoveTrack={library.removeTrack}
+                onRemoveMultipleTracks={library.removeTracks}
                 onImportClick={handleImportClick}
                 importDisabled={importDisabled}
                 importDisabledReason={
-                  viewSlot === 'cloud'
-                    ? (cloudWritable === null
-                        ? i18n.t('sidebar.importChecking')
-                        : i18n.t('sidebar.importReadOnly'))
-                    : undefined
+                  library.viewSlot === 'cloud' ? library.cloudImportDisabledReason : undefined
                 }
                 onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
                 onDropFiles={handleDropFiles}
                 onDropFilePaths={handleViewDropFilePaths}
-                onReorderTracks={handleReorderTracks}
-                onUpdateTrack={libraryController.updateTrack}
+                onReorderTracks={library.reorder}
+                onUpdateTrack={library.updateTrack}
                 isFocusMode={isFocusMode}
-                savedScrollPosition={slots[viewSlot].scrollPosition}
+                savedScrollPosition={library.slots[library.viewSlot].scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}
                 autoLocateToken={autoLocateToken}
                 importProgress={importProgress}
-                dataSource={viewSlot}
-                activeSlotId={activeSlotId}
-                onSwitchSlot={handleSwitchSlot}
+                dataSource={library.viewSlot}
+                activeSlotId={library.activeSlotId}
+                onSwitchSlot={library.switchViewSlot}
                 pendingLocateSlot={pendingSlotLocate?.slot}
                 pendingLocateToken={pendingSlotLocate?.token}
                 onPendingLocatePrepared={handleSlotLocatePrepared}
