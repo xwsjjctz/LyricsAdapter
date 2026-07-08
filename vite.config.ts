@@ -88,7 +88,14 @@ export default defineConfig(({ mode }) => {
         // esbuild preserves both declarations.
         cssMinify: 'esbuild',
         rollupOptions: {
-          external: mode === 'production' ? ['electron'] : []
+          external: mode === 'production' ? ['electron'] : [],
+          output: {
+            // Rolldown (Vite 8) requires manualChunks as a function, not an object.
+            manualChunks(id: string) {
+              if (id.includes('node_modules/gsap')) return 'gsap';
+              if (id.includes('node_modules/pinyin-pro')) return 'pinyin-pro';
+            },
+          },
         }
       },
       test: {
