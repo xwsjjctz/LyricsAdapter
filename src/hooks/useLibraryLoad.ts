@@ -236,6 +236,20 @@ export function useLibraryLoad({
                 }
                 // 异步持久化到 settings.json
                 appStorage.replaceAll(userData.settings).catch(() => {});
+              } else {
+                // users.json 无 settings 时，尝试从主进程 settings.json 恢复
+                try {
+                  const api = await getDesktopAPIAsync();
+                  const mpSettings = await api?.settingsGetAll?.();
+                  if (mpSettings && Object.keys(mpSettings).length > 0) {
+                    for (const [key, value] of Object.entries(mpSettings)) {
+                      localStorage.setItem(key, value);
+                    }
+                    logger.info('[LibraryLoad] Restored', Object.keys(mpSettings).length, 'settings from settings.json');
+                  }
+                } catch (e2) {
+                  logger.warn('[LibraryLoad] Failed to restore settings from settings.json:', e2);
+                }
               }
               // 恢复 playback 状态
               const pbJson = userData.playback?.['_json'];
@@ -288,7 +302,7 @@ export function useLibraryLoad({
     libraryStorage.saveLibraryDebounced(libraryData);
     // 并行写入 playback 状态到 settings.json（音量/模式/进度/激活插槽）
     appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
-    // 并行写入最小化曲目列表到 ~/.la/users.json（纯用户数据，不含缓存元数据）
+    // 并行写入完整用户数据快照到 ~/.la/users.json（含 tracks + settings + playback）
     if (isDesktop()) {
       const allMinimal = [
         ...buildMinimalTracks(slotsSnapshot.local.tracks),
@@ -296,8 +310,17 @@ export function useLibraryLoad({
         ...buildMinimalTracks(slotsSnapshot.online.tracks),
         ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
       ];
+      const allSettings: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) allSettings[key] = localStorage.getItem(key) ?? '';
+      }
       getDesktopAPIAsync().then(api => {
-        api?.userDataSaveTracks?.(allMinimal).catch(() => {});
+        api?.userDataSave?.({
+          tracks: allMinimal,
+          settings: allSettings,
+          playback: { _json: JSON.stringify(persistData) },
+        }).catch(() => {});
       }).catch(() => {});
     }
   }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.currentTime, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.currentTime, slots.playlist.volume, slots.playlist.playbackMode]);
@@ -339,20 +362,29 @@ export function useLibraryLoad({
         } catch (e) {
           logger.warn('[LibraryLoad] Failed to flush playback settings:', e);
         }
-        if (isDesktop()) {
-          try {
-            const api = await getDesktopAPIAsync();
-            const allMinimal = [
-              ...buildMinimalTracks(slotsSnapshot.local.tracks),
-              ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
-              ...buildMinimalTracks(slotsSnapshot.online.tracks),
-              ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
-            ];
-            await api?.userDataSaveTracks?.(allMinimal);
-          } catch (e) {
-            logger.warn('[LibraryLoad] Failed to flush user data tracks:', e);
-          }
-        }
+	        if (isDesktop()) {
+	          try {
+	            const api = await getDesktopAPIAsync();
+	            const allMinimal = [
+	              ...buildMinimalTracks(slotsSnapshot.local.tracks),
+	              ...buildMinimalTracks(slotsSnapshot.cloud.tracks),
+	              ...buildMinimalTracks(slotsSnapshot.online.tracks),
+	              ...buildMinimalTracks(slotsSnapshot.playlist.tracks),
+	            ];
+	            const allSettings: Record<string, string> = {};
+	            for (let i = 0; i < localStorage.length; i++) {
+	              const key = localStorage.key(i);
+	              if (key) allSettings[key] = localStorage.getItem(key) ?? '';
+	            }
+	            await api?.userDataSave?.({
+	              tracks: allMinimal,
+	              settings: allSettings,
+	              playback: { _json: JSON.stringify(persistData) },
+	            });
+	          } catch (e) {
+	            logger.warn('[LibraryLoad] Failed to flush user data:', e);
+	          }
+	        }
         // 至少确保 library-index.json 写入
         return libraryStorage.flushPendingSave(libraryData);
       } catch (e) {
