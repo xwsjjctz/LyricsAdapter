@@ -16,6 +16,21 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Allow cross-origin requests from app://localhost (used in dev mode
+        // by the app:// protocol proxy for origin-unified localStorage/IndexedDB).
+        cors: {
+          origin: ['app://localhost', 'http://localhost:3000'],
+          credentials: true,
+        },
+        // HMR must use explicit host:port because the page origin is app://localhost
+        // (no port). Without this, the HMR client would try ws://localhost:80 which
+        // fails. By setting host+port explicitly, Vite injects __HMR_HOSTNAME__ and
+        // __HMR_PORT__ into the client so it connects to ws://localhost:3000.
+        hmr: {
+          protocol: 'ws',
+          host: 'localhost',
+          port: 3000,
+        },
       },
       plugins: [
         react(),

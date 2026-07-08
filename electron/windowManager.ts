@@ -115,7 +115,18 @@ export async function createWindow(): Promise<BrowserWindow> {
 
     await win.loadURL(appUrl);
   } else {
-    win.loadURL('http://localhost:3000');
+    // Dev mode: load from app:// protocol which proxies to Vite dev server.
+    // This keeps the origin as app://localhost in both modes so that
+    // localStorage and IndexedDB are shared between dev and production.
+    const appUrl = 'app://localhost/index.html';
+    log('Loading URL (dev via app:// proxy):', appUrl);
+
+    win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+      log('Failed to load via app://:', errorCode, errorDescription);
+      log('Make sure Vite dev server is running on http://localhost:3000');
+    });
+
+    await win.loadURL(appUrl);
   }
 
   win.webContents.on('before-input-event', (_event, input) => {
