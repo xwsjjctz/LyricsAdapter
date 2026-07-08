@@ -36,6 +36,7 @@ import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
 import { useLibraryViewModel } from './viewmodels/useLibraryViewModel';
+import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
 declare global {
   interface Window {
     __DEV__?: boolean;
@@ -337,35 +338,23 @@ const AppWorkspace: React.FC = () => {
   // Reorder and track-selection are now consumed via the library/player
   // ViewModels; the per-handler delegates that lived here were removed by the
   // Phase 4 wiring.
-  // Global-search navigation now lives in the player controller; AppWorkspace delegates.
-  // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
-  const handleSearchNavigate = useCallback(
-    (track: Track) => playerController.handleSearchNavigate(track),
-    [playerController],
-  );
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
     setViewMode,
     mergeCloudTracks,
   });
+  const online = useOnlineViewModel({
+    progress: onlineProgress,
+    playSong: playerController.playOnlineSong,
+    download: handleOnlineDownload,
+    upload: handleOnlineUpload,
+    openPlaylist: playerController.openOnlinePlaylist,
+    navigateToTrack: playerController.handleSearchNavigate,
+  });
 
-  // Online stream play now lives in the player controller; AppWorkspace delegates
-  // via playerController.playOnlineSong (which normalizes OnlineSong for the
-  // controller's internal handler). (Phase 1 migration — see docs/refactor-roadmap.md §3.)
-
-  // Whole-playlist play now lives in the player controller; AppWorkspace delegates.
-  // (Phase 1 migration — see docs/refactor-roadmap.md §3.)
+  // Whole-playlist play still delegates (PlaylistsView-only, legacy tree).
   const handlePlayPlaylist = useCallback(
     (source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) =>
       playerController.handlePlayPlaylist(source, songs, clickedIndex),
-    [playerController],
-  );
-
-  // Opening a third-party playlist (load without auto-play) now lives in the
-  // player controller; AppWorkspace delegates. (Completes the Phase 1 player
-  // boundary — see docs/refactor-roadmap.md §3.)
-  const handleOpenOnlinePlaylist = useCallback(
-    (source: 'qq' | 'netease', playlistId: string, _name: string) =>
-      playerController.openOnlinePlaylist(source, playlistId),
     [playerController],
   );
 
@@ -504,14 +493,14 @@ const AppWorkspace: React.FC = () => {
           onTogglePlaybackMode={player.togglePlaybackMode}
           onImportIntoSlot={handleNewUxImportIntoSlot}
           onReloadUnavailable={handleReloadLocalFiles}
-          onOpenOnlinePlaylist={handleOpenOnlinePlaylist}
+          onOpenOnlinePlaylist={online.openPlaylist}
           onClearOrphanCache={handleClearOrphanCache}
           isWindowFocused={isWindowFocused}
-          onNavigateToTrack={handleSearchNavigate}
-          onOnlineDownload={handleOnlineDownload}
-          onOnlineUpload={handleOnlineUpload}
-          onOnlineStreamPlay={playerController.playOnlineSong}
-          onlineProgress={onlineProgress}
+          onNavigateToTrack={online.navigateToTrack}
+          onOnlineDownload={online.download}
+          onOnlineUpload={online.upload}
+          onOnlineStreamPlay={online.playSong}
+          onlineProgress={online.progress}
           cloudImportDisabled={library.cloudImportDisabled}
           cloudImportDisabledReason={library.cloudImportDisabledReason}
           audioRef={audioRef}
@@ -643,11 +632,11 @@ const AppWorkspace: React.FC = () => {
 	                    isWindowFocused={isWindowFocused}
 	                    localTracks={slots.local.tracks}
 	                    cloudTracks={slots.cloud.tracks}
-	                    onNavigateToTrack={handleSearchNavigate}
-	                    onOnlineDownload={handleOnlineDownload}
-                    onOnlineStreamPlay={playerController.playOnlineSong}
-	                    onOnlineUpload={handleOnlineUpload}
-	                    onlineProgress={onlineProgress}
+	                    onNavigateToTrack={online.navigateToTrack}
+	                    onOnlineDownload={online.download}
+                    onOnlineStreamPlay={online.playSong}
+	                    onOnlineUpload={online.upload}
+	                    onlineProgress={online.progress}
 	                  />
                 }
               />
