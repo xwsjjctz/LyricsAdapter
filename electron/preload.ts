@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electron', {
     file: {
       selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
       readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
+      allowAudioPath: async (filePath: string) => ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }),
     },
     library: {
       loadIndex: async () => ipcRenderer.invoke('ipc:library:loadIndex'),

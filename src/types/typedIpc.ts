@@ -6,6 +6,7 @@ export interface TypedElectronIPC {
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
     readAudio: (filePath: string) => Promise<IpcResult<{ data: ArrayBuffer }>>;
+    allowAudioPath: (filePath: string) => Promise<IpcResult<void>>;
   };
   library: {
     loadIndex: () => Promise<IpcResult<unknown>>;

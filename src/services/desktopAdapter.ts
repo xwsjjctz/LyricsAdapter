@@ -120,6 +120,15 @@ class ElectronAdapter implements FullDesktopAPI {
     return this.api.platform;
   }
 
+  // Forward the typed IPC surface (window.electron.ipc) so callers that hold
+  // the adapter instance can reach channels like file.allowAudioPath. Without
+  // this, api.ipc is undefined and any code doing `api.ipc.file.allowAudioPath`
+  // silently no-ops — which previously broke post-cache-clear re-parsing
+  // (paths never entered the main-process allowlist).
+  get ipc(): TypedElectronIPC {
+    return this.api.ipc!;
+  }
+
   constructor(private api: FullDesktopAPI) {
     // Initialize with empty cache, will be loaded from IndexedDB if needed
     this.metadataCache = {};
@@ -277,6 +286,11 @@ class ElectronAdapter implements FullDesktopAPI {
         let coverData: string | undefined;
         let coverMime: string | undefined;
 
+        // Convert blob:/data: cover URLs to base64 for saveCoverThumbnail.
+        // parseAudioFile returns a picsum.photos placeholder when there is no
+        // embedded art; that https URL is skipped here (coverData stays
+        // undefined), so such tracks keep an empty coverUrl rather than a
+        // broken cover:// — intended for files with no embedded cover.
         if (metadata.coverUrl && !metadata.coverUrl.startsWith('http')) {
           try {
             // Convert blob URL to base64 directly
