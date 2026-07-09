@@ -145,7 +145,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                           color: colors.textSecondary,
                         }}
                       >
-                        <span>{i18n.languageuageOption?.nativeLabel}</span>
+                        <span>{currentLanguageOption?.nativeLabel}</span>
                         <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
                           expand_more
                         </span>

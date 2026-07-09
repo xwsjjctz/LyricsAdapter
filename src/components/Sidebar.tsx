@@ -29,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isThemeView = currentView === ViewMode.THEME;
   const isPlaylistsView = currentView === ViewMode.PLAYLISTS;
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isReloadHovered, setIsReloadHovered] = useState(false);
 
   // Note: theme colors are driven entirely by CSS variables (var(--theme-*)),
@@ -63,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       active: isLibraryView && activeSlotId === 'cloud',
       onClick: () => handleSlotClick('cloud'),
     },
-  ], [isLibraryView, activeSlotId, handleSlotClick]);
+  ], [isLibraryView, activeSlotId, handleSlotClick, i18n.language]);
 
   const onlineItems = useMemo(() => [
     {
@@ -80,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       active: isPlaylistsView,
       onClick: () => onNavigate(ViewMode.PLAYLISTS),
     },
-  ], [isLibraryView, activeSlotId, handleSlotClick, isPlaylistsView, onNavigate]);
+  ], [isLibraryView, activeSlotId, handleSlotClick, isPlaylistsView, onNavigate, i18n.language]);
 
   const renderNavItem = (
     item: {
