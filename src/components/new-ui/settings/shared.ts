@@ -2,6 +2,7 @@ import React from 'react';
 import { themeManager } from '@/services/themeManager';
 import { THEME_IDS, ThemeConfig } from '@/types/theme';
 import { i18n } from '@/services/i18n';
+import type { OnlineSource } from '@/services/settingsManager';
 
 /**
  * Shared theme-derived helpers for the new-UI settings sections. Each section
@@ -82,10 +83,11 @@ export function useCurrentTheme(): ThemeConfig {
  * render rather than once at import time — otherwise switching language leaves
  * the QQ/NetEase labels frozen in whatever language was active at first import.
  */
-export function getSourceOptions(): { value: 'qq' | 'netease'; label: string }[] {
+export function getSourceOptions(): { value: OnlineSource; label: string }[] {
   return [
     { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
     { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
+    { value: 'soda', label: i18n.t('settingsDialog.onlineSourceSoda') },
   ];
 }
 

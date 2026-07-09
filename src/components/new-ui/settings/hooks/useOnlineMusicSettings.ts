@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
+import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
 import { settingsManager, type OnlineSource } from '@/services/settingsManager';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
@@ -22,9 +22,11 @@ interface UseOnlineMusicSettingsResult {
   onlineSource: OnlineSource;
   cookie: string;
   neteaseCookie: string;
+  sodaCookie: string;
   downloadPath: string;
   qqLoggedIn: boolean;
   neteaseLoggedIn: boolean;
+  sodaLoggedIn: boolean;
   qrState: 'idle' | 'loading' | QRLoginStatus;
   qrImage: string | null;
   qrMsg: string;
@@ -36,6 +38,7 @@ interface UseOnlineMusicSettingsResult {
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
   setNeteaseCookie: (v: string) => void;
+  setSodaCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
   handleSave: () => Promise<void>;
   startQr: (source: OnlineSource) => Promise<void>;
@@ -43,7 +46,7 @@ interface UseOnlineMusicSettingsResult {
 }
 
 /**
- * Owns third-party (QQ Music / NetEase) settings: cookie storage, QR scan-login
+ * Owns third-party online music settings: cookie storage, QR scan-login
  * lifecycle, and source/download-path persistence. This was by far the most
  * state-heavy part of the monolithic SettingsPanel (~15 useState + 3 refs + a
  * polling timer); isolating it keeps the QR polling lifecycle explicit and
@@ -54,9 +57,11 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
   const [onlineSource, setOnlineSourceState] = useState<OnlineSource>('qq');
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
+  const [sodaCookie, setSodaCookie] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [qqLoggedIn, setQqLoggedIn] = useState(false);
   const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
+  const [sodaLoggedIn, setSodaLoggedIn] = useState(false);
   const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string>('');
@@ -73,12 +78,15 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     (async () => {
       await cookieManager.ensureLoaded();
       await neteaseCookieManager.ensureLoaded();
+      await sodaCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
+      setSodaCookie(sodaCookieManager.getCookie());
       setOnlineSourceState(settingsManager.getOnlineSource());
       setQqLoggedIn(cookieManager.hasCookie());
       setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
+      setSodaLoggedIn(sodaCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
     })();
   }, []);
@@ -123,7 +131,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
           setCookie(cookieManager.getCookie());
           setQqLoggedIn(true);
           void syncOnlineCookiesToMain('qq');
-        } else {
+        } else if (source === 'netease') {
           await neteaseCookieManager.setCookie(res.cookie);
           setNeteaseCookie(neteaseCookieManager.getCookie());
           setNeteaseLoggedIn(true);
@@ -163,6 +171,10 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
   }, [handleQrPollResult, stopQrPolling]);
 
   const startQr = useCallback(async (source: OnlineSource): Promise<void> => {
+    if (source === 'soda') {
+      resetQr();
+      return;
+    }
     stopQrPolling();
     sessionRef.current = null;
     setQrImage(null);
@@ -182,9 +194,16 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       setQrMsg((e as Error).message || t('settingsDialog.qrError'));
       setQrState('error');
     }
-  }, [beginQrPolling, stopQrPolling]);
+  }, [beginQrPolling, resetQr, stopQrPolling]);
 
   const handleQrLogout = useCallback(async (): Promise<void> => {
+    if (onlineSource === 'soda') {
+      await sodaCookieManager.clearCookie();
+      setSodaCookie('');
+      setSodaLoggedIn(false);
+      resetQr();
+      return;
+    }
     if (onlineSource === 'qq') {
       await cookieManager.clearCookie();
       setCookie('');
@@ -215,6 +234,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       return;
     }
     resetQr();
+    if (onlineSource === 'soda') return;
     const loggedIn =
       onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
     if (!loggedIn) {
@@ -240,18 +260,30 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     setMessage(null);
     try {
       settingsManager.setOnlineSource(onlineSource);
-      const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
-      const cookieValue = (onlineSource === 'netease' ? neteaseCookie : cookie).trim();
+      const cookieStore = onlineSource === 'netease'
+        ? neteaseCookieManager
+        : onlineSource === 'soda'
+          ? sodaCookieManager
+          : cookieManager;
+      const cookieValue = (onlineSource === 'netease'
+        ? neteaseCookie
+        : onlineSource === 'soda'
+          ? sodaCookie
+          : cookie).trim();
       if (cookieValue) {
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
           showMessage(t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
+          if (onlineSource === 'soda') setSodaLoggedIn(false);
           return;
         }
+        if (onlineSource === 'soda') setSodaLoggedIn(true);
+        void syncOnlineCookiesToMain(onlineSource);
       } else {
         await cookieStore.clearCookie();
+        if (onlineSource === 'soda') setSodaLoggedIn(false);
       }
       settingsManager.setDownloadPath(downloadPath.trim());
       showMessage(t('settingsDialog.saved'), 'success');
@@ -261,18 +293,24 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     } finally {
       setIsSaving(false);
     }
-  }, [cookie, downloadPath, neteaseCookie, onlineSource, showMessage]);
+  }, [cookie, downloadPath, neteaseCookie, onlineSource, showMessage, sodaCookie]);
 
-  const isQrLoggedIn = onlineSource === 'qq' ? qqLoggedIn : neteaseLoggedIn;
+  const isQrLoggedIn = onlineSource === 'qq'
+    ? qqLoggedIn
+    : onlineSource === 'netease'
+      ? neteaseLoggedIn
+      : sodaLoggedIn;
   const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
 
   return {
     onlineSource,
     cookie,
     neteaseCookie,
+    sodaCookie,
     downloadPath,
     qqLoggedIn,
     neteaseLoggedIn,
+    sodaLoggedIn,
     qrState,
     qrImage,
     qrMsg,
@@ -284,6 +322,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     setOnlineSource,
     setCookie,
     setNeteaseCookie,
+    setSodaCookie,
     setDownloadPath,
     handleSave,
     startQr,

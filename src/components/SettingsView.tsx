@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, THEME_IDS } from '../types/theme';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
 import { settingsManager, type OnlineSource } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -39,6 +39,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
+  const [sodaCookie, setSodaCookie] = useState('');
   const [onlineSource, setOnlineSource] = useState<OnlineSource>('qq');
   const [downloadPath, setDownloadPath] = useState('');
   const [isSavingOnline, setIsSavingOnline] = useState(false);
@@ -48,6 +49,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   // QR scan-login state — drives the live QR panel in the third-party section.
   const [qqLoggedIn, setQqLoggedIn] = useState(false);
   const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
+  const [sodaLoggedIn, setSodaLoggedIn] = useState(false);
   const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string>('');
@@ -81,12 +83,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     (async () => {
       await cookieManager.ensureLoaded();
       await neteaseCookieManager.ensureLoaded();
+      await sodaCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
+      setSodaCookie(sodaCookieManager.getCookie());
       setOnlineSource(settingsManager.getOnlineSource());
       setQqLoggedIn(cookieManager.hasCookie());
       setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
+      setSodaLoggedIn(sodaCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
       const webdavConfig = webdavClient.getConfig();
       if (webdavConfig) {
@@ -177,18 +182,30 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     try {
       settingsManager.setOnlineSource(onlineSource);
 
-      const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
-      const cookieValue = (onlineSource === 'netease' ? neteaseCookie : cookie).trim();
+      const cookieStore = onlineSource === 'netease'
+        ? neteaseCookieManager
+        : onlineSource === 'soda'
+          ? sodaCookieManager
+          : cookieManager;
+      const cookieValue = (onlineSource === 'netease'
+        ? neteaseCookie
+        : onlineSource === 'soda'
+          ? sodaCookie
+          : cookie).trim();
       if (cookieValue) {
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
           showOnlineMessage(t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
+          if (onlineSource === 'soda') setSodaLoggedIn(false);
           return;
         }
+        if (onlineSource === 'soda') setSodaLoggedIn(true);
+        void syncOnlineCookiesToMain(onlineSource);
       } else {
         await cookieStore.clearCookie();
+        if (onlineSource === 'soda') setSodaLoggedIn(false);
       }
 
       settingsManager.setDownloadPath(downloadPath.trim());
@@ -262,6 +279,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const sourceOptions: { value: OnlineSource; label: string }[] = [
     { value: 'qq', label: t('settingsDialog.onlineSourceQq') },
     { value: 'netease', label: t('settingsDialog.onlineSourceNetease') },
+    { value: 'soda', label: t('settingsDialog.onlineSourceSoda') },
   ];
   const colors = currentTheme.colors;
   const isBrutalistTheme = currentTheme.id === THEME_IDS.BRUTALIST;
@@ -290,7 +308,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   };
 
   // ===== QR scan-login lifecycle =====
-  const isQrLoggedIn = onlineSource === 'qq' ? qqLoggedIn : neteaseLoggedIn;
+  const isQrLoggedIn = onlineSource === 'qq'
+    ? qqLoggedIn
+    : onlineSource === 'netease'
+      ? neteaseLoggedIn
+      : sodaLoggedIn;
   const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
 
   const stopQrPolling = (): void => {
@@ -327,7 +349,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           setCookie(cookieManager.getCookie());
           setQqLoggedIn(true);
           void syncOnlineCookiesToMain('qq');
-        } else {
+        } else if (source === 'netease') {
           await neteaseCookieManager.setCookie(res.cookie);
           setNeteaseCookie(neteaseCookieManager.getCookie());
           setNeteaseLoggedIn(true);
@@ -364,6 +386,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   };
 
   const startQr = async (source: OnlineSource): Promise<void> => {
+    if (source === 'soda') {
+      resetQr();
+      return;
+    }
     stopQrPolling();
     sessionRef.current = null;
     setQrImage(null);
@@ -386,6 +412,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   };
 
   const handleQrLogout = async (): Promise<void> => {
+    if (onlineSource === 'soda') {
+      await sodaCookieManager.clearCookie();
+      setSodaCookie('');
+      setSodaLoggedIn(false);
+      resetQr();
+      return;
+    }
     if (onlineSource === 'qq') {
       await cookieManager.clearCookie();
       setCookie('');
@@ -416,6 +449,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       return;
     }
     resetQr();
+    if (onlineSource === 'soda') return;
     const loggedIn =
       onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
     if (!loggedIn) {
@@ -913,8 +947,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
               <div className="min-w-0">
                 <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
-                  <span>{t('settingsDialog.qrTitle')}</span>
-                  {(qrImage || qrState === 'error' || qrState === 'expired') && (
+                  <span>{onlineSource === 'soda' ? t('settingsDialog.cookieLoginTitle') : t('settingsDialog.qrTitle')}</span>
+                  {onlineSource !== 'soda' && (qrImage || qrState === 'error' || qrState === 'expired') && (
                     <button
                       type="button"
                       onClick={() => void startQr(onlineSource)}
@@ -934,8 +968,32 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     color: colors.textMuted,
                   }}
                 >
+                  {onlineSource === 'soda' && (
+                    <div className="flex flex-col items-center gap-2 text-center px-2">
+                      <span className="material-symbols-outlined text-5xl" style={{ color: isQrLoggedIn ? '#22c55e' : colors.textMuted }}>
+                        {isQrLoggedIn ? 'check_circle' : 'key'}
+                      </span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>
+                        {isQrLoggedIn ? t('settingsDialog.qrLoggedIn') : t('settingsDialog.cookieLoginTitle')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={isQrLoggedIn ? () => void handleQrLogout() : handleSaveOnlineMusic}
+                        disabled={isSavingOnline}
+                        className="px-2 py-1 text-xs transition-all disabled:opacity-50"
+                        style={{
+                          backgroundColor: isQrLoggedIn ? colors.backgroundCard : `${colors.primary}20`,
+                          color: isQrLoggedIn ? colors.textSecondary : colors.primary,
+                          border: `1px solid ${isQrLoggedIn ? colors.borderLight : colors.primary}`,
+                          borderRadius: 'var(--theme-control-radius)',
+                        }}
+                      >
+                        {isQrLoggedIn ? t('settingsDialog.qrLogout') : t('settingsDialog.cookieLoginAction')}
+                      </button>
+                    </div>
+                  )}
                   {/* Logged-in panel */}
-                  {isQrLoggedIn && !qrScanning ? (
+                  {onlineSource !== 'soda' && (isQrLoggedIn && !qrScanning ? (
                     <div className="flex flex-col items-center gap-1.5 text-center px-2">
                       <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
                       <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoggedIn')}</span>
@@ -1017,25 +1075,27 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                         {t('settingsDialog.qrRefresh')}
                       </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
 
               <div className="min-w-0 space-y-3">
-                {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
+                {/* Provider cookie */}
                 <div>
                   <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
                     {onlineSource === 'netease'
                       ? t('settingsDialog.neteaseCookieLabel')
-                      : t('settingsDialog.cookie')}
+                      : onlineSource === 'soda'
+                        ? t('settingsDialog.sodaCookieLabel')
+                        : t('settingsDialog.cookie')}
                   </label>
                   <textarea
-                    value={onlineSource === 'netease' ? neteaseCookie : cookie}
-                    onChange={(e) =>
-                      onlineSource === 'netease'
-                        ? setNeteaseCookie(e.target.value)
-                        : setCookie(e.target.value)
-                    }
+                    value={onlineSource === 'netease' ? neteaseCookie : onlineSource === 'soda' ? sodaCookie : cookie}
+                    onChange={(e) => {
+                      if (onlineSource === 'netease') setNeteaseCookie(e.target.value);
+                      else if (onlineSource === 'soda') setSodaCookie(e.target.value);
+                      else setCookie(e.target.value);
+                    }}
                     placeholder={t('settingsDialog.pasteCookie')}
                     className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar cookie-textarea"
                     style={inputStyle}
