@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { appStorage } from './appStorage';
+import type { OnlineSource as OnlineMusicSource } from './onlineMusicProvider';
 
 const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
@@ -15,7 +16,7 @@ const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
 const NEW_UX_ENABLED_KEY = 'la_new_ux_enabled';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
-export type OnlineSource = 'qq' | 'netease';
+export type OnlineSource = OnlineMusicSource;
 
 type Listener = () => void;
 
@@ -56,7 +57,7 @@ class SettingsManager {
       this.qqMusicEnabled = appStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
 
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
-      this.onlineSource = storedSource === 'netease' ? 'netease' : 'qq';
+      this.onlineSource = storedSource === 'netease' || storedSource === 'soda' ? storedSource : 'qq';
 
       this.glassUI = appStorage.getItem(GLASS_UI_KEY) === 'true';
 
@@ -189,7 +190,7 @@ class SettingsManager {
     logger.debug(`[SettingsManager] QQ Music enabled set to: ${enabled}`);
   }
 
-  // --- Online Source (QQ Music / NetEase Cloud Music) ---
+  // --- Online Source (QQ Music / NetEase Cloud Music / Soda Music) ---
 
   getOnlineSource(): OnlineSource {
     return this.onlineSource;

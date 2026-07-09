@@ -100,7 +100,7 @@ export interface DesktopAPI {
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
   showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
-  // Online music: push a QQ/NetEase cookie to the main-process stream:// proxy.
+  // Online music: push a provider cookie to the main-process stream:// proxy.
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
   // Settings store (Electron Store–style JSON file in main process)
   settingsGet?: (key: string) => Promise<string | undefined>;

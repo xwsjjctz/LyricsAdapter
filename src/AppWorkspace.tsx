@@ -26,7 +26,7 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
-import type { OnlineSong } from './services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from './services/onlineMusicProvider';
 import { themeManager } from './services/themeManager';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
@@ -368,7 +368,7 @@ const AppWorkspace: React.FC = () => {
 
   // Whole-playlist play still delegates (PlaylistsView-only, legacy tree).
   const handlePlayPlaylist = useCallback(
-    (source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) =>
+    (source: OnlineSource, songs: OnlineSong[], clickedIndex: number) =>
       playerController.handlePlayPlaylist(source, songs, clickedIndex),
     [playerController],
   );

@@ -15,6 +15,7 @@ import { registerQQMusicHandlers } from './ipc/qqMusicHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
+import { registerSodaHandlers } from './ipc/sodaHandlers';
 import { registerQQLoginHandlers } from './ipc/qqLoginHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
@@ -62,6 +63,7 @@ app.whenReady().then(async () => {
   registerMetadataHandlers();
   registerQQMusicHandlers();
   registerNetEaseHandlers();
+  registerSodaHandlers();
   registerQQLoginHandlers();
   registerWebDAVHandlers();
   registerCleanupHandlers();

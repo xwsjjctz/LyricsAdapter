@@ -20,6 +20,7 @@ const SENSITIVE_KEYS = new Set([
   'webdav-config',
   'qq_music_cookie',
   'netease_cookie',
+  'soda_cookie',
 ]);
 
 /** 加密前缀标记 —— 存在磁盘的值以 "enc:" 开头表示已加密。 */

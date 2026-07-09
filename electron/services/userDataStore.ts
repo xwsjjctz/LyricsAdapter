@@ -49,6 +49,7 @@ const SENSITIVE_KEYS = new Set([
   'webdav-config',
   'qq_music_cookie',
   'netease_cookie',
+  'soda_cookie',
 ]);
 
 const ENC_PREFIX = 'enc:';

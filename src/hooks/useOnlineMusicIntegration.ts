@@ -31,7 +31,7 @@ export interface OnlineProgressEntry {
 }
 
 /**
- * Online music integration (QQ Music / NetEase Cloud Music): download to local
+ * Online music integration: download to local
  * disk or upload to WebDAV, for whichever source is active in settings.
  *
  * Source-agnostic: every call resolves the active provider fresh, so switching
@@ -178,17 +178,20 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      // Soda returns decrypted MP4/M4A media; its quality is chosen from the
+      // account entitlement server-side and cannot be forced by file suffix.
+      const ext = provider.id === 'soda' ? 'm4a' : quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-      const [lyrics, { url }] = await Promise.all([
-        fetchLyrics(song, provider),
-        provider.getMusicUrl(song.songmid, quality),
-      ]);
       const fullPath = joinDownloadPath(downloadPath, fileName);
       const desktopAPI = getDesktopAPI();
-      const result = await desktopAPI?.downloadAndSave?.(url, cookie, fullPath);
+      const [lyrics, result] = await Promise.all([
+        fetchLyrics(song, provider),
+        provider.id === 'soda'
+          ? desktopAPI?.downloadSodaAudio?.(song.songmid, cookie, fullPath)
+          : provider.getMusicUrl(song.songmid, quality).then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+      ]);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
       if (desktopAPI?.writeAudioMetadata) {
@@ -226,18 +229,19 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      const ext = provider.id === 'soda' ? 'm4a' : quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-      const [lyrics, { url }, coverBase64] = await Promise.all([
-        fetchLyrics(song, provider),
-        provider.getMusicUrl(song.songmid, quality),
-        coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
-      ]);
       const fullPath = joinDownloadPath(downloadPath, fileName);
       const desktopAPI = getDesktopAPI();
-      const dlResult = await desktopAPI?.downloadAndSave?.(url, cookie, fullPath);
+      const [lyrics, dlResult, coverBase64] = await Promise.all([
+        fetchLyrics(song, provider),
+        provider.id === 'soda'
+          ? desktopAPI?.downloadSodaAudio?.(song.songmid, cookie, fullPath)
+          : provider.getMusicUrl(song.songmid, quality).then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+        coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
+      ]);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 35 } }));
       if (desktopAPI?.writeAudioMetadata) {

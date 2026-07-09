@@ -30,7 +30,7 @@ export interface LibraryIndexSong {
   playCount?: number;
   lastPlayed?: string | null;
   available?: boolean;
-  source?: 'local' | 'webdav' | 'qq' | 'netease';
+  source?: 'local' | 'webdav' | 'qq' | 'netease' | 'soda';
   webdavPath?: string;
   /** Third-party song id (QQ songmid / NetEase numeric id) for online tracks. */
   songmid?: string;

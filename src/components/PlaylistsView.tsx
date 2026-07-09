@@ -7,8 +7,9 @@ import { themeManager } from '../services/themeManager';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
-import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
-import { type PlaylistInfo, type OnlineSong } from '../services/onlineMusicProvider';
+import { sodaMusicApi } from '../services/sodaMusicApi';
+import { cookieManager, neteaseCookieManager, sodaCookieManager } from '../services/cookieManager';
+import { type PlaylistInfo, type OnlineSong, type OnlineSource } from '../services/onlineMusicProvider';
 import { onlineSongToTrack } from '../domain/trackFactory';
 import type { PlaylistsViewPersistence } from '../services/libraryStorage';
 import {
@@ -43,7 +44,7 @@ interface PlaylistsViewProps {
   currentTrackId?: string;
   onOpenSettings?: () => void;
   /** Play `songs[clickedIndex]` and use the whole list as the next/prev queue. */
-  onPlayPlaylist: (source: 'qq' | 'netease', songs: OnlineSong[], clickedIndex: number) => void;
+  onPlayPlaylist: (source: OnlineSource, songs: OnlineSong[], clickedIndex: number) => void;
   initialState: PlaylistsViewPersistence;
   onPersistenceChange: (state: PlaylistsViewPersistence) => void;
 }
@@ -69,7 +70,7 @@ type ViewState = { phase: 'grid' } | DetailState;
 let lastDetail: { playlist: PlaylistInfo; songs: OnlineSong[]; total: number; scrollPosition: number } | null = null;
 
 /** Third-party playlist providers support offset/limit paging here. */
-const supportsPaging = (_s: 'qq' | 'netease'): boolean => true;
+const supportsPaging = (_s: OnlineSource): boolean => true;
 
 const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onPlayPlaylist, initialState, onPersistenceChange }) => {
   const { t } = useTranslation();
@@ -91,8 +92,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
       : { phase: 'grid' };
   });
   const [playlists, setPlaylists] = React.useState<PlaylistInfo[]>([]);
-  const [loadingPlaylists, setLoadingPlaylists] = React.useState(false);
-  const [expiredSources, setExpiredSources] = React.useState<Set<'qq' | 'netease'>>(new Set());
+  const [expiredSources, setExpiredSources] = React.useState<Set<OnlineSource>>(new Set());
   const [scrollTop, setScrollTop] = React.useState(restoredDetailRef.current?.scrollPosition ?? 0);
   const [gridScrollTop, setGridScrollTop] = React.useState(initialState.phase === 'grid' ? initialState.scrollPosition : 0);
   const [showLocate, setShowLocate] = React.useState(false);
@@ -104,7 +104,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editingName, setEditingName] = React.useState('');
   const coverInputRef = React.useRef<HTMLInputElement>(null);
-  const coverTargetRef = React.useRef<{ source: 'qq' | 'netease'; id: string } | null>(null);
+  const coverTargetRef = React.useRef<{ source: OnlineSource; id: string } | null>(null);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const gridScrollRef = React.useRef<HTMLDivElement>(null);
@@ -131,15 +131,15 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         const fromCache: PlaylistInfo[] = [];
         if (cached.qq) fromCache.push(...cached.qq.map(p => ({ ...p, source: 'qq' as const })));
         if (cached.netease) fromCache.push(...cached.netease.map(p => ({ ...p, source: 'netease' as const })));
+        if (cached.soda) fromCache.push(...cached.soda.map(p => ({ ...p, source: 'soda' as const })));
         setPlaylists(fromCache);
       }
     });
 
     // Phase 2: validate cookies + fetch fresh data
     const fetchFresh = async () => {
-      setLoadingPlaylists(true);
       const results: PlaylistInfo[] = [];
-      const expired = new Set<'qq' | 'netease'>();
+      const expired = new Set<OnlineSource>();
 
       // QQ Music
       try {
@@ -179,16 +179,37 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         logger.warn('[PlaylistsView] NetEase playlists failed:', e);
       }
 
+      // Soda Music (manual cookie; upstream QR login is not stable)
+      try {
+        await sodaCookieManager.ensureLoaded();
+        if (sodaCookieManager.hasCookie()) {
+          const status = await sodaCookieManager.validateCookie();
+          if (status.valid) {
+            const soda = await sodaMusicApi.getPlaylists();
+            results.push(...soda.map(p => ({ ...p, source: 'soda' as const })));
+          } else {
+            expired.add('soda');
+            logger.warn('[PlaylistsView] Soda cookie invalid:', status.message);
+          }
+        } else {
+          expired.add('soda');
+        }
+      } catch (e) {
+        expired.add('soda');
+        logger.warn('[PlaylistsView] Soda playlists failed:', e);
+      }
+
       setPlaylists(results);
       setExpiredSources(expired);
-      setLoadingPlaylists(false);
 
       // Save to cache (only sources that returned data)
       const qqResults = results.filter(p => p.source === 'qq');
       const neteaseResults = results.filter(p => p.source === 'netease');
+      const sodaResults = results.filter(p => p.source === 'soda');
       await savePlaylistCache(
         qqResults.length > 0 || !expired.has('qq') ? qqResults : undefined,
         neteaseResults.length > 0 || !expired.has('netease') ? neteaseResults : undefined,
+        sodaResults.length > 0 || !expired.has('soda') ? sodaResults : undefined,
       );
     };
 
@@ -198,7 +219,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
   const grouped = React.useMemo(() => {
     const { visible, all } = applyOverrides(playlists, overrides);
     const list = isEditMode ? all : visible;
-    const map = new Map<'qq' | 'netease', PlaylistInfo[]>();
+    const map = new Map<OnlineSource, PlaylistInfo[]>();
     for (const p of list) {
       const arr = map.get(p.source) ?? [];
       arr.push(p);
@@ -258,12 +279,16 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
     e.target.value = '';
   }, [overrides]);
 
-  const sourceLabel = (s: 'qq' | 'netease'): string =>
-    s === 'qq' ? 'QQ 音乐' : '网易云音乐';
+  const sourceLabel = (s: OnlineSource): string => {
+    if (s === 'qq') return 'QQ 音乐';
+    if (s === 'netease') return '网易云音乐';
+    return '汽水音乐';
+  };
 
   const fetchPage = async (pl: PlaylistInfo, offset: number): Promise<OnlineSong[]> => {
     if (pl.source === 'qq') return qqMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
-    return neteaseMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
+    if (pl.source === 'netease') return neteaseMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
+    return sodaMusicApi.getPlaylistSongs(pl.id, offset, PAGE_SIZE);
   };
 
   /** Load the first page and transition to detail. */
@@ -333,7 +358,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
     el.scrollTop = target;
     setGridScrollTop(target);
     pendingGridScrollRestoreRef.current = null;
-  }, [state.phase, playlists.length, loadingPlaylists]);
+  }, [state.phase, playlists.length]);
 
   const tracksAsTracks = React.useMemo<Track[]>(
     () => detailSongs.map(s => onlineSongToTrack(s, source)),
@@ -647,13 +672,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         className="flex-1 min-w-0 overflow-y-auto no-scrollbar"
         onScroll={() => setGridScrollTop(gridScrollRef.current?.scrollTop ?? 0)}
       >
-        {loadingPlaylists && (
-          <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
-            <span className="material-symbols-outlined animate-spin">progress_activity</span>
-            <span>{t('browse.loading')}</span>
-          </div>
-        )}
-        {!loadingPlaylists && playlists.length === 0 && (
+        {playlists.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-20" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined text-6xl">queue_music</span>
             <span className="text-sm">{t('playlists.emptyLoginHint')}</span>

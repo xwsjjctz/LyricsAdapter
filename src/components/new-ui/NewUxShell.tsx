@@ -26,7 +26,7 @@ import {
 import FocusAmbientLight from './focus/FocusAmbientLight';
 import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
-import type { OnlineSong } from '../../services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from '../../services/onlineMusicProvider';
 import { useTranslation } from 'react-i18next';
 import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
@@ -57,7 +57,7 @@ interface NewUxShellProps {
   onTogglePlaybackMode: () => void;
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
-  onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
+  onOpenOnlinePlaylist: (source: OnlineSource, playlistId: string, name: string) => Promise<void>;
   /** Tracks browsed by opening a third-party playlist card (browse/play decoupled
    *  from the 'playlist' play slot so opening a card never pauses playback). */
   browsingTracks: Track[];
@@ -68,7 +68,7 @@ interface NewUxShellProps {
   onNavigateToTrack: (track: Track) => void;
   onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-  onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
+  onOnlineStreamPlay: (song: OnlineSong, source: OnlineSource) => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;

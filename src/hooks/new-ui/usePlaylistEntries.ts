@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { SlotId } from '../../types';
 import { i18n } from '../../services/i18n';
-import type { PlaylistInfo } from '../../services/onlineMusicProvider';
+import type { OnlineSource, PlaylistInfo } from '../../services/onlineMusicProvider';
 import type { CardEntry, CardMeta, LibrarySlotsById } from '../../components/new-ui/types';
 
 const SLOT_ORDER: SlotId[] = ['local', 'cloud', 'online'];
@@ -27,9 +27,10 @@ function getSlotSubtitle(slotId: SlotId, count: number): string {
   return count > 0 ? `${count} streamed tracks` : i18n.t('sidebar.onlinePlayback');
 }
 
-const SOURCE_LABELS: Record<'qq' | 'netease', string> = {
+const SOURCE_LABELS: Record<OnlineSource, string> = {
   qq: i18n.t('settingsDialog.onlineSourceQq'),
   netease: i18n.t('settingsDialog.onlineSourceNetease'),
+  soda: i18n.t('settingsDialog.onlineSourceSoda'),
 };
 
 /** Collect up to `n` cover URLs from a slot's tracks (for the cover collage). */

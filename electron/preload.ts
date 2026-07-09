@@ -225,6 +225,14 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('netease-request', channel, params, cookieString);
   },
 
+  // Soda Music request bridge and encrypted-audio download (main process only).
+  sodaRequest: async (route: string, params: Record<string, unknown>, cookieString?: string) => {
+    return ipcRenderer.invoke('soda-request', route, params, cookieString);
+  },
+  downloadSodaAudio: async (trackId: string, cookieString: string, filePath: string) => {
+    return ipcRenderer.invoke('download-soda-audio', trackId, cookieString, filePath);
+  },
+
   // QQ Music QR scan login (start session + poll)
   qqLoginQrStart: async () => {
     return ipcRenderer.invoke('qq-login-qr-start');
@@ -244,7 +252,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('netease-qr-check', key);
   },
 
-  // Sync a QQ / NetEase cookie to the main process for the stream:// protocol
+  // Sync an online-source cookie to the main process for the stream:// protocol
   setOnlineCookie: async (source: string, cookie: string) => {
     return ipcRenderer.invoke('set-online-cookie', source, cookie);
   },

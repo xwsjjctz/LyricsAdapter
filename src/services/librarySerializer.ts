@@ -117,7 +117,7 @@ export function minimalTrackToLibrarySong(t: UserTrackRecord): LibraryIndexSong 
     playCount: t.playCount || 0,
     lastPlayed: t.lastPlayed ?? null,
     available: t.available ?? true,
-    source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : 'local'),
+    source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : t.source === 'soda' ? 'soda' : 'local'),
     webdavPath: t.webdavPath || '',
     songmid: t.songmid || '',
   };
