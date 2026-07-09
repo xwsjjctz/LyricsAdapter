@@ -84,6 +84,24 @@
       }
     ],
     "asar": true,
+    "files": [
+      "**/*",
+      "!node_modules/**/*.md",
+      "!node_modules/**/*.map",
+      "!node_modules/**/test/**",
+      "!node_modules/**/tests/**",
+      "!node_modules/**/coverage/**",
+      "!node_modules/**/.vite/**",
+      "!node_modules/gsap/src/**",
+      "!node_modules/gsap/*.md",
+      "!node_modules/gsap/types/**",
+      "!node_modules/zod/**/tests/**",
+      "!node_modules/pngjs/coverage/**",
+      "!node_modules/**/*.d.ts",
+      "!node_modules/**/*.tgz",
+      "!node_modules/**/CHANGELOG*",
+      "!node_modules/**/changelog*"
+    ],
     "afterPack": "scripts/cleanLocales.cjs",
     "publish": {
       "provider": "github",
