@@ -768,6 +768,9 @@ export function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata>
   return result;
 }
 
+// LRC metadata tags like [ti:Title], [ar:Artist] that should be filtered.
+const LRC_HEADER_TAG = /^\[(ti|ar|al|by|offset|re|ve|length|sign):/i;
+
 // Parse LRC format lyrics (with timestamps like [00:12.34] or [00:00:00])
 export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] | undefined } {
   const lines = lrc.split(/\r?\n/);
@@ -780,6 +783,9 @@ export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?:
   for (const line of lines) {
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
+
+    // Skip LRC header metadata tags ([ti:…], [ar:…], etc.)
+    if (LRC_HEADER_TAG.test(trimmedLine)) continue;
 
     // Extract all timestamps and text from the line
     const matches = [...trimmedLine.matchAll(timeRegex)];

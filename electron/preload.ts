@@ -268,7 +268,12 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('save-file-to-path', dirPath, fileName, fileData);
   },
 
-  // Write metadata to audio file
+  // Read audio file metadata (music-tag-native)
+  readAudioMetadata: async (filePath: string) => {
+    return ipcRenderer.invoke('read-audio-metadata', filePath);
+  },
+
+  // Write metadata to audio file (music-tag-native)
   writeAudioMetadata: async (filePath: string, metadata: {
     title?: string;
     artist?: string;
@@ -279,7 +284,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
   },
 
-  // Refresh metadata for a single track
+  // Refresh metadata for a single track (legacy, use readAudioMetadata instead)
   refreshTrackMetadata: async (filePath: string) => {
     return ipcRenderer.invoke('refresh-track-metadata', filePath);
   },

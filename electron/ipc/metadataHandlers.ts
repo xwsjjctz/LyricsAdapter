@@ -1,10 +1,20 @@
 import { ipcMain } from "electron";
-import fs from "fs";
-import path from "path";
 import { logger } from "../logger";
-import { expandHomeDir } from "../utils/fileUtils";
-import { writeAudioMetadata } from "../utils/metadataUtils";
+import { readAudioMetadata, writeAudioMetadata } from "../services/audioMetadataService";
+
 export function registerMetadataHandlers(): void {
+  // ── Read metadata (music-tag-native) ────────────────────────────────
+  ipcMain.handle('read-audio-metadata', async (_event, filePath: string) => {
+    try {
+      const metadata = await readAudioMetadata(filePath);
+      return { success: true, metadata };
+    } catch (error) {
+      logger.error('[Main] Read metadata failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // ── Write metadata (music-tag-native) ───────────────────────────────
   ipcMain.handle('write-audio-metadata', async (_event, filePath: string, metadata: {
     title?: string;
     artist?: string;
@@ -13,42 +23,25 @@ export function registerMetadataHandlers(): void {
     coverUrl?: string;
   }) => {
     try {
-      return await writeAudioMetadata(filePath, metadata);
+      await writeAudioMetadata(filePath, {
+        title: metadata.title,
+        artist: metadata.artist,
+        album: metadata.album,
+        lyrics: metadata.lyrics,
+        coverDataUri: metadata.coverUrl,
+      });
+      return { success: true };
     } catch (error) {
       logger.error('[Main] Write metadata failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });
 
+  // ── Refresh metadata (now uses music-tag-native, same as read-audio-metadata) ──
   ipcMain.handle('refresh-track-metadata', async (_event, filePath: string) => {
     try {
-      const expandedPath = expandHomeDir(filePath);
-      logger.info('[Main] Refreshing metadata for:', expandedPath);
-
-      if (!fs.existsSync(expandedPath)) {
-        return { success: false, error: '文件不存在' };
-      }
-
-      const fileData = fs.readFileSync(expandedPath);
-      logger.info('[Main] File size:', fileData.length, 'bytes');
-
-      const ext = path.extname(expandedPath).toLowerCase();
-      const fileName = path.basename(expandedPath);
-      let mimeType = 'audio/mpeg';
-      if (ext === '.flac') {
-        mimeType = 'audio/flac';
-      } else if (ext === '.m4a' || ext === '.mp4') {
-        mimeType = 'audio/mp4';
-      }
-
-      return {
-        success: true,
-        data: {
-          fileName,
-          mimeType,
-          buffer: fileData.buffer
-        }
-      };
+      const metadata = await readAudioMetadata(filePath);
+      return { success: true, metadata };
     } catch (error) {
       logger.error('[Main] Refresh metadata failed:', error);
       return { success: false, error: (error as Error).message };

@@ -1,3 +1,6 @@
+// @ts-nocheck — file kept for test compatibility only.
+// Replaced by electron/services/audioMetadataService.ts (music-tag-native).
+// TODO: Remove this file once tests are migrated to the new service.
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';

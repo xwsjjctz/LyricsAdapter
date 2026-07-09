@@ -4,7 +4,7 @@ import { logger } from '../services/logger';
 import { useTranslation } from 'react-i18next';
 import { notify } from '../services/notificationService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
-import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
+import { parseLRCLyrics } from '../services/metadataService';
 import { coverArtService } from '../services/coverArtService';
 import { getCoverUrlForMetadataWrite, getSavedTrackCoverUrl, hasPendingCoverReplacement } from '../services/metadataCoverCachePolicy';
 import TrackCover from './TrackCover';
@@ -101,51 +101,43 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
     setIsRefreshing(true);
     try {
       const desktopAPI = await getDesktopAPIAsync();
-      if (desktopAPI?.refreshTrackMetadata) {
-        const result = await desktopAPI.refreshTrackMetadata(selectedTrack.filePath);
+      const readFn: ((path: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>) | undefined
+        = desktopAPI?.readAudioMetadata ?? desktopAPI?.refreshTrackMetadata;
+      if (!readFn) return;
 
-        if (result.success && result.data) {
-          const file = new File([result.data.buffer], result.data.fileName, { type: result.data.mimeType });
-          const metadata = await parseAudioFile(file);
+      const result = await readFn(selectedTrack.filePath);
+      if (!result.success || !result.metadata) return;
 
-          let finalSyncedLyrics = metadata.syncedLyrics;
-          if (!finalSyncedLyrics && metadata.lyrics) {
-            const parsed = parseLRCLyrics(metadata.lyrics);
-            finalSyncedLyrics = parsed.syncedLyrics;
-          }
+      const m = result.metadata as {
+        title?: string; artist?: string; album?: string;
+        duration?: number; lyrics?: string;
+        syncedLyrics?: { time: number; text: string }[];
+        coverData?: string; coverMime?: string;
+      };
 
-          let coverUrl = selectedTrack.coverUrl;
-          if (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') && !metadata.coverUrl.startsWith('https://picsum.photos')) {
-            coverUrl = metadata.coverUrl;
-          } else if (metadata.coverUrl && metadata.coverUrl.startsWith('blob:')) {
-            const cachedCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
-            if (cachedCoverUrl) {
-              coverUrl = cachedCoverUrl;
-            }
-          }
-
-          const updatedTrack: Track = {
-            ...selectedTrack,
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            lyrics: metadata.lyrics,
-            syncedLyrics: finalSyncedLyrics,
-            coverUrl,
-          };
-
-          setSelectedTrack(updatedTrack);
-          setOriginalTrack(updatedTrack);
-
-          if (onUpdateTrack) {
-            onUpdateTrack(updatedTrack);
-          }
-
-          logger.info('[MetadataView] Metadata refreshed for track', selectedTrack.id);
-        } else {
-          logger.error('[MetadataView] Failed to refresh metadata:', result.error);
+      let coverUrl = selectedTrack.coverUrl;
+      if (m.coverData && desktopAPI?.saveCoverThumbnail) {
+        const coverResult = await desktopAPI.saveCoverThumbnail({
+          id: selectedTrack.id, data: m.coverData, mime: m.coverMime || 'image/jpeg',
+        });
+        if (coverResult?.success && coverResult.coverUrl) {
+          coverUrl = coverResult.coverUrl;
         }
       }
+
+      const updatedTrack: Track = {
+        ...selectedTrack,
+        title: m.title ?? selectedTrack.title,
+        artist: m.artist ?? selectedTrack.artist,
+        album: m.album ?? selectedTrack.album,
+        lyrics: m.lyrics ?? '',
+        syncedLyrics: m.syncedLyrics,
+        coverUrl,
+      };
+
+      setSelectedTrack(updatedTrack);
+      setOriginalTrack(updatedTrack);
+      if (onUpdateTrack) onUpdateTrack(updatedTrack);
     } catch (error) {
       logger.error('[MetadataView] Error refreshing metadata:', error);
     } finally {

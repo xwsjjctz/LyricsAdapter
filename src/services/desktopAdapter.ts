@@ -62,9 +62,13 @@ export interface DesktopAPI {
   loadMetadataCache: () => Promise<{ entries: Record<string, unknown> }>;
   saveMetadataCache: (cache: { entries: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
   getMetadataForSong: (songId: string) => Promise<unknown>;
+  /** Read audio metadata using music-tag-native (main process). */
+  readAudioMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
+  /** Legacy renderer-side audio metadata parsing. */
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }) => Promise<{ success: boolean; error?: string }>;
-  refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; data?: { fileName: string; mimeType: string; buffer: ArrayBuffer }; error?: string }>;
+  /** @deprecated use readAudioMetadata */
+  refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   getPathForFile?: (file: File) => string;
   // Window control APIs
   minimizeWindow?: () => void;
@@ -261,58 +265,48 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async parseAudioMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
-    // Electron: Use JS-side parsing with proper cover extraction
+    // Prefer music-tag-native IPC (main process), fall back to legacy worker
+    if (this.api.readAudioMetadata) {
+      const result = await this.api.readAudioMetadata(filePath);
+      if (result.success) {
+        logger.debug('[ElectronAdapter] ✓ Metadata from main process:', filePath);
+        return result;
+      }
+      logger.warn('[ElectronAdapter] Main-process metadata failed, falling back to worker:', result.error);
+    }
+
+    // Legacy: renderer-side parsing via web worker
     try {
       const readResult = await this.api.readFile(filePath);
       if (readResult.success && readResult.data) {
         const fileData = new Uint8Array(readResult.data);
         const fileName = filePath.split(/[/\\]/).pop() || 'audio.mp3';
-        
-        // Determine MIME type based on file extension
-        const lowerName = fileName.toLowerCase();
-        let mimeType = 'audio/mpeg'; // default to MP3
-        if (lowerName.endsWith('.flac')) {
-          mimeType = 'audio/flac';
-        } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
-          mimeType = 'audio/mp4';
-        }
-        
-        const file = new File([fileData], fileName, { type: mimeType });
 
-        // Parse metadata using JS parser
+        const lowerName = fileName.toLowerCase();
+        let mimeType = 'audio/mpeg';
+        if (lowerName.endsWith('.flac')) mimeType = 'audio/flac';
+        else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) mimeType = 'audio/mp4';
+
+        const file = new File([fileData], fileName, { type: mimeType });
         const metadata = await parseAudioFileSync(file);
 
-        // Convert cover URL to base64 if available
         let coverData: string | undefined;
         let coverMime: string | undefined;
-
-        // Convert blob:/data: cover URLs to base64 for saveCoverThumbnail.
-        // parseAudioFile returns a picsum.photos placeholder when there is no
-        // embedded art; that https URL is skipped here (coverData stays
-        // undefined), so such tracks keep an empty coverUrl rather than a
-        // broken cover:// — intended for files with no embedded cover.
         if (metadata.coverUrl && !metadata.coverUrl.startsWith('http')) {
           try {
-            // Convert blob URL to base64 directly
             const response = await fetch(metadata.coverUrl);
             const blob = await response.blob();
-
             const dataUrl = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onloadend = () => resolve(reader.result as string);
               reader.onerror = () => reject(reader.error);
               reader.readAsDataURL(blob);
             });
-
-            // Extract mime type from data URL (format: data:image/jpeg;base64,...)
             const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
             if (mimeMatch) {
               coverMime = mimeMatch[1];
-              // Extract base64 data (remove the data:image/xxx;base64, prefix)
               const base64Match = dataUrl.match(/^data:[^;]+;base64,(.+)$/);
-              if (base64Match) {
-                coverData = base64Match[1];
-              }
+              if (base64Match) coverData = base64Match[1];
             }
           } catch (e) {
             logger.warn('[ElectronAdapter] Failed to convert cover to base64:', e);
@@ -322,19 +316,13 @@ class ElectronAdapter implements FullDesktopAPI {
         return {
           success: true,
           metadata: {
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            duration: metadata.duration,
-            lyrics: metadata.lyrics,
+            title: metadata.title, artist: metadata.artist, album: metadata.album,
+            duration: metadata.duration, lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
-            coverData: coverData,
-            coverMime: coverMime,
-            fileSize: fileData.length,
+            coverData, coverMime, fileSize: fileData.length,
           }
         };
       }
-
       return { success: false, error: 'Failed to read file' };
     } catch (error) {
       logger.error('[ElectronAdapter] parseAudioMetadata error:', error);
@@ -356,7 +344,7 @@ class ElectronAdapter implements FullDesktopAPI {
     return { success: false, error: 'writeAudioMetadata not available' };
   }
 
-  async refreshTrackMetadata(filePath: string): Promise<{ success: boolean; data?: { fileName: string; mimeType: string; buffer: ArrayBuffer }; error?: string }> {
+  async refreshTrackMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
     if (typeof this.api.refreshTrackMetadata === 'function') {
       return this.api.refreshTrackMetadata(filePath);
     }
