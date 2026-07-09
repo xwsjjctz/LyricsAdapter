@@ -3,6 +3,7 @@ import { i18n } from '@/services/i18n';
 import { getDesktopAPI } from '@/services/desktopAdapter';
 import { getSourceOptions } from '../shared';
 import type { SettingsTheme } from '../shared';
+import { settingsManager } from '@/services/settingsManager';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
 
@@ -281,7 +282,14 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
-                onBlur={inputBlur}
+                onBlur={(e) => {
+                  inputBlur(e);
+                  // Persist on blur so a path typed by hand survives navigating
+                  // away without clicking Save (the Save button is mainly for the
+                  // cookie/online-source form; the download folder is a standalone
+                  // preference that should "stick" immediately).
+                  settingsManager.setDownloadPath(e.target.value.trim());
+                }}
                 disabled={isSaving}
               />
               <button
@@ -291,6 +299,10 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                     const result = await desktopAPI.selectDownloadFolder();
                     if (result.success && result.path) {
                       setDownloadPath(result.path);
+                      // Persist immediately: selecting a folder is a deliberate
+                      // choice, not a form draft — it must survive panel close
+                      // without requiring a separate Save click.
+                      settingsManager.setDownloadPath(result.path);
                     }
                   }
                 }}
