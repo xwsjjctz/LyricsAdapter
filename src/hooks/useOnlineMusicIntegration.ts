@@ -13,7 +13,7 @@ import { notify } from '../services/notificationService';
 import { parseLRCLyrics } from '../services/metadataService';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
 import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 
@@ -40,6 +40,7 @@ export interface OnlineProgressEntry {
 export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDownloadComplete }: UseOnlineMusicIntegrationParams) {
   const [onlineProgress, setOnlineProgress] = useState<Record<string, OnlineProgressEntry>>({});
   const activeSongRef = useRef<string | null>(null);
+  const { t } = useTranslation();
 
   // Lyrics: QQ prefers the dedicated IPC channel (avoids CORS), then falls back
   // to the provider. NetEase resolves entirely through its provider (IPC).
@@ -203,12 +204,12 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         if (track) onDownloadComplete(track);
       }
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed' } }));
-      notify(i18n.t('notifications.downloadComplete'), song.songname, { silent: true });
+      notify(t('notifications.downloadComplete'), song.songname, { silent: true });
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] download failed:', err);
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, status: 'error' } }));
-      notify(i18n.t('notifications.downloadFailed'), err instanceof Error ? err.message : '');
+      notify(t('notifications.downloadFailed'), err instanceof Error ? err.message : '');
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 5000);
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
@@ -283,12 +284,12 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);
-      notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
+      notify(t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] upload failed:', err);
       setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; });
-      notify(i18n.t('notifications.uploadFailed'), err instanceof Error ? err.message : '');
+      notify(t('notifications.uploadFailed'), err instanceof Error ? err.message : '');
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
     }

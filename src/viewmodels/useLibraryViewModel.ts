@@ -1,5 +1,5 @@
 import type { LibrarySlot, SlotId, Track } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Library-facing ViewModel (Phase 4 of the refactor roadmap, §6.4).
@@ -70,6 +70,7 @@ export function useLibraryViewModel(opts: LibraryViewModelOptions): LibraryViewM
     reorder,
     updateTrack,
   } = opts;
+  const { t } = useTranslation();
 
   return {
     slots,
@@ -78,8 +79,8 @@ export function useLibraryViewModel(opts: LibraryViewModelOptions): LibraryViewM
     cloudImportDisabled: cloudWritable !== true,
     cloudImportDisabledReason:
       cloudWritable === null
-        ? i18n.t('sidebar.importChecking')
-        : i18n.t('sidebar.importReadOnly'),
+        ? t('sidebar.importChecking')
+        : t('sidebar.importReadOnly'),
     switchViewSlot,
     selectTrack,
     removeTrack,

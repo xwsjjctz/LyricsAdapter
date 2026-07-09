@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
 import { settingsManager, type OnlineSource } from '@/services/settingsManager';
-import { i18n } from '@/services/i18n';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
 import {
   startQQLogin,
@@ -50,6 +50,7 @@ interface UseOnlineMusicSettingsResult {
  * scoped to the section that renders it.
  */
 export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOptions): UseOnlineMusicSettingsResult {
+  const { t } = useTranslation();
   const [onlineSource, setOnlineSourceState] = useState<OnlineSource>('qq');
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
@@ -106,9 +107,9 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
   const handleQrPollResult = useCallback(async (source: OnlineSource, res: QRPollResult): Promise<void> => {
     setQrState(res.status);
     if (res.status === 'confirming') {
-      setQrMsg(i18n.t('settingsDialog.qrConfirming'));
+      setQrMsg(t('settingsDialog.qrConfirming'));
     } else if (res.status === 'waiting') {
-      setQrMsg(res.msg || i18n.t('settingsDialog.qrWaiting'));
+      setQrMsg(res.msg || t('settingsDialog.qrWaiting'));
     } else if (res.msg) {
       setQrMsg(res.msg);
     }
@@ -128,7 +129,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
           setNeteaseLoggedIn(true);
           void syncOnlineCookiesToMain('netease');
         }
-        showMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
+        showMessage(t('settingsDialog.qrLoggedIn'), 'success');
       }
     } else if (res.status === 'expired') {
       stopQrPolling();
@@ -154,7 +155,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       } catch (e) {
         if (!mountedRef.current) return;
         logger.error('[SettingsPanel] QR poll failed:', e);
-        setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+        setQrMsg((e as Error).message || t('settingsDialog.qrError'));
         setQrState('error');
       }
     };
@@ -173,12 +174,12 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       sessionRef.current = { source, key: res.sessionKey };
       setQrImage(res.qrcode);
       setQrState('waiting');
-      setQrMsg(i18n.t('settingsDialog.qrWaiting'));
+      setQrMsg(t('settingsDialog.qrWaiting'));
       beginQrPolling(source, res.sessionKey);
     } catch (e) {
       if (!mountedRef.current) return;
       logger.error('[SettingsPanel] startQr failed:', e);
-      setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+      setQrMsg((e as Error).message || t('settingsDialog.qrError'));
       setQrState('error');
     }
   }, [beginQrPolling, stopQrPolling]);
@@ -245,7 +246,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
-          showMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
+          showMessage(t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
           return;
         }
@@ -253,9 +254,9 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
         await cookieStore.clearCookie();
       }
       settingsManager.setDownloadPath(downloadPath.trim());
-      showMessage(i18n.t('settingsDialog.saved'), 'success');
+      showMessage(t('settingsDialog.saved'), 'success');
     } catch (err) {
-      showMessage(i18n.t('settingsDialog.saveFailed'), 'error');
+      showMessage(t('settingsDialog.saveFailed'), 'error');
       logger.error('[SettingsPanel] Online Music save failed:', err);
     } finally {
       setIsSaving(false);
