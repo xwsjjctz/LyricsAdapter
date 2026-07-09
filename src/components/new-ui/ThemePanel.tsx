@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { i18n } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../../services/themeManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../../types/theme';
 import { predefinedThemes } from '../../services/themes/predefinedThemes';
@@ -54,12 +54,11 @@ const ThemeModeSwitch: React.FC<ThemeModeSwitchProps> = ({ checked, ariaLabel, o
 );
 
 const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
+  const { t } = useTranslation();
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
   );
-  const [, setLanguageVersion] = useState(0);
-
   // Subscribe to theme changes
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
@@ -70,14 +69,6 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
       // Re-apply current theme styles when theme changes
       const currentTheme = themeManager.getCurrentTheme();
       applyThemeStyles(currentTheme);
-    });
-    return unsubscribe;
-  }, []);
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
     });
     return unsubscribe;
   }, []);
@@ -172,7 +163,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   const translateTag = (tag: string): string => {
     const key = getThemeTagKey(tag);
     if (key) {
-      const translated = i18n.t(key);
+      const translated = t(key);
       return translated !== key ? translated : tag;
     }
     return tag;
@@ -190,8 +181,8 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
     <aside className="new-ux-side-panel new-ux-side-panel--wide new-ux-panel-in">
       <header className="new-ux-side-panel__header">
         <div>
-          <div className="new-ux-side-panel__eyebrow">{i18n.t('theme.title')}</div>
-          <h2 className="new-ux-side-panel__title">{i18n.t('theme.description')}</h2>
+          <div className="new-ux-side-panel__eyebrow">{t('theme.title')}</div>
+          <h2 className="new-ux-side-panel__title">{t('theme.description')}</h2>
         </div>
         <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close theme panel">
           <span className="material-symbols-outlined text-[22px]">close</span>
@@ -225,7 +216,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                     >
                       <ThemeModeSwitch
                         checked={defaultCardMode === 'dark'}
-                        ariaLabel={defaultCardMode === 'dark' ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}
+                        ariaLabel={defaultCardMode === 'dark' ? t('theme.darkMode') : t('theme.lightMode')}
                         onChange={handleToggleDefaultCardMode}
                       />
                     </div>
@@ -304,7 +295,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                         letterSpacing: appearance.headingLetterSpacing,
                       }}
                     >
-                      {isDefaultCard ? i18n.t('theme.name.default-combined') : i18n.t(getThemeNameKey(theme.id))}
+                      {isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id))}
                     </h3>
                     {isCurrent && (
                       <span
@@ -317,7 +308,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                         }}
                       >
                         <span className="material-symbols-outlined text-sm">check</span>
-                        {i18n.t('theme.applied')}
+                        {t('theme.applied')}
                       </span>
                     )}
                   </div>
@@ -326,7 +317,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                     className="text-sm mb-3"
                     style={{ color: theme.colors.textSecondary }}
                   >
-                    {isDefaultCard ? i18n.t('theme.desc.default-combined') : i18n.t(getThemeDescKey(theme.id))}
+                    {isDefaultCard ? t('theme.desc.default-combined') : t(getThemeDescKey(theme.id))}
                   </p>
 
                   {/* Tags */}
@@ -354,7 +345,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                     <span className="material-symbols-outlined text-sm">
                       {theme.isDark ? 'dark_mode' : 'light_mode'}
                     </span>
-                    <span>{theme.isDark ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}</span>
+                    <span>{theme.isDark ? t('theme.darkMode') : t('theme.lightMode')}</span>
                   </div>
                 </div>
 
@@ -381,7 +372,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                       textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
                     }}
                   >
-                    {isCurrent ? i18n.t('theme.applied') : i18n.t('theme.apply')}
+                    {isCurrent ? t('theme.applied') : t('theme.apply')}
                   </button>
                 </div>
               </div>

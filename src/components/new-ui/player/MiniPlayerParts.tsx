@@ -1,5 +1,5 @@
 import React from 'react';
-import { i18n } from '../../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../../../services/coverUrl';
 import type { Track } from '../../../types';
 
@@ -67,13 +67,15 @@ export const MiniPlayerCover: React.FC<MiniPlayerCoverProps> = ({ track }) => (
   </div>
 );
 
-export const MiniPlayerMeta: React.FC<MiniPlayerMetaProps> = ({ track }) => (
+export const MiniPlayerMeta: React.FC<MiniPlayerMetaProps> = ({ track }) => {
+  const { t } = useTranslation();
+  return (
   <div className="new-ux-player__meta">
     <div className="new-ux-player__title" data-focus-transition="title">
-      {track?.title ?? i18n.t('controls.noTrackSelected')}
+      {track?.title ?? t('controls.noTrackSelected')}
     </div>
     <div className="new-ux-player__artist" data-focus-transition="artist">
-      {track?.artist ?? i18n.t('mainPlayer.importTracks')}
+      {track?.artist ?? t('mainPlayer.importTracks')}
     </div>
     {track && (
       <div className="new-ux-player__album" data-focus-transition="album">
@@ -82,6 +84,7 @@ export const MiniPlayerMeta: React.FC<MiniPlayerMetaProps> = ({ track }) => (
     )}
   </div>
 );
+};
 
 export const MiniProgress: React.FC<MiniProgressProps> = ({
   track,

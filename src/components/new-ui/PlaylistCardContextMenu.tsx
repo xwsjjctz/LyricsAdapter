@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import type { SlotId } from '../../types';
-import { i18n } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import type { CardEntry } from './types';
 import type { LibrarySlotsById } from './types';
 
@@ -33,6 +33,7 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
   onOpenSettings,
   onClose,
 }) => {
+  const { t } = useTranslation();
   useEffect(() => {
     const handlePointerDown = () => onClose();
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -70,7 +71,7 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
     >
       <button type="button" className="new-ux-button-reset new-ux-context-menu__item" onClick={runAction(() => onOpen(entry))}>
         <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-        <span>{i18n.t('common.open')}</span>
+        <span>{t('common.open')}</span>
       </button>
       {canImport && slotId && (
         <button
@@ -80,7 +81,7 @@ const PlaylistCardContextMenu: React.FC<PlaylistCardContextMenuProps> = ({
           disabled={importDisabled}
         >
           <span className="material-symbols-outlined text-[18px]">add_circle</span>
-          <span>{i18n.t('sidebar.importFiles')}</span>
+          <span>{t('sidebar.importFiles')}</span>
         </button>
       )}
       {slotId === 'local' && (

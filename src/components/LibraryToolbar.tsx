@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
 
@@ -51,6 +52,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   loadProgress,
   searchBox,
 }) => {
+  const { t } = useTranslation();
   const renderImportButton = (icon: 'upload_file' | 'cloud_upload') => {
     if (!onImportClick) return null;
 
@@ -68,8 +70,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           cursor: importDisabled ? 'not-allowed' : 'pointer',
           opacity: importDisabled ? 0.55 : 1,
         }}
-        title={importDisabled ? importDisabledReason : i18n.t('sidebar.importFiles')}
-        aria-label={i18n.t('sidebar.importFiles')}
+        title={importDisabled ? importDisabledReason : t('sidebar.importFiles')}
+        aria-label={t('sidebar.importFiles')}
       >
         <span className="material-symbols-outlined text-[22px]">{icon}</span>
       </button>
@@ -84,14 +86,14 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         </h1>
         <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
           {importProgress ? (
-            `${i18n.t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
+            `${t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
           ) : dataSource === 'cloud' && loadProgress ? (
-            `${i18n.t('library.loadingMetadata')} ${loadProgress.loaded}/${loadProgress.total}`
+            `${t('library.loadingMetadata')}${loadProgress.loaded}/${loadProgress.total}`
           ) : isEditMode ? (
-            `${selectedCount} ${i18n.t('library.selectedCount')}`
+            `${selectedCount} ${t('library.selectedCount')}`
           ) : (
             <>
-              {trackCount} {i18n.t('library.trackCount')}
+              {trackCount} {t('library.trackCount')}
             </>
           )}
         </p>
@@ -129,8 +131,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               }}
               onMouseEnter={isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-              title={i18n.t('library.refresh')}
-              aria-label={i18n.t('library.refresh')}
+              title={t('library.refresh')}
+              aria-label={t('library.refresh')}
             >
               <span
                 className={`material-symbols-outlined${isRefreshing ? ' animate-spin' : ''}`}

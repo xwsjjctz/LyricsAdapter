@@ -1,6 +1,6 @@
 import React from 'react';
 import { Track } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { ThemeConfig } from '../types/theme';
 import { logger } from '../services/logger';
 import { themeManager } from '../services/themeManager';
@@ -72,6 +72,7 @@ let lastDetail: { playlist: PlaylistInfo; songs: OnlineSong[]; total: number; sc
 const supportsPaging = (_s: 'qq' | 'netease'): boolean => true;
 
 const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, onOpenSettings, onPlayPlaylist, initialState, onPersistenceChange }) => {
+  const { t } = useTranslation();
   const restoredDetailRef = React.useRef(
     lastDetail ??
     (initialState.phase === 'detail' && initialState.playlist && initialState.songs
@@ -486,7 +487,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         {loading && detailSongs.length === 0 && (
           <div className="flex-1 flex items-center justify-center" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
-            {i18n.t('browse.loading')}
+            {t('browse.loading')}
           </div>
         )}
         {error && detailSongs.length === 0 && (
@@ -507,9 +508,9 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                 style={{ color: colors.textMuted, borderBottom: `1px solid ${colors.borderLight}` }}
               >
                 <span>#</span>
-                <span>{i18n.t('library.titleCol')}</span>
-                <span className="pl-8">{i18n.t('library.albumCol')}</span>
-                <span className="text-right">{i18n.t('library.timeCol')}</span>
+                <span>{t('library.titleCol')}</span>
+                <span className="pl-8">{t('library.albumCol')}</span>
+                <span className="text-right">{t('library.timeCol')}</span>
               </div>
             </div>
             <div className="relative flex-1 min-h-0 overflow-hidden">
@@ -587,7 +588,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                   onClick={() => scrollToCurrent('smooth')}
                   className="absolute right-6 bottom-4 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30"
                   style={{ backgroundColor: colors.backgroundCard, color: colors.textSecondary }}
-                  title={i18n.t('library.locateToCurrent')}
+                  title={t('library.locateToCurrent')}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
                 >
@@ -612,7 +613,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-            {i18n.t('playlists.title')}
+            {t('playlists.title')}
           </h1>
         </div>
         <button
@@ -649,13 +650,13 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
         {loadingPlaylists && (
           <div className="flex items-center gap-2 py-20 justify-center" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined animate-spin">progress_activity</span>
-            <span>{i18n.t('browse.loading')}</span>
+            <span>{t('browse.loading')}</span>
           </div>
         )}
         {!loadingPlaylists && playlists.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-20" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined text-6xl">queue_music</span>
-            <span className="text-sm">{i18n.t('playlists.emptyLoginHint')}</span>
+            <span className="text-sm">{t('playlists.emptyLoginHint')}</span>
             {onOpenSettings && (
               <button
                 onClick={onOpenSettings}
@@ -668,7 +669,7 @@ const PlaylistsView: React.FC<PlaylistsViewProps> = ({ colors, currentTrackId, o
                 }}
               >
                 <span className="material-symbols-outlined text-lg">settings</span>
-                <span>{i18n.t('browse.openSettings')}</span>
+                <span>{t('browse.openSettings')}</span>
               </button>
             )}
           </div>
