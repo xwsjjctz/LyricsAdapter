@@ -31,7 +31,7 @@ export type ShortcutAction =
   | 'gotoTheme'
   | 'gotoMetadata';
 
-export const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
+const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
   playPause: {
     id: 'playPause',
     name: 'shortcut.playPause',

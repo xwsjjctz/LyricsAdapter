@@ -7,7 +7,7 @@ const WEBDAV_CONFIG_KEY = 'webdav-config';
 const CDN_CACHE_KEY = 'webdav-cdn-cache';
 const CDN_TTL = 30 * 60 * 1000;
 
-export interface WebDAVConfig {
+interface WebDAVConfig {
   serverUrl: string;
   username: string;
   password: string;
@@ -23,7 +23,7 @@ export interface WebDAVFile {
 }
 
 /** WebDAV 可写性检测结果。reason 用于 UI 文案与日志诊断。 */
-export interface WritableCheckResult {
+interface WritableCheckResult {
   writable: boolean;
   reason?: 'not-configured' | 'readonly-config' | 'api-unavailable' | 'write-denied';
   error?: string | undefined;

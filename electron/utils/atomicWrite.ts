@@ -35,7 +35,7 @@ if (typeof g['__filename'] === 'undefined') {
   }
 }
 
-export interface AtomicWriteOptions {
+interface AtomicWriteOptions {
   /** rename 前把现有目标复制为 `<filePath>.bak`，供 load 兜底恢复。默认 false。 */
   keepBackup?: boolean;
 }

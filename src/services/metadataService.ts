@@ -4,18 +4,18 @@ import { logger } from './logger';
 export { parseLRCLyrics } from '../shared/lrcParser';
 import { parseLRCLyrics } from '../shared/lrcParser';
 
-export interface CoverNeededRange {
+interface CoverNeededRange {
   offset: number;
   length: number;
 }
 
-export interface BufferParseContext {
+interface BufferParseContext {
   coverNeededRange?: CoverNeededRange | undefined;
   vorbisCommentNeededRange?: CoverNeededRange | undefined;
   bufferOffset: number;
 }
 
-export interface ParsedMetadata {
+interface ParsedMetadata {
   title: string;
   artist: string;
   album: string;

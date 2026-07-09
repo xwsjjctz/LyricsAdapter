@@ -10,8 +10,8 @@ import type {
 
 // Back-compat aliases — `OnlineSong` / `OnlineUrlResult` are the canonical
 // shapes shared with the NetEase provider (see onlineMusicProvider.ts).
-export type QQMusicSong = OnlineSong;
-export type QQMusicUrlResult = OnlineUrlResult;
+type QQMusicSong = OnlineSong;
+type QQMusicUrlResult = OnlineUrlResult;
 
 class QQMusicAPI implements OnlineMusicProvider {
   readonly id = 'qq' as const;

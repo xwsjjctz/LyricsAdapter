@@ -11,7 +11,7 @@
  * Parse a `#rgb` or `#rrggbb` hex color into its `"r, g, b"` channel string.
  * Returns `null` when the input cannot be parsed.
  */
-export function hexToRgb(hex: string): string | null {
+function hexToRgb(hex: string): string | null {
   const sanitized = hex.trim().replace(/^#/, '');
   const match =
     sanitized.length === 3

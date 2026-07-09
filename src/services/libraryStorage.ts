@@ -76,7 +76,7 @@ export interface LibrarySettings {
   [key: string]: any;
 }
 
-export interface ValidationResult {
+interface ValidationResult {
   id: string;
   exists: boolean;
 }

@@ -14,7 +14,7 @@ import type { PlaylistInfo } from './onlineMusicProvider';
 
 const STORAGE_KEY = 'playlist-cache';
 
-export interface PlaylistCacheData {
+interface PlaylistCacheData {
   qq?: PlaylistInfo[];
   netease?: PlaylistInfo[];
   ts: number;

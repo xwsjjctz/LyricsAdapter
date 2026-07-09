@@ -31,7 +31,7 @@ export function registerCommand(name: string, fn: DebugCommand, description?: st
   return () => unregisterCommand(name);
 }
 
-export function unregisterCommand(name: string): void {
+function unregisterCommand(name: string): void {
   commands.delete(name);
   const w = window as any;
   delete w[name];

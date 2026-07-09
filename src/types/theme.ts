@@ -40,13 +40,13 @@ export interface ThemeColors {
   glowColor: string;
 }
 
-export interface ThemeFonts {
+interface ThemeFonts {
   main: string;
   display?: string;
   mono?: string;
 }
 
-export interface ThemeBorderRadius {
+interface ThemeBorderRadius {
   sm: string;
   md: string;
   lg: string;

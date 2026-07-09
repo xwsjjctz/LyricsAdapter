@@ -11,7 +11,7 @@ import type { TypedElectronIPC } from '../types/typedIpc';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
-export type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
+type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
 
 /** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
 export interface UpdateInfo {
@@ -21,7 +21,7 @@ export interface UpdateInfo {
 }
 
 /** 下载进度信息。 */
-export interface UpdateProgress {
+interface UpdateProgress {
   total: number;
   delta: number;
   transferred: number;

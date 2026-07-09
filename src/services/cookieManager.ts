@@ -5,13 +5,13 @@ import { getDesktopAPI, getDesktopAPIAsync } from './desktopAdapter';
 
 const COOKIE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-export interface CookieStatus {
+interface CookieStatus {
   valid: boolean;
   message?: string;
 }
 
 /** Per-source cookie validation strategy. */
-export type CookieValidator = (cookie: string) => Promise<CookieStatus>;
+type CookieValidator = (cookie: string) => Promise<CookieStatus>;
 
 interface CookieStoreOptions {
   storageKey: string;

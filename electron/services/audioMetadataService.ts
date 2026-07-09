@@ -21,7 +21,7 @@ export interface SyncedLyricLine {
   text: string;
 }
 
-export interface ReadMetadataResult {
+interface ReadMetadataResult {
   title: string | undefined;
   artist: string | undefined;
   album: string | undefined;
@@ -37,7 +37,7 @@ export interface ReadMetadataResult {
   coverMime: string | undefined;
 }
 
-export interface WriteMetadataInput {
+interface WriteMetadataInput {
   title: string | undefined;
   artist: string | undefined;
   album: string | undefined;

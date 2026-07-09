@@ -74,7 +74,7 @@ export interface UserTrackRecord {
  * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
  * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
  */
-export function buildMinimalTrack(track: Track, slotId?: SlotId): UserTrackRecord {
+function buildMinimalTrack(track: Track, slotId?: SlotId): UserTrackRecord {
   return {
     id: track.id,
     ...(slotId ? { slotId } : undefined),

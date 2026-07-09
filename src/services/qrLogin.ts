@@ -11,7 +11,7 @@ import { getDesktopAPI } from './desktopAdapter';
 
 export type QRLoginStatus = 'waiting' | 'confirming' | 'done' | 'expired' | 'error';
 
-export interface QRStartResult {
+interface QRStartResult {
   qrcode: string; // PNG data URL
   sessionKey: string; // QQ session token or NetEase unikey
   expiresIn: number; // seconds before the QR hard-expires
