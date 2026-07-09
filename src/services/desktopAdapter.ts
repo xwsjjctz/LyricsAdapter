@@ -680,7 +680,8 @@ function createElectronAdapter(): ElectronAdapter | null {
 
 export function getDesktopAPI(): FullDesktopAPI | null {
   if (desktopAPI) {
-    logger.debug('[DesktopAdapter] Returning cached desktopAPI, platform:', desktopAPI.platform);
+    // 缓存命中是常态，不打日志 —— 此前每次命中都打 debug，被高频调用
+    //（isDesktop / TitleBar / FocusMode 等）刷屏控制台。
     return desktopAPI;
   }
 

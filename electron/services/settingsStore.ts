@@ -107,7 +107,7 @@ class SettingsStore {
    * 解密带 enc: 前缀的值。非 enc: 前缀的返回原值（兼容未加密遗留数据）。
    */
   private decrypt(stored: string): string {
-    if (!stored.startsWith(ENC_PREFIX)) return stored; // 未加密的遗留数据
+    if (typeof stored !== 'string' || !stored.startsWith(ENC_PREFIX)) return stored; // 未加密的遗留数据 / 非字符串
     if (!this.isEncryptionAvailable()) {
       logger.warn('[SettingsStore] safeStorage unavailable, cannot decrypt sensitive field');
       return '';
@@ -122,9 +122,9 @@ class SettingsStore {
     }
   }
 
-  /** 判断一个值是否需要解密（带 enc: 前缀）。 */
+  /** 判断一个值是否需要解密（带 enc: 前缀）。非字符串值视为未加密。 */
   private isEncrypted(stored: string): boolean {
-    return stored.startsWith(ENC_PREFIX);
+    return typeof stored === 'string' && stored.startsWith(ENC_PREFIX);
   }
 
   // ========== 加载 / 保存 ==========
@@ -161,22 +161,27 @@ class SettingsStore {
 
   /**
    * Get a single value by key.
-   * 敏感字段自动解密后返回。
+   * 敏感字段自动解密后返回。非字符串值（历史脏数据）强制字符串化。
    */
   get(key: string): string | undefined {
     const stored = this.data[key];
     if (stored === undefined) return undefined;
-    return this.isEncrypted(stored) ? this.decrypt(stored) : stored;
+    if (this.isEncrypted(stored)) return this.decrypt(stored);
+    return typeof stored === 'string' ? stored : String(stored);
   }
 
   /**
    * Get a copy of all key/value pairs.
-   * 敏感字段自动解密。
+   * 敏感字段自动解密。非字符串值（历史脏数据）强制字符串化。
    */
   getAll(): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, stored] of Object.entries(this.data)) {
-      result[key] = this.isEncrypted(stored) ? this.decrypt(stored) : stored;
+      if (this.isEncrypted(stored)) {
+        result[key] = this.decrypt(stored);
+      } else {
+        result[key] = typeof stored === 'string' ? stored : String(stored);
+      }
     }
     return result;
   }
