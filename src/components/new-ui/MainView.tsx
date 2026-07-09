@@ -3,7 +3,7 @@ import type { CardEntry } from './types';
 import PlaylistCard from './PlaylistCard';
 import SquareCropModal from './SquareCropModal';
 import { toCoverThumb } from '../../services/coverUrl';
-import { i18n } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit';
 
 interface MainViewProps {
@@ -45,6 +45,7 @@ const MainView: React.FC<MainViewProps> = ({
   activePanel,
   exitingPanel,
 }) => {
+  const { t } = useTranslation();
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const cardRefCallbacks = useRef<Record<string, CardRefCallback>>({});
@@ -498,7 +499,7 @@ const MainView: React.FC<MainViewProps> = ({
         <div className={`new-ux-hidden-tray${exitingPanel === 'hidden' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-hidden-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 12 }}>visibility_off</span>
-            {i18n.t('newui.hiddenCards')} ({hiddenEntries.length})
+            {t('newui.hiddenCards')} ({hiddenEntries.length})
           </div>
           <div className="new-ux-hidden-tray__list">
             {hiddenEntries.map(entry => {

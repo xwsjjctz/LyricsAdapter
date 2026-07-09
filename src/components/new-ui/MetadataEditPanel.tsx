@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toCoverThumb } from '../../services/coverUrl';
-import { i18n } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../services/logger';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import { parseLRCLyrics } from '../../services/metadataService';
@@ -14,6 +14,7 @@ interface MetadataEditPanelProps {
 }
 
 const MetadataEditPanel: React.FC<MetadataEditPanelProps> = ({ track, onClose, onSave }) => {
+  const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(() => ({
     title: track.title,
@@ -59,10 +60,10 @@ const MetadataEditPanel: React.FC<MetadataEditPanelProps> = ({ track, onClose, o
         if (!result.success) throw new Error(result.error || 'Write failed');
       }
       onSave(finalTrack);
-      notify(i18n.t('notifications.saveSuccess'), i18n.t('notifications.metadataSaved'), { silent: true });
+      notify(t('notifications.saveSuccess'), t('notifications.metadataSaved'), { silent: true });
     } catch (error) {
       logger.error('[NewUxMetadataEditPanel] Save failed:', error);
-      notify(i18n.t('notifications.saveFailed'), error instanceof Error ? error.message : '');
+      notify(t('notifications.saveFailed'), error instanceof Error ? error.message : '');
     } finally {
       setSaving(false);
     }

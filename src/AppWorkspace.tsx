@@ -20,7 +20,7 @@ import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import PlaylistsView from './components/PlaylistsView';
 import SearchBox from './components/SearchBox';
-import { i18n } from './services/i18n';
+import { useTranslation } from 'react-i18next';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
@@ -51,6 +51,7 @@ declare global {
   }
 }
 const AppWorkspace: React.FC = () => {
+  const { t } = useTranslation();
   const {
     viewMode,
     setViewMode,
@@ -706,10 +707,10 @@ const AppWorkspace: React.FC = () => {
         {pendingNavigation && (
           <>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-              {i18n.t('metadataView.unsavedTitle')}
+              {t('metadataView.unsavedTitle')}
             </h3>
             <p className="mb-6 text-sm" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>
-              {i18n.t('metadataView.unsavedMessage')}
+              {t('metadataView.unsavedMessage')}
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -719,7 +720,7 @@ const AppWorkspace: React.FC = () => {
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
-                {i18n.t('common.cancel')}
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => {
@@ -733,7 +734,7 @@ const AppWorkspace: React.FC = () => {
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-border-light, rgba(255,255,255,0.2))'; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
               >
-                {i18n.t('metadataView.stash')}
+                {t('metadataView.stash')}
               </button>
               <button
                 onClick={async () => {
@@ -747,7 +748,7 @@ const AppWorkspace: React.FC = () => {
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary-hover, #1a7de0)'; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary, #2b8cee)'; }}
               >
-                {i18n.t('metadataView.saveChanges')}
+                {t('metadataView.saveChanges')}
               </button>
             </div>
           </>
