@@ -45,10 +45,6 @@ async function persist(map: OverrideMap): Promise<void> {
   }
 }
 
-export function getOverride(source: string, id: string): PlaylistOverride | undefined {
-  return cache?.[makeKey(source, id)];
-}
-
 export async function setOverride(
   source: string,
   id: string,

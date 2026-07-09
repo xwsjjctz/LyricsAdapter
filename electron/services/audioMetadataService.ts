@@ -220,33 +220,3 @@ async function resolveCover(uri: string): Promise<MetaPicture | null> {
   }
 }
 
-// ── Sync helpers (for use in contexts where async is inconvenient) ───────
-
-export function readAudioMetadataSync(filePath: string): ReadMetadataResult {
-  const file = MusicFile.loadSync(path.resolve(filePath));
-
-  let coverData: string | undefined;
-  let coverMime: string | undefined;
-  if (file.pictures && file.pictures.length > 0 && file.pictures[0]) {
-    const pic = file.pictures[0];
-    coverMime = pic.mimeType || 'image/jpeg';
-    coverData = Buffer.from(pic.data).toString('base64');
-  }
-
-  const rawLyrics = file.lyrics || undefined;
-  const parsedLyrics = rawLyrics ? parseLRCLyrics(rawLyrics) : null;
-
-  return {
-    title: file.title || undefined,
-    artist: file.artist || undefined,
-    album: file.album || undefined,
-    lyrics: parsedLyrics?.plainText ?? rawLyrics,
-    syncedLyrics: parsedLyrics?.syncedLyrics?.length ? parsedLyrics.syncedLyrics : undefined,
-    duration: file.duration != null ? file.duration / 1000 : undefined,
-    bitRate: file.bitRate ?? undefined,
-    sampleRate: file.sampleRate ?? undefined,
-    fileSize: fs.statSync(filePath).size,
-    coverData,
-    coverMime,
-  };
-}

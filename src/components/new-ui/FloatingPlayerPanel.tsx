@@ -50,7 +50,7 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
   const progress = duration > 0 ? (seekValue / duration) * 100 : 0;
 
   return (
-    <div ref={transitionRef} className="new-ux-player" data-focus-transition="panel">
+    <div ref={transitionRef} className="new-ux-player">
       <div className="new-ux-player__body">
         <button
           type="button"
@@ -63,7 +63,7 @@ const FloatingPlayerPanel: React.FC<FloatingPlayerPanelProps> = ({
         </button>
         <MiniProgress track={track} duration={duration} seekValue={seekValue} progress={progress} onSeek={onSeek} />
       </div>
-      <div className="new-ux-player__controls" data-focus-transition="controls">
+      <div className="new-ux-player__controls">
         <MiniTransportControls
           track={track}
           isPlaying={isPlaying}

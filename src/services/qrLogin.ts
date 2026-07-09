@@ -1,4 +1,3 @@
-import { logger } from './logger';
 import { getDesktopAPI } from './desktopAdapter';
 
 /**
@@ -93,10 +92,4 @@ export async function pollNetEaseQR(key: string): Promise<QRPollResult> {
     default:
       return { status: 'error', msg: r.message };
   }
-}
-
-/** Log a poll result for diagnostics without spamming on healthy waiting ticks. */
-export function logPollResult(scope: string, res: QRPollResult): void {
-  if (res.status === 'waiting') return;
-  logger.debug(`[QRLogin:${scope}] ${res.status}`, res.msg ?? '');
 }
