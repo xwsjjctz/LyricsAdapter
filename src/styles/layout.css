@@ -60,6 +60,11 @@
   position: absolute;
   inset: 0;
   z-index: 20;
+  /* Follow the card-wall pan (--wall-x/--wall-y are written on the stage by the
+     MainView rAF loop) so the open playlist panel stays locked to its card and
+     does not appear to "cover a frozen card" during a drag. No CSS transition:
+     the rAF loop already eases motion.x/y each frame, adding one would lag. */
+  transform: translate3d(var(--wall-x, 0px), var(--wall-y, 0px), 0);
 }
 
 .new-ux-panel-layer > * {

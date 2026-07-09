@@ -249,10 +249,19 @@ const MainView: React.FC<MainViewProps> = ({
           }
         });
 
-        space.style.setProperty('--wall-x', `${motion.x}px`);
-        space.style.setProperty('--wall-y', `${motion.y}px`);
-        space.style.setProperty('--field-x', `${motion.x * 0.32}px`);
-        space.style.setProperty('--field-y', `${motion.y * 0.24}px`);
+        // Write the wall offset on the STAGE (two levels above the space:
+        // space → .new-ux-mainview → .new-ux-stage), not on the space itself.
+        // The stage is the common ancestor of both the card space and the
+        // playlist panel layer (siblings), so both inherit --wall-x/--wall-y.
+        // The panel layer then translates with the cards, keeping them visually
+        // locked together during a drag — otherwise the panel (z-index:20) covers
+        // the dragged card and it looks frozen, only snapping to its new position
+        // when the panel closes.
+        const wallHost = space.parentElement?.parentElement ?? space;
+        wallHost.style.setProperty('--wall-x', `${motion.x}px`);
+        wallHost.style.setProperty('--wall-y', `${motion.y}px`);
+        wallHost.style.setProperty('--field-x', `${motion.x * 0.32}px`);
+        wallHost.style.setProperty('--field-y', `${motion.y * 0.24}px`);
       }
 
       animationFrame = window.requestAnimationFrame(animate);

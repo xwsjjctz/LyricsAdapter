@@ -386,7 +386,13 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const handler = (e: WheelEvent) => handleWheelRef.current?.(e);
     lyricsEl.addEventListener('wheel', handler, { passive: false });
     return () => lyricsEl.removeEventListener('wheel', handler);
-  }, [getScrollBounds]);
+    // The lyrics container (lyricsRef) mounts only once `hasLyrics` is true —
+    // it is fetched asynchronously. This effect MUST re-run when hasLyrics
+    // changes (and when the active lyric list changes, since bounds depend on
+    // the number of lines), otherwise the wheel listener is bound once against
+    // a null ref and never re-attached to the real element. That was the root
+    // cause of "Focus Mode 歌词无法手动滚动".
+  }, [getScrollBounds, hasLyrics, lyricsLines]);
 
   // Handle mouse drag start
   const handleMouseDown = (e: React.MouseEvent) => {
