@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { i18n, type Language } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
+import { i18n as i18nService, type Language } from '../../services/i18n';
 import { settingsManager } from '../../services/settingsManager';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import { logger } from '../../services/logger';
@@ -22,8 +23,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const themeUtils = useSettingsTheme(theme);
   const { colors, isBrutalistTheme, rangeClassName, rangeStyle } = themeUtils;
 
+  const { t, i18n } = useTranslation();
   // Language + about
-  const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
   const langDropdownRef = useRef<HTMLDivElement>(null);
@@ -84,13 +85,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   }, [bgBlurTrans]);
 
   useEffect(() => {
-    const unsubscribe = i18n.subscribe((lang) => {
-      setCurrentLang(lang);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
     getDesktopAPI()?.getAppVersion?.()
       .then(v => setAppVersion(v))
       .catch(e => logger.error('[SettingsPanel] getAppVersion failed:', e));
@@ -107,19 +101,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   }, []);
 
   const handleLanguageChange = (lang: Language) => {
-    i18n.setLanguage(lang);
+    i18nService.setLanguage(lang);
     setIsLangDropdownOpen(false);
   };
 
-  const currentLanguageOption = LANGUAGE_OPTIONS.find(opt => opt.value === currentLang);
+  const currentLanguageOption = LANGUAGE_OPTIONS.find(opt => opt.value === i18n.language);
 
   return (
     <>
       <aside className="new-ux-side-panel new-ux-side-panel--wide new-ux-panel-in">
         <header className="new-ux-side-panel__header">
           <div>
-            <div className="new-ux-side-panel__eyebrow">{i18n.t('settings.title')}</div>
-            <h2 className="new-ux-side-panel__title">{i18n.t('settings.description')}</h2>
+            <div className="new-ux-side-panel__eyebrow">{t('settings.title')}</div>
+            <h2 className="new-ux-side-panel__title">{t('settings.description')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close settings panel">
@@ -138,7 +132,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
-                      <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{i18n.t('settings.language')}</span>
+                      <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{t('settings.language')}</span>
                     </div>
                     <div className="relative w-32" ref={langDropdownRef}>
                       <button
@@ -151,7 +145,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                           color: colors.textSecondary,
                         }}
                       >
-                        <span>{currentLanguageOption?.nativeLabel}</span>
+                        <span>{i18n.languageuageOption?.nativeLabel}</span>
                         <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`}>
                           expand_more
                         </span>
@@ -172,7 +166,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                         }}
                       >
                         {LANGUAGE_OPTIONS.map((option) => {
-                          const active = currentLang === option.value;
+                          const active = i18n.language === option.value;
                           return (
                             <button
                               key={option.value}
@@ -195,7 +189,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
                     <div className="min-w-0">
-                      <span className="text-sm" style={{ color: colors.textPrimary }}>{i18n.t('settings.about')}</span>
+                      <span className="text-sm" style={{ color: colors.textPrimary }}>{t('settings.about')}</span>
                       <span className="text-xs ml-2" style={{ color: colors.textMuted }}>v{appVersion || '…'}</span>
                     </div>
                   </div>
@@ -224,12 +218,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
-                {i18n.t('settings.experimental')}
+                {t('settings.experimental')}
               </h3>
 
               {/* 背景模糊透明度滑块 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.bgBlurTrans')}</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.bgBlurTrans')}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs tabular-nums w-8 text-right" style={{ color: colors.textMuted }}>{bgBlurTrans.toFixed(2)}</span>
                   <input
@@ -253,7 +247,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
               {/* Focus Mode 背景模糊半径 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusBgBlurRadius')}</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusBgBlurRadius')}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusBgBlurRadius}px</span>
                   <input
@@ -275,7 +269,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
               {/* Focus Mode 滚动歌词字号 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusLyricsFontSize')}</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusLyricsFontSize')}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricsFontSize}px</span>
                   <input
@@ -297,7 +291,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
               {/* Focus Mode 滚动歌词行间距 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusLyricLineSpacing')}</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusLyricLineSpacing')}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricLineSpacing}px</span>
                   <input
@@ -319,7 +313,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
               {/* Focus Mode 非当前歌词模糊 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusInactiveLyricBlur')}</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusInactiveLyricBlur')}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusInactiveLyricBlur}px</span>
                   <input
@@ -341,11 +335,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
               {/* 第三方音源开关 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.qqMusicEnabled')}</span>
                 {isBrutalistTheme ? (
                   <RetroSwitch
                     checked={qqMusicEnabled}
-                    ariaLabel={i18n.t('settings.qqMusicEnabled')}
+                    ariaLabel={t('settings.qqMusicEnabled')}
                     onChange={(newValue) => {
                       setQqMusicEnabled(newValue);
                       settingsManager.setQqMusicEnabled(newValue);
@@ -376,13 +370,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
               {/* 全新 UI/UX 开关 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
                 <div className="min-w-0 mr-3">
-                  <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.newUx')}</span>
-                  <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.newUxDesc')}</p>
+                  <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.newUx')}</span>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{t('settings.newUxDesc')}</p>
                 </div>
                 {isBrutalistTheme ? (
                   <RetroSwitch
                     checked={newUxEnabled}
-                    ariaLabel={i18n.t('settings.newUx')}
+                    ariaLabel={t('settings.newUx')}
                     onChange={(newValue) => {
                       setNewUxEnabled(newValue);
                       settingsManager.setNewUxEnabled(newValue);
@@ -397,7 +391,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                     }}
                     className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
                     style={{ backgroundColor: newUxEnabled ? colors.primary : colors.borderLight }}
-                    aria-label={i18n.t('settings.newUx')}
+                    aria-label={t('settings.newUx')}
                     aria-pressed={newUxEnabled}
                   >
                     <span
@@ -411,8 +405,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
               {/* 清理孤儿缓存按钮 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
                 <div>
-                  <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCache')}</span>
-                  <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.clearCacheDesc')}</p>
+                  <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.clearCache')}</span>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{t('settings.clearCacheDesc')}</p>
                 </div>
                 <button
                   onClick={() => setShowClearCacheConfirm(true)}
@@ -423,7 +417,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
                 >
                   <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                  {i18n.t('settings.clearCache')}
+                  {t('settings.clearCache')}
                 </button>
               </div>
 
@@ -487,8 +481,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
         panelClassName="r-control p-6 max-w-md w-full mx-4 shadow-2xl"
         panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
       >
-          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
-          <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCacheConfirmBody')}</p>
+          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('settings.clearCacheConfirmTitle')}</h3>
+          <p className="mb-4" style={{ color: colors.textSecondary }}>{t('settings.clearCacheConfirmBody')}</p>
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setShowClearCacheConfirm(false)}
@@ -498,7 +492,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
-              {i18n.t('common.cancel')}
+              {t('common.cancel')}
             </button>
             <button
               onClick={async () => {
@@ -508,14 +502,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                 try {
                   const result = await onClearOrphanCache();
                   if (result.errors.length > 0) {
-                    setCacheClearMessage(`${i18n.t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers (${result.errors.length} errors)`);
+                    setCacheClearMessage(`${t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers (${result.errors.length} errors)`);
                     setCacheClearMessageType('error');
                   } else {
-                    setCacheClearMessage(`${i18n.t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers`);
+                    setCacheClearMessage(`${t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers`);
                     setCacheClearMessageType('success');
                   }
                 } catch (error) {
-                  setCacheClearMessage(i18n.t('settings.clearCacheFailed'));
+                  setCacheClearMessage(t('settings.clearCacheFailed'));
                   setCacheClearMessageType('error');
                 } finally {
                   setIsClearingCache(false);
@@ -529,10 +523,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
               {isClearingCache ? (
                 <>
                   <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                  {i18n.t('settings.clearing')}
+                  {t('settings.clearing')}
                 </>
               ) : (
-                i18n.t('settings.confirmClearCache')
+                t('settings.confirmClearCache')
               )}
             </button>
           </div>

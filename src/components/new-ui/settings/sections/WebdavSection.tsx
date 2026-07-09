@@ -1,5 +1,5 @@
 import React from 'react';
-import { i18n } from '@/services/i18n';
+import { useTranslation } from 'react-i18next';
 import type { SettingsTheme } from '../shared';
 
 interface WebdavSectionProps {
@@ -37,6 +37,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
   onTest,
   onSave,
 }) => {
+  const { t } = useTranslation();
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
 
   return (
@@ -44,7 +45,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
-          {i18n.t('settingsDialog.webdavTitle')}
+          {t('settingsDialog.webdavTitle')}
         </h3>
         <div className="flex items-center gap-2">
           <button
@@ -58,10 +59,10 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
             {isTesting ? (
               <>
                 <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                {i18n.t('settingsDialog.webdavTesting')}
+                {t('settingsDialog.webdavTesting')}
               </>
             ) : (
-              i18n.t('settingsDialog.webdavTestConnection')
+              t('settingsDialog.webdavTestConnection')
             )}
           </button>
           <button
@@ -75,10 +76,10 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
             {isSaving ? (
               <>
                 <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                {i18n.t('settingsDialog.saving')}
+                {t('settingsDialog.saving')}
               </>
             ) : (
-              i18n.t('settingsDialog.save')
+              t('settingsDialog.save')
             )}
           </button>
         </div>
@@ -98,7 +99,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder={i18n.t('settingsDialog.webdavUsername')}
+          placeholder={t('settingsDialog.webdavUsername')}
           className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
           style={inputStyle}
           onFocus={inputFocus}
@@ -108,7 +109,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder={i18n.t('settingsDialog.webdavPassword')}
+          placeholder={t('settingsDialog.webdavPassword')}
           className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
           style={inputStyle}
           onFocus={inputFocus}

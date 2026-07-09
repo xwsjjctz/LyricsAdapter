@@ -27,7 +27,7 @@ import FocusAmbientLight from './focus/FocusAmbientLight';
 import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
-import { i18n } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -110,6 +110,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   fileInputRef,
   onFileInputChange,
 }) => {
+  const { t } = useTranslation();
   const { playlists: onlinePlaylists } = useOnlinePlaylists();
   const entries = usePlaylistEntries(slots, onlinePlaylists);
   const panels = useNewUxStore();
@@ -507,17 +508,17 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         <div className={`new-ux-bg-tray${exitingPanel === 'bg' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-bg-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>
-            {i18n.t('newui.bgSettings')}
+            {t('newui.bgSettings')}
           </div>
           <div className="new-ux-bg-tray__body">
-            <div className="new-ux-bg-settings__label">{i18n.t('newui.bgImage')}</div>
+            <div className="new-ux-bg-settings__label">{t('newui.bgImage')}</div>
             <div className="new-ux-bg-settings__row">
               <button
                 className="new-ux-bg-tray__btn"
                 onClick={() => bgInputRef.current?.click()}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
-                {i18n.t('newui.pickImage')}
+                {t('newui.pickImage')}
               </button>
               {bgImage && (
                 <button
@@ -525,7 +526,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onClick={() => { setBgImage(''); saveBgImage(''); }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
-                  {i18n.t('newui.clear')}
+                  {t('newui.clear')}
                 </button>
               )}
             </div>
@@ -534,7 +535,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                 <img src={bgImage} alt="" />
               </div>
             )}
-            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>{i18n.t('newui.blurRadius')}</div>
+            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>{t('newui.blurRadius')}</div>
             <div className="new-ux-bg-settings__row">
               <input
                 type="range"
