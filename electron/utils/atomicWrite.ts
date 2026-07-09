@@ -15,8 +15,25 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import writeFileAtomic from 'write-file-atomic';
 import { logger } from '../logger';
+
+// write-file-atomic v7 是纯 CJS 库，其 getTmpname 会读取 CJS 全局 __filename
+// 来参与临时文件名哈希。本项目主进程是 ESM（package.json "type":"module" +
+// vite 输出 .js），ESM 下不存在 __filename，运行时会抛 ReferenceError 导致
+// 每次写盘失败。这里补上：打包后该值即 main.js 路径，对临时文件名唯一性无
+// 影响（getTmpname 还混入了 pid + threadId + 递增计数器）。
+// 仅在未定义时赋值，避免覆盖可能存在的真实值。
+const g = globalThis as Record<string, unknown>;
+if (typeof g['__filename'] === 'undefined') {
+  try {
+    g['__filename'] = fileURLToPath(import.meta.url);
+  } catch {
+    // 极端环境（import.meta.url 不可用）兜底用进程入口
+    g['__filename'] = process.argv[1] ?? 'electron-main';
+  }
+}
 
 export interface AtomicWriteOptions {
   /** rename 前把现有目标复制为 `<filePath>.bak`，供 load 兜底恢复。默认 false。 */
