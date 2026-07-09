@@ -738,7 +738,53 @@ export function useLibraryLoad({
         }).catch(() => {});
       }).catch(() => {});
     }
-  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.currentTime, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.currentTime, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.currentTime, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.currentTime, slots.playlist.volume, slots.playlist.playbackMode]);
+    // 注意：currentTime 不在本依赖数组中 —— 播放期间 timeupdate（~250ms/次）
+    // 引起的进度变化由下方 savePlaybackThrottled 独立节流（5s）落盘，避免每秒
+    // 4 次同步磁盘写。此处落盘的 persistData 仍含最新 currentTime（取值时是最新的），
+    // 只是进度的高频变化不再驱动本 effect。
+  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.volume, slots.playlist.playbackMode]);
+
+  /**
+   * 播放进度节流落盘。
+   *
+   * <audio> 的 timeupdate 约 250ms 触发一次，若直接驱动写盘会是每秒 ~4 次同步
+   * 磁盘写（settings.json + users.json）。此处用 leading + trailing 节流：每 5s
+   * 最多落盘一次。退出/切歌由下方 flushCurrentLibrary 兜底，最坏丢失 ≤5s 进度
+   *（参考 Apple Music / Spotify）。
+   *
+   * 注意：timer 的清理放在独立的卸载 effect 中（见本文件末尾），不能放在本 effect
+   * 的 return 里 —— 否则每次 currentTime 变化都会清掉尚未触发的 trailing timer，
+   * 导致 trailing 永远执行不到。
+   */
+  const playbackSaveLastRef = useRef(0);
+  const playbackSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (isFirstLoadRef.current) return;
+    const THROTTLE_MS = 5000;
+    const now = Date.now();
+    const elapsed = now - playbackSaveLastRef.current;
+
+    const doSave = () => {
+      playbackSaveLastRef.current = Date.now();
+      const persistData = getPersistenceData();
+      appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
+    };
+
+    if (elapsed >= THROTTLE_MS) {
+      // 距上次已超过 5s，立即落盘（leading）
+      doSave();
+    } else if (!playbackSaveTimerRef.current) {
+      // 否则排一个 trailing，保证最后一次进度变化也能落盘（避免快进后停住不存）
+      playbackSaveTimerRef.current = setTimeout(() => {
+        playbackSaveTimerRef.current = null;
+        doSave();
+      }, THROTTLE_MS - elapsed);
+    }
+  }, [
+    slots.local.currentTime, slots.cloud.currentTime,
+    slots.online.currentTime, slots.playlist.currentTime,
+    // getPersistenceData / appStorage 为稳定引用，不计入依赖
+  ]);
 
   useEffect(() => {
     if (!isDesktop()) return;
@@ -829,4 +875,14 @@ export function useLibraryLoad({
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [slots, getPersistenceData, getSlotsSnapshot]);
+
+  // 组件卸载时清理进度节流的 trailing timer（见上方 playbackSaveTimerRef 注释）
+  useEffect(() => {
+    return () => {
+      if (playbackSaveTimerRef.current) {
+        clearTimeout(playbackSaveTimerRef.current);
+        playbackSaveTimerRef.current = null;
+      }
+    };
+  }, []);
 }
