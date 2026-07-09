@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type Language } from '../services/i18n';
+import { type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';

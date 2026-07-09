@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { i18n as i18nService, type Language } from '../../services/i18n';
+import { type Language } from '../../i18n';
 import { settingsManager } from '../../services/settingsManager';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import { logger } from '../../services/logger';
@@ -101,7 +101,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   }, []);
 
   const handleLanguageChange = (lang: Language) => {
-    i18nService.setLanguage(lang);
+    i18n.changeLanguage(lang);
     setIsLangDropdownOpen(false);
   };
 
