@@ -442,6 +442,10 @@ class QQMusicAPI implements OnlineMusicProvider {
    * Compute QQ Music `g_tk` (hash33) from the `p_skey` / `skey` / `qm_keyst` cookie.
    * Returns `{ g_tk, source }` so callers can log which key was used.
    * Falls back to 5381 (zero-value default) when no key is present.
+   *
+   * 注意：本方法初值 5381，用于 g_tk（API 鉴权）。主进程 qqLoginHandlers.ts 里
+   * 另有一个同名 hash33 初值 0，用于 ptqrtoken（扫码登录），两者是 QQ 协议规定的
+   * 不同常量，不可混用、故不抽取共享。
    */
   private hash33(s: string): number {
     let hash = 5381;

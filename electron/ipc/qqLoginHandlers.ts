@@ -64,6 +64,15 @@ const UA =
   '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0';
 
 // ===== 工具函数 =====
+
+/**
+ * QQ 协议 hash33（ptqrtoken 用）—— 注意初值是 0，与 calcGTK/g_tk 的 5381 不同。
+ *
+ * 这是 QQ 协议规定的差异，不是漂移：扫码登录的 ptqrtoken = hash33(qrsig) 用初值 0，
+ * 而 API 鉴权的 g_tk = calcGTK(p_skey) 用初值 5381（DJB2 标准初值）。两者算法结构
+ * 相同但常量不同，不可混用。渲染层 src/services/qqMusicApi.ts 的 hash33 只用于 g_tk
+ *（初值 5381），与此处的 hash33（初值 0）是不同用途，故不抽取共享。
+ */
 function hash33(str: string): number {
   let e = 0;
   for (let i = 0; i < str.length; i++) {
@@ -73,6 +82,10 @@ function hash33(str: string): number {
   return e;
 }
 
+/**
+ * QQ g_tk 计算（初值 5381，与渲染层 qqMusicApi.ts 的 hash33 一致）。
+ * 用于 API 鉴权。
+ */
 function calcGTK(pskey: string): number {
   let hash = 5381;
   for (let i = 0; i < pskey.length; i++) {

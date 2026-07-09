@@ -34,6 +34,11 @@ export interface WritableCheckResult {
  * 用 webdavPath 计算稳定 hash 前缀，避免 sanitizeTrackId 把不同路径折叠成同名
  * （如 "/a/1" 与 "/a1" 都被清洗成 "a1"）。hash 仅含 [0-9a-z]，清洗后保留。
  * 上传时立即落盘与后续扫描落盘复用同一 id，避免重复封面。
+ *
+ * 这里的 reduce hash 算法（DJB2 变体）与主进程 electron/utils/webdavCoverId.ts 的
+ * webdavPathHash 逐字相同。未抽取到 shared 是因为主进程版本整体依赖 node crypto
+ *（sanitizeTrackId 用 sha1 兜底），无法整体进纯 src/shared/；而可共享的仅这 1 行
+ * reduce，建跨进程同步机制得不偿失。两端已有交叉引用注释，修改任一处时务必同步。
  */
 export function webdavCoverId(webdavPath: string): string {
   const pathHash = Math.abs([...webdavPath].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
