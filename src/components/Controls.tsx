@@ -1,6 +1,6 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo } from 'react';
 import { Track } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../services/coverUrl';
 import { useGlassUI } from '../hooks/useGlassUI';
 
@@ -38,15 +38,8 @@ const Controls: React.FC<ControlsProps> = memo(({
   playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter: _forceUpdateCounter, audioRef: _audioRef,
   floating = false
 }) => {
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const glassUI = useGlassUI();
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
 // Use audio element's currentTime directly for progress calculation
   // This ensures we show the actual audio playback position
@@ -116,7 +109,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             </div>
           </div>
         ) : (
-          <div className="text-sm italic" style={{ color: 'var(--theme-text-muted)' }}>{i18n.t('controls.noTrackSelected')}</div>
+          <div className="text-sm italic" style={{ color: 'var(--theme-text-muted)' }}>{t('controls.noTrackSelected')}</div>
         )}
       </div>
 

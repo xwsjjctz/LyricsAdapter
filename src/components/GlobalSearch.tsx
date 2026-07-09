@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track } from '../types';
 import { getOnlineProvider, type OnlineSong } from '../services/onlineMusicProvider';
+import { useTranslation } from 'react-i18next';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -44,13 +45,12 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
   const [openUploadQualityId, setOpenUploadQualityId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const [, setLangVersion] = useState(0);
 
   useEffect(() => {
     const unsub1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    const unsub2 = i18n.subscribe(() => setLangVersion(v => v + 1));
-    return () => { unsub1(); unsub2(); };
+    return () => { unsub1(); };
   }, []);
 
   const colors = currentTheme.colors;
@@ -192,12 +192,12 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
           <div className="px-5 py-8 text-center" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined text-3xl mb-2 block">search</span>
             <p className="text-xs tracking-[0.08em] uppercase">Search Library</p>
-            <p className="text-sm mt-2">{i18n.t('search.typeToSearch')}</p>
+            <p className="text-sm mt-2">{t('search.typeToSearch')}</p>
           </div>
         ) : !hasAny ? (
           <div className="px-5 py-8 text-center" style={{ color: colors.textMuted }}>
             <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
-            <p className="text-sm">{i18n.t('search.noResults')}</p>
+            <p className="text-sm">{t('search.noResults')}</p>
           </div>
         ) : (
           <div className="py-3">
@@ -206,7 +206,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
               <div className="mb-3">
                 <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-xs">hard_drive</span>
-                  {i18n.t('sidebar.local')}
+                  {t('sidebar.local')}
                   <span className="opacity-50">({filteredLocal.length})</span>
                 </div>
                 {filteredLocal.map((track, index) => (
@@ -228,7 +228,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
               <div className="mb-3">
                 <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                   <span className="material-symbols-outlined text-xs">cloud</span>
-                  {i18n.t('sidebar.cloud')}
+                  {t('sidebar.cloud')}
                   <span className="opacity-50">({filteredCloud.length})</span>
                 </div>
                 {filteredCloud.map((track, index) => (
@@ -254,7 +254,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
                   {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                 </div>
                 {qqResults.length === 0 && qqLoading ? (
-                  <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{i18n.t('search.searching')}...</div>
+                  <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{t('search.searching')}...</div>
                 ) : (
                   qqResults.map((song, index) => (
                     <QQResultRow

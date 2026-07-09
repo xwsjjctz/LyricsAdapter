@@ -5,6 +5,7 @@ import { type OnlineSong } from '../services/onlineMusicProvider';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { cookieManager } from '../services/cookieManager';
+import { useTranslation } from 'react-i18next';
 import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { settingsManager } from '../services/settingsManager';
@@ -81,13 +82,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const [, setLangVersion] = useState(0);
 
   useEffect(() => {
     const u1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    const u2 = i18n.subscribe(() => setLangVersion(v => v + 1));
-    return () => { u1(); u2(); };
+    return () => { u1(); };
   }, []);
 
   const colors = currentTheme.colors;
@@ -216,7 +216,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         <input
           ref={inputRef}
           type="text"
-          placeholder={i18n.t('search.typeToSearch')}
+          placeholder={t('search.typeToSearch')}
           value={query}
           onChange={e => handleChange(e.target.value)}
           onFocus={handleFocus}
@@ -272,7 +272,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           {!hasAny ? (
             <div className="px-5 py-10 text-center" style={{ color: colors.textMuted }}>
               <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
-              <p className="text-sm">{i18n.t('search.noResults')}</p>
+              <p className="text-sm">{t('search.noResults')}</p>
             </div>
           ) : variant === 'new-ux' ? (
             /* ── Card grid layout for New UI ── */
@@ -281,7 +281,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <>
                   <div className="new-ux-search-card-grid__label">
                     <span className="material-symbols-outlined" style={{ fontSize: 12 }}>hard_drive</span>
-                    {i18n.t('sidebar.local')}
+                    {t('sidebar.local')}
                     <span style={{ opacity: 0.5 }}>({filteredLocal.length})</span>
                   </div>
                   {filteredLocal.map((track, idx) => (
@@ -300,7 +300,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <>
                   <div className="new-ux-search-card-grid__label">
                     <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud</span>
-                    {i18n.t('sidebar.cloud')}
+                    {t('sidebar.cloud')}
                     <span style={{ opacity: 0.5 }}>({filteredCloud.length})</span>
                   </div>
                   {filteredCloud.map((track, idx) => (
@@ -323,7 +323,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                   </div>
                   {onlineResults.length === 0 && qqLoading ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted, gridColumn: '1 / -1' }}>{i18n.t('search.searching')}...</div>
+                    <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted, gridColumn: '1 / -1' }}>{t('search.searching')}...</div>
                   ) : (
                     onlineResults.map(({ source, song }) => (
                       <SearchCard key={`${source}-${song.songmid}`}
@@ -344,7 +344,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <div className="mb-2">
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                     <span className="material-symbols-outlined text-xs">hard_drive</span>
-                    {i18n.t('sidebar.local')}
+                    {t('sidebar.local')}
                     <span className="opacity-50">({filteredLocal.length})</span>
                   </div>
                   {filteredLocal.map((track, idx) => (
@@ -359,7 +359,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <div className="mb-2">
                   <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
                     <span className="material-symbols-outlined text-xs">cloud</span>
-                    {i18n.t('sidebar.cloud')}
+                    {t('sidebar.cloud')}
                     <span className="opacity-50">({filteredCloud.length})</span>
                   </div>
                   {filteredCloud.map((track, idx) => (
@@ -377,7 +377,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                   </div>
                   {onlineResults.length === 0 && qqLoading ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{i18n.t('search.searching')}...</div>
+                    <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{t('search.searching')}...</div>
                   ) : (
                     onlineResults.map(({ source, song }, idx) => (
                       <QQRow key={`${source}-${song.songmid}`} song={song} isSelected={selectedIndex === resultOffset + idx} colors={colors}

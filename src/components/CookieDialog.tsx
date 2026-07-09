@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cookieManager } from '../services/cookieManager';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 
@@ -15,17 +15,9 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const colors = currentTheme.colors;
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -47,7 +39,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
     e.preventDefault();
 
     if (!cookie.trim()) {
-      setError(i18n.t('cookieDialog.enterCookie'));
+      setError(t('cookieDialog.enterCookie'));
       return;
     }
 
@@ -65,11 +57,11 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
         logger.debug('[CookieDialog] Cookie validated successfully');
         onClose(true);
       } else {
-        setError(status.message || i18n.t('cookieDialog.validateFailed'));
+        setError(status.message || t('cookieDialog.validateFailed'));
         cookieManager.clearCookie();
       }
     } catch (err) {
-      setError(i18n.t('cookieDialog.validateError'));
+      setError(t('cookieDialog.validateError'));
       cookieManager.clearCookie();
     } finally {
       setIsValidating(false);
@@ -88,7 +80,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>{i18n.t('cookieDialog.title')}</h2>
+          <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>{t('cookieDialog.title')}</h2>
           <button
             onClick={handleClose}
             className="transition-colors"
@@ -102,18 +94,18 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
         </div>
 
         <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
-          {i18n.t('cookieDialog.description')}
+          {t('cookieDialog.description')}
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
-              {i18n.t('cookieDialog.cookieLabel')}
+              {t('cookieDialog.cookieLabel')}
             </label>
             <textarea
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
-              placeholder={i18n.t('cookieDialog.pastePlaceholder')}
+              placeholder={t('cookieDialog.pastePlaceholder')}
               className="w-full h-32 rounded-xl p-3 text-sm focus:outline-none transition-all resize-none"
               style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}`, color: colors.textPrimary }}
               disabled={isValidating}
@@ -132,27 +124,27 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
           <div className="rounded-xl p-3 mb-4" style={{ backgroundColor: colors.backgroundCard }}>
             <p className="text-xs" style={{ color: colors.textMuted }}>
               <span className="material-symbols-outlined text-sm align-text-bottom mr-1">info</span>
-              {i18n.t('cookieDialog.howToGet')}
+              {t('cookieDialog.howToGet')}
             </p>
             <ol className="text-xs mt-2 ml-5 list-decimal space-y-1" style={{ color: colors.textMuted }}>
-              <li>{i18n.t('cookieDialog.step1')}</li>
-              <li>{i18n.t('cookieDialog.step2')}</li>
-              <li>{i18n.t('cookieDialog.step3')}</li>
-              <li>{i18n.t('cookieDialog.step4')}</li>
-              <li>{i18n.t('cookieDialog.step5')}</li>
+              <li>{t('cookieDialog.step1')}</li>
+              <li>{t('cookieDialog.step2')}</li>
+              <li>{t('cookieDialog.step3')}</li>
+              <li>{t('cookieDialog.step4')}</li>
+              <li>{t('cookieDialog.step5')}</li>
             </ol>
           </div>
 
           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-4">
             <p className="text-xs text-yellow-400/80">
               <span className="material-symbols-outlined text-sm align-text-bottom mr-1">warning</span>
-              {i18n.t('cookieDialog.browserLimit')}
+              {t('cookieDialog.browserLimit')}
             </p>
             <p className="text-xs text-yellow-400/60 mt-1 ml-5">
-              {i18n.t('cookieDialog.browserLimitDesc')}
+              {t('cookieDialog.browserLimitDesc')}
             </p>
             <p className="text-xs text-yellow-400/40 mt-1 ml-5">
-              {i18n.t('cookieDialog.buildDesktop')}
+              {t('cookieDialog.buildDesktop')}
             </p>
           </div>
 
@@ -166,7 +158,7 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
               onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
             >
-              {i18n.t('cookieDialog.cancel')}
+              {t('cookieDialog.cancel')}
             </button>
             <button
               type="submit"
@@ -179,10 +171,10 @@ const CookieDialog: React.FC<CookieDialogProps> = ({ isOpen, onClose }) => {
               {isValidating ? (
                 <>
                   <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                  {i18n.t('cookieDialog.validating')}
+                  {t('cookieDialog.validating')}
                 </>
               ) : (
-                i18n.t('cookieDialog.save')
+                t('cookieDialog.save')
               )}
             </button>
           </div>

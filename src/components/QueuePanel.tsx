@@ -1,7 +1,7 @@
 
 import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
@@ -14,16 +14,8 @@ interface QueuePanelProps {
 }
 
 const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex, isOpen, onTrackSelect }) => {
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -38,7 +30,7 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
     <aside className={`w-80 glass border-l flex flex-col h-full z-20 transition-all duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full fixed right-0'}`} style={{ borderColor: colors.borderLight, borderLeftWidth: 'var(--theme-panel-border-width)' }}>
       <div className="p-6 h-full flex flex-col">
         <h2 className="text-xl mb-6 flex items-center gap-2" style={{ color: colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-          {i18n.t('queue.upNext')}
+          {t('queue.upNext')}
           <span className="text-xs px-2 py-0.5" style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted, borderRadius: 'var(--theme-button-radius)', fontWeight: 'var(--theme-text-button-weight)' }}>{tracks.length}</span>
         </h2>
         
@@ -82,14 +74,14 @@ const QueuePanel: React.FC<QueuePanelProps> = memo(({ tracks, currentTrackIndex,
           ) : (
             <div className="flex-1 flex items-center justify-center flex-col text-center px-4" style={{ opacity: 0.2, color: colors.textMuted }}>
               <span className="material-symbols-outlined text-4xl mb-4">playlist_add</span>
-              <p className="text-sm">{i18n.t('queue.emptyHint')}</p>
+              <p className="text-sm">{t('queue.emptyHint')}</p>
             </div>
           )}
         </div>
 
         <div className="mt-6 pt-6 border-t" style={{ borderColor: colors.borderLight }}>
           <button className="w-full py-3 border transition-colors text-sm" style={{ borderColor: colors.borderLight, borderWidth: 'var(--theme-control-border-width)', borderRadius: 'var(--theme-control-radius)', color: colors.textSecondary, fontWeight: 'var(--theme-text-button-weight)', letterSpacing: 'var(--theme-button-letter-spacing)', textTransform: 'var(--theme-control-text-transform)' as React.CSSProperties['textTransform'] }}>
-            {i18n.t('queue.viewFullQueue')}
+            {t('queue.viewFullQueue')}
           </button>
         </div>
       </div>

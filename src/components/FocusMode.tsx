@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
@@ -57,16 +56,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const isLinux = getDesktopAPI()?.platform === 'linux';
   const isNewUxFocus = variant === 'new-ux';
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {

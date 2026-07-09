@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
@@ -60,9 +60,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
   );
-  const [, setLanguageVersion] = useState(0);
-
-  // Subscribe to theme changes
+  const { t } = useTranslation();
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
       setCurrentThemeId(themeId);
@@ -72,14 +70,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       // Re-apply current theme styles when theme changes
       const currentTheme = themeManager.getCurrentTheme();
       applyThemeStyles(currentTheme);
-    });
-    return unsubscribe;
-  }, []);
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
     });
     return unsubscribe;
   }, []);
@@ -179,7 +169,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
   const translateTag = (tag: string): string => {
     const key = getThemeTagKey(tag);
     if (key) {
-      const translated = i18n.t(key);
+      const translated = t(key);
       return translated !== key ? translated : tag;
     }
     return tag;
@@ -203,10 +193,10 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       <div className="mb-6 flex-shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-            {i18n.t('theme.title')}
+            {t('theme.title')}
           </h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-            {i18n.t('theme.description')}
+            {t('theme.description')}
           </p>
         </div>
       </div>
@@ -245,7 +235,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     >
                       <ThemeModeSwitch
                         checked={defaultCardMode === 'dark'}
-                        ariaLabel={defaultCardMode === 'dark' ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}
+                        ariaLabel={defaultCardMode === 'dark' ? t('theme.darkMode') : t('theme.lightMode')}
                         onChange={handleToggleDefaultCardMode}
                       />
                     </div>
@@ -324,7 +314,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                         letterSpacing: appearance.headingLetterSpacing,
                       }}
                     >
-                      {isDefaultCard ? i18n.t('theme.name.default-combined') : i18n.t(getThemeNameKey(theme.id))}
+                      {isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id))}
                     </h3>
                     {isCurrent && (
                       <span
@@ -337,7 +327,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                         }}
                       >
                         <span className="material-symbols-outlined text-sm">check</span>
-                        {i18n.t('theme.applied')}
+                        {t('theme.applied')}
                       </span>
                     )}
                   </div>
@@ -346,7 +336,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     className="text-sm mb-3"
                     style={{ color: theme.colors.textSecondary }}
                   >
-                    {isDefaultCard ? i18n.t('theme.desc.default-combined') : i18n.t(getThemeDescKey(theme.id))}
+                    {isDefaultCard ? t('theme.desc.default-combined') : t(getThemeDescKey(theme.id))}
                   </p>
 
                   {/* Tags */}
@@ -374,7 +364,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                     <span className="material-symbols-outlined text-sm">
                       {theme.isDark ? 'dark_mode' : 'light_mode'}
                     </span>
-                    <span>{theme.isDark ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}</span>
+                    <span>{theme.isDark ? t('theme.darkMode') : t('theme.lightMode')}</span>
                   </div>
                 </div>
 
@@ -401,7 +391,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
                       textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
                     }}
                   >
-                    {isCurrent ? i18n.t('theme.applied') : i18n.t('theme.apply')}
+                    {isCurrent ? t('theme.applied') : t('theme.apply')}
                   </button>
                 </div>
               </div>

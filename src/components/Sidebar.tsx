@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { ViewMode, SlotId } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 
@@ -29,17 +29,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isThemeView = currentView === ViewMode.THEME;
   const isPlaylistsView = currentView === ViewMode.PLAYLISTS;
 
-  // Force re-render when language changes
-  const [languageVersion, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [isReloadHovered, setIsReloadHovered] = useState(false);
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   // Note: theme colors are driven entirely by CSS variables (var(--theme-*)),
   // which the browser re-resolves on theme switch — no React state or
@@ -48,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleSlotClick = useCallback((slotId: SlotId) => {
     if (slotId === 'cloud') {
       if (!webdavClient.hasConfig()) {
-        notify(i18n.t('settingsDialog.webdavTitle'), i18n.t('settingsDialog.webdavFillAll'));
+        notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
         onNavigate(ViewMode.SETTINGS);
         return;
       }
@@ -61,35 +52,35 @@ const Sidebar: React.FC<SidebarProps> = ({
     {
       key: 'local' as const,
       icon: 'hard_drive',
-      label: i18n.t('sidebar.local'),
+      label: t('sidebar.local'),
       active: isLibraryView && activeSlotId === 'local',
       onClick: () => handleSlotClick('local'),
     },
     {
       key: 'cloud' as const,
       icon: 'cloud',
-      label: i18n.t('sidebar.cloud'),
+      label: t('sidebar.cloud'),
       active: isLibraryView && activeSlotId === 'cloud',
       onClick: () => handleSlotClick('cloud'),
     },
-  ], [isLibraryView, activeSlotId, handleSlotClick, languageVersion]);
+  ], [isLibraryView, activeSlotId, handleSlotClick]);
 
   const onlineItems = useMemo(() => [
     {
       key: 'online',
       icon: 'history',
-      label: i18n.t('sidebar.onlineQueue'),
+      label: t('sidebar.onlineQueue'),
       active: isLibraryView && activeSlotId === 'online',
       onClick: () => handleSlotClick('online'),
     },
     {
       key: 'playlists',
       icon: 'queue_music',
-      label: i18n.t('sidebar.playlists'),
+      label: t('sidebar.playlists'),
       active: isPlaylistsView,
       onClick: () => onNavigate(ViewMode.PLAYLISTS),
     },
-  ], [isLibraryView, activeSlotId, handleSlotClick, isPlaylistsView, onNavigate, languageVersion]);
+  ], [isLibraryView, activeSlotId, handleSlotClick, isPlaylistsView, onNavigate]);
 
   const renderNavItem = (
     item: {
@@ -177,8 +168,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {renderSection(i18n.t('sidebar.library'), libraryItems)}
-      {renderSection(i18n.t('sidebar.onlineMusic'), onlineItems)}
+      {renderSection(t('sidebar.library'), libraryItems)}
+      {renderSection(t('sidebar.onlineMusic'), onlineItems)}
 
       {/* 设置和皮肤按钮 */}
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -231,7 +222,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           title="Reload unavailable tracks"
         >
           <span className="material-symbols-outlined group-hover:scale-110 transition-transform">refresh</span>
-          <span className="text-sm font-semibold">{i18n.t('sidebar.reloadFiles')}</span>
+          <span className="text-sm font-semibold">{t('sidebar.reloadFiles')}</span>
         </button>
       )}
     </>

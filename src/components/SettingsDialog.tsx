@@ -4,7 +4,7 @@ import { settingsManager } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 
@@ -25,7 +25,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
   const [webdavMessageType, setWebdavMessageType] = useState<'success' | 'error' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   useEffect(() => {
@@ -46,14 +46,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
       })();
     }
   }, [isOpen]);
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -81,7 +73,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
         cookieManager.setCookie(cookie.trim());
         const status = await cookieManager.validateCookie();
         if (!status.valid) {
-          showMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
+          showMessage(t('settingsDialog.cookieInvalid'), 'error');
           cookieManager.clearCookie();
           setIsValidating(false);
           return;
@@ -100,9 +92,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
         });
       }
 
-      showMessage(i18n.t('settingsDialog.saved'), 'success');
+      showMessage(t('settingsDialog.saved'), 'success');
     } catch (err) {
-      showMessage(i18n.t('settingsDialog.saveFailed'), 'error');
+      showMessage(t('settingsDialog.saveFailed'), 'error');
       logger.error('[SettingsDialog] Save failed:', err);
     } finally {
       setIsValidating(false);
@@ -123,7 +115,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>{i18n.t('settingsDialog.title')}</h2>
+          <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>{t('settingsDialog.title')}</h2>
           <button
             onClick={handleClose}
             className="transition-colors"
@@ -139,12 +131,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
-              {i18n.t('settingsDialog.cookie')}
+              {t('settingsDialog.cookie')}
             </label>
             <textarea
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
-              placeholder={i18n.t('settingsDialog.pasteCookie')}
+              placeholder={t('settingsDialog.pasteCookie')}
               className="w-full h-24 rounded-xl p-3 text-sm focus:outline-none focus:ring-0 transition-all resize-none"
               style={{
                 backgroundColor: colors.backgroundCard,
@@ -165,14 +157,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
 
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
-              {i18n.t('settingsDialog.savePath')}
+              {t('settingsDialog.savePath')}
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={downloadPath}
                 onChange={(e) => setDownloadPath(e.target.value)}
-                placeholder={i18n.t('settingsDialog.downloadFolderPath')}
+                placeholder={t('settingsDialog.downloadFolderPath')}
                 className="flex-1 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={{
                   backgroundColor: colors.backgroundCard,
@@ -204,19 +196,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
-                title={i18n.t('settingsDialog.savePath')}
+                title={t('settingsDialog.savePath')}
               >
                 <span className="material-symbols-outlined text-base">folder_open</span>
               </button>
             </div>
             <p className="mt-1.5 text-xs" style={{ color: colors.textMuted }}>
-              {i18n.t('settingsDialog.tip')}
+              {t('settingsDialog.tip')}
             </p>
           </div>
 
           <div className="pt-2 border-t" style={{ borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3" style={{ color: colors.textPrimary }}>
-              {i18n.t('settingsDialog.webdavTitle')}
+              {t('settingsDialog.webdavTitle')}
             </h3>
             <div className="space-y-3">
               <input
@@ -244,7 +236,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 type="text"
                 value={webdavUsername}
                 onChange={(e) => setWebdavUsername(e.target.value)}
-                placeholder={i18n.t('settingsDialog.webdavUsername')}
+                placeholder={t('settingsDialog.webdavUsername')}
                 className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={{
                   backgroundColor: colors.backgroundCard,
@@ -265,7 +257,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 type="password"
                 value={webdavPassword}
                 onChange={(e) => setWebdavPassword(e.target.value)}
-                placeholder={i18n.t('settingsDialog.webdavPassword')}
+                placeholder={t('settingsDialog.webdavPassword')}
                 className="w-full rounded-xl py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={{
                   backgroundColor: colors.backgroundCard,
@@ -294,7 +286,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               <button
                 onClick={async () => {
                   if (!webdavServerUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
-                    setWebdavMessage(i18n.t('settingsDialog.webdavFillAll'));
+                    setWebdavMessage(t('settingsDialog.webdavFillAll'));
                     setWebdavMessageType('error');
                     return;
                   }
@@ -318,10 +310,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
                 {isTestingWebdav ? (
                   <>
                     <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                    {i18n.t('settingsDialog.webdavTesting')}
+                    {t('settingsDialog.webdavTesting')}
                   </>
                 ) : (
-                  i18n.t('settingsDialog.webdavTestConnection')
+                  t('settingsDialog.webdavTestConnection')
                 )}
               </button>
             </div>
@@ -351,7 +343,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
             >
-              {i18n.t('settingsDialog.close')}
+              {t('settingsDialog.close')}
             </button>
             <button
               onClick={handleSave}
@@ -364,10 +356,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
               {isValidating ? (
                 <>
                   <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                  {i18n.t('settingsDialog.saving')}
+                  {t('settingsDialog.saving')}
                 </>
               ) : (
-                i18n.t('settingsDialog.save')
+                t('settingsDialog.save')
               )}
             </button>
           </div>

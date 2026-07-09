@@ -1,7 +1,7 @@
 
 import React, { memo, useState, useEffect } from 'react';
 import { Track } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 
@@ -13,17 +13,9 @@ interface MainPlayerProps {
 }
 
 const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlaying, onTogglePlay }) => {
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const colors = currentTheme.colors;
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -68,7 +60,7 @@ const MainPlayer: React.FC<MainPlayerProps> = memo(({ track, isVisible, isPlayin
       ) : (
         <div className="text-center opacity-40">
           <span className="material-symbols-outlined text-8xl mb-6 block">music_note</span>
-          <p className="text-xl font-medium tracking-wide">{i18n.t('mainPlayer.importTracks')}</p>
+          <p className="text-xl font-medium tracking-wide">{t('mainPlayer.importTracks')}</p>
         </div>
       )}
     </div>
