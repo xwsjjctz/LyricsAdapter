@@ -48,16 +48,22 @@ export interface WriteMetadataInput {
   coverDataUri: string | undefined;
 }
 
-// ── LRC parser (shared logic, duplicated from renderer for main-process use) ──
+// ── LRC parser ──
+// 主进程与渲染层（src/shared/lrcParser.ts）逐字同步。因 vite 分包隔离无法直接
+// import src/ 下的文件，故保留此副本。修改 src/shared/lrcParser.ts 时务必同步此处，
+// 避免再次出现三份实现各自漂移、hh:mm:ss 解析不一致的回归（此前此处对
+// [hh:mm:ss] 的解析是错的：把秒位当分钟 *60 且忽略了小时位）。
 
 /** LRC metadata tags like [ti:Title], [ar:Artist] that should be filtered. */
 const LRC_HEADER_TAG = /^\[(ti|ar|al|by|offset|re|ve|length|sign):/i;
+
+/** LRC 时间戳：[mm:ss.xx]、[mm:ss]、或 [hh:mm:ss]。 */
+const LRC_TIME_REGEX = /\[(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{2,3}))?\]/g;
 
 function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedLyricLine[] } {
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: SyncedLyricLine[] = [];
   const plainTextLines: string[] = [];
-  const timeRegex = /\[(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{2,3}))?\]/g;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -66,8 +72,8 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
     // Skip LRC header metadata tags ([ti:…], [ar:…], etc.)
     if (LRC_HEADER_TAG.test(trimmed)) continue;
 
-    const matches = [...trimmed.matchAll(timeRegex)];
-    const textWithoutTimestamps = trimmed.replace(timeRegex, '').trim();
+    const matches = [...trimmed.matchAll(LRC_TIME_REGEX)];
+    const textWithoutTimestamps = trimmed.replace(LRC_TIME_REGEX, '').trim();
 
     if (textWithoutTimestamps === '//') continue;
 
@@ -78,9 +84,16 @@ function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedL
         const hoursOrSeconds = match[3];
         const milliseconds = match[4] ? parseInt(match[4].padEnd(3, '0'), 10) : 0;
 
-        const timeInSeconds = hoursOrSeconds
-          ? parseInt(hoursOrSeconds, 10) * 60 + seconds + milliseconds / 1000
-          : minutes * 60 + seconds + milliseconds / 1000;
+        let timeInSeconds: number;
+        if (hoursOrSeconds) {
+          // [hh:mm:ss] format: match[1]=hours, match[2]=minutes, match[3]=seconds
+          const hours = minutes;
+          const mins = seconds;
+          const secs = parseInt(hoursOrSeconds, 10);
+          timeInSeconds = hours * 3600 + mins * 60 + secs;
+        } else {
+          timeInSeconds = minutes * 60 + seconds + milliseconds / 1000;
+        }
 
         syncedLyrics.push({ time: timeInSeconds, text: textWithoutTimestamps });
       }
