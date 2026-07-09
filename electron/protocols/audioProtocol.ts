@@ -1,6 +1,7 @@
 import { protocol, app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import rangeParser from 'range-parser';
 import { logger } from '../logger';
 
 const MIME_TYPES: Record<string, string> = {
@@ -44,20 +45,15 @@ function nodeStreamToWeb(stream: fs.ReadStream): ReadableStream<Uint8Array> {
 
 /**
  * Parse Range header value.
- * Supports "bytes=start-end" format. Returns [start, end] or null.
+ * 委托给 range-parser：支持 `bytes=start-end`、`bytes=start-`、`bytes=-suffix`
+ * 等标准形式，返回首个区间或 null（语法非法 / 范围不可满足均视为无有效区间）。
  */
 function parseRangeHeader(rangeHeader: string, fileSize: number): { start: number; end: number } | null {
-  const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-  if (!match) return null;
-
-  const start = parseInt(match[1]!, 10);
-  const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
-
-  if (isNaN(start) || isNaN(end) || start < 0 || end >= fileSize || start > end) {
-    return null;
-  }
-
-  return { start, end };
+  const parsed = rangeParser(fileSize, rangeHeader);
+  // range-parser 返回 -1（不可满足）或 -2（语法非法）时均无有效区间
+  if (typeof parsed === 'number' || parsed.length === 0) return null;
+  const first = parsed[0]!;
+  return { start: first.start, end: first.end };
 }
 
 /**

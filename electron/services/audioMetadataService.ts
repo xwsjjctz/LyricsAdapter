@@ -1,8 +1,9 @@
 /**
  * Audio Metadata Service — unified wrapper around music-tag-native.
  *
- * Replaces the hand-parsed binary readers in metadataWorker.ts,
- * coverArtService.ts, and the custom writers in metadataUtils.ts.
+ * Replaces the hand-parsed binary readers in metadataWorker.ts and
+ * coverArtService.ts (renderer), and the former custom writers that
+ * lived in electron/utils/metadataUtils.ts (now removed).
  *
  * Uses the native napi-rs binding (MusicFile) for Node.js — runs in
  * the Electron main process so there is no IPC overhead per file.
