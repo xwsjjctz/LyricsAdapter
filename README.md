@@ -259,16 +259,12 @@ npm run electron:build
 | **Vite** | 6.2.0 | 下一代前端构建工具，快速热更新 |
 | **Electron** | 40.0.0 | 跨平台桌面应用框架 |
 | **Tailwind CSS** | 4.1.18 | 实用优先的 CSS 框架 |
-| **music-metadata** | 11.11.0 | 音频元数据解析库（读取） |
-| **node-id3** | 0.2.9 | MP3 元数据写入库 |
-| **flac-metadata** | 0.1.1 | FLAC 元数据读写库 |
-| **idb** | 8.0.3 | IndexedDB 封装库（已弃用，改用文件系统） |
-| **probe-image-size** | 7.2.3 | 图片尺寸探测库 |
+| **music-tag-native** | 1.0.0 | 音频元数据解析/写入库（Rust lofty 引擎） |
+| **idb** | 8.0.3 | IndexedDB 封装库 |
 
 ### 构建工具
 
 - **Vite Plugin Electron** - Electron 集成插件
-- **Vite Plugin Electron Renderer** - Electron 渲染进程插件
 - **Electron Builder** - 跨平台打包工具
 - **cross-env** - 跨平台环境变量设置
 
@@ -660,7 +656,7 @@ interface DesktopAPI {
 - [Vite](https://vitejs.dev/) - 构建工具
 - [Electron](https://www.electronjs.org/) - 桌面应用框架
 - [Tailwind CSS](https://tailwindcss.com/) - CSS 框架
-- [music-metadata](https://github.com/Borewit/music-metadata) - 音频元数据解析库
+- [music-tag-native](https://github.com/subframe7536/music-tag-native) - 音频元数据解析/写入库
 
 ### 图标与设计
 
