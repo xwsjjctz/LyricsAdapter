@@ -67,7 +67,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   const sourceOptions = getSourceOptions();
 
   return (
-    <section className="r-card p-4 border mb-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+    <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
@@ -92,13 +92,13 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[190px_176px_minmax(220px,1fr)] gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">
           <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
             {t('settingsDialog.onlineSource')}
           </div>
           <div
-            className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
+            className="h-36 overflow-y-auto no-scrollbar p-2 space-y-1"
             style={{
               backgroundColor: colors.backgroundDark,
               border: `1px solid ${colors.borderLight}`,
@@ -156,7 +156,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
             )}
           </div>
           <div
-            className="h-44 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
+            className="h-36 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
             style={{
               backgroundColor: colors.backgroundDark,
               border: `1px dashed ${colors.borderLight}`,
@@ -274,7 +274,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           </div>
         </div>
 
-        <div className="min-w-0 space-y-3">
+        <div className="min-w-0 space-y-3 sm:col-span-2">
           {/* Provider cookie */}
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>

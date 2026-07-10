@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { themeManager } from '../../services/themeManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../../types/theme';
 import { predefinedThemes } from '../../services/themes/predefinedThemes';
-import { resolveThemeControls } from '../../services/themeControls';
 import { resolveThemeAppearance } from '../../services/themeAppearance';
 
 interface ThemePanelProps {
@@ -178,7 +177,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   ];
 
   return (
-    <aside className="new-ux-side-panel new-ux-side-panel--wide new-ux-panel-in">
+    <aside className="new-ux-side-panel new-ux-side-panel--theme new-ux-panel-in">
       <header className="new-ux-side-panel__header">
         <div>
           <div className="new-ux-side-panel__eyebrow">{t('theme.title')}</div>
@@ -189,17 +188,37 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
         </button>
       </header>
       <div className="new-ux-side-panel__body">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-3">
+          <section
+            className="relative flex min-h-[76px] items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3"
+            style={{
+              background: 'linear-gradient(135deg, rgba(32, 43, 88, 0.96), rgba(54, 31, 85, 0.96))',
+              borderColor: 'rgba(164, 132, 255, 0.48)',
+              boxShadow: '0 12px 28px rgba(10, 8, 32, 0.24)',
+            }}
+          >
+            <div className="absolute -right-5 -top-8 size-28 rounded-full bg-violet-300/20 blur-2xl" />
+            <span className="material-symbols-outlined relative text-3xl text-violet-200">auto_awesome</span>
+            <div className="relative min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-white">{t('settings.newUx')}</h3>
+              <p className="mt-0.5 truncate text-xs text-violet-100/75">{t('settings.newUxDesc')}</p>
+            </div>
+            <span className="relative flex shrink-0 items-center gap-1 rounded-full bg-violet-100/15 px-2 py-1 text-[11px] font-medium text-violet-50">
+              <span className="material-symbols-outlined text-sm">check</span>
+              {t('theme.applied')}
+            </span>
+          </section>
+
+          <div className="space-y-2.5">
           {visibleThemes.map((theme) => {
             const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
             const isCurrent = theme.id === currentThemeId;
-            const controls = resolveThemeControls(theme);
             const appearance = resolveThemeAppearance(theme);
 
             return (
               <div
                 key={isDefaultCard ? 'default-theme-card' : theme.id}
-                className="theme-preview-card relative overflow-hidden transition-all duration-300 cursor-pointer group"
+                className="theme-preview-card flex min-h-[88px] overflow-hidden transition-shadow duration-200"
                 style={{
                   backgroundColor: theme.colors.backgroundSidebar,
                   borderRadius: appearance.surfaceRadius,
@@ -207,12 +226,10 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                   boxShadow: appearance.surfaceShadow,
                 }}
               >
-                {/* Theme Preview Area - Shows theme's own colors and control style tokens */}
-                <div className="h-32 relative overflow-hidden">
+                <div className="relative w-24 shrink-0 overflow-hidden">
                   {isDefaultCard && (
                     <div
-                      className="absolute right-3 top-3 z-20"
-                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-2 top-2 z-10"
                     >
                       <ThemeModeSwitch
                         checked={defaultCardMode === 'dark'}
@@ -222,72 +239,32 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                     </div>
                   )}
                   <div
-                    className="theme-preview-color absolute inset-0 opacity-80"
+                    className="theme-preview-color absolute inset-0"
                     style={{
                       background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
                       backgroundColor: theme.colors.backgroundGradientStart,
                     }}
                   />
-                  {/* Decorative elements */}
                   <div
-                    className="theme-preview-color absolute top-4 left-4 w-8 h-8 opacity-60"
-                    style={{ backgroundColor: theme.colors.primary, borderRadius: appearance.buttonRadius }}
+                    className="theme-preview-color absolute -right-4 -top-4 size-14 opacity-45"
+                    style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.buttonRadius }}
                   />
                   <div
-                    className="theme-preview-color absolute top-6 right-8 w-4 h-4 opacity-40"
-                    style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.controlRadius }}
-                  />
-                  <div
-                    className="theme-preview-color absolute bottom-4 right-12 w-6 h-6 opacity-30"
-                    style={{ backgroundColor: theme.colors.success, borderRadius: appearance.buttonRadius }}
-                  />
-                  <div
-                    className="theme-preview-color absolute left-4 right-4 bottom-4 p-2"
+                    className="theme-preview-color absolute bottom-3 left-3 flex size-9 items-center justify-center"
                     style={{
-                      backgroundColor: controls.panelBackgroundGlassStrong,
-                      border: `${appearance.panelBorderWidth} solid ${controls.panelBorder}`,
-                      borderRadius: appearance.surfaceRadius,
-                      boxShadow: controls.panelShadow,
+                      backgroundColor: theme.colors.primary,
+                      color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                      borderRadius: appearance.buttonRadius,
                     }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="theme-preview-color flex h-7 w-7 items-center justify-center"
-                        style={{
-                          backgroundColor: controls.primaryButtonBackground,
-                          color: controls.primaryButtonForeground,
-                          borderRadius: appearance.buttonRadius,
-                          boxShadow: controls.primaryButtonShadow,
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-[16px] fill-icon">play_arrow</span>
-                      </span>
-                      <div
-                        className="theme-preview-color flex-1 overflow-hidden"
-                        style={{
-                          height: appearance.progressHeight,
-                          borderRadius: appearance.progressRadius,
-                          backgroundColor: controls.sliderTrack,
-                        }}
-                      >
-                        <div
-                          className="theme-preview-color h-full w-2/3"
-                          style={{ backgroundColor: controls.sliderFill, borderRadius: appearance.progressRadius }}
-                        />
-                      </div>
-                      <span
-                        className="theme-preview-color h-7 w-7"
-                        style={{ backgroundColor: controls.iconBackgroundActive, borderRadius: appearance.controlRadius }}
-                      />
-                    </div>
+                    <span className="material-symbols-outlined text-lg">palette</span>
                   </div>
                 </div>
 
-                {/* Theme Info - Shows theme's own colors */}
-                <div className="theme-preview-color p-4">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="theme-preview-color min-w-0 flex-1 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
                     <h3
-                      className="text-lg"
+                      className="min-w-0 flex-1 truncate text-sm"
                       style={{
                         color: theme.colors.textPrimary,
                         fontFamily: theme.fonts.display || theme.fonts.main,
@@ -299,7 +276,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                     </h3>
                     {isCurrent && (
                       <span
-                        className="theme-preview-color px-2 py-1 text-xs flex items-center gap-1"
+                        className="theme-preview-color flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-[11px]"
                         style={{
                           backgroundColor: theme.colors.primary,
                           color: theme.isDark ? '#ffffff' : '#1a1a1a',
@@ -314,18 +291,17 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                   </div>
 
                   <p
-                    className="text-sm mb-3"
+                    className="mt-1 truncate text-xs"
                     style={{ color: theme.colors.textSecondary }}
                   >
                     {isDefaultCard ? t('theme.desc.default-combined') : t(getThemeDescKey(theme.id))}
                   </p>
 
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {theme.tags.map((tag) => (
+                  <div className="mt-2 flex gap-1 overflow-hidden">
+                    {theme.tags.slice(0, 2).map((tag) => (
                       <span
                         key={tag}
-                        className="theme-preview-color px-2 py-0.5 text-xs"
+                        className="theme-preview-color shrink-0 px-1.5 py-0.5 text-[10px]"
                         style={{
                           backgroundColor: theme.colors.backgroundCardHover,
                           color: theme.colors.textMuted,
@@ -339,45 +315,24 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
                       </span>
                     ))}
                   </div>
-
-                  {/* Mode badge */}
-                  <div className="flex items-center gap-1 text-xs" style={{ color: theme.colors.textMuted }}>
-                    <span className="material-symbols-outlined text-sm">
-                      {theme.isDark ? 'dark_mode' : 'light_mode'}
-                    </span>
-                    <span>{theme.isDark ? t('theme.darkMode') : t('theme.lightMode')}</span>
-                  </div>
                 </div>
 
-                {/* Apply Button Overlay */}
-                <div
-                  className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                <button
+                  type="button"
+                  onClick={() => handleApplyTheme(theme.id)}
+                  aria-label={`${isCurrent ? t('theme.applied') : t('theme.apply')}: ${isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id))}`}
+                  className="flex w-10 shrink-0 items-center justify-center transition-colors"
                   style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    backdropFilter: 'blur(4px)',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleApplyTheme(theme.id);
+                    backgroundColor: isCurrent ? `${theme.colors.primary}18` : theme.colors.backgroundCardHover,
+                    color: isCurrent ? theme.colors.primary : theme.colors.textSecondary,
                   }}
                 >
-                  <button
-                    className="px-6 py-3 transition-transform transform hover:scale-105"
-                    style={{
-                      backgroundColor: theme.colors.primary,
-                      color: theme.isDark ? '#ffffff' : '#1a1a1a',
-                      borderRadius: appearance.buttonRadius,
-                      fontWeight: appearance.textButtonWeight,
-                      letterSpacing: appearance.buttonLetterSpacing,
-                      textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
-                    }}
-                  >
-                    {isCurrent ? t('theme.applied') : t('theme.apply')}
-                  </button>
-                </div>
+                  <span className="material-symbols-outlined text-lg">{isCurrent ? 'check' : 'arrow_forward'}</span>
+                </button>
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </aside>

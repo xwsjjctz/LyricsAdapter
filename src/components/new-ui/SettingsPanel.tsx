@@ -109,7 +109,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
   return (
     <>
-      <aside className="new-ux-side-panel new-ux-side-panel--wide new-ux-panel-in">
+      <aside className="new-ux-side-panel new-ux-side-panel--settings new-ux-panel-in">
         <header className="new-ux-side-panel__header">
           <div>
             <div className="new-ux-side-panel__eyebrow">{t('settings.title')}</div>
@@ -125,10 +125,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
         <div className="new-ux-side-panel__body new-ux-settings-panel__body">
           <div className="space-y-4">
 
-            {/* Language + About */}
-            <section>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="r-card p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            {/* About + Language */}
+            <section className="new-ux-settings-panel__narrow">
+              <div className="flex flex-col gap-3">
+                <div className="order-2 r-card p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
@@ -185,7 +185,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   </div>
                 </div>
 
-                <div className="r-card p-4 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+                <div className="order-1 r-card p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
                     <div className="min-w-0">
@@ -198,24 +198,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* WebDAV */}
-            <WebdavSection
-              theme={themeUtils}
-              serverUrl={webdav.serverUrl}
-              username={webdav.username}
-              password={webdav.password}
-              message={webdav.message}
-              messageType={webdav.messageType}
-              isTesting={webdav.isTesting}
-              isSaving={webdav.isSaving}
-              setServerUrl={webdav.setServerUrl}
-              setUsername={webdav.setUsername}
-              setPassword={webdav.setPassword}
-              onTest={webdav.handleTest}
-              onSave={webdav.handleSave}
-            />
+            <section className="new-ux-settings-panel__narrow">
+              <WebdavSection
+                theme={themeUtils}
+                serverUrl={webdav.serverUrl}
+                username={webdav.username}
+                password={webdav.password}
+                message={webdav.message}
+                messageType={webdav.messageType}
+                isTesting={webdav.isTesting}
+                isSaving={webdav.isSaving}
+                setServerUrl={webdav.setServerUrl}
+                setUsername={webdav.setUsername}
+                setPassword={webdav.setPassword}
+                onTest={webdav.handleTest}
+                onSave={webdav.handleSave}
+              />
+            </section>
 
             {/* Experimental Features */}
-            <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <section className="new-ux-settings-panel__wide r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
                 {t('settings.experimental')}
@@ -439,36 +441,38 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* Shortcuts */}
-            <section className="mb-4">
-              <ShortcutsSettings />
+            <section className="new-ux-settings-panel__narrow">
+              <ShortcutsSettings layout="single" />
             </section>
 
             {/* Online Music — only visible when experimental toggle is enabled */}
             {qqMusicEnabled && (
-              <OnlineMusicSection
-                theme={themeUtils}
-                onlineSource={onlineMusic.onlineSource}
-                cookie={onlineMusic.cookie}
-                neteaseCookie={onlineMusic.neteaseCookie}
-                sodaCookie={onlineMusic.sodaCookie}
-                downloadPath={onlineMusic.downloadPath}
-                isQrLoggedIn={onlineMusic.isQrLoggedIn}
-                qrScanning={onlineMusic.qrScanning}
-                qrState={onlineMusic.qrState}
-                qrImage={onlineMusic.qrImage}
-                qrMsg={onlineMusic.qrMsg}
-                isSaving={onlineMusic.isSaving}
-                message={onlineMusic.message}
-                messageType={onlineMusic.messageType}
-                setOnlineSource={onlineMusic.setOnlineSource}
-                setCookie={onlineMusic.setCookie}
-                setNeteaseCookie={onlineMusic.setNeteaseCookie}
-                setSodaCookie={onlineMusic.setSodaCookie}
-                setDownloadPath={onlineMusic.setDownloadPath}
-                onSave={onlineMusic.handleSave}
-                startQr={onlineMusic.startQr}
-                onQrLogout={onlineMusic.handleQrLogout}
-              />
+              <section className="new-ux-settings-panel__narrow">
+                <OnlineMusicSection
+                  theme={themeUtils}
+                  onlineSource={onlineMusic.onlineSource}
+                  cookie={onlineMusic.cookie}
+                  neteaseCookie={onlineMusic.neteaseCookie}
+                  sodaCookie={onlineMusic.sodaCookie}
+                  downloadPath={onlineMusic.downloadPath}
+                  isQrLoggedIn={onlineMusic.isQrLoggedIn}
+                  qrScanning={onlineMusic.qrScanning}
+                  qrState={onlineMusic.qrState}
+                  qrImage={onlineMusic.qrImage}
+                  qrMsg={onlineMusic.qrMsg}
+                  isSaving={onlineMusic.isSaving}
+                  message={onlineMusic.message}
+                  messageType={onlineMusic.messageType}
+                  setOnlineSource={onlineMusic.setOnlineSource}
+                  setCookie={onlineMusic.setCookie}
+                  setNeteaseCookie={onlineMusic.setNeteaseCookie}
+                  setSodaCookie={onlineMusic.setSodaCookie}
+                  setDownloadPath={onlineMusic.setDownloadPath}
+                  onSave={onlineMusic.handleSave}
+                  startQr={onlineMusic.startQr}
+                  onQrLogout={onlineMusic.handleQrLogout}
+                />
+              </section>
             )}
 
           </div>

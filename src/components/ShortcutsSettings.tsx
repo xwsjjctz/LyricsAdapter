@@ -5,9 +5,11 @@ import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import GsapModal from './GsapModal';
 
-interface ShortcutsSettingsProps {}
+interface ShortcutsSettingsProps {
+  layout?: 'single' | 'two-column';
+}
 
-const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
+const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-column' }) => {
   const { t } = useTranslation();
   const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, ShortcutConfig>>({} as Record<ShortcutAction, ShortcutConfig>);
   const [editingAction, setEditingAction] = useState<ShortcutAction | null>(null);
@@ -224,9 +226,8 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         </button>
       </div>
 
-      {/* 两列均匀分布 */}
       <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-        <div className="grid grid-cols-2">
+        <div className={layout === 'single' ? 'grid grid-cols-1' : 'grid grid-cols-2'}>
           {allShortcuts.map(([action, config]) =>
             renderShortcutRow(action, config)
           )}

@@ -177,8 +177,8 @@ const MainView: React.FC<MainViewProps> = ({
   }, []);
 
   // The animation loop is the single writer of wall motion and per-card focus
-  // accents. Wall motion lives on the parent space, so a temporarily stale card
-  // ref cannot leave one card pinned after opening/closing a panel.
+  // accents. Wall motion is applied by the parent space itself, so a temporarily
+  // stale card ref cannot leave one card pinned after opening or closing a panel.
   useEffect(() => {
     let animationFrame = 0;
 
@@ -231,7 +231,7 @@ const MainView: React.FC<MainViewProps> = ({
           hoverScaleRef.current[layout.id] = hoverScale;
 
           const scale = baseScale * hoverScale;
-          const z = -260 + focus * 460 + (hoverScale > 1.01 ? (hoverScale - 1.0) * 200 : 0);
+          const z = focus * 220 + (hoverScale > 1.01 ? (hoverScale - 1.0) * 200 : 0);
           const rotX = clamp((y / radius) * -26, -22, 22);
           const rotY = clamp((x / radius) * 28, -26, 26);
           const opacity = 0.35 + Math.exp(-Math.pow(distance / (radius * 1.4), 2)) * 0.65;

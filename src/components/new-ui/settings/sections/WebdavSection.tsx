@@ -42,47 +42,11 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
           {t('settingsDialog.webdavTitle')}
         </h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onTest}
-            disabled={isTesting || isSaving}
-            className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
-          >
-            {isTesting ? (
-              <>
-                <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                {t('settingsDialog.webdavTesting')}
-              </>
-            ) : (
-              t('settingsDialog.webdavTestConnection')
-            )}
-          </button>
-          <button
-            onClick={onSave}
-            disabled={isTesting || isSaving}
-            className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-          >
-            {isSaving ? (
-              <>
-                <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                {t('settingsDialog.saving')}
-              </>
-            ) : (
-              t('settingsDialog.save')
-            )}
-          </button>
-        </div>
       </div>
       <div className="space-y-3">
         <input
@@ -115,14 +79,52 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           onFocus={inputFocus}
           onBlur={inputBlur}
         />
-        {message && (
-          <span className={`text-xs ${
-            messageType === 'success' ? 'text-green-400' : 'text-red-400'
-          }`}>
-            {message}
-          </span>
-        )}
       </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={onTest}
+          disabled={isTesting || isSaving}
+          className="flex items-center justify-center gap-2 px-3 py-2 text-sm transition-all disabled:opacity-50"
+          style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
+        >
+          {isTesting ? (
+            <>
+              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              {t('settingsDialog.webdavTesting')}
+            </>
+          ) : (
+            t('settingsDialog.webdavTestConnection')
+          )}
+        </button>
+        <button
+          onClick={onSave}
+          disabled={isTesting || isSaving}
+          className="flex items-center justify-center gap-2 px-3 py-2 text-sm transition-all disabled:opacity-50"
+          style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+        >
+          {isSaving ? (
+            <>
+              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              {t('settingsDialog.saving')}
+            </>
+          ) : (
+            t('settingsDialog.save')
+          )}
+        </button>
+      </div>
+
+      {message && (
+        <span className={`mt-3 block text-xs ${
+          messageType === 'success' ? 'text-green-400' : 'text-red-400'
+        }`}>
+          {message}
+        </span>
+      )}
     </section>
   );
 };
