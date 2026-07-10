@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themeManager } from '../../services/themeManager';
+import { settingsManager } from '../../services/settingsManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../../types/theme';
 import { predefinedThemes } from '../../services/themes/predefinedThemes';
 import { resolveThemeAppearance } from '../../services/themeAppearance';
@@ -58,6 +59,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
   );
+  const [newUxEnabled, setNewUxEnabled] = useState(() => settingsManager.getNewUxEnabled());
   // Subscribe to theme changes
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
@@ -77,6 +79,10 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
     const currentTheme = themeManager.getCurrentTheme();
     applyThemeStyles(currentTheme);
   }, []);
+
+  useEffect(() => settingsManager.subscribe(() => {
+    setNewUxEnabled(settingsManager.getNewUxEnabled());
+  }), []);
 
   const handleApplyTheme = (themeId: ThemeId) => {
     themeManager.setTheme(themeId);
@@ -190,7 +196,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
       <div className="new-ux-side-panel__body">
         <div className="space-y-3">
           <section
-            className="relative flex min-h-[76px] items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3"
+            className="theme-preview-card relative flex min-h-[76px] items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3"
             style={{
               background: 'linear-gradient(135deg, rgba(32, 43, 88, 0.96), rgba(54, 31, 85, 0.96))',
               borderColor: 'rgba(164, 132, 255, 0.48)',
@@ -212,7 +218,7 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
           <div className="space-y-2.5">
           {visibleThemes.map((theme) => {
             const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
-            const isCurrent = theme.id === currentThemeId;
+            const isCurrent = !newUxEnabled && theme.id === currentThemeId;
             const appearance = resolveThemeAppearance(theme);
 
             return (

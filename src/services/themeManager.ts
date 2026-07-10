@@ -10,6 +10,7 @@ import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
+import { settingsManager } from './settingsManager';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
@@ -76,6 +77,9 @@ class ThemeManagerClass {
     this.saveToStorage(themeId);
     this.applyTheme(theme);
     this.notifyListeners();
+    if (settingsManager.getNewUxEnabled()) {
+      settingsManager.setNewUxEnabled(false);
+    }
 
     logger.info('[ThemeManager] Theme changed to:', theme.name);
   }

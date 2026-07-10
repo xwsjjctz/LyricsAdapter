@@ -1574,7 +1574,7 @@
 }
 
 .new-ux-side-panel--settings {
-  width: min(540px, calc(100vw - 72px));
+  width: min(392px, calc(100vw - 72px));
 }
 
 .new-ux-side-panel__header,
@@ -1619,11 +1619,6 @@
 
 .new-ux-settings-panel__narrow {
   width: min(100%, 360px);
-  margin-inline: auto;
-}
-
-.new-ux-settings-panel__wide {
-  width: min(100%, 480px);
   margin-inline: auto;
 }
 

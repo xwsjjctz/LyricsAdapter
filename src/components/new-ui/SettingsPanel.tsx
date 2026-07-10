@@ -33,7 +33,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   // settingsManager subscription and feed both this panel and the live app.)
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
-  const [newUxEnabled, setNewUxEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(30);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
@@ -55,7 +54,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       await settingsManager.ensureLoaded();
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
-      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -67,7 +65,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
     const unsubscribe = settingsManager.subscribe(() => {
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
-      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -217,7 +214,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* Experimental Features */}
-            <section className="new-ux-settings-panel__wide r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <section className="new-ux-settings-panel__narrow r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
                 {t('settings.experimental')}
@@ -364,41 +361,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       style={{
                         transform: qqMusicEnabled ? 'translateX(22px)' : 'translateX(2px)',
                       }}
-                    />
-                  </button>
-                )}
-              </div>
-
-              {/* 全新 UI/UX 开关 */}
-              <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <div className="min-w-0 mr-3">
-                  <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.newUx')}</span>
-                  <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{t('settings.newUxDesc')}</p>
-                </div>
-                {isBrutalistTheme ? (
-                  <RetroSwitch
-                    checked={newUxEnabled}
-                    ariaLabel={t('settings.newUx')}
-                    onChange={(newValue) => {
-                      setNewUxEnabled(newValue);
-                      settingsManager.setNewUxEnabled(newValue);
-                    }}
-                  />
-                ) : (
-                  <button
-                    onClick={() => {
-                      const newValue = !newUxEnabled;
-                      setNewUxEnabled(newValue);
-                      settingsManager.setNewUxEnabled(newValue);
-                    }}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                    style={{ backgroundColor: newUxEnabled ? colors.primary : colors.borderLight }}
-                    aria-label={t('settings.newUx')}
-                    aria-pressed={newUxEnabled}
-                  >
-                    <span
-                      className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                      style={{ transform: newUxEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
                     />
                   </button>
                 )}
