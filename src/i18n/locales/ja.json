@@ -115,6 +115,7 @@
   "theme.preview": "プレビュー",
   "theme.apply": "適用",
   "theme.applied": "適用済み",
+  "theme.enterNewUx": "新しい UI を開く",
   "theme.current": "現在のテーマ",
   "theme.darkMode": "ダークテーマ",
   "theme.lightMode": "ライトテーマ",

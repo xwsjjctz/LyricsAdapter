@@ -115,6 +115,7 @@
   "theme.preview": "미리보기",
   "theme.apply": "적용",
   "theme.applied": "적용됨",
+  "theme.enterNewUx": "새 UI 열기",
   "theme.current": "현재 테마",
   "theme.darkMode": "다크 테마",
   "theme.lightMode": "라이트 테마",
