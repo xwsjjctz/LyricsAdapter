@@ -65,6 +65,7 @@ export function usePlaylistEntries(slots: LibrarySlotsById, onlinePlaylists: Pla
         subtitle: `${p.songCount} · ${SOURCE_LABELS[p.source]}`,
         icon: 'queue_music',
         coverUrls: p.coverUrl ? [p.coverUrl] : [],
+        trackCount: p.songCount,
       };
       return { kind: 'online-playlist', source: p.source, playlistId: p.id, ...meta };
     });

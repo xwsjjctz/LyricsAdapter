@@ -27,18 +27,41 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
   useEffect(() => {
     let cancelled = false;
 
-    // Phase 1: instant cache load
-    loadPlaylistCache().then(cached => {
+    // Phase 1: show cached playlists only for sources that currently have a
+    // cookie. This prevents an old cache from making logged-out sources look
+    // available in the sidebar while the fresh validation request is pending.
+    const loadCachedForAuthenticatedSources = async () => {
+      await Promise.all([
+        cookieManager.ensureLoaded(),
+        neteaseCookieManager.ensureLoaded(),
+        sodaCookieManager.ensureLoaded(),
+      ]);
+      if (cancelled) return;
+
+      const authenticatedSources = new Set<PlaylistInfo['source']>();
+      if (cookieManager.hasCookie()) authenticatedSources.add('qq');
+      if (neteaseCookieManager.hasCookie()) authenticatedSources.add('netease');
+      if (sodaCookieManager.hasCookie()) authenticatedSources.add('soda');
+
+      const cached = await loadPlaylistCache();
       if (cancelled || !cached) return;
       const fromCache: PlaylistInfo[] = [];
-      if (cached.qq) fromCache.push(...cached.qq.map(p => ({ ...p, source: 'qq' as const })));
-      if (cached.netease) fromCache.push(...cached.netease.map(p => ({ ...p, source: 'netease' as const })));
-      if (cached.soda) fromCache.push(...cached.soda.map(p => ({ ...p, source: 'soda' as const })));
+      if (cached.qq && authenticatedSources.has('qq')) {
+        fromCache.push(...cached.qq.map(p => ({ ...p, source: 'qq' as const })));
+      }
+      if (cached.netease && authenticatedSources.has('netease')) {
+        fromCache.push(...cached.netease.map(p => ({ ...p, source: 'netease' as const })));
+      }
+      if (cached.soda && authenticatedSources.has('soda')) {
+        fromCache.push(...cached.soda.map(p => ({ ...p, source: 'soda' as const })));
+      }
       if (fromCache.length > 0) {
         setPlaylists(fromCache);
-        setLoading(false); // Show cache immediately
+        setLoading(false); // Show authenticated cache immediately
       }
-    });
+    };
+
+    void loadCachedForAuthenticatedSources();
 
     // Phase 2: validate cookies + fetch fresh
     const fetchFresh = async () => {

@@ -7,6 +7,8 @@ interface PlaylistPanelProps {
   title: string;
   /** Tracks displayed in this panel. Provided by the caller from the slot. */
   tracks: Track[];
+  /** Total tracks reported by the provider; does not change as pages append. */
+  totalTrackCount?: number;
   currentTrackId?: string;
   isEditMode: boolean;
   selectedTrackIds: Set<string>;
@@ -20,6 +22,10 @@ interface PlaylistPanelProps {
   onExitEditMode: () => void;
   onDeleteSelected: () => void;
   onCurrentTrackVisibilityChange: (visible: boolean) => void;
+  onLoadMore?: () => void | Promise<void>;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  loadError?: string | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -89,6 +95,7 @@ const SORT_LABELS: Record<SortMode, string> = {
 const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   title,
   tracks,
+  totalTrackCount,
   currentTrackId,
   isEditMode,
   selectedTrackIds,
@@ -102,6 +109,10 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
   onExitEditMode,
   onDeleteSelected,
   onCurrentTrackVisibilityChange,
+  onLoadMore,
+  isLoadingMore = false,
+  hasMore = false,
+  loadError = null,
 }) => {
   const listRef = useRef<HTMLDivElement | null>(null);
   const trackRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -113,6 +124,21 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
       return SORT_CYCLE[nextIndex] ?? 'default';
     });
   }, []);
+
+  const handleListScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    if (!onLoadMore || !hasMore || isLoadingMore) return;
+    const list = event.currentTarget;
+    const distanceToBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    if (distanceToBottom < 240) void onLoadMore();
+  }, [hasMore, isLoadingMore, onLoadMore]);
+
+  // If a short first page does not create a scrollbar, keep requesting pages
+  // until the panel can scroll or the provider reports the end.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !onLoadMore || !hasMore || isLoadingMore) return;
+    if (list.scrollHeight <= list.clientHeight + 240) void onLoadMore();
+  }, [hasMore, isLoadingMore, onLoadMore, tracks.length]);
 
   const visibleTracks = useMemo(() => {
     const rows = tracks.map((track, index) => ({ track, index }));
@@ -180,7 +206,7 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
         <div className="min-w-0">
           <div className="new-ux-playlist-panel__title">{title}</div>
           <div className="new-ux-playlist-panel__meta">
-            {isEditMode ? `${selectedTrackIds.size} selected` : `${tracks.length} tracks`}
+            {isEditMode ? `${selectedTrackIds.size} selected` : `${totalTrackCount ?? tracks.length} tracks`}
           </div>
         </div>
         <div className="new-ux-playlist-panel__actions">
@@ -210,22 +236,29 @@ const PlaylistPanel: React.FC<PlaylistPanelProps> = ({
           </button>
         </div>
       </header>
-      <div ref={listRef} className="new-ux-track-list new-ux-scrollbar">
+      <div ref={listRef} className="new-ux-track-list new-ux-scrollbar" onScroll={handleListScroll}>
         {visibleTracks.length > 0 ? (
-          visibleTracks.map(({ track, index }) => (
-            <TrackRow
-              key={track.id}
-              track={track}
-              index={index}
-              active={track.id === currentTrackId}
-              isEditMode={isEditMode}
-              selected={selectedTrackIds.has(track.id)}
-              onTrackSelect={onTrackSelect}
-              onTrackContextMenu={onTrackContextMenu}
-              onToggleTrackSelected={onToggleTrackSelected}
-              rowRef={registerTrack(track.id)}
-            />
-          ))
+          <>
+            {visibleTracks.map(({ track, index }) => (
+              <TrackRow
+                key={track.id}
+                track={track}
+                index={index}
+                active={track.id === currentTrackId}
+                isEditMode={isEditMode}
+                selected={selectedTrackIds.has(track.id)}
+                onTrackSelect={onTrackSelect}
+                onTrackContextMenu={onTrackContextMenu}
+                onToggleTrackSelected={onToggleTrackSelected}
+                rowRef={registerTrack(track.id)}
+              />
+            ))}
+            {onLoadMore && loadError && (
+              <div className="px-4 py-3 text-center text-xs text-red-300">
+                {loadError}
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--theme-text-muted)' }}>
             No tracks in this playlist yet.

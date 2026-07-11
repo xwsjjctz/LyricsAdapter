@@ -11,7 +11,6 @@ export function useUIStore() {
   useGsapButtonBounce();
 
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
-  const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(viewMode, setViewMode);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
@@ -20,6 +19,18 @@ export function useUIStore() {
   const isWindowFocused = useWindowFocus();
   const floatingPanel = useFloatingPanel();
   const glassUI = useGlassUI();
+  const shouldAnimateViewTransition = useCallback((fromView: ViewMode, toView: ViewMode) => {
+    const overlayViews = fromView === ViewMode.SETTINGS
+      || fromView === ViewMode.THEME
+      || toView === ViewMode.SETTINGS
+      || toView === ViewMode.THEME;
+    return !overlayViews;
+  }, []);
+  const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(
+    viewMode,
+    setViewMode,
+    shouldAnimateViewTransition,
+  );
 
   const markTrackSwitch = useCallback(() => {
     setAutoLocateToken(prev => prev + 1);

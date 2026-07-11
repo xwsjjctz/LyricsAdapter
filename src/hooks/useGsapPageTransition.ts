@@ -6,6 +6,8 @@ interface GsapPageTransition<T> {
   navigate: (nextView: T) => void;
 }
 
+type ShouldAnimateTransition<T> = (fromView: T, toView: T) => boolean;
+
 /**
  * Keeps view changes out of React's render path: only the page container is
  * animated, while the player and title bar remain responsive.
@@ -13,6 +15,7 @@ interface GsapPageTransition<T> {
 export const useGsapPageTransition = <T,>(
   view: T,
   setView: Dispatch<SetStateAction<T>>,
+  shouldAnimateTransition: ShouldAnimateTransition<T> = () => true,
 ): GsapPageTransition<T> => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingEnterRef = useRef(false);
@@ -29,6 +32,16 @@ export const useGsapPageTransition = <T,>(
       return;
     }
 
+    // Overlay views (e.g. Settings/Theme cards) keep the existing page mounted;
+    // do not fade and slide the underlying list when they open or close.
+    if (!shouldAnimateTransition(viewRef.current, nextView)) {
+      gsap.killTweensOf(container);
+      pendingEnterRef.current = false;
+      gsap.set(container, { autoAlpha: 1, y: 0 });
+      setView(nextView);
+      return;
+    }
+
     gsap.killTweensOf(container);
     gsap.to(container, {
       autoAlpha: 0,
@@ -41,7 +54,7 @@ export const useGsapPageTransition = <T,>(
         setView(nextView);
       },
     });
-  }, [setView]);
+  }, [setView, shouldAnimateTransition]);
 
   useEffect(() => {
     if (!pendingEnterRef.current) return;

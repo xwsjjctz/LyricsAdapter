@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
 import { getOnlineProvider } from '../services/onlineMusicProvider';
@@ -7,6 +7,39 @@ import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { parseLRCLyrics } from '../services/metadataService';
 import { onlineSongToTrack } from '../domain/trackFactory';
+
+const PLAYLIST_PAGE_SIZE = 30;
+
+interface PlaylistLoadState {
+  source: OnlineSource;
+  playlistId: string | null;
+  title: string | null;
+  totalTrackCount: number | null;
+  nextOffset: number;
+  hasMore: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const IDLE_PLAYLIST_LOAD_STATE: PlaylistLoadState = {
+  source: 'qq',
+  playlistId: null,
+  title: null,
+  totalTrackCount: null,
+  nextOffset: 0,
+  hasMore: false,
+  isLoading: false,
+  error: null,
+};
+
+function playlistErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : 'Failed to load playlist';
+}
+
+function appendUniqueTracks(existing: Track[], incoming: Track[]): Track[] {
+  const existingIds = new Set(existing.map(track => track.id));
+  return [...existing, ...incoming.filter(track => !existingIds.has(track.id))];
+}
 
 /**
  * Player Controller (Phase 1 of the refactor roadmap).
@@ -91,6 +124,21 @@ export function usePlayerController(options: PlayerControllerOptions) {
   // reads for display. Playback only starts when the user clicks a track in
   // the panel (playBrowsingTrack).
   const [browsingTracks, setBrowsingTracks] = useState<{ tracks: Track[]; source: OnlineSource }>({ tracks: [], source: 'qq' });
+  const [browsingPlaylistLoadState, setBrowsingPlaylistLoadState] = useState<PlaylistLoadState>(IDLE_PLAYLIST_LOAD_STATE);
+  const [libraryPlaylistLoadState, setLibraryPlaylistLoadState] = useState<PlaylistLoadState>(IDLE_PLAYLIST_LOAD_STATE);
+  const browsingGenerationRef = useRef(0);
+  const browsingLoadingRef = useRef(false);
+  const libraryGenerationRef = useRef(0);
+  const libraryLoadingRef = useRef(false);
+
+  const loadPlaylistPage = useCallback(async (source: OnlineSource, playlistId: string, offset: number) => {
+    const provider = getOnlineProvider(source);
+    const songs = await provider.getPlaylistSongs(playlistId, offset, PLAYLIST_PAGE_SIZE);
+    return {
+      tracks: songs.map(song => onlineSongToTrack(song, source)),
+      count: songs.length,
+    };
+  }, []);
 
   // Track selection handler that handles cross-slot selection.
   // `targetSlotId` lets New-UI callers state explicitly which slot the clicked
@@ -211,38 +259,156 @@ export function usePlayerController(options: PlayerControllerOptions) {
     }, sourceOverride);
   }, [handleOnlineStreamPlay]);
 
-  // Play a whole playlist: load every song into the playlist slot as the queue so
-  // next/prev traverses the playlist in order. Keeps the user in the Playlists
-  // view (only activeSlot/viewSlot move to 'playlist'); the detail list highlights
-  // the current track via currentTrackId.
-  const handlePlayPlaylist = useCallback((source: OnlineSource, songs: OnlineSong[], clickedIndex: number) => {
-    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
-    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
-    // Save current slot's playback position
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    // Load the full playlist into the dedicated playlist slot (isolated from the
-    // online/search LRU queue) and make it the active play context. The user
-    // stays in the Playlists view; viewSlot is left untouched.
-    loadPlaylistTracks(tracks);
-    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
-    setRestoreTime(0);
-    switchTo('playlist');
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-    // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
-  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
-
   // New UI: opening a third-party playlist card fetches its songs for BROWSING
   // only. It deliberately does NOT load them into the 'playlist' play slot nor
   // switch the active play context — that would pause whatever is currently
   // playing (see bug: 切换歌单暂停正在播放的歌). Playback starts on demand via
   // playBrowsingTrack when the user clicks a track inside the panel.
   const openOnlinePlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
-    const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
-    const songs = await provider.getPlaylistSongs(playlistId);
-    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
-    setBrowsingTracks({ tracks, source });
-  }, []);
+    const generation = browsingGenerationRef.current + 1;
+    browsingGenerationRef.current = generation;
+    browsingLoadingRef.current = true;
+    setBrowsingTracks({ tracks: [], source });
+    setBrowsingPlaylistLoadState({
+      source,
+      playlistId,
+      title: null,
+      totalTrackCount: null,
+      nextOffset: 0,
+      hasMore: true,
+      isLoading: true,
+      error: null,
+    });
+
+    try {
+      const page = await loadPlaylistPage(source, playlistId, 0);
+      if (generation !== browsingGenerationRef.current) return;
+      setBrowsingTracks({ tracks: page.tracks, source });
+      setBrowsingPlaylistLoadState({
+        source,
+        playlistId,
+        title: null,
+        totalTrackCount: null,
+        nextOffset: page.count,
+        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        isLoading: false,
+        error: null,
+      });
+    } catch (error) {
+      if (generation !== browsingGenerationRef.current) return;
+      setBrowsingPlaylistLoadState(prev => ({ ...prev, isLoading: false, hasMore: false, error: playlistErrorMessage(error) }));
+      throw error;
+    } finally {
+      if (generation === browsingGenerationRef.current) browsingLoadingRef.current = false;
+    }
+  }, [loadPlaylistPage]);
+
+  const loadMoreBrowsingPlaylist = useCallback(async () => {
+    const state = browsingPlaylistLoadState;
+    if (!state.playlistId || !state.hasMore || browsingLoadingRef.current) return;
+
+    const generation = browsingGenerationRef.current;
+    const { source, playlistId, nextOffset } = state;
+    browsingLoadingRef.current = true;
+    setBrowsingPlaylistLoadState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const page = await loadPlaylistPage(source, playlistId, nextOffset);
+      if (generation !== browsingGenerationRef.current) return;
+      setBrowsingTracks(prev => ({
+        source: prev.source,
+        tracks: prev.source === source ? appendUniqueTracks(prev.tracks, page.tracks) : prev.tracks,
+      }));
+      setBrowsingPlaylistLoadState(prev => ({
+        ...prev,
+        nextOffset: nextOffset + page.count,
+        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        isLoading: false,
+        error: null,
+      }));
+    } catch (error) {
+      if (generation === browsingGenerationRef.current) {
+        setBrowsingPlaylistLoadState(prev => ({ ...prev, isLoading: false, error: playlistErrorMessage(error) }));
+      }
+    } finally {
+      if (generation === browsingGenerationRef.current) browsingLoadingRef.current = false;
+    }
+  }, [browsingPlaylistLoadState, loadPlaylistPage]);
+
+  // Legacy UI: open a playlist as a Library list without starting playback.
+  // Playback is delegated to handleTrackSelect when the user clicks a row.
+  const openOnlinePlaylistInLibrary = useCallback(async (
+    source: OnlineSource,
+    playlistId: string,
+    playlistTitle: string,
+    totalTrackCount: number,
+  ) => {
+    const generation = libraryGenerationRef.current + 1;
+    libraryGenerationRef.current = generation;
+    libraryLoadingRef.current = true;
+    setLibraryPlaylistLoadState({
+      source,
+      playlistId,
+      title: playlistTitle,
+      totalTrackCount,
+      nextOffset: 0,
+      hasMore: true,
+      isLoading: true,
+      error: null,
+    });
+
+    try {
+      const page = await loadPlaylistPage(source, playlistId, 0);
+      if (generation !== libraryGenerationRef.current) return;
+      loadPlaylistTracks(page.tracks);
+      updateSlot('playlist', slot => ({ ...slot, currentTrackIndex: -1, currentTime: 0 }));
+      setLibraryPlaylistLoadState({
+        source,
+        playlistId,
+        title: playlistTitle,
+        totalTrackCount,
+        nextOffset: page.count,
+        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        isLoading: false,
+        error: null,
+      });
+    } catch (error) {
+      if (generation !== libraryGenerationRef.current) return;
+      setLibraryPlaylistLoadState(prev => ({ ...prev, isLoading: false, hasMore: false, error: playlistErrorMessage(error) }));
+      throw error;
+    } finally {
+      if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
+    }
+  }, [loadPlaylistPage, loadPlaylistTracks, updateSlot]);
+
+  const loadMorePlaylistInLibrary = useCallback(async () => {
+    const state = libraryPlaylistLoadState;
+    if (!state.playlistId || !state.hasMore || libraryLoadingRef.current) return;
+
+    const generation = libraryGenerationRef.current;
+    const { source, playlistId, nextOffset } = state;
+    libraryLoadingRef.current = true;
+    setLibraryPlaylistLoadState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const page = await loadPlaylistPage(source, playlistId, nextOffset);
+      if (generation !== libraryGenerationRef.current) return;
+      updatePlaylistTracks(prev => appendUniqueTracks(prev, page.tracks));
+      setLibraryPlaylistLoadState(prev => ({
+        ...prev,
+        nextOffset: nextOffset + page.count,
+        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        isLoading: false,
+        error: null,
+      }));
+    } catch (error) {
+      if (generation === libraryGenerationRef.current) {
+        setLibraryPlaylistLoadState(prev => ({ ...prev, isLoading: false, error: playlistErrorMessage(error) }));
+      }
+    } finally {
+      if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
+    }
+  }, [libraryPlaylistLoadState, loadPlaylistPage, updatePlaylistTracks]);
 
   // User clicked a track inside the browsed third-party playlist panel: load
   // the whole browsed list into the 'playlist' play slot (so next/prev traverse
@@ -322,8 +488,12 @@ export function usePlayerController(options: PlayerControllerOptions) {
     handleSearchNavigate,
     handleOnlineStreamPlay,
     playOnlineSong,
-    handlePlayPlaylist,
     openOnlinePlaylist,
+    loadMoreBrowsingPlaylist,
+    openOnlinePlaylistInLibrary,
+    loadMorePlaylistInLibrary,
+    browsingPlaylistLoadState,
+    libraryPlaylistLoadState,
     browsingTracks,
     playBrowsingTrack,
   };

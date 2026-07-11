@@ -283,7 +283,8 @@ export function useLibrarySlots() {
   /**
    * Playlist play-context slot — isolated from the online (search) LRU queue.
    * Playing a third-party playlist loads its full track list here so next/prev
-   * traverses the playlist. Ephemeral: not persisted, no sidebar entry.
+   * traverses the playlist. It is ephemeral and is opened from the sidebar's
+   * source-aware playlist menu rather than represented as a fixed slot button.
    */
   const loadPlaylistTracks = useCallback((tracks: Track[]) => {
     setSlots(prev => ({

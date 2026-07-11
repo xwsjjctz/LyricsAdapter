@@ -19,6 +19,8 @@ interface LibraryToolbarProps {
   onRefreshCloud?: () => void;
   isRefreshing?: boolean;
   trackCount: number;
+  playlistTitle?: string;
+  playlistTrackCount?: number;
   importProgress?: { loaded: number; total: number } | null | undefined;
   loadProgress?: { loaded: number; total: number } | null | undefined;
   searchBox?: React.ReactNode | undefined;
@@ -48,6 +50,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   onRefreshCloud,
   isRefreshing = false,
   trackCount,
+  playlistTitle,
+  playlistTrackCount,
   importProgress,
   loadProgress,
   searchBox,
@@ -82,7 +86,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
     <div className="mb-4 flex-shrink-0 flex items-center justify-between">
       <div>
         <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-          {getDataSourceTitle(dataSource)}
+          {playlistTitle ?? getDataSourceTitle(dataSource)}
         </h1>
         <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
           {importProgress ? (
@@ -93,7 +97,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             `${selectedCount} ${t('library.selectedCount')}`
           ) : (
             <>
-              {trackCount} {t('library.trackCount')}
+              {playlistTrackCount ?? trackCount} {t('library.trackCount')}
             </>
           )}
         </p>

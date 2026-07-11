@@ -1577,6 +1577,34 @@
   width: min(392px, calc(100vw - 72px));
 }
 
+/* Legacy UI settings/theme cards: keep the Library page mounted underneath
+   while reusing the New UI glass panel content and interaction language. */
+.legacy-floating-panel-shell {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  bottom: 104px;
+  z-index: 40;
+  width: min(440px, calc(100% - 40px));
+  pointer-events: auto;
+}
+
+.legacy-floating-panel-shell--settings {
+  width: min(420px, calc(100% - 40px));
+}
+
+.legacy-floating-panel-shell--theme {
+  width: min(470px, calc(100% - 40px));
+}
+
+.legacy-floating-panel-shell > .new-ux-side-panel {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+
 .new-ux-side-panel__header,
 .new-ux-side-panel__footer {
   display: flex;
@@ -1754,6 +1782,14 @@
   .new-ux-side-panel {
     right: 18px;
     left: 18px;
+    width: auto;
+  }
+
+  .legacy-floating-panel-shell,
+  .legacy-floating-panel-shell--settings,
+  .legacy-floating-panel-shell--theme {
+    right: 12px;
+    left: 12px;
     width: auto;
   }
 }
