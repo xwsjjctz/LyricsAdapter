@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
-import type { LibraryIndexData, LibraryIndexSong, LibrarySettings, PlaylistsViewPersistence } from '../services/libraryStorage';
+import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong, type UserTrackRecord } from '../services/librarySerializer';
 import { logger } from '../services/logger';
@@ -27,7 +27,7 @@ interface UseLibraryLoadOptions {
   setPlaybackMode: (mode: 'order' | 'shuffle' | 'repeat-one') => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   persistedTimeRef: React.MutableRefObject<number>;
-  onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number; playlistsView?: PlaylistsViewPersistence }) => void;
+  onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number }) => void;
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
 
@@ -591,13 +591,10 @@ export function useLibraryLoad({
       });
     }
 
-    const restoredSettings: { activeSlotId?: SlotId; currentTime?: number; playlistsView?: PlaylistsViewPersistence } = {
+    const restoredSettings: { activeSlotId?: SlotId; currentTime?: number } = {
       activeSlotId: activeSource,
       currentTime: activeSlotState?.currentTime ?? 0,
     };
-    if (settings.playlistsView) {
-      restoredSettings.playlistsView = settings.playlistsView;
-    }
     onLibrarySettingsRestored?.(restoredSettings);
 
     const tracksToValidate = loadedTracks.filter(t => t.filePath);

@@ -3,7 +3,7 @@ import { LibrarySlot, SlotId, Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
-import type { LibrarySettings, PlaylistsViewPersistence } from './services/libraryStorage';
+import type { LibrarySettings } from './services/libraryStorage';
 import { logger } from './services/logger';
 import { syncOnlineCookiesToMain } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
@@ -18,7 +18,6 @@ import SettingsView from './components/SettingsView';
 import ThemeView from './components/ThemeView';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
-import PlaylistsView from './components/PlaylistsView';
 import SearchBox from './components/SearchBox';
 import { useTranslation } from 'react-i18next';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
@@ -26,8 +25,7 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import GsapModal from './components/GsapModal';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
-import type { OnlineSong, OnlineSource } from './services/onlineMusicProvider';
-import { themeManager } from './services/themeManager';
+import type { OnlineSource } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
@@ -103,22 +101,10 @@ const AppWorkspace: React.FC = () => {
     handleLibraryScrollPositionChange,
     handleCategoryChange,
   } = useLibraryStore();
-  const [playlistsViewPersistence, setPlaylistsViewPersistence] = useState<PlaylistsViewPersistence>({
-    phase: 'grid',
-    scrollPosition: 0,
-  });
-  const playlistsViewPersistenceRef = useRef(playlistsViewPersistence);
   const activeSlotIdRef = useRef(activeSlotId);
   useEffect(() => {
     activeSlotIdRef.current = activeSlotId;
   }, [activeSlotId]);
-  useEffect(() => {
-    playlistsViewPersistenceRef.current = playlistsViewPersistence;
-  }, [playlistsViewPersistence]);
-  const handlePlaylistsViewPersistenceChange = useCallback((next: PlaylistsViewPersistence) => {
-    playlistsViewPersistenceRef.current = next;
-    setPlaylistsViewPersistence(next);
-  }, []);
   const getAppPersistenceData = useCallback((): LibrarySettings => {
     const snapshot = slotsRef.current;
     const extractSlotData = (slot: LibrarySlot) => ({
@@ -137,7 +123,6 @@ const AppWorkspace: React.FC = () => {
       onlineSlot: extractSlotData(snapshot.online),
       playlistSlot: extractSlotData(snapshot.playlist),
       activeSlotId: activeSlotIdRef.current,
-      playlistsView: playlistsViewPersistenceRef.current,
     };
   }, [slotsRef]);
   const {
@@ -319,23 +304,15 @@ const AppWorkspace: React.FC = () => {
     audioRef,
     persistedTimeRef,
     updateSlot,
-    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime, playlistsView }) => {
+    onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime }) => {
       if (restoredSlotId) {
         setRestoreTime(restoredTime ?? 0);
         switchTo(restoredSlotId);
-        // The playlist slot has no sidebar entry, so on restart keep the library
-        // view on a real library slot (local) while the playlist resumes as the
-        // active play context.
+        // The playlist slot is a play context rather than a persisted browse
+        // destination, so keep the restored library view on a real source.
         setViewSlot(restoredSlotId === 'playlist' ? 'local' : restoredSlotId);
         // 触发 LibraryView 自动定位到当前曲目
         markTrackSwitch();
-      }
-      if (playlistsView) {
-        playlistsViewPersistenceRef.current = playlistsView;
-        setPlaylistsViewPersistence(playlistsView);
-        if (playlistsView.phase === 'detail' && restoredSlotId === 'playlist') {
-          transitionToView(ViewMode.PLAYLISTS);
-        }
       }
     },
   });
@@ -366,12 +343,11 @@ const AppWorkspace: React.FC = () => {
     navigateToTrack: playerController.handleSearchNavigate,
   });
 
-  // Whole-playlist play still delegates (PlaylistsView-only, legacy tree).
-  const handlePlayPlaylist = useCallback(
-    (source: OnlineSource, songs: OnlineSong[], clickedIndex: number) =>
-      playerController.handlePlayPlaylist(source, songs, clickedIndex),
-    [playerController],
-  );
+  const handleOpenPlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
+    await playerController.openOnlinePlaylistInLibrary(source, playlistId);
+    await handleSwitchSlot('playlist');
+    transitionToView(ViewMode.PLAYER);
+  }, [handleSwitchSlot, playerController, transitionToView]);
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.
@@ -549,6 +525,12 @@ const AppWorkspace: React.FC = () => {
           viewMode={viewMode}
           activeSlotId={viewSlot}
           onSlotChange={handleSwitchSlot}
+          libraryTrackCounts={{
+            local: slots.local.tracks.length,
+            cloud: slots.cloud.tracks.length,
+            online: slots.online.tracks.length,
+          }}
+          onOpenPlaylist={handleOpenPlaylist}
           floating={floatingPanel}
         />
         <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
@@ -596,17 +578,6 @@ const AppWorkspace: React.FC = () => {
               <SettingsView onClearOrphanCache={handleClearOrphanCache} onHeaderHeightChange={setHeaderHeight} />
             ) : viewMode === ViewMode.THEME ? (
               <ThemeView onHeaderHeightChange={setHeaderHeight} />
-            ) : viewMode === ViewMode.PLAYLISTS ? (
-              <PlaylistsView
-                colors={themeManager.getCurrentTheme().colors}
-                {...(currentTrack?.id != null && { currentTrackId: currentTrack.id })}
-                onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
-                onPlayPlaylist={(source, songs, clickedIndex) => {
-                  handlePlayPlaylist(source, songs, clickedIndex);
-                }}
-                initialState={playlistsViewPersistence}
-                onPersistenceChange={handlePlaylistsViewPersistenceChange}
-              />
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView

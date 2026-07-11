@@ -211,38 +211,27 @@ export function usePlayerController(options: PlayerControllerOptions) {
     }, sourceOverride);
   }, [handleOnlineStreamPlay]);
 
-  // Play a whole playlist: load every song into the playlist slot as the queue so
-  // next/prev traverses the playlist in order. Keeps the user in the Playlists
-  // view (only activeSlot/viewSlot move to 'playlist'); the detail list highlights
-  // the current track via currentTrackId.
-  const handlePlayPlaylist = useCallback((source: OnlineSource, songs: OnlineSong[], clickedIndex: number) => {
-    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
-    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
-    // Save current slot's playback position
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    // Load the full playlist into the dedicated playlist slot (isolated from the
-    // online/search LRU queue) and make it the active play context. The user
-    // stays in the Playlists view; viewSlot is left untouched.
-    loadPlaylistTracks(tracks);
-    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
-    setRestoreTime(0);
-    switchTo('playlist');
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-    // Lyrics are fetched by the playlist sliding-window effect (current ± 1).
-  }, [loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
-
   // New UI: opening a third-party playlist card fetches its songs for BROWSING
   // only. It deliberately does NOT load them into the 'playlist' play slot nor
   // switch the active play context — that would pause whatever is currently
   // playing (see bug: 切换歌单暂停正在播放的歌). Playback starts on demand via
   // playBrowsingTrack when the user clicks a track inside the panel.
   const openOnlinePlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
-    const provider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
+    const provider = getOnlineProvider(source);
     const songs = await provider.getPlaylistSongs(playlistId);
     const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
     setBrowsingTracks({ tracks, source });
   }, []);
+
+  // Legacy UI: open a playlist as a Library list without starting playback.
+  // Playback is delegated to handleTrackSelect when the user clicks a row.
+  const openOnlinePlaylistInLibrary = useCallback(async (source: OnlineSource, playlistId: string) => {
+    const provider = getOnlineProvider(source);
+    const songs = await provider.getPlaylistSongs(playlistId);
+    const tracks: Track[] = songs.map(s => onlineSongToTrack(s, source));
+    loadPlaylistTracks(tracks);
+    updateSlot('playlist', slot => ({ ...slot, currentTrackIndex: -1, currentTime: 0 }));
+  }, [loadPlaylistTracks, updateSlot]);
 
   // User clicked a track inside the browsed third-party playlist panel: load
   // the whole browsed list into the 'playlist' play slot (so next/prev traverse
@@ -322,8 +311,8 @@ export function usePlayerController(options: PlayerControllerOptions) {
     handleSearchNavigate,
     handleOnlineStreamPlay,
     playOnlineSong,
-    handlePlayPlaylist,
     openOnlinePlaylist,
+    openOnlinePlaylistInLibrary,
     browsingTracks,
     playBrowsingTrack,
   };

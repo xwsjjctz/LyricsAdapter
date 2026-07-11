@@ -6,7 +6,6 @@
 import { Track, PlaybackContext, LibrarySlot } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
-import type { OnlineSong, PlaylistInfo } from './onlineMusicProvider';
 
 export interface LibraryData {
   songs: Track[];
@@ -44,14 +43,6 @@ export interface LibraryIndexData {
   settings: LibrarySettings;
 }
 
-export interface PlaylistsViewPersistence {
-  phase: 'grid' | 'detail';
-  playlist?: PlaylistInfo;
-  songs?: OnlineSong[];
-  total?: number;
-  scrollPosition: number;
-}
-
 export interface LibrarySettings {
   volume?: number | undefined;
   autoScroll?: boolean | undefined;
@@ -71,7 +62,6 @@ export interface LibrarySettings {
   cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   onlineSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   playlistSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  playlistsView?: PlaylistsViewPersistence | undefined;
   activeSlotId?: 'local' | 'cloud' | 'online' | 'playlist' | undefined;
   [key: string]: any;
 }
