@@ -89,6 +89,10 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
     themeManager.setTheme(themeId);
   };
 
+  const handleEnterNewUx = () => {
+    settingsManager.setNewUxEnabled(true);
+  };
+
   const handleToggleDefaultCardMode = (isDark: boolean) => {
     const nextMode = isDark ? 'dark' : 'light';
     const nextThemeId = isDark ? THEME_IDS.DEFAULT_DARK : THEME_IDS.DEFAULT_LIGHT;
@@ -127,11 +131,15 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
       </header>
       <div className="new-ux-side-panel__body">
         <div className="space-y-3">
-          <section
-            className="theme-preview-card relative flex min-h-[76px] items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3"
+          <button
+            type="button"
+            onClick={handleEnterNewUx}
+            aria-pressed={newUxEnabled}
+            aria-label={newUxEnabled ? t('theme.applied') : t('theme.enterNewUx')}
+            className="theme-preview-card group relative flex min-h-[76px] w-full items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3 text-left transition-all duration-200"
             style={{
               background: 'linear-gradient(135deg, rgba(32, 43, 88, 0.96), rgba(54, 31, 85, 0.96))',
-              borderColor: 'rgba(164, 132, 255, 0.48)',
+              borderColor: newUxEnabled ? 'rgba(164, 132, 255, 0.7)' : 'rgba(164, 132, 255, 0.32)',
               boxShadow: '0 12px 28px rgba(10, 8, 32, 0.24)',
             }}
           >
@@ -142,10 +150,10 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
               <p className="mt-0.5 truncate text-xs text-violet-100/75">{t('settings.newUxDesc')}</p>
             </div>
             <span className="relative flex shrink-0 items-center gap-1 rounded-full bg-violet-100/15 px-2 py-1 text-[11px] font-medium text-violet-50">
-              <span className="material-symbols-outlined text-sm">check</span>
-              {t('theme.applied')}
+              <span className="material-symbols-outlined text-sm">{newUxEnabled ? 'check' : 'arrow_forward'}</span>
+              {newUxEnabled ? t('theme.applied') : t('theme.enterNewUx')}
             </span>
-          </section>
+          </button>
 
           <div className="space-y-2">
             {visibleThemes.map((theme) => {
