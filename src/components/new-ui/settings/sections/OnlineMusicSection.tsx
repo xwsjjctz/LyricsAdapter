@@ -98,7 +98,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
             {t('settingsDialog.onlineSource')}
           </div>
           <div
-            className="h-36 overflow-y-auto no-scrollbar p-2 space-y-1"
+            className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
             style={{
               backgroundColor: colors.backgroundDark,
               border: `1px solid ${colors.borderLight}`,
@@ -156,7 +156,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
             )}
           </div>
           <div
-            className="h-36 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
+            className="h-44 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
             style={{
               backgroundColor: colors.backgroundDark,
               border: `1px dashed ${colors.borderLight}`,

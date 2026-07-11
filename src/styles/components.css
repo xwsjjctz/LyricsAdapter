@@ -1583,7 +1583,7 @@
   position: absolute;
   top: 20px;
   right: 20px;
-  bottom: 78px;
+  bottom: 104px;
   z-index: 40;
   width: min(440px, calc(100% - 40px));
   pointer-events: auto;
