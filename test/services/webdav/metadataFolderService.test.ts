@@ -16,7 +16,7 @@ const webdavMocks = vi.hoisted(() => ({
   ensureCollection: vi.fn(),
 }));
 
-vi.mock('../../../services/webdavClient', () => ({
+vi.mock('@/services/webdavClient', () => ({
   webdavClient: {
     fetchTextFile: webdavMocks.fetchTextFile,
     uploadTextFile: webdavMocks.uploadTextFile,
@@ -24,7 +24,7 @@ vi.mock('../../../services/webdavClient', () => ({
   },
 }));
 
-vi.mock('../../../services/logger', () => ({
+vi.mock('@/services/logger', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
