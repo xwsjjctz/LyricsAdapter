@@ -1,7 +1,7 @@
 import React from 'react';
 import SearchBox from '../SearchBox';
 import type { Track } from '../../types';
-import type { OnlineSong } from '../../services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from '../../services/onlineMusicProvider';
 
 interface NewUxSearchBoxProps {
   isWindowFocused?: boolean;
@@ -10,7 +10,7 @@ interface NewUxSearchBoxProps {
   onNavigateToTrack: (track: Track) => void;
   onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-  onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
+  onOnlineStreamPlay: (song: OnlineSong, source: OnlineSource) => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
 }
 

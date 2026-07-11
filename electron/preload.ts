@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electron', {
     file: {
       selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
       readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
+      allowAudioPath: async (filePath: string) => ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }),
     },
     library: {
       loadIndex: async () => ipcRenderer.invoke('ipc:library:loadIndex'),
@@ -42,10 +43,18 @@ contextBridge.exposeInMainWorld('electron', {
       put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
       delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
     },
-    download: {
-      audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
+      download: {
+        audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
+      },
+      settings: {
+        get: async (key: string) => ipcRenderer.invoke('settings:get', key),
+        getAll: async () => ipcRenderer.invoke('settings:getAll'),
+        set: async (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+        setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:setMany', entries),
+        delete: async (key: string) => ipcRenderer.invoke('settings:delete', key),
+        replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:replaceAll', entries),
+      },
     },
-  },
 
   // Read file from path
   readFile: async (filePath: string) => {
@@ -216,6 +225,14 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('netease-request', channel, params, cookieString);
   },
 
+  // Soda Music request bridge and encrypted-audio download (main process only).
+  sodaRequest: async (route: string, params: Record<string, unknown>, cookieString?: string) => {
+    return ipcRenderer.invoke('soda-request', route, params, cookieString);
+  },
+  downloadSodaAudio: async (trackId: string, cookieString: string, filePath: string) => {
+    return ipcRenderer.invoke('download-soda-audio', trackId, cookieString, filePath);
+  },
+
   // QQ Music QR scan login (start session + poll)
   qqLoginQrStart: async () => {
     return ipcRenderer.invoke('qq-login-qr-start');
@@ -235,7 +252,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('netease-qr-check', key);
   },
 
-  // Sync a QQ / NetEase cookie to the main process for the stream:// protocol
+  // Sync an online-source cookie to the main process for the stream:// protocol
   setOnlineCookie: async (source: string, cookie: string) => {
     return ipcRenderer.invoke('set-online-cookie', source, cookie);
   },
@@ -259,7 +276,12 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('save-file-to-path', dirPath, fileName, fileData);
   },
 
-  // Write metadata to audio file
+  // Read audio file metadata (music-tag-native)
+  readAudioMetadata: async (filePath: string) => {
+    return ipcRenderer.invoke('read-audio-metadata', filePath);
+  },
+
+  // Write metadata to audio file (music-tag-native)
   writeAudioMetadata: async (filePath: string, metadata: {
     title?: string;
     artist?: string;
@@ -270,7 +292,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
   },
 
-  // Refresh metadata for a single track
+  // Refresh metadata for a single track (legacy, use readAudioMetadata instead)
   refreshTrackMetadata: async (filePath: string) => {
     return ipcRenderer.invoke('refresh-track-metadata', filePath);
   },
@@ -323,6 +345,40 @@ contextBridge.exposeInMainWorld('electron', {
   // Cleanup orphan cover files (covers for tracks no longer in library)
   cleanupOrphanCovers: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('cleanup-orphan-covers', activeTrackIds);
+  },
+
+  // ---- Settings store (IPC to main process settings.json) ----
+  settingsGet: async (key: string) => {
+    return ipcRenderer.invoke('settings:get', key);
+  },
+  settingsGetAll: async () => {
+    return ipcRenderer.invoke('settings:getAll');
+  },
+  settingsSet: async (key: string, value: string) => {
+    return ipcRenderer.invoke('settings:set', key, value);
+  },
+  settingsSetMany: async (entries: Record<string, string>) => {
+    return ipcRenderer.invoke('settings:setMany', entries);
+  },
+  settingsDelete: async (key: string) => {
+    return ipcRenderer.invoke('settings:delete', key);
+  },
+  settingsReplaceAll: async (entries: Record<string, string>) => {
+    return ipcRenderer.invoke('settings:replaceAll', entries);
+  },
+
+  // ---- User Data Store (IPC to ~/.la/users.json) ----
+  userDataLoad: async () => {
+    return ipcRenderer.invoke('userData:load');
+  },
+  userDataSave: async (data: unknown) => {
+    return ipcRenderer.invoke('userData:save', data);
+  },
+  userDataSaveTracks: async (tracks: unknown[]) => {
+    return ipcRenderer.invoke('userData:saveTracks', tracks);
+  },
+  userDataGetFilePath: async () => {
+    return ipcRenderer.invoke('userData:getFilePath');
   },
 
   // ---- Auto-updater (electron-updater) ----

@@ -13,7 +13,7 @@ import { notify } from '../services/notificationService';
 import { parseLRCLyrics } from '../services/metadataService';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
 import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 
@@ -31,7 +31,7 @@ export interface OnlineProgressEntry {
 }
 
 /**
- * Online music integration (QQ Music / NetEase Cloud Music): download to local
+ * Online music integration: download to local
  * disk or upload to WebDAV, for whichever source is active in settings.
  *
  * Source-agnostic: every call resolves the active provider fresh, so switching
@@ -40,6 +40,7 @@ export interface OnlineProgressEntry {
 export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDownloadComplete }: UseOnlineMusicIntegrationParams) {
   const [onlineProgress, setOnlineProgress] = useState<Record<string, OnlineProgressEntry>>({});
   const activeSongRef = useRef<string | null>(null);
+  const { t } = useTranslation();
 
   // Lyrics: QQ prefers the dedicated IPC channel (avoids CORS), then falls back
   // to the provider. NetEase resolves entirely through its provider (IPC).
@@ -177,17 +178,20 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      // Soda returns decrypted MP4/M4A media; its quality is chosen from the
+      // account entitlement server-side and cannot be forced by file suffix.
+      const ext = provider.id === 'soda' ? 'm4a' : quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-      const [lyrics, { url }] = await Promise.all([
-        fetchLyrics(song, provider),
-        provider.getMusicUrl(song.songmid, quality),
-      ]);
       const fullPath = joinDownloadPath(downloadPath, fileName);
       const desktopAPI = getDesktopAPI();
-      const result = await desktopAPI?.downloadAndSave?.(url, cookie, fullPath);
+      const [lyrics, result] = await Promise.all([
+        fetchLyrics(song, provider),
+        provider.id === 'soda'
+          ? desktopAPI?.downloadSodaAudio?.(song.songmid, cookie, fullPath)
+          : provider.getMusicUrl(song.songmid, quality).then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+      ]);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
       if (desktopAPI?.writeAudioMetadata) {
@@ -203,12 +207,12 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         if (track) onDownloadComplete(track);
       }
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed' } }));
-      notify(i18n.t('notifications.downloadComplete'), song.songname, { silent: true });
+      notify(t('notifications.downloadComplete'), song.songname, { silent: true });
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] download failed:', err);
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, status: 'error' } }));
-      notify(i18n.t('notifications.downloadFailed'), err instanceof Error ? err.message : '');
+      notify(t('notifications.downloadFailed'), err instanceof Error ? err.message : '');
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 5000);
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
@@ -225,18 +229,19 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      const ext = provider.id === 'soda' ? 'm4a' : quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-      const [lyrics, { url }, coverBase64] = await Promise.all([
-        fetchLyrics(song, provider),
-        provider.getMusicUrl(song.songmid, quality),
-        coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
-      ]);
       const fullPath = joinDownloadPath(downloadPath, fileName);
       const desktopAPI = getDesktopAPI();
-      const dlResult = await desktopAPI?.downloadAndSave?.(url, cookie, fullPath);
+      const [lyrics, dlResult, coverBase64] = await Promise.all([
+        fetchLyrics(song, provider),
+        provider.id === 'soda'
+          ? desktopAPI?.downloadSodaAudio?.(song.songmid, cookie, fullPath)
+          : provider.getMusicUrl(song.songmid, quality).then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+        coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
+      ]);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 35 } }));
       if (desktopAPI?.writeAudioMetadata) {
@@ -283,12 +288,12 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);
-      notify(i18n.t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
+      notify(t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] upload failed:', err);
       setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; });
-      notify(i18n.t('notifications.uploadFailed'), err instanceof Error ? err.message : '');
+      notify(t('notifications.uploadFailed'), err instanceof Error ? err.message : '');
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
     }

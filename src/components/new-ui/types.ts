@@ -1,4 +1,5 @@
 import type { LibrarySlot, SlotId } from '../../types';
+import type { OnlineSource } from '../../services/onlineMusicProvider';
 
 /**
  * Display metadata for a card on the new-UI card wall. This carries only what
@@ -14,6 +15,7 @@ export interface CardMeta {
   subtitle: string;
   icon: string;
   coverUrls: string[];
+  trackCount?: number;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface CardMeta {
  */
 export type CardEntry =
   | (CardMeta & { kind: 'slot'; slotId: SlotId })
-  | (CardMeta & { kind: 'online-playlist'; source: 'qq' | 'netease'; playlistId: string })
+  | (CardMeta & { kind: 'online-playlist'; source: OnlineSource; playlistId: string })
   | (CardMeta & { kind: 'overlay'; overlay: 'settings' | 'theme' });
 
 export type LibrarySlotsById = Record<SlotId, LibrarySlot>;

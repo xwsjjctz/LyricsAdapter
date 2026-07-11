@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 import { getDesktopAPI } from './desktopAdapter';
 import { buildWebDAVUrl, webDAVHrefToPath } from './webdavPath';
 
@@ -6,7 +7,7 @@ const WEBDAV_CONFIG_KEY = 'webdav-config';
 const CDN_CACHE_KEY = 'webdav-cdn-cache';
 const CDN_TTL = 30 * 60 * 1000;
 
-export interface WebDAVConfig {
+interface WebDAVConfig {
   serverUrl: string;
   username: string;
   password: string;
@@ -22,7 +23,7 @@ export interface WebDAVFile {
 }
 
 /** WebDAV 可写性检测结果。reason 用于 UI 文案与日志诊断。 */
-export interface WritableCheckResult {
+interface WritableCheckResult {
   writable: boolean;
   reason?: 'not-configured' | 'readonly-config' | 'api-unavailable' | 'write-denied';
   error?: string | undefined;
@@ -33,6 +34,11 @@ export interface WritableCheckResult {
  * 用 webdavPath 计算稳定 hash 前缀，避免 sanitizeTrackId 把不同路径折叠成同名
  * （如 "/a/1" 与 "/a1" 都被清洗成 "a1"）。hash 仅含 [0-9a-z]，清洗后保留。
  * 上传时立即落盘与后续扫描落盘复用同一 id，避免重复封面。
+ *
+ * 这里的 reduce hash 算法（DJB2 变体）与主进程 electron/utils/webdavCoverId.ts 的
+ * webdavPathHash 逐字相同。未抽取到 shared 是因为主进程版本整体依赖 node crypto
+ *（sanitizeTrackId 用 sha1 兜底），无法整体进纯 src/shared/；而可共享的仅这 1 行
+ * reduce，建跨进程同步机制得不偿失。两端已有交叉引用注释，修改任一处时务必同步。
  */
 export function webdavCoverId(webdavPath: string): string {
   const pathHash = Math.abs([...webdavPath].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
@@ -58,7 +64,7 @@ class WebDAVClient {
 
   private loadConfig(): void {
     try {
-      const saved = localStorage.getItem(WEBDAV_CONFIG_KEY);
+      const saved = appStorage.getItem(WEBDAV_CONFIG_KEY) || localStorage.getItem(WEBDAV_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
       }
@@ -69,7 +75,7 @@ class WebDAVClient {
 
   private loadCdnCache(): void {
     try {
-      const saved = localStorage.getItem(CDN_CACHE_KEY);
+      const saved = appStorage.getItem(CDN_CACHE_KEY) || localStorage.getItem(CDN_CACHE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         this.cdnCache = new Map(Object.entries(parsed));
@@ -88,7 +94,9 @@ class WebDAVClient {
   private saveCdnCache(): void {
     try {
       const obj = Object.fromEntries(this.cdnCache);
-      localStorage.setItem(CDN_CACHE_KEY, JSON.stringify(obj));
+      const json = JSON.stringify(obj);
+      localStorage.setItem(CDN_CACHE_KEY, json);
+      appStorage.setItem(CDN_CACHE_KEY, json).catch(() => {});
     } catch (e) {
       logger.error('[WebDAV] Failed to save CDN cache:', e);
     }
@@ -109,9 +117,28 @@ class WebDAVClient {
     return this.config;
   }
 
+  /**
+   * 重新从 appStorage/localStorage 加载配置。
+   *
+   * webdavClient 在模块导入时同步 loadConfig()，但此时 appStorage.init() 可能
+   * 尚未完成（尤其清空 userData 后 localStorage 为空，需从 ~/.la/settings.json
+   * 异步恢复）。useLibraryLoad 在把 settings.json 灌回 localStorage 后调用本方法，
+   * 使 WebDAV 配置在不重启、不重填表单的前提下恢复生效。
+   */
+  reloadConfig(): void {
+    this.loadConfig();
+    this.loadCdnCache();
+    this.writableCache = null; // 配置可能变更，可写性需重新检测
+    if (this.config) {
+      logger.info('[WebDAV] Config reloaded after settings restore');
+    }
+  }
+
   saveConfig(config: WebDAVConfig): void {
     this.config = config;
-    localStorage.setItem(WEBDAV_CONFIG_KEY, JSON.stringify(config));
+    const json = JSON.stringify(config);
+    localStorage.setItem(WEBDAV_CONFIG_KEY, json);
+    appStorage.setItem(WEBDAV_CONFIG_KEY, json).catch(() => {});
     this.writableCache = null; // 配置变更后可写性需重新检测
     logger.info('[WebDAV] Config saved');
   }
@@ -129,6 +156,7 @@ class WebDAVClient {
   clearCdnCache(): void {
     this.cdnCache.clear();
     localStorage.removeItem(CDN_CACHE_KEY);
+    appStorage.removeItem(CDN_CACHE_KEY).catch(() => {});
     logger.info('[WebDAV] CDN cache cleared');
   }
 

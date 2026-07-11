@@ -15,9 +15,12 @@ import { registerQQMusicHandlers } from './ipc/qqMusicHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerWebDAVHandlers } from './ipc/webdavHandlers';
 import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
+import { registerSodaHandlers } from './ipc/sodaHandlers';
 import { registerQQLoginHandlers } from './ipc/qqLoginHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
+import { registerSettingsHandlers } from './ipc/settingsHandlers';
+import { registerUserDataHandlers } from './ipc/userDataHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
@@ -48,22 +51,30 @@ app.whenReady().then(async () => {
   registerAudioProtocol();
   registerStreamProtocol();
 
-  await createWindow();
-
-  const win = getWindow();
+  // Register ALL IPC handlers BEFORE creating the window,
+  // so the renderer can call settings:getAll and other IPC
+  // channels immediately on page load (appStorage.init() runs
+  // at module import time in index.tsx).
   registerTypedIpcHandlers();
   registerFileHandlers();
   registerLibraryHandlers();
   registerCoverHandlers();
-  registerWindowControls(win);
   registerDownloadHandlers();
   registerMetadataHandlers();
   registerQQMusicHandlers();
   registerNetEaseHandlers();
+  registerSodaHandlers();
   registerQQLoginHandlers();
   registerWebDAVHandlers();
   registerCleanupHandlers();
+  registerSettingsHandlers();
+  registerUserDataHandlers();
   registerNotificationHandlers();
+
+  await createWindow();
+
+  const win = getWindow();
+  registerWindowControls(win);  // needs window object
 
   initUpdater();
   registerVersionIpc();

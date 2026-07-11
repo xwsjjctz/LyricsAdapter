@@ -1,8 +1,9 @@
 import React from 'react';
-import { i18n } from '@/services/i18n';
+import { useTranslation } from 'react-i18next';
 import { getDesktopAPI } from '@/services/desktopAdapter';
-import { SOURCE_OPTIONS } from '../shared';
+import { getSourceOptions } from '../shared';
 import type { SettingsTheme } from '../shared';
+import { settingsManager } from '@/services/settingsManager';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
 
@@ -11,6 +12,7 @@ interface OnlineMusicSectionProps {
   onlineSource: OnlineSource;
   cookie: string;
   neteaseCookie: string;
+  sodaCookie: string;
   downloadPath: string;
   isQrLoggedIn: boolean;
   qrScanning: boolean;
@@ -23,6 +25,7 @@ interface OnlineMusicSectionProps {
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
   setNeteaseCookie: (v: string) => void;
+  setSodaCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
   onSave: () => void;
   startQr: (source: OnlineSource) => void;
@@ -30,7 +33,7 @@ interface OnlineMusicSectionProps {
 }
 
 /**
- * Third-party (QQ/NetEase) online music settings card, including QR scan-login.
+ * Third-party online music settings card, including QR and Cookie login.
  * Pure presentational — all state and the QR lifecycle come from
  * useOnlineMusicSettings via props.
  */
@@ -39,6 +42,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   onlineSource,
   cookie,
   neteaseCookie,
+  sodaCookie,
   downloadPath,
   isQrLoggedIn,
   qrScanning,
@@ -51,19 +55,23 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   setOnlineSource,
   setCookie,
   setNeteaseCookie,
+  setSodaCookie,
   setDownloadPath,
   onSave,
   startQr,
   onQrLogout,
 }) => {
+  const { t } = useTranslation();
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
+  // Re-derived each render so labels follow the current i18n language.
+  const sourceOptions = getSourceOptions();
 
   return (
-    <section className="r-card p-4 border mb-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+    <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-          {i18n.t('settingsDialog.onlineMusicTitle')}
+          {t('settingsDialog.onlineMusicTitle')}
         </h3>
         <button
           onClick={onSave}
@@ -76,18 +84,18 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           {isSaving ? (
             <>
               <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-              {i18n.t('settingsDialog.saving')}
+              {t('settingsDialog.saving')}
             </>
           ) : (
-            i18n.t('settingsDialog.save')
+            t('settingsDialog.save')
           )}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[190px_176px_minmax(220px,1fr)] gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">
           <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-            {i18n.t('settingsDialog.onlineSource')}
+            {t('settingsDialog.onlineSource')}
           </div>
           <div
             className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
@@ -97,7 +105,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               borderRadius: 'var(--theme-card-radius)',
             }}
           >
-            {SOURCE_OPTIONS.map((option) => {
+            {sourceOptions.map((option) => {
               const active = onlineSource === option.value;
               return (
                 <button
@@ -134,12 +142,12 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
 
         <div className="min-w-0">
           <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
-            <span>{i18n.t('settingsDialog.qrTitle')}</span>
-            {(qrImage || qrState === 'error' || qrState === 'expired') && (
+            <span>{onlineSource === 'soda' ? t('settingsDialog.cookieLoginTitle') : t('settingsDialog.qrTitle')}</span>
+            {onlineSource !== 'soda' && (qrImage || qrState === 'error' || qrState === 'expired') && (
               <button
                 type="button"
                 onClick={() => startQr(onlineSource)}
-                title={i18n.t('settingsDialog.qrRefresh')}
+                title={t('settingsDialog.qrRefresh')}
                 className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
                 style={{ color: colors.textSecondary }}
               >
@@ -155,11 +163,35 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               color: colors.textMuted,
             }}
           >
+            {onlineSource === 'soda' && (
+              <div className="flex flex-col items-center gap-2 text-center px-2">
+                <span className="material-symbols-outlined text-5xl" style={{ color: isQrLoggedIn ? '#22c55e' : colors.textMuted }}>
+                  {isQrLoggedIn ? 'check_circle' : 'key'}
+                </span>
+                <span className="text-xs" style={{ color: colors.textSecondary }}>
+                  {isQrLoggedIn ? t('settingsDialog.qrLoggedIn') : t('settingsDialog.cookieLoginTitle')}
+                </span>
+                <button
+                  type="button"
+                  onClick={isQrLoggedIn ? onQrLogout : onSave}
+                  disabled={isSaving}
+                  className="px-2 py-1 text-xs transition-all disabled:opacity-50"
+                  style={{
+                    backgroundColor: isQrLoggedIn ? colors.backgroundCard : `${colors.primary}20`,
+                    color: isQrLoggedIn ? colors.textSecondary : colors.primary,
+                    border: `1px solid ${isQrLoggedIn ? colors.borderLight : colors.primary}`,
+                    borderRadius: 'var(--theme-control-radius)',
+                  }}
+                >
+                  {isQrLoggedIn ? t('settingsDialog.qrLogout') : t('settingsDialog.cookieLoginAction')}
+                </button>
+              </div>
+            )}
             {/* Logged-in panel */}
-            {isQrLoggedIn && !qrScanning ? (
+            {onlineSource !== 'soda' && (isQrLoggedIn && !qrScanning ? (
               <div className="flex flex-col items-center gap-1.5 text-center px-2">
                 <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
-                <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoggedIn')}</span>
+                <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoggedIn')}</span>
                 <div className="flex gap-1.5 mt-0.5">
                   <button
                     type="button"
@@ -174,7 +206,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                     onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                   >
-                    {i18n.t('settingsDialog.qrLogout')}
+                    {t('settingsDialog.qrLogout')}
                   </button>
                   <button
                     type="button"
@@ -187,14 +219,14 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                       borderRadius: 'var(--theme-control-radius)',
                     }}
                   >
-                    {i18n.t('settingsDialog.qrReLogin')}
+                    {t('settingsDialog.qrReLogin')}
                   </button>
                 </div>
               </div>
             ) : qrState === 'loading' ? (
               <div className="flex flex-col items-center gap-2">
                 <span className="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
-                <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoading')}</span>
+                <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoading')}</span>
               </div>
             ) : qrImage ? (
               <>
@@ -211,7 +243,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                     color: qrState === 'confirming' ? colors.primary : colors.textSecondary,
                   }}
                 >
-                  {qrMsg || i18n.t('settingsDialog.qrWaiting')}
+                  {qrMsg || t('settingsDialog.qrWaiting')}
                 </div>
               </>
             ) : (
@@ -221,8 +253,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 </span>
                 <span className="text-xs" style={{ color: colors.textSecondary }}>
                   {qrState === 'expired'
-                    ? i18n.t('settingsDialog.qrExpired')
-                    : (qrMsg || i18n.t('settingsDialog.qrError'))}
+                    ? t('settingsDialog.qrExpired')
+                    : (qrMsg || t('settingsDialog.qrError'))}
                 </span>
                 <button
                   type="button"
@@ -235,29 +267,31 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                     borderRadius: 'var(--theme-control-radius)',
                   }}
                 >
-                  {i18n.t('settingsDialog.qrRefresh')}
+                  {t('settingsDialog.qrRefresh')}
                 </button>
               </div>
-            )}
+            ))}
           </div>
         </div>
 
-        <div className="min-w-0 space-y-3">
-          {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
+        <div className="min-w-0 space-y-3 sm:col-span-2">
+          {/* Provider cookie */}
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
               {onlineSource === 'netease'
-                ? i18n.t('settingsDialog.neteaseCookieLabel')
-                : i18n.t('settingsDialog.cookie')}
+                ? t('settingsDialog.neteaseCookieLabel')
+                : onlineSource === 'soda'
+                  ? t('settingsDialog.sodaCookieLabel')
+                  : t('settingsDialog.cookie')}
             </label>
             <textarea
-              value={onlineSource === 'netease' ? neteaseCookie : cookie}
-              onChange={(e) =>
-                onlineSource === 'netease'
-                  ? setNeteaseCookie(e.target.value)
-                  : setCookie(e.target.value)
-              }
-              placeholder={i18n.t('settingsDialog.pasteCookie')}
+              value={onlineSource === 'netease' ? neteaseCookie : onlineSource === 'soda' ? sodaCookie : cookie}
+              onChange={(e) => {
+                if (onlineSource === 'netease') setNeteaseCookie(e.target.value);
+                else if (onlineSource === 'soda') setSodaCookie(e.target.value);
+                else setCookie(e.target.value);
+              }}
+              placeholder={t('settingsDialog.pasteCookie')}
               className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar cookie-textarea"
               style={inputStyle}
               onFocus={inputFocus}
@@ -268,18 +302,25 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
 
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-              {i18n.t('settingsDialog.savePath')}
+              {t('settingsDialog.savePath')}
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={downloadPath}
                 onChange={(e) => setDownloadPath(e.target.value)}
-                placeholder={i18n.t('settingsDialog.downloadFolderPath')}
+                placeholder={t('settingsDialog.downloadFolderPath')}
                 className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
-                onBlur={inputBlur}
+                onBlur={(e) => {
+                  inputBlur(e);
+                  // Persist on blur so a path typed by hand survives navigating
+                  // away without clicking Save (the Save button is mainly for the
+                  // cookie/online-source form; the download folder is a standalone
+                  // preference that should "stick" immediately).
+                  settingsManager.setDownloadPath(e.target.value.trim());
+                }}
                 disabled={isSaving}
               />
               <button
@@ -289,6 +330,10 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                     const result = await desktopAPI.selectDownloadFolder();
                     if (result.success && result.path) {
                       setDownloadPath(result.path);
+                      // Persist immediately: selecting a folder is a deliberate
+                      // choice, not a form draft — it must survive panel close
+                      // without requiring a separate Save click.
+                      settingsManager.setDownloadPath(result.path);
                     }
                   }
                 }}
@@ -302,7 +347,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               </button>
             </div>
             <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-              {i18n.t('settingsDialog.tip')}
+              {t('settingsDialog.tip')}
             </p>
           </div>
 

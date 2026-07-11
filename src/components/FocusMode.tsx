@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
 import { themeManager } from '../services/themeManager';
 import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
@@ -57,16 +56,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const isLinux = getDesktopAPI()?.platform === 'linux';
   const isNewUxFocus = variant === 'new-ux';
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -367,7 +357,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       setIsUserScrolling(true);
 
       const bounds = getScrollBounds();
-      
+
       // Update manual offset based on wheel delta with bounds
       setManualOffsetY(prev => {
         const newValue = prev - e.deltaY;
@@ -377,22 +367,29 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
         return Math.max(minManual, Math.min(maxManual, newValue));
       });
 
-      // Clear existing timeout
+      // Resume auto-scroll after a short period of inactivity. The manual-scroll
+      // state is transient: the user browses, then playback takes over again.
+      // (The original cause of "lyrics can't scroll" was the wheel listener not
+      // being bound at all — fixed via the hasLyrics dependency — NOT this timer.)
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
-
-      // Resume auto-positioning after 3 seconds of inactivity
       scrollTimeoutRef.current = setTimeout(() => {
         setIsUserScrolling(false);
-        setManualOffsetY(0); // Reset manual offset when resuming auto-scroll
+        setManualOffsetY(0);
       }, 3000);
     };
 
     const handler = (e: WheelEvent) => handleWheelRef.current?.(e);
     lyricsEl.addEventListener('wheel', handler, { passive: false });
     return () => lyricsEl.removeEventListener('wheel', handler);
-  }, [getScrollBounds]);
+    // The lyrics container (lyricsRef) mounts only once `hasLyrics` is true —
+    // it is fetched asynchronously. This effect MUST re-run when hasLyrics
+    // changes (and when the active lyric list changes, since bounds depend on
+    // the number of lines), otherwise the wheel listener is bound once against
+    // a null ref and never re-attached to the real element. That was the root
+    // cause of "Focus Mode 歌词无法手动滚动".
+  }, [getScrollBounds, hasLyrics, lyricsLines]);
 
   // Handle mouse drag start
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -424,7 +421,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
 
-    // Resume auto-positioning after 3 seconds
+    // Resume auto-scroll after a short period of inactivity (same as wheel).
     scrollTimeoutRef.current = setTimeout(() => {
       setIsUserScrolling(false);
       setManualOffsetY(0);
@@ -608,22 +605,27 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   // Manual scroll mode: directly apply offset without auto-position
   useEffect(() => {
     if (!isVisible) return;
-    
+
     if (isUserScrolling) {
       // Cancel any animation during manual scroll
       if (lyricAnimationRef.current !== null) {
         cancelAnimationFrame(lyricAnimationRef.current);
         lyricAnimationRef.current = null;
       }
-      
+
       const combinedY = autoOffsetRef.current + manualOffsetY;
       currentOffsetRef.current = combinedY;
       setLyricOffsetY(combinedY);
     } else {
-      // User scrolling ended - smoothly return to auto position with easing
-      if (Math.abs(manualOffsetY) > 0.5) {
+      // Auto mode: keep the lyrics pinned to the auto offset. This also handles
+      // the transition OUT of manual mode (the 3s resume timer sets
+      // isUserScrolling=false). The previous guard `manualOffsetY > 0.5` failed
+      // because the timer resets manualOffsetY to 0 in the SAME commit, so the
+      // resume animation never ran and lyrics got stuck at the manual position.
+      // Now: if the current offset is off from the auto target, ease back to it.
+      const targetY = autoOffsetRef.current;
+      if (Math.abs(currentOffsetRef.current - targetY) > 0.5) {
         const startY = currentOffsetRef.current;
-        const targetY = autoOffsetRef.current;
         const distance = targetY - startY;
         const startTime = performance.now();
         const duration = 600;
@@ -632,7 +634,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           const elapsed = currentTime - startTime;
           const rawProgress = Math.min(elapsed / duration, 1);
           const easedProgress = bezierEaseOut(rawProgress);
-          
+
           const newY = startY + distance * easedProgress;
           currentOffsetRef.current = newY;
           setLyricOffsetY(newY);
@@ -645,7 +647,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             lyricAnimationRef.current = null;
           }
         };
-        
+
         if (lyricAnimationRef.current !== null) {
           cancelAnimationFrame(lyricAnimationRef.current);
         }
@@ -662,9 +664,10 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     setRealtimeCurrentTime(0);
     setLyricOffsetY(0);
     setManualOffsetY(0);
+    setIsUserScrolling(false);
     autoOffsetRef.current = 0;
     currentOffsetRef.current = 0;
-    
+
     if (lyricAnimationRef.current !== null) {
       cancelAnimationFrame(lyricAnimationRef.current);
       lyricAnimationRef.current = null;
@@ -860,14 +863,21 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   }, [isTransitioning, transitionProgress, bgImage1, bgImage2, renderCanvas]);
 
   // Handle click on synced lyric line to seek
-  const handleLyricClick = (lyricTime: number) => {
+  const handleLyricClick = (lyricTime: number, idx?: number) => {
     if (lyricTime > 0 && onSeek) {
       onSeek(lyricTime);
+    }
+    // Clicking the currently-active line exits manual follow mode and resumes
+    // auto-scrolling. This is the explicit "I'm done browsing" gesture, in
+    // place of the old automatic 3-second snap-back.
+    if (isUserScrolling && idx != null && idx === activeIndex) {
+      setIsUserScrolling(false);
+      setManualOffsetY(0);
     }
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+    <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={Boolean(bgImage1)}
         bgBlurRadius={bgBlurRadius}
@@ -937,7 +947,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
                         fontSize: `${lyricsFontSize}px`,
                          filter: isActive ? 'none' : `blur(${inactiveLyricBlur}px)`,
                       }}
-                      onClick={() => hasTimestamp && handleLyricClick(lyric.time)}
+                      onClick={() => hasTimestamp && handleLyricClick(lyric.time, idx)}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = focusColors.textSecondary; }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = focusColors.textMuted; }}
                     >

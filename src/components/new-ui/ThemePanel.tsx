@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { i18n } from '../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../../services/themeManager';
+import { settingsManager } from '../../services/settingsManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../../types/theme';
 import { predefinedThemes } from '../../services/themes/predefinedThemes';
-import { resolveThemeControls } from '../../services/themeControls';
 import { resolveThemeAppearance } from '../../services/themeAppearance';
+import { resolveThemeControls } from '../../services/themeControls';
 
 interface ThemePanelProps {
   onClose: () => void;
@@ -54,12 +55,12 @@ const ThemeModeSwitch: React.FC<ThemeModeSwitchProps> = ({ checked, ariaLabel, o
 );
 
 const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
+  const { t } = useTranslation();
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
   );
-  const [, setLanguageVersion] = useState(0);
-
+  const [newUxEnabled, setNewUxEnabled] = useState(() => settingsManager.getNewUxEnabled());
   // Subscribe to theme changes
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
@@ -74,22 +75,22 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
     return unsubscribe;
   }, []);
 
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
   // Apply current theme CSS variables on mount
   useEffect(() => {
     const currentTheme = themeManager.getCurrentTheme();
     applyThemeStyles(currentTheme);
   }, []);
 
+  useEffect(() => settingsManager.subscribe(() => {
+    setNewUxEnabled(settingsManager.getNewUxEnabled());
+  }), []);
+
   const handleApplyTheme = (themeId: ThemeId) => {
     themeManager.setTheme(themeId);
+  };
+
+  const handleEnterNewUx = () => {
+    settingsManager.setNewUxEnabled(true);
   };
 
   const handleToggleDefaultCardMode = (isDark: boolean) => {
@@ -109,75 +110,6 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   const getThemeNameKey = (themeId: string): string => `theme.name.${themeId}`;
   const getThemeDescKey = (themeId: string): string => `theme.desc.${themeId}`;
 
-  const getThemeTagKey = (tag: string): string => {
-    const tagMap: Record<string, string> = {
-      '默认': 'theme.tag.default',
-      '经典': 'theme.tag.classic',
-      '商务': 'theme.tag.business',
-      '可爱': 'theme.tag.cute',
-      '甜美': 'theme.tag.sweet',
-      '粉色': 'theme.tag.pink',
-      '海洋': 'theme.tag.ocean',
-      '蓝色': 'theme.tag.blue',
-      '深邃': 'theme.tag.deep',
-      '温暖': 'theme.tag.warm',
-      '橙色': 'theme.tag.orange',
-      '舒适': 'theme.tag.cozy',
-      '自然': 'theme.tag.natural',
-      '绿色': 'theme.tag.green',
-      '清新': 'theme.tag.fresh',
-      '神秘': 'theme.tag.mysterious',
-      '紫色': 'theme.tag.purple',
-      '优雅': 'theme.tag.elegant',
-      '浅色': 'theme.tag.light',
-      '冷色': 'theme.tag.cool',
-      '现代': 'theme.tag.modern',
-      '极简': 'theme.tag.minimal',
-      '暖色': 'theme.tag.warmColor',
-      '简约': 'theme.tag.minimalist',
-      '粗粝': 'theme.tag.brutalist',
-      '高对比': 'theme.tag.highContrast',
-      '黄色': 'theme.tag.yellow',
-      'Default': 'theme.tag.default',
-      'Classic': 'theme.tag.classic',
-      'Business': 'theme.tag.business',
-      'Cute': 'theme.tag.cute',
-      'Sweet': 'theme.tag.sweet',
-      'Pink': 'theme.tag.pink',
-      'Ocean': 'theme.tag.ocean',
-      'Blue': 'theme.tag.blue',
-      'Deep': 'theme.tag.deep',
-      'Warm': 'theme.tag.warm',
-      'Orange': 'theme.tag.orange',
-      'Cozy': 'theme.tag.cozy',
-      'Natural': 'theme.tag.natural',
-      'Green': 'theme.tag.green',
-      'Fresh': 'theme.tag.fresh',
-      'Mysterious': 'theme.tag.mysterious',
-      'Purple': 'theme.tag.purple',
-      'Elegant': 'theme.tag.elegant',
-      'Light': 'theme.tag.light',
-      'Cool': 'theme.tag.cool',
-      'Modern': 'theme.tag.modern',
-      'Minimalist': 'theme.tag.minimalist',
-      'Warm Color': 'theme.tag.warmColor',
-      'Warm Tone': 'theme.tag.warmColor',
-      'Brutalist': 'theme.tag.brutalist',
-      'High Contrast': 'theme.tag.highContrast',
-      'Yellow': 'theme.tag.yellow',
-    };
-    return tagMap[tag] || '';
-  };
-
-  const translateTag = (tag: string): string => {
-    const key = getThemeTagKey(tag);
-    if (key) {
-      const translated = i18n.t(key);
-      return translated !== key ? translated : tag;
-    }
-    return tag;
-  };
-
   const defaultDarkTheme = predefinedThemes.find(theme => theme.id === THEME_IDS.DEFAULT_DARK)!;
   const defaultLightTheme = predefinedThemes.find(theme => theme.id === THEME_IDS.DEFAULT_LIGHT)!;
   const defaultCardTheme = defaultCardMode === 'dark' ? defaultDarkTheme : defaultLightTheme;
@@ -187,206 +119,190 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   ];
 
   return (
-    <aside className="new-ux-side-panel new-ux-side-panel--wide new-ux-panel-in">
+    <aside className="new-ux-side-panel new-ux-side-panel--theme new-ux-panel-in">
       <header className="new-ux-side-panel__header">
         <div>
-          <div className="new-ux-side-panel__eyebrow">{i18n.t('theme.title')}</div>
-          <h2 className="new-ux-side-panel__title">{i18n.t('theme.description')}</h2>
+          <div className="new-ux-side-panel__eyebrow">{t('theme.title')}</div>
+          <h2 className="new-ux-side-panel__title">{t('theme.description')}</h2>
         </div>
         <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close theme panel">
           <span className="material-symbols-outlined text-[22px]">close</span>
         </button>
       </header>
       <div className="new-ux-side-panel__body">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {visibleThemes.map((theme) => {
-            const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
-            const isCurrent = theme.id === currentThemeId;
-            const controls = resolveThemeControls(theme);
-            const appearance = resolveThemeAppearance(theme);
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={handleEnterNewUx}
+            aria-pressed={newUxEnabled}
+            aria-label={newUxEnabled ? t('theme.applied') : t('theme.enterNewUx')}
+            className="theme-preview-card group relative flex min-h-[76px] w-full items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3 text-left transition-all duration-200"
+            style={{
+              background: 'linear-gradient(135deg, rgba(32, 43, 88, 0.96), rgba(54, 31, 85, 0.96))',
+              borderColor: newUxEnabled ? 'rgba(164, 132, 255, 0.7)' : 'rgba(164, 132, 255, 0.32)',
+              boxShadow: '0 12px 28px rgba(10, 8, 32, 0.24)',
+            }}
+          >
+            <div className="absolute -right-5 -top-8 size-28 rounded-full bg-violet-300/20 blur-2xl" />
+            <span className="material-symbols-outlined relative text-3xl text-violet-200">auto_awesome</span>
+            <div className="relative min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-white">{t('settings.newUx')}</h3>
+              <p className="mt-0.5 truncate text-xs text-violet-100/75">{t('settings.newUxDesc')}</p>
+            </div>
+            <span className="relative flex shrink-0 items-center gap-1 rounded-full bg-violet-100/15 px-2 py-1 text-[11px] font-medium text-violet-50">
+              <span className="material-symbols-outlined text-sm">{newUxEnabled ? 'check' : 'arrow_forward'}</span>
+              {newUxEnabled ? t('theme.applied') : t('theme.enterNewUx')}
+            </span>
+          </button>
 
-            return (
-              <div
-                key={isDefaultCard ? 'default-theme-card' : theme.id}
-                className="theme-preview-card relative overflow-hidden transition-all duration-300 cursor-pointer group"
-                style={{
-                  backgroundColor: theme.colors.backgroundSidebar,
-                  borderRadius: appearance.surfaceRadius,
-                  border: `${appearance.surfaceBorderWidth} solid ${theme.colors.borderLight}`,
-                  boxShadow: appearance.surfaceShadow,
-                }}
-              >
-                {/* Theme Preview Area - Shows theme's own colors and control style tokens */}
-                <div className="h-32 relative overflow-hidden">
-                  {isDefaultCard && (
-                    <div
-                      className="absolute right-3 top-3 z-20"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ThemeModeSwitch
-                        checked={defaultCardMode === 'dark'}
-                        ariaLabel={defaultCardMode === 'dark' ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}
-                        onChange={handleToggleDefaultCardMode}
-                      />
-                    </div>
-                  )}
-                  <div
-                    className="theme-preview-color absolute inset-0 opacity-80"
-                    style={{
-                      background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
-                      backgroundColor: theme.colors.backgroundGradientStart,
-                    }}
-                  />
-                  {/* Decorative elements */}
-                  <div
-                    className="theme-preview-color absolute top-4 left-4 w-8 h-8 opacity-60"
-                    style={{ backgroundColor: theme.colors.primary, borderRadius: appearance.buttonRadius }}
-                  />
-                  <div
-                    className="theme-preview-color absolute top-6 right-8 w-4 h-4 opacity-40"
-                    style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.controlRadius }}
-                  />
-                  <div
-                    className="theme-preview-color absolute bottom-4 right-12 w-6 h-6 opacity-30"
-                    style={{ backgroundColor: theme.colors.success, borderRadius: appearance.buttonRadius }}
-                  />
-                  <div
-                    className="theme-preview-color absolute left-4 right-4 bottom-4 p-2"
-                    style={{
-                      backgroundColor: controls.panelBackgroundGlassStrong,
-                      border: `${appearance.panelBorderWidth} solid ${controls.panelBorder}`,
-                      borderRadius: appearance.surfaceRadius,
-                      boxShadow: controls.panelShadow,
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="theme-preview-color flex h-7 w-7 items-center justify-center"
-                        style={{
-                          backgroundColor: controls.primaryButtonBackground,
-                          color: controls.primaryButtonForeground,
-                          borderRadius: appearance.buttonRadius,
-                          boxShadow: controls.primaryButtonShadow,
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-[16px] fill-icon">play_arrow</span>
-                      </span>
-                      <div
-                        className="theme-preview-color flex-1 overflow-hidden"
-                        style={{
-                          height: appearance.progressHeight,
-                          borderRadius: appearance.progressRadius,
-                          backgroundColor: controls.sliderTrack,
-                        }}
-                      >
-                        <div
-                          className="theme-preview-color h-full w-2/3"
-                          style={{ backgroundColor: controls.sliderFill, borderRadius: appearance.progressRadius }}
-                        />
-                      </div>
-                      <span
-                        className="theme-preview-color h-7 w-7"
-                        style={{ backgroundColor: controls.iconBackgroundActive, borderRadius: appearance.controlRadius }}
-                      />
-                    </div>
-                  </div>
-                </div>
+          <div className="space-y-2">
+            {visibleThemes.map((theme) => {
+              const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
+              const isCurrent = !newUxEnabled && theme.id === currentThemeId;
+              const controls = resolveThemeControls(theme);
+              const appearance = resolveThemeAppearance(theme);
+              const themeName = isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id));
 
-                {/* Theme Info - Shows theme's own colors */}
-                <div className="theme-preview-color p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3
-                      className="text-lg"
-                      style={{
-                        color: theme.colors.textPrimary,
-                        fontFamily: theme.fonts.display || theme.fonts.main,
-                        fontWeight: appearance.textHeadingWeight,
-                        letterSpacing: appearance.headingLetterSpacing,
-                      }}
-                    >
-                      {isDefaultCard ? i18n.t('theme.name.default-combined') : i18n.t(getThemeNameKey(theme.id))}
-                    </h3>
-                    {isCurrent && (
-                      <span
-                        className="theme-preview-color px-2 py-1 text-xs flex items-center gap-1"
-                        style={{
-                          backgroundColor: theme.colors.primary,
-                          color: theme.isDark ? '#ffffff' : '#1a1a1a',
-                          borderRadius: appearance.buttonRadius,
-                          fontWeight: appearance.textButtonWeight,
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-sm">check</span>
-                        {i18n.t('theme.applied')}
-                      </span>
-                    )}
-                  </div>
-
-                  <p
-                    className="text-sm mb-3"
-                    style={{ color: theme.colors.textSecondary }}
-                  >
-                    {isDefaultCard ? i18n.t('theme.desc.default-combined') : i18n.t(getThemeDescKey(theme.id))}
-                  </p>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {theme.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="theme-preview-color px-2 py-0.5 text-xs"
-                        style={{
-                          backgroundColor: theme.colors.backgroundCardHover,
-                          color: theme.colors.textMuted,
-                          borderRadius: appearance.buttonRadius,
-                          fontWeight: appearance.textButtonWeight,
-                          letterSpacing: appearance.buttonLetterSpacing,
-                          textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
-                        }}
-                      >
-                        {translateTag(tag)}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Mode badge */}
-                  <div className="flex items-center gap-1 text-xs" style={{ color: theme.colors.textMuted }}>
-                    <span className="material-symbols-outlined text-sm">
-                      {theme.isDark ? 'dark_mode' : 'light_mode'}
-                    </span>
-                    <span>{theme.isDark ? i18n.t('theme.darkMode') : i18n.t('theme.lightMode')}</span>
-                  </div>
-                </div>
-
-                {/* Apply Button Overlay */}
+              return (
                 <div
-                  className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  key={isDefaultCard ? 'default-theme-card' : theme.id}
+                  className="theme-preview-card group relative overflow-hidden transition-all duration-200"
                   style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    backdropFilter: 'blur(4px)',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleApplyTheme(theme.id);
+                    backgroundColor: theme.colors.backgroundSidebar,
+                    borderRadius: appearance.surfaceRadius,
+                    border: `${appearance.surfaceBorderWidth} solid ${theme.colors.borderLight}`,
+                    boxShadow: appearance.surfaceShadow,
                   }}
                 >
+                  <div className="relative h-24 overflow-hidden">
+                    {isDefaultCard && (
+                      <div
+                        className="absolute right-2 top-2 z-20"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <ThemeModeSwitch
+                          checked={defaultCardMode === 'dark'}
+                          ariaLabel={defaultCardMode === 'dark' ? t('theme.darkMode') : t('theme.lightMode')}
+                          onChange={handleToggleDefaultCardMode}
+                        />
+                      </div>
+                    )}
+                    <div
+                      className="theme-preview-color absolute inset-0 opacity-80"
+                      style={{
+                        background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
+                        backgroundColor: theme.colors.backgroundGradientStart,
+                      }}
+                    />
+                    <div
+                      className="theme-preview-color absolute left-3 top-3 size-6 opacity-60"
+                      style={{ backgroundColor: theme.colors.primary, borderRadius: appearance.buttonRadius }}
+                    />
+                    <div
+                      className="theme-preview-color absolute right-6 top-4 size-3 opacity-40"
+                      style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.controlRadius }}
+                    />
+                    <div
+                      className="theme-preview-color absolute bottom-3 right-8 size-4 opacity-30"
+                      style={{ backgroundColor: theme.colors.success, borderRadius: appearance.buttonRadius }}
+                    />
+                    <div
+                      className="theme-preview-color absolute bottom-3 left-3 right-3 p-1.5"
+                      style={{
+                        backgroundColor: controls.panelBackgroundGlassStrong,
+                        border: `${appearance.panelBorderWidth} solid ${controls.panelBorder}`,
+                        borderRadius: appearance.surfaceRadius,
+                        boxShadow: controls.panelShadow,
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="theme-preview-color flex h-6 w-6 items-center justify-center"
+                          style={{
+                            backgroundColor: controls.primaryButtonBackground,
+                            color: controls.primaryButtonForeground,
+                            borderRadius: appearance.buttonRadius,
+                            boxShadow: controls.primaryButtonShadow,
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-[14px] fill-icon">play_arrow</span>
+                        </span>
+                        <div
+                          className="theme-preview-color flex-1 overflow-hidden"
+                          style={{
+                            height: '3px',
+                            borderRadius: appearance.progressRadius,
+                            backgroundColor: controls.sliderTrack,
+                          }}
+                        >
+                          <div
+                            className="theme-preview-color h-full w-2/3"
+                            style={{ backgroundColor: controls.sliderFill, borderRadius: appearance.progressRadius }}
+                          />
+                        </div>
+                        <span
+                          className="theme-preview-color h-6 w-6"
+                          style={{ backgroundColor: controls.iconBackgroundActive, borderRadius: appearance.controlRadius }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="theme-preview-color px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <h3
+                        className="min-w-0 flex-1 truncate text-sm"
+                        style={{
+                          color: theme.colors.textPrimary,
+                          fontFamily: theme.fonts.display || theme.fonts.main,
+                          fontWeight: appearance.textHeadingWeight,
+                          letterSpacing: appearance.headingLetterSpacing,
+                        }}
+                      >
+                        {themeName}
+                      </h3>
+                      {isCurrent && (
+                        <span
+                          className="theme-preview-color flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-[10px]"
+                          style={{
+                            backgroundColor: theme.colors.primary,
+                            color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                            borderRadius: appearance.buttonRadius,
+                            fontWeight: appearance.textButtonWeight,
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-xs">check</span>
+                          {t('theme.applied')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs" style={{ color: theme.colors.textSecondary }}>
+                      {isDefaultCard ? t('theme.desc.default-combined') : t(getThemeDescKey(theme.id))}
+                    </p>
+                  </div>
+
                   <button
-                    className="px-6 py-3 transition-transform transform hover:scale-105"
-                    style={{
-                      backgroundColor: theme.colors.primary,
-                      color: theme.isDark ? '#ffffff' : '#1a1a1a',
-                      borderRadius: appearance.buttonRadius,
-                      fontWeight: appearance.textButtonWeight,
-                      letterSpacing: appearance.buttonLetterSpacing,
-                      textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
-                    }}
+                    type="button"
+                    onClick={() => handleApplyTheme(theme.id)}
+                    aria-label={`${isCurrent ? t('theme.applied') : t('theme.apply')}: ${themeName}`}
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-visible:opacity-100"
                   >
-                    {isCurrent ? i18n.t('theme.applied') : i18n.t('theme.apply')}
+                    <span
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium shadow-lg"
+                      style={{
+                        backgroundColor: theme.colors.primary,
+                        color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                        borderRadius: appearance.buttonRadius,
+                      }}
+                    >
+                      <span className="material-symbols-outlined text-sm">{isCurrent ? 'check' : 'arrow_forward'}</span>
+                      {isCurrent ? t('theme.applied') : t('theme.apply')}
+                    </span>
                   </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </aside>

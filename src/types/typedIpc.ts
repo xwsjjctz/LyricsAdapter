@@ -6,6 +6,7 @@ export interface TypedElectronIPC {
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
     readAudio: (filePath: string) => Promise<IpcResult<{ data: ArrayBuffer }>>;
+    allowAudioPath: (filePath: string) => Promise<IpcResult<void>>;
   };
   library: {
     loadIndex: () => Promise<IpcResult<unknown>>;
@@ -19,5 +20,19 @@ export interface TypedElectronIPC {
   };
   download: {
     audio: (payload: { url: string; cookieString: string }) => Promise<IpcResult<{ data: ArrayBuffer }>>;
+  };
+  settings: {
+    get: (key: string) => Promise<IpcResult<string | undefined>>;
+    getAll: () => Promise<IpcResult<Record<string, string>>>;
+    set: (key: string, value: string) => Promise<IpcResult<void>>;
+    setMany: (entries: Record<string, string>) => Promise<IpcResult<void>>;
+    delete: (key: string) => Promise<IpcResult<void>>;
+    replaceAll: (entries: Record<string, string>) => Promise<IpcResult<void>>;
+  };
+  userData: {
+    load: () => Promise<IpcResult<unknown>>;
+    save: (data: unknown) => Promise<IpcResult<void>>;
+    saveTracks: (tracks: unknown[]) => Promise<IpcResult<void>>;
+    getFilePath: () => Promise<IpcResult<string>>;
   };
 }

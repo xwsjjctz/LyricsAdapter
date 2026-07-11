@@ -74,17 +74,49 @@ export function registerAllSchemes(): void {
 }
 
 /**
- * Register the app:// protocol handler that serves the packaged app's
- * static files from the dist/ directory.
+ * Register the app:// protocol handler.
+ *
+ * - Packaged (production): serves static files from dist/.
+ * - Dev (Vite dev server): proxies to http://localhost:3000 so that the page
+ *   origin stays app://localhost in both modes. This unifies localStorage and
+ *   IndexedDB storage across dev and production builds.
  */
 export async function registerAppProtocolHandler(): Promise<void> {
   await app.whenReady();
 
   const distDir = getRendererDistDir();
 
-  protocol.handle('app', (request) => {
+  protocol.handle('app', async (request) => {
     try {
       const url = new URL(request.url);
+
+      if (!app.isPackaged) {
+        // Dev mode: proxy to Vite dev server.
+        // Forward headers + method so Vite can properly negotiate content type
+        // (especially important for CSS and JS modules).
+        const targetUrl = `http://localhost:3000${url.pathname}${url.search}`;
+        try {
+          const headers = new Headers();
+          for (const [key, value] of request.headers.entries()) {
+            headers.set(key, value);
+          }
+          // Strip host to let Vite handle it.
+          headers.delete('host');
+          // Request uncompressed content — net.fetch may not decompress
+          // automatically, and Electron's protocol layer doesn't handle
+          // Content-Encoding, so gzipped CSS/JS would arrive garbled.
+          headers.set('accept-encoding', 'identity');
+          return await net.fetch(targetUrl, {
+            method: request.method,
+            headers,
+          });
+        } catch (proxyErr) {
+          logger.warn('[app://] Dev proxy failed — is Vite dev server running?', (proxyErr as Error).message);
+          return new Response('Vite dev server not available', { status: 502 });
+        }
+      }
+
+      // Packaged mode: serve static files from dist/
       const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
       const filePath = path.join(distDir, relativePath);
 
@@ -102,5 +134,5 @@ export async function registerAppProtocolHandler(): Promise<void> {
     }
   });
 
-  logger.info('[app://] Protocol handler registered, dist:', distDir);
+  logger.info('[app://] Protocol handler registered (dev=' + !app.isPackaged + '), dist:', distDir);
 }

@@ -6,7 +6,7 @@ import {
 } from '../services/onlineMusicProvider';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import type { OnlineProgressEntry } from '../hooks/useOnlineMusicIntegration';
@@ -45,7 +45,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
   const [openUploadDropdownId, setOpenUploadDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const cookiePromptShown = sessionStorage.getItem('cookiePromptShown') === 'true';
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const colors = currentTheme.colors;
@@ -68,14 +68,6 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
-
   // Check cookie on mount — only sources that require login (e.g. QQ Music).
   // NetEase search works anonymously, so it skips straight to loading recommendations.
   useEffect(() => {
@@ -86,7 +78,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
         const status = await cookieStore.validateCookie();
         if (!status.valid && !cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
-          notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
+          notify(t('browse.cookieExpired'), t('browse.pleaseSetCookie'));
           onNavigateToSettings?.();
           return;
         }
@@ -110,7 +102,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
           const provider = getOnlineProvider();
           if (provider.requiresCookie() && !provider.hasCookie() && !cookiePromptShown) {
             sessionStorage.setItem('cookiePromptShown', 'true');
-            notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
+            notify(t('browse.cookieExpired'), t('browse.pleaseSetCookie'));
             onNavigateToSettings?.();
             return;
           }
@@ -126,16 +118,16 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
             logger.error('[BrowseView] Search failed:', err);
             const errorMsg = err.message || '';
             if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-              setError(i18n.t('browse.corsError'));
+              setError(t('browse.corsError'));
             } else if (errorMsg.includes('Cookie')) {
-              setError(i18n.t('browse.cookieExpired'));
+              setError(t('browse.cookieExpired'));
               if (!cookiePromptShown) {
                 sessionStorage.setItem('cookiePromptShown', 'true');
-                notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
+                notify(t('browse.cookieExpired'), t('browse.pleaseSetCookie'));
                 onNavigateToSettings?.();
               }
             } else {
-              setError(errorMsg || i18n.t('browse.searchFailed'));
+              setError(errorMsg || t('browse.searchFailed'));
             }
           } finally {
             setIsLoading(false);
@@ -158,10 +150,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
   const loadRecommendations = useCallback(async () => {
     const provider = getOnlineProvider();
     if (provider.requiresCookie() && !provider.hasCookie()) {
-      setError(i18n.t('browse.pleaseSetCookie'));
+      setError(t('browse.pleaseSetCookie'));
       if (!cookiePromptShown) {
         sessionStorage.setItem('cookiePromptShown', 'true');
-        notify(i18n.t('browse.cookieExpired'), i18n.t('browse.pleaseSetCookie'));
+        notify(t('browse.cookieExpired'), t('browse.pleaseSetCookie'));
         onNavigateToSettings?.();
       }
       return;
@@ -176,7 +168,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
       logger.debug('[BrowseView] Got songs:', songs.length);
       
       if (!songs || songs.length === 0) {
-        setError(i18n.t('browse.noMusic'));
+        setError(t('browse.noMusic'));
       } else {
         setSongs(songs);
         setHasSearched(false);
@@ -186,14 +178,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
       logger.error('[BrowseView] Failed to load recommendations:', err);
       const errorMsg = err.message || '';
       if (errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch')) {
-        setError(i18n.t('browse.corsError'));
+        setError(t('browse.corsError'));
       } else if (errorMsg.includes('Cookie')) {
         if (!cookiePromptShown) {
           sessionStorage.setItem('cookiePromptShown', 'true');
           onNavigateToSettings?.();
         }
       } else {
-        setError(errorMsg || i18n.t('browse.searchFailed'));
+        setError(errorMsg || t('browse.searchFailed'));
       }
     } finally {
       setIsLoading(false);
@@ -230,11 +222,11 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
       {/* Header */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('browse.title')}</h1>
+          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{t('browse.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
             {hasSearched
-              ? `${i18n.t('browse.searchResults')} "${executedSearchQuery}"`
-              : i18n.t('browse.recommended')}
+              ? `${t('browse.searchResults')} "${executedSearchQuery}"`
+              : t('browse.recommended')}
           </p>
         </div>
         <div className="relative flex-1 max-w-[200px]" style={{ minWidth: 0 }}>
@@ -246,7 +238,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
           </span>
           <input
             type="text"
-            placeholder={i18n.t('sidebar.searchOnline')}
+            placeholder={t('sidebar.searchOnline')}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full rounded-xl h-[38px] pl-10 pr-9 text-sm transition-all focus:outline-none focus:ring-0"
@@ -278,14 +270,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
           <div className="h-full flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <span className="material-symbols-outlined text-4xl text-primary animate-spin">refresh</span>
-              <p style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>{i18n.t('browse.loading')}</p>
+              <p style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>{t('browse.loading')}</p>
             </div>
           </div>
         ) : error ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center max-w-md">
               <span className="material-symbols-outlined text-6xl text-red-400 mb-4 block">error</span>
-              <p className="text-xl font-medium text-red-400 mb-2">{i18n.t('browse.error')}</p>
+              <p className="text-xl font-medium text-red-400 mb-2">{t('browse.error')}</p>
               <p className="text-sm mb-6" style={{ color: colors.textMuted }}>{error}</p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -295,14 +287,14 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                 >
-                  {i18n.t('browse.retry')}
+                  {t('browse.retry')}
                 </button>
                 {!error.includes('CORS') && !error.includes('浏览器') && !error.includes('桌面端') && !error.includes('desktop') && !error.includes('browser') && (
                   <button
                     onClick={() => onNavigateToSettings?.()}
                     className="px-4 py-2 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 transition-all"
                   >
-                    {i18n.t('browse.openSettings')}
+                    {t('browse.openSettings')}
                   </button>
                 )}
               </div>
@@ -310,10 +302,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                 <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                   <p className="text-xs text-yellow-400/80">
                     <span className="material-symbols-outlined text-sm align-text-bottom mr-1">lightbulb</span>
-                    {i18n.t('browse.browserLimitTitle')}
+                    {t('browse.browserLimitTitle')}
                   </p>
                   <p className="text-xs text-yellow-400/60 mt-2">
-                    {i18n.t('browse.buildDesktop')}
+                    {t('browse.buildDesktop')}
                   </p>
                 </div>
               )}
@@ -323,9 +315,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
               <span className="material-symbols-outlined text-6xl mb-4 block">music_off</span>
-              <p className="text-xl font-medium">{i18n.t('browse.noMusic')}</p>
+              <p className="text-xl font-medium">{t('browse.noMusic')}</p>
               <p className="text-sm mt-2 mb-4">
-                {hasSearched ? i18n.t('browse.tryDifferentKeywords') : i18n.t('browse.setCookieToGetRecommended')}
+                {hasSearched ? t('browse.tryDifferentKeywords') : t('browse.setCookieToGetRecommended')}
               </p>
               <div className="flex items-center justify-center gap-3">
                 <button
@@ -335,7 +327,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                 >
-                  {i18n.t('browse.refresh')}
+                  {t('browse.refresh')}
                 </button>
                 {!hasSearched && onNavigateToSettings && (
                   <button
@@ -343,7 +335,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                     className="px-4 py-2 rounded-xl transition-all"
                     style={{ backgroundColor: colors.primary, color: '#fff' }}
                   >
-                    {i18n.t('browse.openSettings')}
+                    {t('browse.openSettings')}
                   </button>
                 )}
               </div>
@@ -354,10 +346,10 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
             {/* Column Headers */}
             <div className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_80px_140px]" style={{ color: colors.textMuted, borderColor: colors.borderLight }}>
               <span>#</span>
-              <span>{i18n.t('library.titleCol')}</span>
-              <span>{i18n.t('library.albumCol')}</span>
-              <span className="text-right">{i18n.t('library.timeCol')}</span>
-              <span className="text-right">{i18n.t('browse.actionCol')}</span>
+              <span>{t('library.titleCol')}</span>
+              <span>{t('library.albumCol')}</span>
+              <span className="text-right">{t('library.timeCol')}</span>
+              <span className="text-right">{t('browse.actionCol')}</span>
             </div>
 
             {/* Song List */}
@@ -419,7 +411,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                         <div className="relative">
                           <button
                             onClick={() => toggleDropdown(song.songmid)}
-                            title={i18n.t('browse.download')}
+                            title={t('browse.download')}
                             className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                             style={{ color: colors.textMuted }}
                             onMouseEnter={e => { e.currentTarget.style.color = colors.primary; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
@@ -439,9 +431,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
                                 >
                                   <span>{option.label}</span>
-                                  {option.value === '128' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.standard')}</span>}
-                                  {option.value === '320' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.highQuality')}</span>}
-                                  {option.value === 'flac' && <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>}
+                                  {option.value === '128' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{t('browse.standard')}</span>}
+                                  {option.value === '320' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{t('browse.highQuality')}</span>}
+                                  {option.value === 'flac' && <span className="text-[10px] text-primary/60">{t('browse.lossless')}</span>}
                                 </button>
                               ))}
                             </div>
@@ -465,7 +457,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                         <div className="relative">
                           <button
                             onClick={() => toggleUploadDropdown(song.songmid)}
-                            title={i18n.t('browse.uploadToCloud')}
+                            title={t('browse.uploadToCloud')}
                             className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                             style={{ color: colors.textMuted }}
                             onMouseEnter={e => { e.currentTarget.style.color = colors.accent; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
@@ -485,9 +477,9 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
                                 >
                                   <span>{option.label}</span>
-                                  {option.value === '128' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.standard')}</span>}
-                                  {option.value === '320' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{i18n.t('browse.highQuality')}</span>}
-                                  {option.value === 'flac' && <span className="text-[10px] text-primary/60">{i18n.t('browse.lossless')}</span>}
+                                  {option.value === '128' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{t('browse.standard')}</span>}
+                                  {option.value === '320' && <span className="text-[10px]" style={{ color: colors.textMuted }}>{t('browse.highQuality')}</span>}
+                                  {option.value === 'flac' && <span className="text-[10px] text-primary/60">{t('browse.lossless')}</span>}
                                 </button>
                               ))}
                             </div>

@@ -205,6 +205,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const abortRef = useRef(false);
   const manifestUploadQueueRef = useRef<Promise<void>>(Promise.resolve());
+  /** 递增代际计数器，防止 populateDetailsFromChunks 在并发 loadWebDAVFiles 后覆盖新状态 */
+  const populateGenRef = useRef(0);
 
   // Detect WebDAV provider strategy from server URL
   const davConfig = webdavClient.getConfig();
@@ -225,11 +227,12 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
   const saveMetadataCache = async (cache: Map<string, CachedMetadata>) => {
     try {
       await indexedDBStorage.initialize();
-      // 先清空再全量写入，确保已删除文件的条目被清理
-      await indexedDBStorage.clearWebdavMetadata();
+      // 原子替换：单事务清空+写入，避免崩溃后半份数据
+      const raw: Record<string, CachedMetadata> = {};
       for (const [key, value] of cache) {
-        await indexedDBStorage.setWebdavMetadata(key, value);
+        raw[key] = value;
       }
+      await indexedDBStorage.replaceAllWebdavMetadata(raw);
     } catch (e) {
       logger.error('[useWebDAV] Failed to save metadata cache to IndexedDB:', e);
     }
@@ -478,10 +481,16 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     manifest: Manifest,
     cache: Map<string, CachedMetadata>,
   ): Promise<void> => {
+    // 记录代际，用于防止并发 loadWebDAVFiles 后覆盖新状态
+    const gen = ++populateGenRef.current;
+    // 防御性拷贝：不直接修改传入数组（可能正在被上层使用）
+    const workingTracks = [...tracks];
+    const workingCache = new Map(cache);
+
     // 收集需要补详情的 (trackIndex, path, chunkId)
     const needDetails: { trackIndex: number; path: string; chunkId: string }[] = [];
-    for (let i = 0; i < tracks.length; i++) {
-      const path = tracks[i]?.webdavPath;
+    for (let i = 0; i < workingTracks.length; i++) {
+      const path = workingTracks[i]?.webdavPath;
       if (!path) continue;
       const entry = manifest.entries[path];
       if (!entry) continue;
@@ -491,7 +500,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     }
     if (needDetails.length === 0) return;
 
-    logger.info('[useWebDAV] Populating details from chunks for', needDetails.length, 'tracks');
+    logger.info('[useWebDAV] Populating details from chunks for', needDetails.length, 'tracks (gen=' + gen + ')');
 
     // 记录本次治愈的"旧版不可移植 cover://"条目数；>0 时治愈后回写服务端切片为 data:，
     // 让这份缓存自愈成可移植（新机器首次连接即可治愈，省去回构建机重传）。
@@ -538,7 +547,7 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
               }
             } else {
               logger.info('[useWebDAV] Legacy cover pointer dangling locally, re-extracting from audio:', d.path);
-              const track = tracks[d.trackIndex];
+              const track = workingTracks[d.trackIndex];
               const reextracted = track ? await lazyLoadCover(trackToWebDAVFile(track)) : undefined;
               if (reextracted) {
                 chunkEntry = { ...chunkEntry, coverUrl: reextracted };
@@ -547,14 +556,14 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
               // 重新解析也失败（音频本就无封面）→ 保留原 cover://，TrackCover 兜底显示占位符
             }
           }
-          if (tracks[d.trackIndex]) {
-            tracks[d.trackIndex] = enrichFromChunk(tracks[d.trackIndex]!, chunkEntry);
+          if (workingTracks[d.trackIndex]) {
+            workingTracks[d.trackIndex] = enrichFromChunk(workingTracks[d.trackIndex]!, chunkEntry);
             updated = true;
           }
           // 更新 IndexedDB cache 条目
-          const cached = cache.get(d.path);
+          const cached = workingCache.get(d.path);
           if (cached) {
-            cache.set(d.path, {
+            workingCache.set(d.path, {
               ...cached,
               ...(chunkEntry.coverUrl ? { coverUrl: chunkEntry.coverUrl } : {}),
               ...(chunkEntry.lyrics ? { lyrics: chunkEntry.lyrics } : {}),
@@ -564,21 +573,60 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
         }
       }
       if (updated) {
-        setWebdavTracks([...tracks]);
+        // 代际检查：如果在此期间有新的 loadWebDAVFiles 调用，跳过本次状态更新
+        if (gen !== populateGenRef.current) {
+          logger.info('[useWebDAV] Populate details skipping state update (gen changed from', gen, 'to', populateGenRef.current + ')');
+          return;
+        }
+        setWebdavTracks([...workingTracks]);
         // 逐批回传：封面分批出现，视觉更友好
-        onTracksUpdated?.(tracks);
+        onTracksUpdated?.(workingTracks);
       }
     }
 
-    await saveMetadataCache(cache);
-    logger.info('[useWebDAV] Detail population done');
+    // 代际检查（最后一次保存前）
+    if (gen !== populateGenRef.current) {
+      logger.info('[useWebDAV] Populate details aborting save (gen changed)');
+      return;
+    }
 
-    // 治愈了旧版 cover:// 悬空指针 → 把重新解析得到的可移植 data: 回写服务端切片，
-    // 让这份缓存自愈成可移植（本次机器可写时生效）。回写是幂等的：切片已是 data: 后不再触发。
+    await saveMetadataCache(workingCache);
+    logger.info('[useWebDAV] Detail population done (gen=' + gen + '), legacyHealedCount=' + legacyHealedCount);
+
+    // === 收集需要回写服务端的路径 ===
+    const needPersistPaths = new Set<string>();
+
+    // Fix 4：检测并修正 hasCover 矛盾。
+    // 场景：manifest 标记 hasCover=true（条目存在且 flag 为 true），
+    // 但 chunk 中并无实际封面数据（chunk 缺失 / chunk entry 中 coverUrl 为空）。
+    // 如果不修正，下次冷启动 loadFullMode 仍认为该文件有封面（走 manifest 秒出路径），
+    // 永远看不到封面（"谎言固化"）。
+    for (const d of needDetails) {
+      const entry = manifest.entries[d.path];
+      if (!entry?.hasCover) continue;
+      const cached = workingCache.get(d.path);
+      if (!cached?.coverUrl) {
+        // manifest 说有封面但最终 cache 无封面数据 → 纠正
+        manifest.entries[d.path] = { ...entry, hasCover: false };
+        logger.info('[useWebDAV] Fixed hasCover false positive:', d.path);
+        needPersistPaths.add(d.path);
+      }
+    }
+
+    // 旧版 cover:// 悬空指针已治愈 → 回写可移植 data: 到服务端切片
     if (legacyHealedCount > 0) {
-      const healedPaths = new Set(tracks.map(t => t.webdavPath).filter(Boolean) as string[]);
-      logger.info(`[useWebDAV] ${legacyHealedCount} legacy cover(s) healed, writing portable data: back to /Metadata/`);
-      await persistManifestAndChunks(healedPaths, 'Failed to write back healed portable covers');
+      for (const t of workingTracks) {
+        if (t.webdavPath) needPersistPaths.add(t.webdavPath);
+      }
+    }
+
+    // 有修正时整体回写 manifest（含修正后的 hasCover 标志）
+    if (needPersistPaths.size > 0) {
+      const persistContext = legacyHealedCount > 0
+        ? 'Failed to write back healed portable covers and hasCover fixes'
+        : 'Failed to write back hasCover fixes';
+      logger.info(`[useWebDAV] Writing back manifest corrections: ${needPersistPaths.size} paths (legacyHealed=${legacyHealedCount})`);
+      await persistManifestAndChunks(needPersistPaths, persistContext);
     }
   };
 
@@ -715,6 +763,15 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           }
           mergedEntries[path] = upd.entry;
         }
+        // Fix 6：清理孤儿 chunk 条目——manifest 中已不存在的路径，其 chunk entry 一并删除。
+        // 场景：文件从云端删除后，manifest 通过 filterManifestEntries 已移除该条目，
+        // 但 chunk 中仍残留该文件的封面/歌词 data:URL。累积的孤儿条目会让 chunk 文件无限膨胀。
+        // 由于 chunk-first/manifest-last 协议，清理是安全的：manifest 已不引用这些路径。
+        for (const path of Object.keys(mergedEntries)) {
+          if (!manifestEntries[path]) {
+            delete mergedEntries[path];
+          }
+        }
         chunksToSave.set(chunkId, { chunkId, entries: mergedEntries });
       }
 
@@ -735,13 +792,21 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     });
   };
 
-  const persistManifestAndChunks = async (audioPathSet: Set<string>, context: string): Promise<void> => {
+  /**
+   * 上传 manifest + chunks 到服务端。
+   * 成功返回 true（含 readonly 跳过的情况），失败返回 false。
+   * 调用方依赖返回值决定是否写入 snapshot：manifest 失败时不写 snapshot，
+   * 避免 snapshot 与 manifest 不一致导致下次启动走"三方一致"快速路径却读到旧 manifest。
+   */
+  const persistManifestAndChunks = async (audioPathSet: Set<string>, context: string): Promise<boolean> => {
     try {
       await uploadManifestAndChunks(audioPathSet);
+      return true;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to upload WebDAV metadata';
       logger.error(`[useWebDAV] ${context}:`, e);
       setError(`WebDAV metadata upload failed: ${message}`);
+      return false;
     }
   };
 
@@ -828,6 +893,9 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
             const manifest = await metadataFolderService.loadManifest(false);
             if (manifest) populateDetailsFromChunks(cachedTracks, manifest, metaCache);
           }
+          // 同步 manifest：即使 PROPFIND/snapshot/IndexedDB 三方一致，
+          // manifest 可能残留陈旧条目（上次清理不完整），用 filterManifestEntries 清理。
+          await persistManifestAndChunks(audioPaths, 'Failed to sync Metadata/ after fast-path load');
           return { type: 'full', tracks: cachedTracks };
         }
         // 缓存不完整 → 走 loadFullMode 重新加载 manifest + chunk
@@ -869,12 +937,15 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           diff.changed.some(f => f.path === (t.webdavPath || ''))
         );
         const addedTracks = enrichedNewTracks.filter(t => diff.added.some(f => f.path === (t.webdavPath || '')));
-        const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
-        for (const file of audioFiles) {
-          newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+        // 先写 manifest，成功后再写 snapshot（保证三层一致）
+        const manifestOk = await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after cached diff load');
+        if (manifestOk) {
+          const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
+          for (const file of audioFiles) {
+            newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+          }
+          await indexedDBStorage.setFileListSnapshot(newSnapshot);
         }
-        await indexedDBStorage.setFileListSnapshot(newSnapshot);
-        await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after cached diff load');
         return { type: 'diff', added: addedTracks, removed: removedIds, updated: updatedTracks };
       }
 
@@ -915,13 +986,15 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       }
 
       await saveMetadataCache(metadataCache);
-      await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after diff load');
+      const diffManifestOk = await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after diff load');
 
-      const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
-      for (const file of audioFiles) {
-        newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+      if (diffManifestOk) {
+        const newSnapshot: Record<string, { size: number; lastModified: string }> = {};
+        for (const file of audioFiles) {
+          newSnapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+        }
+        await indexedDBStorage.setFileListSnapshot(newSnapshot);
       }
-      await indexedDBStorage.setFileListSnapshot(newSnapshot);
 
       setLoadProgress(null);
       setIsLoading(false);
@@ -980,10 +1053,16 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           placeholderTracks[i] = enrichFromManifest(placeholderTracks[i]!, serverEntry);
           continue;
         }
-        // hasCover=false：服务端明确无封面。可能是历史 scan 解析失败（封面落在文件头 1MB 之外、
-        // 二次 Range 拉取被拒等）。并入 toFetch 重新解析尝试提取封面——刷新即自愈，免去手动 scan。
-        // 真无封面的文件每次冷启动会重读一次文件头，代价可接受。
-        toFetch.push({ file, index: i });
+        // hasCover=false：服务端明确无封面。
+        // 先查本地 IndexedDB 是否已有解析结果（可能之前已确认该文件真无封面）。
+        // 如果有则直接使用，避免每次冷启动都重新下载文件头解析。
+        const localEntry = metadataCache.get(file.path);
+        if (localEntry && isCacheValid(localEntry, file) && localEntry.duration > 0) {
+          placeholderTracks[i] = enrichTrack(placeholderTracks[i]!, localEntry);
+        } else {
+          // 无缓存 → 重新解析（可能是历史 scan 解析失败/新文件未解析过）
+          toFetch.push({ file, index: i });
+        }
         continue;
       }
 
@@ -1013,12 +1092,14 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
       setIsLoading(false);
       setLoadProgress(null);
       await saveMetadataCache(metadataCache);
-      await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after full cache load');
-      const snapshot: Record<string, { size: number; lastModified: string }> = {};
-      for (const file of audioFiles) {
-        snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+      const fullCacheManifestOk = await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after full cache load');
+      if (fullCacheManifestOk) {
+        const snapshot: Record<string, { size: number; lastModified: string }> = {};
+        for (const file of audioFiles) {
+          snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+        }
+        await indexedDBStorage.setFileListSnapshot(snapshot);
       }
-      await indexedDBStorage.setFileListSnapshot(snapshot);
       // 后台补全封面/歌词（从 chunks 饥饿式拉取）
       if (manifest) populateDetailsFromChunks(placeholderTracks, manifest, metadataCache);
       return { type: 'full', tracks: [...placeholderTracks] };
@@ -1062,16 +1143,18 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
     }
 
     await saveMetadataCache(metadataCache);
-    await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after full load');
+    const fullManifestOk = await persistManifestAndChunks(audioPaths, 'Failed to upload Metadata/ after full load');
 
     setLoadProgress(null);
     const finalTracks = [...placeholderTracks];
     setWebdavTracks(finalTracks);
-    const snapshot: Record<string, { size: number; lastModified: string }> = {};
-    for (const file of audioFiles) {
-      snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+    if (fullManifestOk) {
+      const snapshot: Record<string, { size: number; lastModified: string }> = {};
+      for (const file of audioFiles) {
+        snapshot[file.path] = { size: file.size, lastModified: file.lastModified };
+      }
+      await indexedDBStorage.setFileListSnapshot(snapshot);
     }
-    await indexedDBStorage.setFileListSnapshot(snapshot);
     // 后台补全封面/歌词（对 manifest 命中但缺封面的曲目）
     if (manifest) populateDetailsFromChunks(finalTracks, manifest, metadataCache);
     return { type: 'full', tracks: finalTracks };

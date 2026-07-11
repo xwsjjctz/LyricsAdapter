@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { webdavClient } from '@/services/webdavClient';
-import { i18n } from '@/services/i18n';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
 
 interface WebdavFormConfig {
@@ -30,6 +30,7 @@ interface UseWebdavSettingsResult {
  * monolithic SettingsPanel to keep that shell a thin assembler.
  */
 export function useWebdavSettings(): UseWebdavSettingsResult {
+  const { t } = useTranslation();
   const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -49,7 +50,7 @@ export function useWebdavSettings(): UseWebdavSettingsResult {
 
   const getFormConfig = useCallback((): WebdavFormConfig | null => {
     if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      setMessage(i18n.t('settingsDialog.webdavFillAll'));
+      setMessage(t('settingsDialog.webdavFillAll'));
       setMessageType('error');
       return null;
     }
@@ -79,11 +80,11 @@ export function useWebdavSettings(): UseWebdavSettingsResult {
       const config = getFormConfig();
       if (!config) return;
       webdavClient.saveConfig(config);
-      setMessage(i18n.t('settingsDialog.saved'));
+      setMessage(t('settingsDialog.saved'));
       setMessageType('success');
       setTimeout(() => { setMessage(null); setMessageType(null); }, 3000);
     } catch (err) {
-      setMessage(i18n.t('settingsDialog.saveFailed'));
+      setMessage(t('settingsDialog.saveFailed'));
       setMessageType('error');
       logger.error('[SettingsPanel] WebDAV save failed:', err);
     } finally {

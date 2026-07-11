@@ -1,5 +1,5 @@
 import React from 'react';
-import { i18n } from '../../../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../../../services/coverUrl';
 import type { Track } from '../../../types';
 
@@ -58,7 +58,7 @@ const playbackModeLabel: Record<PlaybackMode, string> = {
 };
 
 export const MiniPlayerCover: React.FC<MiniPlayerCoverProps> = ({ track }) => (
-  <div className="new-ux-player__cover" data-focus-transition="cover">
+  <div className="new-ux-player__cover">
     {track?.coverUrl ? (
       <img src={toCoverThumb(track.coverUrl, 128)} alt="" />
     ) : (
@@ -67,21 +67,24 @@ export const MiniPlayerCover: React.FC<MiniPlayerCoverProps> = ({ track }) => (
   </div>
 );
 
-export const MiniPlayerMeta: React.FC<MiniPlayerMetaProps> = ({ track }) => (
+export const MiniPlayerMeta: React.FC<MiniPlayerMetaProps> = ({ track }) => {
+  const { t } = useTranslation();
+  return (
   <div className="new-ux-player__meta">
-    <div className="new-ux-player__title" data-focus-transition="title">
-      {track?.title ?? i18n.t('controls.noTrackSelected')}
+    <div className="new-ux-player__title">
+      {track?.title ?? t('controls.noTrackSelected')}
     </div>
-    <div className="new-ux-player__artist" data-focus-transition="artist">
-      {track?.artist ?? i18n.t('mainPlayer.importTracks')}
+    <div className="new-ux-player__artist">
+      {track?.artist ?? t('mainPlayer.importTracks')}
     </div>
     {track && (
-      <div className="new-ux-player__album" data-focus-transition="album">
+      <div className="new-ux-player__album">
         {track.album}
       </div>
     )}
   </div>
 );
+};
 
 export const MiniProgress: React.FC<MiniProgressProps> = ({
   track,
@@ -93,7 +96,7 @@ export const MiniProgress: React.FC<MiniProgressProps> = ({
   const progressStyle = { '--player-progress': `${progress}%` } as React.CSSProperties;
 
   return (
-    <div className="new-ux-player__timeline" data-focus-transition="progress">
+    <div className="new-ux-player__timeline">
       <span>{formatTime(seekValue)}</span>
       <input
         type="range"

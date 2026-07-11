@@ -28,9 +28,17 @@ class Logger {
 
   private formatMessage(level: string, ...args: unknown[]): string {
     const timestamp = new Date().toISOString();
-    const message = args.map(arg =>
-      typeof arg === 'string' ? arg : JSON.stringify(arg)
-    ).join(' ');
+    const message = args.map(arg => {
+      if (typeof arg === 'string') return arg;
+      // Error 的 message/stack 是不可枚举的，JSON.stringify 会丢失成 "{}"，
+      // 这里单独处理，保证 catch 块里的真实错误信息能被记录下来。
+      if (arg instanceof Error) return arg.stack || `${arg.name}: ${arg.message}`;
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return String(arg);
+      }
+    }).join(' ');
     return `${timestamp} ${level} ${this.prefix} ${message}`;
   }
 

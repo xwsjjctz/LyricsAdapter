@@ -1,5 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { appStorage } from './services/appStorage';
+
+// 初始化应用存储：将 localStorage 中已有的设置迁移到主进程 settings.json
+// 此调用不阻塞渲染（getItem 在 init 完成前会 fallback 到 localStorage）。
+appStorage.init().catch(() => {});
 
 const platform = window.electron?.platform;
 if (platform) {

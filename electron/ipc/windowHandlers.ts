@@ -23,8 +23,7 @@ export function registerWindowControls(win: BrowserWindow | null): void {
       closeInProgress = false;
 
       if (saved === false) {
-        logger.warn('[Window] Renderer close flush failed; keeping window open');
-        return;
+        logger.warn('[Window] Renderer close flush reported failure; closing anyway');
       }
 
       closeAllowed = true;

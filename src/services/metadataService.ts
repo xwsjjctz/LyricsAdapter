@@ -1,17 +1,21 @@
 import { logger } from './logger';
+// parseLRCLyrics 已收敛到 src/shared/lrcParser.ts（全项目唯一真身），
+// 此处 re-export 保持 `import { parseLRCLyrics } from './metadataService'` 兼容。
+export { parseLRCLyrics } from '../shared/lrcParser';
+import { parseLRCLyrics } from '../shared/lrcParser';
 
-export interface CoverNeededRange {
+interface CoverNeededRange {
   offset: number;
   length: number;
 }
 
-export interface BufferParseContext {
+interface BufferParseContext {
   coverNeededRange?: CoverNeededRange | undefined;
   vorbisCommentNeededRange?: CoverNeededRange | undefined;
   bufferOffset: number;
 }
 
-export interface ParsedMetadata {
+interface ParsedMetadata {
   title: string;
   artist: string;
   album: string;
@@ -766,68 +770,6 @@ export function parseVorbisComment(buffer: ArrayBuffer): Partial<ParsedMetadata>
   }
 
   return result;
-}
-
-// Parse LRC format lyrics (with timestamps like [00:12.34] or [00:00:00])
-export function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: { time: number; text: string }[] | undefined } {
-  const lines = lrc.split(/\r?\n/);
-  const syncedLyrics: { time: number; text: string }[] = [];
-  const plainTextLines: string[] = [];
-
-  // LRC timestamp format: [mm:ss.xx], [mm:ss], or [hh:mm:ss]
-  const timeRegex = /\[(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{2,3}))?\]/g;
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (!trimmedLine) continue;
-
-    // Extract all timestamps and text from the line
-    const matches = [...trimmedLine.matchAll(timeRegex)];
-    const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
-
-    // Skip placeholder lines like "//"
-    if (textWithoutTimestamps === '//') continue;
-
-    if (matches.length > 0 && textWithoutTimestamps) {
-      // Parse each timestamp and add to synced lyrics
-      for (const match of matches) {
-        const minutes = parseInt(match[1]!, 10);
-        const seconds = parseInt(match[2]!, 10);
-        // match[3] is seconds in [hh:mm:ss] format, match[4] is milliseconds
-        const hoursOrSeconds = match[3];
-        const milliseconds = match[4] ? parseInt(match[4].padEnd(3, '0'), 10) : 0;
-
-        let timeInSeconds: number;
-        if (hoursOrSeconds) {
-          // [hh:mm:ss] format: match[1]=hours, match[2]=minutes, match[3]=seconds
-          const hours = minutes;
-          const mins = seconds;
-          const secs = parseInt(hoursOrSeconds, 10);
-          timeInSeconds = hours * 3600 + mins * 60 + secs;
-        } else {
-          // [mm:ss.xx] or [mm:ss] format
-          timeInSeconds = minutes * 60 + seconds + milliseconds / 1000;
-        }
-
-        syncedLyrics.push({
-          time: timeInSeconds,
-          text: textWithoutTimestamps
-        });
-      }
-      plainTextLines.push(trimmedLine); // Keep original line with timestamps
-    } else if (textWithoutTimestamps) {
-      // Line without timestamp, just add to plain text
-      plainTextLines.push(trimmedLine);
-    }
-  }
-
-  // Sort synced lyrics by time
-  syncedLyrics.sort((a, b) => a.time - b.time);
-
-  return {
-    plainText: plainTextLines.join('\n'),
-    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined
-  };
 }
 
 // Parse FLAC PICTURE block

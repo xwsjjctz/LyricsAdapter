@@ -20,7 +20,7 @@ import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { getDesktopImportKey, getTrackImportKeys, getUniqueWebDAVFileName, getWebFileImportKey } from '../services/importIdentity';
 import type { LibrarySettings } from '../services/libraryStorage';
 
@@ -68,6 +68,7 @@ export function useImport({
 }: UseImportOptions) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const tracksCountRef = useRef<number>(0);
+  const { t } = useTranslation();
   const [importProgress, setImportProgress] = useState<{ loaded: number; total: number } | null>(null);
 
   const buildImportSettings = useCallback(() => {
@@ -406,14 +407,14 @@ export function useImport({
     if (totalFailed > 0) {
         logger.error(`[Import] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
         notify(
-          i18n.t('notifications.importComplete'),
-          i18n.t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
+          t('notifications.importComplete'),
+          t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
         );
       } else {
         logger.debug(`[Import] ✓ All files imported successfully`);
         notify(
-          i18n.t('notifications.importComplete'),
-          i18n.t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
+          t('notifications.importComplete'),
+          t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
         );
       }
 
@@ -552,13 +553,13 @@ export function useImport({
 
     if (totalFailed > 0) {
       notify(
-        i18n.t('notifications.importComplete'),
-        i18n.t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
+        t('notifications.importComplete'),
+        t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
       );
     } else if (totalProcessed > 0) {
       notify(
-        i18n.t('notifications.importComplete'),
-        i18n.t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
+        t('notifications.importComplete'),
+        t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
       );
     }
     setImportProgress(null);
@@ -846,13 +847,13 @@ export function useImport({
 
       if (failed > 0) {
         notify(
-          i18n.t('notifications.uploadFailed'),
-          i18n.t('notifications.importPartialCount').replace('{success}', String(added.length)).replace('{failed}', String(failed))
+          t('notifications.uploadFailed'),
+          t('notifications.importPartialCount').replace('{success}', String(added.length)).replace('{failed}', String(failed))
         );
       } else if (added.length > 0) {
         notify(
-          i18n.t('notifications.uploadComplete'),
-          i18n.t('notifications.importSuccessCount').replace('{count}', String(added.length))
+          t('notifications.uploadComplete'),
+          t('notifications.importSuccessCount').replace('{count}', String(added.length))
         );
       }
       setImportProgress(null);

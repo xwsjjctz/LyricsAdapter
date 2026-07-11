@@ -1,4 +1,4 @@
-export const LIBRARY_FLUSH_EVENT = 'lyrics-adapter:flush-library';
+const LIBRARY_FLUSH_EVENT = 'lyrics-adapter:flush-library';
 
 interface LibraryFlushEventDetail {
   waitUntil: (promise: Promise<unknown>) => void;

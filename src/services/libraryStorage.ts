@@ -6,7 +6,6 @@
 import { Track, PlaybackContext, LibrarySlot } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
-import type { OnlineSong, PlaylistInfo } from './onlineMusicProvider';
 
 export interface LibraryData {
   songs: Track[];
@@ -30,7 +29,7 @@ export interface LibraryIndexSong {
   playCount?: number;
   lastPlayed?: string | null;
   available?: boolean;
-  source?: 'local' | 'webdav' | 'qq' | 'netease';
+  source?: 'local' | 'webdav' | 'qq' | 'netease' | 'soda';
   webdavPath?: string;
   /** Third-party song id (QQ songmid / NetEase numeric id) for online tracks. */
   songmid?: string;
@@ -42,14 +41,6 @@ export interface LibraryIndexData {
   onlineSongs?: LibraryIndexSong[];
   playlistSongs?: LibraryIndexSong[];
   settings: LibrarySettings;
-}
-
-export interface PlaylistsViewPersistence {
-  phase: 'grid' | 'detail';
-  playlist?: PlaylistInfo;
-  songs?: OnlineSong[];
-  total?: number;
-  scrollPosition: number;
 }
 
 export interface LibrarySettings {
@@ -71,12 +62,11 @@ export interface LibrarySettings {
   cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   onlineSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
   playlistSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  playlistsView?: PlaylistsViewPersistence | undefined;
   activeSlotId?: 'local' | 'cloud' | 'online' | 'playlist' | undefined;
   [key: string]: any;
 }
 
-export interface ValidationResult {
+interface ValidationResult {
   id: string;
   exists: boolean;
 }

@@ -11,7 +11,7 @@ import type { TypedElectronIPC } from '../types/typedIpc';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
-export type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
+type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
 
 /** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
 export interface UpdateInfo {
@@ -21,7 +21,7 @@ export interface UpdateInfo {
 }
 
 /** 下载进度信息。 */
-export interface UpdateProgress {
+interface UpdateProgress {
   total: number;
   delta: number;
   transferred: number;
@@ -62,9 +62,13 @@ export interface DesktopAPI {
   loadMetadataCache: () => Promise<{ entries: Record<string, unknown> }>;
   saveMetadataCache: (cache: { entries: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
   getMetadataForSong: (songId: string) => Promise<unknown>;
+  /** Read audio metadata using music-tag-native (main process). */
+  readAudioMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
+  /** Legacy renderer-side audio metadata parsing. */
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }) => Promise<{ success: boolean; error?: string }>;
-  refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; data?: { fileName: string; mimeType: string; buffer: ArrayBuffer }; error?: string }>;
+  /** @deprecated use readAudioMetadata */
+  refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   getPathForFile?: (file: File) => string;
   // Window control APIs
   minimizeWindow?: () => void;
@@ -96,8 +100,20 @@ export interface DesktopAPI {
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
   showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
-  // Online music: push a QQ/NetEase cookie to the main-process stream:// proxy.
+  // Online music: push a provider cookie to the main-process stream:// proxy.
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
+  // Settings store (Electron Store–style JSON file in main process)
+  settingsGet?: (key: string) => Promise<string | undefined>;
+  settingsGetAll?: () => Promise<Record<string, string>>;
+  settingsSet?: (key: string, value: string) => Promise<void>;
+  settingsSetMany?: (entries: Record<string, string>) => Promise<void>;
+  settingsDelete?: (key: string) => Promise<void>;
+  settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
+  // User data store (~/.la/users.json)
+  userDataLoad?: () => Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }>;
+  userDataSave?: (data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }) => Promise<void>;
+  userDataSaveTracks?: (tracks: unknown[]) => Promise<void>;
+  userDataGetFilePath?: () => Promise<string>;
 }
 
 class ElectronAdapter implements FullDesktopAPI {
@@ -106,6 +122,15 @@ class ElectronAdapter implements FullDesktopAPI {
   // Return actual OS platform from underlying API
   get platform(): string {
     return this.api.platform;
+  }
+
+  // Forward the typed IPC surface (window.electron.ipc) so callers that hold
+  // the adapter instance can reach channels like file.allowAudioPath. Without
+  // this, api.ipc is undefined and any code doing `api.ipc.file.allowAudioPath`
+  // silently no-ops — which previously broke post-cache-clear re-parsing
+  // (paths never entered the main-process allowlist).
+  get ipc(): TypedElectronIPC {
+    return this.api.ipc!;
   }
 
   constructor(private api: FullDesktopAPI) {
@@ -240,53 +265,48 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async parseAudioMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
-    // Electron: Use JS-side parsing with proper cover extraction
+    // Prefer music-tag-native IPC (main process), fall back to legacy worker
+    if (this.api.readAudioMetadata) {
+      const result = await this.api.readAudioMetadata(filePath);
+      if (result.success) {
+        logger.debug('[ElectronAdapter] ✓ Metadata from main process:', filePath);
+        return result;
+      }
+      logger.warn('[ElectronAdapter] Main-process metadata failed, falling back to worker:', result.error);
+    }
+
+    // Legacy: renderer-side parsing via web worker
     try {
       const readResult = await this.api.readFile(filePath);
       if (readResult.success && readResult.data) {
         const fileData = new Uint8Array(readResult.data);
         const fileName = filePath.split(/[/\\]/).pop() || 'audio.mp3';
-        
-        // Determine MIME type based on file extension
-        const lowerName = fileName.toLowerCase();
-        let mimeType = 'audio/mpeg'; // default to MP3
-        if (lowerName.endsWith('.flac')) {
-          mimeType = 'audio/flac';
-        } else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
-          mimeType = 'audio/mp4';
-        }
-        
-        const file = new File([fileData], fileName, { type: mimeType });
 
-        // Parse metadata using JS parser
+        const lowerName = fileName.toLowerCase();
+        let mimeType = 'audio/mpeg';
+        if (lowerName.endsWith('.flac')) mimeType = 'audio/flac';
+        else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) mimeType = 'audio/mp4';
+
+        const file = new File([fileData], fileName, { type: mimeType });
         const metadata = await parseAudioFileSync(file);
 
-        // Convert cover URL to base64 if available
         let coverData: string | undefined;
         let coverMime: string | undefined;
-
         if (metadata.coverUrl && !metadata.coverUrl.startsWith('http')) {
           try {
-            // Convert blob URL to base64 directly
             const response = await fetch(metadata.coverUrl);
             const blob = await response.blob();
-
             const dataUrl = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onloadend = () => resolve(reader.result as string);
               reader.onerror = () => reject(reader.error);
               reader.readAsDataURL(blob);
             });
-
-            // Extract mime type from data URL (format: data:image/jpeg;base64,...)
             const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
             if (mimeMatch) {
               coverMime = mimeMatch[1];
-              // Extract base64 data (remove the data:image/xxx;base64, prefix)
               const base64Match = dataUrl.match(/^data:[^;]+;base64,(.+)$/);
-              if (base64Match) {
-                coverData = base64Match[1];
-              }
+              if (base64Match) coverData = base64Match[1];
             }
           } catch (e) {
             logger.warn('[ElectronAdapter] Failed to convert cover to base64:', e);
@@ -296,19 +316,13 @@ class ElectronAdapter implements FullDesktopAPI {
         return {
           success: true,
           metadata: {
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            duration: metadata.duration,
-            lyrics: metadata.lyrics,
+            title: metadata.title, artist: metadata.artist, album: metadata.album,
+            duration: metadata.duration, lyrics: metadata.lyrics,
             syncedLyrics: metadata.syncedLyrics,
-            coverData: coverData,
-            coverMime: coverMime,
-            fileSize: fileData.length,
+            coverData, coverMime, fileSize: fileData.length,
           }
         };
       }
-
       return { success: false, error: 'Failed to read file' };
     } catch (error) {
       logger.error('[ElectronAdapter] parseAudioMetadata error:', error);
@@ -330,7 +344,7 @@ class ElectronAdapter implements FullDesktopAPI {
     return { success: false, error: 'writeAudioMetadata not available' };
   }
 
-  async refreshTrackMetadata(filePath: string): Promise<{ success: boolean; data?: { fileName: string; mimeType: string; buffer: ArrayBuffer }; error?: string }> {
+  async refreshTrackMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
     if (typeof this.api.refreshTrackMetadata === 'function') {
       return this.api.refreshTrackMetadata(filePath);
     }
@@ -500,6 +514,107 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
+  // ---- Settings store (passthrough to main-process settings.json) ----
+  async settingsGet(key: string): Promise<string | undefined> {
+    // Prefer typed IPC path, fall back to legacy top-level method
+    if (this.api.ipc?.settings.get) {
+      const result = await this.api.ipc.settings.get(key);
+      return result.ok ? result.data : undefined;
+    }
+    if (typeof this.api.settingsGet === 'function') {
+      return this.api.settingsGet(key);
+    }
+    return undefined;
+  }
+
+  async settingsGetAll(): Promise<Record<string, string>> {
+    if (this.api.ipc?.settings.getAll) {
+      const result = await this.api.ipc.settings.getAll();
+      return result.ok ? result.data : {};
+    }
+    if (typeof this.api.settingsGetAll === 'function') {
+      return this.api.settingsGetAll();
+    }
+    return {};
+  }
+
+  async settingsSet(key: string, value: string): Promise<void> {
+    if (this.api.ipc?.settings.set) {
+      await this.api.ipc.settings.set(key, value);
+      return;
+    }
+    if (typeof this.api.settingsSet === 'function') {
+      return this.api.settingsSet(key, value);
+    }
+  }
+
+  async settingsDelete(key: string): Promise<void> {
+    if (this.api.ipc?.settings.delete) {
+      await this.api.ipc.settings.delete(key);
+      return;
+    }
+    if (typeof this.api.settingsDelete === 'function') {
+      return this.api.settingsDelete(key);
+    }
+  }
+
+  async settingsSetMany(entries: Record<string, string>): Promise<void> {
+    if (this.api.ipc?.settings.setMany) {
+      await this.api.ipc.settings.setMany(entries);
+      return;
+    }
+    if (typeof this.api.settingsSetMany === 'function') {
+      return this.api.settingsSetMany(entries);
+    }
+    // Fallback: set individually
+    for (const [key, value] of Object.entries(entries)) {
+      await this.settingsSet(key, value);
+    }
+  }
+
+  async settingsReplaceAll(entries: Record<string, string>): Promise<void> {
+    if (this.api.ipc?.settings.replaceAll) {
+      await this.api.ipc.settings.replaceAll(entries);
+      return;
+    }
+    if (typeof this.api.settingsReplaceAll === 'function') {
+      return this.api.settingsReplaceAll(entries);
+    }
+  }
+
+  // ---- User Data Store (~/.la/users.json) ----
+
+  async userDataLoad(): Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }> {
+    if (this.api.ipc?.userData?.load) {
+      const result = await this.api.ipc.userData.load();
+      if (result.ok) return result.data as any;
+    }
+    if (typeof this.api.userDataLoad === 'function') {
+      return this.api.userDataLoad();
+    }
+    return { tracks: [], settings: {}, playback: {} };
+  }
+
+  async userDataSave(data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }): Promise<void> {
+    if (this.api.ipc?.userData?.save) {
+      await this.api.ipc.userData.save(data);
+      return;
+    }
+    if (typeof this.api.userDataSave === 'function') {
+      return this.api.userDataSave(data);
+    }
+  }
+
+  async userDataSaveTracks(tracks: unknown[]): Promise<void> {
+    if (this.api.ipc?.userData?.saveTracks) {
+      await this.api.ipc.userData.saveTracks(tracks);
+      return;
+    }
+    if (typeof this.api.userDataSaveTracks === 'function') {
+      return this.api.userDataSaveTracks(tracks);
+    }
+  }
+
   // ---- Online music channels (OnlineMusicElectronAPI) ----
   // Thin passthroughs to the underlying window.electron proxy. The adapter only
   // exists in Electron mode (getDesktopAPI() returns null in the browser), so
@@ -565,7 +680,8 @@ function createElectronAdapter(): ElectronAdapter | null {
 
 export function getDesktopAPI(): FullDesktopAPI | null {
   if (desktopAPI) {
-    logger.debug('[DesktopAdapter] Returning cached desktopAPI, platform:', desktopAPI.platform);
+    // 缓存命中是常态，不打日志 —— 此前每次命中都打 debug，被高频调用
+    //（isDesktop / TitleBar / FocusMode 等）刷屏控制台。
     return desktopAPI;
   }
 

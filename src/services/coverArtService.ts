@@ -25,55 +25,44 @@ class CoverArtService {
   }
 
   async extractAndCacheCover(trackId: string, filePath: string): Promise<string | null> {
-    if (this.processingQueue.has(trackId)) {
-      return null;
-    }
-
+    if (this.processingQueue.has(trackId)) return null;
     this.processingQueue.add(trackId);
 
     try {
-      logger.debug(`[CoverArtService] Extracting cover from file: ${filePath}`);
-
       const desktopAPI = await getDesktopAPIAsync();
-      if (!desktopAPI) {
-        throw new Error('Desktop API not available');
+      if (!desktopAPI) return null;
+
+      // Prefer main-process metadata reader (music-tag-native)
+      if (desktopAPI.readAudioMetadata) {
+        const result = await desktopAPI.readAudioMetadata(filePath);
+        if (result.success && result.metadata) {
+          const meta = result.metadata as { coverData?: string; coverMime?: string };
+          if (meta.coverData && desktopAPI.saveCoverThumbnail) {
+            const coverResult = await desktopAPI.saveCoverThumbnail({
+              id: trackId, data: meta.coverData, mime: meta.coverMime || 'image/jpeg',
+            });
+            if (coverResult?.success && coverResult.coverUrl) {
+              return coverResult.coverUrl;
+            }
+          }
+        }
+        return null;
       }
 
+      // Fallback: legacy binary parsing
       const readResult = await desktopAPI.readFile(filePath);
-      if (!readResult.success || !readResult.data) {
-        throw new Error(`Failed to read file: ${readResult.error}`);
-      }
+      if (!readResult.success || !readResult.data) return null;
 
       const fileName = filePath.split(/[/\\]/).pop() || 'audio.flac';
       const ext = fileName.split('.').pop()?.toLowerCase() || 'flac';
-      const mimeType = this.getMimeTypeFromExt(ext);
+      const file = new File([readResult.data], fileName, { type: this.getMimeTypeFromExt(ext) });
+      const coverData = await this.extractCoverFromBuffer(await file.arrayBuffer(), ext);
 
-      const file = new File([readResult.data], fileName, { type: mimeType });
-      const arrayBuffer = await file.arrayBuffer();
-
-      const coverData = await this.extractCoverFromBuffer(arrayBuffer, ext);
-
-      if (coverData) {
-        if (desktopAPI.saveCoverThumbnail) {
-          const base64 = await this.blobToBase64(coverData.blob);
-          const coverResult = await desktopAPI.saveCoverThumbnail({
-            id: trackId,
-            data: base64,
-            mime: coverData.mimeType,
-          });
-
-          if (coverResult?.success && coverResult.coverUrl) {
-            logger.debug(`[CoverArtService] ✓ Cover saved to disk for ${trackId} (${(coverData.blob.size / 1024).toFixed(2)} KB)`);
-            return coverResult.coverUrl;
-          }
-        }
-
-        logger.debug(`[CoverArtService] ✓ Cover extracted for ${trackId} but not saved to disk`);
-        return null;
-      } else {
-        logger.debug(`[CoverArtService] No cover found in file metadata for ${trackId}`);
+      if (coverData && desktopAPI.saveCoverThumbnail) {
+        const base64 = await this.blobToBase64(coverData.blob);
+        const coverResult = await desktopAPI.saveCoverThumbnail({ id: trackId, data: base64, mime: coverData.mimeType });
+        if (coverResult?.success && coverResult.coverUrl) return coverResult.coverUrl;
       }
-
       return null;
     } catch (error) {
       logger.error(`[CoverArtService] Failed to extract cover for ${trackId}:`, error);

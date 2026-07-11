@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { notify } from '../services/notificationService';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -24,14 +24,13 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
   const [saving, setSaving] = useState(false);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [pendingCoverDataUrl, setPendingCoverDataUrl] = useState<string | null>(null);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const [, setLangVersion] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const u1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    const u2 = i18n.subscribe(() => setLangVersion(v => v + 1));
-    return () => { u1(); u2(); };
+    return () => { u1(); };
   }, []);
 
   const colors = currentTheme.colors;
@@ -115,11 +114,11 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
         coverUrl: finalCoverUrl,
       };
       onUpdateTrack(finalTrack);
-      notify(i18n.t('notifications.saveSuccess'), i18n.t('notifications.metadataSaved'), { silent: true });
+      notify(t('notifications.saveSuccess'), t('notifications.metadataSaved'), { silent: true });
       onClose();
     } catch (err: any) {
       logger.error('[MetadataEditor] Save failed:', err);
-      notify(i18n.t('notifications.saveFailed'), err.message || '');
+      notify(t('notifications.saveFailed'), err.message || '');
     } finally {
       setSaving(false);
     }
@@ -168,7 +167,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
     >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
-          <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.title')}</h2>
+          <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>{t('metadataView.title')}</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
             style={{ color: colors.textMuted }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; }}
@@ -192,7 +191,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
               <button onClick={handleCoverImport}
                 className="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
                 <span className="material-symbols-outlined text-sm" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
-                <span className="text-xs" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.importCover')}</span>
+                <span className="text-xs" style={{ color: colors.textPrimary }}>{t('metadataView.importCover')}</span>
               </button>
             </div>
             <div className="flex-1 flex flex-col gap-2 min-w-0">
@@ -229,7 +228,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
-            {i18n.t('common.cancel')}
+            {t('common.cancel')}
           </button>
           <button onClick={handleSave} disabled={!hasChanges || saving}
             className="px-5 py-2 rounded-lg text-sm font-medium transition-all"
@@ -239,7 +238,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
               opacity: saving ? 0.6 : 1,
               cursor: hasChanges ? 'pointer' : 'default',
             }}>
-            {saving ? '...' : i18n.t('common.save')}
+            {saving ? '...' : t('common.save')}
           </button>
         </div>
     </GsapModal>

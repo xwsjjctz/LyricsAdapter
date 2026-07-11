@@ -9,7 +9,8 @@ import type { DesktopAPI } from './desktopAdapter';
 import { settingsManager } from './settingsManager';
 import { qqMusicApi } from './qqMusicApi';
 import { neteaseMusicApi } from './neteaseMusicApi';
-import { cookieManager, neteaseCookieManager, type CookieStore } from './cookieManager';
+import { sodaMusicApi } from './sodaMusicApi';
+import { cookieManager, neteaseCookieManager, sodaCookieManager, type CookieStore } from './cookieManager';
 
 // ---- Shared data model -----------------------------------------------------
 
@@ -36,7 +37,12 @@ export interface OnlineUrlResult {
   bitrate: string;
 }
 
-export type OnlineSource = 'qq' | 'netease';
+export type OnlineSource = 'qq' | 'netease' | 'soda';
+
+/** Runtime guard for persisted tracks and UI callbacks that carry a source. */
+export function isOnlineSource(source: unknown): source is OnlineSource {
+  return source === 'qq' || source === 'netease' || source === 'soda';
+}
 
 export interface PlaylistInfo {
   id: string;
@@ -92,6 +98,18 @@ export interface OnlineMusicElectronAPI {
     params: Record<string, unknown>,
     cookie?: string
   ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  /** Soda Music request bridge (requests and encrypted-media handling stay in main). */
+  sodaRequest?: (
+    route: 'search-track' | 'track' | 'me' | 'user-playlists' | 'playlist-detail',
+    params: Record<string, unknown>,
+    cookie?: string,
+  ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  /** Resolve, decrypt and save a Soda track without exposing playback keys. */
+  downloadSodaAudio?: (
+    trackId: string,
+    cookie: string,
+    filePath: string,
+  ) => Promise<{ success: boolean; filePath?: string; size?: number; error?: string }>;
   /** QQ Music QR login — start a session, returns a PNG data URL + session token. */
   qqLoginQrStart?: () => Promise<{
     success: boolean;
@@ -177,7 +195,9 @@ declare global {
  */
 export function getOnlineProvider(source?: OnlineSource): OnlineMusicProvider {
   const active: OnlineSource = source ?? settingsManager.getOnlineSource();
-  return active === 'netease' ? neteaseMusicApi : qqMusicApi;
+  if (active === 'netease') return neteaseMusicApi;
+  if (active === 'soda') return sodaMusicApi;
+  return qqMusicApi;
 }
 
 /**
@@ -187,5 +207,7 @@ export function getOnlineProvider(source?: OnlineSource): OnlineMusicProvider {
  */
 export function getActiveCookieManager(source?: OnlineSource): CookieStore {
   const active: OnlineSource = source ?? settingsManager.getOnlineSource();
-  return active === 'netease' ? neteaseCookieManager : cookieManager;
+  if (active === 'netease') return neteaseCookieManager;
+  if (active === 'soda') return sodaCookieManager;
+  return cookieManager;
 }

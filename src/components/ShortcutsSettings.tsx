@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import GsapModal from './GsapModal';
 
-interface ShortcutsSettingsProps {}
+interface ShortcutsSettingsProps {
+  layout?: 'single' | 'two-column';
+}
 
-const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
+const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-column' }) => {
+  const { t } = useTranslation();
   const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, ShortcutConfig>>({} as Record<ShortcutAction, ShortcutConfig>);
   const [editingAction, setEditingAction] = useState<ShortcutAction | null>(null);
   const [conflictAction, setConflictAction] = useState<ShortcutAction | null>(null);
@@ -132,7 +135,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       className="flex items-center justify-between py-1.5 px-3 border-b"
       style={{ borderColor: colors.borderLight }}
     >
-      <span className="text-xs min-w-[80px]" style={{ color: colors.textSecondary }}>{i18n.t(config.name)}</span>
+      <span className="text-xs min-w-[80px]" style={{ color: colors.textSecondary }}>{t(config.name)}</span>
 
       <div className="flex items-center gap-1.5">
         {editingAction === action ? (
@@ -143,7 +146,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
               readOnly
               className="w-20 px-2 py-1 r-sm text-xs text-center outline-none"
               style={{ backgroundColor: `${colors.primary}20`, border: `1px solid ${colors.primary}50`, color: colors.primary }}
-              placeholder={i18n.t('settings.shortcuts.pressKey')}
+              placeholder={t('settings.shortcuts.pressKey')}
               onKeyDown={(e) => handleKeyDown(e, action)}
               onBlur={() => {
                 setEditingAction(null);
@@ -152,7 +155,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
             />
             {conflictAction && (
               <div className="absolute top-full right-0 mt-1 w-40 p-1.5 r-sm text-xs z-10" style={{ backgroundColor: `${colors.error}20`, border: `1px solid ${colors.error}30`, color: colors.error }}>
-                {i18n.t('settings.shortcuts.conflict')}: {i18n.t(shortcuts[conflictAction]?.name || '')}
+                {t('settings.shortcuts.conflict')}: {t(shortcuts[conflictAction]?.name || '')}
               </div>
             )}
           </div>
@@ -180,7 +183,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
                 e.currentTarget.style.color = colors.textMuted;
               }
             }}
-            title={i18n.t('settings.shortcuts.clickToEdit')}
+            title={t('settings.shortcuts.clickToEdit')}
           >
             {config.currentKey ? displayKey(config.currentKey) : '-'}
           </button>
@@ -193,7 +196,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
             style={{ color: colors.textMuted }}
             onMouseEnter={e => e.currentTarget.style.color = colors.textSecondary}
             onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
-            title={config.currentKey ? i18n.t('settings.shortcuts.reset') : i18n.t('settings.shortcuts.clear')}
+            title={config.currentKey ? t('settings.shortcuts.reset') : t('settings.shortcuts.clear')}
           >
             <span className="material-symbols-outlined text-sm">
               {config.currentKey ? 'restart_alt' : 'backspace'}
@@ -210,7 +213,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       <div className="flex items-center justify-between gap-2 mb-2">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>keyboard</span>
-          {i18n.t('settings.shortcuts.title')}
+          {t('settings.shortcuts.title')}
         </h3>
         <button
           onClick={() => setShowResetConfirm(true)}
@@ -219,13 +222,12 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
           onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
         >
-          {i18n.t('settings.shortcuts.resetAll')}
+          {t('settings.shortcuts.resetAll')}
         </button>
       </div>
 
-      {/* 两列均匀分布 */}
       <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-        <div className="grid grid-cols-2">
+        <div className={layout === 'single' ? 'grid grid-cols-1' : 'grid grid-cols-2'}>
           {allShortcuts.map(([action, config]) =>
             renderShortcutRow(action, config)
           )}
@@ -235,7 +237,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
       {/* 提示信息 */}
       <div className="flex items-center gap-2 px-3 py-2 r-card border mt-2" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
         <span className="material-symbols-outlined text-sm" style={{ color: colors.textMuted }}>info</span>
-        <span className="text-xs" style={{ color: colors.textMuted }}>{i18n.t('settings.shortcuts.legend')}</span>
+        <span className="text-xs" style={{ color: colors.textMuted }}>{t('settings.shortcuts.legend')}</span>
       </div>
 
       {/* Reset All Confirmation Modal */}
@@ -246,8 +248,8 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
         panelClassName="r-control p-5 max-w-sm w-full mx-4 border"
         panelStyle={{ backgroundColor: colors.backgroundDark, borderColor: colors.borderLight }}
       >
-            <h4 className="text-base font-medium mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.shortcuts.resetAllConfirm')}</h4>
-            <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.shortcuts.resetAllDesc')}</p>
+            <h4 className="text-base font-medium mb-2" style={{ color: colors.textPrimary }}>{t('settings.shortcuts.resetAllConfirm')}</h4>
+            <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>{t('settings.shortcuts.resetAllDesc')}</p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowResetConfirm(false)}
@@ -256,14 +258,14 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = () => {
                 onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
                 onMouseLeave={e => e.currentTarget.style.color = colors.textSecondary}
               >
-                {i18n.t('common.cancel')}
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleResetAll}
                 className="px-3 py-1.5 text-sm r-card transition-colors"
                 style={{ backgroundColor: `${colors.primary}20`, color: colors.primary }}
               >
-                {i18n.t('settings.shortcuts.resetAll')}
+                {t('settings.shortcuts.resetAll')}
               </button>
             </div>
       </GsapModal>

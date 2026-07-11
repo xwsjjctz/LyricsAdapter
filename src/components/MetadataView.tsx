@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { notify } from '../services/notificationService';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
-import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
+import { parseLRCLyrics } from '../services/metadataService';
 import { coverArtService } from '../services/coverArtService';
 import { getCoverUrlForMetadataWrite, getSavedTrackCoverUrl, hasPendingCoverReplacement } from '../services/metadataCoverCachePolicy';
 import TrackCover from './TrackCover';
@@ -36,18 +36,11 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
   const [pendingCoverDataUrl, setPendingCoverDataUrl] = useState<string | null>(null);
   const [stashedMetadata, setStashedMetadata] = useState<Record<string, Partial<Track>>>({});
   const [pendingTrackSwitch, setPendingTrackSwitch] = useState<Track | null>(null);
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const colors = currentTheme.colors;
   const autoSelectedRef = useRef(false);
   const originalTrackRef = useRef<Track | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -108,51 +101,43 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
     setIsRefreshing(true);
     try {
       const desktopAPI = await getDesktopAPIAsync();
-      if (desktopAPI?.refreshTrackMetadata) {
-        const result = await desktopAPI.refreshTrackMetadata(selectedTrack.filePath);
+      const readFn: ((path: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>) | undefined
+        = desktopAPI?.readAudioMetadata ?? desktopAPI?.refreshTrackMetadata;
+      if (!readFn) return;
 
-        if (result.success && result.data) {
-          const file = new File([result.data.buffer], result.data.fileName, { type: result.data.mimeType });
-          const metadata = await parseAudioFile(file);
+      const result = await readFn(selectedTrack.filePath);
+      if (!result.success || !result.metadata) return;
 
-          let finalSyncedLyrics = metadata.syncedLyrics;
-          if (!finalSyncedLyrics && metadata.lyrics) {
-            const parsed = parseLRCLyrics(metadata.lyrics);
-            finalSyncedLyrics = parsed.syncedLyrics;
-          }
+      const m = result.metadata as {
+        title?: string; artist?: string; album?: string;
+        duration?: number; lyrics?: string;
+        syncedLyrics?: { time: number; text: string }[];
+        coverData?: string; coverMime?: string;
+      };
 
-          let coverUrl = selectedTrack.coverUrl;
-          if (metadata.coverUrl && !metadata.coverUrl.startsWith('blob:') && !metadata.coverUrl.startsWith('https://picsum.photos')) {
-            coverUrl = metadata.coverUrl;
-          } else if (metadata.coverUrl && metadata.coverUrl.startsWith('blob:')) {
-            const cachedCoverUrl = await coverArtService.extractAndCacheCover(selectedTrack.id, selectedTrack.filePath);
-            if (cachedCoverUrl) {
-              coverUrl = cachedCoverUrl;
-            }
-          }
-
-          const updatedTrack: Track = {
-            ...selectedTrack,
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            lyrics: metadata.lyrics,
-            syncedLyrics: finalSyncedLyrics,
-            coverUrl,
-          };
-
-          setSelectedTrack(updatedTrack);
-          setOriginalTrack(updatedTrack);
-
-          if (onUpdateTrack) {
-            onUpdateTrack(updatedTrack);
-          }
-
-          logger.info('[MetadataView] Metadata refreshed for track', selectedTrack.id);
-        } else {
-          logger.error('[MetadataView] Failed to refresh metadata:', result.error);
+      let coverUrl = selectedTrack.coverUrl;
+      if (m.coverData && desktopAPI?.saveCoverThumbnail) {
+        const coverResult = await desktopAPI.saveCoverThumbnail({
+          id: selectedTrack.id, data: m.coverData, mime: m.coverMime || 'image/jpeg',
+        });
+        if (coverResult?.success && coverResult.coverUrl) {
+          coverUrl = coverResult.coverUrl;
         }
       }
+
+      const updatedTrack: Track = {
+        ...selectedTrack,
+        title: m.title ?? selectedTrack.title,
+        artist: m.artist ?? selectedTrack.artist,
+        album: m.album ?? selectedTrack.album,
+        lyrics: m.lyrics ?? '',
+        syncedLyrics: m.syncedLyrics,
+        coverUrl,
+      };
+
+      setSelectedTrack(updatedTrack);
+      setOriginalTrack(updatedTrack);
+      if (onUpdateTrack) onUpdateTrack(updatedTrack);
     } catch (error) {
       logger.error('[MetadataView] Error refreshing metadata:', error);
     } finally {
@@ -214,21 +199,21 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
         
         setPendingCoverDataUrl(null);
         notify(
-          i18n.t('notifications.saveSuccess'),
-          i18n.t('notifications.metadataSaved')
+          t('notifications.saveSuccess'),
+          t('notifications.metadataSaved')
         );
       } else {
         logger.error('[MetadataView] Failed to save metadata:', result.error);
         notify(
-          i18n.t('notifications.saveFailed'),
-          i18n.t('notifications.fieldSaveFailed').replace('{field}', 'metadata')
+          t('notifications.saveFailed'),
+          t('notifications.fieldSaveFailed').replace('{field}', 'metadata')
         );
       }
     } catch (error) {
       logger.error('[MetadataView] Error saving metadata:', error);
       notify(
-        i18n.t('notifications.saveFailed'),
-        i18n.t('notifications.fieldSaveFailed').replace('{field}', 'metadata')
+        t('notifications.saveFailed'),
+        t('notifications.fieldSaveFailed').replace('{field}', 'metadata')
       );
     } finally {
       setSaving(false);
@@ -315,10 +300,10 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
       <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}>
         <div className="rounded-2xl p-6 w-96 shadow-2xl" style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}>
           <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
-            {i18n.t('metadataView.unsavedTitle')}
+            {t('metadataView.unsavedTitle')}
           </h3>
           <p className="mb-6 text-sm" style={{ color: colors.textSecondary }}>
-            {i18n.t('metadataView.unsavedMessage')}
+            {t('metadataView.unsavedMessage')}
           </p>
           <div className="flex gap-2 justify-end">
             <button
@@ -328,7 +313,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
-              {i18n.t('common.cancel')}
+              {t('common.cancel')}
             </button>
             <button
               onClick={onStash}
@@ -337,7 +322,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.borderLight; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
             >
-              {i18n.t('metadataView.stash')}
+              {t('metadataView.stash')}
             </button>
             <button
               onClick={onSave}
@@ -346,7 +331,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.primaryHover; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.primary; }}
             >
-              {i18n.t('metadataView.saveChanges')}
+              {t('metadataView.saveChanges')}
             </button>
           </div>
         </div>
@@ -494,9 +479,9 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
 
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('metadataView.title')}</h1>
+          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{t('metadataView.title')}</h1>
           <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
-            {i18n.t('metadataView.description')}
+            {t('metadataView.description')}
           </p>
         </div>
         <button
@@ -584,7 +569,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
                       style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
                       onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
                       onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
-                      title={i18n.t('common.cancel')}
+                      title={t('common.cancel')}
                     >
                       <span className="material-symbols-outlined text-[10px]">close</span>
                     </button>
@@ -594,7 +579,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
                     className="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-sm" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
-                    <span className="text-xs" style={{ color: colors.textPrimary }}>{i18n.t('metadataView.importCover')}</span>
+                    <span className="text-xs" style={{ color: colors.textPrimary }}>{t('metadataView.importCover')}</span>
                   </button>
                 </div>
                 <div className="flex-1 flex flex-col gap-2 min-w-0 pt-0 pb-2">
@@ -610,7 +595,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center opacity-40">
               <span className="material-symbols-outlined text-6xl mb-4 block">description</span>
-              <p className="text-xl font-medium">{i18n.t('metadataView.selectTrack')}</p>
+              <p className="text-xl font-medium">{t('metadataView.selectTrack')}</p>
             </div>
           </div>
         )}

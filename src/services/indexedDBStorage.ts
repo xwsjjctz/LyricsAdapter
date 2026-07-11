@@ -5,7 +5,7 @@
  * Includes data validation to prevent injection attacks
  */
 
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { openDB, deleteDB, DBSchema, IDBPDatabase } from 'idb';
 import {
   validateMetadata,
   validateMetadataMap,
@@ -68,73 +68,123 @@ interface LyricsAdapterDB extends DBSchema {
 class IndexedDBStorageService {
   private db: IDBPDatabase<LyricsAdapterDB> | null = null;
   private initialized = false;
+  /**
+   * 一次会话内是否已尝试过 deleteDatabase 自愈。
+   * 防止损坏反复时陷入"删了再开、开了又坏、再删"的循环。
+   */
+  private recoveryAttempted = false;
 
   /**
-   * Initialize IndexedDB database
+   * 判断错误是否属于"底层存储损坏"类，可通过删除数据库重建来自愈。
+   * 典型表现：UnknownError: Internal error opening backing store for indexedDB.open
+   */
+  private isCorruptionError(error: unknown): boolean {
+    if (!error) return false;
+    const name = (error as { name?: string }).name;
+    const msg = String((error as { message?: string }).message || error);
+    if (name === 'UnknownError' || name === 'QuotaExceededError') return true;
+    return /backing store|internal error|corrupt/i.test(msg);
+  }
+
+  /** 打开数据库（含升级迁移）。不包含自愈逻辑。 */
+  private async openDatabase(): Promise<IDBPDatabase<LyricsAdapterDB>> {
+    return openDB<LyricsAdapterDB>(STORAGE.DB_NAME, STORAGE.DB_VERSION, {
+      upgrade(db, oldVersion, _newVersion, _transaction) {
+        if (!db.objectStoreNames.contains('metadata')) {
+          db.createObjectStore('metadata', { keyPath: 'key' });
+          logger.debug('[IndexedDB] Created metadata store');
+        }
+
+        if (!db.objectStoreNames.contains('library')) {
+          db.createObjectStore('library', { keyPath: 'key' });
+          logger.debug('[IndexedDB] Created library store');
+        }
+
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings');
+          logger.debug('[IndexedDB] Created settings store');
+        }
+
+        if (oldVersion < 2) {
+          try {
+            (db as unknown as { deleteObjectStore: (name: string) => void }).deleteObjectStore('covers');
+            logger.debug('[IndexedDB] Removed covers store (v2 migration)');
+          } catch {
+            // Store may not exist, ignore
+          }
+        }
+
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains('webdavMetadata')) {
+            db.createObjectStore('webdavMetadata', { keyPath: 'key' });
+            logger.debug('[IndexedDB] Created webdavMetadata store');
+          }
+        }
+
+        if (oldVersion < 4) {
+          if (!db.objectStoreNames.contains('webdavFileListSnapshot')) {
+            db.createObjectStore('webdavFileListSnapshot', { keyPath: 'key' });
+            logger.debug('[IndexedDB] Created webdavFileListSnapshot store');
+          }
+        }
+      },
+      blocked() {
+        logger.warn('[IndexedDB] Database blocked by another tab');
+      },
+      blocking() {
+        logger.warn('[IndexedDB] Database blocking another tab');
+      },
+      terminated: () => {
+        logger.error('[IndexedDB] Database terminated unexpectedly');
+        this.initialized = false;
+      },
+    });
+  }
+
+  /**
+   * Initialize IndexedDB database.
+   *
+   * 若底层 LevelDB 损坏（"Internal error opening backing store"），
+   * 自动 deleteDatabase 后重试一次。IndexedDB 内的全部数据按架构设计
+   * 属于可重建缓存，删除不会影响纯用户数据（~/.la/users.json）。
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
     try {
       logger.debug('[IndexedDB] Opening database...');
-      this.db = await openDB<LyricsAdapterDB>(STORAGE.DB_NAME, STORAGE.DB_VERSION, {
-        upgrade(db, oldVersion, _newVersion, _transaction) {
-          if (!db.objectStoreNames.contains('metadata')) {
-            db.createObjectStore('metadata', { keyPath: 'key' });
-            logger.debug('[IndexedDB] Created metadata store');
-          }
-
-          if (!db.objectStoreNames.contains('library')) {
-            db.createObjectStore('library', { keyPath: 'key' });
-            logger.debug('[IndexedDB] Created library store');
-          }
-
-          if (!db.objectStoreNames.contains('settings')) {
-            db.createObjectStore('settings');
-            logger.debug('[IndexedDB] Created settings store');
-          }
-
-          if (oldVersion < 2) {
-            try {
-              (db as unknown as { deleteObjectStore: (name: string) => void }).deleteObjectStore('covers');
-              logger.debug('[IndexedDB] Removed covers store (v2 migration)');
-            } catch {
-              // Store may not exist, ignore
-            }
-          }
-
-          if (oldVersion < 3) {
-            if (!db.objectStoreNames.contains('webdavMetadata')) {
-              db.createObjectStore('webdavMetadata', { keyPath: 'key' });
-              logger.debug('[IndexedDB] Created webdavMetadata store');
-            }
-          }
-
-          if (oldVersion < 4) {
-            if (!db.objectStoreNames.contains('webdavFileListSnapshot')) {
-              db.createObjectStore('webdavFileListSnapshot', { keyPath: 'key' });
-              logger.debug('[IndexedDB] Created webdavFileListSnapshot store');
-            }
-          }
-        },
-        blocked() {
-          logger.warn('[IndexedDB] Database blocked by another tab');
-        },
-        blocking() {
-          logger.warn('[IndexedDB] Database blocking another tab');
-        },
-        terminated: () => {
-          logger.error('[IndexedDB] Database terminated unexpectedly');
-          this.initialized = false;
-        },
-      });
+      this.db = await this.openDatabase();
       this.initialized = true;
       logger.debug('[IndexedDB] ✓ Database ready');
+      return;
     } catch (error) {
       logger.error('[IndexedDB] Failed to open database:', error);
-      this.initialized = false;
+
+      // 自愈：仅对底层损坏类错误尝试一次 deleteDatabase + 重开
+      if (this.isCorruptionError(error) && !this.recoveryAttempted) {
+        this.recoveryAttempted = true;
+        logger.warn('[IndexedDB] Backing store appears corrupt — deleting and recreating database');
+        try {
+          await deleteDB(STORAGE.DB_NAME, {
+            blocked() {
+              logger.warn('[IndexedDB] deleteDatabase blocked (another connection held open)');
+            },
+          });
+          this.db = await this.openDatabase();
+          this.initialized = true;
+          logger.info('[IndexedDB] ✓ Database recovered after recreation');
+          return;
+        } catch (recoveryError) {
+          logger.error('[IndexedDB] Recovery failed:', recoveryError);
+        }
+      }
+
+      // 自愈已尝试且仍失败：进入降级模式，避免后续每次调用都重试打开并抛错。
+      // 各读写方法已有 `if (!this.db) return` 守卫，会安全返回空值，
+      // 调用方据此回退到内存/文件来源。IndexedDB 仅是可重建缓存，不影响用户数据。
+      this.initialized = true;
       this.db = null;
-      throw error;
+      logger.warn('[IndexedDB] Operating in degraded mode (cache disabled) for this session');
     }
   }
 
@@ -409,6 +459,30 @@ class IndexedDBStorageService {
       logger.debug('[IndexedDB] Cleared all webdav metadata');
     } catch (error) {
       logger.error('[IndexedDB] Failed to clear webdav metadata:', error);
+    }
+  }
+
+  /**
+   * 原子替换全部 webdavMetadata：清空 + 批量写入在同一个事务中完成。
+   * 解决 saveMetadataCache 先 clear 再逐条 set 的竞态问题——
+   * 中途崩溃不会导致 IndexedDB 中的元数据只剩半份。
+   */
+  async replaceAllWebdavMetadata(entries: Record<string, any>): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    try {
+      const tx = this.db.transaction('webdavMetadata', 'readwrite');
+      const store = tx.objectStore('webdavMetadata');
+      await store.clear();
+      for (const [key, value] of Object.entries(entries)) {
+        await store.put({ key, ...value });
+      }
+      await tx.done;
+      logger.debug(`[IndexedDB] ✓ Atomically replaced webdav metadata (${Object.keys(entries).length} entries)`);
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to atomically replace webdav metadata:', error);
+      throw error; // 让调用方感知失败
     }
   }
 

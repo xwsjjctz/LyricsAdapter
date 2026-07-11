@@ -1,5 +1,5 @@
-import { Track } from '../types';
-import type { LibraryIndexData, LibrarySettings } from './libraryStorage';
+import { Track, type SlotId } from '../types';
+import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from './libraryStorage';
 import { sanitizePersistedCoverUrl } from './coverUrl';
 
 function serializeTrack(track: Track): any {
@@ -52,4 +52,73 @@ export function buildLibraryIndexDataForSlots(
   playlistTracks?: Track[]
 ): LibraryIndexData {
   return buildLibraryIndexData(localTracks, settings, cloudTracks, onlineTracks, playlistTracks);
+}
+
+export interface UserTrackRecord {
+  id: string;
+  slotId?: SlotId;
+  filePath?: string;
+  webdavPath?: string;
+  fileName?: string;
+  fileSize?: number;
+  lastModified?: number;
+  source?: string;
+  addedAt?: string;
+  playCount?: number;
+  lastPlayed?: string | null;
+  songmid?: string;
+  available?: boolean;
+}
+
+/**
+ * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
+ * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
+ */
+function buildMinimalTrack(track: Track, slotId?: SlotId): UserTrackRecord {
+  return {
+    id: track.id,
+    ...(slotId ? { slotId } : undefined),
+    ...(track.filePath ? { filePath: track.filePath } : undefined),
+    ...(track.webdavPath ? { webdavPath: track.webdavPath } : undefined),
+    ...(track.fileName ? { fileName: track.fileName } : undefined),
+    ...(track.fileSize ? { fileSize: track.fileSize } : undefined),
+    ...(track.lastModified ? { lastModified: track.lastModified } : undefined),
+    ...(track.source ? { source: track.source } : undefined),
+    ...(track.addedAt ? { addedAt: track.addedAt } : undefined),
+    ...(track.playCount != null ? { playCount: track.playCount } : undefined),
+    ...(track.lastPlayed !== undefined ? { lastPlayed: track.lastPlayed } : undefined),
+    ...(track.songmid ? { songmid: track.songmid } : undefined),
+    ...(track.available !== undefined ? { available: track.available } : undefined),
+  };
+}
+
+export function buildMinimalTracks(tracks: Track[], slotId?: SlotId): UserTrackRecord[] {
+  return tracks.map(track => buildMinimalTrack(track, slotId));
+}
+
+/**
+ * 将 users.json 中的最小化曲目记录转换为完整的 LibraryIndexSong。
+ * title/artist/album/duration 等缓存元数据留空，后续由 metadataCacheService
+ * 或文件头重新解析填充。
+ */
+export function minimalTrackToLibrarySong(t: UserTrackRecord): LibraryIndexSong {
+  return {
+    id: t.id,
+    title: '',
+    artist: '',
+    album: '',
+    duration: 0,
+    coverUrl: '',
+    filePath: t.filePath || '',
+    fileName: t.fileName || '',
+    fileSize: t.fileSize || 0,
+    lastModified: t.lastModified || 0,
+    addedAt: t.addedAt || new Date().toISOString(),
+    playCount: t.playCount || 0,
+    lastPlayed: t.lastPlayed ?? null,
+    available: t.available ?? true,
+    source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : t.source === 'soda' ? 'soda' : 'local'),
+    webdavPath: t.webdavPath || '',
+    songmid: t.songmid || '',
+  };
 }

@@ -1,4 +1,3 @@
-import { logger } from './logger';
 import { getDesktopAPI } from './desktopAdapter';
 
 /**
@@ -12,7 +11,7 @@ import { getDesktopAPI } from './desktopAdapter';
 
 export type QRLoginStatus = 'waiting' | 'confirming' | 'done' | 'expired' | 'error';
 
-export interface QRStartResult {
+interface QRStartResult {
   qrcode: string; // PNG data URL
   sessionKey: string; // QQ session token or NetEase unikey
   expiresIn: number; // seconds before the QR hard-expires
@@ -93,10 +92,4 @@ export async function pollNetEaseQR(key: string): Promise<QRPollResult> {
     default:
       return { status: 'error', msg: r.message };
   }
-}
-
-/** Log a poll result for diagnostics without spamming on healthy waiting ticks. */
-export function logPollResult(scope: string, res: QRPollResult): void {
-  if (res.status === 'waiting') return;
-  logger.debug(`[QRLogin:${scope}] ${res.status}`, res.msg ?? '');
 }

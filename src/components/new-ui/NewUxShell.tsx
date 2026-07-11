@@ -26,8 +26,8 @@ import {
 import FocusAmbientLight from './focus/FocusAmbientLight';
 import type { CardEntry, LibrarySlotsById } from './types';
 import type { SlotId, Track } from '../../types';
-import type { OnlineSong } from '../../services/onlineMusicProvider';
-import { i18n } from '../../services/i18n';
+import type { OnlineSong, OnlineSource } from '../../services/onlineMusicProvider';
+import { useTranslation } from 'react-i18next';
 import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
@@ -57,13 +57,22 @@ interface NewUxShellProps {
   onTogglePlaybackMode: () => void;
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
-  onOpenOnlinePlaylist: (source: 'qq' | 'netease', playlistId: string, name: string) => Promise<void>;
+  onOpenOnlinePlaylist: (source: OnlineSource, playlistId: string, name: string) => Promise<void>;
+  onLoadMoreOnlinePlaylist: () => void | Promise<void>;
+  onlinePlaylistLoading: boolean;
+  onlinePlaylistHasMore: boolean;
+  onlinePlaylistLoadError: string | null;
+  /** Tracks browsed by opening a third-party playlist card (browse/play decoupled
+   *  from the 'playlist' play slot so opening a card never pauses playback). */
+  browsingTracks: Track[];
+  /** Start playback of a browsed third-party playlist at the clicked index. */
+  onPlayBrowsingTrack: (index: number) => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   isWindowFocused?: boolean;
   onNavigateToTrack: (track: Track) => void;
   onOnlineDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-  onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
+  onOnlineStreamPlay: (song: OnlineSong, source: OnlineSource) => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
   cloudImportDisabled: boolean;
   cloudImportDisabledReason?: string;
@@ -97,6 +106,12 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onImportIntoSlot,
   onReloadUnavailable,
   onOpenOnlinePlaylist,
+  onLoadMoreOnlinePlaylist,
+  onlinePlaylistLoading,
+  onlinePlaylistHasMore,
+  onlinePlaylistLoadError,
+  browsingTracks,
+  onPlayBrowsingTrack,
   onClearOrphanCache,
   isWindowFocused,
   onNavigateToTrack,
@@ -110,6 +125,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   fileInputRef,
   onFileInputChange,
 }) => {
+  const { t } = useTranslation();
   const { playlists: onlinePlaylists } = useOnlinePlaylists();
   const entries = usePlaylistEntries(slots, onlinePlaylists);
   const panels = useNewUxStore();
@@ -193,9 +209,10 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   // Resolve the currently open card and the tracks to display in its panel.
   // Tracks are fetched from the backing slot on demand: slot cards read their
-  // own slot; third-party playlist cards read the dedicated playlist slot
-  // (handleOpenOnlinePlaylist loads songs there). Overlay cards never reach here
-  // because they open via openOverlayPanel, not openPlaylistId.
+  // own slot; third-party playlist cards read the independent browsingTracks
+  // state (NOT the 'playlist' play slot — opening a card must not disturb
+  // whatever is currently playing). Overlay cards never reach here because they
+  // open via openOverlayPanel, not openPlaylistId.
   const openPanel = useMemo<{ entry: CardEntry; tracks: Track[] } | null>(() => {
     const openId = panels.state.openPlaylistId;
     if (!openId) return null;
@@ -205,24 +222,31 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
       return { entry, tracks: slots[entry.slotId].tracks };
     }
     if (entry.kind === 'online-playlist') {
-      return { entry, tracks: slots.playlist.tracks };
+      return { entry, tracks: browsingTracks };
     }
     // overlay cards are not opened through openPlaylistId
     return null;
-  }, [entries, panels.state.openPlaylistId, slots]);
+  }, [entries, panels.state.openPlaylistId, slots, browsingTracks]);
   const openTracks = openPanel?.tracks ?? [];
-  // The slot the open panel's tracks belong to. Slot cards → their own slot;
-  // third-party playlist cards → the dedicated 'playlist' slot. Forwarded to
-  // onTrackSelect so playback targets the right slot even when the active play
-  // context is still 'playlist' after browsing a third-party playlist card.
+  const isOnlinePlaylistPanel = openPanel?.entry.kind === 'online-playlist';
+  // The slot the open panel's tracks belong to. Slot cards → their own slot.
+  // Third-party playlist cards have no backing slot until the user plays one —
+  // returning null keeps handlePanelTrackSelect on the browsing-play path.
   const openPanelSlotId = useMemo<SlotId | null>(() => {
     const entry = openPanel?.entry;
     if (!entry) return null;
-    return entry.kind === 'slot' ? entry.slotId : 'playlist';
+    return entry.kind === 'slot' ? entry.slotId : null;
   }, [openPanel]);
   const handlePanelTrackSelect = useCallback((index: number) => {
-    onTrackSelect(index, openPanelSlotId ?? undefined);
-  }, [onTrackSelect, openPanelSlotId]);
+    // Slot cards select into their slot directly; third-party playlist cards
+    // (openPanelSlotId null) start playback via the browsing-play handler,
+    // which loads the browsed list into the 'playlist' slot on demand.
+    if (openPanelSlotId) {
+      onTrackSelect(index, openPanelSlotId);
+    } else {
+      onPlayBrowsingTrack(index);
+    }
+  }, [onTrackSelect, onPlayBrowsingTrack, openPanelSlotId]);
   const trackMenuTrack = useMemo(() => {
     if (!openPanel || !panels.state.trackMenu) return null;
     return openTracks.find(track => track.id === panels.state.trackMenu?.trackId) ?? null;
@@ -418,6 +442,9 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                 <PlaylistPanel
                   title={openPanel.entry.title}
                   tracks={openTracks}
+                  {...(openPanel.entry.kind === 'online-playlist' && openPanel.entry.trackCount != null
+                    ? { totalTrackCount: openPanel.entry.trackCount }
+                    : {})}
                   {...(currentTrack?.id ? { currentTrackId: currentTrack.id } : {})}
                   isEditMode={panels.state.isEditMode}
                   selectedTrackIds={panels.state.selectedTrackIds}
@@ -431,6 +458,12 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onExitEditMode={panels.exitEditMode}
                   onDeleteSelected={() => panels.openDeleteConfirm(Array.from(panels.state.selectedTrackIds))}
                   onCurrentTrackVisibilityChange={setIsCurrentTrackVisible}
+                  {...(isOnlinePlaylistPanel ? {
+                    onLoadMore: onLoadMoreOnlinePlaylist,
+                    isLoadingMore: onlinePlaylistLoading,
+                    hasMore: onlinePlaylistHasMore,
+                    loadError: onlinePlaylistLoadError,
+                  } : {})}
                 />
               )}
               {editingTrack && (
@@ -507,17 +540,17 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         <div className={`new-ux-bg-tray${exitingPanel === 'bg' ? ' new-ux-tray--exiting' : ''}`}>
           <div className="new-ux-bg-tray__header">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>image</span>
-            {i18n.t('newui.bgSettings')}
+            {t('newui.bgSettings')}
           </div>
           <div className="new-ux-bg-tray__body">
-            <div className="new-ux-bg-settings__label">{i18n.t('newui.bgImage')}</div>
+            <div className="new-ux-bg-settings__label">{t('newui.bgImage')}</div>
             <div className="new-ux-bg-settings__row">
               <button
                 className="new-ux-bg-tray__btn"
                 onClick={() => bgInputRef.current?.click()}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
-                {i18n.t('newui.pickImage')}
+                {t('newui.pickImage')}
               </button>
               {bgImage && (
                 <button
@@ -525,7 +558,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onClick={() => { setBgImage(''); saveBgImage(''); }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
-                  {i18n.t('newui.clear')}
+                  {t('newui.clear')}
                 </button>
               )}
             </div>
@@ -534,7 +567,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                 <img src={bgImage} alt="" />
               </div>
             )}
-            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>{i18n.t('newui.blurRadius')}</div>
+            <div className="new-ux-bg-settings__label" style={{ marginTop: 14 }}>{t('newui.blurRadius')}</div>
             <div className="new-ux-bg-settings__row">
               <input
                 type="range"

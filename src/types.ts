@@ -21,11 +21,11 @@ export interface Track {
   playCount?: number | undefined;
   lastPlayed?: string | undefined;
 
-  // Source: local file, WebDAV, or a third-party online stream (QQ/NetEase).
+  // Source: local file, WebDAV, or a third-party online stream.
   // Online tracks carry `songmid` so their `stream://` audioUrl can be rebuilt.
-  source?: 'local' | 'webdav' | 'qq' | 'netease' | undefined;
+  source?: 'local' | 'webdav' | 'qq' | 'netease' | 'soda' | undefined;
   webdavPath?: string | undefined;
-  /** Third-party song id (QQ songmid / NetEase numeric id) — used by `stream://`. */
+  /** Third-party song id — used by `stream://`. */
   songmid?: string | undefined;
   cdnUrl?: string | undefined;
   cdnUrlExpiry?: number | undefined;
@@ -92,6 +92,5 @@ export enum ViewMode {
   BROWSE = 'browse',
   METADATA = 'metadata',
   SETTINGS = 'settings',
-  THEME = 'theme',
-  PLAYLISTS = 'playlists'
+  THEME = 'theme'
 }

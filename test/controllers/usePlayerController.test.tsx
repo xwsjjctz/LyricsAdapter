@@ -3,7 +3,6 @@ import { renderHook } from '@testing-library/react';
 import type { MutableRefObject } from 'react';
 import { usePlayerController } from '@/controllers/usePlayerController';
 import type { SlotId } from '@/types';
-import type { OnlineSong } from '@/services/onlineMusicProvider';
 
 function makeController() {
   const activeSlotId: SlotId = 'local';
@@ -103,22 +102,9 @@ describe('usePlayerController', () => {
     });
   });
 
-  describe('handlePlayPlaylist', () => {
-    it('loads tracks, switches to playlist slot, and plays', () => {
-      const { controller, mocks } = makeController();
-      const songs: OnlineSong[] = [
-        { songmid: 's1', songname: 'A', singer: [{ name: 'Artist' }], interval: 100 },
-      ];
-      controller.handlePlayPlaylist('qq', songs, 0);
-      // Load playlist tracks
-      expect(mocks.loadPlaylistTracks).toHaveBeenCalled();
-      const loadedTracks = mocks.loadPlaylistTracks.mock.calls[0][0];
-      expect(loadedTracks[0].id).toBe('online-qq-s1');
-      // Switch to playlist
-      expect(mocks.switchTo).toHaveBeenCalledWith('playlist');
-      // Autoplay
-      expect(mocks.shouldAutoPlayRef.current).toBe(true);
-      expect(mocks.setIsPlaying).toHaveBeenCalledWith(true);
-    });
-  });
+  // handlePlayPlaylist was removed in the browse/play decoupling refactor
+  // (see commits 9362aae, 198c6aa). The current flow is:
+  //   controller.openOnlinePlaylist(source, playlistId)   // loads into browsing
+  //   controller.playBrowsingTrack(index)                  // moves to playlist slot + auto-plays
+  // Both paths have their own dedicated coverage; no replacement test here.
 });

@@ -1,22 +1,24 @@
 import { protocol, app, ipcMain } from 'electron';
+import rangeParser from 'range-parser';
 import { logger } from '../logger';
 import { qqResolveStreamUrl } from '../ipc/metadataHandlers';
 import { resolveNetEaseStreamUrl } from '../ipc/neteaseHandlers';
+import { fetchSodaStream } from '../ipc/sodaHandlers';
 
 /**
  * `stream://` custom protocol — proxies third-party music CDN audio streams
  * through the main process, attaching authentication cookies.
  *
  * URL format:  stream://<source>/<songmid>?q=<quality>
- *   source   = "qq" | "netease"
- *   songmid  = third-party song id (QQ songmid / NetEase numeric id)
+ *   source   = "qq" | "netease" | "soda"
+ *   songmid  = third-party song id
  *   q        = quality: "128" | "320" | "flac" | "m4a"   (default "320")
  *
  * Cookies are pushed from the renderer via the `set-online-cookie` IPC channel.
  */
 
 // ── Cookie store (synced from renderer on login / app start) ──
-const onlineCookies: { qq?: string; netease?: string; [source: string]: string | undefined } = {};
+const onlineCookies: { qq?: string; netease?: string; soda?: string; [source: string]: string | undefined } = {};
 
 // ── CDN URL cache (re-resolve every 5 min since URLs expire) ──
 interface CachedUrl {
@@ -26,11 +28,22 @@ interface CachedUrl {
 const cdnCache = new Map<string, CachedUrl>();
 const CACHE_TTL = 5 * 60_000; // 5 minutes
 
+interface CachedSodaAudio {
+  data: Buffer;
+  contentType: string;
+  expiry: number;
+}
+const sodaAudioCache = new Map<string, CachedSodaAudio>();
+const SODA_CACHE_LIMIT = 3;
+
 /** Periodic cache GC — every 5 minutes. */
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of cdnCache) {
     if (now > v.expiry) cdnCache.delete(k);
+  }
+  for (const [k, v] of sodaAudioCache) {
+    if (now > v.expiry) sodaAudioCache.delete(k);
   }
 }, CACHE_TTL).unref();
 
@@ -83,12 +96,69 @@ async function resolveCdnUrl(
   throw lastError instanceof Error ? lastError : new Error('Unable to resolve stream URL');
 }
 
+async function getSodaAudio(songmid: string, cookie: string | undefined): Promise<CachedSodaAudio> {
+  if (!cookie) throw new Error('请先在设置中填写汽水音乐 Cookie');
+  const cached = sodaAudioCache.get(songmid);
+  if (cached && cached.expiry > Date.now()) return cached;
+
+  const audio = await fetchSodaStream(songmid, cookie);
+  const entry: CachedSodaAudio = {
+    data: audio.data,
+    contentType: audio.contentType,
+    expiry: Date.now() + CACHE_TTL,
+  };
+  sodaAudioCache.delete(songmid);
+  sodaAudioCache.set(songmid, entry);
+  while (sodaAudioCache.size > SODA_CACHE_LIMIT) {
+    const oldest = sodaAudioCache.keys().next().value;
+    if (oldest === undefined) break;
+    sodaAudioCache.delete(oldest);
+  }
+  return entry;
+}
+
+async function createSodaResponse(songmid: string, cookie: string | undefined, rangeHeader: string | null): Promise<Response> {
+  const audio = await getSodaAudio(songmid, cookie);
+  const headers: Record<string, string> = {
+    'Content-Type': audio.contentType,
+    'Accept-Ranges': 'bytes',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': 'Range, Content-Type',
+  };
+
+  if (rangeHeader) {
+    const parsed = rangeParser(audio.data.length, rangeHeader);
+    if (typeof parsed === 'number' || parsed.length === 0) {
+      return new Response('Requested Range Not Satisfiable', {
+        status: 416,
+        headers: { ...headers, 'Content-Range': `bytes */${audio.data.length}` },
+      });
+    }
+    const range = parsed[0]!;
+    const body = audio.data.subarray(range.start, range.end + 1);
+    return new Response(body, {
+      status: 206,
+      headers: {
+        ...headers,
+        'Content-Range': `bytes ${range.start}-${range.end}/${audio.data.length}`,
+        'Content-Length': String(body.length),
+      },
+    });
+  }
+
+  return new Response(audio.data, {
+    status: 200,
+    headers: { ...headers, 'Content-Length': String(audio.data.length) },
+  });
+}
+
 export function registerStreamProtocol(): void {
   // IPC: receive cookies from the renderer
   ipcMain.handle(
     'set-online-cookie',
     (_event, source: string, cookie: string) => {
-      if (source === 'qq' || source === 'netease') {
+      if (source === 'qq' || source === 'netease' || source === 'soda') {
         onlineCookies[source] = cookie;
         logger.info(`[StreamProtocol] Cookie updated for ${source}`);
       }
@@ -100,7 +170,7 @@ export function registerStreamProtocol(): void {
       try {
         const parsedUrl = new URL(request.url);
         // stream://<source>/<songmid>?q=<quality>
-        const source = parsedUrl.hostname; // "qq" | "netease"
+        const source = parsedUrl.hostname; // "qq" | "netease" | "soda"
         const songmid = decodeURIComponent(parsedUrl.pathname.replace(/^\//, ''));
         const quality = parsedUrl.searchParams.get('q') || '320';
 
@@ -110,8 +180,11 @@ export function registerStreamProtocol(): void {
           });
         }
 
-        const cdnUrl = await resolveCdnUrl(source, songmid, quality);
         const rangeHeader = request.headers.get('range');
+        if (source === 'soda') {
+          return await createSodaResponse(songmid, onlineCookies.soda, rangeHeader);
+        }
+        const cdnUrl = await resolveCdnUrl(source, songmid, quality);
 
         // Build headers for the CDN fetch — User-Agent + Referer + (cookie)
         const cdnHeaders: Record<string, string> = {

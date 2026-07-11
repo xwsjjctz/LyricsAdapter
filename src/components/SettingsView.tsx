@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { i18n, type Language } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
+import { type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, THEME_IDS } from '../types/theme';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
 import { settingsManager, type OnlineSource } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -31,13 +32,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   // NOTE: Frosted Glass UI is shelved (no longer toggleable), so `glassUI` is
   // effectively always false here — the branches are retained for future use.
   const { ref: headerBandRef, headerHeight: headerBandHeight } = useFrostedHeader(onHeaderHeightChange);
-  const [currentLang, setCurrentLang] = useState<Language>(i18n.getLanguage());
+  const { t, i18n } = useTranslation();
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
+  const [sodaCookie, setSodaCookie] = useState('');
   const [onlineSource, setOnlineSource] = useState<OnlineSource>('qq');
   const [downloadPath, setDownloadPath] = useState('');
   const [isSavingOnline, setIsSavingOnline] = useState(false);
@@ -47,6 +49,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   // QR scan-login state — drives the live QR panel in the third-party section.
   const [qqLoggedIn, setQqLoggedIn] = useState(false);
   const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
+  const [sodaLoggedIn, setSodaLoggedIn] = useState(false);
   const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string>('');
@@ -64,9 +67,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [glassUI, setGlassUI] = useState(false);
-  const [newUxEnabled, setNewUxEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
-  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
+  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(30);
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(32);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
 
@@ -80,12 +82,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     (async () => {
       await cookieManager.ensureLoaded();
       await neteaseCookieManager.ensureLoaded();
+      await sodaCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
+      setSodaCookie(sodaCookieManager.getCookie());
       setOnlineSource(settingsManager.getOnlineSource());
       setQqLoggedIn(cookieManager.hasCookie());
       setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
+      setSodaLoggedIn(sodaCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
       const webdavConfig = webdavClient.getConfig();
       if (webdavConfig) {
@@ -96,7 +101,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
-      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -110,7 +114,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       setBgBlurTrans(settingsManager.getBgBlurTrans());
       setQqMusicEnabled(settingsManager.getQqMusicEnabled());
       setGlassUI(settingsManager.getGlassUI());
-      setNewUxEnabled(settingsManager.getNewUxEnabled());
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
@@ -126,13 +129,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     }, 500);
     return () => clearTimeout(timer);
   }, [bgBlurTrans]);
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe((lang) => {
-      setCurrentLang(lang);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -159,7 +155,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   }, []);
 
   const handleLanguageChange = (lang: Language) => {
-    i18n.setLanguage(lang);
+    i18n.changeLanguage(lang);
     setIsLangDropdownOpen(false);
   };
 
@@ -183,24 +179,36 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     try {
       settingsManager.setOnlineSource(onlineSource);
 
-      const cookieStore = onlineSource === 'netease' ? neteaseCookieManager : cookieManager;
-      const cookieValue = (onlineSource === 'netease' ? neteaseCookie : cookie).trim();
+      const cookieStore = onlineSource === 'netease'
+        ? neteaseCookieManager
+        : onlineSource === 'soda'
+          ? sodaCookieManager
+          : cookieManager;
+      const cookieValue = (onlineSource === 'netease'
+        ? neteaseCookie
+        : onlineSource === 'soda'
+          ? sodaCookie
+          : cookie).trim();
       if (cookieValue) {
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
-          showOnlineMessage(i18n.t('settingsDialog.cookieInvalid'), 'error');
+          showOnlineMessage(t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
+          if (onlineSource === 'soda') setSodaLoggedIn(false);
           return;
         }
+        if (onlineSource === 'soda') setSodaLoggedIn(true);
+        void syncOnlineCookiesToMain(onlineSource);
       } else {
         await cookieStore.clearCookie();
+        if (onlineSource === 'soda') setSodaLoggedIn(false);
       }
 
       settingsManager.setDownloadPath(downloadPath.trim());
-      showOnlineMessage(i18n.t('settingsDialog.saved'), 'success');
+      showOnlineMessage(t('settingsDialog.saved'), 'success');
     } catch (err) {
-      showOnlineMessage(i18n.t('settingsDialog.saveFailed'), 'error');
+      showOnlineMessage(t('settingsDialog.saveFailed'), 'error');
       logger.error('[SettingsView] Online Music save failed:', err);
     } finally {
       setIsSavingOnline(false);
@@ -209,7 +217,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
   const getWebdavFormConfig = () => {
     if (!webdavServerUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
-      setWebdavMessage(i18n.t('settingsDialog.webdavFillAll'));
+      setWebdavMessage(t('settingsDialog.webdavFillAll'));
       setWebdavMessageType('error');
       return null;
     }
@@ -243,11 +251,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         return;
       }
       webdavClient.saveConfig(config);
-      setWebdavMessage(i18n.t('settingsDialog.saved'));
+      setWebdavMessage(t('settingsDialog.saved'));
       setWebdavMessageType('success');
       setTimeout(() => { setWebdavMessage(null); setWebdavMessageType(null); }, 3000);
     } catch (err) {
-      setWebdavMessage(i18n.t('settingsDialog.saveFailed'));
+      setWebdavMessage(t('settingsDialog.saveFailed'));
       setWebdavMessageType('error');
       logger.error('[SettingsView] WebDAV save failed:', err);
     } finally {
@@ -256,18 +264,19 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   };
 
   const languageOptions: { value: Language; label: string; nativeLabel: string }[] = [
-    { value: 'zh', label: i18n.t('settings.language.zh'), nativeLabel: '中文' },
-    { value: 'en', label: i18n.t('settings.language.en'), nativeLabel: 'English' },
-    { value: 'ja', label: i18n.t('settings.language.ja'), nativeLabel: '日本語' },
-    { value: 'ko', label: i18n.t('settings.language.ko'), nativeLabel: '한국어' },
-    { value: 'de', label: i18n.t('settings.language.de'), nativeLabel: 'Deutsch' },
-    { value: 'fr', label: i18n.t('settings.language.fr'), nativeLabel: 'Français' }
+    { value: 'zh', label: t('settings.language.zh'), nativeLabel: '中文' },
+    { value: 'en', label: t('settings.language.en'), nativeLabel: 'English' },
+    { value: 'ja', label: t('settings.language.ja'), nativeLabel: '日本語' },
+    { value: 'ko', label: t('settings.language.ko'), nativeLabel: '한국어' },
+    { value: 'de', label: t('settings.language.de'), nativeLabel: 'Deutsch' },
+    { value: 'fr', label: t('settings.language.fr'), nativeLabel: 'Français' }
   ];
 
-  const currentLanguageOption = languageOptions.find(opt => opt.value === currentLang);
+  const currentLanguageOption = languageOptions.find(opt => opt.value === i18n.language);
   const sourceOptions: { value: OnlineSource; label: string }[] = [
-    { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
-    { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
+    { value: 'qq', label: t('settingsDialog.onlineSourceQq') },
+    { value: 'netease', label: t('settingsDialog.onlineSourceNetease') },
+    { value: 'soda', label: t('settingsDialog.onlineSourceSoda') },
   ];
   const colors = currentTheme.colors;
   const isBrutalistTheme = currentTheme.id === THEME_IDS.BRUTALIST;
@@ -296,7 +305,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   };
 
   // ===== QR scan-login lifecycle =====
-  const isQrLoggedIn = onlineSource === 'qq' ? qqLoggedIn : neteaseLoggedIn;
+  const isQrLoggedIn = onlineSource === 'qq'
+    ? qqLoggedIn
+    : onlineSource === 'netease'
+      ? neteaseLoggedIn
+      : sodaLoggedIn;
   const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
 
   const stopQrPolling = (): void => {
@@ -317,9 +330,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   const handleQrPollResult = async (source: OnlineSource, res: QRPollResult): Promise<void> => {
     setQrState(res.status);
     if (res.status === 'confirming') {
-      setQrMsg(i18n.t('settingsDialog.qrConfirming'));
+      setQrMsg(t('settingsDialog.qrConfirming'));
     } else if (res.status === 'waiting') {
-      setQrMsg(res.msg || i18n.t('settingsDialog.qrWaiting'));
+      setQrMsg(res.msg || t('settingsDialog.qrWaiting'));
     } else if (res.msg) {
       setQrMsg(res.msg);
     }
@@ -333,13 +346,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           setCookie(cookieManager.getCookie());
           setQqLoggedIn(true);
           void syncOnlineCookiesToMain('qq');
-        } else {
+        } else if (source === 'netease') {
           await neteaseCookieManager.setCookie(res.cookie);
           setNeteaseCookie(neteaseCookieManager.getCookie());
           setNeteaseLoggedIn(true);
           void syncOnlineCookiesToMain('netease');
         }
-        showOnlineMessage(i18n.t('settingsDialog.qrLoggedIn'), 'success');
+        showOnlineMessage(t('settingsDialog.qrLoggedIn'), 'success');
       }
     } else if (res.status === 'expired') {
       stopQrPolling();
@@ -362,7 +375,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       } catch (e) {
         if (!mountedRef.current) return;
         logger.error('[SettingsView] QR poll failed:', e);
-        setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+        setQrMsg((e as Error).message || t('settingsDialog.qrError'));
         setQrState('error');
       }
     };
@@ -370,6 +383,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
   };
 
   const startQr = async (source: OnlineSource): Promise<void> => {
+    if (source === 'soda') {
+      resetQr();
+      return;
+    }
     stopQrPolling();
     sessionRef.current = null;
     setQrImage(null);
@@ -381,17 +398,24 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       sessionRef.current = { source, key: res.sessionKey };
       setQrImage(res.qrcode);
       setQrState('waiting');
-      setQrMsg(i18n.t('settingsDialog.qrWaiting'));
+      setQrMsg(t('settingsDialog.qrWaiting'));
       beginQrPolling(source, res.sessionKey);
     } catch (e) {
       if (!mountedRef.current) return;
       logger.error('[SettingsView] startQr failed:', e);
-      setQrMsg((e as Error).message || i18n.t('settingsDialog.qrError'));
+      setQrMsg((e as Error).message || t('settingsDialog.qrError'));
       setQrState('error');
     }
   };
 
   const handleQrLogout = async (): Promise<void> => {
+    if (onlineSource === 'soda') {
+      await sodaCookieManager.clearCookie();
+      setSodaCookie('');
+      setSodaLoggedIn(false);
+      resetQr();
+      return;
+    }
     if (onlineSource === 'qq') {
       await cookieManager.clearCookie();
       setCookie('');
@@ -422,6 +446,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       return;
     }
     resetQr();
+    if (onlineSource === 'soda') return;
     const loggedIn =
       onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
     if (!loggedIn) {
@@ -443,8 +468,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       <div ref={headerBandRef} className={glassUI ? 'relative z-30 flex-shrink-0' : 'flex-shrink-0'}>
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{i18n.t('settings.title')}</h1>
-          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{i18n.t('settings.description')}</p>
+          <h1 className="text-3xl font-extrabold" style={{ color: 'var(--theme-text-primary, #fff)' }}>{t('settings.title')}</h1>
+          <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{t('settings.description')}</p>
         </div>
       </div>
       </div>
@@ -461,7 +486,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>language</span>
-                    <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{i18n.t('settings.language')}</span>
+                    <span className="text-sm truncate" style={{ color: colors.textPrimary }}>{t('settings.language')}</span>
                   </div>
                   <div className="relative w-32" ref={langDropdownRef}>
                     <button
@@ -497,7 +522,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       }}
                     >
                       {languageOptions.map((option) => {
-                        const active = currentLang === option.value;
+                        const active = i18n.language === option.value;
                         return (
                           <button
                             key={option.value}
@@ -520,7 +545,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>info</span>
                   <div className="min-w-0">
-                    <span className="text-sm" style={{ color: colors.textPrimary }}>{i18n.t('settings.about')}</span>
+                    <span className="text-sm" style={{ color: colors.textPrimary }}>{t('settings.about')}</span>
                     <span className="text-xs ml-2" style={{ color: colors.textMuted }}>v{appVersion || '…'}</span>
                   </div>
                 </div>
@@ -533,7 +558,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
-                {i18n.t('settingsDialog.webdavTitle')}
+                {t('settingsDialog.webdavTitle')}
               </h3>
               <div className="flex items-center gap-2">
                 <button
@@ -547,10 +572,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   {isTestingWebdav ? (
                     <>
                       <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                      {i18n.t('settingsDialog.webdavTesting')}
+                      {t('settingsDialog.webdavTesting')}
                     </>
                   ) : (
-                    i18n.t('settingsDialog.webdavTestConnection')
+                    t('settingsDialog.webdavTestConnection')
                   )}
                 </button>
                 <button
@@ -564,10 +589,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                   {isSavingWebdav ? (
                     <>
                       <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                      {i18n.t('settingsDialog.saving')}
+                      {t('settingsDialog.saving')}
                     </>
                   ) : (
-                    i18n.t('settingsDialog.save')
+                    t('settingsDialog.save')
                   )}
                 </button>
               </div>
@@ -587,7 +612,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 type="text"
                 value={webdavUsername}
                 onChange={(e) => setWebdavUsername(e.target.value)}
-                placeholder={i18n.t('settingsDialog.webdavUsername')}
+                placeholder={t('settingsDialog.webdavUsername')}
                 className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
@@ -597,7 +622,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 type="password"
                 value={webdavPassword}
                 onChange={(e) => setWebdavPassword(e.target.value)}
-                placeholder={i18n.t('settingsDialog.webdavPassword')}
+                placeholder={t('settingsDialog.webdavPassword')}
                 className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
                 style={inputStyle}
                 onFocus={inputFocus}
@@ -617,12 +642,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
           <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
               <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
-              {i18n.t('settings.experimental')}
+              {t('settings.experimental')}
             </h3>
 
             {/* 背景模糊透明度滑块 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.bgBlurTrans')}</span>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.bgBlurTrans')}</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs tabular-nums w-8 text-right" style={{ color: colors.textMuted }}>{bgBlurTrans.toFixed(2)}</span>
                 <input
@@ -646,7 +671,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
             {/* Focus Mode 背景模糊半径 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusBgBlurRadius')}</span>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusBgBlurRadius')}</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusBgBlurRadius}px</span>
                 <input
@@ -668,7 +693,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
             {/* Focus Mode 滚动歌词字号 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusLyricsFontSize')}</span>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusLyricsFontSize')}</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricsFontSize}px</span>
                 <input
@@ -690,7 +715,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
             {/* Focus Mode 滚动歌词行间距 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusLyricLineSpacing')}</span>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusLyricLineSpacing')}</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricLineSpacing}px</span>
                 <input
@@ -712,7 +737,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
             {/* Focus Mode 非当前歌词模糊 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.focusInactiveLyricBlur')}</span>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusInactiveLyricBlur')}</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusInactiveLyricBlur}px</span>
                 <input
@@ -734,11 +759,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
             {/* 第三方音源开关 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.qqMusicEnabled')}</span>
+              <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.qqMusicEnabled')}</span>
               {isBrutalistTheme ? (
                 <RetroSwitch
                   checked={qqMusicEnabled}
-                  ariaLabel={i18n.t('settings.qqMusicEnabled')}
+                  ariaLabel={t('settings.qqMusicEnabled')}
                   onChange={(newValue) => {
                     setQqMusicEnabled(newValue);
                     settingsManager.setQqMusicEnabled(newValue);
@@ -766,46 +791,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               )}
             </div>
 
-            {/* 全新 UI/UX 开关 */}
-            <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-              <div className="min-w-0 mr-3">
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.newUx')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.newUxDesc')}</p>
-              </div>
-              {isBrutalistTheme ? (
-                <RetroSwitch
-                  checked={newUxEnabled}
-                  ariaLabel={i18n.t('settings.newUx')}
-                  onChange={(newValue) => {
-                    setNewUxEnabled(newValue);
-                    settingsManager.setNewUxEnabled(newValue);
-                  }}
-                />
-              ) : (
-                <button
-                  onClick={() => {
-                    const newValue = !newUxEnabled;
-                    setNewUxEnabled(newValue);
-                    settingsManager.setNewUxEnabled(newValue);
-                  }}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
-                  style={{ backgroundColor: newUxEnabled ? colors.primary : colors.borderLight }}
-                  aria-label={i18n.t('settings.newUx')}
-                  aria-pressed={newUxEnabled}
-                >
-                  <span
-                    className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                    style={{ transform: newUxEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
-                  />
-                </button>
-              )}
-            </div>
-
             {/* 清理孤儿缓存按钮 */}
             <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
               <div>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCache')}</span>
-                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{i18n.t('settings.clearCacheDesc')}</p>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.clearCache')}</span>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{t('settings.clearCacheDesc')}</p>
               </div>
               <button
                 onClick={() => setShowClearCacheConfirm(true)}
@@ -816,7 +806,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
               >
                 <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                {i18n.t('settings.clearCache')}
+                {t('settings.clearCache')}
               </button>
             </div>
 
@@ -848,7 +838,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
-                {i18n.t('settingsDialog.onlineMusicTitle')}
+                {t('settingsDialog.onlineMusicTitle')}
               </h3>
               <button
                 onClick={handleSaveOnlineMusic}
@@ -861,10 +851,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 {isSavingOnline ? (
                   <>
                     <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                    {i18n.t('settingsDialog.saving')}
+                    {t('settingsDialog.saving')}
                   </>
                 ) : (
-                  i18n.t('settingsDialog.save')
+                  t('settingsDialog.save')
                 )}
               </button>
             </div>
@@ -872,7 +862,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
             <div className="grid grid-cols-[190px_176px_minmax(220px,1fr)] gap-6">
               <div className="min-w-0">
                 <div className="text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                  {i18n.t('settingsDialog.onlineSource')}
+                  {t('settingsDialog.onlineSource')}
                 </div>
                 <div
                   className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
@@ -919,12 +909,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
               <div className="min-w-0">
                 <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
-                  <span>{i18n.t('settingsDialog.qrTitle')}</span>
-                  {(qrImage || qrState === 'error' || qrState === 'expired') && (
+                  <span>{onlineSource === 'soda' ? t('settingsDialog.cookieLoginTitle') : t('settingsDialog.qrTitle')}</span>
+                  {onlineSource !== 'soda' && (qrImage || qrState === 'error' || qrState === 'expired') && (
                     <button
                       type="button"
                       onClick={() => void startQr(onlineSource)}
-                      title={i18n.t('settingsDialog.qrRefresh')}
+                      title={t('settingsDialog.qrRefresh')}
                       className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
                       style={{ color: colors.textSecondary }}
                     >
@@ -940,11 +930,35 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     color: colors.textMuted,
                   }}
                 >
+                  {onlineSource === 'soda' && (
+                    <div className="flex flex-col items-center gap-2 text-center px-2">
+                      <span className="material-symbols-outlined text-5xl" style={{ color: isQrLoggedIn ? '#22c55e' : colors.textMuted }}>
+                        {isQrLoggedIn ? 'check_circle' : 'key'}
+                      </span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>
+                        {isQrLoggedIn ? t('settingsDialog.qrLoggedIn') : t('settingsDialog.cookieLoginTitle')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={isQrLoggedIn ? () => void handleQrLogout() : handleSaveOnlineMusic}
+                        disabled={isSavingOnline}
+                        className="px-2 py-1 text-xs transition-all disabled:opacity-50"
+                        style={{
+                          backgroundColor: isQrLoggedIn ? colors.backgroundCard : `${colors.primary}20`,
+                          color: isQrLoggedIn ? colors.textSecondary : colors.primary,
+                          border: `1px solid ${isQrLoggedIn ? colors.borderLight : colors.primary}`,
+                          borderRadius: 'var(--theme-control-radius)',
+                        }}
+                      >
+                        {isQrLoggedIn ? t('settingsDialog.qrLogout') : t('settingsDialog.cookieLoginAction')}
+                      </button>
+                    </div>
+                  )}
                   {/* Logged-in panel */}
-                  {isQrLoggedIn && !qrScanning ? (
+                  {onlineSource !== 'soda' && (isQrLoggedIn && !qrScanning ? (
                     <div className="flex flex-col items-center gap-1.5 text-center px-2">
                       <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
-                      <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoggedIn')}</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoggedIn')}</span>
                       <div className="flex gap-1.5 mt-0.5">
                         <button
                           type="button"
@@ -959,7 +973,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                           onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
                           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                         >
-                          {i18n.t('settingsDialog.qrLogout')}
+                          {t('settingsDialog.qrLogout')}
                         </button>
                         <button
                           type="button"
@@ -972,14 +986,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                             borderRadius: 'var(--theme-control-radius)',
                           }}
                         >
-                          {i18n.t('settingsDialog.qrReLogin')}
+                          {t('settingsDialog.qrReLogin')}
                         </button>
                       </div>
                     </div>
                   ) : qrState === 'loading' ? (
                     <div className="flex flex-col items-center gap-2">
                       <span className="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
-                      <span className="text-xs" style={{ color: colors.textSecondary }}>{i18n.t('settingsDialog.qrLoading')}</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoading')}</span>
                     </div>
                   ) : qrImage ? (
                     <>
@@ -996,7 +1010,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                           color: qrState === 'confirming' ? colors.primary : colors.textSecondary,
                         }}
                       >
-                        {qrMsg || i18n.t('settingsDialog.qrWaiting')}
+                        {qrMsg || t('settingsDialog.qrWaiting')}
                       </div>
                     </>
                   ) : (
@@ -1006,8 +1020,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                       </span>
                       <span className="text-xs" style={{ color: colors.textSecondary }}>
                         {qrState === 'expired'
-                          ? i18n.t('settingsDialog.qrExpired')
-                          : (qrMsg || i18n.t('settingsDialog.qrError'))}
+                          ? t('settingsDialog.qrExpired')
+                          : (qrMsg || t('settingsDialog.qrError'))}
                       </span>
                       <button
                         type="button"
@@ -1020,29 +1034,31 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                           borderRadius: 'var(--theme-control-radius)',
                         }}
                       >
-                        {i18n.t('settingsDialog.qrRefresh')}
+                        {t('settingsDialog.qrRefresh')}
                       </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
 
               <div className="min-w-0 space-y-3">
-                {/* Cookie (QQ: required; NetEase: optional, unlocks VIP/high quality) */}
+                {/* Provider cookie */}
                 <div>
                   <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
                     {onlineSource === 'netease'
-                      ? i18n.t('settingsDialog.neteaseCookieLabel')
-                      : i18n.t('settingsDialog.cookie')}
+                      ? t('settingsDialog.neteaseCookieLabel')
+                      : onlineSource === 'soda'
+                        ? t('settingsDialog.sodaCookieLabel')
+                        : t('settingsDialog.cookie')}
                   </label>
                   <textarea
-                    value={onlineSource === 'netease' ? neteaseCookie : cookie}
-                    onChange={(e) =>
-                      onlineSource === 'netease'
-                        ? setNeteaseCookie(e.target.value)
-                        : setCookie(e.target.value)
-                    }
-                    placeholder={i18n.t('settingsDialog.pasteCookie')}
+                    value={onlineSource === 'netease' ? neteaseCookie : onlineSource === 'soda' ? sodaCookie : cookie}
+                    onChange={(e) => {
+                      if (onlineSource === 'netease') setNeteaseCookie(e.target.value);
+                      else if (onlineSource === 'soda') setSodaCookie(e.target.value);
+                      else setCookie(e.target.value);
+                    }}
+                    placeholder={t('settingsDialog.pasteCookie')}
                     className="w-full h-16 r-control p-2.5 text-sm focus:outline-none focus:ring-0 transition-all resize-none no-scrollbar cookie-textarea"
                     style={inputStyle}
                     onFocus={inputFocus}
@@ -1053,18 +1069,23 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
 
                 <div>
                   <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
-                    {i18n.t('settingsDialog.savePath')}
+                    {t('settingsDialog.savePath')}
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={downloadPath}
                       onChange={(e) => setDownloadPath(e.target.value)}
-                      placeholder={i18n.t('settingsDialog.downloadFolderPath')}
+                      placeholder={t('settingsDialog.downloadFolderPath')}
                       className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
                       style={inputStyle}
                       onFocus={inputFocus}
-                      onBlur={inputBlur}
+                      onBlur={(e) => {
+                        inputBlur(e);
+                        // Persist on blur so a typed path survives navigating
+                        // away without clicking Save.
+                        settingsManager.setDownloadPath(e.target.value.trim());
+                      }}
                       disabled={isSavingOnline}
                     />
                     <button
@@ -1074,6 +1095,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                           const result = await desktopAPI.selectDownloadFolder();
                           if (result.success && result.path) {
                             setDownloadPath(result.path);
+                            // Persist immediately: selecting a folder is a
+                            // deliberate choice, not a form draft.
+                            settingsManager.setDownloadPath(result.path);
                           }
                         }
                       }}
@@ -1087,7 +1111,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                     </button>
                   </div>
                   <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
-                    {i18n.t('settingsDialog.tip')}
+                    {t('settingsDialog.tip')}
                   </p>
                 </div>
 
@@ -1122,8 +1146,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
       panelClassName="r-control p-6 max-w-md w-full mx-4 shadow-2xl"
       panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
     >
-          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('settings.clearCacheConfirmTitle')}</h3>
-          <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('settings.clearCacheConfirmBody')}</p>
+          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('settings.clearCacheConfirmTitle')}</h3>
+          <p className="mb-4" style={{ color: colors.textSecondary }}>{t('settings.clearCacheConfirmBody')}</p>
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setShowClearCacheConfirm(false)}
@@ -1133,7 +1157,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
-              {i18n.t('common.cancel')}
+              {t('common.cancel')}
             </button>
             <button
               onClick={async () => {
@@ -1143,14 +1167,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
                 try {
                   const result = await onClearOrphanCache();
                   if (result.errors.length > 0) {
-                    setCacheClearMessage(`${i18n.t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers (${result.errors.length} errors)`);
+                    setCacheClearMessage(`${t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers (${result.errors.length} errors)`);
                     setCacheClearMessageType('error');
                   } else {
-                    setCacheClearMessage(`${i18n.t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers`);
+                    setCacheClearMessage(`${t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers`);
                     setCacheClearMessageType('success');
                   }
                 } catch (error) {
-                  setCacheClearMessage(i18n.t('settings.clearCacheFailed'));
+                  setCacheClearMessage(t('settings.clearCacheFailed'));
                   setCacheClearMessageType('error');
                 } finally {
                   setIsClearingCache(false);
@@ -1164,10 +1188,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
               {isClearingCache ? (
                 <>
                   <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                  {i18n.t('settings.clearing')}
+                  {t('settings.clearing')}
                 </>
               ) : (
-                i18n.t('settings.confirmClearCache')
+                t('settings.confirmClearCache')
               )}
             </button>
           </div>

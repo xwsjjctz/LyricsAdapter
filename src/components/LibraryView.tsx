@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMe
 import { Track, SlotId } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
@@ -45,6 +45,12 @@ interface LibraryViewProps {
   onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
+  onLoadMorePlaylist?: () => void | Promise<void>;
+  playlistLoading?: boolean;
+  playlistHasMore?: boolean;
+  playlistLoadError?: string | null;
+  playlistTitle?: string;
+  playlistTrackCount?: number;
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: (token: number) => void;
@@ -93,12 +99,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onHeaderHeightChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
+  onLoadMorePlaylist,
+  playlistLoading = false,
+  playlistHasMore = false,
+  playlistLoadError = null,
+  playlistTitle,
+  playlistTrackCount,
   pendingLocateSlot,
   pendingLocateToken,
   onPendingLocatePrepared,
   onSlotContentReady,
   searchBox,
 }) => {
+  const { t } = useTranslation();
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state for file drop
@@ -106,8 +119,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [_dragOverIndex, setDragOverIndex] = useState<number | null>(null); // Drop target
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
-  // Force re-render when language changes
-  const [languageVersion, setLanguageVersion] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -156,14 +167,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
-
-  // Subscribe to language changes
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   // Subscribe to theme changes
   const [showEditDropdown, setShowEditDropdown] = useState(false);
@@ -270,12 +273,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     if (dataSource === 'cloud') {
       return {
         icon: 'cloud_off',
-        title: i18n.t('library.noCloudTracks'),
-        description: i18n.t('library.cloudEmptyHint'),
-        primaryLabel: i18n.t('library.refresh'),
+        title: t('library.noCloudTracks'),
+        description: t('library.cloudEmptyHint'),
+        primaryLabel: t('library.refresh'),
         primaryIcon: 'refresh',
         onPrimary: handleRefreshCloud,
-        secondaryLabel: i18n.t('browse.openSettings'),
+        secondaryLabel: t('browse.openSettings'),
         secondaryIcon: 'settings',
         onSecondary: onOpenSettings,
       };
@@ -283,21 +286,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     if (dataSource === 'online') {
       return {
         icon: 'history',
-        title: i18n.t('library.noOnlineTracks'),
-        description: i18n.t('library.onlineQueueEmptyHint'),
+        title: t('library.noOnlineTracks'),
+        description: t('library.onlineQueueEmptyHint'),
         primaryLabel: '',
         primaryIcon: '',
       };
     }
     return {
       icon: 'library_music',
-      title: i18n.t('library.noTracksImported'),
-      description: i18n.t('library.importTracksHint'),
-      primaryLabel: i18n.t('sidebar.importFiles'),
+      title: t('library.noTracksImported'),
+      description: t('library.importTracksHint'),
+      primaryLabel: t('sidebar.importFiles'),
       primaryIcon: 'add',
       onPrimary: onImportClick,
     };
-  }, [dataSource, handleRefreshCloud, onImportClick, onOpenSettings, languageVersion]);
+  }, [dataSource, handleRefreshCloud, onImportClick, onOpenSettings]);
 
   // Glass UI insets. topInset offsets the default (virtualized) list below the
   // frosted header band so rows scroll under it; the hook windows against it and
@@ -607,6 +610,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     // Notify parent of scroll position change
     onScrollPositionChange?.(newScrollTop);
 
+    if (dataSource === 'playlist' && filterType === 'default' && onLoadMorePlaylist && playlistHasMore && !playlistLoading) {
+      const distanceToBottom = e.currentTarget.scrollHeight - newScrollTop - e.currentTarget.clientHeight;
+      if (distanceToBottom < 240) void onLoadMorePlaylist();
+    }
+
     // Check if current playing track is visible (only if it's in filtered results)
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
     if (currentTrackInFilteredIndex >= 0 && targetTracks.length > 0) {
@@ -629,7 +637,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       setShowLocateButton(false);
     }
-  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
+  }, [onScrollPositionChange, onLoadMorePlaylist, playlistHasMore, playlistLoading, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
 
   const handleScrollToTop = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -941,6 +949,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled, importDisabledReason } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         trackCount={filteredTracks.length}
+        {...(playlistTitle ? { playlistTitle } : {})}
+        {...(playlistTrackCount != null ? { playlistTrackCount } : {})}
         importProgress={importProgress}
         loadProgress={dataSource === 'cloud' ? loadProgress : undefined}
         searchBox={searchBox}
@@ -965,11 +975,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             ) : (
               <span>#</span>
             )}
-            <span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span>
+            <span>{t('library.titleCol')}</span><span className="pl-8">{t('library.albumCol')}</span>
             {isEditMode ? (
-              <span className="text-right">{i18n.t('library.actionCol')}</span>
+              <span className="text-right">{t('library.actionCol')}</span>
             ) : (
-              <span className="text-right">{i18n.t('library.timeCol')}</span>
+              <span className="text-right">{t('library.timeCol')}</span>
             )}
           </div>
         </div>
@@ -987,8 +997,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
               <div className="text-center">
                 <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
-                <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
-                <p className="text-sm" style={{ color: colors.textMuted }}>{i18n.t('library.supportFormats')}</p>
+                <p className="text-2xl font-bold text-primary mb-2">{t('library.dropFiles')}</p>
+                <p className="text-sm" style={{ color: colors.textMuted }}>{t('library.supportFormats')}</p>
               </div>
             </div>
           )}
@@ -1118,7 +1128,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             style={glassUI ? { paddingBottom: bottomInset } : undefined}
           >
             <div className="text-xs font-bold uppercase tracking-widest mb-2 px-2" style={{ color: colors.textMuted }}>
-              {i18n.t(filterType === 'artist' ? 'library.artistList' : 'library.albumList')}
+              {t(filterType === 'artist' ? 'library.artistList' : 'library.albumList')}
             </div>
             <div className="flex flex-col gap-1">
               {filterType === 'artist' ? (
@@ -1181,8 +1191,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
                  <div className="text-center">
                    <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
-                   <p className="text-2xl font-bold text-primary mb-2">{i18n.t('library.dropFiles')}</p>
-                   <p className="text-sm" style={{ color: colors.textMuted }}>{i18n.t('library.supportFormats')}</p>
+                   <p className="text-2xl font-bold text-primary mb-2">{t('library.dropFiles')}</p>
+                   <p className="text-sm" style={{ color: colors.textMuted }}>{t('library.supportFormats')}</p>
                  </div>
                </div>
              )}
@@ -1204,11 +1214,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 ) : (
                   <span>#</span>
                 )}
-                 <span>{i18n.t('library.titleCol')}</span><span className="pl-8">{i18n.t('library.albumCol')}</span>
+                 <span>{t('library.titleCol')}</span><span className="pl-8">{t('library.albumCol')}</span>
                 {isEditMode ? (
-                  <span className="text-right">{i18n.t('library.actionCol')}</span>
+                  <span className="text-right">{t('library.actionCol')}</span>
                 ) : (
-                  <span className="text-right">{i18n.t('library.timeCol')}</span>
+                  <span className="text-right">{t('library.timeCol')}</span>
                 )}
                </div>
              </div>
@@ -1302,7 +1312,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              <div className="min-w-0 flex-1">
                                <p className="text-sm font-semibold truncate">
                                  {track.title}
-                                 {isUnavailable && <span className="text-xs text-yellow-400 ml-2">{i18n.t('library.needReimport')}</span>}
+                                 {isUnavailable && <span className="text-xs text-yellow-400 ml-2">{t('library.needReimport')}</span>}
                                </p>
                                <p className="text-xs opacity-50 truncate">{track.artist}</p>
                              </div>
@@ -1317,7 +1327,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                  }}
                                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                                  style={{ color: colors.textMuted }}
-                                 title={i18n.t('sidebar.metadata')}
+                                 title={t('sidebar.metadata')}
                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
                                >
@@ -1345,7 +1355,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 ) : (
                   <div className="py-20 text-center opacity-40">
                     <span className="material-symbols-outlined text-6xl mb-4 block">music_note</span>
-                    <p className="text-xl font-medium">{i18n.t(filterType === 'artist' ? 'library.selectArtist' : 'library.selectAlbum')}</p>
+                    <p className="text-xl font-medium">{t(filterType === 'artist' ? 'library.selectArtist' : 'library.selectAlbum')}</p>
                   </div>
                 )}
               </div>
@@ -1369,7 +1379,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
             bottom: glassUI ? bottomInset + 24 : 24,
           }}
-          title={i18n.t('library.locateToCurrent')}
+          title={t('library.locateToCurrent')}
           onMouseEnter={e => {
             if (inlineFab) return; // 粗粝风按钮 hover 不变阴影/底色，保持稳定外观
             e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
@@ -1393,8 +1403,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
         panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
       >
-            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
-            <p className="mb-4" style={{ color: colors.textSecondary }}>{i18n.t('library.deleteConfirmMessage')}</p>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.deleteConfirmTitle')}</h3>
+            <p className="mb-4" style={{ color: colors.textSecondary }}>{t('library.deleteConfirmMessage')}</p>
             {dataSource === 'local' && (
               <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" style={{ color: colors.textSecondary }}>
                 <input
@@ -1405,7 +1415,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   className="w-4 h-4 rounded cursor-pointer"
                   style={{ accentColor: colors.error }}
                 />
-                <span className="text-sm">{i18n.t('library.deleteFileOption')}</span>
+                <span className="text-sm">{t('library.deleteFileOption')}</span>
               </label>
             )}
             <div className="flex justify-end gap-3">
@@ -1419,14 +1429,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
-                {i18n.t('common.cancel')}
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleConfirmDelete}
                 className="px-4 py-2 rounded-lg transition-all"
                 style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
               >
-                {i18n.t('common.delete')}
+                {t('common.delete')}
               </button>
             </div>
       </GsapModal>
@@ -1439,9 +1449,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
         panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
       >
-            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{i18n.t('library.deleteConfirmTitle')}</h3>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.deleteConfirmTitle')}</h3>
             <p className="mb-4" style={{ color: colors.textSecondary }}>
-              {i18n.t('library.deleteSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
+              {t('library.deleteSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
             </p>
             {dataSource === 'local' && (
               <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" style={{ color: colors.textSecondary }}>
@@ -1453,7 +1463,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   className="w-4 h-4 rounded cursor-pointer"
                   style={{ accentColor: colors.error }}
                 />
-                <span className="text-sm">{i18n.t('library.deleteFileOption')}</span>
+                <span className="text-sm">{t('library.deleteFileOption')}</span>
               </label>
             )}
             <div className="flex justify-end gap-3">
@@ -1464,14 +1474,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
-                {i18n.t('common.cancel')}
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleConfirmBatchDelete}
                 className="px-4 py-2 rounded-lg transition-all"
                 style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
               >
-                {i18n.t('common.delete')}
+                {t('common.delete')}
               </button>
             </div>
       </GsapModal>
@@ -1487,6 +1497,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           onClose={() => setIsMetadataEditorOpen(false)}
           onExited={() => setEditingTrack(null)}
         />
+      )}
+
+      {dataSource === 'playlist' && playlistLoadError && (
+        <div
+          className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-1.5 rounded-lg px-3 py-2 text-xs shadow-lg"
+          style={{
+            bottom: glassUI ? bottomInset + 12 : 12,
+            backgroundColor: colors.backgroundCard,
+            border: `1px solid ${colors.borderLight}`,
+            color: colors.error,
+          }}
+        >
+          {playlistLoadError}
+        </div>
       )}
     </div>
   );

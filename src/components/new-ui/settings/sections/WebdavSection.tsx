@@ -1,5 +1,5 @@
 import React from 'react';
-import { i18n } from '@/services/i18n';
+import { useTranslation } from 'react-i18next';
 import type { SettingsTheme } from '../shared';
 
 interface WebdavSectionProps {
@@ -37,51 +37,16 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
   onTest,
   onSave,
 }) => {
+  const { t } = useTranslation();
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
-          {i18n.t('settingsDialog.webdavTitle')}
+          {t('settingsDialog.webdavTitle')}
         </h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onTest}
-            disabled={isTesting || isSaving}
-            className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
-          >
-            {isTesting ? (
-              <>
-                <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                {i18n.t('settingsDialog.webdavTesting')}
-              </>
-            ) : (
-              i18n.t('settingsDialog.webdavTestConnection')
-            )}
-          </button>
-          <button
-            onClick={onSave}
-            disabled={isTesting || isSaving}
-            className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-          >
-            {isSaving ? (
-              <>
-                <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                {i18n.t('settingsDialog.saving')}
-              </>
-            ) : (
-              i18n.t('settingsDialog.save')
-            )}
-          </button>
-        </div>
       </div>
       <div className="space-y-3">
         <input
@@ -98,7 +63,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder={i18n.t('settingsDialog.webdavUsername')}
+          placeholder={t('settingsDialog.webdavUsername')}
           className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
           style={inputStyle}
           onFocus={inputFocus}
@@ -108,20 +73,58 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder={i18n.t('settingsDialog.webdavPassword')}
+          placeholder={t('settingsDialog.webdavPassword')}
           className="w-full r-control py-2.5 px-3 text-sm focus:outline-none focus:ring-0 transition-all"
           style={inputStyle}
           onFocus={inputFocus}
           onBlur={inputBlur}
         />
-        {message && (
-          <span className={`text-xs ${
-            messageType === 'success' ? 'text-green-400' : 'text-red-400'
-          }`}>
-            {message}
-          </span>
-        )}
       </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={onTest}
+          disabled={isTesting || isSaving}
+          className="flex items-center justify-center gap-2 px-3 py-2 text-sm transition-all disabled:opacity-50"
+          style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
+        >
+          {isTesting ? (
+            <>
+              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              {t('settingsDialog.webdavTesting')}
+            </>
+          ) : (
+            t('settingsDialog.webdavTestConnection')
+          )}
+        </button>
+        <button
+          onClick={onSave}
+          disabled={isTesting || isSaving}
+          className="flex items-center justify-center gap-2 px-3 py-2 text-sm transition-all disabled:opacity-50"
+          style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
+        >
+          {isSaving ? (
+            <>
+              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              {t('settingsDialog.saving')}
+            </>
+          ) : (
+            t('settingsDialog.save')
+          )}
+        </button>
+      </div>
+
+      {message && (
+        <span className={`mt-3 block text-xs ${
+          messageType === 'success' ? 'text-green-400' : 'text-red-400'
+        }`}>
+          {message}
+        </span>
+      )}
     </section>
   );
 };

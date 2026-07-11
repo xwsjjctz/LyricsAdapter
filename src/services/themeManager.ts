@@ -4,11 +4,13 @@
  */
 
 import { logger } from './logger';
+import { appStorage } from './appStorage';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
+import { settingsManager } from './settingsManager';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
@@ -23,7 +25,7 @@ class ThemeManagerClass {
 
   private loadFromStorage(): void {
     try {
-      const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
+      const storedTheme = appStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
       const normalizedTheme = this.normalizeThemeId(storedTheme);
       if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
         this.currentThemeId = normalizedTheme;
@@ -45,9 +47,10 @@ class ThemeManagerClass {
   private saveToStorage(themeId: ThemeId): void {
     try {
       localStorage.setItem(THEME_STORAGE_KEY, themeId);
-      logger.debug('[ThemeManager] Theme saved to localStorage:', themeId);
+      appStorage.setItem(THEME_STORAGE_KEY, themeId).catch(() => {});
+      logger.debug('[ThemeManager] Theme saved', themeId);
     } catch (error) {
-      logger.error('[ThemeManager] Failed to save to localStorage:', error);
+      logger.error('[ThemeManager] Failed to save theme:', error);
     }
   }
 
@@ -74,6 +77,9 @@ class ThemeManagerClass {
     this.saveToStorage(themeId);
     this.applyTheme(theme);
     this.notifyListeners();
+    if (settingsManager.getNewUxEnabled()) {
+      settingsManager.setNewUxEnabled(false);
+    }
 
     logger.info('[ThemeManager] Theme changed to:', theme.name);
   }

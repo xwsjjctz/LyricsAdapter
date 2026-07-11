@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Track } from '../types';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import TrackCover from './TrackCover';
 
@@ -53,6 +53,8 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   onDragOver,
   onDragEnd,
 }) => {
+  // This memo component uses useTranslation for i18n
+  const { t } = useTranslation();
   const isUnavailable = track.available === false;
   const canDrag = isEditMode && !isUnavailable;
   const animationStyle = shouldShowAnimation
@@ -123,7 +125,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         <div className="min-w-0 flex-1">
           <p className="text-sm truncate" style={{ color: isCurrentTrack ? 'var(--theme-control-current-track-fg)' : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>
             {track.title}
-            {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{i18n.t('library.needReimport')}</span>}
+            {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{t('library.needReimport')}</span>}
           </p>
           <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
         </div>
@@ -138,7 +140,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
             }}
             className="w-8 h-8 flex items-center justify-center transition-all"
             style={{ color: colors.textMuted, borderRadius: 'var(--theme-button-radius)' }}
-            title={i18n.t('sidebar.metadata')}
+            title={t('sidebar.metadata')}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
           >

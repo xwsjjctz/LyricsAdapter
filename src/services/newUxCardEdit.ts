@@ -61,10 +61,6 @@ async function persistOverrides(map: CardOverrideMap): Promise<void> {
   }
 }
 
-export function getCardOverride(entryId: string): CardOverride | undefined {
-  return overridesCache?.[entryId];
-}
-
 export async function setCardOverride(
   entryId: string,
   patch: Partial<CardOverride>,

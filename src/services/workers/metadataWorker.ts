@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
-type SyncedLyricLine = { time: number; text: string };
+import { parseLRCLyrics } from '../../shared/lrcParser';
+import type { SyncedLyricLine } from '../../types';
 
 interface WorkerMetadataResult {
   title?: string | undefined;
@@ -167,62 +168,7 @@ function decodePictureFrame(buffer: ArrayBuffer): { mime?: string; data?: ArrayB
   }
 }
 
-function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics?: SyncedLyricLine[] | undefined } {
-  const lines = lrc.split(/\r?\n/);
-  const syncedLyrics: SyncedLyricLine[] = [];
-  const plainTextLines: string[] = [];
-
-  // LRC timestamp format: [mm:ss.xx], [mm:ss], or [hh:mm:ss]
-  const timeRegex = /\[(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{2,3}))?\]/g;
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (!trimmedLine) continue;
-
-    const matches = [...trimmedLine.matchAll(timeRegex)];
-    const textWithoutTimestamps = trimmedLine.replace(timeRegex, '').trim();
-
-    // Skip placeholder lines like "//"
-    if (textWithoutTimestamps === '//') continue;
-
-    if (matches.length > 0 && textWithoutTimestamps) {
-      for (const match of matches) {
-        const minutes = parseInt(match[1]!, 10);
-        const seconds = parseInt(match[2]!, 10);
-        // match[3] is seconds in [hh:mm:ss] format, match[4] is milliseconds
-        const hoursOrSeconds = match[3];
-        const milliseconds = match[4] ? parseInt(match[4].padEnd(3, '0'), 10) : 0;
-
-        let timeInSeconds: number;
-        if (hoursOrSeconds) {
-          // [hh:mm:ss] format: match[1]=hours, match[2]=minutes, match[3]=seconds
-          const hours = minutes;
-          const mins = seconds;
-          const secs = parseInt(hoursOrSeconds, 10);
-          timeInSeconds = hours * 3600 + mins * 60 + secs;
-        } else {
-          // [mm:ss.xx] or [mm:ss] format
-          timeInSeconds = minutes * 60 + seconds + milliseconds / 1000;
-        }
-
-        syncedLyrics.push({
-          time: timeInSeconds,
-          text: textWithoutTimestamps
-        });
-      }
-      plainTextLines.push(trimmedLine); // Keep original line with timestamps
-    } else if (textWithoutTimestamps) {
-      plainTextLines.push(trimmedLine);
-    }
-  }
-
-  syncedLyrics.sort((a, b) => a.time - b.time);
-
-  return {
-    plainText: plainTextLines.join('\n'),
-    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined
-  };
-}
+// parseLRCLyrics 已收敛到 src/shared/lrcParser.ts（全项目唯一真身）。
 
 function parseVorbisComment(buffer: ArrayBuffer): Partial<WorkerMetadataResult> {
   const result: Partial<WorkerMetadataResult> = {};

@@ -161,9 +161,11 @@
   --wall-x: 0px;
   --wall-y: 0px;
   position: absolute;
-  inset: 44px 0 0;
-  min-height: 540px;
+  inset: 0;
+  min-height: 100%;
+  transform: translate3d(var(--wall-x), var(--wall-y), 0);
   transform-style: preserve-3d;
+  will-change: transform;
   z-index: 10;
   cursor: grab;
   touch-action: none;
@@ -208,8 +210,8 @@
   transform:
     translate(-50%, -50%)
     translate3d(
-      calc(var(--card-layout-x) + var(--wall-x)),
-      calc(var(--card-layout-y) + var(--wall-y)),
+      var(--card-layout-x),
+      var(--card-layout-y),
       var(--card-z)
     )
     rotateX(var(--card-rot-x))
@@ -1567,6 +1569,42 @@
   width: min(680px, calc(100vw - 72px));
 }
 
+.new-ux-side-panel--theme {
+  width: min(440px, calc(100vw - 72px));
+}
+
+.new-ux-side-panel--settings {
+  width: min(392px, calc(100vw - 72px));
+}
+
+/* Legacy UI settings/theme cards: keep the Library page mounted underneath
+   while reusing the New UI glass panel content and interaction language. */
+.legacy-floating-panel-shell {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  bottom: 104px;
+  z-index: 40;
+  width: min(440px, calc(100% - 40px));
+  pointer-events: auto;
+}
+
+.legacy-floating-panel-shell--settings {
+  width: min(420px, calc(100% - 40px));
+}
+
+.legacy-floating-panel-shell--theme {
+  width: min(470px, calc(100% - 40px));
+}
+
+.legacy-floating-panel-shell > .new-ux-side-panel {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+
 .new-ux-side-panel__header,
 .new-ux-side-panel__footer {
   display: flex;
@@ -1605,6 +1643,11 @@
 
 .new-ux-settings-panel__body {
   scrollbar-width: none;
+}
+
+.new-ux-settings-panel__narrow {
+  width: min(100%, 360px);
+  margin-inline: auto;
 }
 
 .new-ux-settings-panel__body::-webkit-scrollbar {
@@ -1739,6 +1782,14 @@
   .new-ux-side-panel {
     right: 18px;
     left: 18px;
+    width: auto;
+  }
+
+  .legacy-floating-panel-shell,
+  .legacy-floating-panel-shell--settings,
+  .legacy-floating-panel-shell--theme {
+    right: 12px;
+    left: 12px;
     width: auto;
   }
 }

@@ -1,7 +1,7 @@
 import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { i18n } from '../services/i18n';
+import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 
@@ -45,8 +45,7 @@ interface TitleBarProps {
 const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode }) => {
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
-  // Force re-render when language changes
-  const [, setLanguageVersion] = useState(0);
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   // Window focus state (for focus button styling)
@@ -64,13 +63,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
 
   // Mouse hover state for the button
   const [isButtonHovered, setIsButtonHovered] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = i18n.subscribe(() => {
-      setLanguageVersion(v => v + 1);
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -108,7 +100,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             onClick={onToggleFocusMode}
             data-no-gsap-bounce
             className="w-12 h-12 flex items-center justify-center"
-            aria-label={isFocusMode ? i18n.t('titleBar.exitFocusMode') : i18n.t('titleBar.enterFocusMode')}
+            aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
             onMouseEnter={() => setIsButtonHovered(true)}
             onMouseLeave={() => setIsButtonHovered(false)}
           >
@@ -167,7 +159,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
             onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
-            aria-label={isFocusMode ? i18n.t('titleBar.exitFocusMode') : i18n.t('titleBar.enterFocusMode')}
+            aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
           >
             <span className="transition-transform duration-250 ease-out" style={{ transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
               <CollapseIcon />
@@ -180,7 +172,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
             onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
-            aria-label={i18n.t('titleBar.minimize')}
+            aria-label={t('titleBar.minimize')}
           >
             <MinimizeIcon />
           </button>
@@ -191,7 +183,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
             onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
-            aria-label={isMaximized ? i18n.t('titleBar.restore') : i18n.t('titleBar.maximize')}
+            aria-label={isMaximized ? t('titleBar.restore') : t('titleBar.maximize')}
           >
             {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
           </button>
@@ -202,7 +194,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             style={{ color: colors.textSecondary }}
             onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.backgroundColor = '#c42b1c'; }}
             onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
-            aria-label={i18n.t('titleBar.close')}
+            aria-label={t('titleBar.close')}
           >
             <CloseIcon />
           </button>
