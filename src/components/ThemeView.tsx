@@ -216,7 +216,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleThemes.map((theme) => {
             const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
-            const isCurrent = theme.id === currentThemeId;
+            const isCurrent = !settingsManager.getNewUxEnabled() && theme.id === currentThemeId;
             const controls = resolveThemeControls(theme);
             const appearance = resolveThemeAppearance(theme);
 
