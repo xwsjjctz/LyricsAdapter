@@ -14,8 +14,9 @@ import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import BrowseView from './components/BrowseView';
 import MetadataView from './components/MetadataView';
-import SettingsView from './components/SettingsView';
-import ThemeView from './components/ThemeView';
+import SettingsPanel from './components/new-ui/SettingsPanel';
+import ThemePanel from './components/new-ui/ThemePanel';
+import FloatingPanel from './components/FloatingPanel';
 import Controls from './components/Controls';
 import FocusMode from './components/FocusMode';
 import SearchBox from './components/SearchBox';
@@ -574,10 +575,6 @@ const AppWorkspace: React.FC = () => {
                   ));
                 }}
               />
-            ) : viewMode === ViewMode.SETTINGS ? (
-              <SettingsView onClearOrphanCache={handleClearOrphanCache} onHeaderHeightChange={setHeaderHeight} />
-            ) : viewMode === ViewMode.THEME ? (
-              <ThemeView onHeaderHeightChange={setHeaderHeight} />
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView
@@ -631,6 +628,25 @@ const AppWorkspace: React.FC = () => {
               </div>
             )}
           </div>
+          {viewMode === ViewMode.SETTINGS && (
+            <FloatingPanel
+              onClose={() => transitionToView(ViewMode.PLAYER)}
+              className="legacy-floating-panel-shell--settings"
+            >
+              <SettingsPanel
+                onClose={() => transitionToView(ViewMode.PLAYER)}
+                onClearOrphanCache={handleClearOrphanCache}
+              />
+            </FloatingPanel>
+          )}
+          {viewMode === ViewMode.THEME && (
+            <FloatingPanel
+              onClose={() => transitionToView(ViewMode.PLAYER)}
+              className="legacy-floating-panel-shell--theme"
+            >
+              <ThemePanel onClose={() => transitionToView(ViewMode.PLAYER)} />
+            </FloatingPanel>
+          )}
           <Controls
             track={player.currentTrack}
             isPlaying={player.isPlaying}
