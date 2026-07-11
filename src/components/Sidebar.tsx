@@ -27,7 +27,7 @@ interface SidebarProps {
   activeSlotId: SlotId;
   onSlotChange: (slotId: SlotId) => void;
   libraryTrackCounts: LibraryTrackCounts;
-  onOpenPlaylist?: (source: OnlineSource, playlistId: string, name: string) => Promise<void>;
+  onOpenPlaylist?: (source: OnlineSource, playlistId: string, name: string, songCount: number) => Promise<void>;
   floating?: boolean;
 }
 
@@ -126,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (!onOpenPlaylist || isPlaylistEditMode) return;
     setSelectedPlaylistKey(`${playlist.source}:${playlist.id}`);
     try {
-      await onOpenPlaylist(playlist.source, playlist.id, playlist.name);
+      await onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount);
     } catch {
       notify(t('playlists.title'), t('browse.error'));
     }

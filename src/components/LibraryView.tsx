@@ -45,6 +45,12 @@ interface LibraryViewProps {
   onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
+  onLoadMorePlaylist?: () => void | Promise<void>;
+  playlistLoading?: boolean;
+  playlistHasMore?: boolean;
+  playlistLoadError?: string | null;
+  playlistTitle?: string;
+  playlistTrackCount?: number;
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: (token: number) => void;
@@ -93,6 +99,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onHeaderHeightChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
+  onLoadMorePlaylist,
+  playlistLoading = false,
+  playlistHasMore = false,
+  playlistLoadError = null,
+  playlistTitle,
+  playlistTrackCount,
   pendingLocateSlot,
   pendingLocateToken,
   onPendingLocatePrepared,
@@ -598,6 +610,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     // Notify parent of scroll position change
     onScrollPositionChange?.(newScrollTop);
 
+    if (dataSource === 'playlist' && filterType === 'default' && onLoadMorePlaylist && playlistHasMore && !playlistLoading) {
+      const distanceToBottom = e.currentTarget.scrollHeight - newScrollTop - e.currentTarget.clientHeight;
+      if (distanceToBottom < 240) void onLoadMorePlaylist();
+    }
+
     // Check if current playing track is visible (only if it's in filtered results)
     const targetTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
     if (currentTrackInFilteredIndex >= 0 && targetTracks.length > 0) {
@@ -620,7 +637,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       setShowLocateButton(false);
     }
-  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
+  }, [onScrollPositionChange, onLoadMorePlaylist, playlistHasMore, playlistLoading, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
 
   const handleScrollToTop = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -932,6 +949,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled, importDisabledReason } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         trackCount={filteredTracks.length}
+        {...(playlistTitle ? { playlistTitle } : {})}
+        {...(playlistTrackCount != null ? { playlistTrackCount } : {})}
         importProgress={importProgress}
         loadProgress={dataSource === 'cloud' ? loadProgress : undefined}
         searchBox={searchBox}
@@ -1478,6 +1497,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           onClose={() => setIsMetadataEditorOpen(false)}
           onExited={() => setEditingTrack(null)}
         />
+      )}
+
+      {dataSource === 'playlist' && playlistLoadError && (
+        <div
+          className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-1.5 rounded-lg px-3 py-2 text-xs shadow-lg"
+          style={{
+            bottom: glassUI ? bottomInset + 12 : 12,
+            backgroundColor: colors.backgroundCard,
+            border: `1px solid ${colors.borderLight}`,
+            color: colors.error,
+          }}
+        >
+          {playlistLoadError}
+        </div>
       )}
     </div>
   );

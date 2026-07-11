@@ -58,6 +58,10 @@ interface NewUxShellProps {
   onImportIntoSlot: (slotId: SlotId) => Promise<void>;
   onReloadUnavailable: () => void;
   onOpenOnlinePlaylist: (source: OnlineSource, playlistId: string, name: string) => Promise<void>;
+  onLoadMoreOnlinePlaylist: () => void | Promise<void>;
+  onlinePlaylistLoading: boolean;
+  onlinePlaylistHasMore: boolean;
+  onlinePlaylistLoadError: string | null;
   /** Tracks browsed by opening a third-party playlist card (browse/play decoupled
    *  from the 'playlist' play slot so opening a card never pauses playback). */
   browsingTracks: Track[];
@@ -102,6 +106,10 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   onImportIntoSlot,
   onReloadUnavailable,
   onOpenOnlinePlaylist,
+  onLoadMoreOnlinePlaylist,
+  onlinePlaylistLoading,
+  onlinePlaylistHasMore,
+  onlinePlaylistLoadError,
   browsingTracks,
   onPlayBrowsingTrack,
   onClearOrphanCache,
@@ -220,6 +228,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     return null;
   }, [entries, panels.state.openPlaylistId, slots, browsingTracks]);
   const openTracks = openPanel?.tracks ?? [];
+  const isOnlinePlaylistPanel = openPanel?.entry.kind === 'online-playlist';
   // The slot the open panel's tracks belong to. Slot cards → their own slot.
   // Third-party playlist cards have no backing slot until the user plays one —
   // returning null keeps handlePanelTrackSelect on the browsing-play path.
@@ -433,6 +442,9 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                 <PlaylistPanel
                   title={openPanel.entry.title}
                   tracks={openTracks}
+                  {...(openPanel.entry.kind === 'online-playlist' && openPanel.entry.trackCount != null
+                    ? { totalTrackCount: openPanel.entry.trackCount }
+                    : {})}
                   {...(currentTrack?.id ? { currentTrackId: currentTrack.id } : {})}
                   isEditMode={panels.state.isEditMode}
                   selectedTrackIds={panels.state.selectedTrackIds}
@@ -446,6 +458,12 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                   onExitEditMode={panels.exitEditMode}
                   onDeleteSelected={() => panels.openDeleteConfirm(Array.from(panels.state.selectedTrackIds))}
                   onCurrentTrackVisibilityChange={setIsCurrentTrackVisible}
+                  {...(isOnlinePlaylistPanel ? {
+                    onLoadMore: onLoadMoreOnlinePlaylist,
+                    isLoadingMore: onlinePlaylistLoading,
+                    hasMore: onlinePlaylistHasMore,
+                    loadError: onlinePlaylistLoadError,
+                  } : {})}
                 />
               )}
               {editingTrack && (

@@ -344,8 +344,13 @@ const AppWorkspace: React.FC = () => {
     navigateToTrack: playerController.handleSearchNavigate,
   });
 
-  const handleOpenPlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
-    await playerController.openOnlinePlaylistInLibrary(source, playlistId);
+  const handleOpenPlaylist = useCallback(async (
+    source: OnlineSource,
+    playlistId: string,
+    playlistTitle: string,
+    totalTrackCount: number,
+  ) => {
+    await playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
     await handleSwitchSlot('playlist');
     transitionToView(ViewMode.PLAYER);
   }, [handleSwitchSlot, playerController, transitionToView]);
@@ -486,6 +491,10 @@ const AppWorkspace: React.FC = () => {
           onImportIntoSlot={importVm.importIntoSlot}
           onReloadUnavailable={importVm.reloadUnavailable}
           onOpenOnlinePlaylist={online.openPlaylist}
+          onLoadMoreOnlinePlaylist={playerController.loadMoreBrowsingPlaylist}
+          onlinePlaylistLoading={playerController.browsingPlaylistLoadState.isLoading}
+          onlinePlaylistHasMore={playerController.browsingPlaylistLoadState.hasMore}
+          onlinePlaylistLoadError={playerController.browsingPlaylistLoadState.error}
           browsingTracks={playerController.browsingTracks.tracks}
           onPlayBrowsingTrack={playerController.playBrowsingTrack}
           onClearOrphanCache={handleClearOrphanCache}
@@ -612,6 +621,16 @@ const AppWorkspace: React.FC = () => {
                 onHeaderHeightChange={setHeaderHeight}
                 onLoadCloudTracks={loadCloudTracks}
                 onMergeCloudTracks={mergeCloudTracks}
+                {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playerController.loadMorePlaylistInLibrary } : {})}
+                playlistLoading={viewSlot === 'playlist' ? playerController.libraryPlaylistLoadState.isLoading : false}
+                playlistHasMore={viewSlot === 'playlist' ? playerController.libraryPlaylistLoadState.hasMore : false}
+                playlistLoadError={viewSlot === 'playlist' ? playerController.libraryPlaylistLoadState.error : null}
+                {...(viewSlot === 'playlist' && playerController.libraryPlaylistLoadState.title
+                  ? { playlistTitle: playerController.libraryPlaylistLoadState.title }
+                  : {})}
+                {...(viewSlot === 'playlist' && playerController.libraryPlaylistLoadState.totalTrackCount != null
+                  ? { playlistTrackCount: playerController.libraryPlaylistLoadState.totalTrackCount }
+                  : {})}
 	                searchBox={
 	                  <SearchBox
 	                    isWindowFocused={isWindowFocused}

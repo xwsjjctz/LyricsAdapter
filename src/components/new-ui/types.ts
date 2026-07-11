@@ -15,6 +15,7 @@ export interface CardMeta {
   subtitle: string;
   icon: string;
   coverUrls: string[];
+  trackCount?: number;
 }
 
 /**
