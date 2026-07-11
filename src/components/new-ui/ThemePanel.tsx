@@ -5,6 +5,7 @@ import { settingsManager } from '../../services/settingsManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../../types/theme';
 import { predefinedThemes } from '../../services/themes/predefinedThemes';
 import { resolveThemeAppearance } from '../../services/themeAppearance';
+import { resolveThemeControls } from '../../services/themeControls';
 
 interface ThemePanelProps {
   onClose: () => void;
@@ -105,75 +106,6 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   const getThemeNameKey = (themeId: string): string => `theme.name.${themeId}`;
   const getThemeDescKey = (themeId: string): string => `theme.desc.${themeId}`;
 
-  const getThemeTagKey = (tag: string): string => {
-    const tagMap: Record<string, string> = {
-      '默认': 'theme.tag.default',
-      '经典': 'theme.tag.classic',
-      '商务': 'theme.tag.business',
-      '可爱': 'theme.tag.cute',
-      '甜美': 'theme.tag.sweet',
-      '粉色': 'theme.tag.pink',
-      '海洋': 'theme.tag.ocean',
-      '蓝色': 'theme.tag.blue',
-      '深邃': 'theme.tag.deep',
-      '温暖': 'theme.tag.warm',
-      '橙色': 'theme.tag.orange',
-      '舒适': 'theme.tag.cozy',
-      '自然': 'theme.tag.natural',
-      '绿色': 'theme.tag.green',
-      '清新': 'theme.tag.fresh',
-      '神秘': 'theme.tag.mysterious',
-      '紫色': 'theme.tag.purple',
-      '优雅': 'theme.tag.elegant',
-      '浅色': 'theme.tag.light',
-      '冷色': 'theme.tag.cool',
-      '现代': 'theme.tag.modern',
-      '极简': 'theme.tag.minimal',
-      '暖色': 'theme.tag.warmColor',
-      '简约': 'theme.tag.minimalist',
-      '粗粝': 'theme.tag.brutalist',
-      '高对比': 'theme.tag.highContrast',
-      '黄色': 'theme.tag.yellow',
-      'Default': 'theme.tag.default',
-      'Classic': 'theme.tag.classic',
-      'Business': 'theme.tag.business',
-      'Cute': 'theme.tag.cute',
-      'Sweet': 'theme.tag.sweet',
-      'Pink': 'theme.tag.pink',
-      'Ocean': 'theme.tag.ocean',
-      'Blue': 'theme.tag.blue',
-      'Deep': 'theme.tag.deep',
-      'Warm': 'theme.tag.warm',
-      'Orange': 'theme.tag.orange',
-      'Cozy': 'theme.tag.cozy',
-      'Natural': 'theme.tag.natural',
-      'Green': 'theme.tag.green',
-      'Fresh': 'theme.tag.fresh',
-      'Mysterious': 'theme.tag.mysterious',
-      'Purple': 'theme.tag.purple',
-      'Elegant': 'theme.tag.elegant',
-      'Light': 'theme.tag.light',
-      'Cool': 'theme.tag.cool',
-      'Modern': 'theme.tag.modern',
-      'Minimalist': 'theme.tag.minimalist',
-      'Warm Color': 'theme.tag.warmColor',
-      'Warm Tone': 'theme.tag.warmColor',
-      'Brutalist': 'theme.tag.brutalist',
-      'High Contrast': 'theme.tag.highContrast',
-      'Yellow': 'theme.tag.yellow',
-    };
-    return tagMap[tag] || '';
-  };
-
-  const translateTag = (tag: string): string => {
-    const key = getThemeTagKey(tag);
-    if (key) {
-      const translated = t(key);
-      return translated !== key ? translated : tag;
-    }
-    return tag;
-  };
-
   const defaultDarkTheme = predefinedThemes.find(theme => theme.id === THEME_IDS.DEFAULT_DARK)!;
   const defaultLightTheme = predefinedThemes.find(theme => theme.id === THEME_IDS.DEFAULT_LIGHT)!;
   const defaultCardTheme = defaultCardMode === 'dark' ? defaultDarkTheme : defaultLightTheme;
@@ -215,129 +147,153 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
             </span>
           </section>
 
-          <div className="space-y-2.5">
-          {visibleThemes.map((theme) => {
-            const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
-            const isCurrent = !newUxEnabled && theme.id === currentThemeId;
-            const appearance = resolveThemeAppearance(theme);
+          <div className="space-y-2">
+            {visibleThemes.map((theme) => {
+              const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
+              const isCurrent = !newUxEnabled && theme.id === currentThemeId;
+              const controls = resolveThemeControls(theme);
+              const appearance = resolveThemeAppearance(theme);
+              const themeName = isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id));
 
-            return (
-              <div
-                key={isDefaultCard ? 'default-theme-card' : theme.id}
-                className="theme-preview-card flex min-h-[88px] overflow-hidden transition-shadow duration-200"
-                style={{
-                  backgroundColor: theme.colors.backgroundSidebar,
-                  borderRadius: appearance.surfaceRadius,
-                  border: `${appearance.surfaceBorderWidth} solid ${theme.colors.borderLight}`,
-                  boxShadow: appearance.surfaceShadow,
-                }}
-              >
-                <div className="relative w-24 shrink-0 overflow-hidden">
-                  {isDefaultCard && (
-                    <div
-                      className="absolute right-2 top-2 z-10"
-                    >
-                      <ThemeModeSwitch
-                        checked={defaultCardMode === 'dark'}
-                        ariaLabel={defaultCardMode === 'dark' ? t('theme.darkMode') : t('theme.lightMode')}
-                        onChange={handleToggleDefaultCardMode}
-                      />
-                    </div>
-                  )}
-                  <div
-                    className="theme-preview-color absolute inset-0"
-                    style={{
-                      background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
-                      backgroundColor: theme.colors.backgroundGradientStart,
-                    }}
-                  />
-                  <div
-                    className="theme-preview-color absolute -right-4 -top-4 size-14 opacity-45"
-                    style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.buttonRadius }}
-                  />
-                  <div
-                    className="theme-preview-color absolute bottom-3 left-3 flex size-9 items-center justify-center"
-                    style={{
-                      backgroundColor: theme.colors.primary,
-                      color: theme.isDark ? '#ffffff' : '#1a1a1a',
-                      borderRadius: appearance.buttonRadius,
-                    }}
-                  >
-                    <span className="material-symbols-outlined text-lg">palette</span>
-                  </div>
-                </div>
-
-                <div className="theme-preview-color min-w-0 flex-1 px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <h3
-                      className="min-w-0 flex-1 truncate text-sm"
-                      style={{
-                        color: theme.colors.textPrimary,
-                        fontFamily: theme.fonts.display || theme.fonts.main,
-                        fontWeight: appearance.textHeadingWeight,
-                        letterSpacing: appearance.headingLetterSpacing,
-                      }}
-                    >
-                      {isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id))}
-                    </h3>
-                    {isCurrent && (
-                      <span
-                        className="theme-preview-color flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-[11px]"
-                        style={{
-                          backgroundColor: theme.colors.primary,
-                          color: theme.isDark ? '#ffffff' : '#1a1a1a',
-                          borderRadius: appearance.buttonRadius,
-                          fontWeight: appearance.textButtonWeight,
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-sm">check</span>
-                        {t('theme.applied')}
-                      </span>
-                    )}
-                  </div>
-
-                  <p
-                    className="mt-1 truncate text-xs"
-                    style={{ color: theme.colors.textSecondary }}
-                  >
-                    {isDefaultCard ? t('theme.desc.default-combined') : t(getThemeDescKey(theme.id))}
-                  </p>
-
-                  <div className="mt-2 flex gap-1 overflow-hidden">
-                    {theme.tags.slice(0, 2).map((tag) => (
-                      <span
-                        key={tag}
-                        className="theme-preview-color shrink-0 px-1.5 py-0.5 text-[10px]"
-                        style={{
-                          backgroundColor: theme.colors.backgroundCardHover,
-                          color: theme.colors.textMuted,
-                          borderRadius: appearance.buttonRadius,
-                          fontWeight: appearance.textButtonWeight,
-                          letterSpacing: appearance.buttonLetterSpacing,
-                          textTransform: appearance.controlTextTransform as React.CSSProperties['textTransform'],
-                        }}
-                      >
-                        {translateTag(tag)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleApplyTheme(theme.id)}
-                  aria-label={`${isCurrent ? t('theme.applied') : t('theme.apply')}: ${isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id))}`}
-                  className="flex w-10 shrink-0 items-center justify-center transition-colors"
+              return (
+                <div
+                  key={isDefaultCard ? 'default-theme-card' : theme.id}
+                  className="theme-preview-card group relative overflow-hidden transition-all duration-200"
                   style={{
-                    backgroundColor: isCurrent ? `${theme.colors.primary}18` : theme.colors.backgroundCardHover,
-                    color: isCurrent ? theme.colors.primary : theme.colors.textSecondary,
+                    backgroundColor: theme.colors.backgroundSidebar,
+                    borderRadius: appearance.surfaceRadius,
+                    border: `${appearance.surfaceBorderWidth} solid ${theme.colors.borderLight}`,
+                    boxShadow: appearance.surfaceShadow,
                   }}
                 >
-                  <span className="material-symbols-outlined text-lg">{isCurrent ? 'check' : 'arrow_forward'}</span>
-                </button>
-              </div>
-            );
-          })}
+                  <div className="relative h-24 overflow-hidden">
+                    {isDefaultCard && (
+                      <div
+                        className="absolute right-2 top-2 z-20"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <ThemeModeSwitch
+                          checked={defaultCardMode === 'dark'}
+                          ariaLabel={defaultCardMode === 'dark' ? t('theme.darkMode') : t('theme.lightMode')}
+                          onChange={handleToggleDefaultCardMode}
+                        />
+                      </div>
+                    )}
+                    <div
+                      className="theme-preview-color absolute inset-0 opacity-80"
+                      style={{
+                        background: `linear-gradient(135deg, ${theme.colors.backgroundGradientStart}, ${theme.colors.backgroundGradientEnd})`,
+                        backgroundColor: theme.colors.backgroundGradientStart,
+                      }}
+                    />
+                    <div
+                      className="theme-preview-color absolute left-3 top-3 size-6 opacity-60"
+                      style={{ backgroundColor: theme.colors.primary, borderRadius: appearance.buttonRadius }}
+                    />
+                    <div
+                      className="theme-preview-color absolute right-6 top-4 size-3 opacity-40"
+                      style={{ backgroundColor: theme.colors.accent, borderRadius: appearance.controlRadius }}
+                    />
+                    <div
+                      className="theme-preview-color absolute bottom-3 right-8 size-4 opacity-30"
+                      style={{ backgroundColor: theme.colors.success, borderRadius: appearance.buttonRadius }}
+                    />
+                    <div
+                      className="theme-preview-color absolute bottom-3 left-3 right-3 p-1.5"
+                      style={{
+                        backgroundColor: controls.panelBackgroundGlassStrong,
+                        border: `${appearance.panelBorderWidth} solid ${controls.panelBorder}`,
+                        borderRadius: appearance.surfaceRadius,
+                        boxShadow: controls.panelShadow,
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="theme-preview-color flex h-6 w-6 items-center justify-center"
+                          style={{
+                            backgroundColor: controls.primaryButtonBackground,
+                            color: controls.primaryButtonForeground,
+                            borderRadius: appearance.buttonRadius,
+                            boxShadow: controls.primaryButtonShadow,
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-[14px] fill-icon">play_arrow</span>
+                        </span>
+                        <div
+                          className="theme-preview-color flex-1 overflow-hidden"
+                          style={{
+                            height: '3px',
+                            borderRadius: appearance.progressRadius,
+                            backgroundColor: controls.sliderTrack,
+                          }}
+                        >
+                          <div
+                            className="theme-preview-color h-full w-2/3"
+                            style={{ backgroundColor: controls.sliderFill, borderRadius: appearance.progressRadius }}
+                          />
+                        </div>
+                        <span
+                          className="theme-preview-color h-6 w-6"
+                          style={{ backgroundColor: controls.iconBackgroundActive, borderRadius: appearance.controlRadius }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="theme-preview-color px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <h3
+                        className="min-w-0 flex-1 truncate text-sm"
+                        style={{
+                          color: theme.colors.textPrimary,
+                          fontFamily: theme.fonts.display || theme.fonts.main,
+                          fontWeight: appearance.textHeadingWeight,
+                          letterSpacing: appearance.headingLetterSpacing,
+                        }}
+                      >
+                        {themeName}
+                      </h3>
+                      {isCurrent && (
+                        <span
+                          className="theme-preview-color flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-[10px]"
+                          style={{
+                            backgroundColor: theme.colors.primary,
+                            color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                            borderRadius: appearance.buttonRadius,
+                            fontWeight: appearance.textButtonWeight,
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-xs">check</span>
+                          {t('theme.applied')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs" style={{ color: theme.colors.textSecondary }}>
+                      {isDefaultCard ? t('theme.desc.default-combined') : t(getThemeDescKey(theme.id))}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyTheme(theme.id)}
+                    aria-label={`${isCurrent ? t('theme.applied') : t('theme.apply')}: ${themeName}`}
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-visible:opacity-100"
+                  >
+                    <span
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium shadow-lg"
+                      style={{
+                        backgroundColor: theme.colors.primary,
+                        color: theme.isDark ? '#ffffff' : '#1a1a1a',
+                        borderRadius: appearance.buttonRadius,
+                      }}
+                    >
+                      <span className="material-symbols-outlined text-sm">{isCurrent ? 'check' : 'arrow_forward'}</span>
+                      {isCurrent ? t('theme.applied') : t('theme.apply')}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
