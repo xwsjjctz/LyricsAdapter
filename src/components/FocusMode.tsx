@@ -283,6 +283,16 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
   const lyricsLines = useMemo(() => {
     if (track?.syncedLyrics && track.syncedLyrics.length > 0) {
+      // NetEase lyrics carry no `[ti:]` title header (they start at 作词/作曲
+      // or the first verse), so synthesize one from track metadata to match the
+      // QQ Music lyric-list presentation. QQ/local/WebDAV lyrics already embed
+      // their own title line, so leave those untouched.
+      if (track.source === 'netease' && (track.title || track.artist)) {
+        const titleText = [track.title, track.artist].filter(Boolean).join(' - ');
+        if (titleText) {
+          return [{ time: 0, text: titleText }, ...track.syncedLyrics];
+        }
+      }
       return track.syncedLyrics;
     }
     // Fall back to plain text lyrics
@@ -297,7 +307,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       }));
     }
     return [];
-  }, [track?.syncedLyrics, track?.lyrics]);
+  }, [track?.syncedLyrics, track?.lyrics, track?.source, track?.title, track?.artist]);
   const hasLyrics = lyricsLines.length > 0;
 
   // Find the currently active lyric line based on timestamp
