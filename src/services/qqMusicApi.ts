@@ -2,6 +2,7 @@ import { logger } from './logger';
 import { cookieManager } from './cookieManager';
 import { getDesktopAPI } from './desktopAdapter';
 import type {
+  OnlineLyricsResult,
   OnlineMusicProvider,
   OnlineQuality,
   OnlineSong,
@@ -710,7 +711,7 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get lyrics for a song by songmid
    */
-  async getLyrics(songmid: string): Promise<string | null> {
+  async getLyrics(songmid: string): Promise<OnlineLyricsResult | null> {
     await cookieManager.ensureLoaded();
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
@@ -733,7 +734,12 @@ class QQMusicAPI implements OnlineMusicProvider {
       }
 
       logger.debug('[QQMusicAPI] Lyrics decoded, length:', result.lyrics?.length ?? 0);
-      return result.lyrics || null;
+      return result.lyrics
+        ? {
+            lyrics: result.lyrics,
+            ...(result.wordLyrics ? { wordLyrics: result.wordLyrics, wordLyricsFormat: 'qrc' as const } : {}),
+          }
+        : null;
     } catch (error: unknown) {
       logger.error('[QQMusicAPI] Get lyrics failed:', error);
       return null;

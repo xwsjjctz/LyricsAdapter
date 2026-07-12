@@ -98,24 +98,30 @@ export function registerQQMusicHandlers(): void {
     try {
       logger.info('[Main] Getting lyrics for:', songmid);
 
-      const response = await fetch(
-        `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
-        `&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0` +
-        `&platform=yqq.json&needNewCode=1&g_tk=5381&songmid=${songmid}`,
-        {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            'Referer': 'https://y.qq.com/',
-            'Cookie': cookieString,
-          },
-        }
-      );
+      const requestLyrics = async (qrc = false) => {
+        const response = await fetch(
+          `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
+          `&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0` +
+          `&platform=yqq.json&needNewCode=1&g_tk=5381&songmid=${songmid}${qrc ? '&qrc=1' : ''}`,
+          {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Referer': 'https://y.qq.com/',
+              'Cookie': cookieString,
+            },
+          }
+        );
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+        return response.json() as Promise<{ code?: number; lyric?: string }>;
+      };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
-      }
-
-      const result = await response.json();
+      const result = await requestLyrics();
+      const qrcResult = await requestLyrics(true).catch((error) => {
+        // Karaoke timing is optional; never discard a usable LRC response when
+        // QQ declines the QRC variant for a particular track/account.
+        logger.warn('[Main] QQ QRC lyrics request failed:', error);
+        return undefined;
+      });
 
       if (result.code !== 0) {
         logger.warn('[Main] Lyrics API returned error code:', result.code);
@@ -128,9 +134,12 @@ export function registerQQMusicHandlers(): void {
       }
 
       const lyrics = Buffer.from(lyricBase64, 'base64').toString('utf-8');
+      const wordLyrics = qrcResult?.code === 0 && qrcResult.lyric
+        ? Buffer.from(qrcResult.lyric, 'base64').toString('utf-8')
+        : undefined;
       logger.info('[Main] Lyrics fetched, length:', lyrics.length);
 
-      return { success: true, lyrics };
+      return { success: true, lyrics, ...(wordLyrics ? { wordLyrics, wordLyricsFormat: 'qrc' as const } : {}) };
     } catch (error) {
       logger.error('[Main] Get lyrics failed:', error);
       return {

@@ -9,6 +9,7 @@ import { logger } from './logger';
 import { sodaCookieManager } from './cookieManager';
 import { getDesktopAPI } from './desktopAdapter';
 import type {
+  OnlineLyricsResult,
   OnlineMusicProvider,
   OnlineQuality,
   OnlineSong,
@@ -103,7 +104,7 @@ function sodaLyricsToLrc(raw: string): string | null {
 
 class SodaMusicApi implements OnlineMusicProvider {
   readonly id = 'soda' as const;
-  private readonly lyricsCache = new Map<string, string | null>();
+  private readonly lyricsCache = new Map<string, OnlineLyricsResult | null>();
   private readonly playlistCursors = new Map<string, SodaPlaylistCursor>();
 
   private async request(
@@ -157,15 +158,16 @@ class SodaMusicApi implements OnlineMusicProvider {
     return { url: `stream://soda/${encodeURIComponent(songmid)}?q=${quality}`, bitrate: quality };
   }
 
-  async getLyrics(songmid: string): Promise<string | null> {
+  async getLyrics(songmid: string): Promise<OnlineLyricsResult | null> {
     const cached = this.lyricsCache.get(songmid);
     if (cached !== undefined) return cached;
     try {
       const data = asRecord(await this.request('track', { trackId: songmid }));
       const lyric = asRecord(data?.['lyric']);
       const parsed = typeof lyric?.['content'] === 'string' ? sodaLyricsToLrc(lyric['content']) : null;
-      this.lyricsCache.set(songmid, parsed);
-      return parsed;
+      const result = parsed ? { lyrics: parsed } : null;
+      this.lyricsCache.set(songmid, result);
+      return result;
     } catch (error) {
       logger.warn('[Soda] getLyrics failed:', error);
       this.lyricsCache.set(songmid, null);

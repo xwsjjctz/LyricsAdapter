@@ -3,6 +3,7 @@ import { Track, ViewMode } from '../types';
 import {
   getOnlineProvider,
   type OnlineMusicProvider,
+  type OnlineLyricsResult,
   type OnlineQuality,
   type OnlineSong,
 } from '../services/onlineMusicProvider';
@@ -10,7 +11,7 @@ import { settingsManager } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
 import { generateMetaJson } from '../services/webdavMetaService';
 import { notify } from '../services/notificationService';
-import { parseLRCLyrics } from '../services/metadataService';
+import { parseLyrics } from '../services/metadataService';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { useTranslation } from 'react-i18next';
@@ -44,11 +45,16 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
 
   // Lyrics: QQ prefers the dedicated IPC channel (avoids CORS), then falls back
   // to the provider. NetEase resolves entirely through its provider (IPC).
-  const fetchLyrics = async (song: OnlineSong, provider: OnlineMusicProvider): Promise<string | undefined> => {
+  const fetchLyrics = async (song: OnlineSong, provider: OnlineMusicProvider): Promise<OnlineLyricsResult | undefined> => {
     const desktopAPI = getDesktopAPI();
     if (provider.id === 'qq' && desktopAPI?.getQQMusicLyrics) {
       const r = await desktopAPI.getQQMusicLyrics(song.songmid, provider.getRawCookie());
-      if (r?.success && r.lyrics) return r.lyrics;
+      if (r?.success && r.lyrics) {
+        return {
+          lyrics: r.lyrics,
+          ...(r.wordLyrics ? { wordLyrics: r.wordLyrics, wordLyricsFormat: 'qrc' as const } : {}),
+        };
+      }
     }
     return (await provider.getLyrics(song.songmid)) || undefined;
   };
@@ -83,7 +89,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     filePath: string,
     fileName: string,
     song: OnlineSong,
-    lyrics?: string,
+    lyrics?: OnlineLyricsResult,
   ): Promise<Track | null> => {
     try {
       const desktopAPI = await getDesktopAPIAsync();
@@ -104,8 +110,8 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         logger.error('[OnlineMusic] Failed to parse metadata:', error);
       }
 
-      const parsedLyrics = lyrics ? parseLRCLyrics(lyrics) : null;
-      const finalLyrics = parsedLyrics?.plainText || metadata?.lyrics || lyrics || '';
+      const parsedLyrics = lyrics ? parseLyrics(lyrics.lyrics, lyrics.wordLyrics, lyrics.wordLyricsFormat) : null;
+      const finalLyrics = parsedLyrics?.plainText || metadata?.lyrics || lyrics?.lyrics || '';
       const finalSyncedLyrics = parsedLyrics?.syncedLyrics || metadata?.syncedLyrics;
 
       const trackId = Math.random().toString(36).substr(2, 9);
@@ -197,7 +203,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
       if (desktopAPI?.writeAudioMetadata) {
         await desktopAPI.writeAudioMetadata(result.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
-          ...(lyrics != null && { lyrics }),
+          ...(lyrics != null && { lyrics: lyrics.lyrics }),
           ...(coverUrl != null && { coverUrl }),
         });
       }
@@ -243,11 +249,14 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
       ]);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
+      const parsedLyrics = lyrics
+        ? parseLyrics(lyrics.lyrics, lyrics.wordLyrics, lyrics.wordLyricsFormat)
+        : undefined;
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 35 } }));
       if (desktopAPI?.writeAudioMetadata) {
         await desktopAPI.writeAudioMetadata(dlResult.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
-          ...(lyrics != null && { lyrics }),
+          ...(lyrics != null && { lyrics: parsedLyrics?.plainText || lyrics.lyrics }),
           ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
         });
       }
@@ -262,7 +271,8 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         id: `webdav-${webdavPath}`, title: song.songname, artist: singer,
         album: song.albumname || '', duration: song.interval || 0, audioUrl: '',
         source: 'webdav', webdavPath, fileName, fileSize: readResult.data.byteLength,
-        ...(lyrics != null && { lyrics }),
+        ...(lyrics != null && { lyrics: parsedLyrics?.plainText || lyrics.lyrics }),
+        ...(parsedLyrics?.syncedLyrics != null && { syncedLyrics: parsedLyrics.syncedLyrics }),
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : {}),
       }));
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 100, status: 'completed' } }));
@@ -280,11 +290,8 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         fileSize: readResult.data.byteLength,
         // 上传时间作为排序键：刚上传=最新，排序后落在列表最底部（与 WebDAV 上传一致）。
         lastModified: Date.now(),
-        ...(lyrics != null && { lyrics }),
-        ...(lyrics != null ? (() => {
-          const parsed = parseLRCLyrics(lyrics);
-          return parsed.syncedLyrics != null ? { syncedLyrics: parsed.syncedLyrics } : {};
-        })() : {}),
+        ...(lyrics != null && { lyrics: parsedLyrics?.plainText || lyrics.lyrics }),
+        ...(parsedLyrics?.syncedLyrics != null && { syncedLyrics: parsedLyrics.syncedLyrics }),
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);

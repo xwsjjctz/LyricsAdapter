@@ -4,6 +4,7 @@
  * Prevents injection attacks and data corruption
  */
 
+import type { LyricWord, SyncedLyricLine } from '../types';
 import { logger } from './logger';
 
 // ========== Type Definitions ==========
@@ -14,7 +15,7 @@ export interface ValidatedMetadata {
   album: string;
   duration: number;
   lyrics: string;
-  syncedLyrics?: { time: number; text: string }[] | undefined;
+  syncedLyrics?: SyncedLyricLine[] | undefined;
   fileName: string;
   fileSize: number;
   lastModified: number;
@@ -29,6 +30,7 @@ const MAX_ALBUM_LENGTH = 500;
 const MAX_FILENAME_LENGTH = 1000;
 const MAX_LYRICS_LENGTH = 100000;
 const MAX_SYNCED_LYRICS_COUNT = 10000;
+const MAX_WORDS_PER_LINE = 500;
 const MAX_DURATION = 24 * 60 * 60; // 24 hours in seconds
 const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
 const MIN_TIMESTAMP = 0;
@@ -85,7 +87,7 @@ function sanitizeNumber(input: unknown, min: number, max: number, defaultValue: 
 /**
  * Sanitize synced lyrics array
  */
-function sanitizeSyncedLyrics(input: unknown): { time: number; text: string }[] | undefined {
+function sanitizeSyncedLyrics(input: unknown): SyncedLyricLine[] | undefined {
   if (!Array.isArray(input)) {
     return undefined;
   }
@@ -94,7 +96,7 @@ function sanitizeSyncedLyrics(input: unknown): { time: number; text: string }[] 
     return undefined;
   }
 
-  const sanitized: { time: number; text: string }[] = [];
+  const sanitized: SyncedLyricLine[] = [];
 
   for (const item of input) {
     if (!item || typeof item !== 'object') {
@@ -111,11 +113,26 @@ function sanitizeSyncedLyrics(input: unknown): { time: number; text: string }[] 
     const text = sanitizeString(obj['text'], MAX_STRING_LENGTH, true);
 
     if (text) {
-      sanitized.push({ time, text });
+      const words = sanitizeLyricWords(obj['words']);
+      sanitized.push({ time, text, ...(words ? { words } : {}) });
     }
   }
 
   return sanitized.length > 0 ? sanitized : undefined;
+}
+
+function sanitizeLyricWords(input: unknown): LyricWord[] | undefined {
+  if (!Array.isArray(input) || input.length > MAX_WORDS_PER_LINE) return undefined;
+  const words: LyricWord[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue;
+    const obj = item as Record<string, unknown>;
+    const time = sanitizeNumber(obj['time'], 0, MAX_DURATION, 0);
+    const duration = sanitizeNumber(obj['duration'], 0, MAX_DURATION, 0);
+    const text = sanitizeString(obj['text'], MAX_STRING_LENGTH, true);
+    if (text && duration > 0) words.push({ time, duration, text });
+  }
+  return words.length > 0 ? words : undefined;
 }
 
 // ========== Metadata Validation ==========
@@ -213,4 +230,3 @@ export function validateSongId(songId: unknown): string | null {
 
   return songId;
 }
-

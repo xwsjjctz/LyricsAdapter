@@ -3,7 +3,7 @@
  * 处理与 Electron 主进程的通信，实现数据的读写和验证
  */
 
-import { Track, PlaybackContext, LibrarySlot } from '../types';
+import { Track, PlaybackContext, LibrarySlot, SyncedLyricLine } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
 
@@ -19,7 +19,7 @@ export interface LibraryIndexSong {
   album: string;
   duration: number;
   lyrics?: string;
-  syncedLyrics?: { time: number; text: string }[];
+  syncedLyrics?: SyncedLyricLine[];
   coverUrl?: string;
   filePath?: string;
   fileName?: string;

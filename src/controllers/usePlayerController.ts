@@ -5,7 +5,7 @@ import { getOnlineProvider } from '../services/onlineMusicProvider';
 import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
-import { parseLRCLyrics } from '../services/metadataService';
+import { parseLyrics } from '../services/metadataService';
 import { onlineSongToTrack } from '../domain/trackFactory';
 
 const PLAYLIST_PAGE_SIZE = 30;
@@ -225,14 +225,14 @@ export function usePlayerController(options: PlayerControllerOptions) {
     setIsPlaying(true);
     setViewSlot('online');
     // Async metadata/lyrics enrichment
-    lyricsProvider?.getLyrics?.(song.songmid).then(rawLyrics => {
-      if (rawLyrics) {
-        const parsed = parseLRCLyrics(rawLyrics);
+    lyricsProvider?.getLyrics?.(song.songmid).then(lyricsResult => {
+      if (lyricsResult) {
+        const parsed = parseLyrics(lyricsResult.lyrics, lyricsResult.wordLyrics, lyricsResult.wordLyricsFormat);
         updateOnlineTracks(prev => prev.map(t =>
           t.id === track.id
             ? {
               ...t,
-              lyrics: parsed.plainText || rawLyrics,
+              lyrics: parsed.plainText || lyricsResult.lyrics,
               ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
             }
             : t
@@ -446,14 +446,14 @@ export function usePlayerController(options: PlayerControllerOptions) {
       const provider = t.source === 'qq' ? qqMusicApi : neteaseMusicApi;
       const trackId = t.id;
       provider.getLyrics(t.songmid)
-        .then(raw => {
-          if (!raw) return;
-          const parsed = parseLRCLyrics(raw);
+        .then(lyricsResult => {
+          if (!lyricsResult) return;
+          const parsed = parseLyrics(lyricsResult.lyrics, lyricsResult.wordLyrics, lyricsResult.wordLyricsFormat);
           updatePlaylistTracks(prev => prev.map(x =>
             x.id === trackId && !x.lyrics
               ? {
                 ...x,
-                lyrics: parsed.plainText || raw,
+                lyrics: parsed.plainText || lyricsResult.lyrics,
                 ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
               }
               : x

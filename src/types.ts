@@ -34,6 +34,16 @@ export interface Track {
 export interface SyncedLyricLine {
   time: number; // in seconds
   text: string;
+  /** Optional character/word-level timing, used by QRC and YRC karaoke lyrics. */
+  words?: LyricWord[] | undefined;
+}
+
+export interface LyricWord {
+  /** Start time in seconds. */
+  time: number;
+  /** Display duration in seconds. */
+  duration: number;
+  text: string;
 }
 
 export interface PlaybackContext {

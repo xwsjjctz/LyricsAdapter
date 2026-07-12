@@ -23,12 +23,128 @@ export interface ParsedLrc {
   syncedLyrics?: SyncedLyricLine[] | undefined;
 }
 
+export type WordLyricsFormat = 'qrc' | 'yrc';
+
+const WORD_LYRIC_LINE = /^\[(\d+),(\d+)\](.*)$/;
+const YRC_WORD_TOKEN = /\((\d+),(\d+)(?:,\d+)?\)([^()]*)/g;
+const QRC_WORD_TOKEN = /([^()]*?)\((\d+),(\d+)(?:,\d+)?\)/g;
+
+/**
+ * Parse the QRC/YRC karaoke formats used by QQ Music and NetEase Cloud Music.
+ * Both formats use millisecond line timestamps followed by timed text tokens.
+ * QRC may be returned as XML, whose LyricContent attribute contains the lines.
+ */
+export function parseWordLyrics(raw: string, format: WordLyricsFormat): ParsedLrc | undefined {
+  const content = format === 'qrc' ? extractQrcContent(raw) : raw;
+  const syncedLyrics: SyncedLyricLine[] = [];
+
+  for (const source of content.split(/\r?\n/)) {
+    const line = source.trim();
+    const lineMatch = line.match(WORD_LYRIC_LINE);
+    if (!lineMatch) continue;
+
+    const lineTime = Number(lineMatch[1]);
+    const lineDuration = Number(lineMatch[2]);
+    if (!Number.isFinite(lineTime) || !Number.isFinite(lineDuration)) continue;
+
+    const words = format === 'qrc'
+      ? parseQrcWords(lineMatch[3]!)
+      : parseYrcWords(lineMatch[3]!);
+    const trailingText = decodeXml(lineMatch[3]!.replace(format === 'qrc' ? QRC_WORD_TOKEN : YRC_WORD_TOKEN, '')).trim();
+    const text = words.map((word) => word.text).join('') || trailingText;
+    if (!text) continue;
+
+    syncedLyrics.push({
+      time: lineTime / 1000,
+      text,
+      ...(words.length > 0 ? { words } : {}),
+    });
+  }
+
+  if (syncedLyrics.length === 0) return undefined;
+  syncedLyrics.sort((a, b) => a.time - b.time);
+  return {
+    plainText: syncedLyrics.map((line) => line.text).join('\n'),
+    syncedLyrics,
+  };
+}
+
+function parseYrcWords(source: string) {
+  return [...source.matchAll(YRC_WORD_TOKEN)]
+    .map((match) => createWord(match[1], match[2], match[3] ?? ''))
+    .filter((word): word is NonNullable<typeof word> => word !== undefined);
+}
+
+function parseQrcWords(source: string) {
+  const matches = [...source.matchAll(QRC_WORD_TOKEN)];
+  const words = matches
+    .map((match) => createWord(match[2], match[3], match[1] ?? ''))
+    .filter((word): word is NonNullable<typeof word> => word !== undefined);
+  const lastMatch = matches[matches.length - 1];
+  const trailing = lastMatch
+    ? decodeXml(source.slice((lastMatch.index ?? 0) + lastMatch[0].length))
+    : '';
+  if (words.length > 0 && trailing) words[words.length - 1]!.text += trailing;
+  return words;
+}
+
+function createWord(timeValue: string | undefined, durationValue: string | undefined, rawText: string) {
+  const time = Number(timeValue);
+  const duration = Number(durationValue);
+  const text = decodeXml(rawText);
+  return Number.isFinite(time) && Number.isFinite(duration) && text
+    ? { time: time / 1000, duration: duration / 1000, text }
+    : undefined;
+}
+
+/** Prefer word timings where a provider returned them, otherwise parse LRC. */
+export function parseLyrics(
+  lyrics: string,
+  wordLyrics?: string | null,
+  wordLyricsFormat?: WordLyricsFormat | null,
+): ParsedLrc {
+  if (wordLyrics && wordLyricsFormat) {
+    const parsedWords = parseWordLyrics(wordLyrics, wordLyricsFormat);
+    if (parsedWords) return parsedWords;
+  }
+  return parseLRCLyrics(lyrics);
+}
+
+function extractQrcContent(raw: string): string {
+  const lyricContent = raw.match(/LyricContent\s*=\s*["']([\s\S]*?)["']/i)?.[1];
+  return decodeXml(lyricContent ?? raw);
+}
+
+function detectWordLyricsFormat(raw: string): WordLyricsFormat | undefined {
+  if (/LyricContent\s*=/i.test(raw)) return 'qrc';
+  const firstPayload = raw.match(/^\[\d+,\d+\](.*)$/m)?.[1]?.trim();
+  if (!firstPayload) return undefined;
+  return firstPayload.startsWith('(') ? 'yrc' : 'qrc';
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&');
+}
+
 /**
  * Parse LRC format lyrics (with timestamps like [00:12.34] or [00:00:00]).
  *
  * 支持同一行多时间戳、[hh:mm:ss] 三段式格式、毫秒补零到三位。
  */
 export function parseLRCLyrics(lrc: string): ParsedLrc {
+  const wordLyricsFormat = detectWordLyricsFormat(lrc);
+  if (wordLyricsFormat) {
+    const parsedWords = parseWordLyrics(lrc, wordLyricsFormat);
+    if (parsedWords) return parsedWords;
+  }
+
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: SyncedLyricLine[] = [];
   const plainTextLines: string[] = [];

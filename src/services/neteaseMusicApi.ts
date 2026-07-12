@@ -2,6 +2,7 @@ import { logger } from './logger';
 import { neteaseCookieManager } from './cookieManager';
 import { getDesktopAPI } from './desktopAdapter';
 import type {
+  OnlineLyricsResult,
   OnlineMusicProvider,
   OnlineQuality,
   OnlineSong,
@@ -81,7 +82,7 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
   readonly id = 'netease' as const;
   private detailsCache = new Map<string, OnlineSong>();
   private albumCoverCache = new Map<string, string | undefined>();
-  private lyricsCache = new Map<string, string | null>();
+  private lyricsCache = new Map<string, OnlineLyricsResult | null>();
 
   /** Send a weapi request via the main process. */
   private async request(
@@ -268,19 +269,32 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
     return { url: entry.url, bitrate: String(entry.br ?? 0) };
   }
 
-  async getLyrics(songmid: string): Promise<string | null> {
+  async getLyrics(songmid: string): Promise<OnlineLyricsResult | null> {
     if (this.lyricsCache.has(songmid)) {
       return this.lyricsCache.get(songmid) ?? null;
     }
 
     try {
-      const data = (await this.request('/song/lyric', {
-        id: Number(songmid),
-        lv: -1,
-        kv: -1,
-        tv: -1,
-        csrf_token: '',
-      })) as NetEaseLyricResponse | undefined;
+      let data: NetEaseLyricResponse | undefined;
+      try {
+        data = (await this.request('/song/lyric/v1', {
+          id: Number(songmid),
+          lv: -1,
+          kv: -1,
+          tv: -1,
+          yv: 1,
+          ytv: 1,
+          yrv: 1,
+          csrf_token: '',
+        })) as NetEaseLyricResponse | undefined;
+      } catch (error) {
+        // Keep the established endpoint as a compatibility fallback if the
+        // newer yrc-capable route is changed or temporarily unavailable.
+        logger.warn('[NetEase] lyric/v1 unavailable, falling back to lyric:', error);
+        data = (await this.request('/song/lyric', {
+          id: Number(songmid), lv: -1, kv: -1, tv: -1, csrf_token: '',
+        })) as NetEaseLyricResponse | undefined;
+      }
       let lyric = this.extractLyrics(data);
       if (!lyric) {
         const fallbackData = (await this.request('/song/lyric', {
@@ -292,8 +306,17 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
         })) as NetEaseLyricResponse | undefined;
         lyric = this.extractLyrics(fallbackData);
       }
-      this.lyricsCache.set(songmid, lyric);
-      return lyric;
+      const wordLyrics = data?.yrc?.lyric;
+      const result = lyric || wordLyrics
+        ? {
+            // The parser prefers wordLyrics. Keeping the raw YRC as a fallback
+            // lets a word-only response remain usable when the LRC block is absent.
+            lyrics: lyric || wordLyrics || '',
+            ...(wordLyrics ? { wordLyrics, wordLyricsFormat: 'yrc' as const } : {}),
+          }
+        : null;
+      this.lyricsCache.set(songmid, result);
+      return result;
     } catch (err) {
       logger.warn('[NetEase] getLyrics failed:', err);
       this.lyricsCache.set(songmid, null);
@@ -304,7 +327,6 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
   private extractLyrics(data: NetEaseLyricResponse | undefined): string | null {
     const candidates = [
       data?.lrc?.lyric,
-      data?.yrc?.lyric,
       data?.tlyric?.lyric,
       data?.romalrc?.lyric,
     ];
