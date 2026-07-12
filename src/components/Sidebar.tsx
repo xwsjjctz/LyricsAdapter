@@ -61,9 +61,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
-  const isSettingsView = currentView === ViewMode.SETTINGS;
-  const isThemeView = currentView === ViewMode.THEME;
-
   const handleSlotClick = useCallback((slotId: SlotId) => {
     if (slotId === 'cloud' && !webdavClient.hasConfig()) {
       notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
@@ -224,23 +221,19 @@ const Sidebar: React.FC<SidebarProps> = ({
     </section>
   );
 
-  const renderUtilityButton = (mode: ViewMode, icon: string, label: string, active: boolean) => (
+  const renderUtilityButton = (mode: ViewMode, icon: string, label: string) => (
     <button
       type="button"
       onClick={() => onNavigate(mode)}
       className="relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
       style={{
-        color: active ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)',
-        backgroundColor: active ? 'color-mix(in srgb, var(--theme-control-item-bg-active) 78%, transparent)' : 'transparent',
+        color: 'var(--theme-control-icon-fg)',
+        backgroundColor: 'transparent',
       }}
       title={label}
       aria-label={label}
     >
-      <span className={`material-symbols-outlined text-[20px] ${active ? 'fill-1' : ''}`}>{icon}</span>
-      <span
-        className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full transition-opacity"
-        style={{ backgroundColor: 'var(--theme-primary)', opacity: active ? 1 : 0 }}
-      />
+      <span className="material-symbols-outlined text-[20px]">{icon}</span>
     </button>
   );
 
@@ -372,8 +365,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="mt-5 flex shrink-0 items-center justify-start gap-2 border-t pt-3" style={{ borderColor: 'var(--theme-border-light)' }}>
-        {renderUtilityButton(ViewMode.SETTINGS, 'settings', t('settings.title'), isSettingsView)}
-        {renderUtilityButton(ViewMode.THEME, 'checkroom', t('sidebar.theme'), isThemeView)}
+        {renderUtilityButton(ViewMode.SETTINGS, 'settings', t('settings.title'))}
+        {renderUtilityButton(ViewMode.THEME, 'checkroom', t('sidebar.theme'))}
       </div>
     </div>
   );
@@ -386,7 +379,7 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
 
   if (floating) {
     return (
-      <div className="w-60 flex flex-col flex-shrink-0">
+      <div className="w-[236px] flex flex-col flex-shrink-0">
         <aside
           className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 overflow-hidden"
           style={{
@@ -409,7 +402,7 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
 
   return (
     <aside
-      className="w-60 flex flex-col backdrop-blur-md z-20 pt-8"
+      className="w-[236px] flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
         backgroundColor: 'var(--theme-background-sidebar)',
         borderRight: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
