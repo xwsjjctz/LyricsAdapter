@@ -35,6 +35,26 @@ describe('word-timed lyric parsing', () => {
     ]);
   });
 
+  it('does not truncate QRC content at an apostrophe in English lyrics', () => {
+    // LyricContent is a double-quoted XML attribute whose value may contain
+    // apostrophes from the lyrics (e.g. "that's", "ain't"). A `["']` delimiter
+    // would mistake the apostrophe for the closing quote and drop everything
+    // after the first apostrophe — this regressed Closer (The Chainsmokers)
+    // from 64 lines down to 7.
+    const qrc = '<QrcInfos><Lyric_1 LyricContent="'
+      + "[1000,1000]that's(1000,500) that(1500,500)\n"
+      + "[2000,1000]ain't(2000,1000) "
+      + '" /></QrcInfos>';
+    const parsed = parseLyrics('', qrc, 'qrc');
+
+    expect(parsed?.syncedLyrics).toHaveLength(2);
+    // The second line survived the apostrophe and was not truncated.
+    expect(parsed?.syncedLyrics?.[1]?.text).toContain("ain't");
+    expect(parsed?.syncedLyrics?.[1]?.words).toEqual(
+      expect.arrayContaining([{ time: 2, duration: 1, text: "ain't" }]),
+    );
+  });
+
   it('prefers valid word-timed lyrics and falls back to LRC when absent', () => {
     expect(parseLyrics('[00:01.20]逐行歌词', '[1000,200](1000,200,0)逐字', 'yrc').syncedLyrics?.[0])
       .toMatchObject({ time: 1, text: '逐字', words: [{ time: 1, duration: 0.2, text: '逐字' }] });

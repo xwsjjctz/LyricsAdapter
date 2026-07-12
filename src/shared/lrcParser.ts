@@ -120,7 +120,12 @@ export function parseLyrics(
 }
 
 function extractQrcContent(raw: string): string {
-  const lyricContent = raw.match(/LyricContent\s*=\s*["']([\s\S]*?)["']/i)?.[1];
+  // QRC XML wraps the payload in a `LyricContent="..."` attribute whose value
+  // may contain apostrophes from the lyrics themselves (e.g. "that's", "ain't").
+  // A `["']` delimiter would mistake those for the closing quote and truncate
+  // English songs after the first apostrophe, so anchor on the `"/>` that
+  // terminates the attribute instead.
+  const lyricContent = raw.match(/LyricContent\s*=\s*"([\s\S]*?)"\s*\/>/i)?.[1];
   return decodeXml(lyricContent ?? raw);
 }
 
