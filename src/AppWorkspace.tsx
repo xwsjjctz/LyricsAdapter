@@ -191,6 +191,8 @@ const AppWorkspace: React.FC = () => {
     switchTo,
     addOnlineTrack,
     updateOnlineTracks,
+    onlineTracks: slots.online.tracks,
+    onlineCurrentIndex: slots.online.currentTrackIndex,
     loadPlaylistTracks,
     updatePlaylistTracks,
     playlistTracks: slots.playlist.tracks,

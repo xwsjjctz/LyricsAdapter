@@ -101,12 +101,21 @@ export function parseLyrics(
   wordLyrics?: string | null,
   wordLyricsFormat?: WordLyricsFormat | null,
 ): ParsedLrc {
+  let parsedWordLyrics: ParsedLrc | undefined;
   if (wordLyrics && wordLyricsFormat === 'qrc') {
-    return fromAmlLines(parseQrc(extractQrcContent(wordLyrics)), wordLyrics, true);
+    parsedWordLyrics = fromAmlLines(parseQrc(extractQrcContent(wordLyrics)), wordLyrics, true);
   }
   if (wordLyrics && wordLyricsFormat === 'yrc') {
-    return fromAmlLines(parseYrc(wordLyrics), wordLyrics, true);
+    parsedWordLyrics = fromAmlLines(parseYrc(wordLyrics), wordLyrics, true);
   }
+
+  // Provider APIs occasionally return a non-empty karaoke payload that is
+  // actually ordinary LRC, malformed XML, or an unsupported variant. Never let
+  // that optional payload discard a valid line-synchronised LRC fallback.
+  if (parsedWordLyrics?.syncedLyrics?.some((line) => line.words?.length)) {
+    return parsedWordLyrics;
+  }
+
   return parseLRCLyrics(lyrics);
 }
 

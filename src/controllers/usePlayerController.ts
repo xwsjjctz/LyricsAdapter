@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
 import { getOnlineProvider } from '../services/onlineMusicProvider';
-import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
-import { qqMusicApi } from '../services/qqMusicApi';
-import { neteaseMusicApi } from '../services/neteaseMusicApi';
+import type { OnlineLyricsResult, OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { parseLyrics } from '../services/metadataService';
 import { onlineSongToTrack } from '../domain/trackFactory';
 
@@ -41,6 +39,42 @@ function appendUniqueTracks(existing: Track[], incoming: Track[]): Track[] {
   return [...existing, ...incoming.filter(track => !existingIds.has(track.id))];
 }
 
+function hasLyrics(track: Track): boolean {
+  return Boolean(track.lyrics || track.syncedLyrics?.length);
+}
+
+function hasWordTimedLyrics(track: Track): boolean {
+  return Boolean(track.syncedLyrics?.some((line) => line.words?.length));
+}
+
+function isProviderTrack(track: Track): track is Track & { source: OnlineSource; songmid: string } {
+  return Boolean(
+    track.songmid
+    && (track.source === 'qq' || track.source === 'netease' || track.source === 'soda')
+  );
+}
+
+function mergeProviderLyrics(track: Track, lyricsResult: OnlineLyricsResult): Track {
+  const parsed = parseLyrics(
+    lyricsResult.lyrics,
+    lyricsResult.wordLyrics,
+    lyricsResult.wordLyricsFormat,
+  );
+  return {
+    ...track,
+    lyrics: parsed.plainText || lyricsResult.lyrics,
+    ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+  };
+}
+
+function applyEnrichedLyrics(current: Track, enriched: Track): Track {
+  return {
+    ...current,
+    ...(enriched.lyrics !== undefined ? { lyrics: enriched.lyrics } : {}),
+    ...(enriched.syncedLyrics !== undefined ? { syncedLyrics: enriched.syncedLyrics } : {}),
+  };
+}
+
 /**
  * Player Controller (Phase 1 of the refactor roadmap).
  *
@@ -72,6 +106,9 @@ export interface PlayerControllerOptions {
   addOnlineTrack: (track: Track) => void;
   /** Replace the online slot's tracks (from useLibrarySlots). */
   updateOnlineTracks: (updater: Track[] | ((prev: Track[]) => Track[])) => void;
+  /** Online slot tracks/current index, used to upgrade persisted line-only lyrics. */
+  onlineTracks: Track[];
+  onlineCurrentIndex: number;
   /** Load a full track list into the playlist slot (from useLibrarySlots). */
   loadPlaylistTracks: (tracks: Track[]) => void;
   /** Replace the playlist slot's tracks (from useLibrarySlots). */
@@ -104,6 +141,8 @@ export function usePlayerController(options: PlayerControllerOptions) {
     switchTo,
     addOnlineTrack,
     updateOnlineTracks,
+    onlineTracks,
+    onlineCurrentIndex,
     loadPlaylistTracks,
     updatePlaylistTracks,
     playlistTracks,
@@ -130,6 +169,39 @@ export function usePlayerController(options: PlayerControllerOptions) {
   const browsingLoadingRef = useRef(false);
   const libraryGenerationRef = useRef(0);
   const libraryLoadingRef = useRef(false);
+  const lyricsRequestsInFlightRef = useRef(new Set<string>());
+  const lyricsUpgradeAttemptedRef = useRef(new Set<string>());
+
+  /**
+   * Fetch provider lyrics once per active request. Tracks that already have
+   * line-level lyrics get one karaoke upgrade attempt per app session; tracks
+   * whose lyrics were evicted remain reloadable when they re-enter the window.
+   */
+  const enrichProviderTrackLyrics = useCallback(async (track: Track): Promise<Track | undefined> => {
+    if (!isProviderTrack(track) || hasWordTimedLyrics(track)) return undefined;
+
+    const requestKey = `${track.source}:${track.songmid}`;
+    const isUpgrade = hasLyrics(track);
+    if (
+      lyricsRequestsInFlightRef.current.has(requestKey)
+      || (isUpgrade && lyricsUpgradeAttemptedRef.current.has(requestKey))
+    ) {
+      return undefined;
+    }
+
+    lyricsRequestsInFlightRef.current.add(requestKey);
+    try {
+      const lyricsResult = await getOnlineProvider(track.source).getLyrics(track.songmid);
+      if (!lyricsResult) return undefined;
+      const enrichedTrack = mergeProviderLyrics(track, lyricsResult);
+      if (!hasWordTimedLyrics(enrichedTrack)) {
+        lyricsUpgradeAttemptedRef.current.add(requestKey);
+      }
+      return enrichedTrack;
+    } finally {
+      lyricsRequestsInFlightRef.current.delete(requestKey);
+    }
+  }, []);
 
   const loadPlaylistPage = useCallback(async (source: OnlineSource, playlistId: string, offset: number) => {
     const provider = getOnlineProvider(source);
@@ -201,7 +273,6 @@ export function usePlayerController(options: PlayerControllerOptions) {
     coverUrl?: string; duration: number; singer?: { name: string }[];
   }, sourceOverride?: OnlineSource) => {
     const source = sourceOverride ?? getOnlineProvider().id;
-    const lyricsProvider = source === 'qq' ? qqMusicApi : neteaseMusicApi;
     const track: Track = {
       id: `online-${source}-${song.songmid}`,
       title: song.title,
@@ -225,21 +296,13 @@ export function usePlayerController(options: PlayerControllerOptions) {
     setIsPlaying(true);
     setViewSlot('online');
     // Async metadata/lyrics enrichment
-    lyricsProvider?.getLyrics?.(song.songmid).then(lyricsResult => {
-      if (lyricsResult) {
-        const parsed = parseLyrics(lyricsResult.lyrics, lyricsResult.wordLyrics, lyricsResult.wordLyricsFormat);
-        updateOnlineTracks(prev => prev.map(t =>
-          t.id === track.id
-            ? {
-              ...t,
-              lyrics: parsed.plainText || lyricsResult.lyrics,
-              ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
-            }
-            : t
-        ));
-      }
+    enrichProviderTrackLyrics(track).then(enrichedTrack => {
+      if (!enrichedTrack) return;
+      updateOnlineTracks(prev => prev.map(t => (
+        t.id === track.id ? applyEnrichedLyrics(t, enrichedTrack) : t
+      )));
     }).catch(() => {});
-  }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot]);
+  }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot, enrichProviderTrackLyrics]);
 
   // UI-facing adapter: normalize an OnlineSong into the shape the internal
   // handler expects. Moved here from AppWorkspace's two call-site wrappers
@@ -258,6 +321,22 @@ export function usePlayerController(options: PlayerControllerOptions) {
       singer: song.singer,
     }, sourceOverride);
   }, [handleOnlineStreamPlay]);
+
+  // Persisted online history may predate word-timed lyrics. Upgrade the active
+  // item lazily instead of invalidating or rewriting the whole library index.
+  const activeOnlineTrack = onlineTracks[onlineCurrentIndex];
+  useEffect(() => {
+    if (activeSlotId !== 'online' || !activeOnlineTrack || hasWordTimedLyrics(activeOnlineTrack)) return;
+    const trackId = activeOnlineTrack.id;
+    void enrichProviderTrackLyrics(activeOnlineTrack)
+      .then(enrichedTrack => {
+        if (!enrichedTrack) return;
+        updateOnlineTracks(prev => prev.map(track => (
+          track.id === trackId ? applyEnrichedLyrics(track, enrichedTrack) : track
+        )));
+      })
+      .catch(() => { /* lyrics are best-effort */ });
+  }, [activeSlotId, activeOnlineTrack, enrichProviderTrackLyrics, updateOnlineTracks]);
 
   // New UI: opening a third-party playlist card fetches its songs for BROWSING
   // only. It deliberately does NOT load them into the 'playlist' play slot nor
@@ -441,22 +520,13 @@ export function usePlayerController(options: PlayerControllerOptions) {
     // Prefetch the window's missing lyrics (current ± 1).
     for (let k = lo; k <= hi; k++) {
       const t = playlistTracksLocal[k];
-      if (!t || (t.source !== 'qq' && t.source !== 'netease') || !t.songmid) continue;
-      if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) continue;
-      const provider = t.source === 'qq' ? qqMusicApi : neteaseMusicApi;
+      if (!t || !isProviderTrack(t) || hasWordTimedLyrics(t)) continue;
       const trackId = t.id;
-      provider.getLyrics(t.songmid)
-        .then(lyricsResult => {
-          if (!lyricsResult) return;
-          const parsed = parseLyrics(lyricsResult.lyrics, lyricsResult.wordLyrics, lyricsResult.wordLyricsFormat);
+      void enrichProviderTrackLyrics(t)
+        .then(enrichedTrack => {
+          if (!enrichedTrack) return;
           updatePlaylistTracks(prev => prev.map(x =>
-            x.id === trackId && !x.lyrics
-              ? {
-                ...x,
-                lyrics: parsed.plainText || lyricsResult.lyrics,
-                ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
-              }
-              : x
+            x.id === trackId ? applyEnrichedLyrics(x, enrichedTrack) : x
           ));
         })
         .catch(() => { /* lyrics are best-effort */ });
@@ -481,7 +551,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
       });
       return changed ? next : prev;
     });
-  }, [playlistCurrentIndex, playlistTracks.length, updatePlaylistTracks]);
+  }, [playlistCurrentIndex, playlistTracks.length, enrichProviderTrackLyrics, updatePlaylistTracks]);
 
   return {
     handleTrackSelect,

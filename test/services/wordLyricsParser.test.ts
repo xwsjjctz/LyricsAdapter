@@ -41,4 +41,22 @@ describe('word-timed lyric parsing', () => {
     expect(parseLyrics('[00:01.20]逐行歌词').syncedLyrics?.[0])
       .toEqual({ time: 1.2, text: '逐行歌词' });
   });
+
+  it.each([
+    ['qrc' as const, '[00:01.20]这其实是普通 LRC'],
+    ['qrc' as const, '<QrcInfos><Lyric_1 LyricContent="broken" /></QrcInfos>'],
+    ['yrc' as const, 'not a YRC payload'],
+  ])('keeps line scrolling when a non-empty %s payload cannot provide word timings', (format, wordLyrics) => {
+    const parsed = parseLyrics(
+      '[00:01.20]第一行\n[00:03.40]第二行',
+      wordLyrics,
+      format,
+    );
+
+    expect(parsed.plainText).toBe('第一行\n第二行');
+    expect(parsed.syncedLyrics).toEqual([
+      { time: 1.2, text: '第一行' },
+      { time: 3.4, text: '第二行' },
+    ]);
+  });
 });
