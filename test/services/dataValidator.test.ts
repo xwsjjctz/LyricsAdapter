@@ -51,6 +51,21 @@ describe('validateMetadata', () => {
     expect(result!.duration).toBe(200);
   });
 
+  it('should retain valid word-level timing on synced lyric lines', () => {
+    const result = validateMetadata({
+      ...validInput,
+      syncedLyrics: [{
+        time: 1,
+        text: '你好',
+        words: [{ time: 1, duration: 0.4, text: '你' }, { time: 1.4, duration: 0.3, text: '好' }],
+      }],
+    });
+    expect(result?.syncedLyrics?.[0]?.words).toEqual([
+      { time: 1, duration: 0.4, text: '你' },
+      { time: 1.4, duration: 0.3, text: '好' },
+    ]);
+  });
+
   it('should return null for non-object input', () => {
     expect(validateMetadata(null)).toBeNull();
     expect(validateMetadata('string')).toBeNull();

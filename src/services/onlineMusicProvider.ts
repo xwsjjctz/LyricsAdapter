@@ -37,6 +37,15 @@ export interface OnlineUrlResult {
   bitrate: string;
 }
 
+/** A provider lyric response with an LRC fallback and optional karaoke payload. */
+export interface OnlineLyricsResult {
+  /** Plain or line-synchronised lyric text for metadata embedding and fallback UI. */
+  lyrics: string;
+  /** Provider-native character/word-timed lyric text. */
+  wordLyrics?: string | undefined;
+  wordLyricsFormat?: 'qrc' | 'yrc' | undefined;
+}
+
 export type OnlineSource = 'qq' | 'netease' | 'soda';
 
 /** Runtime guard for persisted tracks and UI callbacks that carry a source. */
@@ -59,7 +68,7 @@ export interface OnlineMusicProvider {
   /** Optional batch metadata hydration for sources whose search result is sparse. */
   getSongDetails?(songmids: string[]): Promise<OnlineSong[]>;
   getMusicUrl(songmid: string, quality: OnlineQuality): Promise<OnlineUrlResult>;
-  getLyrics(songmid: string): Promise<string | null>;
+  getLyrics(songmid: string): Promise<OnlineLyricsResult | null>;
   /** Full-size cover URL for the song (used when embedding metadata). */
   getCoverUrl(song: OnlineSong): string;
   /** Login cookie for this source (empty when not set / anonymous). */
@@ -91,7 +100,13 @@ export interface OnlineMusicElectronAPI {
   getQQMusicLyrics?: (
     songmid: string,
     cookie: string
-  ) => Promise<{ success: boolean; lyrics?: string; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    lyrics?: string;
+    wordLyrics?: string;
+    wordLyricsFormat?: 'qrc';
+    error?: string;
+  }>;
   /** Generic NetEase weapi request (encryption handled in main process). */
   neteaseRequest?: (
     channel: string,

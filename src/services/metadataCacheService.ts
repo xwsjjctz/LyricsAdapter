@@ -5,6 +5,7 @@
  * Includes data validation for security
  */
 
+import type { SyncedLyricLine } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { indexedDBStorage } from './indexedDBStorage';
 import { type ValidatedMetadata, validateMetadata } from './dataValidator';
@@ -139,7 +140,7 @@ class MetadataCacheService {
     album: string;
     duration: number;
     lyrics: string;
-    syncedLyrics?: { time: number; text: string }[];
+    syncedLyrics?: SyncedLyricLine[];
   } {
     return {
       title: cached.title,

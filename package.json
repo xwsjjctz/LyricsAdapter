@@ -23,6 +23,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@applemusic-like-lyrics/lyric": "^1.0.2",
     "electron-updater": "^6.3.9",
     "gsap": "^3.15.0",
     "i18next": "^26.3.5",
