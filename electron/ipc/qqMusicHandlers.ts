@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 import { logger } from "../logger";
+import { decryptQrc } from "../utils/qrcDecrypt";
 export function registerQQMusicHandlers(): void {
   ipcMain.handle('qq-music-request', async (_event, options: {
     url: string;
@@ -98,47 +99,64 @@ export function registerQQMusicHandlers(): void {
     try {
       logger.info('[Main] Getting lyrics for:', songmid);
 
-      const requestLyrics = async (qrc = false) => {
-        const response = await fetch(
-          `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?_=${Date.now()}` +
-          `&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0` +
-          `&platform=yqq.json&needNewCode=1&g_tk=5381&songmid=${songmid}${qrc ? '&qrc=1' : ''}`,
-          {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-              'Referer': 'https://y.qq.com/',
-              'Cookie': cookieString,
-            },
-          }
-        );
+      // QQ Music's PC-client endpoint. `param.qrc=1` asks for the word-timed
+      // variant: when granted, `data.qrc === 1` and `data.lyric` is a hex-encoded
+      // byte stream (triple-DES + zlib) rather than a base64 LRC. Without the
+      // flag, `data.lyric` is plain base64 LRC. We always fetch the LRC form for
+      // line-level fallback, and separately try the encrypted QRC for karaoke.
+      const requestPlayLyric = async (qrc: boolean) => {
+        const body = {
+          comm: {
+            cv: 4747474, ct: 24, format: 'json', inCharset: 'utf-8',
+            outCharset: 'utf-8', notice: 0, platform: 'yqq.json',
+            needNewCode: 1, uin: '0', g_tk: 5381,
+          },
+          req: {
+            module: 'music.musichallSong.PlayLyricInfo',
+            method: 'GetPlayLyricInfo',
+            param: { songMID: songmid, songID: 0, transId: 0, romaId: 0, ...(qrc ? { qrc: 1 } : {}) },
+          },
+        };
+        const response = await fetch(`https://u.y.qq.com/cgi-bin/musicu.fcg?_=${Date.now()}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Referer': 'https://y.qq.com/',
+            'Cookie': cookieString,
+          },
+          body: JSON.stringify(body),
+        });
         if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-        return response.json() as Promise<{ code?: number; lyric?: string }>;
+        return response.json() as Promise<{
+          code?: number;
+          req?: { code?: number; data?: { lyric?: string; qrc?: number } };
+        }>;
       };
 
-      const result = await requestLyrics();
-      const qrcResult = await requestLyrics(true).catch((error) => {
-        // Karaoke timing is optional; never discard a usable LRC response when
-        // QQ declines the QRC variant for a particular track/account.
-        logger.warn('[Main] QQ QRC lyrics request failed:', error);
-        return undefined;
-      });
+      // Line-level LRC is the baseline; never let a QRC failure discard it.
+      const lrcResult = await requestPlayLyric(false);
+      const lrcData = lrcResult.req?.data;
+      if (lrcResult.code !== 0 || !lrcData?.lyric) {
+        logger.warn('[Main] Lyrics API returned no LRC, code:', lrcResult.code);
+        return { success: false, error: `API error code: ${lrcResult.code ?? 'no lyric'}` };
+      }
+      const lyrics = Buffer.from(lrcData.lyric, 'base64').toString('utf-8');
 
-      if (result.code !== 0) {
-        logger.warn('[Main] Lyrics API returned error code:', result.code);
-        return { success: false, error: `API error code: ${result.code}` };
+      // Best-effort encrypted QRC. A track without word timings returns
+      // `qrc !== 1` (or the request simply fails); either way we keep the LRC.
+      let wordLyrics: string | undefined;
+      try {
+        const qrcResult = await requestPlayLyric(true);
+        const qrcData = qrcResult.req?.data;
+        if (qrcResult.code === 0 && qrcData?.qrc === 1 && qrcData.lyric) {
+          wordLyrics = decryptQrc(qrcData.lyric);
+        }
+      } catch (error) {
+        logger.warn('[Main] QQ QRC lyrics unavailable for', songmid, ':', error);
       }
 
-      const lyricBase64 = result.lyric;
-      if (!lyricBase64) {
-        return { success: false, error: 'No lyrics available' };
-      }
-
-      const lyrics = Buffer.from(lyricBase64, 'base64').toString('utf-8');
-      const wordLyrics = qrcResult?.code === 0 && qrcResult.lyric
-        ? Buffer.from(qrcResult.lyric, 'base64').toString('utf-8')
-        : undefined;
-      logger.info('[Main] Lyrics fetched, length:', lyrics.length);
-
+      logger.info('[Main] Lyrics fetched, length:', lyrics.length, 'qrc:', Boolean(wordLyrics));
       return { success: true, lyrics, ...(wordLyrics ? { wordLyrics, wordLyricsFormat: 'qrc' as const } : {}) };
     } catch (error) {
       logger.error('[Main] Get lyrics failed:', error);
