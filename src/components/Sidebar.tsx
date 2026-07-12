@@ -326,12 +326,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPlaylistEditMode((editing) => !editing)}
-                className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
+                className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
                 style={{ color: isPlaylistEditMode ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)' }}
-                title={isPlaylistEditMode ? '完成编辑' : '编辑歌单'}
                 aria-label={isPlaylistEditMode ? '完成编辑' : '编辑歌单'}
               >
-                <span className="material-symbols-outlined text-[18px]">
+                <span className="material-symbols-outlined text-[16px]">
                   {isPlaylistEditMode ? 'done' : 'edit'}
                 </span>
               </button>
