@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseLyrics, parseWordLyrics } from '@/shared/lrcParser';
+import { parseLyrics } from '@/shared/lrcParser';
 
 describe('word-timed lyric parsing', () => {
   it('parses NetEase YRC lines and preserves each word timing', () => {
-    const parsed = parseWordLyrics(
+    const parsed = parseLyrics(
+      '',
       '[1000,900](1000,300,0)你(1300,250,0)好(1550,350,0)呀',
       'yrc',
     );
@@ -23,13 +24,14 @@ describe('word-timed lyric parsing', () => {
   });
 
   it('extracts QQ QRC XML content before parsing word timings', () => {
-    const qrc = '<QrcInfos><Lyric_1 LyricContent="[2000,700]我(2000,300)们(2300,400)啊" /></QrcInfos>';
-    const parsed = parseWordLyrics(qrc, 'qrc');
+    const qrc = '<QrcInfos><Lyric_1 LyricContent="[2000,700]我(2000,300)们(2300,200)啊(2500,200)" /></QrcInfos>';
+    const parsed = parseLyrics('', qrc, 'qrc');
 
     expect(parsed?.plainText).toBe('我们啊');
     expect(parsed?.syncedLyrics?.[0]?.words).toEqual([
       { time: 2, duration: 0.3, text: '我' },
-      { time: 2.3, duration: 0.4, text: '们啊' },
+      { time: 2.3, duration: 0.2, text: '们' },
+      { time: 2.5, duration: 0.2, text: '啊' },
     ]);
   });
 

@@ -12,6 +12,7 @@ import { MusicFile, MetaPicture } from 'music-tag-native';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import { parseLrc } from '@applemusic-like-lyrics/lyric';
 import { logger } from '../logger';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -61,6 +62,33 @@ const LRC_HEADER_TAG = /^\[(ti|ar|al|by|offset|re|ve|length|sign):/i;
 const LRC_TIME_REGEX = /\[(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{2,3}))?\]/g;
 
 function parseLRCLyrics(lrc: string): { plainText: string; syncedLyrics: SyncedLyricLine[] } {
+  const syncedLyrics = parseLrc(lrc)
+    .map((line) => ({
+      time: line.startTime / 1000,
+      text: line.words.map((word) => word.word).join(''),
+    }))
+    .filter((line) => Number.isFinite(line.time) && Boolean(line.text));
+  return {
+    plainText: syncedLyrics.length > 0
+      ? syncedLyrics.map((line) => line.text).join('\n')
+      : plainLyricsText(lrc),
+    syncedLyrics,
+  };
+}
+
+function plainLyricsText(value: string): string {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !LRC_HEADER_TAG.test(line))
+    .join('\n');
+}
+
+/**
+ * @deprecated @dead_code Superseded by AMLL's `parseLrc` implementation.
+ * Retained temporarily as a rollback reference for main-process metadata reads.
+ */
+export function parseLRCLyricsLegacy(lrc: string): { plainText: string; syncedLyrics: SyncedLyricLine[] } {
   const lines = lrc.split(/\r?\n/);
   const syncedLyrics: SyncedLyricLine[] = [];
   const plainTextLines: string[] = [];
@@ -219,4 +247,3 @@ async function resolveCover(uri: string): Promise<MetaPicture | null> {
     return null;
   }
 }
-

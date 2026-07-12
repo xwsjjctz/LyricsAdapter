@@ -4,11 +4,10 @@
  * 渲染层主线程（src/services/metadataService.ts）、Web Worker
  *（src/services/workers/metadataWorker.ts）均直接引用本文件。
  *
- * 主进程（electron/services/audioMetadataService.ts）因 vite 分包隔离无法
- * 跨 src/ 引用，保留一份逐字拷贝并标注「与 src/shared/lrcParser.ts 同步」。
- * 修改本文件时务必同步那边，避免再次出现三份实现各自漂移、hh:mm:ss 解析
- * 不一致的回归（见该文件的修正历史）。
+ * 主进程也通过同一个第三方 AMLL 库解析 LRC；本文件中的旧实现仅作为
+ * `@dead_code` 回滚参考保留，禁止再为它添加调用点。
  */
+import { parseLrc, parseQrc, parseYrc, type LyricLine } from '@applemusic-like-lyrics/lyric';
 import type { SyncedLyricLine } from '../types';
 
 /** LRC metadata tags like [ti:Title], [ar:Artist] that should be filtered. */
@@ -30,9 +29,8 @@ const YRC_WORD_TOKEN = /\((\d+),(\d+)(?:,\d+)?\)([^()]*)/g;
 const QRC_WORD_TOKEN = /([^()]*?)\((\d+),(\d+)(?:,\d+)?\)/g;
 
 /**
- * Parse the QRC/YRC karaoke formats used by QQ Music and NetEase Cloud Music.
- * Both formats use millisecond line timestamps followed by timed text tokens.
- * QRC may be returned as XML, whose LyricContent attribute contains the lines.
+ * @deprecated @dead_code Retained as a reference implementation while AMLL is
+ * the production parser. Do not add new callers; use `parseLyrics` instead.
  */
 export function parseWordLyrics(raw: string, format: WordLyricsFormat): ParsedLrc | undefined {
   const content = format === 'qrc' ? extractQrcContent(raw) : raw;
@@ -97,15 +95,17 @@ function createWord(timeValue: string | undefined, durationValue: string | undef
     : undefined;
 }
 
-/** Prefer word timings where a provider returned them, otherwise parse LRC. */
+/** Parse provider lyrics through AMLL's maintained QRC/YRC/LRC implementations. */
 export function parseLyrics(
   lyrics: string,
   wordLyrics?: string | null,
   wordLyricsFormat?: WordLyricsFormat | null,
 ): ParsedLrc {
-  if (wordLyrics && wordLyricsFormat) {
-    const parsedWords = parseWordLyrics(wordLyrics, wordLyricsFormat);
-    if (parsedWords) return parsedWords;
+  if (wordLyrics && wordLyricsFormat === 'qrc') {
+    return fromAmlLines(parseQrc(extractQrcContent(wordLyrics)), wordLyrics, true);
+  }
+  if (wordLyrics && wordLyricsFormat === 'yrc') {
+    return fromAmlLines(parseYrc(wordLyrics), wordLyrics, true);
   }
   return parseLRCLyrics(lyrics);
 }
@@ -133,12 +133,55 @@ function decodeXml(value: string): string {
     .replace(/&amp;/gi, '&');
 }
 
-/**
- * Parse LRC format lyrics (with timestamps like [00:12.34] or [00:00:00]).
- *
- * 支持同一行多时间戳、[hh:mm:ss] 三段式格式、毫秒补零到三位。
- */
+/** Parse LRC through AMLL; existing callers keep their stable return shape. */
 export function parseLRCLyrics(lrc: string): ParsedLrc {
+  return fromAmlLines(parseLrc(lrc), lrc, false);
+}
+
+function fromAmlLines(lines: LyricLine[], fallbackText: string, includeWordTiming: boolean): ParsedLrc {
+  const syncedLyrics = lines
+    .filter((line) => line.words.some((word) => word.word.trim()))
+    .map((line) => {
+      const text = line.words.map((word) => word.word).join('');
+      const words = includeWordTiming
+        ? line.words
+          .filter((word) => word.word && Number.isFinite(word.startTime) && Number.isFinite(word.endTime))
+          .map((word) => ({
+            time: word.startTime / 1000,
+            duration: Math.max(0, (word.endTime - word.startTime) / 1000),
+            text: word.word,
+          }))
+          .filter((word) => word.duration > 0)
+        : [];
+      return {
+        time: line.startTime / 1000,
+        text,
+        ...(words.length > 0 ? { words } : {}),
+      };
+    })
+    .filter((line) => Number.isFinite(line.time) && line.text);
+
+  return {
+    plainText: syncedLyrics.length > 0
+      ? syncedLyrics.map((line) => line.text).join('\n')
+      : plainLyricsText(fallbackText),
+    syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined,
+  };
+}
+
+function plainLyricsText(value: string): string {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !LRC_HEADER_TAG.test(line))
+    .join('\n');
+}
+
+/**
+ * @deprecated @dead_code Superseded by `parseLRCLyrics`, which delegates to
+ * `@applemusic-like-lyrics/lyric`. Retained temporarily for rollback reference.
+ */
+export function parseLRCLyricsLegacy(lrc: string): ParsedLrc {
   const wordLyricsFormat = detectWordLyricsFormat(lrc);
   if (wordLyricsFormat) {
     const parsedWords = parseWordLyrics(lrc, wordLyricsFormat);
