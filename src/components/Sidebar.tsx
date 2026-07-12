@@ -61,6 +61,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
+  const isSettingsView = currentView === ViewMode.SETTINGS;
+  const isThemeView = currentView === ViewMode.THEME;
+  const isLibrarySelectionActive = isLibraryView || isSettingsView || isThemeView;
   const handleSlotClick = useCallback((slotId: SlotId) => {
     if (slotId === 'cloud' && !webdavClient.hasConfig()) {
       notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
@@ -77,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: 'hard_drive',
       label: t('sidebar.local'),
       meta: String(libraryTrackCounts.local),
-      active: isLibraryView && activeSlotId === 'local',
+      active: isLibrarySelectionActive && activeSlotId === 'local',
       onClick: () => handleSlotClick('local'),
     },
     {
@@ -85,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: 'cloud',
       label: t('sidebar.cloud'),
       meta: String(libraryTrackCounts.cloud),
-      active: isLibraryView && activeSlotId === 'cloud',
+      active: isLibrarySelectionActive && activeSlotId === 'cloud',
       onClick: () => handleSlotClick('cloud'),
     },
     {
@@ -93,10 +96,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: 'history',
       label: t('sidebar.onlineQueue'),
       meta: String(libraryTrackCounts.online),
-      active: isLibraryView && activeSlotId === 'online',
+      active: isLibrarySelectionActive && activeSlotId === 'online',
       onClick: () => handleSlotClick('online'),
     },
-  ], [activeSlotId, handleSlotClick, i18n.language, isLibraryView, libraryTrackCounts, t]);
+  ], [activeSlotId, handleSlotClick, i18n.language, isLibrarySelectionActive, libraryTrackCounts, t]);
 
   const playlistsForDisplay = useMemo(() => {
     const { visible, all } = applyOverrides(onlinePlaylists, playlistOverrides);
@@ -259,7 +262,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={() => void handlePlaylistClick(playlist)}
-              className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 pr-10 text-left transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_70%,transparent)] ${isHidden ? 'opacity-45' : ''}`}
+              className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 ${isPlaylistEditMode ? 'pr-10' : 'pr-3'} text-left transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_70%,transparent)] ${isHidden ? 'opacity-45' : ''}`}
               style={{
                 backgroundColor: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist'
                   ? 'color-mix(in srgb, var(--theme-control-item-bg-active) 62%, transparent)'
@@ -379,7 +382,7 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
 
   if (floating) {
     return (
-      <div className="w-[236px] flex flex-col flex-shrink-0">
+      <div className="w-[232px] flex flex-col flex-shrink-0">
         <aside
           className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 overflow-hidden"
           style={{
@@ -402,7 +405,7 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
 
   return (
     <aside
-      className="w-[236px] flex flex-col backdrop-blur-md z-20 pt-8"
+      className="w-[232px] flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
         backgroundColor: 'var(--theme-background-sidebar)',
         borderRight: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
