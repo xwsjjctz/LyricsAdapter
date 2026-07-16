@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
 import { getOnlineProvider } from '../services/onlineMusicProvider';
 import type { OnlineLyricsResult, OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { parseLyrics } from '../services/metadataService';
+import { PROVIDER_LYRICS_PARTIAL_TTL_MS } from '../services/providerLyricsCache';
 import { onlineSongToTrack } from '../domain/trackFactory';
 
 const PLAYLIST_PAGE_SIZE = 30;
+const LYRICS_UPGRADE_ATTEMPT_LIMIT = 256;
+const PLAYLIST_LYRICS_PREFETCH_DELAY_MS = 120;
+const PLAYLIST_LYRICS_MAX_ACTIVE_REQUESTS = 3;
 
 interface PlaylistLoadState {
   source: OnlineSource;
@@ -52,6 +56,47 @@ function isProviderTrack(track: Track): track is Track & { source: OnlineSource;
     track.songmid
     && (track.source === 'qq' || track.source === 'netease' || track.source === 'soda')
   );
+}
+
+function providerTrackKey(track: Track): string | null {
+  return isProviderTrack(track) ? `${track.source}:${track.songmid}` : null;
+}
+
+function trackLyricsState(track: Track | undefined): 'none' | 'line' | 'word' {
+  if (!track || !hasLyrics(track)) return 'none';
+  return hasWordTimedLyrics(track) ? 'word' : 'line';
+}
+
+function playlistLyricsWindowIndices(length: number, currentIndex: number): number[] {
+  if (length <= 0 || currentIndex < 0 || currentIndex >= length) return [];
+  const candidates = [
+    currentIndex,
+    (currentIndex - 1 + length) % length,
+    (currentIndex + 1) % length,
+  ];
+  return candidates.filter((index, position) => candidates.indexOf(index) === position);
+}
+
+function wasUpgradeAttempted(attempts: Map<string, number>, key: string): boolean {
+  const attemptedAt = attempts.get(key);
+  if (attemptedAt === undefined) return false;
+  if (Date.now() - attemptedAt >= PROVIDER_LYRICS_PARTIAL_TTL_MS) {
+    attempts.delete(key);
+    return false;
+  }
+  attempts.delete(key);
+  attempts.set(key, attemptedAt);
+  return true;
+}
+
+function rememberUpgradeAttempt(attempts: Map<string, number>, key: string): void {
+  attempts.delete(key);
+  attempts.set(key, Date.now());
+  while (attempts.size > LYRICS_UPGRADE_ATTEMPT_LIMIT) {
+    const oldestKey = attempts.keys().next().value as string | undefined;
+    if (oldestKey === undefined) break;
+    attempts.delete(oldestKey);
+  }
 }
 
 function mergeProviderLyrics(track: Track, lyricsResult: OnlineLyricsResult): Track {
@@ -169,39 +214,109 @@ export function usePlayerController(options: PlayerControllerOptions) {
   const browsingLoadingRef = useRef(false);
   const libraryGenerationRef = useRef(0);
   const libraryLoadingRef = useRef(false);
-  const lyricsRequestsInFlightRef = useRef(new Set<string>());
-  const lyricsUpgradeAttemptedRef = useRef(new Set<string>());
+  const lyricsRequestsInFlightRef = useRef(new Map<string, Promise<OnlineLyricsResult | null>>());
+  const lyricsUpgradeAttemptedRef = useRef(new Map<string, number>());
+  const playlistLyricsSubscriptionsRef = useRef(new Set<string>());
+  const playlistLyricsWaitingForCapacityRef = useRef(false);
+  const lyricsControllerMountedRef = useRef(true);
+  const [lyricsRequestRevision, setLyricsRequestRevision] = useState(0);
+
+  const playlistLyricsWindow = activeSlotId === 'playlist'
+    ? playlistLyricsWindowIndices(playlistTracks.length, playlistCurrentIndex).map((index) => {
+        const track = playlistTracks[index];
+        return {
+          index,
+          id: track?.id ?? '',
+          providerKey: track ? providerTrackKey(track) : null,
+        };
+      })
+    : [];
+  const latestPlaylistLyricsWindowRef = useRef(playlistLyricsWindow);
+  const playlistLyricsWindowKey = activeSlotId === 'playlist'
+    ? JSON.stringify([
+        playlistTracks.length,
+        playlistCurrentIndex,
+        ...playlistLyricsWindow.map(entry => [
+          entry.index,
+          entry.id,
+          entry.providerKey,
+          trackLyricsState(playlistTracks[entry.index]),
+        ]),
+      ])
+    : 'inactive';
+  const committedPlaylistLyricsWindowKeyRef = useRef<string | null>(playlistLyricsWindowKey);
+
+  useLayoutEffect(() => {
+    const committedWindow = playlistLyricsWindow;
+    latestPlaylistLyricsWindowRef.current = committedWindow;
+    committedPlaylistLyricsWindowKeyRef.current = playlistLyricsWindowKey;
+    return () => {
+      if (latestPlaylistLyricsWindowRef.current === committedWindow) {
+        latestPlaylistLyricsWindowRef.current = [];
+      }
+      if (committedPlaylistLyricsWindowKeyRef.current === playlistLyricsWindowKey) {
+        committedPlaylistLyricsWindowKeyRef.current = null;
+      }
+    };
+  }, [playlistLyricsWindowKey]);
+
+  useEffect(() => {
+    lyricsControllerMountedRef.current = true;
+    return () => {
+      lyricsControllerMountedRef.current = false;
+      playlistLyricsWaitingForCapacityRef.current = false;
+    };
+  }, []);
+
+  const handleLyricsRequestSettled = useCallback(() => {
+    if (
+      lyricsControllerMountedRef.current
+      && playlistLyricsWaitingForCapacityRef.current
+    ) {
+      playlistLyricsWaitingForCapacityRef.current = false;
+      setLyricsRequestRevision(revision => revision + 1);
+    }
+  }, []);
 
   /**
-   * Fetch provider lyrics once per active request. Tracks that already have
-   * line-level lyrics get one karaoke upgrade attempt per app session; tracks
-   * whose lyrics were evicted remain reloadable when they re-enter the window.
+   * Share each active provider request between all consumers. Tracks that have
+   * line-level lyrics retry karaoke upgrades on the partial-cache interval;
+   * tracks whose lyrics were evicted remain reloadable on window re-entry.
    */
   const enrichProviderTrackLyrics = useCallback(async (track: Track): Promise<Track | undefined> => {
     if (!isProviderTrack(track) || hasWordTimedLyrics(track)) return undefined;
 
     const requestKey = `${track.source}:${track.songmid}`;
     const isUpgrade = hasLyrics(track);
-    if (
-      lyricsRequestsInFlightRef.current.has(requestKey)
-      || (isUpgrade && lyricsUpgradeAttemptedRef.current.has(requestKey))
-    ) {
+    if (isUpgrade && wasUpgradeAttempted(lyricsUpgradeAttemptedRef.current, requestKey)) {
       return undefined;
     }
 
-    lyricsRequestsInFlightRef.current.add(requestKey);
-    try {
-      const lyricsResult = await getOnlineProvider(track.source).getLyrics(track.songmid);
-      if (!lyricsResult) return undefined;
-      const enrichedTrack = mergeProviderLyrics(track, lyricsResult);
-      if (!hasWordTimedLyrics(enrichedTrack)) {
-        lyricsUpgradeAttemptedRef.current.add(requestKey);
-      }
-      return enrichedTrack;
-    } finally {
-      lyricsRequestsInFlightRef.current.delete(requestKey);
+    let request = lyricsRequestsInFlightRef.current.get(requestKey);
+    if (!request) {
+      let newRequest!: Promise<OnlineLyricsResult | null>;
+      newRequest = (async () => {
+        try {
+          return await getOnlineProvider(track.source).getLyrics(track.songmid);
+        } finally {
+          if (lyricsRequestsInFlightRef.current.get(requestKey) === newRequest) {
+            lyricsRequestsInFlightRef.current.delete(requestKey);
+          }
+          handleLyricsRequestSettled();
+        }
+      })();
+      lyricsRequestsInFlightRef.current.set(requestKey, newRequest);
+      request = newRequest;
     }
-  }, []);
+
+    const lyricsResult = await request;
+    if (!lyricsResult) return undefined;
+    const enrichedTrack = mergeProviderLyrics(track, lyricsResult);
+    if (!hasWordTimedLyrics(enrichedTrack)) {
+      rememberUpgradeAttempt(lyricsUpgradeAttemptedRef.current, requestKey);
+    }
+    return enrichedTrack;
+  }, [handleLyricsRequestSettled]);
 
   const loadPlaylistPage = useCallback(async (source: OnlineSource, playlistId: string, offset: number) => {
     const provider = getOnlineProvider(source);
@@ -506,39 +621,25 @@ export function usePlayerController(options: PlayerControllerOptions) {
     setIsPlaying(true);
   }, [browsingTracks, loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
-  // Playlist-only lyrics sliding window (size 3): prefetch the current track and
-  // its two neighbours, and evict lyrics outside that window to bound memory.
+  // Playlist-only circular lyrics window (size 3): prefetch current, previous
+  // and next so FocusMode switches are instant even at the list boundaries.
   // Other slots are unaffected — online uses per-click enrichment, local/cloud
   // read lyrics from file metadata.
   useEffect(() => {
-    const playlistTracksLocal = playlistTracks;
-    const i = playlistCurrentIndex;
-    if (i < 0 || playlistTracksLocal.length === 0) return;
-    const lo = Math.max(0, i - 1);
-    const hi = Math.min(playlistTracksLocal.length - 1, i + 1);
-
-    // Prefetch the window's missing lyrics (current ± 1).
-    for (let k = lo; k <= hi; k++) {
-      const t = playlistTracksLocal[k];
-      if (!t || !isProviderTrack(t) || hasWordTimedLyrics(t)) continue;
-      const trackId = t.id;
-      void enrichProviderTrackLyrics(t)
-        .then(enrichedTrack => {
-          if (!enrichedTrack) return;
-          updatePlaylistTracks(prev => prev.map(x =>
-            x.id === trackId ? applyEnrichedLyrics(x, enrichedTrack) : x
-          ));
-        })
-        .catch(() => { /* lyrics are best-effort */ });
+    if (
+      activeSlotId !== 'playlist'
+      || playlistLyricsWindow.length === 0
+      || committedPlaylistLyricsWindowKeyRef.current !== playlistLyricsWindowKey
+    ) {
+      return;
     }
 
-    // Evict lyrics outside the window so only the current ± 1 stay cached.
+    // Only provider tracks participate: embedded local/WebDAV lyrics must stay.
     updatePlaylistTracks(prev => {
-      const evictLo = Math.max(0, i - 1);
-      const evictHi = Math.min(prev.length - 1, i + 1);
+      const liveIndices = new Set(latestPlaylistLyricsWindowRef.current.map(entry => entry.index));
       let changed = false;
       const next = prev.map((t, k) => {
-        if (k < evictLo || k > evictHi) {
+        if (!liveIndices.has(k) && isProviderTrack(t)) {
           if (t.lyrics || (t.syncedLyrics && t.syncedLyrics.length > 0)) {
             changed = true;
             const clone = { ...t };
@@ -551,7 +652,83 @@ export function usePlayerController(options: PlayerControllerOptions) {
       });
       return changed ? next : prev;
     });
-  }, [playlistCurrentIndex, playlistTracks.length, enrichProviderTrackLyrics, updatePlaylistTracks]);
+
+    const timer = window.setTimeout(() => {
+      if (committedPlaylistLyricsWindowKeyRef.current !== playlistLyricsWindowKey) return;
+      let waitingForCapacity = false;
+      for (const entry of playlistLyricsWindow) {
+        const track = playlistTracks[entry.index];
+        if (!track || !entry.providerKey || !isProviderTrack(track) || hasWordTimedLyrics(track)) continue;
+
+        const requestedIndex = entry.index;
+        const requestedId = track.id;
+        const requestedProviderKey = entry.providerKey;
+        const subscriptionKey = `${requestedIndex}:${requestedId}:${requestedProviderKey}`;
+        if (playlistLyricsSubscriptionsRef.current.has(subscriptionKey)) continue;
+
+        if (
+          !lyricsRequestsInFlightRef.current.has(requestedProviderKey)
+          && lyricsRequestsInFlightRef.current.size >= PLAYLIST_LYRICS_MAX_ACTIVE_REQUESTS
+        ) {
+          waitingForCapacity = true;
+          continue;
+        }
+
+        playlistLyricsSubscriptionsRef.current.add(subscriptionKey);
+        void enrichProviderTrackLyrics(track)
+          .then(enrichedTrack => {
+            if (!enrichedTrack) return;
+            updatePlaylistTracks(prev => {
+              const liveEntry = latestPlaylistLyricsWindowRef.current.find(candidate => (
+                candidate.index === requestedIndex
+                && candidate.id === requestedId
+                && candidate.providerKey === requestedProviderKey
+              ));
+              if (!liveEntry) return prev;
+
+              const current = prev[liveEntry.index];
+              if (
+                !current
+                || current.id !== requestedId
+                || providerTrackKey(current) !== requestedProviderKey
+                || hasWordTimedLyrics(current)
+                || (hasLyrics(current) && !hasWordTimedLyrics(enrichedTrack))
+              ) {
+                return prev;
+              }
+
+              const next = [...prev];
+              next[liveEntry.index] = applyEnrichedLyrics(current, enrichedTrack);
+              return next;
+            });
+          })
+          .catch(() => { /* lyrics are best-effort */ })
+          .finally(() => {
+            playlistLyricsSubscriptionsRef.current.delete(subscriptionKey);
+          });
+      }
+      playlistLyricsWaitingForCapacityRef.current = waitingForCapacity;
+    }, PLAYLIST_LYRICS_PREFETCH_DELAY_MS);
+
+    const hasUpgradeableLineLyrics = playlistLyricsWindow.some(entry => {
+      const track = playlistTracks[entry.index];
+      return Boolean(entry.providerKey)
+        && (track?.source === 'qq' || track?.source === 'netease')
+        && trackLyricsState(track) === 'line';
+    });
+    const partialRetryTimer = hasUpgradeableLineLyrics
+      ? window.setTimeout(() => {
+          if (lyricsControllerMountedRef.current) {
+            setLyricsRequestRevision(revision => revision + 1);
+          }
+        }, PROVIDER_LYRICS_PARTIAL_TTL_MS + 1)
+      : undefined;
+
+    return () => {
+      window.clearTimeout(timer);
+      if (partialRetryTimer !== undefined) window.clearTimeout(partialRetryTimer);
+    };
+  }, [playlistLyricsWindowKey, lyricsRequestRevision, enrichProviderTrackLyrics, updatePlaylistTracks]);
 
   return {
     handleTrackSelect,

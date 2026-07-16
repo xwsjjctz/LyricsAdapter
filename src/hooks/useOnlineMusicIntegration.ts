@@ -43,19 +43,9 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
   const activeSongRef = useRef<string | null>(null);
   const { t } = useTranslation();
 
-  // Lyrics: QQ prefers the dedicated IPC channel (avoids CORS), then falls back
-  // to the provider. NetEase resolves entirely through its provider (IPC).
+  // Every source goes through its provider so playback and download/upload
+  // share bounded caching and in-flight request deduplication.
   const fetchLyrics = async (song: OnlineSong, provider: OnlineMusicProvider): Promise<OnlineLyricsResult | undefined> => {
-    const desktopAPI = getDesktopAPI();
-    if (provider.id === 'qq' && desktopAPI?.getQQMusicLyrics) {
-      const r = await desktopAPI.getQQMusicLyrics(song.songmid, provider.getRawCookie());
-      if (r?.success && r.lyrics) {
-        return {
-          lyrics: r.lyrics,
-          ...(r.wordLyrics ? { wordLyrics: r.wordLyrics, wordLyricsFormat: 'qrc' as const } : {}),
-        };
-      }
-    }
     return (await provider.getLyrics(song.songmid)) || undefined;
   };
 

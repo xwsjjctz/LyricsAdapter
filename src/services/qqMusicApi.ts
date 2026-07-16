@@ -1,6 +1,7 @@
 import { logger } from './logger';
 import { cookieManager } from './cookieManager';
 import { getDesktopAPI } from './desktopAdapter';
+import { providerLyricsCache } from './providerLyricsCache';
 import type {
   OnlineLyricsResult,
   OnlineMusicProvider,
@@ -718,28 +719,29 @@ class QQMusicAPI implements OnlineMusicProvider {
     }
 
     try {
-      logger.debug('[QQMusicAPI] Getting lyrics via IPC for:', songmid);
+      return await providerLyricsCache.getOrLoad(this.id, songmid, async () => {
+        logger.debug('[QQMusicAPI] Getting lyrics via IPC for:', songmid);
 
-      // Use the main-process IPC (proven reliable, bypasses CORS/header issues)
-      const desktopAPI = getDesktopAPI();
-      if (!desktopAPI?.getQQMusicLyrics) {
-        throw new Error('Desktop API not available');
-      }
-      const rawCookie = cookieManager.getCookie();
-      const result = await desktopAPI.getQQMusicLyrics(songmid, rawCookie);
+        // Use the main-process IPC (proven reliable, bypasses CORS/header issues)
+        const desktopAPI = getDesktopAPI();
+        if (!desktopAPI?.getQQMusicLyrics) {
+          throw new Error('Desktop API not available');
+        }
+        const rawCookie = cookieManager.getCookie();
+        const result = await desktopAPI.getQQMusicLyrics(songmid, rawCookie);
 
-      if (!result.success) {
-        logger.warn('[QQMusicAPI] Lyrics IPC returned error:', result.error);
-        return null;
-      }
+        if (!result.success) {
+          throw new Error(result.error || 'Lyrics IPC failed');
+        }
 
-      logger.debug('[QQMusicAPI] Lyrics decoded, length:', result.lyrics?.length ?? 0);
-      return result.lyrics
-        ? {
-            lyrics: result.lyrics,
-            ...(result.wordLyrics ? { wordLyrics: result.wordLyrics, wordLyricsFormat: 'qrc' as const } : {}),
-          }
-        : null;
+        logger.debug('[QQMusicAPI] Lyrics decoded, length:', result.lyrics?.length ?? 0);
+        return result.lyrics
+          ? {
+              lyrics: result.lyrics,
+              ...(result.wordLyrics ? { wordLyrics: result.wordLyrics, wordLyricsFormat: 'qrc' as const } : {}),
+            }
+          : null;
+      });
     } catch (error: unknown) {
       logger.error('[QQMusicAPI] Get lyrics failed:', error);
       return null;
