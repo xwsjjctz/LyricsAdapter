@@ -45,6 +45,8 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
     origCropY: number;
     origCropSize: number;
   } | null>(null);
+  const exportImageRef = useRef<HTMLImageElement | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Effective display scale (base × zoom)
   const scale = baseScale * zoom;
@@ -53,12 +55,21 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
   useEffect(() => {
     if (typeof source === 'string') {
       setDataUrl(source);
-    } else {
-      const reader = new FileReader();
-      reader.onload = () => setDataUrl(reader.result as string);
-      reader.readAsDataURL(source);
+      return;
     }
+    const objectUrl = URL.createObjectURL(source);
+    setDataUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
   }, [source]);
+
+  useEffect(() => () => {
+    const image = exportImageRef.current;
+    if (!image) return;
+    image.onload = null;
+    image.onerror = null;
+    image.src = '';
+    exportImageRef.current = null;
+  }, []);
 
   // ── Load image and compute initial crop ──
   useEffect(() => {
@@ -77,6 +88,11 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
       setCropY((h - size) / 2);
     };
     img.src = dataUrl;
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+      if (!img.complete) img.src = '';
+    };
   }, [dataUrl]);
 
   // ── Compute base display layout (without zoom) ──
@@ -156,24 +172,39 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
 
   // ── Crop & confirm ──
   const handleConfirm = useCallback(() => {
-    if (!dataUrl || imgW === 0) return;
+    if (!dataUrl || imgW === 0 || exportImageRef.current) return;
     const canvas = document.createElement('canvas');
-    // Output at a reasonable resolution (min 512px, max original crop size)
-    const outputSize = Math.max(512, Math.round(cropSize));
+    // Cards render at roughly 200px; 512px keeps Retina/hover detail while
+    // limiting every persisted decoded cover to about 1 MiB.
+    const outputSize = 512;
     canvas.width = outputSize;
     canvas.height = outputSize;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const img = new Image();
+    exportImageRef.current = img;
+    setIsExporting(true);
+    const release = () => {
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+      if (exportImageRef.current === img) exportImageRef.current = null;
+      setIsExporting(false);
+      canvas.width = 0;
+      canvas.height = 0;
+    };
     img.onload = () => {
       ctx.drawImage(
         img,
         Math.round(cropX), Math.round(cropY), Math.round(cropSize), Math.round(cropSize),
         0, 0, outputSize, outputSize,
       );
-      onConfirm(canvas.toDataURL('image/jpeg', 0.92));
+      const result = canvas.toDataURL('image/jpeg', 0.88);
+      release();
+      onConfirm(result);
     };
+    img.onerror = release;
     img.src = dataUrl;
   }, [dataUrl, cropX, cropY, cropSize, imgW, onConfirm]);
 
@@ -267,7 +298,11 @@ const SquareCropModal: React.FC<SquareCropModalProps> = ({ source, onConfirm, on
           <button className="sq-crop-modal__btn sq-crop-modal__btn--cancel" onClick={onCancel}>
             取消
           </button>
-          <button className="sq-crop-modal__btn sq-crop-modal__btn--confirm" onClick={handleConfirm}>
+          <button
+            className="sq-crop-modal__btn sq-crop-modal__btn--confirm"
+            onClick={handleConfirm}
+            disabled={isExporting}
+          >
             确认裁切
           </button>
         </div>

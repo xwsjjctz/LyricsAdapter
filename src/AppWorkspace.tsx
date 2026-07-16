@@ -454,7 +454,7 @@ const AppWorkspace: React.FC = () => {
   const audioElement = currentTrack ? (
     <audio
       ref={setAudioRef}
-      src={currentTrack.audioUrl}
+      preload="metadata"
       onTimeUpdate={handleTimeUpdate}
       onLoadedMetadata={handleLoadedMetadata}
       onLoadedData={handleLoadedMetadata}

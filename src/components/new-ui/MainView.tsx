@@ -9,6 +9,8 @@ import type { CardOverride, CardOverrideMap } from '../../services/newUxCardEdit
 interface MainViewProps {
   entries: CardEntry[];
   isPlaylistPanelOpen: boolean;
+  /** Pause the full-wall rAF when FocusMode or the app window is inactive. */
+  isActive?: boolean;
   onOpenPlaylist: (entry: CardEntry) => void | Promise<void>;
   onPlaylistContextMenu: (entry: CardEntry, event: React.MouseEvent) => void;
   isCardEditMode?: boolean;
@@ -37,6 +39,7 @@ const gridRowGap = 280;
 const MainView: React.FC<MainViewProps> = ({
   entries,
   isPlaylistPanelOpen,
+  isActive = true,
   onOpenPlaylist,
   onPlaylistContextMenu,
   isCardEditMode,
@@ -73,6 +76,7 @@ const MainView: React.FC<MainViewProps> = ({
   const clickGuardUntilRef = useRef(0);
   const hoveredIdRef = useRef<string | null>(null);
   const hoverScaleRef = useRef<Record<string, number>>({});
+  const wakeAnimationRef = useRef<() => void>(() => {});
   const [isDragging, setIsDragging] = useState(false);
   const [panelCloseEpoch, setPanelCloseEpoch] = useState(0);
 
@@ -154,6 +158,7 @@ const MainView: React.FC<MainViewProps> = ({
 
   useEffect(() => {
     layoutRef.current = cardLayouts;
+    wakeAnimationRef.current();
   }, [cardLayouts]);
 
   // Cache the space element's dimensions via ResizeObserver so the rAF loop
@@ -167,6 +172,7 @@ const MainView: React.FC<MainViewProps> = ({
           width: entry.contentRect.width,
           height: entry.contentRect.height,
         };
+        wakeAnimationRef.current();
       }
     });
     ro.observe(el);
@@ -180,10 +186,22 @@ const MainView: React.FC<MainViewProps> = ({
   // accents. Wall motion is applied by the parent space itself, so a temporarily
   // stale card ref cannot leave one card pinned after opening or closing a panel.
   useEffect(() => {
+    if (!isActive) {
+      wakeAnimationRef.current = () => {};
+      spaceRef.current?.classList.remove('new-ux-playlist-space--active');
+      motionRef.current.velocityX = 0;
+      motionRef.current.velocityY = 0;
+      return;
+    }
+
     let animationFrame = 0;
+    let disposed = false;
 
     const animate = () => {
+      animationFrame = 0;
+      if (disposed || document.hidden) return;
       const space = spaceRef.current;
+      let needsNextFrame = false;
 
       if (space) {
         const rect = cachedRectRef.current;
@@ -194,6 +212,9 @@ const MainView: React.FC<MainViewProps> = ({
           motion.targetY += motion.velocityY;
           motion.velocityX *= 0.92;
           motion.velocityY *= 0.92;
+          if (Math.abs(motion.velocityX) < 0.01) motion.velocityX = 0;
+          if (Math.abs(motion.velocityY) < 0.01) motion.velocityY = 0;
+          needsNextFrame ||= motion.velocityX !== 0 || motion.velocityY !== 0;
         }
 
         const layoutBounds = layoutRef.current.reduce(
@@ -209,6 +230,8 @@ const MainView: React.FC<MainViewProps> = ({
         motion.targetY = clamp(motion.targetY, -maxY, maxY);
         motion.x += (motion.targetX - motion.x) * 0.15;
         motion.y += (motion.targetY - motion.y) * 0.15;
+        needsNextFrame ||= Math.abs(motion.targetX - motion.x) > 0.05
+          || Math.abs(motion.targetY - motion.y) > 0.05;
 
         const radius = Math.max(200, Math.min(rect.width, rect.height) * 0.48);
 
@@ -229,6 +252,7 @@ const MainView: React.FC<MainViewProps> = ({
           const lerpRate = hoverTarget < prevHoverScale ? 0.18 : 0.10;
           const hoverScale = prevHoverScale + (hoverTarget - prevHoverScale) * lerpRate;
           hoverScaleRef.current[layout.id] = hoverScale;
+          needsNextFrame ||= Math.abs(hoverTarget - hoverScale) > 0.002;
 
           const scale = baseScale * hoverScale;
           const z = focus * 220 + (hoverScale > 1.01 ? (hoverScale - 1.0) * 200 : 0);
@@ -256,15 +280,46 @@ const MainView: React.FC<MainViewProps> = ({
         space.style.setProperty('--field-y', `${motion.y * 0.24}px`);
       }
 
-      animationFrame = window.requestAnimationFrame(animate);
+      if (needsNextFrame) {
+        animationFrame = window.requestAnimationFrame(animate);
+      } else {
+        space?.classList.remove('new-ux-playlist-space--active');
+      }
+    };
+
+    const start = () => {
+      if (!disposed && !document.hidden && animationFrame === 0) {
+        spaceRef.current?.classList.add('new-ux-playlist-space--active');
+        animate();
+      }
+    };
+    wakeAnimationRef.current = start;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (animationFrame !== 0) {
+          window.cancelAnimationFrame(animationFrame);
+          animationFrame = 0;
+        }
+        spaceRef.current?.classList.remove('new-ux-playlist-space--active');
+        return;
+      }
+      start();
     };
 
     // Run one frame synchronously on mount so cards have correct positions on the
     // very first paint — they no longer fall back to CSS :nth-child defaults (those
     // were a second writer that conflicted with this loop).
-    animate();
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, []);
+    start();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      disposed = true;
+      wakeAnimationRef.current = () => {};
+      spaceRef.current?.classList.remove('new-ux-playlist-space--active');
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (animationFrame !== 0) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [isActive]);
 
   useEffect(() => {
     if (isPlaylistPanelOpen) return;
@@ -329,12 +384,14 @@ const MainView: React.FC<MainViewProps> = ({
       motion.targetY += dy;
       motion.velocityX = dx * 0.62;
       motion.velocityY = dy * 0.62;
+      wakeAnimationRef.current();
     };
 
     const clearDrag = (event: PointerEvent) => {
       if (dragRef.current.pointerId !== event.pointerId) return;
 
       resetDragState(event.pointerId, true);
+      wakeAnimationRef.current();
     };
 
     window.addEventListener('pointerdown', handlePointerDown);
@@ -359,12 +416,19 @@ const MainView: React.FC<MainViewProps> = ({
       }
       cardRefs.current[id] = node;
       if (node) {
-        const enter = () => { hoveredIdRef.current = id; };
-        const leave = () => { if (hoveredIdRef.current === id) hoveredIdRef.current = null; };
+        const enter = () => {
+          hoveredIdRef.current = id;
+          wakeAnimationRef.current();
+        };
+        const leave = () => {
+          if (hoveredIdRef.current === id) hoveredIdRef.current = null;
+          wakeAnimationRef.current();
+        };
         (node as any)._hoverEnter = enter;
         (node as any)._hoverLeave = leave;
         node.addEventListener('mouseenter', enter);
         node.addEventListener('mouseleave', leave);
+        wakeAnimationRef.current();
       }
     };
 
@@ -401,11 +465,13 @@ const MainView: React.FC<MainViewProps> = ({
     motionRef.current.targetY = 0;
     motionRef.current.velocityX = 0;
     motionRef.current.velocityY = 0;
+    wakeAnimationRef.current();
   }, []);
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
     motionRef.current.targetX -= event.deltaX * 0.72;
     motionRef.current.targetY -= (Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : 0) * 0.72;
+    wakeAnimationRef.current();
   }, []);
 
   const handleNativeDragStart = useCallback((event: React.DragEvent<HTMLElement>) => {
@@ -522,7 +588,12 @@ const MainView: React.FC<MainViewProps> = ({
                 <div key={entry.id} className="new-ux-hidden-tray__item">
                   <div className="new-ux-hidden-tray__cover">
                     {coverUrl ? (
-                      <img src={toCoverThumb(coverUrl, 128)} alt="" />
+                      <img
+                        src={toCoverThumb(coverUrl, 128)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
                     ) : (
                       <div className="new-ux-hidden-tray__cover-fallback">
                         <span className="material-symbols-outlined">music_note</span>

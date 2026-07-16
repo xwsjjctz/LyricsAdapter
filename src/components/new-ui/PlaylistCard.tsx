@@ -53,12 +53,26 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
       <div className="new-ux-playlist-card__stack" aria-hidden="true">
         {covers.slice(1, 3).map((coverUrl, index) => (
           <div className="new-ux-playlist-card__back-cover" key={`${entry.id}-back-${index}`}>
-            {coverUrl ? <img src={toCoverThumb(coverUrl, 256)} alt="" draggable={false} /> : null}
+            {coverUrl ? (
+              <img
+                src={toCoverThumb(coverUrl, 256)}
+                alt=""
+                draggable={false}
+                loading="lazy"
+                decoding="async"
+              />
+            ) : null}
           </div>
         ))}
         <div className="new-ux-playlist-card__main-cover">
           {primaryCover ? (
-            <img src={toCoverThumb(primaryCover, 512)} alt="" draggable={false} />
+            <img
+              src={toCoverThumb(primaryCover, 512)}
+              alt=""
+              draggable={false}
+              loading="lazy"
+              decoding="async"
+            />
           ) : (
             <span className="new-ux-playlist-card__icon material-symbols-outlined">{entry.icon}</span>
           )}

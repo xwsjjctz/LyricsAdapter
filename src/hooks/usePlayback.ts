@@ -6,6 +6,8 @@ import { webdavClient } from '../services/webdavClient';
 import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playbackSource';
 import { UI } from '../constants/config';
 
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+
 interface UsePlaybackOptions {
   tracks: Track[];
   setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
@@ -38,6 +40,7 @@ export function usePlayback({
   const audioUrlReadyRef = useRef<boolean>(false);
   const persistedTimeRef = useRef<number>(0);
   const lastNonZeroVolumeRef = useRef<number>(0.5);
+  const volumeRef = useRef<number>(volume);
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
   const restoredTimeRef = useRef<number>(0);
   const hasRestoredRef = useRef<boolean>(false);
@@ -91,14 +94,40 @@ export function usePlayback({
     return linearVolume * linearVolume;
   }, []);
 
+  const releaseAudioElement = useCallback((audio: HTMLAudioElement) => {
+    audio.pause();
+    audio.removeAttribute('src');
+    if ('srcObject' in audio) audio.srcObject = null;
+    // load() after removing src aborts the previous network/file request and
+    // asks Chromium to release its decoder and buffered media data promptly.
+    audio.load();
+  }, []);
+
+  const replaceAudioSource = useCallback((nextUrl: string, force = false) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const currentUrl = audio.getAttribute('src') || '';
+    if (!force && currentUrl === nextUrl) return;
+    if (currentUrl || audio.srcObject) releaseAudioElement(audio);
+    if (nextUrl) audio.src = nextUrl;
+  }, [releaseAudioElement]);
+
   const setAudioRef = useCallback((node: HTMLAudioElement | null) => {
+    const previous = audioRef.current;
+    if (!node) {
+      if (previous) releaseAudioElement(previous);
+      loadedTrackIdRef.current = undefined;
+      audioUrlReadyRef.current = false;
+      waitingForCanPlayRef.current = false;
+    }
     audioRef.current = node;
     if (node) {
-      const actualVolume = linearToExponentialVolume(volume);
-      logger.debug('Audio element created, setting volume to:', volume, '(actual:', actualVolume.toFixed(3), ')');
+      const currentVolume = volumeRef.current;
+      const actualVolume = linearToExponentialVolume(currentVolume);
+      logger.debug('Audio element created, setting volume to:', currentVolume, '(actual:', actualVolume.toFixed(3), ')');
       node.volume = actualVolume;
     }
-  }, [volume, linearToExponentialVolume]);
+  }, [linearToExponentialVolume, releaseAudioElement]);
 
   const switchToTrackIndex = useCallback((nextIndex: number) => {
     if (nextIndex === currentTrackIndex) return;
@@ -343,28 +372,39 @@ export function usePlayback({
 
     logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex, 'source:', currentTrack.source);
 
+    releaseAudioElement(audioRef.current);
     audioUrlReadyRef.current = false;
 
     if (currentTrack.source === 'webdav') {
       const handleWebdav = async () => {
         if (!currentTrack.webdavPath) return;
-        const capturedIndex = currentTrackIndex;
+        const capturedTrackId = currentTrack.id;
+        const capturedAudio = audioRef.current;
         const shouldPlay = shouldAutoPlayRef.current;
         logger.info('[Playback] Loading WebDAV audio for:', currentTrack.title, 'autoPlay:', shouldPlay);
 
         try {
           const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
-          if (currentTrackIndexRef.current !== capturedIndex || !audioRef.current) return;
+          if (
+            loadedTrackIdRef.current !== capturedTrackId
+            || !audioRef.current
+            || audioRef.current !== capturedAudio
+          ) return;
           logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
-            if (cdnUrl) {
-	            audioRef.current.src = cdnUrl;
-	            audioUrlReadyRef.current = true;
-	            await playOrPause(shouldPlay);
+          if (cdnUrl) {
+            replaceAudioSource(cdnUrl);
+            audioUrlReadyRef.current = true;
+            await playOrPause(shouldPlay);
           } else {
             logger.error('[Playback] Failed to get CDN URL for:', currentTrack.webdavPath);
           }
         } catch (e: any) {
           if (e.name === 'AbortError') return;
+          if (
+            loadedTrackIdRef.current !== capturedTrackId
+            || !audioRef.current
+            || audioRef.current !== capturedAudio
+          ) return;
           logger.error('[Playback] WebDAV playback error:', e);
           waitingForCanPlayRef.current = true;
         }
@@ -373,9 +413,14 @@ export function usePlayback({
       return;
     }
 
-    // Online streaming (QQ / NetEase) via the stream:// protocol proxy.
-    if (currentTrack.source === 'qq' || currentTrack.source === 'netease') {
-      const capturedIndex = currentTrackIndex;
+    // Online streaming (QQ / NetEase / Soda) via the stream:// protocol proxy.
+    if (
+      currentTrack.source === 'qq'
+      || currentTrack.source === 'netease'
+      || currentTrack.source === 'soda'
+    ) {
+      const capturedTrackId = currentTrack.id;
+      const capturedAudio = audioRef.current;
       const shouldPlay = shouldAutoPlayRef.current;
       const streamOnline = async () => {
         const source = currentTrack.source;
@@ -384,10 +429,14 @@ export function usePlayback({
           logger.error('[Playback] Online track missing songmid:', currentTrack.title);
           return;
         }
-        if (currentTrackIndexRef.current !== capturedIndex || !audioRef.current) return;
+        if (
+          loadedTrackIdRef.current !== capturedTrackId
+          || !audioRef.current
+          || audioRef.current !== capturedAudio
+        ) return;
         const audioUrl = buildOnlineStreamUrl(source!, songmid!);
         logger.info('[Playback] Loading online audio:', audioUrl.slice(0, 60));
-        audioRef.current.src = audioUrl;
+        replaceAudioSource(audioUrl);
 	        audioUrlReadyRef.current = true;
 	        if (shouldPlay) {
 	          await playOrPause(true).catch(() => {});
@@ -422,7 +471,7 @@ export function usePlayback({
         // 懒加载完成后直接播放，绕过 loadedTrackIdRef 守卫
         // （该守卫会拦截后续的 effect 重入，导致 play() 永远不被调用）
         if (audioRef.current && updatedTrack.audioUrl) {
-          audioRef.current.src = updatedTrack.audioUrl;
+          replaceAudioSource(updatedTrack.audioUrl);
           audioUrlReadyRef.current = true;
           if (shouldAutoPlayRef.current) {
             audioRef.current.play().then(() => {
@@ -449,6 +498,7 @@ export function usePlayback({
     audioUrlReadyRef.current = true;
 
     if (currentTrack.audioUrl) {
+      replaceAudioSource(currentTrack.audioUrl);
       if (shouldAutoPlayRef.current) {
         audioRef.current.play().then(() => {
           logger.debug('[Playback] ✓ Playback started successfully');
@@ -460,7 +510,7 @@ export function usePlayback({
         });
       }
     }
-  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, setTracks, reloadToken]);
+  }, [currentTrackIndex, currentTrack, loadAudioFileForTrack, playOrPause, releaseAudioElement, replaceAudioSource, setTracks, reloadToken]);
 
   useEffect(() => {
     if (!currentTrack) return;
@@ -533,6 +583,7 @@ export function usePlayback({
   }, [currentTrack?.audioUrl, revokeBlobUrl]);
 
   useEffect(() => {
+    volumeRef.current = volume;
     if (audioRef.current) {
       const actualVolume = linearToExponentialVolume(volume);
       logger.debug('Volume changed to:', volume, '(actual:', actualVolume.toFixed(3), ')');
@@ -552,23 +603,31 @@ export function usePlayback({
     logger.error('[Playback] Audio error message:', audio.error?.message);
     logger.error('[Playback] Current audio src:', audio.src);
 
+    const shouldResumeAfterRecovery = !audio.paused || shouldAutoPlayRef.current;
     setIsPlaying(false);
     waitingForCanPlayRef.current = false;
 
-    if (currentTrack && audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+    if (currentTrack && audio.error?.code === MEDIA_ERR_SRC_NOT_SUPPORTED) {
       if (currentTrack.source === 'webdav') {
         logger.warn('[Playback] CDN URL not supported, retrying with fresh URL');
         webdavClient.clearCdnCache();
 
         const currentTimeBeforeError = audio.currentTime || currentTime;
+        const failedTrackId = currentTrack.id;
+        const failedAudio = audioRef.current;
         (async () => {
           try {
             if (!currentTrack.webdavPath || !audioRef.current) return;
             const freshCdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
-            if (!freshCdnUrl || !audioRef.current) return;
+            if (
+              !freshCdnUrl
+              || !audioRef.current
+              || loadedTrackIdRef.current !== failedTrackId
+              || audioRef.current !== failedAudio
+            ) return;
             logger.info('[Playback] WebDAV recovery: got fresh CDN URL, resuming playback');
 
-            audioRef.current.src = freshCdnUrl;
+            replaceAudioSource(freshCdnUrl, true);
             audioUrlReadyRef.current = true;
             shouldAutoPlayRef.current = true;
             waitingForCanPlayRef.current = true;
@@ -581,8 +640,14 @@ export function usePlayback({
             logger.error('[Playback] WebDAV recovery failed:', e);
           }
         })();
-      } else {
-        logger.warn('[Playback] Blob URL revoked, re-loading audio file');
+      } else if (
+        currentTrack.filePath
+        && (currentTrack.audioUrl?.startsWith('blob:') || audio.src.startsWith('blob:'))
+      ) {
+        logger.warn('[Playback] Audio source failed, re-loading local file');
+        loadedTrackIdRef.current = undefined;
+        audioUrlReadyRef.current = false;
+        shouldAutoPlayRef.current = shouldResumeAfterRecovery;
         setTracks(prev => {
           const newTracks = [...prev];
           const idx = newTracks.findIndex(t => t.id === currentTrack.id);
@@ -593,11 +658,14 @@ export function usePlayback({
           }
           return newTracks;
         });
+        setReloadToken(token => token + 1);
+      } else {
+        shouldAutoPlayRef.current = false;
       }
     } else {
       shouldAutoPlayRef.current = false;
     }
-  }, [currentTrack, setTracks]);
+  }, [currentTrack, currentTime, replaceAudioSource, setTracks]);
 
   const selectTrack = useCallback((idx: number) => {
     shouldAutoPlayRef.current = true;

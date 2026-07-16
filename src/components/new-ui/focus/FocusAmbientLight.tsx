@@ -9,7 +9,7 @@ interface FocusAmbientLightProps {
 
 const FocusAmbientLight: React.FC<FocusAmbientLightProps> = ({ track, isPlaying }) => {
   const style = track?.coverUrl
-    ? ({ '--new-ux-focus-cover-image': `url("${toCoverThumb(track.coverUrl, 768)}")` } as React.CSSProperties)
+    ? ({ '--new-ux-focus-cover-image': `url("${toCoverThumb(track.coverUrl, 256)}")` } as React.CSSProperties)
     : undefined;
 
   return (

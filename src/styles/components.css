@@ -165,7 +165,6 @@
   min-height: 100%;
   transform: translate3d(var(--wall-x), var(--wall-y), 0);
   transform-style: preserve-3d;
-  will-change: transform;
   z-index: 10;
   cursor: grab;
   touch-action: none;
@@ -220,9 +219,16 @@
     scale(var(--card-scale));
   transition: box-shadow var(--new-ux-transition-fast);
   transform-style: preserve-3d;
-  will-change: transform, opacity;
   touch-action: none;
   -webkit-user-drag: none;
+}
+
+.new-ux-playlist-space--active {
+  will-change: transform;
+}
+
+.new-ux-playlist-space--active .new-ux-playlist-card {
+  will-change: transform, opacity;
 }
 
 .new-ux-playlist-card *,

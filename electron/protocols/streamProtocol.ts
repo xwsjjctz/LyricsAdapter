@@ -1,9 +1,13 @@
 import { protocol, app, ipcMain } from 'electron';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import rangeParser from 'range-parser';
 import { logger } from '../logger';
 import { qqResolveStreamUrl } from '../ipc/metadataHandlers';
 import { resolveNetEaseStreamUrl } from '../ipc/neteaseHandlers';
-import { fetchSodaStream } from '../ipc/sodaHandlers';
+import { fetchSodaStreamToFile } from '../ipc/sodaHandlers';
+import { nodeReadableToWeb } from '../utils/nodeReadableToWeb';
 
 /**
  * `stream://` custom protocol — proxies third-party music CDN audio streams
@@ -29,21 +33,107 @@ const cdnCache = new Map<string, CachedUrl>();
 const CACHE_TTL = 5 * 60_000; // 5 minutes
 
 interface CachedSodaAudio {
-  data: Buffer;
+  filePath: string;
+  size: number;
   contentType: string;
-  expiry: number;
+  activeReaders: number;
+  pendingDelete: boolean;
+  unlinkScheduled: boolean;
 }
 const sodaAudioCache = new Map<string, CachedSodaAudio>();
+interface SodaAudioInFlight {
+  promise: Promise<CachedSodaAudio>;
+  controller: AbortController;
+  consumers: number;
+  settled: boolean;
+}
+const sodaAudioInFlight = new Map<string, SodaAudioInFlight>();
 const SODA_CACHE_LIMIT = 3;
+let sodaCacheInitPromise: Promise<void> | null = null;
+const sodaCacheSessionId = `${process.pid}-${crypto.randomUUID()}`;
+
+function getSodaCacheRoot(): string {
+  return path.join(app.getPath('temp'), 'LyricsAdapter', 'soda-audio');
+}
+
+function getSodaCacheDir(): string {
+  return path.join(getSodaCacheRoot(), sodaCacheSessionId);
+}
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+async function ensureSodaCacheDir(): Promise<string> {
+  const cacheDir = getSodaCacheDir();
+  if (!sodaCacheInitPromise) {
+    sodaCacheInitPromise = (async () => {
+      const cacheRoot = getSodaCacheRoot();
+      await fs.promises.mkdir(cacheRoot, { recursive: true });
+      const sessions = await fs.promises.readdir(cacheRoot, { withFileTypes: true });
+      await Promise.all(sessions.map(async session => {
+        if (!session.isDirectory() || session.name === sodaCacheSessionId) return;
+        const pid = Number.parseInt(session.name.split('-', 1)[0] ?? '', 10);
+        if (Number.isFinite(pid) && isProcessRunning(pid)) return;
+        await fs.promises.rm(path.join(cacheRoot, session.name), {
+          recursive: true,
+          force: true,
+        }).catch(() => {});
+      }));
+      await fs.promises.mkdir(cacheDir, { recursive: true });
+      // Each process owns a unique directory so a second app instance can
+      // never delete files that the first instance is currently streaming.
+      app.once('will-quit', () => {
+        void fs.promises.rm(cacheDir, { recursive: true, force: true }).catch(() => {});
+      });
+    })();
+  }
+  await sodaCacheInitPromise;
+  return cacheDir;
+}
+
+function scheduleSodaFileDelete(entry: CachedSodaAudio, attempt = 0): void {
+  if (entry.activeReaders > 0 || entry.unlinkScheduled) return;
+  entry.unlinkScheduled = true;
+  const timer = setTimeout(() => {
+    entry.unlinkScheduled = false;
+    if (entry.activeReaders > 0) return;
+    void fs.promises.unlink(entry.filePath).catch((error: NodeJS.ErrnoException) => {
+      if ((error.code === 'EBUSY' || error.code === 'EPERM') && attempt < 5) {
+        scheduleSodaFileDelete(entry, attempt + 1);
+      } else if (error.code !== 'ENOENT') {
+        logger.warn('[StreamProtocol] Failed to remove Soda cache file:', error);
+      }
+    });
+  }, Math.min(100 * (attempt + 1), 1000));
+  timer.unref();
+}
+
+function deleteSodaCacheEntry(key: string, entry: CachedSodaAudio): void {
+  if (sodaAudioCache.get(key) === entry) sodaAudioCache.delete(key);
+  entry.pendingDelete = true;
+  scheduleSodaFileDelete(entry);
+}
+
+function retainSodaCacheEntry(entry: CachedSodaAudio): void {
+  entry.activeReaders += 1;
+}
+
+function releaseSodaCacheEntry(entry: CachedSodaAudio): void {
+  entry.activeReaders = Math.max(0, entry.activeReaders - 1);
+  if (entry.pendingDelete) scheduleSodaFileDelete(entry);
+}
 
 /** Periodic cache GC — every 5 minutes. */
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of cdnCache) {
     if (now > v.expiry) cdnCache.delete(k);
-  }
-  for (const [k, v] of sodaAudioCache) {
-    if (now > v.expiry) sodaAudioCache.delete(k);
   }
 }, CACHE_TTL).unref();
 
@@ -96,29 +186,133 @@ async function resolveCdnUrl(
   throw lastError instanceof Error ? lastError : new Error('Unable to resolve stream URL');
 }
 
-async function getSodaAudio(songmid: string, cookie: string | undefined): Promise<CachedSodaAudio> {
-  if (!cookie) throw new Error('请先在设置中填写汽水音乐 Cookie');
-  const cached = sodaAudioCache.get(songmid);
-  if (cached && cached.expiry > Date.now()) return cached;
-
-  const audio = await fetchSodaStream(songmid, cookie);
-  const entry: CachedSodaAudio = {
-    data: audio.data,
-    contentType: audio.contentType,
-    expiry: Date.now() + CACHE_TTL,
-  };
-  sodaAudioCache.delete(songmid);
-  sodaAudioCache.set(songmid, entry);
-  while (sodaAudioCache.size > SODA_CACHE_LIMIT) {
-    const oldest = sodaAudioCache.keys().next().value;
-    if (oldest === undefined) break;
-    sodaAudioCache.delete(oldest);
-  }
-  return entry;
+function abortError(): Error {
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  return error;
 }
 
-async function createSodaResponse(songmid: string, cookie: string | undefined, rangeHeader: string | null): Promise<Response> {
-  const audio = await getSodaAudio(songmid, cookie);
+function consumeSodaRequest(
+  request: SodaAudioInFlight,
+  signal: AbortSignal,
+): Promise<CachedSodaAudio> {
+  request.consumers += 1;
+  return new Promise<CachedSodaAudio>((resolve, reject) => {
+    let finished = false;
+    const finish = (callback: () => void) => {
+      if (finished) return;
+      finished = true;
+      signal.removeEventListener('abort', onAbort);
+      request.consumers = Math.max(0, request.consumers - 1);
+      if (request.consumers === 0 && !request.settled) request.controller.abort();
+      callback();
+    };
+    const onAbort = () => finish(() => reject(abortError()));
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+    request.promise.then(
+      value => finish(() => resolve(value)),
+      error => finish(() => reject(error)),
+    );
+  });
+}
+
+async function getSodaAudio(
+  songmid: string,
+  cookie: string | undefined,
+  signal: AbortSignal,
+): Promise<CachedSodaAudio> {
+  if (!cookie) throw new Error('请先在设置中填写汽水音乐 Cookie');
+  if (signal.aborted) throw abortError();
+  const cached = sodaAudioCache.get(songmid);
+  if (cached) {
+    sodaAudioCache.delete(songmid);
+    sodaAudioCache.set(songmid, cached);
+    return cached;
+  }
+
+  let existingRequest = sodaAudioInFlight.get(songmid);
+  if (existingRequest?.controller.signal.aborted) {
+    if (sodaAudioInFlight.get(songmid) === existingRequest) sodaAudioInFlight.delete(songmid);
+    existingRequest = undefined;
+  }
+  if (existingRequest) return consumeSodaRequest(existingRequest, signal);
+
+  const controller = new AbortController();
+  const inFlight: SodaAudioInFlight = {
+    controller,
+    consumers: 0,
+    settled: false,
+    promise: Promise.resolve(null as unknown as CachedSodaAudio),
+  };
+  inFlight.promise = (async () => {
+    const cacheDir = await ensureSodaCacheDir();
+    const cacheName = crypto.createHash('sha256').update(songmid).digest('hex').slice(0, 32);
+    // Every generation gets a unique path. An asynchronous cleanup belonging
+    // to an expired generation must never be able to unlink its replacement.
+    const generation = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+    const filePath = path.join(cacheDir, `${cacheName}-${generation}.audio`);
+
+    try {
+      const audio = await fetchSodaStreamToFile(songmid, cookie, filePath, controller.signal);
+      if (controller.signal.aborted) {
+        await fs.promises.unlink(audio.filePath).catch(() => {});
+        throw abortError();
+      }
+      const entry: CachedSodaAudio = {
+        filePath: audio.filePath,
+        size: audio.size,
+        contentType: audio.contentType,
+        activeReaders: 0,
+        pendingDelete: false,
+        unlinkScheduled: false,
+      };
+      const previous = sodaAudioCache.get(songmid);
+      if (previous) deleteSodaCacheEntry(songmid, previous);
+      sodaAudioCache.set(songmid, entry);
+      while (sodaAudioCache.size > SODA_CACHE_LIMIT) {
+        const oldestKey = sodaAudioCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        const oldest = sodaAudioCache.get(oldestKey);
+        if (!oldest) break;
+        deleteSodaCacheEntry(oldestKey, oldest);
+      }
+      return entry;
+    } catch (error) {
+      void fs.promises.unlink(filePath).catch(() => {});
+      throw error;
+    }
+  })();
+
+  sodaAudioInFlight.set(songmid, inFlight);
+  void inFlight.promise.then(
+    () => { inFlight.settled = true; },
+    () => { inFlight.settled = true; },
+  ).finally(() => {
+    if (sodaAudioInFlight.get(songmid) === inFlight) sodaAudioInFlight.delete(songmid);
+  });
+  return consumeSodaRequest(inFlight, signal);
+}
+
+async function createSodaResponse(
+  songmid: string,
+  cookie: string | undefined,
+  rangeHeader: string | null,
+  signal: AbortSignal,
+  method: string,
+): Promise<Response> {
+  const audio = await getSodaAudio(songmid, cookie, signal);
+  retainSodaCacheEntry(audio);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    releaseSodaCacheEntry(audio);
+  };
   const headers: Record<string, string> = {
     'Content-Type': audio.contentType,
     'Accept-Ranges': 'bytes',
@@ -128,28 +322,59 @@ async function createSodaResponse(songmid: string, cookie: string | undefined, r
   };
 
   if (rangeHeader) {
-    const parsed = rangeParser(audio.data.length, rangeHeader);
-    if (typeof parsed === 'number' || parsed.length === 0) {
+    const parsed = rangeParser(audio.size, rangeHeader);
+    if (typeof parsed === 'number' || parsed.length !== 1) {
+      release();
       return new Response('Requested Range Not Satisfiable', {
         status: 416,
-        headers: { ...headers, 'Content-Range': `bytes */${audio.data.length}` },
+        headers: { ...headers, 'Content-Range': `bytes */${audio.size}` },
       });
     }
     const range = parsed[0]!;
-    const body = audio.data.subarray(range.start, range.end + 1);
+    const contentLength = range.end - range.start + 1;
+    if (method === 'HEAD') {
+      release();
+      return new Response(null, {
+        status: 206,
+        headers: {
+          ...headers,
+          'Content-Range': `bytes ${range.start}-${range.end}/${audio.size}`,
+          'Content-Length': String(contentLength),
+        },
+      });
+    }
+    const source = fs.createReadStream(audio.filePath, {
+          start: range.start,
+          end: range.end,
+          highWaterMark: 256 * 1024,
+        });
+    source.once('close', release);
+    const body = nodeReadableToWeb(source, signal);
     return new Response(body, {
       status: 206,
       headers: {
         ...headers,
-        'Content-Range': `bytes ${range.start}-${range.end}/${audio.data.length}`,
-        'Content-Length': String(body.length),
+        'Content-Range': `bytes ${range.start}-${range.end}/${audio.size}`,
+        'Content-Length': String(contentLength),
       },
     });
   }
 
-  return new Response(audio.data, {
+  if (method === 'HEAD') {
+    release();
+    return new Response(null, {
+      status: 200,
+      headers: { ...headers, 'Content-Length': String(audio.size) },
+    });
+  }
+  const source = fs.createReadStream(audio.filePath, {
+        highWaterMark: 256 * 1024,
+      });
+  source.once('close', release);
+  const body = nodeReadableToWeb(source, signal);
+  return new Response(body, {
     status: 200,
-    headers: { ...headers, 'Content-Length': String(audio.data.length) },
+    headers: { ...headers, 'Content-Length': String(audio.size) },
   });
 }
 
@@ -168,6 +393,16 @@ export function registerStreamProtocol(): void {
   app.whenReady().then(() => {
     protocol.handle('stream', async (request) => {
       try {
+        if (request.method === 'OPTIONS') {
+          return new Response(null, {
+            status: 204,
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+              'Access-Control-Allow-Headers': 'Range, Content-Type',
+            },
+          });
+        }
         const parsedUrl = new URL(request.url);
         // stream://<source>/<songmid>?q=<quality>
         const source = parsedUrl.hostname; // "qq" | "netease" | "soda"
@@ -182,7 +417,13 @@ export function registerStreamProtocol(): void {
 
         const rangeHeader = request.headers.get('range');
         if (source === 'soda') {
-          return await createSodaResponse(songmid, onlineCookies.soda, rangeHeader);
+          return await createSodaResponse(
+            songmid,
+            onlineCookies.soda,
+            rangeHeader,
+            request.signal,
+            request.method,
+          );
         }
         const cdnUrl = await resolveCdnUrl(source, songmid, quality);
 
@@ -208,6 +449,7 @@ export function registerStreamProtocol(): void {
           headers: rangeHeader
             ? { ...cdnHeaders, Range: rangeHeader }
             : cdnHeaders,
+          signal: request.signal,
         });
 
         if (!cdnRes.ok && cdnRes.status !== 206) {
@@ -237,6 +479,9 @@ export function registerStreamProtocol(): void {
           headers: responseHeaders,
         });
       } catch (error) {
+        if (request.signal.aborted || (error as Error).name === 'AbortError') {
+          return new Response(null, { status: 499 });
+        }
         logger.error('[StreamProtocol] Error:', error);
         return new Response(
           (error as Error).message || 'Internal Server Error',

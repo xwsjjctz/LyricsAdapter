@@ -160,6 +160,22 @@ class MetadataFolderService {
   private chunkCache: Map<string, Chunk> = new Map();
   private migrating = false;
 
+  // Chunks contain the heavyweight cover/lyrics payload. Keeping every chunk
+  // duplicates the fully hydrated Track list and can retain hundreds of MB for
+  // large cloud libraries. The loader only processes five chunks concurrently,
+  // so a small LRU preserves locality without becoming a second library copy.
+  private static readonly MAX_CHUNK_CACHE_SIZE = 8;
+
+  private cacheChunk(chunkId: string, chunk: Chunk): void {
+    this.chunkCache.delete(chunkId);
+    this.chunkCache.set(chunkId, chunk);
+    while (this.chunkCache.size > MetadataFolderService.MAX_CHUNK_CACHE_SIZE) {
+      const oldestKey = this.chunkCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.chunkCache.delete(oldestKey);
+    }
+  }
+
   get manifestPath(): string {
     return '/Metadata/_manifest.json';
   }
@@ -335,7 +351,10 @@ class MetadataFolderService {
   /** 加载单个 chunk。缓存结果。返回 null 表示缺失/损坏。 */
   async loadChunk(chunkId: string): Promise<Chunk | null> {
     const cached = this.chunkCache.get(chunkId);
-    if (cached) return cached;
+    if (cached) {
+      this.cacheChunk(chunkId, cached);
+      return cached;
+    }
 
     const text = await webdavClient.fetchTextFile(this.chunkPath(chunkId));
     if (!text) return null;
@@ -343,7 +362,7 @@ class MetadataFolderService {
       const parsed: Chunk = JSON.parse(text);
       // 交叉校验：chunkId 必须匹配（捕获部分写入截断）
       if (parsed?.chunkId !== chunkId || !parsed?.entries) return null;
-      this.chunkCache.set(chunkId, parsed);
+      this.cacheChunk(chunkId, parsed);
       return parsed;
     } catch {
       return null;
@@ -354,7 +373,7 @@ class MetadataFolderService {
   async saveChunk(chunkId: string, chunk: Chunk): Promise<boolean> {
     const ok = await this.uploadJsonWithMkcolRetry(this.chunkPath(chunkId), JSON.stringify(chunk));
     if (ok) {
-      this.chunkCache.set(chunkId, chunk);
+      this.cacheChunk(chunkId, chunk);
     }
     return ok;
   }

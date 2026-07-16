@@ -1,6 +1,5 @@
-// cover:// 协议封面 URL 的工具函数。
-// 主进程 coverProtocol.ts 仅对 cover:// 协议支持 ?size= 缩略图降采样（见 MAX_THUMBNAIL_SIZE），
-// 远程(http/blob/data) URL 不经过本地协议，无法缩放，一律原样返回。
+// 封面 URL 工具。cover:// 由主进程实际降采样；已知支持尺寸参数的
+// 在线音乐 CDN 则在请求 URL 上选择目标尺寸，避免先解码 800px+ 原图。
 
 const COVER_PROTOCOL = 'cover://';
 
@@ -37,8 +36,8 @@ export function appendCoverQuery(
 }
 
 /**
- * 把 cover:// 封面 URL 转成缩略图 URL（追加 ?size=N）。
- * 仅 cover:// 协议生效；远程/blob/data URL 原样返回。
+ * 请求适合显示尺寸的封面。cover:// 追加 ?size=N；网易、QQ、汽水的
+ * 已知 CDN URL 改写为其原生缩略图格式；未知远程/blob/data URL 原样返回。
  *
  * size 选择参考（DPR=2 Retina，含 hover scale 余量）：
  *   - 40~56px 容器 → 128（物理 80~112px，1.6x 余量）
@@ -46,5 +45,39 @@ export function appendCoverQuery(
  *   - 256px 容器  → 512（受主进程 MAX_THUMBNAIL_SIZE 上限约束）
  */
 export function toCoverThumb(url: string | undefined, size: number): string | undefined {
-  return appendCoverQuery(url, 'size', size);
+  if (!url) return url;
+  const targetSize = Math.max(32, Math.min(1024, Math.round(size)));
+  if (url.startsWith(COVER_PROTOCOL)) {
+    return appendCoverQuery(url, 'size', targetSize);
+  }
+  if (!/^https?:\/\//i.test(url)) return url;
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+
+    // NetEase image CDN: `?param=800y800`.
+    if (host === 'music.126.net' || host.endsWith('.music.126.net')) {
+      parsed.searchParams.set('param', `${targetSize}y${targetSize}`);
+      return parsed.toString();
+    }
+
+    const normalized = parsed.toString();
+    let resized = normalized;
+    // QQ Music album/artist CDN path: T002R300x300M000 / T001R300x300M000.
+    if (host === 'gtimg.cn' || host.endsWith('.gtimg.cn')) {
+      resized = resized.replace(
+        /(T00[12]R)\d+x\d+(M000)/i,
+        `$1${targetSize}x${targetSize}$2`,
+      );
+    }
+    // Soda image CDN suffix used by sodaMusicApi: ~c5_375x375.jpg.
+    resized = resized.replace(
+      /~c5_\d+x\d+(?=\.(?:jpe?g|png|webp))/i,
+      `~c5_${targetSize}x${targetSize}`,
+    );
+    return resized === normalized ? url : resized;
+  } catch {
+    return url;
+  }
 }
