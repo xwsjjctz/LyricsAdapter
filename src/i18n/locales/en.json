@@ -240,6 +240,8 @@
   "titleBar.close": "Close",
   "titleBar.enterFocusMode": "Enter Focus Mode",
   "titleBar.exitFocusMode": "Exit Focus Mode",
+  "titleBar.collapseSidebar": "Collapse Sidebar",
+  "titleBar.expandSidebar": "Expand Sidebar",
   "cookieDialog.title": "Set Access Credentials",
   "cookieDialog.description": "To use the browse feature, you need to provide access credentials. Credentials need to be re-validated every 24 hours.",
   "cookieDialog.cookieLabel": "Cookie",
