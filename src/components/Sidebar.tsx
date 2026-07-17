@@ -278,7 +278,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   ? 'var(--theme-control-item-fg-active)'
                   : 'var(--theme-control-action-fg)',
               }}
-              title={playlist.name}
             >
               <span
                 className="h-8 w-8 shrink-0 overflow-hidden rounded-md"
@@ -305,7 +304,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => void handleTogglePlaylistVisibility(playlist)}
                 className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
                 style={{ color: isHidden ? 'var(--theme-text-muted)' : 'var(--theme-control-icon-fg)' }}
-                title={isHidden ? '显示歌单' : '隐藏歌单'}
                 aria-label={isHidden ? '显示歌单' : '隐藏歌单'}
               >
                 <span className="material-symbols-outlined text-[17px]">
@@ -400,11 +398,9 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
       role="separator"
       aria-orientation="vertical"
       onPointerDown={onResizeStart}
-      className="group absolute right-0 z-30 flex cursor-col-resize justify-end"
+      className="absolute right-0 z-30 cursor-col-resize"
       style={{ top: 40, bottom: 0, width: 8, touchAction: 'none' }}
-    >
-      <span className="h-full w-px bg-transparent transition-colors group-hover:bg-[var(--theme-primary)]" />
-    </div>
+    />
   ) : null;
 
   if (floating) {
