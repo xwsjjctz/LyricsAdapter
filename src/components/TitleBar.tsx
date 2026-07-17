@@ -77,19 +77,21 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const colors = currentTheme.colors;
 
   const sidebarToggleButton = onToggleSidebar ? (
-    <button
-      onClick={onToggleSidebar}
-      data-no-gsap-bounce
-      className="w-8 h-8 flex items-center justify-center rounded-md transition-colors"
-      style={{ color: colors.textSecondary }}
-      onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-      onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
-      aria-label={sidebarCollapsed ? t('titleBar.expandSidebar') : t('titleBar.collapseSidebar')}
-    >
-      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-        {sidebarCollapsed ? 'left_panel_open' : 'left_panel_close'}
-      </span>
-    </button>
+    <span className="w-8 h-8 flex items-center justify-center">
+      <button
+        onClick={onToggleSidebar}
+        data-no-gsap-bounce
+        className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+        style={{ color: colors.textSecondary }}
+        onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+        onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+        aria-label={sidebarCollapsed ? t('titleBar.expandSidebar') : t('titleBar.collapseSidebar')}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+          {sidebarCollapsed ? 'left_panel_open' : 'left_panel_close'}
+        </span>
+      </button>
+    </span>
   ) : null;
 
   // 检测平台
