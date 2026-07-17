@@ -240,6 +240,8 @@
   "titleBar.close": "閉じる",
   "titleBar.enterFocusMode": "フォーカスモードに入る",
   "titleBar.exitFocusMode": "フォーカスモードを終了",
+  "titleBar.collapseSidebar": "サイドバーを閉じる",
+  "titleBar.expandSidebar": "サイドバーを開く",
   "cookieDialog.title": "アクセス認証情報を設定",
   "cookieDialog.description": "ブラウズ機能を使用するには、アクセス認証情報を提供する必要があります。認証情報は24時間ごとに再検証が必要です。",
   "cookieDialog.cookieLabel": "Cookie",

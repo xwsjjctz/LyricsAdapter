@@ -30,6 +30,7 @@ import type { OnlineSource } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
 import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
+import { useSidebarLayout } from './hooks/useSidebarLayout';
 import NewUxShell from './components/new-ui/NewUxShell';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
@@ -71,6 +72,7 @@ const AppWorkspace: React.FC = () => {
     handleNavigate,
   } = useUIStore();
   const newUxEnabled = useNewUxEnabled();
+  const sidebar = useSidebarLayout();
   const {
     slots,
     slotsRef,
@@ -454,7 +456,7 @@ const AppWorkspace: React.FC = () => {
   const audioElement = currentTrack ? (
     <audio
       ref={setAudioRef}
-      src={currentTrack.audioUrl}
+      preload="metadata"
       onTimeUpdate={handleTimeUpdate}
       onLoadedMetadata={handleLoadedMetadata}
       onLoadedData={handleLoadedMetadata}
@@ -527,6 +529,8 @@ const AppWorkspace: React.FC = () => {
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+          onToggleSidebar={sidebar.toggleCollapsed}
+          sidebarCollapsed={sidebar.collapsed}
         />
         <div className="flex flex-1">
           <Sidebar
@@ -544,6 +548,10 @@ const AppWorkspace: React.FC = () => {
           }}
           onOpenPlaylist={handleOpenPlaylist}
           floating={floatingPanel}
+          width={sidebar.width}
+          collapsed={sidebar.collapsed}
+          isResizing={sidebar.isResizing}
+          onResizeStart={sidebar.startResize}
         />
         <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
           style={floatingPanel ? {} : {

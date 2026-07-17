@@ -40,9 +40,12 @@ const CollapseIcon = () => (
 interface TitleBarProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  /** When provided, renders a sidebar collapse/expand toggle in the title bar. */
+  onToggleSidebar?: () => void;
+  sidebarCollapsed?: boolean;
 }
 
-const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode }) => {
+const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode, onToggleSidebar, sidebarCollapsed }) => {
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
   const { t } = useTranslation();
@@ -73,6 +76,24 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
 
   const colors = currentTheme.colors;
 
+  const sidebarToggleButton = onToggleSidebar ? (
+    <span className="w-8 h-8 flex items-center justify-center">
+      <button
+        onClick={onToggleSidebar}
+        data-no-gsap-bounce
+        className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+        style={{ color: colors.textSecondary }}
+        onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+        onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+        aria-label={sidebarCollapsed ? t('titleBar.expandSidebar') : t('titleBar.collapseSidebar')}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+          {sidebarCollapsed ? 'left_panel_open' : 'left_panel_close'}
+        </span>
+      </button>
+    </span>
+  ) : null;
+
   // 检测平台
   const desktopAPI = getDesktopAPI();
   const platform = desktopAPI?.platform || '';
@@ -95,11 +116,11 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         <div className="w-[55px] h-full" />
-        <div className="h-full flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag', visibility: isFullScreen ? 'hidden' : 'visible' } as React.CSSProperties}>
+        <div className="h-full flex items-center" style={{ WebkitAppRegion: 'no-drag', visibility: isFullScreen ? 'hidden' : 'visible' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
             data-no-gsap-bounce
-            className="w-12 h-12 flex items-center justify-center"
+            className="h-12 flex items-center justify-center pl-[18px] pr-0.5"
             aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
             onMouseEnter={() => setIsButtonHovered(true)}
             onMouseLeave={() => setIsButtonHovered(false)}
@@ -128,6 +149,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
               )}
             </div>
           </button>
+          {sidebarToggleButton}
         </div>
         <div className="flex-1" />
       </div>
@@ -145,6 +167,11 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
         } as React.CSSProperties}
       >
         {/* 左侧拖动空间 */}
+        {sidebarToggleButton && (
+          <div className="h-full flex items-center pl-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            {sidebarToggleButton}
+          </div>
+        )}
         <div className="flex-1 h-full" />
 
         {/* 右侧窗口控制按钮 */}

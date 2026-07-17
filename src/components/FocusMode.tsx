@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { themeManager } from '../services/themeManager';
@@ -43,7 +43,7 @@ interface FocusModeProps {
   variant?: 'legacy' | 'new-ux';
 }
 
-const FocusMode: React.FC<FocusModeProps> = memo(({
+const FocusModeContent: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
   isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, ambientLayer, variant = 'legacy'
 }) => {
@@ -82,6 +82,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   const [transitionProgress, setTransitionProgress] = useState(0); // 0 to 1
   const [isTransitioning, setIsTransitioning] = useState(false);
   const animationFrameRef = useRef<number | null>(null);
+  const backgroundLoadGenerationRef = useRef(0);
 
   // Background images for blending
   const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
@@ -209,8 +210,12 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx || !bgImage1 || !bgImage1.complete || bgImage1.naturalWidth === 0) return;
 
-    const width = canvas.width = window.innerWidth;
-    const height = canvas.height = window.innerHeight;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    // Assigning width/height clears and reallocates the backing store. During a
+    // transition this function runs every frame, so only resize when necessary.
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -498,7 +503,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
   // Register global debug function for background transparency
   useEffect(() => {
-    registerCommand(
+    return registerCommand(
       'bg_blur_trans',
       (value: number) => {
         if (typeof value === 'number' && value >= 0 && value <= 1) {
@@ -734,9 +739,15 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     }
   }, [bgImage1, canvasOpacity, bgBlurRadius]);
 
-  // Preload background image when track changes (before entering focus mode)
+  // Load the active background only while FocusMode is actually visible. The
+  // host component unmounts this content after the exit animation, releasing
+  // the canvas, decoded images and lyric DOM while ordinary playback continues.
   useEffect(() => {
-    if (!track?.id || !track?.coverUrl) return;
+    if (!isVisible || !track?.id || !track?.coverUrl) return;
+
+    const generation = backgroundLoadGenerationRef.current + 1;
+    backgroundLoadGenerationRef.current = generation;
+    let cancelled = false;
 
     // Load new background image
     const img = new Image();
@@ -751,13 +762,19 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     } catch {
       // URL is relative or blob URL, no need to set crossOrigin
     }
-    img.onerror = () => {
-      logger.warn('[FocusMode] Failed to load cover image, skipping background');
-      // Don't set bgImage when loading fails - keep previous background or clear it
-      setBgImage2(null);
-      setIsTransitioning(false);
+    const isCurrentLoad = () => !cancelled && backgroundLoadGenerationRef.current === generation;
+    const clearImageHandlers = () => {
+      img.onload = null;
+      img.onerror = null;
     };
+
     img.onload = () => {
+      // An Image stored in React state must not retain this closure: it captures
+      // the previous bgImage values and would otherwise form an unbounded chain
+      // of decoded covers across track switches.
+      clearImageHandlers();
+      if (!isCurrentLoad()) return;
+
       // Start transition from current to new background
       const oldBg = bgImage2 || bgImage1;
       if (!oldBg) {
@@ -777,6 +794,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
           const duration = 700; // 700ms animation
 
           const animateFirstLoad = (currentTime: number) => {
+            if (!isCurrentLoad()) return;
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
 
@@ -785,12 +803,14 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
             canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(${breathingBrightness})`;
 
             if (progress < 1) {
-              requestAnimationFrame(animateFirstLoad);
+              animationFrameRef.current = requestAnimationFrame(animateFirstLoad);
+            } else {
+              animationFrameRef.current = null;
             }
             // No need to reset - it ends at brightness(0.55) which matches static state
           };
 
-          requestAnimationFrame(animateFirstLoad);
+          animationFrameRef.current = requestAnimationFrame(animateFirstLoad);
         } else if (canvas) {
           // If not visible, just set to normal values
           canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.55)`;
@@ -806,6 +826,7 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
       const duration = 1000; // 1000ms transition (slower, more dramatic)
 
       const animate = (currentTime: number) => {
+        if (!isCurrentLoad()) return;
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
 
@@ -854,6 +875,8 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
     };
 
     img.onerror = () => {
+      clearImageHandlers();
+      if (!isCurrentLoad()) return;
       // If load fails, don't change background - keep previous one
       logger.warn('[FocusMode] Failed to load cover image for transition');
       setBgImage2(null);
@@ -862,7 +885,30 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
 
     // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
     img.src = toCoverThumb(track.coverUrl, 256)!;
-  }, [track?.id, track?.coverUrl]);
+
+    return () => {
+      cancelled = true;
+      if (backgroundLoadGenerationRef.current === generation) {
+        backgroundLoadGenerationRef.current += 1;
+      }
+      clearImageHandlers();
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      // Abort a pending remote image request. Do not clear a successfully loaded
+      // image because it may still be the currently painted transition source.
+      if (!img.complete) img.src = '';
+    };
+  }, [isVisible, track?.id, track?.coverUrl]);
+
+  useLayoutEffect(() => () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }, []);
 
   // Render canvas when transitioning or when bgImage1 loads
   useEffect(() => {
@@ -1039,6 +1085,50 @@ const FocusMode: React.FC<FocusModeProps> = memo(({
   return true;
 });
 
+FocusModeContent.displayName = 'FocusModeContent';
+
+const FOCUS_MODE_EXIT_DURATION_MS = 700;
+
+/**
+ * Keep the content mounted just long enough for its exit transition, then
+ * unmount the heavy full-screen layers completely. Playback lives outside this
+ * component, so releasing FocusMode has no effect on background audio.
+ */
+const FocusMode: React.FC<FocusModeProps> = (props) => {
+  const [shouldMountContent, setShouldMountContent] = useState(props.isVisible);
+  const [isPresented, setIsPresented] = useState(false);
+
+  useEffect(() => {
+    if (props.isVisible) {
+      setShouldMountContent(true);
+      let presentFrame = 0;
+      const mountFrame = window.requestAnimationFrame(() => {
+        presentFrame = window.requestAnimationFrame(() => {
+          setIsPresented(true);
+        });
+      });
+      return () => {
+        window.cancelAnimationFrame(mountFrame);
+        if (presentFrame) window.cancelAnimationFrame(presentFrame);
+      };
+    }
+
+    setIsPresented(false);
+    if (!shouldMountContent) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShouldMountContent(false);
+    }, FOCUS_MODE_EXIT_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [props.isVisible, shouldMountContent]);
+
+  return shouldMountContent
+    ? <FocusModeContent {...props} isVisible={isPresented} />
+    : null;
+};
+
 FocusMode.displayName = 'FocusMode';
 
-export default FocusMode;
+export default memo(FocusMode);

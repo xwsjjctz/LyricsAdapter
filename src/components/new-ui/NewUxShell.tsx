@@ -18,6 +18,7 @@ import {
   loadCardOverrides,
   loadBgImage,
   loadBgBlur,
+  optimizeBgImage,
   saveBgImage,
   saveBgBlur,
   setCardOverride,
@@ -32,6 +33,7 @@ import { useNewUxStore } from '../../stores/newUxStore';
 import { useNowPlayingLocator } from '../../hooks/new-ui/useNowPlayingLocator';
 import { usePlaylistEntries } from '../../hooks/new-ui/usePlaylistEntries';
 import { useOnlinePlaylists } from '../../hooks/new-ui/useOnlinePlaylists';
+import { logger } from '../../services/logger';
 
 interface NewUxShellProps {
   slots: LibrarySlotsById;
@@ -137,6 +139,8 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   const [bgImage, setBgImage] = useState('');
   const [bgBlur, setBgBlur] = useState(80);
   const bgInputRef = useRef<HTMLInputElement>(null);
+  const bgImageRequestRef = useRef(0);
+  const [suspendLayersBehindFocus, setSuspendLayersBehindFocus] = useState(false);
 
   // ── Left panel state machine (mutual exclusivity + exit animation) ──
   const [activePanel, setActivePanel] = useState<'hidden' | 'bg' | null>(null);
@@ -177,9 +181,26 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
 
   useEffect(() => {
     loadCardOverrides().then(setCardOverrides);
-    loadBgImage().then(setBgImage);
+    const imageRequest = ++bgImageRequestRef.current;
+    loadBgImage().then(image => {
+      if (bgImageRequestRef.current === imageRequest) setBgImage(image);
+    });
     loadBgBlur().then(setBgBlur);
+    return () => {
+      bgImageRequestRef.current += 1;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isFocusMode) {
+      setSuspendLayersBehindFocus(false);
+      return;
+    }
+    // FocusMode enters over 600ms. Keep the card wall visible beneath that
+    // transition, then stop painting its expensive 3D/blur compositor layers.
+    const timer = window.setTimeout(() => setSuspendLayersBehindFocus(true), 650);
+    return () => window.clearTimeout(timer);
+  }, [isFocusMode]);
 
   // Auto-show hidden tray when entering edit mode with hidden cards,
   // auto-hide when leaving edit mode or all cards become visible.
@@ -385,7 +406,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   }, [currentTrack, onToggleFocusMode]);
 
   return (
-    <div className="new-ux-shell font-sans" style={shellStyle}>
+    <div className={`new-ux-shell font-sans${suspendLayersBehindFocus ? ' new-ux-shell--focus' : ''}`} style={shellStyle}>
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
       <input
         type="file"
@@ -425,6 +446,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
           <MainView
             entries={entries}
             isPlaylistPanelOpen={Boolean(openPanel) || Boolean(panels.state.openOverlayPanel)}
+            isActive={!isFocusMode && isWindowFocused !== false}
             onOpenPlaylist={handleOpenPlaylist}
             onPlaylistContextMenu={handlePlaylistContextMenu}
             isCardEditMode={isCardEditMode}
@@ -555,7 +577,11 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
               {bgImage && (
                 <button
                   className="new-ux-bg-tray__btn"
-                  onClick={() => { setBgImage(''); saveBgImage(''); }}
+                  onClick={() => {
+                    bgImageRequestRef.current += 1;
+                    setBgImage('');
+                    void saveBgImage('');
+                  }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                   {t('newui.clear')}
@@ -593,10 +619,17 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
         onChange={e => {
           const file = e.target.files?.[0];
           if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => { const d = reader.result as string; setBgImage(d); saveBgImage(d); };
-          reader.readAsDataURL(file);
           e.target.value = '';
+          const imageRequest = ++bgImageRequestRef.current;
+          void optimizeBgImage(file)
+            .then(async dataUrl => {
+              if (bgImageRequestRef.current !== imageRequest) return;
+              setBgImage(dataUrl);
+              await saveBgImage(dataUrl);
+            })
+            .catch(error => {
+              logger.warn('[NewUxShell] Unable to optimize background image:', error);
+            });
         }}
       />
       <FloatingPlayerPanel

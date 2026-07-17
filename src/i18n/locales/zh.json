@@ -240,6 +240,8 @@
   "titleBar.close": "关闭",
   "titleBar.enterFocusMode": "进入专注模式",
   "titleBar.exitFocusMode": "退出专注模式",
+  "titleBar.collapseSidebar": "收起侧边栏",
+  "titleBar.expandSidebar": "展开侧边栏",
   "cookieDialog.title": "设置访问凭证",
   "cookieDialog.description": "为了使用浏览功能，需要提供访问凭证。凭证每24小时需要重新验证一次。",
   "cookieDialog.cookieLabel": "Cookie",

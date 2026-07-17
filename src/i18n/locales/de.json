@@ -240,6 +240,8 @@
   "titleBar.close": "Schließen",
   "titleBar.enterFocusMode": "Fokusmodus aktivieren",
   "titleBar.exitFocusMode": "Fokusmodus beenden",
+  "titleBar.collapseSidebar": "Seitenleiste einklappen",
+  "titleBar.expandSidebar": "Seitenleiste ausklappen",
   "cookieDialog.title": "Zugriffsanmeldeinformationen festlegen",
   "cookieDialog.description": "Um die Durchsuchen-Funktion zu nutzen, müssen Sie Zugriffsanmeldeinformationen angeben. Diese müssen alle 24 Stunden neu validiert werden.",
   "cookieDialog.cookieLabel": "Cookie",

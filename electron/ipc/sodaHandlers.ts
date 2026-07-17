@@ -5,6 +5,7 @@
  * guohuiyuan/music-lib (AGPL-3.0-or-later). See THIRD_PARTY_NOTICES.md.
  */
 import { ipcMain } from 'electron';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../logger';
@@ -16,6 +17,7 @@ const API_BASE_URL = 'https://api.qishui.com/luna/pc';
 const WEB_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
 const PC_USER_AGENT = 'LunaPC/3.3.0(359450208)';
+let sodaDownloadTail: Promise<void> = Promise.resolve();
 
 export type SodaRequestRoute =
   | 'search-track'
@@ -30,8 +32,9 @@ interface SodaRequestResult {
   error?: string;
 }
 
-interface SodaStream {
-  data: Buffer;
+export interface SodaStreamFile {
+  filePath: string;
+  size: number;
   contentType: string;
 }
 
@@ -43,6 +46,33 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  throw error;
+}
+
+/** Soda decryption needs a complete file, so only one full payload may be
+ * resident at a time. Cancelled queued jobs are rejected before they allocate. */
+async function withSodaDownloadSlot<T>(
+  signal: AbortSignal | undefined,
+  task: () => Promise<T>,
+): Promise<T> {
+  let release!: () => void;
+  const previous = sodaDownloadTail;
+  sodaDownloadTail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    throwIfAborted(signal);
+    return await task();
+  } finally {
+    release();
+  }
 }
 
 function buildPcParams(): URLSearchParams {
@@ -129,6 +159,7 @@ export async function sodaRequest(
   route: SodaRequestRoute,
   params: Record<string, unknown>,
   cookie?: string,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const request = buildSodaUrl(route, params);
   const headers: Record<string, string> = {
@@ -142,7 +173,10 @@ export async function sodaRequest(
   }
   if (cookie) headers['Cookie'] = cookie;
 
-  const response = await fetch(request.url, { headers });
+  const response = await fetch(request.url, {
+    headers,
+    ...(signal ? { signal } : {}),
+  });
   if (!response.ok) throw new Error(`Soda API HTTP ${response.status}`);
   const data: unknown = await response.json();
   assertSodaSuccess(data);
@@ -157,9 +191,13 @@ function selectPlayerInfo(data: unknown): { url: string; playAuth: string; forma
   return { url: playerInfoUrl, playAuth: '', format: '' };
 }
 
-async function resolveSodaAudio(trackId: string, cookie: string): Promise<{ url: string; playAuth: string; format: string }> {
+async function resolveSodaAudio(
+  trackId: string,
+  cookie: string,
+  signal?: AbortSignal,
+): Promise<{ url: string; playAuth: string; format: string }> {
   if (!cookie.trim()) throw new Error('请先在设置中填写汽水音乐 Cookie');
-  const track = await sodaRequest('track', { trackId }, cookie);
+  const track = await sodaRequest('track', { trackId }, cookie, signal);
   const player = selectPlayerInfo(track);
   const response = await fetch(player.url, {
     headers: {
@@ -167,6 +205,7 @@ async function resolveSodaAudio(trackId: string, cookie: string): Promise<{ url:
       'User-Agent': WEB_USER_AGENT,
       Cookie: cookie,
     },
+    ...(signal ? { signal } : {}),
   });
   if (!response.ok) throw new Error(`Soda player API HTTP ${response.status}`);
   const data: unknown = await response.json();
@@ -206,14 +245,64 @@ function sodaContentType(format: string): string {
   }
 }
 
-/** Resolve, download and decrypt an entire Soda stream in the main process. */
-export async function fetchSodaStream(trackId: string, cookie: string): Promise<SodaStream> {
-  const stream = await resolveSodaAudio(trackId, cookie);
-  const response = await fetch(stream.url, { headers: { 'User-Agent': WEB_USER_AGENT } });
-  if (!response.ok) throw new Error(`Soda CDN HTTP ${response.status}`);
-  const encrypted = Buffer.from(await response.arrayBuffer());
-  const data = decryptSodaAudio(encrypted, stream.playAuth);
-  return { data, contentType: sodaContentType(stream.format) };
+/**
+ * Resolve, download and decrypt a Soda stream directly into a file.
+ *
+ * Soda's encrypted MP4 container requires the complete payload for sample-table
+ * decryption, but the decrypted bytes do not need to remain resident after the
+ * file write. Playback serves this file with Range requests.
+ */
+export async function fetchSodaStreamToFile(
+  trackId: string,
+  cookie: string,
+  filePath: string,
+  signal?: AbortSignal,
+): Promise<SodaStreamFile> {
+  return withSodaDownloadSlot(signal, async () => {
+    const partPath = `${filePath}.${crypto.randomUUID()}.part`;
+    let committed = false;
+    try {
+      throwIfAborted(signal);
+      const stream = await resolveSodaAudio(trackId, cookie, signal);
+      const response = await fetch(stream.url, {
+        headers: { 'User-Agent': WEB_USER_AGENT },
+        ...(signal ? { signal } : {}),
+      });
+      if (!response.ok) throw new Error(`Soda CDN HTTP ${response.status}`);
+
+      // Buffer.from(ArrayBuffer) shares its backing allocation. Decryption is
+      // performed in-place, so this is the only complete audio payload in RAM.
+      const encrypted = Buffer.from(await response.arrayBuffer());
+      throwIfAborted(signal);
+      const data = decryptSodaAudio(encrypted, stream.playAuth);
+      throwIfAborted(signal);
+
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.promises.writeFile(partPath, data, { signal });
+      throwIfAborted(signal);
+      try {
+        await fs.promises.rename(partPath, filePath);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'EEXIST' && code !== 'EPERM') throw error;
+        await fs.promises.unlink(filePath).catch((unlinkError: NodeJS.ErrnoException) => {
+          if (unlinkError.code !== 'ENOENT') throw unlinkError;
+        });
+        await fs.promises.rename(partPath, filePath);
+      }
+      committed = true;
+      throwIfAborted(signal);
+      return {
+        filePath,
+        size: data.length,
+        contentType: sodaContentType(stream.format),
+      };
+    } catch (error) {
+      await fs.promises.unlink(partPath).catch(() => {});
+      if (committed) await fs.promises.unlink(filePath).catch(() => {});
+      throw error;
+    }
+  });
 }
 
 export function registerSodaHandlers(): void {
@@ -237,12 +326,10 @@ export function registerSodaHandlers(): void {
         return { success: false, error: 'Invalid Soda download request' };
       }
       const target = expandHomeDir(filePath);
-      const audio = await fetchSodaStream(trackId, cookie);
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, audio.data);
+      const audio = await fetchSodaStreamToFile(trackId, cookie, target);
       allowAudioPath(target);
-      logger.info('[Soda] Download completed:', path.basename(target), audio.data.length, 'bytes');
-      return { success: true, filePath: target, size: audio.data.length };
+      logger.info('[Soda] Download completed:', path.basename(target), audio.size, 'bytes');
+      return { success: true, filePath: target, size: audio.size };
     } catch (error) {
       logger.error('[Soda] Download failed:', error);
       return { success: false, error: (error as Error).message };

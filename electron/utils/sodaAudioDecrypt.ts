@@ -204,12 +204,14 @@ function decryptSample(key: Buffer, encrypted: Buffer, sample: SampleEncryption)
   const iv = Buffer.alloc(16);
   sample.iv.copy(iv);
   const decipher = crypto.createDecipheriv(`aes-${key.length * 8}-ctr`, key, iv);
-  const output = Buffer.allocUnsafe(encrypted.length);
 
   if (sample.subsamples.length === 0) {
-    return Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    const updated = decipher.update(encrypted);
+    const final = decipher.final();
+    return final.length > 0 ? Buffer.concat([updated, final]) : updated;
   }
 
+  const output = Buffer.allocUnsafe(encrypted.length);
   let offset = 0;
   for (const subsample of sample.subsamples) {
     const clearEnd = Math.min(offset + subsample.clear, encrypted.length);
@@ -238,7 +240,12 @@ function restoreSampleFormat(data: Buffer, stsd: Mp4Box): void {
   payload.copy(payload, encryptedFormatOffset, originalFormatMarker + 4, originalFormatMarker + 8);
 }
 
-/** Decrypt a Soda encrypted-MP4 payload into browser-playable audio bytes. */
+/**
+ * Decrypt a Soda encrypted-MP4 payload into browser-playable audio bytes.
+ *
+ * The caller transfers ownership of `encryptedAudio`; decryption happens in
+ * place so a full second copy of the song is not retained at peak usage.
+ */
 export function decryptSodaAudio(encryptedAudio: Buffer, playAuth: string): Buffer {
   const key = decodeSpadeKey(playAuth);
   const moov = readBox(encryptedAudio, 0, encryptedAudio.length, 'moov');
@@ -255,7 +262,7 @@ export function decryptSodaAudio(encryptedAudio: Buffer, playAuth: string): Buff
   const samples = parseSampleEncryption(boxPayload(encryptedAudio, senc), perSampleIvSize(encryptedAudio, stbl));
   if (sizes.length === 0 || samples.length === 0) throw new Error('Soda audio has no decryptable samples');
 
-  const decrypted = Buffer.from(encryptedAudio);
+  const decrypted = encryptedAudio;
   const payloadStart = mdat.offset + mdat.headerSize;
   const payloadEnd = mdat.offset + mdat.size;
   let offset = payloadStart;

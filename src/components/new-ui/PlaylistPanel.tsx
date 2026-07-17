@@ -66,7 +66,12 @@ const TrackRow: React.FC<{
     )}
     <div className="new-ux-track-row__cover">
       {track.coverUrl ? (
-        <img src={toCoverThumb(track.coverUrl, 128)} alt="" />
+        <img
+          src={toCoverThumb(track.coverUrl, 128)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         <span className="material-symbols-outlined flex size-full items-center justify-center text-[22px]">music_note</span>
       )}

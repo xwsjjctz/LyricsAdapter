@@ -240,6 +240,8 @@
   "titleBar.close": "Fermer",
   "titleBar.enterFocusMode": "Entrer en mode concentré",
   "titleBar.exitFocusMode": "Quitter le mode concentré",
+  "titleBar.collapseSidebar": "Réduire la barre latérale",
+  "titleBar.expandSidebar": "Afficher la barre latérale",
   "cookieDialog.title": "Définir les informations d'identification",
   "cookieDialog.description": "Pour utiliser la fonction de navigation, vous devez fournir des informations d'identification. Elles doivent être revalidées toutes les 24 heures.",
   "cookieDialog.cookieLabel": "Cookie",

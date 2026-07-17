@@ -27,6 +27,19 @@
   transform: translateZ(0);
 }
 
+/* FocusMode fully covers these layers. Stop painting the blurred background
+ * and 3D card wall so their compositor surfaces can be released while audio
+ * continues in the shared player element. */
+.new-ux-shell--focus::before,
+.new-ux-shell--focus > .new-ux-bg-image,
+.new-ux-shell--focus > .new-ux-main {
+  visibility: hidden;
+}
+
+.new-ux-shell--focus > .new-ux-main {
+  content-visibility: hidden;
+}
+
 .new-ux-main {
   position: relative;
   z-index: 10;

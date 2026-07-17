@@ -57,14 +57,16 @@ async function blobUrlToDataUrl(blobUrl: string): Promise<string> {
   try {
     const response = await fetch(blobUrl);
     const blob = await response.blob();
-    return new Promise((resolve) => {
+    return await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(blobUrl);
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(blob);
     });
   } catch {
-    return blobUrl;
+    return '';
+  } finally {
+    URL.revokeObjectURL(blobUrl);
   }
 }
 

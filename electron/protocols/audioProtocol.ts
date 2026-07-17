@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import rangeParser from 'range-parser';
 import { logger } from '../logger';
+import { nodeReadableToWeb } from '../utils/nodeReadableToWeb';
 
 const MIME_TYPES: Record<string, string> = {
   '.flac': 'audio/flac',
@@ -14,34 +15,6 @@ const MIME_TYPES: Record<string, string> = {
   '.aac': 'audio/aac',
   '.wma': 'audio/x-ms-wma',
 };
-
-/**
- * Convert a Node.js ReadStream to a web ReadableStream.
- *
- * Electron's protocol.handle expects a web-compatible ReadableStream
- * for streaming responses. A type-cast (as unknown as ReadableStream)
- * does NOT actually convert the stream — it just silences TypeScript,
- * causing Electron to buffer the entire response body.
- */
-function nodeStreamToWeb(stream: fs.ReadStream): ReadableStream<Uint8Array> {
-  return new ReadableStream({
-    start(controller) {
-      stream.on('data', (chunk: Buffer | string) => {
-        const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
-        controller.enqueue(new Uint8Array(buf));
-      });
-      stream.on('end', () => {
-        controller.close();
-      });
-      stream.on('error', (err) => {
-        controller.error(err);
-      });
-    },
-    cancel() {
-      stream.destroy();
-    },
-  });
-}
 
 /**
  * Parse Range header value.
@@ -110,26 +83,34 @@ export function registerAudioProtocol(): void {
         // Handle Range request (for seeking/timeline scrubbing)
         if (rangeHeader) {
           const range = parseRangeHeader(rangeHeader, fileSize);
-          if (range) {
-            const { start, end } = range;
-            const chunkSize = end - start + 1;
-
-            const stream = fs.createReadStream(resolvedPath, {
-              start,
-              end,
-              highWaterMark: 256 * 1024,
-            });
-
-            return new Response(nodeStreamToWeb(stream), {
-              status: 206,
+          if (!range) {
+            return new Response('Requested Range Not Satisfiable', {
+              status: 416,
               headers: {
-                'Content-Type': contentType,
-                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-                'Content-Length': String(chunkSize),
+                'Content-Range': `bytes */${fileSize}`,
                 'Accept-Ranges': 'bytes',
               },
             });
           }
+
+          const { start, end } = range;
+          const chunkSize = end - start + 1;
+
+          const stream = fs.createReadStream(resolvedPath, {
+            start,
+            end,
+            highWaterMark: 256 * 1024,
+          });
+
+          return new Response(nodeReadableToWeb(stream, request.signal), {
+            status: 206,
+            headers: {
+              'Content-Type': contentType,
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Content-Length': String(chunkSize),
+              'Accept-Ranges': 'bytes',
+            },
+          });
         }
 
         // No valid Range header → return full file as stream
@@ -137,7 +118,7 @@ export function registerAudioProtocol(): void {
           highWaterMark: 256 * 1024,
         });
 
-        return new Response(nodeStreamToWeb(stream), {
+        return new Response(nodeReadableToWeb(stream, request.signal), {
           status: 200,
           headers: {
             'Content-Type': contentType,

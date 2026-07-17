@@ -129,6 +129,26 @@ describe('assignChunkId', () => {
 });
 
 describe('metadataFolderService writes', () => {
+  it('evicts old heavyweight chunks instead of retaining the full cloud library', async () => {
+    for (let index = 1; index <= 9; index += 1) {
+      const chunkId = String(index).padStart(4, '0');
+      webdavMocks.fetchTextFile.mockResolvedValueOnce(JSON.stringify({
+        chunkId,
+        entries: { [`/music/${chunkId}.flac`]: { lyrics: `lyrics-${chunkId}` } },
+      }));
+      await metadataFolderService.loadChunk(chunkId);
+    }
+
+    webdavMocks.fetchTextFile.mockResolvedValueOnce(JSON.stringify({
+      chunkId: '0001',
+      entries: { '/music/0001.flac': { lyrics: 'reloaded' } },
+    }));
+    const reloaded = await metadataFolderService.loadChunk('0001');
+
+    expect(reloaded?.entries['/music/0001.flac']?.lyrics).toBe('reloaded');
+    expect(webdavMocks.fetchTextFile).toHaveBeenCalledTimes(10);
+  });
+
   it('does not cache a manifest when the remote upload fails', async () => {
     const failedManifest = makeManifest({
       '/music/failed.flac': makeEntry({ title: 'Failed', chunkId: '0001' }),

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { ViewMode, SlotId } from '../types';
+import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarLayout';
 import { useTranslation } from 'react-i18next';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
@@ -29,6 +30,12 @@ interface SidebarProps {
   libraryTrackCounts: LibraryTrackCounts;
   onOpenPlaylist?: (source: OnlineSource, playlistId: string, name: string, songCount: number) => Promise<void>;
   floating?: boolean;
+  /** Expanded width in px. Ignored when collapsed. */
+  width?: number;
+  collapsed?: boolean;
+  /** True while a drag-resize is active — suppresses the width transition. */
+  isResizing?: boolean;
+  onResizeStart?: (event: React.PointerEvent) => void;
 }
 
 const PLAYLIST_SOURCES: OnlineSource[] = ['qq', 'netease', 'soda'];
@@ -246,7 +253,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return [
       <div
         key={`${source}-heading`}
-        className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.18em]"
+        className="px-4 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
         style={{ color: 'var(--theme-text-muted)' }}
       >
         {sourceLabels[source]}
@@ -271,7 +278,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   ? 'var(--theme-control-item-fg-active)'
                   : 'var(--theme-control-action-fg)',
               }}
-              title={playlist.name}
             >
               <span
                 className="h-8 w-8 shrink-0 overflow-hidden rounded-md"
@@ -298,7 +304,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => void handleTogglePlaylistVisibility(playlist)}
                 className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
                 style={{ color: isHidden ? 'var(--theme-text-muted)' : 'var(--theme-control-icon-fg)' }}
-                title={isHidden ? '显示歌单' : '隐藏歌单'}
                 aria-label={isHidden ? '显示歌单' : '隐藏歌单'}
               >
                 <span className="material-symbols-outlined text-[17px]">
@@ -319,7 +324,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <section className="mt-5 flex min-h-0 flex-1 flex-col space-y-1">
           <div className="shrink-0">
-            <div className="flex items-center justify-between px-3 py-2">
+            <div className="flex items-center justify-between px-3 py-1">
               <h2 className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: 'var(--theme-text-muted)' }}>
                 {t('sidebar.playlists')}
               </h2>
@@ -377,11 +382,37 @@ const Sidebar: React.FC<SidebarProps> = ({
 const MemoizedSidebar = memo(Sidebar);
 
 const SidebarWrapper: React.FC<SidebarProps> = (props) => {
-  const { floating } = props;
+  const {
+    floating,
+    width = SIDEBAR_DEFAULT_WIDTH,
+    collapsed = false,
+    isResizing = false,
+    onResizeStart,
+    ...sidebarProps
+  } = props;
+
+  const widthTransition = isResizing ? 'none' : 'width 0.2s ease';
+
+  const resizeHandle = !collapsed && onResizeStart ? (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      onPointerDown={onResizeStart}
+      className="absolute right-0 z-30 cursor-col-resize"
+      style={{ top: 40, bottom: 0, width: 8, touchAction: 'none' }}
+    />
+  ) : null;
 
   if (floating) {
     return (
-      <div className="w-[232px] flex flex-col flex-shrink-0">
+      <div
+        className="relative flex flex-col flex-shrink-0"
+        style={{
+          width: collapsed ? 0 : width,
+          overflow: collapsed ? 'hidden' : 'visible',
+          transition: widthTransition,
+        }}
+      >
         <aside
           className="flex-1 flex flex-col ml-2 mr-0 mb-2 mt-2 overflow-hidden"
           style={{
@@ -394,27 +425,32 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
           <div className="h-[28px] flex-shrink-0" />
           <div className="flex min-h-0 flex-1 flex-col px-3 pb-4 pt-3">
             <nav className="flex min-h-0 flex-1 flex-col">
-              <MemoizedSidebar {...props} />
+              <MemoizedSidebar {...sidebarProps} />
             </nav>
           </div>
         </aside>
+        {resizeHandle}
       </div>
     );
   }
 
   return (
     <aside
-      className="w-[232px] flex flex-col backdrop-blur-md z-20 pt-8"
+      className="relative flex flex-col backdrop-blur-md z-20 pt-8"
       style={{
+        width: collapsed ? 0 : width,
+        overflow: collapsed ? 'hidden' : 'visible',
+        transition: widthTransition,
         backgroundColor: 'var(--theme-background-sidebar)',
-        borderRight: 'var(--theme-panel-border-width) solid var(--theme-border-light)',
+        borderRight: collapsed ? 'none' : 'var(--theme-panel-border-width) solid var(--theme-border-light)',
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col px-3 pb-4 pt-3">
         <nav className="flex min-h-0 flex-1 flex-col">
-          <MemoizedSidebar {...props} />
+          <MemoizedSidebar {...sidebarProps} />
         </nav>
       </div>
+      {resizeHandle}
     </aside>
   );
 };
