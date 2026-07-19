@@ -31,11 +31,12 @@ const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = memo(({ onToggle
   const isMacOS = platform === 'darwin';
 
   const colors = currentTheme.colors;
-  // TitleBar is h-9.5 (38px) on macOS, h-9 (36px) elsewhere; match its height
-  // and left offset (the 55px traffic-lights spacer on macOS) so the button
-  // visually sits where it used to.
+  // Position relative to where the button used to live inside the TitleBar's
+  // macOS row: 55px traffic-lights spacer + 32.4px blue-dot button
+  // (pl-[18px] + 12.4px circle + pr-0.5 = 2px) ≈ 87.4px → round to 88px so
+  // the wrapper's left edge butts up against the blue button like before.
   const topOffset = 0;
-  const leftOffset = isMacOS ? 55 : 8;
+  const leftOffset = isMacOS ? 88 : 8;
   const height = isMacOS ? 38 : 36;
 
   return (
