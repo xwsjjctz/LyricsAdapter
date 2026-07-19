@@ -7,15 +7,23 @@ import { ThemeConfig } from '../types/theme';
 interface SidebarToggleButtonProps {
   onToggle: () => void;
   collapsed: boolean;
+  isFocusMode: boolean;
 }
 
 /**
- * Sidebar collapse/expand toggle. Rendered as a fixed-position element outside
- * the TitleBar's `z-[160]` stacking context so that FocusMode (z-120) can cover
- * it when fully expanded. Stays above page content (z-20) so it remains
- * clickable over the sidebar.
+ * Sidebar collapse/expand toggle. Rendered as a fixed-position element
+ * *outside* the TitleBar's `z-[160]` stacking context so that FocusMode
+ * (z-120) — and the TitleBar itself — can cover it when fully expanded.
+ *
+ * The z-index has to swing between two values:
+ * - `z-[30]` (below TitleBar/FocusMode) when FocusMode is active, so the
+ *   title bar's drag region and the focus overlay hide it.
+ * - `z-[160]` (same as TitleBar, on top via DOM order) when not in
+ *   FocusMode, so the click registers. TitleBar's drag region extends across
+ *   the top of the window; if we stay at z-30 we'd be visually buried under
+ *   it and clicks would be eaten by the drag handle.
  */
-const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = memo(({ onToggle, collapsed }) => {
+const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = memo(({ onToggle, collapsed, isFocusMode }) => {
   const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
@@ -42,7 +50,7 @@ const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = memo(({ onToggle
   return (
     <div
       data-no-gsap-bounce
-      className="fixed flex items-center select-none z-[30]"
+      className={`fixed flex items-center select-none ${isFocusMode ? 'z-[30]' : 'z-[160]'}`}
       style={{
         top: topOffset,
         left: leftOffset,

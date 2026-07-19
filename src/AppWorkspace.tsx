@@ -534,6 +534,7 @@ const AppWorkspace: React.FC = () => {
         <SidebarToggleButton
           onToggle={sidebar.toggleCollapsed}
           collapsed={sidebar.collapsed}
+          isFocusMode={isFocusMode}
         />
         <div className="flex flex-1">
           <Sidebar
