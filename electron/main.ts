@@ -22,7 +22,6 @@ import { registerCleanupHandlers } from './cleanup-handler';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { registerUserDataHandlers } from './ipc/userDataHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
-import { registerCdnHeaderInjection } from './cdnHeaders';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
@@ -46,11 +45,6 @@ app.commandLine.appendSwitch('secure-schemes', 'app,cover,audio,stream');
 registerAllSchemes();
 
 app.whenReady().then(async () => {
-  // 给已知 CDN（QQ gtimg.cn 等）的出站请求补 Referer，
-  // 海外网络下浏览器发的 <img> 请求默认带 app:// origin 会导致 404。
-  // 必须在 protocol handlers 之前，确保后续请求也走同一 session。
-  registerCdnHeaderInjection();
-
   // Register protocol handlers (must be after app is ready)
   await registerAppProtocolHandler();
   registerCoverProtocol();
