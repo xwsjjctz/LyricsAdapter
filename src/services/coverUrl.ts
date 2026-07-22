@@ -65,10 +65,11 @@ export function toCoverThumb(url: string | undefined, size: number): string | un
     const normalized = parsed.toString();
     let resized = normalized;
     // QQ Music album/artist CDN path: T002R300x300M000 / T001R300x300M000.
-    // CDN 只服务 300/800 等大尺寸，请求 128/192/256 会返回 404；统一升到 300，
-    // 浏览器会自动缩放显示，不影响视觉。
+    // 实测 CDN 仅服务 300 和 800 这两个尺寸，128/256/400/500/512/1024 等等
+    // 全部返回 404。把任意请求 snap 到 {300, 800}：≤300 用 300，其他用 800。
+    // 浏览器会按容器尺寸自动缩放。
     if (host === 'gtimg.cn' || host.endsWith('.gtimg.cn')) {
-      const qqSize = Math.max(300, targetSize);
+      const qqSize = targetSize <= 300 ? 300 : 800;
       resized = resized.replace(
         /(T00[12]R)\d+x\d+(M000)/i,
         `$1${qqSize}x${qqSize}$2`,

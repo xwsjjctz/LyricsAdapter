@@ -45,21 +45,32 @@ describe('coverUrl helpers', () => {
       .toBe('https://example.qishui.com/image~c5_128x128.jpg');
   });
 
-  it('clamps QQ CDN cover requests to 300 minimum (CDN 404s on smaller sizes)', () => {
-    // https://y.gtimg.cn/music/photo_new only serves 300/800/etc.; requesting
-    // anything smaller returns 404. Verify sizes below 300 are bumped up.
+  it('clamps QQ CDN cover requests to the only supported sizes (300 and 800)', () => {
+    // https://y.gtimg.cn/music/photo_new only serves 300 and 800; everything
+    // else (128/256/400/500/512/1024) returns 404. Snap any request to one of
+    // those two: ≤300 → 300, otherwise → 800.
+    // Below 300 → 300.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 128))
       .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 256))
       .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
-    // Sizes at or above 300 are unchanged.
+    // At 300 → 300.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 300))
       .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
+    // Anything larger → 800 (not the requested size, since QQ only serves 300/800).
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 400))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 512))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 800))
       .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
-    // Same clamp applies to the T001 (artist) variant.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 1024))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    // Same snap applies to the T001 (artist) variant.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg', 128))
       .toBe('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg');
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg', 512))
+      .toBe('https://y.gtimg.cn/music/photo_new/T001R800x800M000artist.jpg');
   });
 
   it('leaves unknown remote and transient URLs unchanged', () => {
