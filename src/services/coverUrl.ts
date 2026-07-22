@@ -65,10 +65,13 @@ export function toCoverThumb(url: string | undefined, size: number): string | un
     const normalized = parsed.toString();
     let resized = normalized;
     // QQ Music album/artist CDN path: T002R300x300M000 / T001R300x300M000.
+    // CDN 只服务 300/800 等大尺寸，请求 128/192/256 会返回 404；统一升到 300，
+    // 浏览器会自动缩放显示，不影响视觉。
     if (host === 'gtimg.cn' || host.endsWith('.gtimg.cn')) {
+      const qqSize = Math.max(300, targetSize);
       resized = resized.replace(
         /(T00[12]R)\d+x\d+(M000)/i,
-        `$1${targetSize}x${targetSize}$2`,
+        `$1${qqSize}x${qqSize}$2`,
       );
     }
     // Soda image CDN suffix used by sodaMusicApi: ~c5_375x375.jpg.
