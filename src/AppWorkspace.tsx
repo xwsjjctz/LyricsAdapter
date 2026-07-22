@@ -10,6 +10,7 @@ import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
 import TitleBar from './components/TitleBar';
+import SidebarToggleButton from './components/SidebarToggleButton';
 import Sidebar from './components/Sidebar';
 import LibraryView from './components/LibraryView';
 import BrowseView from './components/BrowseView';
@@ -529,8 +530,11 @@ const AppWorkspace: React.FC = () => {
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-          onToggleSidebar={sidebar.toggleCollapsed}
-          sidebarCollapsed={sidebar.collapsed}
+        />
+        <SidebarToggleButton
+          onToggle={sidebar.toggleCollapsed}
+          collapsed={sidebar.collapsed}
+          isFocusMode={isFocusMode}
         />
         <div className="flex flex-1">
           <Sidebar

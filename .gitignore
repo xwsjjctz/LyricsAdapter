@@ -75,6 +75,8 @@ CLAUDE.md
 talk.md
 /release
 /dist-electron
+/src-tauri/target
+/src-tauri/gen/schemas
 todolist.md
 problem.md
 problems.md

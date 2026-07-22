@@ -1098,7 +1098,7 @@ const FocusMode: React.FC<FocusModeProps> = (props) => {
   const [shouldMountContent, setShouldMountContent] = useState(props.isVisible);
   const [isPresented, setIsPresented] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (props.isVisible) {
       setShouldMountContent(true);
       let presentFrame = 0;
