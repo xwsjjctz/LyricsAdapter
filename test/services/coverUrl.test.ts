@@ -45,29 +45,40 @@ describe('coverUrl helpers', () => {
       .toBe('https://example.qishui.com/image~c5_128x128.jpg');
   });
 
-  it('bumps QQ CDN cover requests below 200 up to 300 (avoid known-bad small sizes)', () => {
-    // 已知 <200 的请求在某些边缘节点 404；200 及以上原样发出，因为这些尺寸
-    // （256/300/512/800 等）在 QQ Music 官网是常见展示尺寸，原本就能用。
-    // 不做 snap，避免把历史上 OK 的尺寸强行替换。
-    // 128 (太小) → 300.
+  it('snaps QQ CDN cover requests to the only sizes the CDN actually serves', () => {
+    // 实测 y.gtimg.cn 只服务 {120,150,180,300,500,800}；其余尺寸（含 128/200/256/
+    // 400/512/1024）一律 404，与 Referer / 地区无关。把任意请求向上 snap 到最近可用尺寸，
+    // 超过 800 封顶到 800（浏览器缩放显示）。
+    // 128 (无效) → 150.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 128))
-      .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
-    // 200 及以上原样.
-    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 200))
-      .toBe('https://y.gtimg.cn/music/photo_new/T002R200x200M000album.jpg');
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R150x150M000album.jpg');
+    // 150 → 150（精确命中）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 150))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R150x150M000album.jpg');
+    // 256 (无效) → 300.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 256))
-      .toBe('https://y.gtimg.cn/music/photo_new/T002R256x256M000album.jpg');
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
+    // 300 → 300.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 300))
       .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
+    // 512 (无效，FocusMode 大封面用的就是这个尺寸) → 800（向上 snap 到下一个可用档，
+    // 不向下取 500，保证图不会小于容器、避免视觉降级）.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 512))
-      .toBe('https://y.gtimg.cn/music/photo_new/T002R512x512M000album.jpg');
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    // 500 → 500（精确命中，注意只向上 snap，所以 500 本身不会降到 300）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 500))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R500x500M000album.jpg');
+    // 800 → 800.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 800))
       .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
-    // Same rule applies to the T001 (artist) variant.
+    // 超过 800 封顶到 800（不返回无效的 1024）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 1024))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    // 同一 snap 规则适用于 T001 (艺人封面) 变体.
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg', 128))
-      .toBe('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg');
+      .toBe('https://y.gtimg.cn/music/photo_new/T001R150x150M000artist.jpg');
     expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg', 512))
-      .toBe('https://y.gtimg.cn/music/photo_new/T001R512x512M000artist.jpg');
+      .toBe('https://y.gtimg.cn/music/photo_new/T001R800x800M000artist.jpg');
   });
 
   it('leaves unknown remote and transient URLs unchanged', () => {
