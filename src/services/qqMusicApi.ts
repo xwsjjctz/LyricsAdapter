@@ -84,7 +84,11 @@ class QQMusicAPI implements OnlineMusicProvider {
     if (typeof raw !== 'string') return '';
     const value = raw.trim();
     if (!value) return '';
-    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    // QQ Music 歌单接口(diss_cover)历史返回 http://，HTTPS 页面加载 HTTP 资源会被
+    // Chromium 当作 mixed content 降级/拦截，导致海外或严格策略下封面加载失败。
+    // 统一升到 https://；同一 CDN 上 HTTP/HTTPS 内容等价。
+    if (value.startsWith('http://')) return 'https://' + value.slice(7);
+    if (value.startsWith('https://')) return value;
     if (value.startsWith('//')) return `https:${value}`;
     if (value.startsWith('/')) return `https://y.gtimg.cn${value}`;
     if (/^[A-Za-z0-9]{14}$/.test(value)) {
