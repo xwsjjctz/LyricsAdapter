@@ -35,6 +35,19 @@ export function appendCoverQuery(
   return `${url}${sep}${key}=${value}`;
 }
 
+// QQ Music CDN (y.gtimg.cn) 仅服务这一组离散封面尺寸；其余尺寸一律 404。
+// 实测于 2026-07，与 Referer / 地区无关。按需更新——若发现新的可用尺寸加进来即可。
+const QQ_CDN_COVER_SIZES = [120, 150, 180, 300, 500, 800] as const;
+
+/** 把任意请求尺寸向上 snap 到 QQ CDN 实际服务的最近尺寸（超过 800 封顶到 800）。 */
+function snapToQqCdnSize(target: number): number {
+  for (const s of QQ_CDN_COVER_SIZES) {
+    if (target <= s) return s;
+  }
+  // 数组非空且已排序，封顶到最大档。
+  return QQ_CDN_COVER_SIZES[QQ_CDN_COVER_SIZES.length - 1]!;
+}
+
 /**
  * 请求适合显示尺寸的封面。cover:// 追加 ?size=N；网易、QQ、汽水的
  * 已知 CDN URL 改写为其原生缩略图格式；未知远程/blob/data URL 原样返回。
@@ -65,10 +78,13 @@ export function toCoverThumb(url: string | undefined, size: number): string | un
     const normalized = parsed.toString();
     let resized = normalized;
     // QQ Music album/artist CDN path: T002R300x300M000 / T001R300x300M000.
-    // CDN 只服务 300/800 等大尺寸，请求 128/192/256 会返回 404；统一升到 300，
-    // 浏览器会自动缩放显示，不影响视觉。
+    // 实测 CDN 只服务一组离散尺寸 {120,150,180,300,500,800}，任何其他值
+    // （128/200/256/400/512/640/1024 等）一律返回 404——与 Referer / 地区无关。
+    // 把任意请求向上 snap 到最近的可用尺寸（超过 800 的封顶到 800，浏览器缩放显示）。
+    // 注：以前这里不重写远程 URL，<img> 拿到的总是 API 给的 300（恰好可用）；
+    // 7e1570d 引入按容器尺寸重写后才开始产生 128/256/512 这类无效 URL。
     if (host === 'gtimg.cn' || host.endsWith('.gtimg.cn')) {
-      const qqSize = Math.max(300, targetSize);
+      const qqSize = snapToQqCdnSize(targetSize);
       resized = resized.replace(
         /(T00[12]R)\d+x\d+(M000)/i,
         `$1${qqSize}x${qqSize}$2`,
