@@ -55,22 +55,12 @@ contextBridge.exposeInMainWorld('electron', {
         setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:setMany', entries),
         delete: async (key: string) => ipcRenderer.invoke('settings:delete', key),
         replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:replaceAll', entries),
-      },
     },
-
-  // Read file from path
-  readFile: async (filePath: string) => {
-    return ipcRenderer.invoke('read-file', filePath);
   },
 
   // Check if file exists
   checkFileExists: async (filePath: string) => {
     return ipcRenderer.invoke('check-file-exists', filePath);
-  },
-
-  // Select files dialog
-  selectFiles: async () => {
-    return ipcRenderer.invoke('select-folder');
   },
 
   // Get app data directory path

@@ -246,7 +246,7 @@ class ElectronAdapter implements FullDesktopAPI {
 
     // Legacy: renderer-side parsing via web worker
     try {
-      const readResult = await this.api.readFile(filePath);
+      const readResult = await this.readFile(filePath);
       if (readResult.success && readResult.data) {
         const fileData = new Uint8Array(readResult.data);
         const fileName = filePath.split(/[/\\]/).pop() || 'audio.mp3';
