@@ -2,9 +2,10 @@ import { app, dialog, ipcMain } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
-import { writeJsonAtomic } from '../utils/atomicWrite';
 import { typedIpcSchemas } from './typedSchemas';
 import type { IpcResult } from '../../src/types/typedIpc';
+import { doLoadLibraryIndex, doSaveLibraryIndex } from './core/libraryCore';
+import { qqMusicHeaders } from '../utils/httpHeaders';
 import {
   doWebdavDelete,
   doWebdavGetRange,
@@ -50,36 +51,6 @@ export function allowAudioPath(filePath: string): void {
 export function canReadAudioPath(filePath: string): boolean {
   const resolved = path.resolve(filePath);
   return isAudioPath(resolved) && (selectedAudioPaths.has(resolved) || isInside(resolveUserDataPath('audio'), resolved));
-}
-
-function libraryIndexPath(): string {
-  return resolveUserDataPath('library-index.json');
-}
-
-function legacyLibraryPath(): string {
-  return resolveUserDataPath('library.json');
-}
-
-function toLibraryIndex(library: any): any {
-  const songs = Array.isArray(library?.songs) ? library.songs.map((song: any) => ({
-    id: song.id,
-    title: song.title,
-    artist: song.artist,
-    album: song.album,
-    duration: song.duration || 0,
-    coverUrl: (typeof song.coverUrl === 'string' && !song.coverUrl.startsWith('blob:') && !song.coverUrl.startsWith('data:'))
-      ? song.coverUrl
-      : '',
-    filePath: song.filePath || '',
-    fileName: song.fileName || '',
-    fileSize: song.fileSize || 0,
-    lastModified: song.lastModified || 0,
-    addedAt: song.addedAt || '',
-    playCount: song.playCount || 0,
-    lastPlayed: song.lastPlayed ?? undefined,
-    available: song.available ?? true,
-  })) : [];
-  return { songs, settings: library?.settings || {} };
 }
 
 function parsePayload<T>(schema: { safeParse: (payload: unknown) => { success: true; data: T } | { success: false; error: { message: string } } }, payload: unknown): IpcResult<T> {
@@ -143,34 +114,13 @@ export function registerTypedIpcHandlers(): void {
   });
 
   ipcMain.handle('ipc:library:loadIndex', async () => {
-    try {
-      const indexPath = libraryIndexPath();
-      const legacyPath = legacyLibraryPath();
-
-      if (fs.existsSync(indexPath)) {
-        return ok(JSON.parse(fs.readFileSync(indexPath, 'utf-8')));
-      }
-      if (fs.existsSync(legacyPath)) {
-        return ok(toLibraryIndex(JSON.parse(fs.readFileSync(legacyPath, 'utf-8'))));
-      }
-      return ok({ songs: [], settings: {} });
-    } catch (error) {
-      logger.error('[TypedIPC] load library failed:', error);
-      return fail((error as Error).message);
-    }
+    return doLoadLibraryIndex();
   });
 
   ipcMain.handle('ipc:library:saveIndex', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.library, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      writeJsonAtomic(libraryIndexPath(), parsed.data);
-      return ok(undefined);
-    } catch (error) {
-      logger.error('[TypedIPC] save library failed:', error);
-      return fail((error as Error).message);
-    }
+    return doSaveLibraryIndex(parsed.data);
   });
 
   ipcMain.handle('ipc:webdav:propfind', async (_event, payload: unknown) => {
@@ -203,11 +153,7 @@ export function registerTypedIpcHandlers(): void {
 
     try {
       const response = await fetch(parsed.data.url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          Referer: 'https://y.qq.com/',
-          Cookie: parsed.data.cookieString,
-        },
+        headers: qqMusicHeaders(parsed.data.cookieString),
       });
       if (!response.ok) return fail(`HTTP error: ${response.status}`);
       return ok({ data: await response.arrayBuffer() });
