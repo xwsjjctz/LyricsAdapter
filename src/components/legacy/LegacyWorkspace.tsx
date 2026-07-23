@@ -61,6 +61,12 @@ interface LegacyWorkspaceProps {
   ) => Promise<void>;
   audioElement: ReactElement | null;
   isLinux: boolean;
+  // Legacy playlist browse/play decoupling: the playlist being browsed in the
+  // Library list (viewSlot === 'playlist') is shown from this preview rather
+  // than the 'playlist' play slot, so opening a playlist never interrupts
+  // playback. The slot is only committed when the user clicks a row.
+  libraryBrowsingTracks: Track[];
+  onPlayLibraryPlaylistTrack: (index: number) => void;
 }
 
 const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
@@ -88,6 +94,8 @@ const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
   onOpenPlaylist,
   audioElement,
   isLinux,
+  libraryBrowsingTracks,
+  onPlayLibraryPlaylistTrack,
 }) => {
   const { t } = useTranslation();
   const {
@@ -189,10 +197,14 @@ const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView
-                tracks={library.slots[library.viewSlot].tracks}
+                tracks={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
+                  ? libraryBrowsingTracks
+                  : library.slots[library.viewSlot].tracks}
                 currentTrackIndex={library.slots[library.viewSlot].currentTrackIndex}
                 {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
-                onTrackSelect={library.selectTrack}
+                onTrackSelect={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
+                  ? onPlayLibraryPlaylistTrack
+                  : library.selectTrack}
                 onRemoveTrack={library.removeTrack}
                 onRemoveMultipleTracks={library.removeTracks}
                 onImportClick={importVm.importClick}

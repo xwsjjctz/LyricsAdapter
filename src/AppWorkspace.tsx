@@ -536,6 +536,8 @@ const AppWorkspace: React.FC = () => {
       onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}
       isLinux={isLinux}
+      libraryBrowsingTracks={playerController.libraryBrowsingTracks}
+      onPlayLibraryPlaylistTrack={playerController.playLibraryPlaylistTrack}
     />
   );
 };
