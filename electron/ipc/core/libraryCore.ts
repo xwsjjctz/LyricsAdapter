@@ -81,32 +81,6 @@ export async function doSaveLibraryIndex(library: unknown): Promise<IpcResult<vo
   }
 }
 
-// Legacy: reads the pre-migration `library.json` directly (no index lookup,
-// no migration). Kept because some callers still target the old file.
-export async function doLoadLegacyLibrary(): Promise<IpcResult<unknown>> {
-  try {
-    const legacyPath = legacyLibraryPath();
-    if (fs.existsSync(legacyPath)) {
-      return { ok: true, data: JSON.parse(fs.readFileSync(legacyPath, 'utf-8')) };
-    }
-    return { ok: true, data: { songs: [], settings: {} } };
-  } catch (error) {
-    logger.error('[Library] load legacy library failed:', error);
-    return { ok: false, error: (error as Error).message };
-  }
-}
-
-// Legacy: writes the pre-migration `library.json`.
-export async function doSaveLegacyLibrary(library: unknown): Promise<IpcResult<void>> {
-  try {
-    writeJsonAtomic(legacyLibraryPath(), library);
-    return { ok: true, data: undefined };
-  } catch (error) {
-    logger.error('[Library] save legacy library failed:', error);
-    return { ok: false, error: (error as Error).message };
-  }
-}
-
 export async function doSaveLocalBackup(library: unknown): Promise<IpcResult<void>> {
   try {
     writeJsonAtomic(localBackupPath(), library);

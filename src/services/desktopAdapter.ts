@@ -44,10 +44,8 @@ export interface DesktopAPI {
   ipc?: TypedElectronIPC;
   readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
-  loadLibrary: () => Promise<{ success: boolean; library: unknown; error?: string }>;
-  saveLibrary: (library: unknown) => Promise<{ success: boolean; error?: string }>;
-  loadLibraryIndex?: () => Promise<{ success: boolean; library: unknown; error?: string }>;
-  saveLibraryIndex?: (library: unknown) => Promise<{ success: boolean; error?: string }>;
+  loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
+  saveLibraryIndex: (library: unknown) => Promise<{ success: boolean; error?: string }>;
   saveLocalLibraryBackup?: (library: unknown) => Promise<{ success: boolean; error?: string }>;
   loadLocalLibraryBackup?: () => Promise<{ success: boolean; library: unknown | null; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
@@ -147,14 +145,6 @@ class ElectronAdapter implements FullDesktopAPI {
   async selectFiles(): Promise<{ canceled: boolean; filePaths: string[] }> {
     const result = await this.api.ipc!.file.selectAudio();
     return result.ok ? result.data : { canceled: true, filePaths: [] };
-  }
-
-  async loadLibrary(): Promise<{ success: boolean; library: any; error?: string }> {
-    return this.api.loadLibrary();
-  }
-
-  async saveLibrary(library: any): Promise<{ success: boolean; error?: string }> {
-    return this.api.saveLibrary(library);
   }
 
   async loadLibraryIndex(): Promise<{ success: boolean; library: any; error?: string }> {

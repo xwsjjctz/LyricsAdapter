@@ -78,26 +78,6 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('get-app-data-path');
   },
 
-  // Load library from disk
-  loadLibrary: async () => {
-    return ipcRenderer.invoke('load-library');
-  },
-
-  // Load library index from disk
-  loadLibraryIndex: async () => {
-    return ipcRenderer.invoke('load-library-index');
-  },
-
-  // Save library to disk
-  saveLibrary: async (library: any) => {
-    return ipcRenderer.invoke('save-library', library);
-  },
-
-  // Save library index to disk
-  saveLibraryIndex: async (library: any) => {
-    return ipcRenderer.invoke('save-library-index', library);
-  },
-
   // Save local library backup (before switching to cloud)
   saveLocalLibraryBackup: async (library: any) => {
     return ipcRenderer.invoke('save-local-library-backup', library);

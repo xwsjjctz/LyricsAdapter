@@ -107,7 +107,7 @@ class LibraryStorageService {
       }
 
       logger.debug('[LibraryStorage] Loading library from disk...');
-      const result = api.loadLibraryIndex ? await api.loadLibraryIndex() : await api.loadLibrary();
+      const result = await api.loadLibraryIndex();
 
       if (result.success) {
         const library = result.library as LibraryIndexData;
@@ -135,7 +135,7 @@ class LibraryStorageService {
       }
 
       logger.debug('[LibraryStorage] Saving library to disk, songs:', library.songs.length);
-      const result = api.saveLibraryIndex ? await api.saveLibraryIndex(library) : await api.saveLibrary(library);
+      const result = await api.saveLibraryIndex(library);
 
       if (result.success) {
         logger.debug('[LibraryStorage] Library saved successfully');
