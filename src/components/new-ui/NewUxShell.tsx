@@ -13,6 +13,8 @@ import SettingsPanel from './SettingsPanel';
 import ThemePanel from './ThemePanel';
 import NewUxSearchBox from './NewUxSearchBox';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
+import { applyThemeVarsToElement } from '../../services/themeManager';
+import { getDefaultTheme } from '../../services/themes/predefinedThemes';
 import RightDrawer from './RightDrawer';
 import {
   loadCardOverrides,
@@ -305,6 +307,18 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
     '--new-ux-glass-backdrop-opacity': bgImage ? '0.38' : '0',
   }) as React.CSSProperties, [bgImage]);
 
+  // The New UI ships a fixed dark look. Pin the default-dark theme's CSS
+  // variables onto the shell root so global theme switches (legacy ThemePanel /
+  // themeManager) cannot bleed into the New UI — every var(--theme-*) inside
+  // this subtree resolves to the default-dark value regardless of the active
+  // app theme.
+  const shellRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (shellRef.current) {
+      applyThemeVarsToElement(shellRef.current, getDefaultTheme());
+    }
+  }, []);
+
   useEffect(() => {
     setIsCurrentTrackVisible(false);
   }, [currentTrack?.id, panels.state.openPlaylistId]);
@@ -406,7 +420,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
   }, [currentTrack, onToggleFocusMode]);
 
   return (
-    <div className={`new-ux-shell font-sans${suspendLayersBehindFocus ? ' new-ux-shell--focus' : ''}`} style={shellStyle}>
+    <div ref={shellRef} className={`new-ux-shell font-sans${suspendLayersBehindFocus ? ' new-ux-shell--focus' : ''}`} style={shellStyle}>
       <TitleBar isFocusMode={isFocusMode} onToggleFocusMode={onToggleFocusMode} />
       <input
         type="file"

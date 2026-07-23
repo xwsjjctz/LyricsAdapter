@@ -1,5 +1,5 @@
 import React from 'react';
-import { themeManager } from '@/services/themeManager';
+import { getDefaultTheme } from '@/services/themes/predefinedThemes';
 import { THEME_IDS, ThemeConfig } from '@/types/theme';
 import { i18n } from '@/services/i18n';
 import type { OnlineSource } from '@/services/settingsManager';
@@ -66,14 +66,15 @@ export function useSettingsTheme(theme: ThemeConfig): SettingsTheme {
   };
 }
 
-/** Subscribe to the active theme; re-renders on change. */
+/**
+ * The New UI renders against a fixed default-dark palette (pinned on the shell
+ * root via applyThemeVarsToElement). Settings sections read colours through this
+ * hook, so it must return the same fixed theme rather than the app-wide active
+ * theme — otherwise a light app theme would feed light inline colours into the
+ * (dark) New UI settings panels.
+ */
 export function useCurrentTheme(): ThemeConfig {
-  const [theme, setTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
-  React.useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => setTheme(themeManager.getCurrentTheme()));
-    return unsubscribe;
-  }, []);
-  return theme;
+  return getDefaultTheme();
 }
 
 /**
