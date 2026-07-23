@@ -9,6 +9,8 @@ import { qqMusicHeaders } from '../utils/httpHeaders';
 import {
   doWebdavDelete,
   doWebdavGetRange,
+  doWebdavGetRedirect,
+  doWebdavMkcol,
   doWebdavPropfind,
   doWebdavPut,
 } from './core/webdavCore';
@@ -145,6 +147,18 @@ export function registerTypedIpcHandlers(): void {
     const parsed = parsePayload(typedIpcSchemas.webdavDelete, payload);
     if (!parsed.ok) return parsed;
     return doWebdavDelete(parsed.data.url, parsed.data.authHeader);
+  });
+
+  ipcMain.handle('ipc:webdav:getRedirect', async (_event, payload: unknown) => {
+    const parsed = parsePayload(typedIpcSchemas.webdavGetRedirect, payload);
+    if (!parsed.ok) return parsed;
+    return doWebdavGetRedirect(parsed.data.url, parsed.data.authHeader);
+  });
+
+  ipcMain.handle('ipc:webdav:mkcol', async (_event, payload: unknown) => {
+    const parsed = parsePayload(typedIpcSchemas.webdavMkcol, payload);
+    if (!parsed.ok) return parsed;
+    return doWebdavMkcol(parsed.data.url, parsed.data.authHeader);
   });
 
   ipcMain.handle('ipc:download:audio', async (_event, payload: unknown) => {

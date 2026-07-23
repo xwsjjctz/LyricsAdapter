@@ -139,23 +139,13 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async readFile(filePath: string): Promise<{ success: boolean; data: ArrayBuffer; error?: string }> {
-    if (this.api.ipc?.file.readAudio) {
-      const result = await this.api.ipc.file.readAudio(filePath);
-      if (result.ok) {
-        return { success: true, data: result.data.data };
-      }
-      logger.warn('[DesktopAPI] typed readAudio rejected, falling back to legacy read-file:', result.error);
-    }
-    return this.api.readFile(filePath);
+    const result = await this.api.ipc!.file.readAudio(filePath);
+    return result.ok ? { success: true, data: result.data.data } : { success: false, data: new ArrayBuffer(0), error: result.error };
   }
 
   async selectFiles(): Promise<{ canceled: boolean; filePaths: string[] }> {
-    if (this.api.ipc?.file.selectAudio) {
-      const result = await this.api.ipc.file.selectAudio();
-      if (result.ok) return result.data;
-      logger.warn('[DesktopAPI] typed selectAudio failed, falling back to legacy select-folder:', result.error);
-    }
-    return this.api.selectFiles();
+    const result = await this.api.ipc!.file.selectAudio();
+    return result.ok ? result.data : { canceled: true, filePaths: [] };
   }
 
   async loadLibrary(): Promise<{ success: boolean; library: any; error?: string }> {
@@ -167,27 +157,15 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async loadLibraryIndex(): Promise<{ success: boolean; library: any; error?: string }> {
-    if (this.api.ipc?.library.loadIndex) {
-      const result = await this.api.ipc.library.loadIndex();
-      return result.ok
-        ? { success: true, library: result.data }
-        : { success: false, library: null, error: result.error };
-    }
-    if (typeof this.api.loadLibraryIndex === 'function') {
-      return this.api.loadLibraryIndex();
-    }
-    return this.api.loadLibrary();
+    const result = await this.api.ipc!.library.loadIndex();
+    return result.ok
+      ? { success: true, library: result.data }
+      : { success: false, library: null, error: result.error };
   }
 
   async saveLibraryIndex(library: any): Promise<{ success: boolean; error?: string }> {
-    if (this.api.ipc?.library.saveIndex) {
-      const result = await this.api.ipc.library.saveIndex(library);
-      return result.ok ? { success: true } : { success: false, error: result.error };
-    }
-    if (typeof this.api.saveLibraryIndex === 'function') {
-      return this.api.saveLibraryIndex(library);
-    }
-    return this.api.saveLibrary(library);
+    const result = await this.api.ipc!.library.saveIndex(library);
+    return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
   async saveLocalLibraryBackup(library: any): Promise<{ success: boolean; error?: string }> {
@@ -406,46 +384,36 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async webdavPropfind(url: string, authHeader: string, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
-    if (this.api.ipc?.webdav.propfind) {
-      const result = await this.api.ipc.webdav.propfind({ url, authHeader, depth });
-      return result.ok ? { success: true, xml: result.data.xml } : { success: false, error: result.error };
-    }
-    return this.api.webdavPropfind(url, authHeader, depth);
+    const result = await this.api.ipc!.webdav.propfind({ url, authHeader, depth });
+    return result.ok ? { success: true, xml: result.data.xml } : { success: false, error: result.error };
   }
 
   async webdavGetRedirect(url: string, authHeader: string): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
-    return this.api.webdavGetRedirect(url, authHeader);
+    const result = await this.api.ipc!.webdav.getRedirect({ url, authHeader });
+    if (!result.ok) return { success: false, error: result.error };
+    const data: { success: boolean; redirectUrl?: string } = { success: true };
+    if (result.data.redirectUrl) data.redirectUrl = result.data.redirectUrl;
+    return data;
   }
 
   async webdavGetRange(url: string, authHeader: string, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
-    if (this.api.ipc?.webdav.getRange) {
-      const result = await this.api.ipc.webdav.getRange({ url, authHeader, start, end });
-      return result.ok ? { success: true, data: result.data.data } : { success: false, error: result.error };
-    }
-    return this.api.webdavGetRange(url, authHeader, start, end);
+    const result = await this.api.ipc!.webdav.getRange({ url, authHeader, start, end });
+    return result.ok ? { success: true, data: result.data.data } : { success: false, error: result.error };
   }
 
   async webdavPut(url: string, authHeader: string, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
-    if (this.api.ipc?.webdav.put) {
-      const result = await this.api.ipc.webdav.put({ url, authHeader, data, contentType });
-      return result.ok ? { success: true } : { success: false, error: result.error };
-    }
-    return this.api.webdavPut(url, authHeader, data, contentType);
+    const result = await this.api.ipc!.webdav.put({ url, authHeader, data, contentType });
+    return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
   async webdavDelete(url: string, authHeader: string): Promise<{ success: boolean; error?: string }> {
-    if (this.api.ipc?.webdav.delete) {
-      const result = await this.api.ipc.webdav.delete({ url, authHeader });
-      return result.ok ? { success: true } : { success: false, error: result.error };
-    }
-    return this.api.webdavDelete(url, authHeader);
+    const result = await this.api.ipc!.webdav.delete({ url, authHeader });
+    return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
   async webdavMkcol(url: string, authHeader: string): Promise<{ success: boolean; status?: number; error?: string }> {
-    if (typeof this.api.webdavMkcol === 'function') {
-      return this.api.webdavMkcol(url, authHeader);
-    }
-    return { success: false, error: 'webdavMkcol not available' };
+    const result = await this.api.ipc!.webdav.mkcol({ url, authHeader });
+    return result.ok ? { success: true, status: result.data.status } : { success: false, error: result.error };
   }
 
   async runStartupCleanup(activeTrackIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> {

@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('electron', {
       getRange: async (payload: { url: string; authHeader: string; start: number; end: number }) => ipcRenderer.invoke('ipc:webdav:getRange', payload),
       put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
       delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
+      getRedirect: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:getRedirect', payload),
+      mkcol: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:mkcol', payload),
     },
       download: {
         audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
