@@ -2,10 +2,15 @@ import { app, dialog, ipcMain } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
-import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../utils/webdavRange';
 import { writeJsonAtomic } from '../utils/atomicWrite';
 import { typedIpcSchemas } from './typedSchemas';
 import type { IpcResult } from '../../src/types/typedIpc';
+import {
+  doWebdavDelete,
+  doWebdavGetRange,
+  doWebdavPropfind,
+  doWebdavPut,
+} from './core/webdavCore';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac']);
 const selectedAudioPaths = new Set<string>();
@@ -171,87 +176,25 @@ export function registerTypedIpcHandlers(): void {
   ipcMain.handle('ipc:webdav:propfind', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavPropfind, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const response = await fetch(parsed.data.url, {
-        method: 'PROPFIND',
-        headers: {
-          Authorization: parsed.data.authHeader,
-          Depth: parsed.data.depth,
-          'Content-Type': 'application/xml; charset=utf-8',
-        },
-      });
-      if (!response.ok && response.status !== 207) {
-        return fail(`PROPFIND failed: ${response.status} ${response.statusText}`);
-      }
-      return ok({ xml: await response.text() });
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV PROPFIND failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavPropfind(parsed.data.url, parsed.data.authHeader, parsed.data.depth);
   });
 
   ipcMain.handle('ipc:webdav:getRange', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavRange, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const headers: Record<string, string> = {};
-      if (parsed.data.authHeader) headers['Authorization'] = parsed.data.authHeader;
-      if (parsed.data.start >= 0 && parsed.data.end >= 0) {
-        headers['Range'] = `bytes=${parsed.data.start}-${parsed.data.end}`;
-      }
-
-      const response = await fetch(parsed.data.url, { method: 'GET', headers, redirect: 'follow' });
-      const validation = validateWebDAVRangeResponse(
-        response.status,
-        response.headers.get('content-range'),
-        response.headers.get('content-length'),
-        parsed.data.start,
-        parsed.data.end,
-      );
-      if (!validation.success) return fail(validation.error ?? 'Invalid range response');
-      return ok({ data: await readArrayBufferWithLimit(response, validation.maxBytes) });
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV range failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavGetRange(parsed.data.url, parsed.data.authHeader, parsed.data.start, parsed.data.end);
   });
 
   ipcMain.handle('ipc:webdav:put', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavPut, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const response = await fetch(parsed.data.url, {
-        method: 'PUT',
-        headers: {
-          Authorization: parsed.data.authHeader,
-          'Content-Type': parsed.data.contentType,
-        },
-        body: new Uint8Array(parsed.data.data),
-      });
-      return response.ok ? ok(undefined) : fail(`PUT failed: ${response.status} ${response.statusText}`);
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV PUT failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavPut(parsed.data.url, parsed.data.authHeader, parsed.data.data, parsed.data.contentType);
   });
 
   ipcMain.handle('ipc:webdav:delete', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavDelete, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const response = await fetch(parsed.data.url, {
-        method: 'DELETE',
-        headers: { Authorization: parsed.data.authHeader },
-      });
-      return response.ok ? ok(undefined) : fail(`DELETE failed: ${response.status} ${response.statusText}`);
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV DELETE failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavDelete(parsed.data.url, parsed.data.authHeader);
   });
 
   ipcMain.handle('ipc:download:audio', async (_event, payload: unknown) => {

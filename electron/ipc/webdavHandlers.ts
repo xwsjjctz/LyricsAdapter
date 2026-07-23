@@ -1,157 +1,50 @@
 import { ipcMain } from 'electron';
 import { logger } from '../logger';
-import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../utils/webdavRange';
+import {
+  doWebdavDelete,
+  doWebdavGetRange,
+  doWebdavGetRedirect,
+  doWebdavMkcol,
+  doWebdavPropfind,
+  doWebdavPut,
+} from './core/webdavCore';
+
+// Legacy positional WebDAV IPC channels. The business logic lives in
+// ./core/webdavCore (shared with the typed `ipc:webdav:*` layer); this module
+// only reshapes each IpcResult into the legacy `{ success, ... }` envelope.
 
 export function registerWebDAVHandlers(): void {
 
   ipcMain.handle('webdav-propfind', async (_event, url: string, authHeader: string, depth: string) => {
-    try {
-      const response = await fetch(url, {
-        method: 'PROPFIND',
-        headers: {
-          'Authorization': authHeader,
-          'Depth': depth,
-          'Content-Type': 'application/xml; charset=utf-8',
-        },
-      });
-
-      if (!response.ok && response.status !== 207) {
-        return { success: false, error: `PROPFIND failed: ${response.status} ${response.statusText}` };
-      }
-
-      const xml = await response.text();
-      return { success: true, xml };
-    } catch (e: any) {
-      logger.error('[WebDAV] PROPFIND error:', e);
-      return { success: false, error: e.message };
-    }
+    const r = await doWebdavPropfind(url, authHeader, depth);
+    return r.ok ? { success: true, xml: r.data.xml } : { success: false, error: r.error };
   });
 
   ipcMain.handle('webdav-get-redirect', async (_event, url: string, authHeader: string) => {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': authHeader,
-        },
-        redirect: 'manual',
-      });
-
-      if (response.status === 302 || response.status === 301) {
-        const redirectUrl = response.headers.get('location');
-        return { success: true, redirectUrl };
-      }
-
-      if (response.status >= 200 && response.status < 300) {
-        return { success: false, error: 'No redirect, direct response received' };
-      }
-
-      return { success: false, error: `Unexpected status: ${response.status}` };
-    } catch (e: any) {
-      logger.error('[WebDAV] GET redirect error:', e);
-      return { success: false, error: e.message };
-    }
+    const r = await doWebdavGetRedirect(url, authHeader);
+    return r.ok ? { success: true, redirectUrl: r.data.redirectUrl } : { success: false, error: r.error };
   });
 
   ipcMain.handle('webdav-get-range', async (_event, url: string, authHeader: string, start: number, end: number) => {
-    try {
-      const headers: Record<string, string> = {};
-      if (authHeader) {
-        headers['Authorization'] = authHeader;
-      }
-      if (start >= 0 && end >= 0) {
-        headers['Range'] = `bytes=${start}-${end}`;
-      }
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-        redirect: 'follow',
-      });
-
-      const validation = validateWebDAVRangeResponse(
-        response.status,
-        response.headers.get('content-range'),
-        response.headers.get('content-length'),
-        start,
-        end,
-      );
-      if (!validation.success) {
-        logger.error('[WebDAV IPC] Range fetch rejected:', validation.error, 'URL:', url.substring(0, 100));
-        return { success: false, error: validation.error };
-      }
-
-      const arrayBuffer = await readArrayBufferWithLimit(response, validation.maxBytes);
-      logger.info('[WebDAV IPC] Range fetch success:', url.substring(0, 80), 'range:', `${start}-${end}`, 'got', arrayBuffer.byteLength, 'bytes');
-      return { success: true, data: arrayBuffer };
-    } catch (e: any) {
-      logger.error('[WebDAV IPC] Range fetch error:', e.message, 'URL:', url.substring(0, 100));
-      return { success: false, error: e.message };
-    }
+    const r = await doWebdavGetRange(url, authHeader, start, end);
+    return r.ok ? { success: true, data: r.data.data } : { success: false, error: r.error };
   });
 
   ipcMain.handle('webdav-put', async (_event, url: string, authHeader: string, data: ArrayBuffer, contentType: string) => {
-    try {
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': contentType,
-        },
-        body: new Uint8Array(data),
-      });
-
-      if (!response.ok) {
-        return { success: false, error: `PUT failed: ${response.status} ${response.statusText}` };
-      }
-
-      return { success: true };
-    } catch (e: any) {
-      logger.error('[WebDAV] PUT error:', e);
-      return { success: false, error: e.message };
-    }
+    const r = await doWebdavPut(url, authHeader, data, contentType);
+    return r.ok ? { success: true } : { success: false, error: r.error };
   });
 
   ipcMain.handle('webdav-delete', async (_event, url: string, authHeader: string) => {
-    try {
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': authHeader,
-        },
-      });
-
-      if (!response.ok) {
-        return { success: false, error: `DELETE failed: ${response.status} ${response.statusText}` };
-      }
-
-      return { success: true };
-    } catch (e: any) {
-      logger.error('[WebDAV] DELETE error:', e);
-      return { success: false, error: e.message };
-    }
+    const r = await doWebdavDelete(url, authHeader);
+    return r.ok ? { success: true } : { success: false, error: r.error };
   });
 
   // MKCOL 创建集合（目录）。幂等：201 新建 / 2xx / 405(已存在) 均视为"目录就绪"。
   // 用于上传前确保 /Metadata/ 存在——很多 WebDAV（含 123pan）在父目录缺失时 PUT 返回 409。
   ipcMain.handle('webdav-mkcol', async (_event, url: string, authHeader: string) => {
-    try {
-      const response = await fetch(url, {
-        method: 'MKCOL',
-        headers: {
-          'Authorization': authHeader,
-        },
-      });
-
-      const status = response.status;
-      if ((status >= 200 && status < 300) || status === 405) {
-        return { success: true, status };
-      }
-      return { success: false, status, error: `MKCOL failed: ${status} ${response.statusText}` };
-    } catch (e: any) {
-      logger.error('[WebDAV] MKCOL error:', e);
-      return { success: false, error: e.message };
-    }
+    const r = await doWebdavMkcol(url, authHeader);
+    return r.ok ? { success: true, status: r.data.status } : { success: false, error: r.error };
   });
 
   logger.info('[WebDAV] IPC handlers registered');
