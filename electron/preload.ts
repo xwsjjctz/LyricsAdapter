@@ -309,36 +309,6 @@ contextBridge.exposeInMainWorld('electron', {
     };
   },
 
-  // WebDAV PROPFIND request
-  webdavPropfind: async (url: string, authHeader: string, depth: string) => {
-    return ipcRenderer.invoke('webdav-propfind', url, authHeader, depth);
-  },
-
-  // WebDAV GET with redirect manual
-  webdavGetRedirect: async (url: string, authHeader: string) => {
-    return ipcRenderer.invoke('webdav-get-redirect', url, authHeader);
-  },
-
-  // WebDAV GET with Range header
-  webdavGetRange: async (url: string, authHeader: string, start: number, end: number) => {
-    return ipcRenderer.invoke('webdav-get-range', url, authHeader, start, end);
-  },
-
-  // WebDAV PUT for file upload
-  webdavPut: async (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => {
-    return ipcRenderer.invoke('webdav-put', url, authHeader, data, contentType);
-  },
-
-  // WebDAV DELETE for file removal
-  webdavDelete: async (url: string, authHeader: string) => {
-    return ipcRenderer.invoke('webdav-delete', url, authHeader);
-  },
-
-  // WebDAV MKCOL to ensure a collection (folder) exists before PUT
-  webdavMkcol: async (url: string, authHeader: string) => {
-    return ipcRenderer.invoke('webdav-mkcol', url, authHeader);
-  },
-
   // Run startup resource cleanup
   runStartupCleanup: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);

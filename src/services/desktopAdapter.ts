@@ -82,7 +82,8 @@ export interface DesktopAPI {
   selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
   // Shortcut API
   onShortcut?: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => (() => void) | void;
-  // WebDAV APIs
+  // WebDAV APIs — implemented by ElectronAdapter over the typed ipc.webdav.*
+  // channels (not exposed by preload directly). webdavClient consumes these.
   webdavPropfind: (url: string, authHeader: string, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
   webdavGetRedirect: (url: string, authHeader: string) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
   webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
