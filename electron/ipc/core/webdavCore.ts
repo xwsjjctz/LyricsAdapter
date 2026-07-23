@@ -46,10 +46,14 @@ export async function doWebdavGetRedirect(
     });
 
     if (response.status === 302 || response.status === 301) {
+      // Match the original legacy contract: a redirect status is "success"
+      // even when the Location header is absent (redirectUrl then omitted).
+      // Callers treat a missing redirectUrl as failure anyway, but preserving
+      // the envelope avoids any downstream divergence.
       const location = response.headers.get('location');
-      if (location) {
-        return { ok: true, data: { redirectUrl: location, status: response.status } };
-      }
+      const data: { redirectUrl?: string; status: number } = { status: response.status };
+      if (location) data.redirectUrl = location;
+      return { ok: true, data };
     }
 
     if (response.status >= 200 && response.status < 300) {
