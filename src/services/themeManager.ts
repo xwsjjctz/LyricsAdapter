@@ -14,6 +14,145 @@ import { settingsManager } from './settingsManager';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
+/**
+ * Write a theme's full set of CSS custom properties + the theme-dark/theme-light
+ * class onto a given element. Extracted from applyTheme so the New UI shell can
+ * pin the default-dark palette onto its own root, isolating itself from global
+ * theme switches (the New UI ships a fixed dark look by design).
+ *
+ * Note: this deliberately does NOT touch font-family (a document-global concern)
+ * or the theme-is-transitioning class (a :root animation concern).
+ */
+export function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
+  const colors = theme.colors;
+  const fonts = theme.fonts;
+  const radius = theme.borderRadius;
+  const controls = resolveThemeControls(theme);
+  const appearance = resolveThemeAppearance(theme);
+
+  el.style.setProperty('--theme-primary', colors.primary);
+  el.style.setProperty('--theme-primary-hover', colors.primaryHover);
+  el.style.setProperty('--theme-primary-light', colors.primaryLight);
+
+  el.style.setProperty('--theme-primary-08', hexToRgba(colors.primary, 0.08));
+  el.style.setProperty('--theme-primary-10', hexToRgba(colors.primary, 0.10));
+  el.style.setProperty('--theme-primary-13', hexToRgba(colors.primary, 0.13));
+  el.style.setProperty('--theme-primary-16', hexToRgba(colors.primary, 0.16));
+  el.style.setProperty('--theme-primary-20', hexToRgba(colors.primary, 0.20));
+
+  el.style.setProperty('--theme-background-dark', colors.backgroundDark);
+  el.style.setProperty('--theme-background-gradient-start', colors.backgroundGradientStart);
+  el.style.setProperty('--theme-background-gradient-end', colors.backgroundGradientEnd);
+  el.style.setProperty('--theme-background-sidebar', colors.backgroundSidebar);
+  el.style.setProperty('--theme-background-card', colors.backgroundCard);
+  el.style.setProperty('--theme-background-card-hover', colors.backgroundCardHover);
+
+  el.style.setProperty('--theme-text-primary', colors.textPrimary);
+  el.style.setProperty('--theme-text-secondary', colors.textSecondary);
+  el.style.setProperty('--theme-text-muted', colors.textMuted);
+
+  el.style.setProperty('--theme-border-light', colors.borderLight);
+  el.style.setProperty('--theme-border-hover', colors.borderHover);
+
+  el.style.setProperty('--theme-accent', colors.accent);
+  el.style.setProperty('--theme-accent-hover', colors.accentHover);
+
+  el.style.setProperty('--theme-success', colors.success);
+  el.style.setProperty('--theme-warning', colors.warning);
+  el.style.setProperty('--theme-warning-10', hexToRgba(colors.warning, 0.10));
+  el.style.setProperty('--theme-warning-20', hexToRgba(colors.warning, 0.20));
+  el.style.setProperty('--theme-error', colors.error);
+  el.style.setProperty('--theme-info', colors.info);
+
+  el.style.setProperty('--theme-shadow-color', colors.shadowColor);
+  el.style.setProperty('--theme-glow-color', colors.glowColor);
+
+  el.style.setProperty('--theme-font-main', fonts.main);
+  el.style.setProperty('--theme-font-display', fonts.display || fonts.main);
+  el.style.setProperty('--theme-font-mono', fonts.mono || 'ui-monospace, monospace');
+
+  el.style.setProperty('--theme-radius-sm', radius.sm);
+  el.style.setProperty('--theme-radius-md', radius.md);
+  el.style.setProperty('--theme-radius-lg', radius.lg);
+  el.style.setProperty('--theme-radius-xl', radius.xl);
+  el.style.setProperty('--theme-radius-full', radius.full);
+
+  el.style.setProperty('--theme-control-panel-bg', controls.panelBackground);
+  el.style.setProperty('--theme-control-panel-bg-glass', controls.panelBackgroundGlass);
+  el.style.setProperty('--theme-control-panel-bg-glass-strong', controls.panelBackgroundGlassStrong);
+  el.style.setProperty('--theme-control-panel-bg-floating', controls.panelFloatingBackground);
+  el.style.setProperty('--theme-control-panel-border', controls.panelBorder);
+  el.style.setProperty('--theme-control-panel-shadow', controls.panelShadow);
+
+  el.style.setProperty('--theme-control-container-bg', controls.containerBackground);
+  el.style.setProperty('--theme-control-container-border', controls.containerBorder);
+  el.style.setProperty('--theme-control-item-bg-hover', controls.itemBackgroundHover);
+  el.style.setProperty('--theme-control-item-bg-active', controls.itemBackgroundActive);
+  el.style.setProperty('--theme-control-item-fg-active', controls.itemForegroundActive);
+  el.style.setProperty('--theme-control-item-shadow-active', controls.itemShadowActive);
+  el.style.setProperty('--theme-control-current-track-fg', controls.currentTrackForeground);
+  el.style.setProperty('--theme-control-current-track-band-tint', controls.currentTrackBandTint);
+
+  el.style.setProperty('--theme-control-icon-bg', controls.iconBackground);
+  el.style.setProperty('--theme-control-icon-bg-active', controls.iconBackgroundActive);
+  el.style.setProperty('--theme-control-icon-fg', controls.iconForeground);
+  el.style.setProperty('--theme-control-icon-fg-hover', controls.iconForegroundHover);
+  el.style.setProperty('--theme-control-icon-fg-active', controls.iconForegroundActive);
+
+  el.style.setProperty('--theme-control-action-bg', controls.actionBackground);
+  el.style.setProperty('--theme-control-action-bg-hover', controls.actionBackgroundHover);
+  el.style.setProperty('--theme-control-action-bg-active', controls.actionBackgroundActive);
+  el.style.setProperty('--theme-control-action-fg', controls.actionForeground);
+  el.style.setProperty('--theme-control-action-fg-hover', controls.actionForegroundHover);
+  el.style.setProperty('--theme-control-action-fg-active', controls.actionForegroundActive);
+  el.style.setProperty('--theme-control-action-shadow', controls.actionShadow);
+  el.style.setProperty('--theme-control-action-shadow-active', controls.actionShadowActive);
+
+  el.style.setProperty('--theme-control-primary-button-bg', controls.primaryButtonBackground);
+  el.style.setProperty('--theme-control-primary-button-fg', controls.primaryButtonForeground);
+  el.style.setProperty('--theme-control-primary-button-shadow', controls.primaryButtonShadow);
+  el.style.setProperty('--theme-control-slider-track', controls.sliderTrack);
+  el.style.setProperty('--theme-control-slider-fill', controls.sliderFill);
+  el.style.setProperty('--theme-control-slider-fill-secondary', controls.sliderSecondaryFill);
+
+  el.style.setProperty('--theme-control-input-bg', controls.inputBackground);
+  el.style.setProperty('--theme-control-input-border', controls.inputBorder);
+  el.style.setProperty('--theme-control-input-border-active', controls.inputBorderActive);
+
+  el.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
+  el.style.setProperty('--theme-control-radius', appearance.controlRadius);
+  el.style.setProperty('--theme-card-radius', appearance.cardRadius);
+  el.style.setProperty('--theme-small-radius', appearance.smallRadius);
+  el.style.setProperty('--theme-button-radius', appearance.buttonRadius);
+  el.style.setProperty('--theme-media-radius', appearance.mediaRadius);
+  el.style.setProperty('--theme-media-radius-sm', appearance.mediaRadiusSm);
+  el.style.setProperty('--theme-progress-radius', appearance.progressRadius);
+  el.style.setProperty('--theme-progress-height', appearance.progressHeight);
+  el.style.setProperty('--theme-surface-border-width', appearance.surfaceBorderWidth);
+  el.style.setProperty('--theme-control-border-width', appearance.controlBorderWidth);
+  el.style.setProperty('--theme-panel-border-width', appearance.panelBorderWidth);
+  el.style.setProperty('--theme-list-item-border', appearance.listItemBorder);
+  el.style.setProperty('--theme-list-item-gap', appearance.listItemGap);
+  el.style.setProperty('--theme-list-item-padding-y', appearance.listItemPaddingY);
+  el.style.setProperty('--theme-surface-shadow', appearance.surfaceShadow);
+  el.style.setProperty('--theme-surface-shadow-hover', appearance.surfaceShadowHover);
+  el.style.setProperty('--theme-elevated-shadow', appearance.elevatedShadow);
+  el.style.setProperty('--theme-text-body-weight', appearance.textBodyWeight);
+  el.style.setProperty('--theme-text-heading-weight', appearance.textHeadingWeight);
+  el.style.setProperty('--theme-text-button-weight', appearance.textButtonWeight);
+  el.style.setProperty('--theme-heading-letter-spacing', appearance.headingLetterSpacing);
+  el.style.setProperty('--theme-button-letter-spacing', appearance.buttonLetterSpacing);
+  el.style.setProperty('--theme-control-text-transform', appearance.controlTextTransform);
+
+  if (theme.isDark) {
+    el.classList.add('theme-dark');
+    el.classList.remove('theme-light');
+  } else {
+    el.classList.add('theme-light');
+    el.classList.remove('theme-dark');
+  }
+}
+
 class ThemeManagerClass {
   private currentThemeId: ThemeId = THEME_IDS.DEFAULT_DARK;
   private listeners: Set<(themeId: ThemeId) => void> = new Set();
@@ -101,142 +240,13 @@ class ThemeManagerClass {
 
   applyTheme(theme: ThemeConfig): void {
     const root = document.documentElement;
-    const colors = theme.colors;
-    const fonts = theme.fonts;
-    const radius = theme.borderRadius;
-    const controls = resolveThemeControls(theme);
-    const appearance = resolveThemeAppearance(theme);
 
     this.startThemeTransition(root);
 
-    // Apply CSS custom properties (CSS variables)
-    root.style.setProperty('--theme-primary', colors.primary);
-    root.style.setProperty('--theme-primary-hover', colors.primaryHover);
-    root.style.setProperty('--theme-primary-light', colors.primaryLight);
-
-    // Derived alpha-tinted primary variants so tinted backgrounds can be used
-    // as CSS variables (auto-refresh on theme switch) instead of inline RGB.
-    root.style.setProperty('--theme-primary-08', hexToRgba(colors.primary, 0.08));
-    root.style.setProperty('--theme-primary-10', hexToRgba(colors.primary, 0.10));
-    root.style.setProperty('--theme-primary-13', hexToRgba(colors.primary, 0.13));
-    root.style.setProperty('--theme-primary-16', hexToRgba(colors.primary, 0.16));
-    root.style.setProperty('--theme-primary-20', hexToRgba(colors.primary, 0.20));
-
-    root.style.setProperty('--theme-background-dark', colors.backgroundDark);
-    root.style.setProperty('--theme-background-gradient-start', colors.backgroundGradientStart);
-    root.style.setProperty('--theme-background-gradient-end', colors.backgroundGradientEnd);
-    root.style.setProperty('--theme-background-sidebar', colors.backgroundSidebar);
-    root.style.setProperty('--theme-background-card', colors.backgroundCard);
-    root.style.setProperty('--theme-background-card-hover', colors.backgroundCardHover);
-
-    root.style.setProperty('--theme-text-primary', colors.textPrimary);
-    root.style.setProperty('--theme-text-secondary', colors.textSecondary);
-    root.style.setProperty('--theme-text-muted', colors.textMuted);
-
-    root.style.setProperty('--theme-border-light', colors.borderLight);
-    root.style.setProperty('--theme-border-hover', colors.borderHover);
-
-    root.style.setProperty('--theme-accent', colors.accent);
-    root.style.setProperty('--theme-accent-hover', colors.accentHover);
-
-    root.style.setProperty('--theme-success', colors.success);
-    root.style.setProperty('--theme-warning', colors.warning);
-    root.style.setProperty('--theme-warning-10', hexToRgba(colors.warning, 0.10));
-    root.style.setProperty('--theme-warning-20', hexToRgba(colors.warning, 0.20));
-    root.style.setProperty('--theme-error', colors.error);
-    root.style.setProperty('--theme-info', colors.info);
-
-    root.style.setProperty('--theme-shadow-color', colors.shadowColor);
-    root.style.setProperty('--theme-glow-color', colors.glowColor);
-
-    root.style.setProperty('--theme-font-main', fonts.main);
-    root.style.setProperty('--theme-font-display', fonts.display || fonts.main);
-    root.style.setProperty('--theme-font-mono', fonts.mono || 'ui-monospace, monospace');
-
-    root.style.setProperty('--theme-radius-sm', radius.sm);
-    root.style.setProperty('--theme-radius-md', radius.md);
-    root.style.setProperty('--theme-radius-lg', radius.lg);
-    root.style.setProperty('--theme-radius-xl', radius.xl);
-    root.style.setProperty('--theme-radius-full', radius.full);
-
-    root.style.setProperty('--theme-control-panel-bg', controls.panelBackground);
-    root.style.setProperty('--theme-control-panel-bg-glass', controls.panelBackgroundGlass);
-    root.style.setProperty('--theme-control-panel-bg-glass-strong', controls.panelBackgroundGlassStrong);
-    root.style.setProperty('--theme-control-panel-bg-floating', controls.panelFloatingBackground);
-    root.style.setProperty('--theme-control-panel-border', controls.panelBorder);
-    root.style.setProperty('--theme-control-panel-shadow', controls.panelShadow);
-
-    root.style.setProperty('--theme-control-container-bg', controls.containerBackground);
-    root.style.setProperty('--theme-control-container-border', controls.containerBorder);
-    root.style.setProperty('--theme-control-item-bg-hover', controls.itemBackgroundHover);
-    root.style.setProperty('--theme-control-item-bg-active', controls.itemBackgroundActive);
-    root.style.setProperty('--theme-control-item-fg-active', controls.itemForegroundActive);
-    root.style.setProperty('--theme-control-item-shadow-active', controls.itemShadowActive);
-    root.style.setProperty('--theme-control-current-track-fg', controls.currentTrackForeground);
-    root.style.setProperty('--theme-control-current-track-band-tint', controls.currentTrackBandTint);
-
-    root.style.setProperty('--theme-control-icon-bg', controls.iconBackground);
-    root.style.setProperty('--theme-control-icon-bg-active', controls.iconBackgroundActive);
-    root.style.setProperty('--theme-control-icon-fg', controls.iconForeground);
-    root.style.setProperty('--theme-control-icon-fg-hover', controls.iconForegroundHover);
-    root.style.setProperty('--theme-control-icon-fg-active', controls.iconForegroundActive);
-
-    root.style.setProperty('--theme-control-action-bg', controls.actionBackground);
-    root.style.setProperty('--theme-control-action-bg-hover', controls.actionBackgroundHover);
-    root.style.setProperty('--theme-control-action-bg-active', controls.actionBackgroundActive);
-    root.style.setProperty('--theme-control-action-fg', controls.actionForeground);
-    root.style.setProperty('--theme-control-action-fg-hover', controls.actionForegroundHover);
-    root.style.setProperty('--theme-control-action-fg-active', controls.actionForegroundActive);
-    root.style.setProperty('--theme-control-action-shadow', controls.actionShadow);
-    root.style.setProperty('--theme-control-action-shadow-active', controls.actionShadowActive);
-
-    root.style.setProperty('--theme-control-primary-button-bg', controls.primaryButtonBackground);
-    root.style.setProperty('--theme-control-primary-button-fg', controls.primaryButtonForeground);
-    root.style.setProperty('--theme-control-primary-button-shadow', controls.primaryButtonShadow);
-    root.style.setProperty('--theme-control-slider-track', controls.sliderTrack);
-    root.style.setProperty('--theme-control-slider-fill', controls.sliderFill);
-    root.style.setProperty('--theme-control-slider-fill-secondary', controls.sliderSecondaryFill);
-
-    root.style.setProperty('--theme-control-input-bg', controls.inputBackground);
-    root.style.setProperty('--theme-control-input-border', controls.inputBorder);
-    root.style.setProperty('--theme-control-input-border-active', controls.inputBorderActive);
-
-    root.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
-    root.style.setProperty('--theme-control-radius', appearance.controlRadius);
-    root.style.setProperty('--theme-card-radius', appearance.cardRadius);
-    root.style.setProperty('--theme-small-radius', appearance.smallRadius);
-    root.style.setProperty('--theme-button-radius', appearance.buttonRadius);
-    root.style.setProperty('--theme-media-radius', appearance.mediaRadius);
-    root.style.setProperty('--theme-media-radius-sm', appearance.mediaRadiusSm);
-    root.style.setProperty('--theme-progress-radius', appearance.progressRadius);
-    root.style.setProperty('--theme-progress-height', appearance.progressHeight);
-    root.style.setProperty('--theme-surface-border-width', appearance.surfaceBorderWidth);
-    root.style.setProperty('--theme-control-border-width', appearance.controlBorderWidth);
-    root.style.setProperty('--theme-panel-border-width', appearance.panelBorderWidth);
-    root.style.setProperty('--theme-list-item-border', appearance.listItemBorder);
-    root.style.setProperty('--theme-list-item-gap', appearance.listItemGap);
-    root.style.setProperty('--theme-list-item-padding-y', appearance.listItemPaddingY);
-    root.style.setProperty('--theme-surface-shadow', appearance.surfaceShadow);
-    root.style.setProperty('--theme-surface-shadow-hover', appearance.surfaceShadowHover);
-    root.style.setProperty('--theme-elevated-shadow', appearance.elevatedShadow);
-    root.style.setProperty('--theme-text-body-weight', appearance.textBodyWeight);
-    root.style.setProperty('--theme-text-heading-weight', appearance.textHeadingWeight);
-    root.style.setProperty('--theme-text-button-weight', appearance.textButtonWeight);
-    root.style.setProperty('--theme-heading-letter-spacing', appearance.headingLetterSpacing);
-    root.style.setProperty('--theme-button-letter-spacing', appearance.buttonLetterSpacing);
-    root.style.setProperty('--theme-control-text-transform', appearance.controlTextTransform);
+    applyThemeVarsToElement(root, theme);
 
     // Apply font family to body
-    root.style.fontFamily = fonts.main;
-
-    // Add/remove dark mode class
-    if (theme.isDark) {
-      root.classList.add('theme-dark');
-      root.classList.remove('theme-light');
-    } else {
-      root.classList.add('theme-light');
-      root.classList.remove('theme-dark');
-    }
+    root.style.fontFamily = theme.fonts.main;
 
     // Clean up legacy theme classes
     root.classList.remove('theme-cute');

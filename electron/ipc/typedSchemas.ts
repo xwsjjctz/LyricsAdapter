@@ -31,6 +31,14 @@ export const typedIpcSchemas = {
     url: httpUrlSchema,
     authHeader: z.string(),
   }),
+  webdavGetRedirect: z.object({
+    url: httpUrlSchema,
+    authHeader: z.string(),
+  }),
+  webdavMkcol: z.object({
+    url: httpUrlSchema,
+    authHeader: z.string(),
+  }),
   downloadAudio: z.object({
     url: httpUrlSchema,
     cookieString: z.string(),

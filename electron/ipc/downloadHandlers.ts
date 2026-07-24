@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../logger";
 import { expandHomeDir } from "../utils/fileUtils";
+import { qqMusicHeaders } from "../utils/httpHeaders";
 import { allowAudioPath } from "./typedHandlers";
 export function registerDownloadHandlers(): void {
   ipcMain.handle('download-and-save', async (event, url: string, cookieString: string, filePath: string) => {
@@ -11,11 +12,7 @@ export function registerDownloadHandlers(): void {
       logger.info('[Main] Starting download to:', expandedPath);
 
       const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          'Referer': 'https://y.qq.com/',
-          'Cookie': cookieString,
-        },
+        headers: qqMusicHeaders(cookieString),
       });
 
       if (!response.ok) {
@@ -72,11 +69,7 @@ export function registerDownloadHandlers(): void {
       logger.info('[Main] Starting streaming download from:', url.substring(0, 100) + '...');
 
       const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          'Referer': 'https://y.qq.com/',
-          'Cookie': cookieString,
-        },
+        headers: qqMusicHeaders(cookieString),
       });
 
       if (!response.ok) {

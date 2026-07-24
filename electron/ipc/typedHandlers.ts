@@ -2,10 +2,18 @@ import { app, dialog, ipcMain } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
-import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../utils/webdavRange';
-import { writeJsonAtomic } from '../utils/atomicWrite';
 import { typedIpcSchemas } from './typedSchemas';
 import type { IpcResult } from '../../src/types/typedIpc';
+import { doLoadLibraryIndex, doSaveLibraryIndex } from './core/libraryCore';
+import { qqMusicHeaders } from '../utils/httpHeaders';
+import {
+  doWebdavDelete,
+  doWebdavGetRange,
+  doWebdavGetRedirect,
+  doWebdavMkcol,
+  doWebdavPropfind,
+  doWebdavPut,
+} from './core/webdavCore';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac']);
 const selectedAudioPaths = new Set<string>();
@@ -45,36 +53,6 @@ export function allowAudioPath(filePath: string): void {
 export function canReadAudioPath(filePath: string): boolean {
   const resolved = path.resolve(filePath);
   return isAudioPath(resolved) && (selectedAudioPaths.has(resolved) || isInside(resolveUserDataPath('audio'), resolved));
-}
-
-function libraryIndexPath(): string {
-  return resolveUserDataPath('library-index.json');
-}
-
-function legacyLibraryPath(): string {
-  return resolveUserDataPath('library.json');
-}
-
-function toLibraryIndex(library: any): any {
-  const songs = Array.isArray(library?.songs) ? library.songs.map((song: any) => ({
-    id: song.id,
-    title: song.title,
-    artist: song.artist,
-    album: song.album,
-    duration: song.duration || 0,
-    coverUrl: (typeof song.coverUrl === 'string' && !song.coverUrl.startsWith('blob:') && !song.coverUrl.startsWith('data:'))
-      ? song.coverUrl
-      : '',
-    filePath: song.filePath || '',
-    fileName: song.fileName || '',
-    fileSize: song.fileSize || 0,
-    lastModified: song.lastModified || 0,
-    addedAt: song.addedAt || '',
-    playCount: song.playCount || 0,
-    lastPlayed: song.lastPlayed ?? undefined,
-    available: song.available ?? true,
-  })) : [];
-  return { songs, settings: library?.settings || {} };
 }
 
 function parsePayload<T>(schema: { safeParse: (payload: unknown) => { success: true; data: T } | { success: false; error: { message: string } } }, payload: unknown): IpcResult<T> {
@@ -138,120 +116,49 @@ export function registerTypedIpcHandlers(): void {
   });
 
   ipcMain.handle('ipc:library:loadIndex', async () => {
-    try {
-      const indexPath = libraryIndexPath();
-      const legacyPath = legacyLibraryPath();
-
-      if (fs.existsSync(indexPath)) {
-        return ok(JSON.parse(fs.readFileSync(indexPath, 'utf-8')));
-      }
-      if (fs.existsSync(legacyPath)) {
-        return ok(toLibraryIndex(JSON.parse(fs.readFileSync(legacyPath, 'utf-8'))));
-      }
-      return ok({ songs: [], settings: {} });
-    } catch (error) {
-      logger.error('[TypedIPC] load library failed:', error);
-      return fail((error as Error).message);
-    }
+    return doLoadLibraryIndex();
   });
 
   ipcMain.handle('ipc:library:saveIndex', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.library, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      writeJsonAtomic(libraryIndexPath(), parsed.data);
-      return ok(undefined);
-    } catch (error) {
-      logger.error('[TypedIPC] save library failed:', error);
-      return fail((error as Error).message);
-    }
+    return doSaveLibraryIndex(parsed.data);
   });
 
   ipcMain.handle('ipc:webdav:propfind', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavPropfind, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const response = await fetch(parsed.data.url, {
-        method: 'PROPFIND',
-        headers: {
-          Authorization: parsed.data.authHeader,
-          Depth: parsed.data.depth,
-          'Content-Type': 'application/xml; charset=utf-8',
-        },
-      });
-      if (!response.ok && response.status !== 207) {
-        return fail(`PROPFIND failed: ${response.status} ${response.statusText}`);
-      }
-      return ok({ xml: await response.text() });
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV PROPFIND failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavPropfind(parsed.data.url, parsed.data.authHeader, parsed.data.depth);
   });
 
   ipcMain.handle('ipc:webdav:getRange', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavRange, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const headers: Record<string, string> = {};
-      if (parsed.data.authHeader) headers['Authorization'] = parsed.data.authHeader;
-      if (parsed.data.start >= 0 && parsed.data.end >= 0) {
-        headers['Range'] = `bytes=${parsed.data.start}-${parsed.data.end}`;
-      }
-
-      const response = await fetch(parsed.data.url, { method: 'GET', headers, redirect: 'follow' });
-      const validation = validateWebDAVRangeResponse(
-        response.status,
-        response.headers.get('content-range'),
-        response.headers.get('content-length'),
-        parsed.data.start,
-        parsed.data.end,
-      );
-      if (!validation.success) return fail(validation.error ?? 'Invalid range response');
-      return ok({ data: await readArrayBufferWithLimit(response, validation.maxBytes) });
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV range failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavGetRange(parsed.data.url, parsed.data.authHeader, parsed.data.start, parsed.data.end);
   });
 
   ipcMain.handle('ipc:webdav:put', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavPut, payload);
     if (!parsed.ok) return parsed;
-
-    try {
-      const response = await fetch(parsed.data.url, {
-        method: 'PUT',
-        headers: {
-          Authorization: parsed.data.authHeader,
-          'Content-Type': parsed.data.contentType,
-        },
-        body: new Uint8Array(parsed.data.data),
-      });
-      return response.ok ? ok(undefined) : fail(`PUT failed: ${response.status} ${response.statusText}`);
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV PUT failed:', error);
-      return fail((error as Error).message);
-    }
+    return doWebdavPut(parsed.data.url, parsed.data.authHeader, parsed.data.data, parsed.data.contentType);
   });
 
   ipcMain.handle('ipc:webdav:delete', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavDelete, payload);
     if (!parsed.ok) return parsed;
+    return doWebdavDelete(parsed.data.url, parsed.data.authHeader);
+  });
 
-    try {
-      const response = await fetch(parsed.data.url, {
-        method: 'DELETE',
-        headers: { Authorization: parsed.data.authHeader },
-      });
-      return response.ok ? ok(undefined) : fail(`DELETE failed: ${response.status} ${response.statusText}`);
-    } catch (error) {
-      logger.error('[TypedIPC] WebDAV DELETE failed:', error);
-      return fail((error as Error).message);
-    }
+  ipcMain.handle('ipc:webdav:getRedirect', async (_event, payload: unknown) => {
+    const parsed = parsePayload(typedIpcSchemas.webdavGetRedirect, payload);
+    if (!parsed.ok) return parsed;
+    return doWebdavGetRedirect(parsed.data.url, parsed.data.authHeader);
+  });
+
+  ipcMain.handle('ipc:webdav:mkcol', async (_event, payload: unknown) => {
+    const parsed = parsePayload(typedIpcSchemas.webdavMkcol, payload);
+    if (!parsed.ok) return parsed;
+    return doWebdavMkcol(parsed.data.url, parsed.data.authHeader);
   });
 
   ipcMain.handle('ipc:download:audio', async (_event, payload: unknown) => {
@@ -260,11 +167,7 @@ export function registerTypedIpcHandlers(): void {
 
     try {
       const response = await fetch(parsed.data.url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          Referer: 'https://y.qq.com/',
-          Cookie: parsed.data.cookieString,
-        },
+        headers: qqMusicHeaders(parsed.data.cookieString),
       });
       if (!response.ok) return fail(`HTTP error: ${response.status}`);
       return ok({ data: await response.arrayBuffer() });
