@@ -12,14 +12,22 @@ import { useWebdavSettings } from './settings/hooks/useWebdavSettings';
 import { useOnlineMusicSettings } from './settings/hooks/useOnlineMusicSettings';
 import WebdavSection from './settings/sections/WebdavSection';
 import OnlineMusicSection from './settings/sections/OnlineMusicSection';
+import type { ThemeConfig } from '../../types/theme';
 
 interface SettingsPanelProps {
   onClose: () => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
+  /**
+   * When provided (New UI), settings sections use this fixed theme instead of
+   * the app-wide active theme. The New UI ships a fixed dark look; legacy omits
+   * this so the panel follows the global theme (light mode → readable text).
+   */
+  themeOverride?: ThemeConfig;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache }) => {
-  const theme = useCurrentTheme();
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache, themeOverride }) => {
+  const appTheme = useCurrentTheme();
+  const theme = themeOverride ?? appTheme;
   const themeUtils = useSettingsTheme(theme);
   const { colors, isBrutalistTheme, rangeClassName, rangeStyle } = themeUtils;
 

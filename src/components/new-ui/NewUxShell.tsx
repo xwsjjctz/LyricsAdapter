@@ -11,6 +11,7 @@ import DeleteConfirmPanel from './DeleteConfirmPanel';
 import MetadataEditPanel from './MetadataEditPanel';
 import SettingsPanel from './SettingsPanel';
 import ThemePanel from './ThemePanel';
+import { NEW_UX_FIXED_THEME } from './settings/shared';
 import NewUxSearchBox from './NewUxSearchBox';
 import LocateNowPlayingButton from './LocateNowPlayingButton';
 import { applyThemeVarsToElement } from '../../services/themeManager';
@@ -513,6 +514,7 @@ const NewUxShell: React.FC<NewUxShellProps> = ({
                 <SettingsPanel
                   onClose={panels.closeOverlay}
                   {...(onClearOrphanCache ? { onClearOrphanCache } : {})}
+                  themeOverride={NEW_UX_FIXED_THEME}
                 />
               )}
               {panels.state.openOverlayPanel === 'theme' && (
