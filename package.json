@@ -12,6 +12,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "vite --mode development",
+    "electron:dev:proxy": "cross-env NODE_OPTIONS=--require=./scripts/proxy-preload.cjs vite --mode development",
     "electron:build": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder",
     "electron:build:win": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --x64",
     "electron:build:win:arm64": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --arm64",
