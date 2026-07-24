@@ -1,43 +1,11 @@
-import { ipcMain, dialog } from "electron";
+import { ipcMain } from "electron";
 import fs from "fs";
 import path from "path";
 import { app } from "electron";
 import { logger } from "../logger";
 import { sanitizeFileName, expandHomeDir, validateSourcePath } from "../utils/fileUtils";
-import { allowAudioPath, canReadAudioPath, isAudioPath } from "./typedHandlers";
+import { allowAudioPath, canReadAudioPath } from "./typedHandlers";
 export function registerFileHandlers(): void {
-  ipcMain.handle('read-file', async (_event, filePath) => {
-    try {
-      const expandedPath = expandHomeDir(filePath);
-      if (!canReadAudioPath(expandedPath)) {
-        return { success: false, error: 'Audio path is outside the selected or app-managed allowlist' };
-      }
-      const data = fs.readFileSync(expandedPath);
-      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
-      return { success: true, data: arrayBuffer };
-    } catch (error) {
-      logger.error('Failed to read file:', error);
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
-  ipcMain.handle('select-folder', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        { name: 'Audio Files', extensions: ['mp3', 'flac'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
-    });
-    for (const filePath of result.filePaths) {
-      allowAudioPath(filePath);
-    }
-    return {
-      ...result,
-      filePaths: result.filePaths.filter(isAudioPath),
-    };
-  });
-
   ipcMain.handle('get-app-data-path', async () => {
     return app.getPath('userData');
   });

@@ -17,6 +17,8 @@ export interface TypedElectronIPC {
     getRange: (payload: { url: string; authHeader: string; start: number; end: number }) => Promise<IpcResult<{ data: ArrayBuffer }>>;
     put: (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => Promise<IpcResult<void>>;
     delete: (payload: { url: string; authHeader: string }) => Promise<IpcResult<void>>;
+    getRedirect: (payload: { url: string; authHeader: string }) => Promise<IpcResult<{ redirectUrl?: string; status: number }>>;
+    mkcol: (payload: { url: string; authHeader: string }) => Promise<IpcResult<{ status: number }>>;
   };
   download: {
     audio: (payload: { url: string; cookieString: string }) => Promise<IpcResult<{ data: ArrayBuffer }>>;

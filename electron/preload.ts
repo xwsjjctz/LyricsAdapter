@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('electron', {
       getRange: async (payload: { url: string; authHeader: string; start: number; end: number }) => ipcRenderer.invoke('ipc:webdav:getRange', payload),
       put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
       delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
+      getRedirect: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:getRedirect', payload),
+      mkcol: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:mkcol', payload),
     },
       download: {
         audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
@@ -53,12 +55,7 @@ contextBridge.exposeInMainWorld('electron', {
         setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:setMany', entries),
         delete: async (key: string) => ipcRenderer.invoke('settings:delete', key),
         replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:replaceAll', entries),
-      },
     },
-
-  // Read file from path
-  readFile: async (filePath: string) => {
-    return ipcRenderer.invoke('read-file', filePath);
   },
 
   // Check if file exists
@@ -66,34 +63,9 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('check-file-exists', filePath);
   },
 
-  // Select files dialog
-  selectFiles: async () => {
-    return ipcRenderer.invoke('select-folder');
-  },
-
   // Get app data directory path
   getAppDataPath: async () => {
     return ipcRenderer.invoke('get-app-data-path');
-  },
-
-  // Load library from disk
-  loadLibrary: async () => {
-    return ipcRenderer.invoke('load-library');
-  },
-
-  // Load library index from disk
-  loadLibraryIndex: async () => {
-    return ipcRenderer.invoke('load-library-index');
-  },
-
-  // Save library to disk
-  saveLibrary: async (library: any) => {
-    return ipcRenderer.invoke('save-library', library);
-  },
-
-  // Save library index to disk
-  saveLibraryIndex: async (library: any) => {
-    return ipcRenderer.invoke('save-library-index', library);
   },
 
   // Save local library backup (before switching to cloud)
@@ -305,36 +277,6 @@ contextBridge.exposeInMainWorld('electron', {
     return () => {
       ipcRenderer.removeListener('shortcut-triggered', wrapped);
     };
-  },
-
-  // WebDAV PROPFIND request
-  webdavPropfind: async (url: string, authHeader: string, depth: string) => {
-    return ipcRenderer.invoke('webdav-propfind', url, authHeader, depth);
-  },
-
-  // WebDAV GET with redirect manual
-  webdavGetRedirect: async (url: string, authHeader: string) => {
-    return ipcRenderer.invoke('webdav-get-redirect', url, authHeader);
-  },
-
-  // WebDAV GET with Range header
-  webdavGetRange: async (url: string, authHeader: string, start: number, end: number) => {
-    return ipcRenderer.invoke('webdav-get-range', url, authHeader, start, end);
-  },
-
-  // WebDAV PUT for file upload
-  webdavPut: async (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => {
-    return ipcRenderer.invoke('webdav-put', url, authHeader, data, contentType);
-  },
-
-  // WebDAV DELETE for file removal
-  webdavDelete: async (url: string, authHeader: string) => {
-    return ipcRenderer.invoke('webdav-delete', url, authHeader);
-  },
-
-  // WebDAV MKCOL to ensure a collection (folder) exists before PUT
-  webdavMkcol: async (url: string, authHeader: string) => {
-    return ipcRenderer.invoke('webdav-mkcol', url, authHeader);
   },
 
   // Run startup resource cleanup

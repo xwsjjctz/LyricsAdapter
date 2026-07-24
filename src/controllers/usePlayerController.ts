@@ -210,6 +210,10 @@ export function usePlayerController(options: PlayerControllerOptions) {
   const [browsingTracks, setBrowsingTracks] = useState<{ tracks: Track[]; source: OnlineSource }>({ tracks: [], source: 'qq' });
   const [browsingPlaylistLoadState, setBrowsingPlaylistLoadState] = useState<PlaylistLoadState>(IDLE_PLAYLIST_LOAD_STATE);
   const [libraryPlaylistLoadState, setLibraryPlaylistLoadState] = useState<PlaylistLoadState>(IDLE_PLAYLIST_LOAD_STATE);
+  // Legacy UI: the playlist being browsed in the Library list. Decoupled from
+  // the 'playlist' play slot so opening a playlist never interrupts playback —
+  // the slot is only populated when the user actually clicks a track to play.
+  const [libraryBrowsingTracks, setLibraryBrowsingTracks] = useState<Track[]>([]);
   const browsingGenerationRef = useRef(0);
   const browsingLoadingRef = useRef(false);
   const libraryGenerationRef = useRef(0);
@@ -530,7 +534,9 @@ export function usePlayerController(options: PlayerControllerOptions) {
   }, [browsingPlaylistLoadState, loadPlaylistPage]);
 
   // Legacy UI: open a playlist as a Library list without starting playback.
-  // Playback is delegated to handleTrackSelect when the user clicks a row.
+  // The browsed tracks live in libraryBrowsingTracks (NOT the 'playlist' play
+  // slot), so opening a playlist while another is playing never interrupts it.
+  // Playback only starts when the user clicks a row (playLibraryPlaylistTrack).
   const openOnlinePlaylistInLibrary = useCallback(async (
     source: OnlineSource,
     playlistId: string,
@@ -540,6 +546,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     const generation = libraryGenerationRef.current + 1;
     libraryGenerationRef.current = generation;
     libraryLoadingRef.current = true;
+    setLibraryBrowsingTracks([]);
     setLibraryPlaylistLoadState({
       source,
       playlistId,
@@ -554,8 +561,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     try {
       const page = await loadPlaylistPage(source, playlistId, 0);
       if (generation !== libraryGenerationRef.current) return;
-      loadPlaylistTracks(page.tracks);
-      updateSlot('playlist', slot => ({ ...slot, currentTrackIndex: -1, currentTime: 0 }));
+      setLibraryBrowsingTracks(page.tracks);
       setLibraryPlaylistLoadState({
         source,
         playlistId,
@@ -573,7 +579,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     } finally {
       if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
     }
-  }, [loadPlaylistPage, loadPlaylistTracks, updateSlot]);
+  }, [loadPlaylistPage]);
 
   const loadMorePlaylistInLibrary = useCallback(async () => {
     const state = libraryPlaylistLoadState;
@@ -587,7 +593,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     try {
       const page = await loadPlaylistPage(source, playlistId, nextOffset);
       if (generation !== libraryGenerationRef.current) return;
-      updatePlaylistTracks(prev => appendUniqueTracks(prev, page.tracks));
+      setLibraryBrowsingTracks(prev => appendUniqueTracks(prev, page.tracks));
       setLibraryPlaylistLoadState(prev => ({
         ...prev,
         nextOffset: nextOffset + page.count,
@@ -602,7 +608,23 @@ export function usePlayerController(options: PlayerControllerOptions) {
     } finally {
       if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
     }
-  }, [libraryPlaylistLoadState, loadPlaylistPage, updatePlaylistTracks]);
+  }, [libraryPlaylistLoadState, loadPlaylistPage]);
+
+  // User clicked a track inside the legacy Library playlist view: commit the
+  // browsed list into the 'playlist' play slot (so next/prev traverse it) and
+  // start playback at the clicked index. This is the moment browsing becomes
+  // playing — mirroring playBrowsingTrack in the New UI.
+  const playLibraryPlaylistTrack = useCallback((clickedIndex: number) => {
+    if (libraryBrowsingTracks.length === 0) return;
+    const safeIndex = Math.max(0, Math.min(clickedIndex, libraryBrowsingTracks.length - 1));
+    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
+    loadPlaylistTracks(libraryBrowsingTracks);
+    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
+    setRestoreTime(0);
+    switchTo('playlist');
+    shouldAutoPlayRef.current = true;
+    setIsPlaying(true);
+  }, [libraryBrowsingTracks, loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying]);
 
   // User clicked a track inside the browsed third-party playlist panel: load
   // the whole browsed list into the 'playlist' play slot (so next/prev traverse
@@ -743,5 +765,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     libraryPlaylistLoadState,
     browsingTracks,
     playBrowsingTrack,
+    libraryBrowsingTracks,
+    playLibraryPlaylistTrack,
   };
 }

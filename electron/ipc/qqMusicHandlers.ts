@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { logger } from "../logger";
 import { decryptQrc } from "../utils/qrcDecrypt";
+import { qqMusicHeaders } from "../utils/httpHeaders";
 export function registerQQMusicHandlers(): void {
   ipcMain.handle('qq-music-request', async (_event, options: {
     url: string;
@@ -31,10 +32,8 @@ export function registerQQMusicHandlers(): void {
           // options.headers. Without this the QQ search endpoint returns empty.
           'Content-Type': 'application/json',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          'Referer': 'https://y.qq.com/',
+          ...qqMusicHeaders(options.cookie),
           ...(options.headers || {}),
-          ...(options.cookie ? { Cookie: options.cookie } : {}),
         },
       };
       if (options.body !== undefined) {
@@ -71,9 +70,7 @@ export function registerQQMusicHandlers(): void {
           'Accept-Encoding': 'gzip, deflate, br',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
           'Content-Type': 'application/json',
-          'Referer': 'https://y.qq.com/',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          'Cookie': cookieString,
+          ...qqMusicHeaders(cookieString),
         },
         body: JSON.stringify(requestData),
       });
@@ -121,9 +118,7 @@ export function registerQQMusicHandlers(): void {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            'Referer': 'https://y.qq.com/',
-            'Cookie': cookieString,
+            ...qqMusicHeaders(cookieString),
           },
           body: JSON.stringify(body),
         });

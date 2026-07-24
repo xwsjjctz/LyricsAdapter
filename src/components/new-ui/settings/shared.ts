@@ -1,5 +1,6 @@
 import React from 'react';
 import { themeManager } from '@/services/themeManager';
+import { getDefaultTheme } from '@/services/themes/predefinedThemes';
 import { THEME_IDS, ThemeConfig } from '@/types/theme';
 import { i18n } from '@/services/i18n';
 import type { OnlineSource } from '@/services/settingsManager';
@@ -66,7 +67,15 @@ export function useSettingsTheme(theme: ThemeConfig): SettingsTheme {
   };
 }
 
-/** Subscribe to the active theme; re-renders on change. */
+/**
+ * Subscribe to the active app-wide theme; re-renders on change. Used by shared
+ * settings sections that render in BOTH shells — in legacy they must follow the
+ * global theme (e.g. light mode → dark text), so this returns the real theme.
+ *
+ * The New UI pins its own dark palette separately: NewUxShell passes a
+ * fixed dark theme as SettingsPanel's `themeOverride` prop, which takes
+ * precedence over this hook so the New UI settings always stay dark.
+ */
 export function useCurrentTheme(): ThemeConfig {
   const [theme, setTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
   React.useEffect(() => {
@@ -75,6 +84,9 @@ export function useCurrentTheme(): ThemeConfig {
   }, []);
   return theme;
 }
+
+/** The fixed dark palette used by the New UI shell. */
+export const NEW_UX_FIXED_THEME: ThemeConfig = getDefaultTheme();
 
 /**
  * Online music source option list.

@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { logger } from "../logger";
 import { readAudioMetadata, writeAudioMetadata } from "../services/audioMetadataService";
+import { qqMusicHeaders } from "../utils/httpHeaders";
 
 export function registerMetadataHandlers(): void {
   // ── Read metadata (music-tag-native) ────────────────────────────────
@@ -83,10 +84,7 @@ export async function qqResolveStreamUrl(songmid: string, quality: string, cooki
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Referer: 'https://y.qq.com/',
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      Cookie: cookie,
+      ...qqMusicHeaders(cookie),
     },
     body: JSON.stringify(reqData),
   });
