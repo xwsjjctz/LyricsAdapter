@@ -8,6 +8,27 @@ import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../../uti
 // legacy adapter merely reshapes it into `{ success, ... }` before returning
 // to its callers.
 
+/** Default timeout for metadata/listing requests (PROPFIND, GET-redirect). */
+const WEBDAV_TIMEOUT_MS = 30_000;
+/** Longer timeout for uploads — large FLAC files need room. */
+const WEBDAV_UPLOAD_TIMEOUT_MS = 120_000;
+
+/**
+ * Build an AbortSignal that fires after `ms`. Returns null when ms <= 0
+ * (lets callers opt out per-request). Some WebDAV servers (notably 123pan)
+ * hold a lock after an interrupted upload and never respond to subsequent
+ * requests on that resource — without a timeout the fetch hangs forever
+ * and the UI stays stuck on "importing".
+ */
+function timeoutSignal(ms: number): AbortSignal | null {
+  if (ms <= 0) return null;
+  return AbortSignal.timeout(ms);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError');
+}
+
 export async function doWebdavPropfind(
   url: string,
   authHeader: string,
@@ -21,6 +42,7 @@ export async function doWebdavPropfind(
         Depth: depth,
         'Content-Type': 'application/xml; charset=utf-8',
       },
+      signal: timeoutSignal(WEBDAV_TIMEOUT_MS),
     });
 
     if (!response.ok && response.status !== 207) {
@@ -29,6 +51,7 @@ export async function doWebdavPropfind(
 
     return { ok: true, data: { xml: await response.text() } };
   } catch (error) {
+    if (isTimeoutError(error)) return { ok: false, error: 'PROPFIND timed out (server may have a stale lock)' };
     logger.error('[WebDAV] PROPFIND error:', error);
     return { ok: false, error: (error as Error).message };
   }
@@ -43,6 +66,7 @@ export async function doWebdavGetRedirect(
       method: 'GET',
       headers: { Authorization: authHeader },
       redirect: 'manual',
+      signal: timeoutSignal(WEBDAV_TIMEOUT_MS),
     });
 
     if (response.status === 302 || response.status === 301) {
@@ -62,6 +86,7 @@ export async function doWebdavGetRedirect(
 
     return { ok: false, error: `Unexpected status: ${response.status}` };
   } catch (error) {
+    if (isTimeoutError(error)) return { ok: false, error: 'GET redirect timed out' };
     logger.error('[WebDAV] GET redirect error:', error);
     return { ok: false, error: (error as Error).message };
   }
@@ -86,6 +111,7 @@ export async function doWebdavGetRange(
       method: 'GET',
       headers,
       redirect: 'follow',
+      signal: timeoutSignal(WEBDAV_TIMEOUT_MS),
     });
 
     const validation = validateWebDAVRangeResponse(
@@ -104,6 +130,7 @@ export async function doWebdavGetRange(
     logger.info('[WebDAV IPC] Range fetch success:', url.substring(0, 80), 'range:', `${start}-${end}`, 'got', arrayBuffer.byteLength, 'bytes');
     return { ok: true, data: { data: arrayBuffer } };
   } catch (error) {
+    if (isTimeoutError(error)) return { ok: false, error: 'Range fetch timed out' };
     logger.error('[WebDAV IPC] Range fetch error:', (error as Error).message, 'URL:', url.substring(0, 100));
     return { ok: false, error: (error as Error).message };
   }
@@ -123,6 +150,7 @@ export async function doWebdavPut(
         'Content-Type': contentType,
       },
       body: new Uint8Array(data),
+      signal: timeoutSignal(WEBDAV_UPLOAD_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -131,6 +159,7 @@ export async function doWebdavPut(
 
     return { ok: true, data: undefined };
   } catch (error) {
+    if (isTimeoutError(error)) return { ok: false, error: 'PUT timed out (server may have a stale lock — retry after a moment)' };
     logger.error('[WebDAV] PUT error:', error);
     return { ok: false, error: (error as Error).message };
   }
@@ -144,6 +173,7 @@ export async function doWebdavDelete(
     const response = await fetch(url, {
       method: 'DELETE',
       headers: { Authorization: authHeader },
+      signal: timeoutSignal(WEBDAV_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -152,6 +182,7 @@ export async function doWebdavDelete(
 
     return { ok: true, data: undefined };
   } catch (error) {
+    if (isTimeoutError(error)) return { ok: false, error: 'DELETE timed out' };
     logger.error('[WebDAV] DELETE error:', error);
     return { ok: false, error: (error as Error).message };
   }
@@ -167,6 +198,7 @@ export async function doWebdavMkcol(
     const response = await fetch(url, {
       method: 'MKCOL',
       headers: { Authorization: authHeader },
+      signal: timeoutSignal(WEBDAV_TIMEOUT_MS),
     });
 
     const status = response.status;
@@ -175,6 +207,7 @@ export async function doWebdavMkcol(
     }
     return { ok: false, error: `MKCOL failed: ${status} ${response.statusText}` };
   } catch (error) {
+    if (isTimeoutError(error)) return { ok: false, error: 'MKCOL timed out' };
     logger.error('[WebDAV] MKCOL error:', error);
     return { ok: false, error: (error as Error).message };
   }
