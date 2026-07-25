@@ -64,7 +64,7 @@ export interface DesktopAPI {
   readAudioMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   /** Legacy renderer-side audio metadata parsing. */
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
-  writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined }) => Promise<{ success: boolean; error?: string }>;
+  writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined; wordLyrics?: string | undefined; wordLyricsFormat?: 'qrc' | 'yrc' | undefined }) => Promise<{ success: boolean; error?: string }>;
   /** @deprecated use readAudioMetadata */
   refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   getPathForFile?: (file: File) => string;

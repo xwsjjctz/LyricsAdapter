@@ -253,13 +253,15 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('read-audio-metadata', filePath);
   },
 
-  // Write metadata to audio file (music-tag-native)
+  // Write metadata to audio file (music-tag-native + custom QRC/YRC fields)
   writeAudioMetadata: async (filePath: string, metadata: {
     title?: string;
     artist?: string;
     album?: string;
     lyrics?: string;
     coverUrl?: string;
+    wordLyrics?: string;
+    wordLyricsFormat?: 'qrc' | 'yrc';
   }) => {
     return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
   },

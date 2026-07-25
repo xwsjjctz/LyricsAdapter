@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Track } from '../types';
+import { Track, type SyncedLyricLine } from '../types';
 import { parseAudioFile, parseLRCLyrics, libraryStorage } from '../services/metadataService';
 import { webdavClient, webdavCoverId } from '../services/webdavClient';
 
@@ -9,7 +9,10 @@ interface ParsedAudioMetadata {
   album?: string;
   duration?: number;
   lyrics?: string;
-  syncedLyrics?: { time: number; text: string }[];
+  syncedLyrics?: SyncedLyricLine[];
+  /** Raw QRC/YRC payload read back from the file's custom tag, if present. */
+  wordLyrics?: string;
+  wordLyricsFormat?: 'qrc' | 'yrc';
   coverData?: string;
   coverMime?: string;
   fileSize?: number;
@@ -175,6 +178,8 @@ export function useImport({
             duration: metadata.duration ?? 0,
             lyrics: metadata.lyrics ?? '',
             syncedLyrics: metadata.syncedLyrics,
+            wordLyrics: metadata.wordLyrics,
+            wordLyricsFormat: metadata.wordLyricsFormat,
             fileName: fileName,
             fileSize: metadata.fileSize || 0,
             lastModified: Date.now(),
@@ -189,6 +194,8 @@ export function useImport({
           duration: metadata?.duration || 0,
           lyrics: metadata?.lyrics || '',
           syncedLyrics: metadata?.syncedLyrics,
+          wordLyrics: metadata?.wordLyrics,
+          wordLyricsFormat: metadata?.wordLyricsFormat,
           coverUrl: coverUrl,
           audioUrl: '',
           fileName: fileName,
@@ -831,6 +838,8 @@ export function useImport({
             lastModified: Date.now(),
             ...(meta?.lyrics != null && { lyrics: meta.lyrics }),
             ...(syncedLyrics != null && { syncedLyrics }),
+            ...(meta?.wordLyrics != null && { wordLyrics: meta.wordLyrics }),
+            ...(meta?.wordLyricsFormat != null && { wordLyricsFormat: meta.wordLyricsFormat }),
             coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(remoteFileName)}/1000/1000`,
           } as Track);
           logger.debug(`[Import] ✓ Uploaded to WebDAV: ${remoteFileName}`);

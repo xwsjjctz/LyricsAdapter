@@ -15,13 +15,15 @@ export function registerMetadataHandlers(): void {
     }
   });
 
-  // ── Write metadata (music-tag-native) ───────────────────────────────
+  // ── Write metadata (music-tag-native + custom QRC/YRC) ─────────────
   ipcMain.handle('write-audio-metadata', async (_event, filePath: string, metadata: {
     title?: string;
     artist?: string;
     album?: string;
     lyrics?: string;
     coverUrl?: string;
+    wordLyrics?: string;
+    wordLyricsFormat?: 'qrc' | 'yrc';
   }) => {
     try {
       await writeAudioMetadata(filePath, {
@@ -29,6 +31,8 @@ export function registerMetadataHandlers(): void {
         artist: metadata.artist,
         album: metadata.album,
         lyrics: metadata.lyrics,
+        wordLyrics: metadata.wordLyrics,
+        wordLyricsFormat: metadata.wordLyricsFormat,
         coverDataUri: metadata.coverUrl,
       });
       return { success: true };

@@ -12,7 +12,8 @@ import { MusicFile, MetaPicture } from 'music-tag-native';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { parseLrc } from '@applemusic-like-lyrics/lyric';
+import { parseLrc, parseQrc, parseYrc, type LyricLine } from '@applemusic-like-lyrics/lyric';
+import { readWordLyrics, writeWordLyrics } from './wordLyricsTagService';
 import { logger } from '../logger';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -20,7 +21,17 @@ import { logger } from '../logger';
 export interface SyncedLyricLine {
   time: number;
   text: string;
+  /** Per-word karaoke timing, present only for QRC/YRC word-by-word lyrics. */
+  words?: SyncedLyricWord[];
 }
+
+export interface SyncedLyricWord {
+  time: number;
+  duration: number;
+  text: string;
+}
+
+export type WordLyricsFormat = 'qrc' | 'yrc';
 
 interface ReadMetadataResult {
   title: string | undefined;
@@ -28,6 +39,9 @@ interface ReadMetadataResult {
   album: string | undefined;
   lyrics: string | undefined;
   syncedLyrics: SyncedLyricLine[] | undefined;
+  /** Raw QRC/YRC payload persisted as a custom tag, for re-parse on re-import. */
+  wordLyrics: string | undefined;
+  wordLyricsFormat: WordLyricsFormat | undefined;
   /** Duration in seconds (music-tag-native returns ms). */
   duration: number | undefined;
   bitRate: number | undefined;
@@ -43,6 +57,10 @@ interface WriteMetadataInput {
   artist: string | undefined;
   album: string | undefined;
   lyrics: string | undefined;
+  /** Raw QRC/YRC payload to persist as a custom `QRC`/`YRC` field (FLAC) or
+   *  `TXXX:QRC`/`TXXX:YRC` frame (MP3). No-op on unsupported formats (m4a). */
+  wordLyrics: string | undefined;
+  wordLyricsFormat: WordLyricsFormat | undefined;
   /** data: URI, cover:// URI, or http(s) URL. Base64 embedded URIs are
    *  decoded inline; cover:// URIs are read from the covers directory;
    *  http(s) URLs are downloaded. */
@@ -82,6 +100,89 @@ function plainLyricsText(value: string): string {
     .map((line) => line.trim())
     .filter((line) => line && !LRC_HEADER_TAG.test(line))
     .join('\n');
+}
+
+// ── QRC / YRC parsers ──
+// 主进程副本，与 src/shared/lrcParser.ts 的 parseLyrics/extractQrcContent/
+// fromAmlLines 保持逐字同步（同样因 vite 分包隔离无法 import src/）。修改
+// src/shared/lrcParser.ts 时务必同步此处。QRC/YRC 仅从已持久化的自定义标签
+// 读回时用到，用于恢复逐字歌词；在线获取的逐字歌词在渲染层解析。
+
+/** Pull the `LyricContent="..."` payload out of a decrypted QRC XML document. */
+function extractQrcContent(raw: string): string {
+  // Mirror of src/shared/lrcParser.ts: the attribute value may contain
+  // apostrophes from the lyrics themselves, so anchor on the terminating `"/>`
+  // rather than a `["']` delimiter (which would truncate at the first quote).
+  const lyricContent = raw.match(/LyricContent\s*=\s*"([\s\S]*?)"\s*\/>/i)?.[1];
+  return decodeXml(lyricContent ?? raw);
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&');
+}
+
+/** Map AMLL LyricLine[] to our synced lines, optionally carrying per-word timing. */
+function fromAmlLines(lines: LyricLine[], fallbackText: string, includeWordTiming: boolean): {
+  plainText: string;
+  syncedLyrics: SyncedLyricLine[];
+} {
+  const syncedLyrics = lines
+    .filter((line) => line.words.some((word) => word.word.trim()))
+    .map((line) => {
+      const text = line.words.map((word) => word.word).join('');
+      const words = includeWordTiming
+        ? line.words
+          .filter((word) => word.word && Number.isFinite(word.startTime) && Number.isFinite(word.endTime))
+          .map((word) => ({
+            time: word.startTime / 1000,
+            duration: Math.max(0, (word.endTime - word.startTime) / 1000),
+            text: word.word,
+          }))
+          .filter((word) => word.duration > 0)
+        : [];
+      return {
+        time: line.startTime / 1000,
+        text,
+        ...(words.length > 0 ? { words } : {}),
+      };
+    })
+    .filter((line) => Number.isFinite(line.time) && line.text);
+
+  return {
+    plainText: syncedLyrics.length > 0
+      ? syncedLyrics.map((line) => line.text).join('\n')
+      : plainLyricsText(fallbackText),
+    syncedLyrics,
+  };
+}
+
+/**
+ * Parse a word-lyrics payload (QRC or YRC) into per-word synced lines.
+ * Returns undefined when the payload is missing or yields no word timing —
+ * callers then fall back to LRC parsing.
+ */
+function parseWordLyrics(
+  wordLyrics: string,
+  format: WordLyricsFormat,
+): { plainText: string; syncedLyrics: SyncedLyricLine[] } | undefined {
+  try {
+    const amlLines = format === 'qrc'
+      ? parseQrc(extractQrcContent(wordLyrics))
+      : parseYrc(wordLyrics);
+    const parsed = fromAmlLines(amlLines, wordLyrics, true);
+    if (!parsed.syncedLyrics.some((line) => line.words?.length)) return undefined;
+    return parsed;
+  } catch (e) {
+    logger.warn(`[AudioMetadata] Failed to parse ${format} payload:`, e);
+    return undefined;
+  }
 }
 
 /**
@@ -156,12 +257,27 @@ export async function readAudioMetadata(filePath: string): Promise<ReadMetadataR
   const rawLyrics = file.lyrics || undefined;
   const parsedLyrics = rawLyrics ? parseLRCLyrics(rawLyrics) : null;
 
+  // QRC/YRC live in custom fields music-tag-native can't read; pull them via
+  // our own FLAC/MP3 readers. When present they carry the richer per-word
+  // timing AND — critically — a complete time axis, so they take precedence
+  // over the line-level LRC fallback even for line-only rendering. This is
+  // what restores both 逐字 and 逐行 for the QQ tracks whose LRC came back
+  // timestamp-less (their QRC payload still has full timings).
+  const { wordLyrics, wordLyricsFormat } = readWordLyrics(filePath);
+  const parsedWordLyrics = wordLyrics && wordLyricsFormat
+    ? parseWordLyrics(wordLyrics, wordLyricsFormat)
+    : undefined;
+
   const result: ReadMetadataResult = {
     title: file.title || undefined,
     artist: file.artist || undefined,
     album: file.album || undefined,
-    lyrics: parsedLyrics?.plainText ?? rawLyrics,
-    syncedLyrics: parsedLyrics?.syncedLyrics?.length ? parsedLyrics.syncedLyrics : undefined,
+    lyrics: parsedWordLyrics?.plainText ?? parsedLyrics?.plainText ?? rawLyrics,
+    syncedLyrics: parsedWordLyrics?.syncedLyrics?.length
+      ? parsedWordLyrics.syncedLyrics
+      : parsedLyrics?.syncedLyrics?.length ? parsedLyrics.syncedLyrics : undefined,
+    wordLyrics,
+    wordLyricsFormat,
     duration: file.duration != null ? file.duration / 1000 : undefined,
     bitRate: file.bitRate ?? undefined,
     sampleRate: file.sampleRate ?? undefined,
@@ -204,6 +320,14 @@ export async function writeAudioMetadata(
   }
 
   await file.save();
+
+  // Persist QRC/YRC into the custom tag *after* the main tag write so a
+  // failure here never undoes title/artist/album/lyrics/cover. writeWordLyrics
+  // swallows errors itself; we just log success.
+  if (metadata.wordLyrics !== undefined && metadata.wordLyricsFormat) {
+    writeWordLyrics(resolved, metadata.wordLyrics, metadata.wordLyricsFormat);
+  }
+
   logger.info('[AudioMetadata] ✓ Written:', filePath);
 }
 

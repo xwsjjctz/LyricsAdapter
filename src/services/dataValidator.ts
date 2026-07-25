@@ -16,6 +16,9 @@ export interface ValidatedMetadata {
   duration: number;
   lyrics: string;
   syncedLyrics?: SyncedLyricLine[] | undefined;
+  /** Raw QRC/YRC payload, cached so cache hits still carry per-word timing. */
+  wordLyrics?: string | undefined;
+  wordLyricsFormat?: 'qrc' | 'yrc' | undefined;
   fileName: string;
   fileSize: number;
   lastModified: number;
@@ -29,6 +32,8 @@ const MAX_ARTIST_LENGTH = 500;
 const MAX_ALBUM_LENGTH = 500;
 const MAX_FILENAME_LENGTH = 1000;
 const MAX_LYRICS_LENGTH = 100000;
+/** QRC/YRC payloads can be large (full per-word timing XML); cap generously. */
+const MAX_WORD_LYRICS_LENGTH = 500000;
 const MAX_SYNCED_LYRICS_COUNT = 10000;
 const MAX_WORDS_PER_LINE = 500;
 const MAX_DURATION = 24 * 60 * 60; // 24 hours in seconds
@@ -173,6 +178,15 @@ export function validateMetadata(data: unknown): ValidatedMetadata | null {
   // Validate optional syncedLyrics
   const syncedLyrics = sanitizeSyncedLyrics(obj['syncedLyrics']);
 
+  // Validate optional wordLyrics (QRC/YRC raw payload).
+  const wordLyricsFormatRaw = obj['wordLyricsFormat'];
+  const wordLyricsFormat = wordLyricsFormatRaw === 'qrc' || wordLyricsFormatRaw === 'yrc'
+    ? wordLyricsFormatRaw
+    : undefined;
+  const wordLyrics = wordLyricsFormat
+    ? (sanitizeString(obj['wordLyrics'], MAX_WORD_LYRICS_LENGTH, true) || undefined)
+    : undefined;
+
   return {
     title,
     artist,
@@ -180,6 +194,8 @@ export function validateMetadata(data: unknown): ValidatedMetadata | null {
     duration,
     lyrics,
     syncedLyrics,
+    ...(wordLyrics !== undefined ? { wordLyrics } : {}),
+    ...(wordLyricsFormat !== undefined ? { wordLyricsFormat } : {}),
     fileName,
     fileSize,
     lastModified,

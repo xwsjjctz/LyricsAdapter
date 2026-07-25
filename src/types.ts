@@ -8,6 +8,13 @@ export interface Track {
   coverUrl?: string | undefined;
   lyrics?: string | undefined;
   syncedLyrics?: SyncedLyricLine[] | undefined;
+  /**
+   * Raw QRC/YRC payload (QQ's decrypted `<QrcInfos>` XML or NetEase's plain
+   * YRC), persisted so the richer per-word timing can be re-parsed after a
+   * cache reset / re-import. Empty for line-level-only lyrics.
+   */
+  wordLyrics?: string | undefined;
+  wordLyricsFormat?: 'qrc' | 'yrc' | undefined;
   audioUrl: string;
   file?: File | undefined;
   available?: boolean | undefined;
@@ -93,6 +100,9 @@ export interface MetaJson {
   lastModified: string;     // ISO 8601
   lyrics?: string;
   syncedLyrics?: SyncedLyricLine[];
+  /** Raw QRC/YRC payload, persisted so cloud tracks restore per-word timing. */
+  wordLyrics?: string;
+  wordLyricsFormat?: 'qrc' | 'yrc';
   coverUrl?: string;
 }
 

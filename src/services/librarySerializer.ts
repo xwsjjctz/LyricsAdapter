@@ -12,6 +12,8 @@ function serializeTrack(track: Track): any {
     duration: track.duration,
     lyrics: track.lyrics,
     syncedLyrics: track.syncedLyrics,
+    ...(track.wordLyrics != null ? { wordLyrics: track.wordLyrics } : {}),
+    ...(track.wordLyricsFormat != null ? { wordLyricsFormat: track.wordLyricsFormat } : {}),
     audioUrl: '',
     coverUrl,
     filePath: track.filePath || '',

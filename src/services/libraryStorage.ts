@@ -20,6 +20,9 @@ export interface LibraryIndexSong {
   duration: number;
   lyrics?: string;
   syncedLyrics?: SyncedLyricLine[];
+  /** Raw QRC/YRC payload, persisted so re-imports / re-caching keep word timing. */
+  wordLyrics?: string;
+  wordLyricsFormat?: 'qrc' | 'yrc';
   coverUrl?: string;
   filePath?: string;
   fileName?: string;

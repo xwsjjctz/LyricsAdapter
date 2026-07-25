@@ -313,6 +313,8 @@ export const useWebDAV = ({ onTracksUpdated }: UseWebDAVOptions = {}) => {
           duration: sidecarMeta.duration,
           ...(sidecarMeta.lyrics != null && { lyrics: sidecarMeta.lyrics }),
           ...(sidecarMeta.syncedLyrics != null && { syncedLyrics: sidecarMeta.syncedLyrics }),
+          ...(sidecarMeta.wordLyrics != null && { wordLyrics: sidecarMeta.wordLyrics }),
+          ...(sidecarMeta.wordLyricsFormat != null && { wordLyricsFormat: sidecarMeta.wordLyricsFormat }),
           ...resultBase,
         };
       }
