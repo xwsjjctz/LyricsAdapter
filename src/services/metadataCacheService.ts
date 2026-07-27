@@ -141,6 +141,8 @@ class MetadataCacheService {
     duration: number;
     lyrics: string;
     syncedLyrics?: SyncedLyricLine[];
+    wordLyrics?: string;
+    wordLyricsFormat?: 'qrc' | 'yrc';
   } {
     return {
       title: cached.title,
@@ -149,6 +151,8 @@ class MetadataCacheService {
       duration: cached.duration,
       lyrics: cached.lyrics,
       ...(cached.syncedLyrics !== undefined && { syncedLyrics: cached.syncedLyrics }),
+      ...(cached.wordLyrics !== undefined && { wordLyrics: cached.wordLyrics }),
+      ...(cached.wordLyricsFormat !== undefined && { wordLyricsFormat: cached.wordLyricsFormat }),
     };
   }
 

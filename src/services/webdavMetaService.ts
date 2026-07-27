@@ -19,6 +19,8 @@ export function generateMetaJson(track: Track): MetaJson {
     lastModified: new Date().toISOString(),
     ...(track.lyrics != null && { lyrics: track.lyrics }),
     ...(syncedLyrics != null && { syncedLyrics }),
+    ...(track.wordLyrics != null && { wordLyrics: track.wordLyrics }),
+    ...(track.wordLyricsFormat != null && { wordLyricsFormat: track.wordLyricsFormat }),
     ...(track.coverUrl != null && { coverUrl: track.coverUrl }),
   };
 }

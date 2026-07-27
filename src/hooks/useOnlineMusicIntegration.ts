@@ -194,6 +194,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         await desktopAPI.writeAudioMetadata(result.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
           ...(lyrics != null && { lyrics: lyrics.lyrics }),
+          ...(lyrics?.wordLyrics != null && { wordLyrics: lyrics.wordLyrics, wordLyricsFormat: lyrics.wordLyricsFormat }),
           ...(coverUrl != null && { coverUrl }),
         });
       }
@@ -247,6 +248,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         await desktopAPI.writeAudioMetadata(dlResult.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
           ...(lyrics != null && { lyrics: parsedLyrics?.plainText || lyrics.lyrics }),
+          ...(lyrics?.wordLyrics != null && { wordLyrics: lyrics.wordLyrics, wordLyricsFormat: lyrics.wordLyricsFormat }),
           ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
         });
       }
@@ -263,6 +265,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         source: 'webdav', webdavPath, fileName, fileSize: readResult.data.byteLength,
         ...(lyrics != null && { lyrics: parsedLyrics?.plainText || lyrics.lyrics }),
         ...(parsedLyrics?.syncedLyrics != null && { syncedLyrics: parsedLyrics.syncedLyrics }),
+        ...(lyrics?.wordLyrics != null && { wordLyrics: lyrics.wordLyrics, wordLyricsFormat: lyrics.wordLyricsFormat }),
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : {}),
       }));
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 100, status: 'completed' } }));
@@ -282,6 +285,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         lastModified: Date.now(),
         ...(lyrics != null && { lyrics: parsedLyrics?.plainText || lyrics.lyrics }),
         ...(parsedLyrics?.syncedLyrics != null && { syncedLyrics: parsedLyrics.syncedLyrics }),
+        ...(lyrics?.wordLyrics != null && { wordLyrics: lyrics.wordLyrics, wordLyricsFormat: lyrics.wordLyricsFormat }),
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);
