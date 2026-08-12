@@ -2,6 +2,14 @@ export type IpcResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
+export interface UserDataSnapshot {
+  schemaVersion: 1;
+  libraryInitialized: boolean;
+  tracks: unknown[];
+  settings: Record<string, string>;
+  playback: Record<string, string>;
+}
+
 export interface TypedElectronIPC {
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
@@ -32,9 +40,10 @@ export interface TypedElectronIPC {
     replaceAll: (entries: Record<string, string>) => Promise<IpcResult<void>>;
   };
   userData: {
-    load: () => Promise<IpcResult<unknown>>;
-    save: (data: unknown) => Promise<IpcResult<void>>;
+    load: () => Promise<IpcResult<UserDataSnapshot>>;
+    save: (data: UserDataSnapshot) => Promise<IpcResult<void>>;
     saveTracks: (tracks: unknown[]) => Promise<IpcResult<void>>;
+    saveLibraryState: (tracks: unknown[], playback: Record<string, string>) => Promise<IpcResult<void>>;
     getFilePath: () => Promise<IpcResult<string>>;
   };
 }

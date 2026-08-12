@@ -33,6 +33,8 @@ class SettingsManager {
   private focusLyricLineSpacing: number = 32;
   private focusInactiveLyricBlur: number = 2;
   private listeners: Set<Listener> = new Set();
+  /** Prevent an older failed async write from rolling back a newer value. */
+  private persistenceRevisions = new Map<string, number>();
 
   constructor() {
     this.loadFromStorage();
@@ -40,6 +42,18 @@ class SettingsManager {
 
   private loadFromStorage(): void {
     try {
+      this.downloadPath = '';
+      this.floatingPanel = false;
+      this.bgBlurTrans = 1.0;
+      this.qqMusicEnabled = false;
+      this.onlineSource = 'qq';
+      this.glassUI = false;
+      this.gsapButtonBounce = true;
+      this.focusBgBlurRadius = 80;
+      this.focusLyricsFontSize = 30;
+      this.focusLyricLineSpacing = 32;
+      this.focusInactiveLyricBlur = 2;
+
       this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';
 
       this.floatingPanel = appStorage.getItem(FLOATING_PANEL_KEY) === 'true';
@@ -108,17 +122,35 @@ class SettingsManager {
     this.listeners.forEach((listener) => listener());
   }
 
+  private async persistSetting(
+    key: string,
+    value: string,
+    rollback: () => void,
+    notifyOnRollback = true,
+  ): Promise<boolean> {
+    const revision = (this.persistenceRevisions.get(key) ?? 0) + 1;
+    this.persistenceRevisions.set(key, revision);
+    try {
+      await appStorage.setItem(key, value);
+      return true;
+    } catch (error) {
+      if (this.persistenceRevisions.get(key) === revision) {
+        rollback();
+        if (notifyOnRollback) this.notify();
+      }
+      logger.error(`[SettingsManager] Failed to persist ${key}; rolled back current runtime state when safe:`, error);
+      return false;
+    }
+  }
+
   // --- Download Path ---
 
-  setDownloadPath(path: string): void {
+  setDownloadPath(path: string): Promise<boolean> {
+    const previous = this.downloadPath;
     this.downloadPath = path;
-    try {
-      localStorage.setItem(DOWNLOAD_PATH_KEY, path);
-      appStorage.setItem(DOWNLOAD_PATH_KEY, path).catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save download path:', error);
-    }
+    const persisted = this.persistSetting(DOWNLOAD_PATH_KEY, path, () => { this.downloadPath = previous; }, false);
     logger.debug('[SettingsManager] Download path saved:', path);
+    return persisted;
   }
 
   getDownloadPath(): string {
@@ -138,16 +170,13 @@ class SettingsManager {
   }
 
   /** @deprecated Floating Panel 已停用，后续迭代或移除 */
-  setFloatingPanel(enabled: boolean): void {
+  setFloatingPanel(enabled: boolean): Promise<boolean> {
+    const previous = this.floatingPanel;
     this.floatingPanel = enabled;
-    try {
-      localStorage.setItem(FLOATING_PANEL_KEY, enabled ? 'true' : 'false');
-      appStorage.setItem(FLOATING_PANEL_KEY, enabled ? 'true' : 'false').catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save floating panel:', error);
-    }
+    const persisted = this.persistSetting(FLOATING_PANEL_KEY, enabled ? 'true' : 'false', () => { this.floatingPanel = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Floating panel set to: ${enabled}`);
+    return persisted;
   }
 
   // --- Background Blur Transparency ---
@@ -156,16 +185,13 @@ class SettingsManager {
     return this.bgBlurTrans;
   }
 
-  setBgBlurTrans(value: number): void {
+  setBgBlurTrans(value: number): Promise<boolean> {
+    const previous = this.bgBlurTrans;
     this.bgBlurTrans = Math.max(0, Math.min(1, value));
-    try {
-      localStorage.setItem(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans));
-      appStorage.setItem(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans)).catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save bgBlurTrans:', error);
-    }
+    const persisted = this.persistSetting(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans), () => { this.bgBlurTrans = previous; });
     this.notify();
     logger.debug(`[SettingsManager] bgBlurTrans set to: ${this.bgBlurTrans}`);
+    return persisted;
   }
 
   // --- QQ Music Enabled ---
@@ -174,16 +200,13 @@ class SettingsManager {
     return this.qqMusicEnabled;
   }
 
-  setQqMusicEnabled(enabled: boolean): void {
+  setQqMusicEnabled(enabled: boolean): Promise<boolean> {
+    const previous = this.qqMusicEnabled;
     this.qqMusicEnabled = enabled;
-    try {
-      localStorage.setItem(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false');
-      appStorage.setItem(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false').catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save QQ Music enabled:', error);
-    }
+    const persisted = this.persistSetting(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false', () => { this.qqMusicEnabled = previous; });
     this.notify();
     logger.debug(`[SettingsManager] QQ Music enabled set to: ${enabled}`);
+    return persisted;
   }
 
   // --- Online Source (QQ Music / NetEase Cloud Music / Soda Music) ---
@@ -192,16 +215,13 @@ class SettingsManager {
     return this.onlineSource;
   }
 
-  setOnlineSource(source: OnlineSource): void {
+  setOnlineSource(source: OnlineSource): Promise<boolean> {
+    const previous = this.onlineSource;
     this.onlineSource = source;
-    try {
-      localStorage.setItem(ONLINE_SOURCE_KEY, source);
-      appStorage.setItem(ONLINE_SOURCE_KEY, source).catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save online source:', error);
-    }
+    const persisted = this.persistSetting(ONLINE_SOURCE_KEY, source, () => { this.onlineSource = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Online source set to: ${source}`);
+    return persisted;
   }
 
   // --- Glass UI (frosted header & control bar) ---
@@ -213,16 +233,13 @@ class SettingsManager {
   }
 
   /** @deprecated Frosted Glass UI 已停用，后续迭代或移除 */
-  setGlassUI(enabled: boolean): void {
+  setGlassUI(enabled: boolean): Promise<boolean> {
+    const previous = this.glassUI;
     this.glassUI = enabled;
-    try {
-      localStorage.setItem(GLASS_UI_KEY, enabled ? 'true' : 'false');
-      appStorage.setItem(GLASS_UI_KEY, enabled ? 'true' : 'false').catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save glass UI:', error);
-    }
+    const persisted = this.persistSetting(GLASS_UI_KEY, enabled ? 'true' : 'false', () => { this.glassUI = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Glass UI set to: ${enabled}`);
+    return persisted;
   }
 
   // --- GSAP Button Bounce ---
@@ -231,16 +248,13 @@ class SettingsManager {
     return this.gsapButtonBounce;
   }
 
-  setGsapButtonBounce(enabled: boolean): void {
+  setGsapButtonBounce(enabled: boolean): Promise<boolean> {
+    const previous = this.gsapButtonBounce;
     this.gsapButtonBounce = enabled;
-    try {
-      localStorage.setItem(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false');
-      appStorage.setItem(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false').catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save GSAP button bounce:', error);
-    }
+    const persisted = this.persistSetting(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false', () => { this.gsapButtonBounce = previous; });
     this.notify();
     logger.debug(`[SettingsManager] GSAP button bounce set to: ${enabled}`);
+    return persisted;
   }
 
   // --- Focus Mode Background Blur Radius ---
@@ -249,16 +263,13 @@ class SettingsManager {
     return this.focusBgBlurRadius;
   }
 
-  setFocusBgBlurRadius(value: number): void {
+  setFocusBgBlurRadius(value: number): Promise<boolean> {
+    const previous = this.focusBgBlurRadius;
     this.focusBgBlurRadius = Math.max(40, Math.min(80, value));
-    try {
-      localStorage.setItem(FOCUS_BG_BLUR_RADIUS_KEY, String(this.focusBgBlurRadius));
-      appStorage.setItem(FOCUS_BG_BLUR_RADIUS_KEY, String(this.focusBgBlurRadius)).catch(() => {});
-    } catch (error) {
-      logger.error('[SettingsManager] Failed to save Focus Mode blur radius:', error);
-    }
+    const persisted = this.persistSetting(FOCUS_BG_BLUR_RADIUS_KEY, String(this.focusBgBlurRadius), () => { this.focusBgBlurRadius = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode blur radius set to: ${this.focusBgBlurRadius}`);
+    return persisted;
   }
 
   // --- Focus Mode Lyric Font Size ---
@@ -267,16 +278,13 @@ class SettingsManager {
     return this.focusLyricsFontSize;
   }
 
-  setFocusLyricsFontSize(value: number): void {
+  setFocusLyricsFontSize(value: number): Promise<boolean> {
+    const previous = this.focusLyricsFontSize;
     this.focusLyricsFontSize = Math.max(16, Math.min(40, value));
-    try {
-      localStorage.setItem(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize));
-      appStorage.setItem(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize)).catch(() => {});
-	    } catch (error) {
-	      logger.error('[SettingsManager] Failed to save Focus Mode lyric font size:', error);
-    }
+    const persisted = this.persistSetting(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize), () => { this.focusLyricsFontSize = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric font size set to: ${this.focusLyricsFontSize}`);
+    return persisted;
   }
 
   // --- Focus Mode Lyric Line Spacing ---
@@ -285,16 +293,13 @@ class SettingsManager {
     return this.focusLyricLineSpacing;
   }
 
-  setFocusLyricLineSpacing(value: number): void {
+  setFocusLyricLineSpacing(value: number): Promise<boolean> {
+    const previous = this.focusLyricLineSpacing;
     this.focusLyricLineSpacing = Math.max(12, Math.min(48, value));
-    try {
-      localStorage.setItem(FOCUS_LYRIC_LINE_SPACING_KEY, String(this.focusLyricLineSpacing));
-      appStorage.setItem(FOCUS_LYRIC_LINE_SPACING_KEY, String(this.focusLyricLineSpacing)).catch(() => {});
-	    } catch (error) {
-	      logger.error('[SettingsManager] Failed to save Focus Mode lyric line spacing:', error);
-    }
+    const persisted = this.persistSetting(FOCUS_LYRIC_LINE_SPACING_KEY, String(this.focusLyricLineSpacing), () => { this.focusLyricLineSpacing = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric line spacing set to: ${this.focusLyricLineSpacing}`);
+    return persisted;
   }
 
   // --- Focus Mode Inactive Lyric Blur ---
@@ -303,31 +308,28 @@ class SettingsManager {
     return this.focusInactiveLyricBlur;
   }
 
-  setFocusInactiveLyricBlur(value: number): void {
+  setFocusInactiveLyricBlur(value: number): Promise<boolean> {
+    const previous = this.focusInactiveLyricBlur;
     this.focusInactiveLyricBlur = Math.max(0, Math.min(12, value));
-    try {
-      localStorage.setItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur));
-      appStorage.setItem(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur)).catch(() => {});
-	    } catch (error) {
-	      logger.error('[SettingsManager] Failed to save Focus Mode inactive lyric blur:', error);
-    }
+    const persisted = this.persistSetting(FOCUS_INACTIVE_LYRIC_BLUR_KEY, String(this.focusInactiveLyricBlur), () => { this.focusInactiveLyricBlur = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
+    return persisted;
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---
 
   async ensureLoaded(): Promise<void> {
-    // No-op: all settings are synchronous via localStorage
+    // No-op: AppStorage is initialized before UI modules are imported.
     // 保留以兼容旧调用点；真正的初始化在构造时 loadFromStorage() 完成。
   }
 
   /**
-   * 重新从 appStorage/localStorage 加载全部设置并通知订阅者。
+   * 重新从 appStorage 加载全部设置并通知订阅者。
    *
    * settingsManager 在模块导入时同步 loadFromStorage()，但此时 appStorage.init()
-   * 可能尚未完成（尤其清空 userData 后 localStorage 为空，需从 ~/.la/settings.json
-   * 异步恢复）。useLibraryLoad 在把 settings.json 灌回 localStorage 后调用本方法，
+   * 可能尚未完成（尤其清空 userData 后内存 cache 为空，需从 ~/.la/settings.json
+   * 异步恢复）。useLibraryLoad 在 appStorage 完成恢复后调用本方法，
    * 使偏好设置（下载路径、在线源、模糊度等）在不重启的前提下恢复生效。
    */
   reload(): void {

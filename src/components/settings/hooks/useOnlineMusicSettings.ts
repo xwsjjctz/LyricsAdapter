@@ -261,7 +261,9 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     setIsSaving(true);
     setMessage(null);
     try {
-      settingsManager.setOnlineSource(onlineSource);
+      if (!await settingsManager.setOnlineSource(onlineSource)) {
+        throw new Error('Failed to persist online music source');
+      }
       const cookieStore = onlineSource === 'netease'
         ? neteaseCookieManager
         : onlineSource === 'soda'
@@ -287,7 +289,9 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
         await cookieStore.clearCookie();
         if (onlineSource === 'soda') setSodaLoggedIn(false);
       }
-      settingsManager.setDownloadPath(downloadPath.trim());
+      if (!await settingsManager.setDownloadPath(downloadPath.trim())) {
+        throw new Error('Failed to persist download path');
+      }
       showMessage(t('settingsDialog.saved'), 'success');
     } catch (err) {
       showMessage(t('settingsDialog.saveFailed'), 'error');

@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  stringRecordSchema,
+  userDataSnapshotSchema,
+  userTrackRecordSchema,
+} from '../../src/shared/userDataSchema';
+
+export { userDataSnapshotSchema } from '../../src/shared/userDataSchema';
 
 const httpUrlSchema = z.string().url().refine(value => {
   const protocol = new URL(value).protocol;
@@ -42,6 +49,26 @@ export const typedIpcSchemas = {
   downloadAudio: z.object({
     url: httpUrlSchema,
     cookieString: z.string(),
+  }),
+  settingsGet: z.object({
+    key: z.string().min(1),
+  }),
+  settingsSet: z.object({
+    key: z.string().min(1),
+    value: z.string(),
+  }),
+  settingsEntries: z.object({
+    entries: stringRecordSchema,
+  }),
+  userDataSave: z.object({
+    data: userDataSnapshotSchema,
+  }),
+  userDataTracks: z.object({
+    tracks: z.array(userTrackRecordSchema),
+  }),
+  userDataLibraryState: z.object({
+    tracks: z.array(userTrackRecordSchema),
+    playback: stringRecordSchema,
   }),
 };
 

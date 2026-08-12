@@ -3,10 +3,11 @@
  *
  * Path: ~/.la/settings.json (跨平台用户目录下的隐藏文件夹)
  *
- * Sensitive fields (WebDAV 密码、QQ/网易云 cookie) 使用 Electron 内置
+ * Sensitive fields (WebDAV 密码、签名 CDN URL、在线音乐 cookie) 使用 Electron 内置
  * safeStorage API 加密后落盘，密钥由 OS 管理（macOS Keychain / Windows DPAPI）。
  *
- * 浏览器模式无法使用 safeStorage，回退到明文 localStorage。
+ * 浏览器模式由 renderer 的 AppStorage 使用 localStorage；本 store 仅用于
+ * Electron，safeStorage 不可用时拒绝写入敏感值。
  */
 import { app, safeStorage } from 'electron';
 import fs from 'fs';
@@ -14,20 +15,19 @@ import path from 'path';
 import os from 'os';
 import { logger } from '../logger';
 import { writeJsonAtomic, readJsonWithBackup } from '../utils/atomicWrite';
-
-/** 需要加密存储的键名集合。 */
-const SENSITIVE_KEYS = new Set([
-  'webdav-config',
-  'qq_music_cookie',
-  'netease_cookie',
-  'soda_cookie',
-]);
+import { isSensitiveSettingKey } from '../../src/shared/persistencePolicy';
+import { stringRecordSchema } from '../../src/shared/userDataSchema';
 
 /** 加密前缀标记 —— 存在磁盘的值以 "enc:" 开头表示已加密。 */
 const ENC_PREFIX = 'enc:';
 
+function isStoredSettings(value: unknown): value is Record<string, string> {
+  return stringRecordSchema.safeParse(value).success;
+}
+
 class SettingsStore {
   private data: Record<string, string> = {};
+  private loadError: Error | null = null;
   private filePath: string;
   private dirPath: string;
 
@@ -35,8 +35,22 @@ class SettingsStore {
     this.dirPath = path.join(os.homedir(), '.la');
     this.filePath = path.join(this.dirPath, 'settings.json');
     this.ensureDir();
-    this.migrateFromLegacy();
     this.load();
+  }
+
+  /** Run after app.whenReady(), because safeStorage is not ready at import time. */
+  initialize(): void {
+    try {
+      if (!fs.existsSync(this.filePath) && !fs.existsSync(`${this.filePath}.bak`)) {
+        this.migrateFromLegacy();
+      }
+      this.load();
+      this.normalizePlaintextSensitiveValues();
+    } catch (error) {
+      this.data = {};
+      this.loadError = error instanceof Error ? error : new Error(String(error));
+      logger.error('[SettingsStore] Initialization failed:', error);
+    }
   }
 
   // ========== 文件路径管理 ==========
@@ -59,15 +73,21 @@ class SettingsStore {
    */
   private migrateFromLegacy(): void {
     try {
-      if (fs.existsSync(this.filePath)) return; // 新文件已存在
+      if (fs.existsSync(this.filePath) || fs.existsSync(`${this.filePath}.bak`)) return;
       const legacyPath = path.join(app.getPath('userData'), 'settings.json');
       if (!fs.existsSync(legacyPath)) return; // 旧文件不存在
       const content = fs.readFileSync(legacyPath, 'utf-8');
-      const parsed = JSON.parse(content);
-      fs.writeFileSync(this.filePath, JSON.stringify(parsed, null, 2), 'utf-8');
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      const migrated: Record<string, string> = {};
+      for (const [key, rawValue] of Object.entries(parsed)) {
+        const value = typeof rawValue === 'string' ? rawValue : String(rawValue);
+        migrated[key] = isSensitiveSettingKey(key) ? this.encrypt(value) : value;
+      }
+      writeJsonAtomic(this.filePath, migrated, { validate: isStoredSettings });
       logger.info('[SettingsStore] Migrated settings from legacy path:', legacyPath);
     } catch (e) {
       logger.warn('[SettingsStore] Migration from legacy path failed:', e);
+      throw e;
     }
   }
 
@@ -88,19 +108,18 @@ class SettingsStore {
 
   /**
    * 加密敏感值。返回带 enc: 前缀的 hex 字符串。
-   * 如果 safeStorage 不可用，返回原值（明文后备）。
+   * safeStorage 不可用时拒绝写入，避免静默降级为明文。
    */
   private encrypt(plaintext: string): string {
     if (!this.isEncryptionAvailable()) {
-      logger.warn('[SettingsStore] safeStorage unavailable, storing sensitive field as plaintext');
-      return plaintext;
+      throw new Error('safeStorage is unavailable; refusing to persist a sensitive setting as plaintext');
     }
     try {
       const encrypted = safeStorage.encryptString(plaintext);
       return ENC_PREFIX + encrypted.toString('hex');
     } catch (e) {
-      logger.error('[SettingsStore] Encryption failed, storing as plaintext:', e);
-      return plaintext;
+      logger.error('[SettingsStore] Encryption failed:', e);
+      throw e;
     }
   }
 
@@ -110,8 +129,7 @@ class SettingsStore {
   private decrypt(stored: string): string {
     if (typeof stored !== 'string' || !stored.startsWith(ENC_PREFIX)) return stored; // 未加密的遗留数据 / 非字符串
     if (!this.isEncryptionAvailable()) {
-      logger.warn('[SettingsStore] safeStorage unavailable, cannot decrypt sensitive field');
-      return '';
+      throw new Error('safeStorage is unavailable; cannot decrypt a sensitive setting');
     }
     try {
       const hex = stored.slice(ENC_PREFIX.length);
@@ -119,7 +137,7 @@ class SettingsStore {
       return safeStorage.decryptString(buffer);
     } catch (e) {
       logger.error('[SettingsStore] Decryption failed:', e);
-      return '';
+      throw e;
     }
   }
 
@@ -132,30 +150,110 @@ class SettingsStore {
 
   private load(): void {
     try {
-      const result = readJsonWithBackup<Record<string, string>>(this.filePath);
+      const hadStoredData = fs.existsSync(this.filePath) || fs.existsSync(`${this.filePath}.bak`);
+      const result = readJsonWithBackup<Record<string, string>>(this.filePath, {
+        validate: isStoredSettings,
+      });
       if (result) {
         this.data = result.data;
+        this.loadError = null;
         logger.info(
           '[SettingsStore] Loaded', Object.keys(this.data).length, 'keys from', this.filePath,
           result.source === 'backup' ? '(recovered from .bak)' : ''
         );
       } else {
         this.data = {};
-        logger.info('[SettingsStore] No existing settings file, starting fresh');
+        if (hadStoredData) {
+          this.loadError = new Error('settings.json and its backup are unreadable');
+          logger.error('[SettingsStore]', this.loadError.message);
+        } else {
+          this.loadError = null;
+          logger.info('[SettingsStore] No existing settings file, starting fresh');
+        }
       }
     } catch (e) {
       logger.error('[SettingsStore] Failed to load settings:', e);
       this.data = {};
+      this.loadError = e instanceof Error ? e : new Error(String(e));
     }
   }
 
-  private save(): void {
+  private assertUsable(): void {
+    if (this.loadError) throw this.loadError;
+  }
+
+  private save(): boolean {
     try {
       this.ensureDir();
-      writeJsonAtomic(this.filePath, this.data, { keepBackup: true });
+      writeJsonAtomic(this.filePath, this.data, {
+        keepBackup: true,
+        validate: isStoredSettings,
+      });
+      return true;
     } catch (e) {
       logger.error('[SettingsStore] Failed to save settings:', e);
+      return false;
     }
+  }
+
+  private encodeValue(key: string, value: string): string {
+    return isSensitiveSettingKey(key) ? this.encrypt(value) : value;
+  }
+
+  /**
+   * Older releases could leave plaintext secrets directly in the current
+   * ~/.la/settings.json. Re-encrypt both recovery copies before exposing the
+   * store to renderer IPC. Writing the backup first keeps at least one sealed
+   * copy if the primary rewrite fails.
+   */
+  private normalizePlaintextSensitiveValues(): void {
+    this.assertUsable();
+    let changed = false;
+    const next = { ...this.data };
+    for (const [key, value] of Object.entries(next)) {
+      if (!isSensitiveSettingKey(key) || this.isEncrypted(value)) continue;
+      next[key] = this.encrypt(typeof value === 'string' ? value : String(value));
+      changed = true;
+    }
+    let backupNeedsRewrite = false;
+    const backupPath = `${this.filePath}.bak`;
+    if (fs.existsSync(backupPath)) {
+      try {
+        const backup = JSON.parse(fs.readFileSync(backupPath, 'utf-8')) as unknown;
+        backupNeedsRewrite = !isStoredSettings(backup)
+          || Object.entries(backup).some(([key, value]) => (
+            isSensitiveSettingKey(key) && !this.isEncrypted(value)
+          ));
+      } catch {
+        backupNeedsRewrite = true;
+      }
+    }
+    if (!changed && !backupNeedsRewrite) return;
+
+    // Replace a plaintext/invalid recovery copy with the validated sealed
+    // primary snapshot before rewriting the primary itself.
+    writeJsonAtomic(backupPath, next, { validate: isStoredSettings });
+    if (changed) {
+      writeJsonAtomic(this.filePath, next, { validate: isStoredSettings });
+      this.data = next;
+    }
+    logger.info('[SettingsStore] Normalized sensitive values in current store and recovery copy');
+  }
+
+  /**
+   * Only publish a new in-memory snapshot after it has been durably written.
+   * Otherwise a failed write would appear successful to later reads until the
+   * next process restart, even though the typed IPC correctly returned an error.
+   */
+  private commit(next: Record<string, string>, recoverFromLoadError = false): boolean {
+    const previous = this.data;
+    this.data = next;
+    if (this.save()) {
+      if (recoverFromLoadError) this.loadError = null;
+      return true;
+    }
+    this.data = previous;
+    return false;
   }
 
   // ========== 公开 API ==========
@@ -165,6 +263,7 @@ class SettingsStore {
    * 敏感字段自动解密后返回。非字符串值（历史脏数据）强制字符串化。
    */
   get(key: string): string | undefined {
+    this.assertUsable();
     const stored = this.data[key];
     if (stored === undefined) return undefined;
     if (this.isEncrypted(stored)) return this.decrypt(stored);
@@ -176,6 +275,7 @@ class SettingsStore {
    * 敏感字段自动解密。非字符串值（历史脏数据）强制字符串化。
    */
   getAll(): Record<string, string> {
+    this.assertUsable();
     const result: Record<string, string> = {};
     for (const [key, stored] of Object.entries(this.data)) {
       if (this.isEncrypted(stored)) {
@@ -191,47 +291,59 @@ class SettingsStore {
    * Set a single value and flush to disk.
    * 敏感字段自动加密后存储。
    */
-  set(key: string, value: string): void {
-    if (SENSITIVE_KEYS.has(key)) {
-      this.data[key] = this.encrypt(value);
-    } else {
-      this.data[key] = value;
+  set(key: string, value: string): boolean {
+    try {
+      this.assertUsable();
+      return this.commit({
+        ...this.data,
+        [key]: this.encodeValue(key, value),
+      });
+    } catch (error) {
+      logger.error('[SettingsStore] Failed to prepare setting:', error);
+      return false;
     }
-    this.save();
   }
 
   /**
    * 批量写入并 flush。用于一次性保存大量设置（如播放状态）。
    * 敏感字段自动加密。
    */
-  setMany(entries: Record<string, string>): void {
-    for (const [key, value] of Object.entries(entries)) {
-      if (SENSITIVE_KEYS.has(key)) {
-        this.data[key] = this.encrypt(value);
-      } else {
-        this.data[key] = value;
+  setMany(entries: Record<string, string>): boolean {
+    try {
+      this.assertUsable();
+      const next = { ...this.data };
+      for (const [key, value] of Object.entries(entries)) {
+        next[key] = this.encodeValue(key, value);
       }
+      return this.commit(next);
+    } catch (error) {
+      logger.error('[SettingsStore] Failed to prepare settings:', error);
+      return false;
     }
-    this.save();
   }
 
   /** Delete a key and flush to disk. */
-  delete(key: string): void {
-    delete this.data[key];
-    this.save();
+  delete(key: string): boolean {
+    if (this.loadError) return false;
+    const next = { ...this.data };
+    delete next[key];
+    return this.commit(next);
   }
 
   /** Replace all entries and flush to disk. */
-  replaceAll(entries: Record<string, string>): void {
-    this.data = {};
-    for (const [key, value] of Object.entries(entries)) {
-      if (SENSITIVE_KEYS.has(key)) {
-        this.data[key] = this.encrypt(value);
-      } else {
-        this.data[key] = value;
+  replaceAll(entries: Record<string, string>): boolean {
+    try {
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(entries)) {
+        next[key] = this.encodeValue(key, value);
       }
+      // Explicit replacement is the recovery path when both primary and .bak
+      // were unreadable but users.json supplied a validated settings snapshot.
+      return this.commit(next, true);
+    } catch (error) {
+      logger.error('[SettingsStore] Failed to prepare replacement settings:', error);
+      return false;
     }
-    this.save();
   }
 }
 

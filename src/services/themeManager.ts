@@ -155,6 +155,7 @@ class ThemeManagerClass {
 
   private loadFromStorage(): void {
     try {
+      this.currentThemeId = THEME_IDS.DEFAULT_DARK;
       const storedTheme = appStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
       const normalizedTheme = this.normalizeThemeId(storedTheme);
       if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
@@ -194,6 +195,16 @@ class ThemeManagerClass {
 
   applyCurrentTheme(): void {
     this.applyTheme(this.getCurrentTheme());
+  }
+
+  /** Re-read a repaired AppStorage snapshot without persisting it again. */
+  reload(): void {
+    const previous = this.currentThemeId;
+    this.loadFromStorage();
+    if (this.currentThemeId === previous) return;
+    this.applyCurrentTheme();
+    this.notifyListeners();
+    logger.info('[ThemeManager] Theme reloaded after settings recovery');
   }
 
   setTheme(themeId: ThemeId): void {

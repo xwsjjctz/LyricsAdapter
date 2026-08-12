@@ -7,11 +7,43 @@ import { parseAudioFile as parseAudioFileSync } from './metadataService';
 import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 import { logger } from './logger';
 import { APP } from '../constants/config';
-import type { TypedElectronIPC } from '../types/typedIpc';
+import type { IpcResult, TypedElectronIPC, UserDataSnapshot } from '../types/typedIpc';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
+import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
+import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
 type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
+
+function isIpcResult<T>(value: unknown): value is IpcResult<T> {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as { ok?: unknown }).ok === 'boolean';
+}
+
+/** Transitional unwrap for one release while stale preload bundles may return raw values. */
+function unwrapIpcRead<T>(value: unknown): T {
+  if (!isIpcResult<T>(value)) return value as T;
+  if (!value.ok) throw new Error(value.error);
+  return value.data;
+}
+
+function assertIpcWrite(value: unknown, operation: string): void {
+  if (isIpcResult<void>(value) && !value.ok) {
+    throw new Error(`${operation}: ${value.error}`);
+  }
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && Object.values(value).every(entry => typeof entry === 'string');
+}
+
+function normalizeUserDataSnapshot(value: unknown): UserDataSnapshot | null {
+  return normalizeStoredUserDataSnapshot(value);
+}
 
 /** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
 export interface UpdateInfo {
@@ -109,9 +141,10 @@ export interface DesktopAPI {
   settingsDelete?: (key: string) => Promise<void>;
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
   // User data store (~/.la/users.json)
-  userDataLoad?: () => Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }>;
-  userDataSave?: (data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }) => Promise<void>;
+  userDataLoad?: () => Promise<UserDataSnapshot>;
+  userDataSave?: (data: UserDataSnapshot) => Promise<void>;
   userDataSaveTracks?: (tracks: unknown[]) => Promise<void>;
+  userDataSaveLibraryState?: (tracks: unknown[], playback: Record<string, string>) => Promise<void>;
   userDataGetFilePath?: () => Promise<string>;
 }
 
@@ -476,50 +509,53 @@ class ElectronAdapter implements FullDesktopAPI {
   // ---- Settings store (passthrough to main-process settings.json) ----
   async settingsGet(key: string): Promise<string | undefined> {
     // Prefer typed IPC path, fall back to legacy top-level method
-    if (this.api.ipc?.settings.get) {
-      const result = await this.api.ipc.settings.get(key);
-      return result.ok ? result.data : undefined;
+    if (this.api.ipc?.settings?.get) {
+      const value = unwrapIpcRead<string | undefined>(await this.api.ipc.settings.get(key));
+      return typeof value === 'string' ? value : undefined;
     }
     if (typeof this.api.settingsGet === 'function') {
       return this.api.settingsGet(key);
     }
-    return undefined;
+    throw new Error('Desktop settings.get API is unavailable');
   }
 
   async settingsGetAll(): Promise<Record<string, string>> {
-    if (this.api.ipc?.settings.getAll) {
-      const result = await this.api.ipc.settings.getAll();
-      return result.ok ? result.data : {};
+    if (this.api.ipc?.settings?.getAll) {
+      const value = unwrapIpcRead<unknown>(await this.api.ipc.settings.getAll());
+      if (!isStringRecord(value)) throw new Error('Invalid settings.getAll response');
+      return value;
     }
     if (typeof this.api.settingsGetAll === 'function') {
       return this.api.settingsGetAll();
     }
-    return {};
+    throw new Error('Desktop settings.getAll API is unavailable');
   }
 
   async settingsSet(key: string, value: string): Promise<void> {
-    if (this.api.ipc?.settings.set) {
-      await this.api.ipc.settings.set(key, value);
+    if (this.api.ipc?.settings?.set) {
+      assertIpcWrite(await this.api.ipc.settings.set(key, value), 'settings.set failed');
       return;
     }
     if (typeof this.api.settingsSet === 'function') {
       return this.api.settingsSet(key, value);
     }
+    throw new Error('Desktop settings.set API is unavailable');
   }
 
   async settingsDelete(key: string): Promise<void> {
-    if (this.api.ipc?.settings.delete) {
-      await this.api.ipc.settings.delete(key);
+    if (this.api.ipc?.settings?.delete) {
+      assertIpcWrite(await this.api.ipc.settings.delete(key), 'settings.delete failed');
       return;
     }
     if (typeof this.api.settingsDelete === 'function') {
       return this.api.settingsDelete(key);
     }
+    throw new Error('Desktop settings.delete API is unavailable');
   }
 
   async settingsSetMany(entries: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.settings.setMany) {
-      await this.api.ipc.settings.setMany(entries);
+    if (this.api.ipc?.settings?.setMany) {
+      assertIpcWrite(await this.api.ipc.settings.setMany(entries), 'settings.setMany failed');
       return;
     }
     if (typeof this.api.settingsSetMany === 'function') {
@@ -532,46 +568,93 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   async settingsReplaceAll(entries: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.settings.replaceAll) {
-      await this.api.ipc.settings.replaceAll(entries);
+    if (this.api.ipc?.settings?.replaceAll) {
+      assertIpcWrite(await this.api.ipc.settings.replaceAll(entries), 'settings.replaceAll failed');
       return;
     }
     if (typeof this.api.settingsReplaceAll === 'function') {
       return this.api.settingsReplaceAll(entries);
     }
+    throw new Error('Desktop settings.replaceAll API is unavailable');
   }
 
   // ---- User Data Store (~/.la/users.json) ----
 
-  async userDataLoad(): Promise<{ tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }> {
+  async userDataLoad(): Promise<UserDataSnapshot> {
     if (this.api.ipc?.userData?.load) {
-      const result = await this.api.ipc.userData.load();
-      if (result.ok) return result.data as any;
+      const value = unwrapIpcRead<unknown>(await this.api.ipc.userData.load());
+      const normalized = normalizeUserDataSnapshot(value);
+      if (!normalized) throw new Error('Invalid userData.load response');
+      return normalized;
     }
     if (typeof this.api.userDataLoad === 'function') {
-      return this.api.userDataLoad();
+      const normalized = normalizeUserDataSnapshot(await this.api.userDataLoad());
+      if (!normalized) throw new Error('Invalid legacy userData.load response');
+      return normalized;
     }
-    return { tracks: [], settings: {}, playback: {} };
+    throw new Error('Desktop userData.load API is unavailable');
   }
 
-  async userDataSave(data: { tracks: unknown[]; settings: Record<string, string>; playback: Record<string, string> }): Promise<void> {
+  async userDataSave(data: UserDataSnapshot): Promise<void> {
     if (this.api.ipc?.userData?.save) {
-      await this.api.ipc.userData.save(data);
+      assertIpcWrite(await this.api.ipc.userData.save(data), 'userData.save failed');
       return;
     }
     if (typeof this.api.userDataSave === 'function') {
       return this.api.userDataSave(data);
     }
+    throw new Error('Desktop userData.save API is unavailable');
   }
 
   async userDataSaveTracks(tracks: unknown[]): Promise<void> {
     if (this.api.ipc?.userData?.saveTracks) {
-      await this.api.ipc.userData.saveTracks(tracks);
+      assertIpcWrite(await this.api.ipc.userData.saveTracks(tracks), 'userData.saveTracks failed');
       return;
     }
     if (typeof this.api.userDataSaveTracks === 'function') {
       return this.api.userDataSaveTracks(tracks);
     }
+    throw new Error('Desktop userData.saveTracks API is unavailable');
+  }
+
+  async userDataSaveLibraryState(tracks: unknown[], playback: Record<string, string>): Promise<void> {
+    if (this.api.ipc?.userData?.saveLibraryState) {
+      assertIpcWrite(
+        await this.api.ipc.userData.saveLibraryState(tracks, playback),
+        'userData.saveLibraryState failed',
+      );
+      return;
+    }
+    if (typeof this.api.userDataSaveLibraryState === 'function') {
+      return this.api.userDataSaveLibraryState(tracks, playback);
+    }
+    // One-release compatibility with stale preloads: preserve settings by
+    // loading the existing snapshot before using the legacy full-save API.
+    if (typeof this.api.userDataLoad === 'function' && typeof this.api.userDataSave === 'function') {
+      const existing = normalizeUserDataSnapshot(await this.api.userDataLoad());
+      if (!existing) throw new Error('Invalid legacy userData.load response');
+      await this.api.userDataSave({
+        ...existing,
+        schemaVersion: USER_DATA_SCHEMA_VERSION,
+        libraryInitialized: true,
+        tracks,
+        playback,
+      });
+      return;
+    }
+    throw new Error('Desktop userData.saveLibraryState API is unavailable');
+  }
+
+  async userDataGetFilePath(): Promise<string> {
+    if (this.api.ipc?.userData?.getFilePath) {
+      const value = unwrapIpcRead<unknown>(await this.api.ipc.userData.getFilePath());
+      if (typeof value !== 'string') throw new Error('Invalid userData.getFilePath response');
+      return value;
+    }
+    if (typeof this.api.userDataGetFilePath === 'function') {
+      return this.api.userDataGetFilePath();
+    }
+    throw new Error('Desktop userData.getFilePath API is unavailable');
   }
 
   // ---- Online music channels (OnlineMusicElectronAPI) ----

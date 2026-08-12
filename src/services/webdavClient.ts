@@ -64,7 +64,8 @@ class WebDAVClient {
 
   private loadConfig(): void {
     try {
-      const saved = appStorage.getItem(WEBDAV_CONFIG_KEY) || localStorage.getItem(WEBDAV_CONFIG_KEY);
+      this.config = null;
+      const saved = appStorage.getItem(WEBDAV_CONFIG_KEY);
       if (saved) {
         this.config = JSON.parse(saved);
       }
@@ -75,7 +76,8 @@ class WebDAVClient {
 
   private loadCdnCache(): void {
     try {
-      const saved = appStorage.getItem(CDN_CACHE_KEY) || localStorage.getItem(CDN_CACHE_KEY);
+      this.cdnCache.clear();
+      const saved = appStorage.getItem(CDN_CACHE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         this.cdnCache = new Map(Object.entries(parsed));
@@ -95,7 +97,6 @@ class WebDAVClient {
     try {
       const obj = Object.fromEntries(this.cdnCache);
       const json = JSON.stringify(obj);
-      localStorage.setItem(CDN_CACHE_KEY, json);
       appStorage.setItem(CDN_CACHE_KEY, json).catch(() => {});
     } catch (e) {
       logger.error('[WebDAV] Failed to save CDN cache:', e);
@@ -118,11 +119,11 @@ class WebDAVClient {
   }
 
   /**
-   * 重新从 appStorage/localStorage 加载配置。
+   * 重新从 appStorage 加载配置。
    *
    * webdavClient 在模块导入时同步 loadConfig()，但此时 appStorage.init() 可能
-   * 尚未完成（尤其清空 userData 后 localStorage 为空，需从 ~/.la/settings.json
-   * 异步恢复）。useLibraryLoad 在把 settings.json 灌回 localStorage 后调用本方法，
+   * 尚未完成（尤其清空 userData 后内存 cache 为空，需从 ~/.la/settings.json
+   * 异步恢复）。useLibraryLoad 在 appStorage 完成恢复后调用本方法，
    * 使 WebDAV 配置在不重启、不重填表单的前提下恢复生效。
    */
   reloadConfig(): void {
@@ -134,11 +135,10 @@ class WebDAVClient {
     }
   }
 
-  saveConfig(config: WebDAVConfig): void {
-    this.config = config;
+  async saveConfig(config: WebDAVConfig): Promise<void> {
     const json = JSON.stringify(config);
-    localStorage.setItem(WEBDAV_CONFIG_KEY, json);
-    appStorage.setItem(WEBDAV_CONFIG_KEY, json).catch(() => {});
+    await appStorage.setItem(WEBDAV_CONFIG_KEY, json);
+    this.config = config;
     this.writableCache = null; // 配置变更后可写性需重新检测
     logger.info('[WebDAV] Config saved');
   }
@@ -155,7 +155,6 @@ class WebDAVClient {
 
   clearCdnCache(): void {
     this.cdnCache.clear();
-    localStorage.removeItem(CDN_CACHE_KEY);
     appStorage.removeItem(CDN_CACHE_KEY).catch(() => {});
     logger.info('[WebDAV] CDN cache cleared');
   }

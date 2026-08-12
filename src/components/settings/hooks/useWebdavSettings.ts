@@ -23,7 +23,7 @@ interface UseWebdavSettingsResult {
   setUsername: (v: string) => void;
   setPassword: (v: string) => void;
   handleTest: () => Promise<void>;
-  handleSave: () => void;
+  handleSave: () => Promise<void>;
 }
 
 /**
@@ -76,12 +76,12 @@ export function useWebdavSettings(): UseWebdavSettingsResult {
     }
   }, [getFormConfig]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       const config = getFormConfig();
       if (!config) return;
-      webdavClient.saveConfig(config);
+      await webdavClient.saveConfig(config);
       setMessage(t('settingsDialog.saved'));
       setMessageType('success');
       setTimeout(() => { setMessage(null); setMessageType(null); }, 3000);

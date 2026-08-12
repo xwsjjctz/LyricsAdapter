@@ -17,40 +17,40 @@ import path from 'path';
 import os from 'os';
 import { logger } from '../logger';
 import { writeJsonAtomic, readJsonWithBackup } from '../utils/atomicWrite';
+import { isSensitiveSettingKey, USER_DATA_SCHEMA_VERSION } from '../../src/shared/persistencePolicy';
+import {
+  isStoredUserDataSnapshot,
+  normalizeStoredUserDataSnapshot,
+} from '../../src/shared/userDataSchema';
 
 // ========== 类型定义 ==========
 
 /** users.json 中一条曲目的最小化结构（仅用户不可重建的字段）。 */
 export interface UserTrackRecord {
   id: string;
-  slotId?: 'local' | 'cloud' | 'online' | 'playlist';
-  filePath?: string;
-  webdavPath?: string;
-  fileName?: string;
-  fileSize?: number;
-  lastModified?: number;
-  source?: string;
-  addedAt?: string;
-  playCount?: number;
-  lastPlayed?: string | null;
-  songmid?: string;
-  available?: boolean;
+  slotId?: 'local' | 'cloud' | 'online' | 'playlist' | undefined;
+  filePath?: string | undefined;
+  webdavPath?: string | undefined;
+  fileName?: string | undefined;
+  fileSize?: number | undefined;
+  lastModified?: number | undefined;
+  source?: string | undefined;
+  addedAt?: string | undefined;
+  playCount?: number | undefined;
+  lastPlayed?: string | null | undefined;
+  songmid?: string | undefined;
+  available?: boolean | undefined;
 }
 
 export interface UserDataFile {
+  schemaVersion: typeof USER_DATA_SCHEMA_VERSION;
+  libraryInitialized: boolean;
   tracks: UserTrackRecord[];
   settings: Record<string, string>;
   playback: Record<string, string>;
 }
 
 // ========== 敏感字段加密（复用 settingsStore 逻辑） ==========
-
-const SENSITIVE_KEYS = new Set([
-  'webdav-config',
-  'qq_music_cookie',
-  'netease_cookie',
-  'soda_cookie',
-]);
 
 const ENC_PREFIX = 'enc:';
 
@@ -59,22 +59,28 @@ function isEncryptionAvailable(): boolean {
 }
 
 function encrypt(plaintext: string): string {
-  if (!isEncryptionAvailable()) return plaintext;
+  if (!isEncryptionAvailable()) {
+    throw new Error('safeStorage is unavailable; refusing to persist sensitive user data as plaintext');
+  }
   try {
     const buf = safeStorage.encryptString(plaintext);
     return ENC_PREFIX + buf.toString('hex');
-  } catch {
-    return plaintext;
+  } catch (error) {
+    logger.error('[UserDataStore] Encryption failed:', error);
+    throw error;
   }
 }
 
 function decrypt(stored: string): string {
   if (!stored.startsWith(ENC_PREFIX)) return stored;
-  if (!isEncryptionAvailable()) return '';
+  if (!isEncryptionAvailable()) {
+    throw new Error('safeStorage is unavailable; cannot decrypt sensitive user data');
+  }
   try {
     return safeStorage.decryptString(Buffer.from(stored.slice(ENC_PREFIX.length), 'hex'));
-  } catch {
-    return '';
+  } catch (error) {
+    logger.error('[UserDataStore] Decryption failed:', error);
+    throw error;
   }
 }
 
@@ -83,7 +89,7 @@ function encryptSettings(settings: Record<string, string>): Record<string, strin
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(settings)) {
     // 避免双重加密：settings.json 中敏感字段可能已被 settingsStore 加密
-    out[k] = (SENSITIVE_KEYS.has(k) && !v.startsWith(ENC_PREFIX)) ? encrypt(v) : v;
+    out[k] = (isSensitiveSettingKey(k) && !v.startsWith(ENC_PREFIX)) ? encrypt(v) : v;
   }
   return out;
 }
@@ -92,7 +98,7 @@ function encryptSettings(settings: Record<string, string>): Record<string, strin
 function decryptSettings(settings: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(settings)) {
-    out[k] = SENSITIVE_KEYS.has(k) ? decrypt(v) : v;
+    out[k] = isSensitiveSettingKey(k) ? decrypt(v) : v;
   }
   return out;
 }
@@ -121,56 +127,96 @@ class UserDataStore {
 
   // ========== 公开 API ==========
 
-  /** 完整读取 users.json。主文件损坏时回退 .bak；都不存在返回默认结构。 */
+  /** 完整读取 users.json。主文件损坏时回退 .bak；已有文件均不可读时抛错。 */
   load(): UserDataFile {
     try {
-      const result = readJsonWithBackup<UserDataFile>(this.filePath);
+      const hadStoredData = fs.existsSync(this.filePath) || fs.existsSync(`${this.filePath}.bak`);
+      const result = readJsonWithBackup<unknown>(this.filePath, {
+        validate: isStoredUserDataSnapshot,
+      });
       if (result) {
-        const parsed = result.data;
-        // 解密 settings 中的敏感字段
-        parsed.settings = decryptSettings(parsed.settings || {});
-        return parsed;
+        const parsed = normalizeStoredUserDataSnapshot(result.data);
+        if (!parsed) throw new Error('users.json failed schema validation');
+        return {
+          schemaVersion: USER_DATA_SCHEMA_VERSION,
+          libraryInitialized: parsed.libraryInitialized,
+          tracks: parsed.tracks,
+          settings: decryptSettings(parsed.settings),
+          playback: parsed.playback,
+        };
+      }
+      if (hadStoredData) {
+        throw new Error('users.json and its backup are unreadable');
       }
     } catch (e) {
       logger.error('[UserDataStore] Failed to load:', e);
+      throw e;
     }
-    return { tracks: [], settings: {}, playback: {} };
+    return {
+      schemaVersion: USER_DATA_SCHEMA_VERSION,
+      libraryInitialized: false,
+      tracks: [],
+      settings: {},
+      playback: {},
+    };
   }
 
   /** 完整写入 users.json（原子写 + .bak 备份）。settings 中的敏感字段自动加密。 */
-  save(data: UserDataFile): void {
+  save(data: UserDataFile): boolean {
     try {
       this.ensureDir();
       const toWrite: UserDataFile = {
+        schemaVersion: USER_DATA_SCHEMA_VERSION,
+        libraryInitialized: data.libraryInitialized ?? true,
         tracks: data.tracks,
         settings: encryptSettings(data.settings || {}),
         playback: data.playback || {},
       };
-      writeJsonAtomic(this.filePath, toWrite, { keepBackup: true });
+      writeJsonAtomic(this.filePath, toWrite, {
+        keepBackup: true,
+        validate: isStoredUserDataSnapshot,
+      });
+      return true;
     } catch (e) {
       logger.error('[UserDataStore] Failed to save:', e);
+      return false;
     }
   }
 
   /** 只替换 tracks 列表（不清除 settings/playback）。 */
-  saveTracks(tracks: UserTrackRecord[]): void {
+  saveTracks(tracks: UserTrackRecord[]): boolean {
     const existing = this.load();
     existing.tracks = tracks;
-    this.save(existing);
+    existing.libraryInitialized = true;
+    return this.save(existing);
+  }
+
+  /** Atomically update library membership + playback while preserving settings. */
+  saveLibraryState(
+    tracks: UserTrackRecord[],
+    playback: Record<string, string>,
+    settings?: Record<string, string>,
+  ): boolean {
+    const existing = this.load();
+    existing.tracks = tracks;
+    existing.playback = playback;
+    if (settings) existing.settings = settings;
+    existing.libraryInitialized = true;
+    return this.save(existing);
   }
 
   /** 只替换 settings。 */
-  saveSettings(settings: Record<string, string>): void {
+  saveSettings(settings: Record<string, string>): boolean {
     const existing = this.load();
     existing.settings = settings;
-    this.save(existing);
+    return this.save(existing);
   }
 
   /** 只替换 playback。 */
-  savePlayback(playback: Record<string, string>): void {
+  savePlayback(playback: Record<string, string>): boolean {
     const existing = this.load();
     existing.playback = playback;
-    this.save(existing);
+    return this.save(existing);
   }
 
   /** 文件路径（供日志用）。 */
@@ -183,10 +229,16 @@ class UserDataStore {
    * 汇入 users.json。当 users.json 已存在时跳过。
    */
   migrateFromLegacy(): void {
-    if (fs.existsSync(this.filePath)) return;
+    if (fs.existsSync(this.filePath) || fs.existsSync(`${this.filePath}.bak`)) return;
 
     logger.info('[UserDataStore] First run — migrating legacy data to', this.filePath);
-    const data: UserDataFile = { tracks: [], settings: {}, playback: {} };
+    const data: UserDataFile = {
+      schemaVersion: USER_DATA_SCHEMA_VERSION,
+      libraryInitialized: false,
+      tracks: [],
+      settings: {},
+      playback: {},
+    };
 
     // 1) 从 settings.json 迁移 settings + playback
     const legacySettingsPath = path.join(os.homedir(), '.la', 'settings.json');
@@ -209,8 +261,11 @@ class UserDataStore {
     // 2) 尝试从 library-index.json 迁移 tracks（走 IPC 传入，这里不做）
     // 实际的 track 迁移在渲染层 save 时自动完成（buildMinimalTracks + dual-write）
 
-    this.save(data);
-    logger.info('[UserDataStore] users.json created at', this.filePath);
+    if (this.save(data)) {
+      logger.info('[UserDataStore] users.json created at', this.filePath);
+    } else {
+      logger.error('[UserDataStore] Failed to create users.json at', this.filePath);
+    }
   }
 }
 

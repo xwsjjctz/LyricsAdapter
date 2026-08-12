@@ -11,7 +11,15 @@ import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 import { appStorage } from '../services/appStorage';
 import { webdavClient } from '../services/webdavClient';
 import { settingsManager } from '../services/settingsManager';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import {
+  filterLegacyMigratableSettings,
+  filterPublicSettings,
+} from '../shared/persistencePolicy';
+import type { UserDataSnapshot } from '../types/typedIpc';
+import i18next, { LANGUAGES, type Language } from '../i18n';
+import { themeManager } from '../services/themeManager';
+import { shortcutManager } from '../services/shortcuts';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
@@ -29,12 +37,6 @@ interface UseLibraryLoadOptions {
   persistedTimeRef: React.MutableRefObject<number>;
   onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number }) => void;
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
-}
-
-interface UserDataSnapshot {
-  tracks?: unknown[];
-  settings?: Record<string, string>;
-  playback?: Record<string, string>;
 }
 
 const SLOT_IDS: SlotId[] = ['local', 'cloud', 'online', 'playlist'];
@@ -151,22 +153,13 @@ function songsToMinimalRecords(songs: LibraryIndexSong[] | undefined, slotId: Sl
   }));
 }
 
-function collectLocalStorageSnapshot(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key) out[key] = localStorage.getItem(key) ?? '';
-  }
-  return out;
-}
-
 async function seedUserDataFromCache(
   libraryData: LibraryIndexData,
   persistData: LibrarySettings
 ): Promise<void> {
   try {
     const api = await getDesktopAPIAsync();
-    if (!api?.userDataSave) return;
+    if (!api?.userDataSaveLibraryState) return;
     const tracks: UserTrackRecord[] = [
       ...songsToMinimalRecords(libraryData.songs, 'local'),
       ...songsToMinimalRecords(libraryData.cloudSongs, 'cloud'),
@@ -174,11 +167,7 @@ async function seedUserDataFromCache(
       ...songsToMinimalRecords(libraryData.playlistSongs, 'playlist'),
     ];
     if (tracks.length === 0) return;
-    await api.userDataSave({
-      tracks,
-      settings: collectLocalStorageSnapshot(),
-      playback: { _json: JSON.stringify(persistData) },
-    });
+    await api.userDataSaveLibraryState(tracks, { _json: JSON.stringify(persistData) });
     logger.info('[LibraryLoad] Seeded ~/.la/users.json from cache, tracks:', tracks.length);
   } catch (e) {
     logger.warn('[LibraryLoad] Failed to seed ~/.la/users.json from cache:', e);
@@ -220,18 +209,49 @@ function buildLibraryDataFromUserData(
   };
 }
 
+export function resolveUserDataLibrary(
+  userData: UserDataSnapshot,
+  fallbackSettings: LibrarySettings,
+  settingsFromStore?: Record<string, string>,
+  cachedLibraryData?: Partial<LibraryIndexData>,
+): { kind: 'user-data' | 'initialized-empty' | 'migration-pending'; data: LibraryIndexData | null } {
+  const rebuilt = buildLibraryDataFromUserData(
+    userData,
+    fallbackSettings,
+    settingsFromStore,
+    cachedLibraryData,
+  );
+  if (rebuilt) return { kind: 'user-data', data: rebuilt };
+  if (userData.libraryInitialized) {
+    return {
+      kind: 'initialized-empty',
+      data: {
+        songs: [],
+        cloudSongs: [],
+        onlineSongs: [],
+        playlistSongs: [],
+        settings: buildSettingsFromUserData(userData, fallbackSettings, settingsFromStore),
+      },
+    };
+  }
+  return { kind: 'migration-pending', data: null };
+}
+
+export function buildSettingsRecoverySnapshot(userData: UserDataSnapshot): Record<string, string> {
+  const recovered = filterLegacyMigratableSettings(userData.settings);
+  const playbackJson = userData.playback['_json'] || recovered['playback'];
+  if (playbackJson) recovered['playback'] = playbackJson;
+  return recovered;
+}
+
 async function syncSettingsToAppStorage(settings: Record<string, string>, playbackJson?: string): Promise<void> {
   if (Object.keys(settings).length === 0 && !playbackJson) return;
 
   if (Object.keys(settings).length > 0) {
-    for (const [key, value] of Object.entries(settings)) {
-      localStorage.setItem(key, value);
-    }
     await appStorage.setMany(settings);
   }
 
   if (playbackJson) {
-    localStorage.setItem('playback', playbackJson);
     await appStorage.setItem('playback', playbackJson);
   }
 }
@@ -240,7 +260,16 @@ async function syncUserSettingsToAppStorage(
   userData: UserDataSnapshot,
   settingsFromStore?: Record<string, string>
 ): Promise<void> {
-  const settings = selectSettingsSource(userData, settingsFromStore);
+  const publicMainSettings = filterPublicSettings(settingsFromStore || {});
+  // A marker-only main store means AppStorage found no legacy local mirror.
+  // users.json remains the recovery source in that case.
+  const hasMainSettings = Object.keys(publicMainSettings).length > 0;
+  const selectedSettings = filterPublicSettings(selectSettingsSource(userData, settingsFromStore));
+  // users.json is a legacy recovery source, not an unrestricted settings
+  // namespace. Unknown and retired keys must not repopulate an empty main store.
+  const settings = hasMainSettings
+    ? publicMainSettings
+    : filterLegacyMigratableSettings(userData.settings || selectedSettings);
   const playbackJson = userData.playback?.['_json'] || settings['playback'] || userData.settings?.['playback'];
   await syncSettingsToAppStorage(settings, playbackJson);
 }
@@ -263,6 +292,7 @@ export function useLibraryLoad({
   updateSlot,
 }: UseLibraryLoadOptions) {
   const isFirstLoadRef = useRef(true);
+  const userDataWritableRef = useRef(false);
 
   const loadAndRestoreLibrary = async (libraryData: { songs: any[]; cloudSongs?: any[]; onlineSongs?: any[]; playlistSongs?: any[]; settings: any }) => {
     logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0, 'cloud songs:', libraryData.cloudSongs?.length || 0);
@@ -636,29 +666,72 @@ export function useLibraryLoad({
         if (isDesktop()) {
           try {
             const api = await getDesktopAPIAsync();
-            const mainSettings = await api?.settingsGetAll?.() ?? {};
-            const userData = await api?.userDataLoad?.();
+            const [settingsResult, userDataResult] = await Promise.allSettled([
+              api?.settingsGetAll
+                ? api.settingsGetAll()
+                : Promise.reject(new Error('Desktop settings API unavailable')),
+              api?.userDataLoad
+                ? api.userDataLoad()
+                : Promise.reject(new Error('Desktop user-data API unavailable')),
+            ]);
+            const mainSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : {};
+            const userData = userDataResult.status === 'fulfilled' ? userDataResult.value : undefined;
+            userDataWritableRef.current = userDataResult.status === 'fulfilled';
+
+            if (settingsResult.status === 'rejected') {
+              logger.warn('[LibraryLoad] Failed to load settings.json:', settingsResult.reason);
+            }
+            if (userDataResult.status === 'rejected') {
+              logger.warn('[LibraryLoad] Failed to load users.json; user-data writes disabled for this session:', userDataResult.reason);
+            }
+
             if (userData) {
               try {
-                await syncUserSettingsToAppStorage(userData, mainSettings);
+                if (settingsResult.status === 'fulfilled') {
+                  await syncUserSettingsToAppStorage(userData, mainSettings);
+                } else {
+                  const recoveredSettings = buildSettingsRecoverySnapshot(userData);
+                  if (Object.keys(recoveredSettings).length > 0) {
+                    try {
+                      await appStorage.replaceAll(recoveredSettings);
+                      logger.info('[LibraryLoad] Repaired settings.json from users.json recovery data');
+                    } catch (repairError) {
+                      appStorage.restoreInMemory(recoveredSettings);
+                      logger.warn('[LibraryLoad] Using users.json settings in memory only:', repairError);
+                    }
+                  } else {
+                    logger.warn('[LibraryLoad] Settings recovery snapshot is empty; preserving the main-store failure for retry');
+                  }
+                }
               } catch (e) {
                 logger.warn('[LibraryLoad] Failed to sync ~/.la user settings:', e);
               }
 
-              // 兜底播种：users.json 的 tracks 为空但 cache 有内容时，
-              // 把 cache 的归属信息写入 users.json，确保清缓存后可重建。
-              if (getUserTrackRecords(userData).length === 0 && hasPersistedTracks(libraryData)) {
+              // Only a file explicitly created as migration-pending may seed
+              // from cache. A schema-marked initialized empty array is a valid
+              // user library and must override stale library-index contents.
+              if (!userData.libraryInitialized && hasPersistedTracks(libraryData)) {
                 await seedUserDataFromCache(libraryData, libraryData.settings || {});
               }
 
-              const rebuiltLibrary = buildLibraryDataFromUserData(userData, libraryData.settings || {}, mainSettings, libraryData);
-              if (rebuiltLibrary && hasPersistedTracks(rebuiltLibrary)) {
+              const decision = resolveUserDataLibrary(
+                userData,
+                libraryData.settings || {},
+                mainSettings,
+                libraryData,
+              );
+              if (decision.kind === 'user-data' && decision.data) {
+                const rebuiltLibrary = decision.data;
                 logger.info('[LibraryLoad] Loading user library from ~/.la/users.json, tracks:', getUserTrackRecords(userData).length);
                 restoredLibraryData = rebuiltLibrary;
                 const saved = await libraryStorage.saveLibrary(rebuiltLibrary);
                 if (!saved) {
                   logger.warn('[LibraryLoad] Failed to rebuild library-index cache from user data');
                 }
+              } else if (decision.kind === 'initialized-empty' && decision.data) {
+                restoredLibraryData = decision.data;
+                const saved = await libraryStorage.saveLibrary(restoredLibraryData);
+                if (!saved) logger.warn('[LibraryLoad] Failed to persist initialized empty library cache');
               } else if (hasPersistedTracks(libraryData)) {
                 restoredLibraryData = {
                   ...libraryData,
@@ -676,16 +749,27 @@ export function useLibraryLoad({
               }
             }
 
-            // settings.json 已灌入 localStorage/appStorage，通知在模块导入时
+            // settings.json 已灌入 appStorage 内存 cache（非敏感值另有本地镜像），
+            // 通知在模块导入时
             // 就读取（早于 init 完成）的消费者重新加载，使清空 userData 后
             // WebDAV 配置、偏好设置、登录 cookie 等能自动恢复生效，无需重启或重填。
             try {
               webdavClient.reloadConfig();
               settingsManager.reload();
+              themeManager.reload();
+              shortcutManager.reload();
+              const restoredLanguage = appStorage.getItem('app-language') as Language | null;
+              const nextLanguage = restoredLanguage && LANGUAGES.includes(restoredLanguage)
+                ? restoredLanguage
+                : 'zh';
+              if (i18next.language !== nextLanguage) {
+                await i18next.changeLanguage(nextLanguage);
+              }
               // cookieManager 构造期 loadFromStorage 同样可能读到空，需重新加载
               // 后再把 cookie 同步到主进程 stream:// 代理。
               cookieManager.reload();
               neteaseCookieManager.reload();
+              sodaCookieManager.reload();
               void syncOnlineCookiesToMain();
             } catch (e) {
               logger.warn('[LibraryLoad] Failed to notify settings consumers to reload:', e);
@@ -722,25 +806,19 @@ export function useLibraryLoad({
     libraryStorage.saveLibraryDebounced(libraryData);
     // 并行写入 playback 状态到 settings.json（音量/模式/进度/激活插槽）
     appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
-    // 并行写入完整用户数据快照到 ~/.la/users.json（含 tracks + settings + playback）
-    if (isDesktop()) {
+    // 原子更新曲目归属 + playback；settings 由主进程保留，不再被全量覆盖。
+    if (isDesktop() && userDataWritableRef.current) {
       const allMinimal = [
         ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
         ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
         ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
         ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
       ];
-      const allSettings: Record<string, string> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) allSettings[key] = localStorage.getItem(key) ?? '';
-      }
       getDesktopAPIAsync().then(api => {
-        api?.userDataSave?.({
-          tracks: allMinimal,
-          settings: allSettings,
-          playback: { _json: JSON.stringify(persistData) },
-        }).catch(() => {});
+        api?.userDataSaveLibraryState?.(
+          allMinimal,
+          { _json: JSON.stringify(persistData) },
+        ).catch(error => logger.warn('[LibraryLoad] Failed to persist user library state:', error));
       }).catch(() => {});
     }
     // 注意：currentTime 不在本依赖数组中 —— 播放期间 timeupdate（~250ms/次）
@@ -822,13 +900,15 @@ export function useLibraryLoad({
         );
 
         logger.debug('[LibraryLoad] Flushing library before close');
-        // Best-effort: settings + userData save 失败不阻塞窗口关闭
+        let playbackSaved = true;
+        let userDataSaved = true;
         try {
           await appStorage.setItem('playback', JSON.stringify(persistData));
         } catch (e) {
+          playbackSaved = false;
           logger.warn('[LibraryLoad] Failed to flush playback settings:', e);
         }
-        if (isDesktop()) {
+        if (isDesktop() && userDataWritableRef.current) {
           try {
             const api = await getDesktopAPIAsync();
             const allMinimal = [
@@ -837,22 +917,20 @@ export function useLibraryLoad({
               ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
               ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
             ];
-            const allSettings: Record<string, string> = {};
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key) allSettings[key] = localStorage.getItem(key) ?? '';
-            }
-            await api?.userDataSave?.({
-              tracks: allMinimal,
-              settings: allSettings,
-              playback: { _json: JSON.stringify(persistData) },
-            });
+            if (!api?.userDataSaveLibraryState) throw new Error('User-data state API unavailable');
+            await api.userDataSaveLibraryState(
+              allMinimal,
+              { _json: JSON.stringify(persistData) },
+            );
           } catch (e) {
+            userDataSaved = false;
             logger.warn('[LibraryLoad] Failed to flush user data:', e);
           }
+        } else if (isDesktop()) {
+          userDataSaved = false;
         }
-        // 至少确保 library-index.json 写入
-        return libraryStorage.flushPendingSave(libraryData);
+        const cacheSaved = await libraryStorage.flushPendingSave(libraryData);
+        return playbackSaved && userDataSaved && cacheSaved;
       } catch (e) {
         logger.error('[LibraryLoad] Flush failed:', e);
         return false;

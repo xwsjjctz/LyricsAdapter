@@ -253,6 +253,12 @@ class ShortcutManager {
     return { ...this.shortcuts };
   }
 
+  /** Refresh bindings after AppStorage has recovered from users.json. */
+  reload(): void {
+    this.shortcuts = this.loadShortcuts();
+    logger.info('[Shortcuts] Bindings reloaded after settings recovery');
+  }
+
   getShortcut(action: ShortcutAction): ShortcutConfig {
     return this.shortcuts[action];
   }

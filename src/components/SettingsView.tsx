@@ -177,7 +177,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     setOnlineMessage(null);
 
     try {
-      settingsManager.setOnlineSource(onlineSource);
+      if (!await settingsManager.setOnlineSource(onlineSource)) {
+        throw new Error('Failed to persist online music source');
+      }
 
       const cookieStore = onlineSource === 'netease'
         ? neteaseCookieManager
@@ -205,7 +207,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
         if (onlineSource === 'soda') setSodaLoggedIn(false);
       }
 
-      settingsManager.setDownloadPath(downloadPath.trim());
+      if (!await settingsManager.setDownloadPath(downloadPath.trim())) {
+        throw new Error('Failed to persist download path');
+      }
       showOnlineMessage(t('settingsDialog.saved'), 'success');
     } catch (err) {
       showOnlineMessage(t('settingsDialog.saveFailed'), 'error');
@@ -243,14 +247,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onClearOrphanCache, onHeade
     }
   };
 
-  const handleSaveWebdav = () => {
+  const handleSaveWebdav = async () => {
     setIsSavingWebdav(true);
     try {
       const config = getWebdavFormConfig();
       if (!config) {
         return;
       }
-      webdavClient.saveConfig(config);
+      await webdavClient.saveConfig(config);
       setWebdavMessage(t('settingsDialog.saved'));
       setWebdavMessageType('success');
       setTimeout(() => { setWebdavMessage(null); setWebdavMessageType(null); }, 3000);

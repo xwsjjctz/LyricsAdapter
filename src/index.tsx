@@ -1,10 +1,9 @@
 import { createRoot } from 'react-dom/client';
-import App from './App';
 import { appStorage } from './services/appStorage';
 
-// 初始化应用存储：将 localStorage 中已有的设置迁移到主进程 settings.json
-// 此调用不阻塞渲染（getItem 在 init 完成前会 fallback 到 localStorage）。
-appStorage.init().catch(() => {});
+// 初始化应用存储：主进程已有设置时以其为权威；仅在主存储为空时迁移
+// allowlist 中的旧 localStorage 设置。UI 模块在初始化完成后才加载，避免
+// theme/WebDAV/cookie 等单例在敏感值进入内存 cache 前读到空状态。
 
 const platform = window.electron?.platform;
 if (platform) {
@@ -16,12 +15,16 @@ if (platform) {
   }
 }
 
-const rootElement = document.getElementById('root');
+async function bootstrap(): Promise<void> {
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    console.error('Could not find root element');
+    return;
+  }
 
-if (!rootElement) {
-  console.error("Could not find root element");
-} else {
   try {
+    await appStorage.init();
+    const { default: App } = await import('./App');
     const root = createRoot(rootElement);
     root.render(<App />);
   } catch (err) {
@@ -35,3 +38,5 @@ if (!rootElement) {
     `;
   }
 }
+
+void bootstrap();
