@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
-import { cookieManager, neteaseCookieManager, sodaCookieManager } from '../../services/cookieManager';
-import { qqMusicApi } from '../../services/qqMusicApi';
-import { neteaseMusicApi } from '../../services/neteaseMusicApi';
-import { sodaMusicApi } from '../../services/sodaMusicApi';
-import { logger } from '../../services/logger';
-import { loadPlaylistCache, savePlaylistCache } from '../../services/playlistCache';
-import type { PlaylistInfo } from '../../services/onlineMusicProvider';
+import { cookieManager, neteaseCookieManager, sodaCookieManager } from '../services/cookieManager';
+import { qqMusicApi } from '../services/qqMusicApi';
+import { neteaseMusicApi } from '../services/neteaseMusicApi';
+import { sodaMusicApi } from '../services/sodaMusicApi';
+import { logger } from '../services/logger';
+import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache';
+import type { PlaylistInfo } from '../services/onlineMusicProvider';
 
 /**
  * Fetch the user's third-party playlists with a
  * two-phase loading strategy:
  *
  *   Phase 1 (sync-like): Load cached playlists from IndexedDB and return
- *   them immediately so the card wall renders instantly on startup.
+ *   them immediately so the sidebar renders useful content on startup.
  *
  *   Phase 2 (background): Validate cookies per source. Valid → fetch fresh
  *   from API and update cache. Invalid → keep cached data, skip the source.

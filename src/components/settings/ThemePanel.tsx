@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themeManager } from '../../services/themeManager';
-import { settingsManager } from '../../services/settingsManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../../types/theme';
 import { predefinedThemes } from '../../services/themes/predefinedThemes';
 import { resolveThemeAppearance } from '../../services/themeAppearance';
@@ -60,7 +59,6 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
   );
-  const [newUxEnabled, setNewUxEnabled] = useState(() => settingsManager.getNewUxEnabled());
   // Subscribe to theme changes
   useEffect(() => {
     const unsubscribe = themeManager.subscribe((themeId) => {
@@ -81,16 +79,8 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
     applyThemeStyles(currentTheme);
   }, []);
 
-  useEffect(() => settingsManager.subscribe(() => {
-    setNewUxEnabled(settingsManager.getNewUxEnabled());
-  }), []);
-
   const handleApplyTheme = (themeId: ThemeId) => {
     themeManager.setTheme(themeId);
-  };
-
-  const handleEnterNewUx = () => {
-    settingsManager.setNewUxEnabled(true);
   };
 
   const handleToggleDefaultCardMode = (isDark: boolean) => {
@@ -119,46 +109,22 @@ const ThemePanel: React.FC<ThemePanelProps> = ({ onClose }) => {
   ];
 
   return (
-    <aside className="new-ux-side-panel new-ux-side-panel--theme new-ux-panel-in">
-      <header className="new-ux-side-panel__header">
+    <aside className="app-side-panel app-side-panel--theme app-panel-in">
+      <header className="app-side-panel__header">
         <div>
-          <div className="new-ux-side-panel__eyebrow">{t('theme.title')}</div>
-          <h2 className="new-ux-side-panel__title">{t('theme.description')}</h2>
+          <div className="app-side-panel__eyebrow">{t('theme.title')}</div>
+          <h2 className="app-side-panel__title">{t('theme.description')}</h2>
         </div>
-        <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close theme panel">
+        <button type="button" className="app-button-reset app-icon-button" onClick={onClose} aria-label="Close theme panel">
           <span className="material-symbols-outlined text-[22px]">close</span>
         </button>
       </header>
-      <div className="new-ux-side-panel__body">
+      <div className="app-side-panel__body">
         <div className="space-y-3">
-          <button
-            type="button"
-            onClick={handleEnterNewUx}
-            aria-pressed={newUxEnabled}
-            aria-label={newUxEnabled ? t('theme.applied') : t('theme.enterNewUx')}
-            className="theme-preview-card group relative flex min-h-[76px] w-full items-center gap-3 overflow-hidden rounded-2xl border px-3 py-3 text-left transition-all duration-200"
-            style={{
-              background: 'linear-gradient(135deg, rgba(32, 43, 88, 0.96), rgba(54, 31, 85, 0.96))',
-              borderColor: newUxEnabled ? 'rgba(164, 132, 255, 0.7)' : 'rgba(164, 132, 255, 0.32)',
-              boxShadow: '0 12px 28px rgba(10, 8, 32, 0.24)',
-            }}
-          >
-            <div className="absolute -right-5 -top-8 size-28 rounded-full bg-violet-300/20 blur-2xl" />
-            <span className="material-symbols-outlined relative text-3xl text-violet-200">auto_awesome</span>
-            <div className="relative min-w-0 flex-1">
-              <h3 className="text-sm font-semibold text-white">{t('settings.newUx')}</h3>
-              <p className="mt-0.5 truncate text-xs text-violet-100/75">{t('settings.newUxDesc')}</p>
-            </div>
-            <span className="relative flex shrink-0 items-center gap-1 rounded-full bg-violet-100/15 px-2 py-1 text-[11px] font-medium text-violet-50">
-              <span className="material-symbols-outlined text-sm">{newUxEnabled ? 'check' : 'arrow_forward'}</span>
-              {newUxEnabled ? t('theme.applied') : t('theme.enterNewUx')}
-            </span>
-          </button>
-
           <div className="space-y-2">
             {visibleThemes.map((theme) => {
               const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
-              const isCurrent = !newUxEnabled && theme.id === currentThemeId;
+              const isCurrent = theme.id === currentThemeId;
               const controls = resolveThemeControls(theme);
               const appearance = resolveThemeAppearance(theme);
               const themeName = isDefaultCard ? t('theme.name.default-combined') : t(getThemeNameKey(theme.id));

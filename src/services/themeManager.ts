@@ -10,20 +10,11 @@ import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
-import { settingsManager } from './settingsManager';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
-/**
- * Write a theme's full set of CSS custom properties + the theme-dark/theme-light
- * class onto a given element. Extracted from applyTheme so the New UI shell can
- * pin the default-dark palette onto its own root, isolating itself from global
- * theme switches (the New UI ships a fixed dark look by design).
- *
- * Note: this deliberately does NOT touch font-family (a document-global concern)
- * or the theme-is-transitioning class (a :root animation concern).
- */
-export function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
+/** Write a theme's CSS custom properties and light/dark marker to an element. */
+function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   const colors = theme.colors;
   const fonts = theme.fonts;
   const radius = theme.borderRadius;
@@ -216,10 +207,6 @@ class ThemeManagerClass {
     this.saveToStorage(themeId);
     this.applyTheme(theme);
     this.notifyListeners();
-    if (settingsManager.getNewUxEnabled()) {
-      settingsManager.setNewUxEnabled(false);
-    }
-
     logger.info('[ThemeManager] Theme changed to:', theme.name);
   }
 

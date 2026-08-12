@@ -3,6 +3,8 @@ import { webdavClient } from '@/services/webdavClient';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
 
+// Owns the WebDAV form lifecycle independently from the settings panel layout.
+
 interface WebdavFormConfig {
   serverUrl: string;
   username: string;

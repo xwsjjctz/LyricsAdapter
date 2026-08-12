@@ -1,34 +1,33 @@
 import React, { type ReactElement } from 'react';
-import { LibrarySlot, SlotId, Track, ViewMode } from '../../types';
-import { logger } from '../../services/logger';
-import type { OnlineSource } from '../../services/onlineMusicProvider';
-import TitleBar from '../TitleBar';
-import SidebarToggleButton from '../SidebarToggleButton';
-import Sidebar from '../Sidebar';
-import LibraryView from '../LibraryView';
-import BrowseView from '../BrowseView';
-import MetadataView from '../MetadataView';
-import FloatingPanel from '../FloatingPanel';
-import Controls from '../Controls';
-import FocusMode from '../FocusMode';
-import SearchBox from '../SearchBox';
-import SettingsPanel from '../new-ui/SettingsPanel';
-import ThemePanel from '../new-ui/ThemePanel';
-import GsapModal from '../GsapModal';
+import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
+import { logger } from '../services/logger';
+import type { OnlineSource } from '../services/onlineMusicProvider';
+import TitleBar from './TitleBar';
+import SidebarToggleButton from './SidebarToggleButton';
+import Sidebar from './Sidebar';
+import LibraryView from './LibraryView';
+import BrowseView from './BrowseView';
+import MetadataView from './MetadataView';
+import FloatingPanel from './FloatingPanel';
+import Controls from './Controls';
+import FocusMode from './FocusMode';
+import SearchBox from './SearchBox';
+import SettingsPanel from './settings/SettingsPanel';
+import ThemePanel from './settings/ThemePanel';
+import GsapModal from './GsapModal';
 import { useTranslation } from 'react-i18next';
-import type { useUIStore } from '../../stores/uiStore';
-import type { useSidebarLayout } from '../../hooks/useSidebarLayout';
-import type { useLibraryViewModel } from '../../viewmodels/useLibraryViewModel';
-import type { usePlayerViewModel } from '../../viewmodels/usePlayerViewModel';
-import type { useImportViewModel } from '../../viewmodels/useImportViewModel';
-import type { useOnlineViewModel } from '../../viewmodels/useOnlineViewModel';
-import type { usePlayerController } from '../../controllers/usePlayerController';
+import type { useUIStore } from '../stores/uiStore';
+import type { useSidebarLayout } from '../hooks/useSidebarLayout';
+import type { useLibraryViewModel } from '../viewmodels/useLibraryViewModel';
+import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
+import type { useImportViewModel } from '../viewmodels/useImportViewModel';
+import type { useOnlineViewModel } from '../viewmodels/useOnlineViewModel';
+import type { usePlayerController } from '../controllers/usePlayerController';
 
-// The legacy (pre-NewUx) shell. Extracted verbatim from AppWorkspace's return
-// branch so AppWorkspace can stay focused on wiring + shell selection. This
-// component is presentational only — all state arrives via props.
+// The single application shell. AppWorkspace owns wiring while this component
+// remains presentational; all state and user intents arrive via props.
 
-interface LegacyWorkspaceProps {
+interface AppShellProps {
   ui: ReturnType<typeof useUIStore>;
   sidebar: ReturnType<typeof useSidebarLayout>;
   library: ReturnType<typeof useLibraryViewModel>;
@@ -36,7 +35,7 @@ interface LegacyWorkspaceProps {
   importVm: ReturnType<typeof useImportViewModel>;
   online: ReturnType<typeof useOnlineViewModel>;
   playerController: ReturnType<typeof usePlayerController>;
-  // Library-store fields consumed directly by the legacy shell (not funnelled
+  // Library-store fields consumed directly by the shell (not funnelled
   // through a viewmodel). Kept as explicit props to avoid coupling this
   // component to the store hook internals.
   slots: Record<SlotId, LibrarySlot>;
@@ -61,7 +60,7 @@ interface LegacyWorkspaceProps {
   ) => Promise<void>;
   audioElement: ReactElement | null;
   isLinux: boolean;
-  // Legacy playlist browse/play decoupling: the playlist being browsed in the
+  // Playlist browse/play decoupling: the playlist being browsed in the
   // Library list (viewSlot === 'playlist') is shown from this preview rather
   // than the 'playlist' play slot, so opening a playlist never interrupts
   // playback. The slot is only committed when the user clicks a row.
@@ -69,7 +68,7 @@ interface LegacyWorkspaceProps {
   onPlayLibraryPlaylistTrack: (index: number) => void;
 }
 
-const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
+const AppShell: React.FC<AppShellProps> = ({
   ui,
   sidebar,
   library,
@@ -264,7 +263,7 @@ const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
           {viewMode === ViewMode.SETTINGS && (
             <FloatingPanel
               onClose={() => transitionToView(ViewMode.PLAYER)}
-              className="legacy-floating-panel-shell--settings"
+              className="floating-panel-shell--settings"
             >
               <SettingsPanel
                 onClose={() => transitionToView(ViewMode.PLAYER)}
@@ -275,7 +274,7 @@ const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
           {viewMode === ViewMode.THEME && (
             <FloatingPanel
               onClose={() => transitionToView(ViewMode.PLAYER)}
-              className="legacy-floating-panel-shell--theme"
+              className="floating-panel-shell--theme"
             >
               <ThemePanel onClose={() => transitionToView(ViewMode.PLAYER)} />
             </FloatingPanel>
@@ -380,4 +379,4 @@ const LegacyWorkspace: React.FC<LegacyWorkspaceProps> = ({
   );
 };
 
-export default LegacyWorkspace;
+export default AppShell;

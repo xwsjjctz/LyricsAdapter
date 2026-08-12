@@ -2,6 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SettingsTheme } from '../shared';
 
+// Presentational WebDAV settings section used by the application settings panel.
+
 interface WebdavSectionProps {
   theme: SettingsTheme;
   serverUrl: string;

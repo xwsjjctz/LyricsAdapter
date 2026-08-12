@@ -7,27 +7,19 @@ import { logger } from '../../services/logger';
 import ShortcutsSettings from '../ShortcutsSettings';
 import GsapModal from '../GsapModal';
 import RetroSwitch from '../RetroSwitch';
-import { useCurrentTheme, useSettingsTheme, LANGUAGE_OPTIONS } from './settings/shared';
-import { useWebdavSettings } from './settings/hooks/useWebdavSettings';
-import { useOnlineMusicSettings } from './settings/hooks/useOnlineMusicSettings';
-import WebdavSection from './settings/sections/WebdavSection';
-import OnlineMusicSection from './settings/sections/OnlineMusicSection';
-import type { ThemeConfig } from '../../types/theme';
+import { useCurrentTheme, useSettingsTheme, LANGUAGE_OPTIONS } from './shared';
+import { useWebdavSettings } from './hooks/useWebdavSettings';
+import { useOnlineMusicSettings } from './hooks/useOnlineMusicSettings';
+import WebdavSection from './sections/WebdavSection';
+import OnlineMusicSection from './sections/OnlineMusicSection';
 
 interface SettingsPanelProps {
   onClose: () => void;
   onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
-  /**
-   * When provided (New UI), settings sections use this fixed theme instead of
-   * the app-wide active theme. The New UI ships a fixed dark look; legacy omits
-   * this so the panel follows the global theme (light mode → readable text).
-   */
-  themeOverride?: ThemeConfig;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache, themeOverride }) => {
-  const appTheme = useCurrentTheme();
-  const theme = themeOverride ?? appTheme;
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache }) => {
+  const theme = useCurrentTheme();
   const themeUtils = useSettingsTheme(theme);
   const { colors, isBrutalistTheme, rangeClassName, rangeStyle } = themeUtils;
 
@@ -114,24 +106,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
 
   return (
     <>
-      <aside className="new-ux-side-panel new-ux-side-panel--settings new-ux-panel-in">
-        <header className="new-ux-side-panel__header">
+      <aside className="app-side-panel app-side-panel--settings app-panel-in">
+        <header className="app-side-panel__header">
           <div>
-            <div className="new-ux-side-panel__eyebrow">{t('settings.title')}</div>
-            <h2 className="new-ux-side-panel__title">{t('settings.description')}</h2>
+            <div className="app-side-panel__eyebrow">{t('settings.title')}</div>
+            <h2 className="app-side-panel__title">{t('settings.description')}</h2>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" className="new-ux-button-reset new-ux-icon-button" onClick={onClose} aria-label="Close settings panel">
+            <button type="button" className="app-button-reset app-icon-button" onClick={onClose} aria-label="Close settings panel">
               <span className="material-symbols-outlined text-[22px]">close</span>
             </button>
           </div>
         </header>
 
-        <div className="new-ux-side-panel__body new-ux-settings-panel__body">
+        <div className="app-side-panel__body app-settings-panel__body">
           <div className="space-y-4">
 
             {/* About + Language */}
-            <section className="new-ux-settings-panel__narrow">
+            <section className="app-settings-panel__narrow">
               <div className="flex flex-col gap-3">
                 <div className="order-2 r-card p-3 border transition-colors" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                   <div className="flex items-center justify-between gap-2">
@@ -157,7 +149,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       </button>
 
                       <div
-                        className="new-ux-inline-popover absolute left-0 right-0 top-full overflow-hidden z-50"
+                        className="app-inline-popover absolute left-0 right-0 top-full overflow-hidden z-50"
                         style={{
                           transform: isLangDropdownOpen ? 'scaleY(1)' : 'scaleY(0)',
                           transformOrigin: 'top center',
@@ -203,7 +195,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* WebDAV */}
-            <section className="new-ux-settings-panel__narrow">
+            <section className="app-settings-panel__narrow">
               <WebdavSection
                 theme={themeUtils}
                 serverUrl={webdav.serverUrl}
@@ -222,7 +214,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* Experimental Features */}
-            <section className="new-ux-settings-panel__narrow r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <section className="app-settings-panel__narrow r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                 <span className="material-symbols-outlined text-lg" style={{ color: colors.textMuted }}>science</span>
                 {t('settings.experimental')}
@@ -411,13 +403,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
             </section>
 
             {/* Shortcuts */}
-            <section className="new-ux-settings-panel__narrow">
+            <section className="app-settings-panel__narrow">
               <ShortcutsSettings layout="single" />
             </section>
 
             {/* Online Music — only visible when experimental toggle is enabled */}
             {qqMusicEnabled && (
-              <section className="new-ux-settings-panel__narrow">
+              <section className="app-settings-panel__narrow">
                 <OnlineMusicSection
                   theme={themeUtils}
                   onlineSource={onlineMusic.onlineSource}

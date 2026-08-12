@@ -3,6 +3,8 @@ import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCooki
 import { settingsManager, type OnlineSource } from '@/services/settingsManager';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
+
+// Owns provider login and download-path state independently from panel layout.
 import {
   startQQLogin,
   pollQQLogin,

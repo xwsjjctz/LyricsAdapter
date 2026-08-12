@@ -7,6 +7,8 @@ import { settingsManager } from '@/services/settingsManager';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
 
+// Presentational provider settings section used by the application settings panel.
+
 interface OnlineMusicSectionProps {
   theme: SettingsTheme;
   onlineSource: OnlineSource;

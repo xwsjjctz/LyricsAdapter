@@ -31,8 +31,8 @@ app.commandLine.appendSwitch('log-level', '3');
 // propagate to the renderer's `--secure-schemes` switch in packaged builds
 // (observed on Electron 42: only schemes that also carry `stream: true`
 // survive into `--secure-schemes`). Without a secure context, Chromium
-// silently ignores `backdrop-filter`, which is exactly why all New UI
-// frosted-glass surfaces render flat in the packaged app but work in dev
+// silently ignores `backdrop-filter`, causing frosted-glass surfaces to render
+// flat in the packaged app even though they work in dev
 // (localhost is a "potentially trustworthy" secure context).
 //
 // Appending this switch explicitly is belt-and-braces: it guarantees the

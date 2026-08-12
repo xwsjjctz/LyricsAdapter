@@ -4,7 +4,7 @@ import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarLayout';
 import { useTranslation } from 'react-i18next';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
-import { useOnlinePlaylists } from '../hooks/new-ui/useOnlinePlaylists';
+import { useOnlinePlaylists } from '../hooks/useOnlinePlaylists';
 import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
 import {
   applyOverrides,

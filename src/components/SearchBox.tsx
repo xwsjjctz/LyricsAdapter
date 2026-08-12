@@ -55,9 +55,6 @@ interface SearchBoxProps {
   onOnlineUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
   onOnlineStreamPlay: (song: OnlineSong, source: 'qq' | 'netease') => void;
   onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
-  /** 'new-ux' strips legacy inline styles; CSS in components.css takes over. */
-  variant?: 'new-ux';
-  onExpandedChange?: (expanded: boolean) => void;
 }
 
 const SearchBox: React.FC<SearchBoxProps> = ({
@@ -69,8 +66,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   onOnlineUpload,
   onOnlineStreamPlay,
   onlineProgress,
-  variant,
-  onExpandedChange,
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -92,10 +87,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
   const colors = currentTheme.colors;
   const isExpanded = isFocused && query.trim().length > 0;
-
-  useEffect(() => {
-    onExpandedChange?.(isExpanded);
-  }, [isExpanded, onExpandedChange]);
 
   // Filter local/cloud tracks
   const filteredLocal = useMemo(() => {
@@ -197,12 +188,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     <div
       ref={containerRef}
       className="relative"
-      style={variant === 'new-ux' ? undefined : { width: '360px' }}
+      style={{ width: '360px' }}
     >
       {/* Input bar */}
       <div
-        className={`flex items-center shrink-0 relative${variant === 'new-ux' ? ` new-ux-search-bar${isExpanded ? ' new-ux-search-bar--expanded' : ''}` : ''}`}
-        style={variant === 'new-ux' ? undefined : {
+        className="flex items-center shrink-0 relative"
+        style={{
           height: '36px',
           background: colors.backgroundDark,
           backdropFilter: 'blur(16px)',
@@ -239,18 +230,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
       {/* Results panel */}
       <div
-        className={`overflow-hidden${variant === 'new-ux' ? ' new-ux-search-results' : ''}`}
-        style={variant === 'new-ux' ? {
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: '100%',
-          zIndex: 50,
-          transform: isExpanded ? 'scaleY(1)' : 'scaleY(0)',
-          transformOrigin: 'top center',
-          opacity: isExpanded ? 1 : 0,
-          transition: 'transform 0.22s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.18s ease',
-        } : {
+        className="overflow-hidden"
+        style={{
           position: 'absolute',
           left: 0,
           right: 0,
@@ -268,77 +249,14 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           boxShadow: isExpanded ? 'var(--theme-elevated-shadow)' : 'none',
         }}
       >
-        <div className={variant === 'new-ux' ? 'max-h-[min(65vh,540px)] overflow-y-auto no-scrollbar' : 'max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar'}>
+        <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">
           {!hasAny ? (
             <div className="px-5 py-10 text-center" style={{ color: colors.textMuted }}>
               <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
               <p className="text-sm">{t('search.noResults')}</p>
             </div>
-          ) : variant === 'new-ux' ? (
-            /* ── Card grid layout for New UI ── */
-            <div className="new-ux-search-card-grid">
-              {hasLocal && (
-                <>
-                  <div className="new-ux-search-card-grid__label">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>hard_drive</span>
-                    {t('sidebar.local')}
-                    <span style={{ opacity: 0.5 }}>({filteredLocal.length})</span>
-                  </div>
-                  {filteredLocal.map((track, idx) => (
-                    <SearchCard key={track.id}
-                      {...(track.coverUrl ? { coverUrl: track.coverUrl } : {})}
-                      trackId={track.id}
-                      {...(track.filePath ? { filePath: track.filePath } : {})}
-                      title={track.title} meta={track.artist}
-                      isSelected={selectedIndex === idx}
-                      onClick={() => { onNavigateToTrack(track); collapse(); }}
-                    />
-                  ))}
-                </>
-              )}
-              {hasCloud && (
-                <>
-                  <div className="new-ux-search-card-grid__label">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>cloud</span>
-                    {t('sidebar.cloud')}
-                    <span style={{ opacity: 0.5 }}>({filteredCloud.length})</span>
-                  </div>
-                  {filteredCloud.map((track, idx) => (
-                    <SearchCard key={track.id}
-                      {...(track.coverUrl ? { coverUrl: track.coverUrl } : {})}
-                      trackId={track.id}
-                      {...(track.filePath ? { filePath: track.filePath } : {})}
-                      title={track.title} meta={track.artist}
-                      isSelected={selectedIndex === filteredLocal.length + idx}
-                      onClick={() => { onNavigateToTrack(track); collapse(); }}
-                    />
-                  ))}
-                </>
-              )}
-              {hasQQ && (
-                <>
-                  <div className="new-ux-search-card-grid__label">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>language</span>
-                    {i18n.t('search.thirdPartySource')}
-                    {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
-                  </div>
-                  {onlineResults.length === 0 && qqLoading ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted, gridColumn: '1 / -1' }}>{t('search.searching')}...</div>
-                  ) : (
-                    onlineResults.map(({ source, song }) => (
-                      <SearchCard key={`${source}-${song.songmid}`}
-                        {...(song.coverUrl ? { coverUrl: song.coverUrl } : {})}
-                        title={song.songname} meta={song.singer?.map(s => s.name).join(' & ') || ''}
-                        isSelected={false}
-                        onClick={() => onOnlineStreamPlay(song, source)}
-                      />
-                    ))
-                  )}
-                </>
-              )}
-            </div>
           ) : (
-            /* ── Legacy row-based layout ── */
+            /* ── Row-based result layout ── */
             <div className="py-3">
               {hasLocal && (
                 <div className="mb-2">
@@ -526,32 +444,5 @@ const QQRow: React.FC<{
     )}
   </div>
 ); };
-
-/** Card-style result item for the New UI search grid. */
-const SearchCard: React.FC<{
-  coverUrl?: string; trackId?: string; filePath?: string;
-  title: string; meta: string; isSelected: boolean; onClick: () => void;
-}> = ({ coverUrl, trackId, filePath, title, meta, isSelected, onClick }) => (
-  <div
-    className={`new-ux-search-card${isSelected ? ' selected' : ''}`}
-    onClick={onClick}
-  >
-    <div className="new-ux-search-card__cover">
-      {coverUrl ? (
-        <img src={coverUrl} alt="" draggable={false} />
-      ) : trackId ? (
-        <TrackCover trackId={trackId} filePath={filePath} fallbackUrl={coverUrl} className="w-full h-full object-cover" />
-      ) : (
-        <div className="new-ux-search-card__cover-fallback">
-          <span className="material-symbols-outlined">music_note</span>
-        </div>
-      )}
-    </div>
-    <div className="new-ux-search-card__info">
-      <div className="new-ux-search-card__title">{title}</div>
-      <div className="new-ux-search-card__meta">{meta}</div>
-    </div>
-  </div>
-);
 
 export default SearchBox;

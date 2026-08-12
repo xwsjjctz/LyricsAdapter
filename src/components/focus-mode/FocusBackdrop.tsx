@@ -5,7 +5,6 @@ interface FocusBackdropProps {
   bgBlurRadius: number;
   isLinux: boolean;
   canvasRef: React.Ref<HTMLCanvasElement>;
-  ambientLayer: React.ReactNode;
 }
 
 const FocusBackdrop: React.FC<FocusBackdropProps> = ({
@@ -13,7 +12,6 @@ const FocusBackdrop: React.FC<FocusBackdropProps> = ({
   bgBlurRadius,
   isLinux,
   canvasRef,
-  ambientLayer,
 }) => (
   <>
     {hasBackground && (
@@ -30,7 +28,6 @@ const FocusBackdrop: React.FC<FocusBackdropProps> = ({
         }}
       />
     )}
-    {ambientLayer}
     <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
   </>
 );
