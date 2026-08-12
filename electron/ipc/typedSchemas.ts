@@ -4,8 +4,23 @@ import {
   userDataSnapshotSchema,
   userTrackRecordSchema,
 } from '../../src/shared/userDataSchema';
+import { libraryIndexSnapshotSchema } from '../../src/shared/libraryIndexSchema';
 
 export { userDataSnapshotSchema } from '../../src/shared/userDataSchema';
+
+function storeReadSchema<T extends z.ZodTypeAny>(dataSchema: T) {
+  return z.discriminatedUnion('status', [
+    z.object({ status: z.literal('ready'), data: dataSchema }),
+    z.object({ status: z.literal('error'), error: z.string() }),
+  ]);
+}
+
+/** Response schema for the read-only persistence bootstrap facade. */
+export const persistenceBootstrapSchema = z.object({
+  settings: storeReadSchema(stringRecordSchema),
+  userData: storeReadSchema(userDataSnapshotSchema),
+  libraryIndex: storeReadSchema(libraryIndexSnapshotSchema),
+});
 
 const httpUrlSchema = z.string().url().refine(value => {
   const protocol = new URL(value).protocol;

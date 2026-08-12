@@ -20,6 +20,7 @@ import type { UserDataSnapshot } from '../types/typedIpc';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { shortcutManager } from '../services/shortcuts';
+import { libraryPersistenceRepository } from '../repositories/libraryPersistenceRepository';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
@@ -660,20 +661,12 @@ export function useLibraryLoad({
     const loadLibraryFromDisk = async () => {
       logger.debug('[LibraryLoad] Loading library from disk...');
       try {
-        const libraryData = await libraryStorage.loadLibrary();
+        const bootstrap = await libraryPersistenceRepository.loadBootstrap();
+        const { libraryData, settingsResult, userDataResult } = bootstrap;
         let restoredLibraryData = libraryData;
 
-        if (isDesktop()) {
+        if (bootstrap.desktop) {
           try {
-            const api = await getDesktopAPIAsync();
-            const [settingsResult, userDataResult] = await Promise.allSettled([
-              api?.settingsGetAll
-                ? api.settingsGetAll()
-                : Promise.reject(new Error('Desktop settings API unavailable')),
-              api?.userDataLoad
-                ? api.userDataLoad()
-                : Promise.reject(new Error('Desktop user-data API unavailable')),
-            ]);
             const mainSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : {};
             const userData = userDataResult.status === 'fulfilled' ? userDataResult.value : undefined;
             userDataWritableRef.current = userDataResult.status === 'fulfilled';

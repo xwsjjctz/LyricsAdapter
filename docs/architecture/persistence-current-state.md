@@ -1,6 +1,6 @@
 # 持久化现状、权威关系与 SQLite 迁移边界
 
-> 状态：现状审计，更新至 2026-08-13。Phase 0 已完成 typed IPC 契约、敏感 `localStorage` 隔离、版本化空曲库语义、受控旧设置迁移和 JSON 主备恢复加固；文中会明确区分已收口项与剩余问题。
+> 状态：现状审计，更新至 2026-08-13。Phase 0 已完成 typed IPC 契约、敏感 `localStorage` 隔离、版本化空曲库语义、受控旧设置迁移和 JSON 主备恢复加固；Phase 1 已完成只读启动 Repository 的第一切片。文中会明确区分已收口项与剩余问题。
 >
 > 范围：`library-index.json`、`users.json`、`settings.json`、`localStorage`、IndexedDB、封面/音频文件，以及 WebDAV `Metadata/` manifest/chunks。当前迁移不改变曲库、播放或 UI 交互格式，也不执行破坏性数据清理。
 
@@ -113,7 +113,7 @@ flowchart LR
 
 ### 启动时谁优先
 
-`src/hooks/useLibraryLoad.ts` 的实际顺序是：
+启动读取现由 main `PersistenceRepository` 通过单个 typed IPC 返回三个相互独立的 `ready/error` 结果；renderer 的 `libraryPersistenceRepository` 只做兼容适配，权威判定仍沿用原策略。旧 preload 暂时回退到三个 legacy read。`src/hooks/useLibraryLoad.ts` 的实际恢复顺序是：
 
 1. 先读 `library-index.json`；
 2. 桌面端独立读取 `settings.json` 和 `users.json`，单个来源失败不会阻止另一个来源恢复；
@@ -406,8 +406,10 @@ cover_blobs
 
 ### Phase 1：引入 Repository façade，不换数据源
 
-- 把 `useLibraryLoad`、settings manager、WebDAV hook 的直接存储调用收口到 Repository；
-- 提供单个 `bootstrap()`，在 React render 前返回一致的 snapshot；
+- [x] main 提供单个只读 `loadBootstrap()`，逐源返回 settings/users/library-index 的成功或失败，不在 transport 层合并权威数据；
+- [x] `useLibraryLoad` 的启动三源读取改走 renderer 薄 façade，并保留一版旧 preload fallback；
+- [ ] 把 `useLibraryLoad` 的权威判定抽成纯 reconciler，并将写入/flush 逐步收口到 main use-case；
+- [ ] 把 settings manager、WebDAV hook 的直接存储调用收口到按领域拆分的 Repository；
 - 长操作使用 operation id / progress / cancellation，renderer 不再拿任意路径或 secret；
 - 为 legacy JSON、localStorage、IDB 写 adapter 和契约测试。
 

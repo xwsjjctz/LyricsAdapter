@@ -7,7 +7,7 @@ import { parseAudioFile as parseAudioFileSync } from './metadataService';
 import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 import { logger } from './logger';
 import { APP } from '../constants/config';
-import type { IpcResult, TypedElectronIPC, UserDataSnapshot } from '../types/typedIpc';
+import type { IpcResult, PersistenceBootstrap, TypedElectronIPC, UserDataSnapshot } from '../types/typedIpc';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
@@ -140,6 +140,8 @@ export interface DesktopAPI {
   settingsSetMany?: (entries: Record<string, string>) => Promise<void>;
   settingsDelete?: (key: string) => Promise<void>;
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
+  // Aggregate persistence bootstrap (new typed IPC; optional for stale preload compatibility)
+  persistenceLoadBootstrap?: () => Promise<PersistenceBootstrap>;
   // User data store (~/.la/users.json)
   userDataLoad?: () => Promise<UserDataSnapshot>;
   userDataSave?: (data: UserDataSnapshot) => Promise<void>;
@@ -576,6 +578,16 @@ class ElectronAdapter implements FullDesktopAPI {
       return this.api.settingsReplaceAll(entries);
     }
     throw new Error('Desktop settings.replaceAll API is unavailable');
+  }
+
+  async persistenceLoadBootstrap(): Promise<PersistenceBootstrap> {
+    if (this.api.ipc?.persistence?.loadBootstrap) {
+      return unwrapIpcRead<PersistenceBootstrap>(await this.api.ipc.persistence.loadBootstrap());
+    }
+    if (typeof this.api.persistenceLoadBootstrap === 'function') {
+      return this.api.persistenceLoadBootstrap();
+    }
+    throw new Error('Desktop persistence.loadBootstrap API is unavailable');
   }
 
   // ---- User Data Store (~/.la/users.json) ----

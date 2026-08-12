@@ -10,6 +10,21 @@ export interface UserDataSnapshot {
   playback: Record<string, string>;
 }
 
+/** Read status for one physical persistence source during application bootstrap. */
+export type StoreRead<T> =
+  | { status: 'ready'; data: T }
+  | { status: 'error'; error: string };
+
+/**
+ * Independent read results for the three stores used to restore the library.
+ * One damaged source must not hide the other two from the renderer.
+ */
+export interface PersistenceBootstrap {
+  settings: StoreRead<Record<string, string>>;
+  userData: StoreRead<UserDataSnapshot>;
+  libraryIndex: StoreRead<unknown>;
+}
+
 export interface TypedElectronIPC {
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
@@ -45,5 +60,8 @@ export interface TypedElectronIPC {
     saveTracks: (tracks: unknown[]) => Promise<IpcResult<void>>;
     saveLibraryState: (tracks: unknown[], playback: Record<string, string>) => Promise<IpcResult<void>>;
     getFilePath: () => Promise<IpcResult<string>>;
+  };
+  persistence: {
+    loadBootstrap: () => Promise<IpcResult<PersistenceBootstrap>>;
   };
 }

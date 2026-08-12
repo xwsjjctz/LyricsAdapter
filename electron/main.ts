@@ -20,6 +20,7 @@ import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { registerUserDataHandlers } from './ipc/userDataHandlers';
+import { registerPersistenceHandlers } from './ipc/persistenceHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
@@ -67,6 +68,9 @@ app.whenReady().then(async () => {
   registerCleanupHandlers();
   registerSettingsHandlers();
   registerUserDataHandlers();
+  // Store initialization and legacy migrations above must finish before the
+  // aggregate read facade can be called by the renderer.
+  registerPersistenceHandlers();
   registerNotificationHandlers();
 
   await createWindow();

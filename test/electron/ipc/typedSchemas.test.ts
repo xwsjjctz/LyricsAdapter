@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { typedIpcSchemas } from '../../../electron/ipc/typedSchemas';
+import { persistenceBootstrapSchema, typedIpcSchemas } from '../../../electron/ipc/typedSchemas';
 
 describe('typedIpcSchemas', () => {
   it('accepts valid WebDAV range payloads', () => {
@@ -71,6 +71,36 @@ describe('typedIpcSchemas', () => {
         settings: {},
         playback: {},
       },
+    }).success).toBe(false);
+  });
+
+  it('validates each persistence bootstrap source independently', () => {
+    const valid = persistenceBootstrapSchema.safeParse({
+      settings: { status: 'error', error: 'settings unavailable' },
+      userData: {
+        status: 'ready',
+        data: {
+          schemaVersion: 1,
+          libraryInitialized: true,
+          tracks: [],
+          settings: {},
+          playback: {},
+        },
+      },
+      libraryIndex: { status: 'ready', data: { songs: [], settings: {} } },
+    });
+    const invalid = persistenceBootstrapSchema.safeParse({
+      settings: { status: 'ready', data: { 'app-theme': 42 } },
+      userData: { status: 'error', error: 'users unavailable' },
+      libraryIndex: { status: 'ready', data: {} },
+    });
+
+    expect(valid.success).toBe(true);
+    expect(invalid.success).toBe(false);
+    expect(persistenceBootstrapSchema.safeParse({
+      settings: { status: 'ready', data: {} },
+      userData: { status: 'error', error: 'users unavailable' },
+      libraryIndex: { status: 'ready', data: null },
     }).success).toBe(false);
   });
 });

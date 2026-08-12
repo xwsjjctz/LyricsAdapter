@@ -43,6 +43,9 @@ const typedIpc = {
     ),
     getFilePath: async () => ipcRenderer.invoke('ipc:userData:getFilePath'),
   },
+  persistence: {
+    loadBootstrap: async () => ipcRenderer.invoke('ipc:persistence:loadBootstrap'),
+  },
 } satisfies TypedElectronIPC;
 
 // Expose protected methods that allow the renderer process to use

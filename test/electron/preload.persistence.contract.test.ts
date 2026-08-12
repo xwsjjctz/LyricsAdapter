@@ -22,6 +22,9 @@ interface ExposedPersistenceApi {
       saveLibraryState: (tracks: unknown[], playback: Record<string, string>) => Promise<unknown>;
       getFilePath: () => Promise<unknown>;
     };
+    persistence: {
+      loadBootstrap: () => Promise<unknown>;
+    };
   };
 }
 
@@ -130,5 +133,14 @@ describe('preload persistence typed IPC contract', () => {
       playback: snapshot.playback,
     });
     expect(invoke).toHaveBeenNthCalledWith(5, 'ipc:userData:getFilePath');
+  });
+
+  it('routes the aggregate persistence bootstrap through the typed channel', async () => {
+    const { api, invoke, response } = executePreload();
+
+    await expect(api.ipc.persistence.loadBootstrap()).resolves.toBe(response);
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('ipc:persistence:loadBootstrap');
   });
 });

@@ -10,6 +10,9 @@ vi.mock('@/services/logger', () => ({
 }));
 
 interface PersistenceIpcFixture {
+  persistence?: {
+    loadBootstrap?: ReturnType<typeof vi.fn>;
+  };
   settings?: {
     get?: ReturnType<typeof vi.fn>;
     getAll?: ReturnType<typeof vi.fn>;
@@ -123,6 +126,51 @@ describe('desktopAdapter persistence IPC compatibility', () => {
     await expect(adapter.userDataLoad?.()).rejects.toThrow('read failed');
   });
 
+  it('unwraps the aggregate typed bootstrap and rejects its outer IpcResult failure', async () => {
+    const bootstrap = {
+      settings: { status: 'ready' as const, data: { 'app-theme': 'default-dark' } },
+      userData: {
+        status: 'ready' as const,
+        data: {
+          schemaVersion: 1 as const,
+          libraryInitialized: true,
+          tracks: [],
+          settings: {},
+          playback: {},
+        },
+      },
+      libraryIndex: { status: 'ready' as const, data: { songs: [], settings: {} } },
+    };
+    const loadBootstrap = vi.fn()
+      .mockResolvedValueOnce({ ok: true, data: bootstrap })
+      .mockResolvedValueOnce({ ok: false, error: 'bootstrap failed' });
+    const adapter = await createAdapter({ persistence: { loadBootstrap } });
+
+    await expect(adapter.persistenceLoadBootstrap?.()).resolves.toBe(bootstrap);
+    await expect(adapter.persistenceLoadBootstrap?.()).rejects.toThrow('bootstrap failed');
+  });
+
+  it('unwraps the aggregate bootstrap without merging its independent source results', async () => {
+    const bootstrap = {
+      settings: { status: 'ready' as const, data: { 'app-theme': 'default-dark' } },
+      userData: {
+        status: 'error' as const,
+        error: 'users corrupt',
+      },
+      libraryIndex: {
+        status: 'ready' as const,
+        data: { songs: [], settings: {} },
+      },
+    };
+    const adapter = await createAdapter({
+      persistence: {
+        loadBootstrap: vi.fn().mockResolvedValue({ ok: true, data: bootstrap }),
+      },
+    });
+
+    await expect(adapter.persistenceLoadBootstrap?.()).resolves.toBe(bootstrap);
+  });
+
   it('rejects failed typed writes instead of silently reporting success', async () => {
     const adapter = await createAdapter({
       settings: {
@@ -171,5 +219,6 @@ describe('desktopAdapter persistence IPC compatibility', () => {
     await expect(adapter.settingsSet?.('app-theme', 'default-dark')).rejects.toThrow('settings.set API is unavailable');
     await expect(adapter.userDataLoad?.()).rejects.toThrow('userData.load API is unavailable');
     await expect(adapter.userDataSaveLibraryState?.([], {})).rejects.toThrow('saveLibraryState API is unavailable');
+    await expect(adapter.persistenceLoadBootstrap?.()).rejects.toThrow('persistence.loadBootstrap API is unavailable');
   });
 });
