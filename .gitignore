@@ -81,9 +81,6 @@ todolist.md
 problem.md
 problems.md
 /talk
-/docs/*
-/docs
-
 /reserve
 /reserve/*
 
@@ -91,8 +88,6 @@ problems.md
 /.opencode
 /binaries
 /binaries/*
-/docs
-/docs/*
 /.playwright-mcp
 
 /.codegraph
