@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "@playwright/test"
+    ]
+  },
+  "include": [
+    "test/playwright.electron.config.ts",
+    "test/e2e/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "dist-electron",
+    "release",
+    "node_modules"
+  ]
+}

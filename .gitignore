@@ -89,9 +89,10 @@ problems.md
 /binaries
 /binaries/*
 /.playwright-mcp
+/test-results
+/playwright-report
 
 /.codegraph
 /_metadata.json
-AGENTS.md
 /.agents
 /.zcode

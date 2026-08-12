@@ -8,10 +8,11 @@
   "license": "GPLv3",
   "description": "一款能解析音频内嵌歌词且挺好看的离线本地音乐播放器",
   "scripts": {
-    "dev": "vite --mode development",
+    "dev": "cross-env ELECTRON_STARTUP_PREVENT=1 vite --mode development",
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "vite --mode development",
+    "electron:debug": "cross-env REMOTE_DEBUGGING_PORT=9222 ELECTRON_INSPECT=127.0.0.1:9229 vite --mode electron-debug",
     "electron:dev:proxy": "cross-env NODE_OPTIONS=--require=./scripts/proxy-preload.cjs vite --mode development",
     "electron:build": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder",
     "electron:build:win": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --x64",
@@ -21,7 +22,12 @@
     "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build && playwright test --config=test/playwright.electron.config.ts",
+    "test:e2e:run": "playwright test --config=test/playwright.electron.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:e2e": "tsc --project tsconfig.e2e.json",
+    "check": "npm run typecheck && npm run typecheck:e2e && npm test && npm run build"
   },
   "dependencies": {
     "@applemusic-like-lyrics/lyric": "^1.0.2",
@@ -40,6 +46,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/mcp": "^0.0.79",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

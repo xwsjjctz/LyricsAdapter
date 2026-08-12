@@ -1,0 +1,10 @@
+[mcp_servers.lyricsadapter-electron]
+command = "npx"
+args = [
+  "--no-install",
+  "playwright-mcp",
+  "--cdp-endpoint",
+  "http://127.0.0.1:9222",
+  "--output-dir",
+  ".playwright-mcp",
+]

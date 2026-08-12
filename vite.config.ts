@@ -6,6 +6,8 @@ import electron from 'vite-plugin-electron';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
+    const isElectronDebug = mode === 'electron-debug';
+
     return {
       base: './',
       // Vite root stays at the repo root: vite-plugin-electron spawns Electron
@@ -15,11 +17,14 @@ export default defineConfig(({ mode }) => {
       // alias below also points at src/.
       server: {
         port: 3000,
-        host: '0.0.0.0',
+        strictPort: true,
+        // Renderer development is local-only. CDP/Inspector are also bound to
+        // loopback in the dedicated debug workflow.
+        host: '127.0.0.1',
         // Allow cross-origin requests from app://localhost (used in dev mode
         // by the app:// protocol proxy for origin-unified localStorage/IndexedDB).
         cors: {
-          origin: ['app://localhost', 'http://localhost:3000'],
+          origin: ['app://localhost', 'http://127.0.0.1:3000'],
           credentials: true,
         },
         // HMR must use explicit host:port because the page origin is app://localhost
@@ -28,7 +33,7 @@ export default defineConfig(({ mode }) => {
         // __HMR_PORT__ into the client so it connects to ws://localhost:3000.
         hmr: {
           protocol: 'ws',
-          host: 'localhost',
+          host: '127.0.0.1',
           port: 3000,
         },
       },
@@ -49,6 +54,7 @@ export default defineConfig(({ mode }) => {
             vite: {
               build: {
                 outDir: 'dist-electron',
+                sourcemap: isElectronDebug,
                 rollupOptions: {
                   external: ['electron', 'music-tag-native']
                 }
@@ -63,6 +69,7 @@ export default defineConfig(({ mode }) => {
             vite: {
               build: {
                 outDir: 'dist-electron',
+                sourcemap: isElectronDebug,
                 lib: {
                   entry: 'electron/preload.ts',
                   formats: ['cjs'],
@@ -79,6 +86,7 @@ export default defineConfig(({ mode }) => {
             vite: {
               build: {
                 outDir: 'dist-electron',
+                sourcemap: isElectronDebug,
                 rollupOptions: {
                   external: ['electron']
                 }

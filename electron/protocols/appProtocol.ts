@@ -76,8 +76,8 @@ export function registerAllSchemes(): void {
 /**
  * Register the app:// protocol handler.
  *
- * - Packaged (production): serves static files from dist/.
- * - Dev (Vite dev server): proxies to http://localhost:3000 so that the page
+ * - Packaged (production) and isolated Electron E2E: serve static files from dist/.
+ * - Dev (Vite dev server): proxies to http://127.0.0.1:3000 so that the page
  *   origin stays app://localhost in both modes. This unifies localStorage and
  *   IndexedDB storage across dev and production builds.
  */
@@ -85,16 +85,17 @@ export async function registerAppProtocolHandler(): Promise<void> {
   await app.whenReady();
 
   const distDir = getRendererDistDir();
+  const serveBuiltRenderer = app.isPackaged || process.env['LYRICS_ADAPTER_E2E_STATIC'] === '1';
 
   protocol.handle('app', async (request) => {
     try {
       const url = new URL(request.url);
 
-      if (!app.isPackaged) {
+      if (!serveBuiltRenderer) {
         // Dev mode: proxy to Vite dev server.
         // Forward headers + method so Vite can properly negotiate content type
         // (especially important for CSS and JS modules).
-        const targetUrl = `http://localhost:3000${url.pathname}${url.search}`;
+        const targetUrl = `http://127.0.0.1:3000${url.pathname}${url.search}`;
         try {
           const headers = new Headers();
           for (const [key, value] of request.headers.entries()) {
@@ -116,7 +117,7 @@ export async function registerAppProtocolHandler(): Promise<void> {
         }
       }
 
-      // Packaged mode: serve static files from dist/
+      // Packaged and Electron E2E modes: serve static files from dist/.
       const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
       const filePath = path.join(distDir, relativePath);
 
@@ -134,5 +135,5 @@ export async function registerAppProtocolHandler(): Promise<void> {
     }
   });
 
-  logger.info('[app://] Protocol handler registered (dev=' + !app.isPackaged + '), dist:', distDir);
+  logger.info(`[app://] Protocol handler registered (source=${serveBuiltRenderer ? 'dist' : 'vite'}), dist:`, distDir);
 }
