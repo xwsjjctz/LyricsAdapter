@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
-import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from '../services/libraryStorage';
+import type { LibraryIndexData, LibrarySettings } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong, type UserTrackRecord } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots, buildMinimalTracks } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
@@ -12,15 +12,20 @@ import { appStorage } from '../services/appStorage';
 import { webdavClient } from '../services/webdavClient';
 import { settingsManager } from '../services/settingsManager';
 import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
-import {
-  filterLegacyMigratableSettings,
-  filterPublicSettings,
-} from '../shared/persistencePolicy';
 import type { UserDataSnapshot } from '../types/typedIpc';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { shortcutManager } from '../services/shortcuts';
 import { libraryPersistenceRepository } from '../repositories/libraryPersistenceRepository';
+import {
+  buildSettingsFromUserData,
+  buildSettingsHydrationPlan,
+  buildSettingsRecoverySnapshot,
+  buildUserTracksFromLibraryCache,
+  getUserTrackRecords,
+  hasPersistedTracks,
+  resolveUserDataLibrary,
+} from '../domain/library-persistence/reconcilePersistedLibrary';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
@@ -40,120 +45,6 @@ interface UseLibraryLoadOptions {
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
 
-const SLOT_IDS: SlotId[] = ['local', 'cloud', 'online', 'playlist'];
-
-function isSlotId(value: unknown): value is SlotId {
-  return typeof value === 'string' && SLOT_IDS.includes(value as SlotId);
-}
-
-function hasPersistedTracks(libraryData: Partial<LibraryIndexData>): boolean {
-  return Boolean(
-    libraryData.songs?.length ||
-    libraryData.cloudSongs?.length ||
-    libraryData.onlineSongs?.length ||
-    libraryData.playlistSongs?.length
-  );
-}
-
-function selectSettingsSource(userData: UserDataSnapshot, settingsFromStore?: Record<string, string>): Record<string, string> {
-  return settingsFromStore && Object.keys(settingsFromStore).length > 0
-    ? settingsFromStore
-    : userData.settings || {};
-}
-
-function parsePlaybackSettings(userData: UserDataSnapshot, settingsSource?: Record<string, string>): LibrarySettings {
-  const raw = userData.playback?.['_json'] || settingsSource?.['playback'] || userData.settings?.['playback'];
-  if (!raw) return {};
-
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function buildSettingsFromUserData(
-  userData: UserDataSnapshot,
-  fallbackSettings: LibrarySettings,
-  settingsFromStore?: Record<string, string>
-): LibrarySettings {
-  const settingsSource = selectSettingsSource(userData, settingsFromStore);
-  return {
-    ...fallbackSettings,
-    ...parsePlaybackSettings(userData, settingsSource),
-  };
-}
-
-function getUserTrackRecords(userData: UserDataSnapshot): UserTrackRecord[] {
-  return (userData.tracks || []).filter((record): record is UserTrackRecord => {
-    return Boolean(record && typeof record === 'object' && typeof (record as UserTrackRecord).id === 'string');
-  });
-}
-
-function inferSlotId(record: UserTrackRecord): SlotId {
-  if (isSlotId(record.slotId)) return record.slotId;
-  if (record.source === 'webdav') return 'cloud';
-  if (record.source === 'qq' || record.source === 'netease') return 'online';
-  return 'local';
-}
-
-function collectCachedSongsById(libraryData: Partial<LibraryIndexData>): Map<string, LibraryIndexSong> {
-  const cachedSongs = [
-    ...(libraryData.songs || []),
-    ...(libraryData.cloudSongs || []),
-    ...(libraryData.onlineSongs || []),
-    ...(libraryData.playlistSongs || []),
-  ];
-  return new Map(cachedSongs.map(song => [song.id, song]));
-}
-
-function mergeUserTrackWithCachedSong(record: UserTrackRecord, cached?: LibraryIndexSong): LibraryIndexSong {
-  const userSong = minimalTrackToLibrarySong(record);
-  if (!cached) return userSong;
-
-  const merged: LibraryIndexSong = {
-    ...cached,
-    ...userSong,
-    title: cached.title || userSong.title,
-    artist: cached.artist || userSong.artist,
-    album: cached.album || userSong.album,
-    duration: cached.duration || userSong.duration,
-  };
-  const lyrics = cached.lyrics || userSong.lyrics;
-  const syncedLyrics = cached.syncedLyrics || userSong.syncedLyrics;
-  const coverUrl = cached.coverUrl || userSong.coverUrl;
-  if (lyrics) merged.lyrics = lyrics;
-  if (syncedLyrics) merged.syncedLyrics = syncedLyrics;
-  if (coverUrl) merged.coverUrl = coverUrl;
-  return merged;
-}
-
-/**
- * 将缓存层（library-index.json）的歌曲按 slot 提取为最小化用户记录，
- * 用于在 ~/.la/users.json 尚未被填充时把现有库"播种"进用户数据。
- * 这是"清缓存后可从用户数据重建"目标的兜底：只要 cache 还在，
- * 首次启动就把归属信息写入 users.json，之后清掉 cache 也能恢复。
- */
-function songsToMinimalRecords(songs: LibraryIndexSong[] | undefined, slotId: SlotId): UserTrackRecord[] {
-  if (!songs || songs.length === 0) return [];
-  return songs.map(song => ({
-    id: song.id,
-    slotId,
-    ...(song.filePath ? { filePath: song.filePath } : undefined),
-    ...(song.webdavPath ? { webdavPath: song.webdavPath } : undefined),
-    ...(song.fileName ? { fileName: song.fileName } : undefined),
-    ...(song.fileSize ? { fileSize: song.fileSize } : undefined),
-    ...(song.lastModified ? { lastModified: song.lastModified } : undefined),
-    ...(song.source ? { source: song.source } : undefined),
-    ...(song.addedAt ? { addedAt: song.addedAt } : undefined),
-    ...(song.playCount != null ? { playCount: song.playCount } : undefined),
-    ...(song.lastPlayed !== undefined ? { lastPlayed: song.lastPlayed } : undefined),
-    ...(song.songmid ? { songmid: song.songmid } : undefined),
-    ...(song.available !== undefined ? { available: song.available } : undefined),
-  }));
-}
-
 async function seedUserDataFromCache(
   libraryData: LibraryIndexData,
   persistData: LibrarySettings
@@ -161,88 +52,13 @@ async function seedUserDataFromCache(
   try {
     const api = await getDesktopAPIAsync();
     if (!api?.userDataSaveLibraryState) return;
-    const tracks: UserTrackRecord[] = [
-      ...songsToMinimalRecords(libraryData.songs, 'local'),
-      ...songsToMinimalRecords(libraryData.cloudSongs, 'cloud'),
-      ...songsToMinimalRecords(libraryData.onlineSongs, 'online'),
-      ...songsToMinimalRecords(libraryData.playlistSongs, 'playlist'),
-    ];
+    const tracks = buildUserTracksFromLibraryCache(libraryData);
     if (tracks.length === 0) return;
     await api.userDataSaveLibraryState(tracks, { _json: JSON.stringify(persistData) });
     logger.info('[LibraryLoad] Seeded ~/.la/users.json from cache, tracks:', tracks.length);
   } catch (e) {
     logger.warn('[LibraryLoad] Failed to seed ~/.la/users.json from cache:', e);
   }
-}
-
-function buildLibraryDataFromUserData(
-  userData: UserDataSnapshot,
-  fallbackSettings: LibrarySettings,
-  settingsFromStore?: Record<string, string>,
-  cachedLibraryData?: Partial<LibraryIndexData>
-): LibraryIndexData | null {
-  const records = getUserTrackRecords(userData);
-  if (records.length === 0) return null;
-  const cachedById = collectCachedSongsById(cachedLibraryData || {});
-
-  const bySlot: Record<SlotId, UserTrackRecord[]> = {
-    local: [],
-    cloud: [],
-    online: [],
-    playlist: [],
-  };
-
-  for (const record of records) {
-    bySlot[inferSlotId(record)].push(record);
-  }
-
-  const toLibrarySong = (record: UserTrackRecord) => mergeUserTrackWithCachedSong(record, cachedById.get(record.id));
-  const cloudSongs = bySlot.cloud.map(toLibrarySong);
-  const onlineSongs = bySlot.online.map(toLibrarySong);
-  const playlistSongs = bySlot.playlist.map(toLibrarySong);
-
-  return {
-    songs: bySlot.local.map(toLibrarySong),
-    ...(cloudSongs.length > 0 ? { cloudSongs } : {}),
-    ...(onlineSongs.length > 0 ? { onlineSongs } : {}),
-    ...(playlistSongs.length > 0 ? { playlistSongs } : {}),
-    settings: buildSettingsFromUserData(userData, fallbackSettings, settingsFromStore),
-  };
-}
-
-export function resolveUserDataLibrary(
-  userData: UserDataSnapshot,
-  fallbackSettings: LibrarySettings,
-  settingsFromStore?: Record<string, string>,
-  cachedLibraryData?: Partial<LibraryIndexData>,
-): { kind: 'user-data' | 'initialized-empty' | 'migration-pending'; data: LibraryIndexData | null } {
-  const rebuilt = buildLibraryDataFromUserData(
-    userData,
-    fallbackSettings,
-    settingsFromStore,
-    cachedLibraryData,
-  );
-  if (rebuilt) return { kind: 'user-data', data: rebuilt };
-  if (userData.libraryInitialized) {
-    return {
-      kind: 'initialized-empty',
-      data: {
-        songs: [],
-        cloudSongs: [],
-        onlineSongs: [],
-        playlistSongs: [],
-        settings: buildSettingsFromUserData(userData, fallbackSettings, settingsFromStore),
-      },
-    };
-  }
-  return { kind: 'migration-pending', data: null };
-}
-
-export function buildSettingsRecoverySnapshot(userData: UserDataSnapshot): Record<string, string> {
-  const recovered = filterLegacyMigratableSettings(userData.settings);
-  const playbackJson = userData.playback['_json'] || recovered['playback'];
-  if (playbackJson) recovered['playback'] = playbackJson;
-  return recovered;
 }
 
 async function syncSettingsToAppStorage(settings: Record<string, string>, playbackJson?: string): Promise<void> {
@@ -261,17 +77,7 @@ async function syncUserSettingsToAppStorage(
   userData: UserDataSnapshot,
   settingsFromStore?: Record<string, string>
 ): Promise<void> {
-  const publicMainSettings = filterPublicSettings(settingsFromStore || {});
-  // A marker-only main store means AppStorage found no legacy local mirror.
-  // users.json remains the recovery source in that case.
-  const hasMainSettings = Object.keys(publicMainSettings).length > 0;
-  const selectedSettings = filterPublicSettings(selectSettingsSource(userData, settingsFromStore));
-  // users.json is a legacy recovery source, not an unrestricted settings
-  // namespace. Unknown and retired keys must not repopulate an empty main store.
-  const settings = hasMainSettings
-    ? publicMainSettings
-    : filterLegacyMigratableSettings(userData.settings || selectedSettings);
-  const playbackJson = userData.playback?.['_json'] || settings['playback'] || userData.settings?.['playback'];
+  const { settings, playbackJson } = buildSettingsHydrationPlan(userData, settingsFromStore);
   await syncSettingsToAppStorage(settings, playbackJson);
 }
 
@@ -712,6 +518,7 @@ export function useLibraryLoad({
                 libraryData.settings || {},
                 mainSettings,
                 libraryData,
+                () => new Date().toISOString(),
               );
               if (decision.kind === 'user-data' && decision.data) {
                 const rebuiltLibrary = decision.data;

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildLibraryIndexData, buildLibraryIndexDataForSlots } from '@/services/librarySerializer';
+import {
+  buildLibraryIndexData,
+  buildLibraryIndexDataForSlots,
+  minimalTrackToLibrarySong,
+} from '@/services/librarySerializer';
 import type { Track } from '@/types';
 
 function makeTrack(overrides: Partial<Track> = {}): Track {
@@ -124,5 +128,31 @@ describe('buildLibraryIndexData', () => {
     expect(s.filePath).toBe('');
     expect(s.fileSize).toBe(0);
     expect(s.available).toBe(true);
+  });
+
+  it('keeps the legacy minimal-record conversion contract', () => {
+    const result = minimalTrackToLibrarySong({
+      id: 'soda-track',
+      filePath: '/music/soda.flac',
+      addedAt: '2026-01-01T00:00:00.000Z',
+      source: 'soda',
+      playCount: 0,
+      lastPlayed: null,
+      available: false,
+    });
+
+    expect(result).toMatchObject({
+      id: 'soda-track',
+      title: '',
+      artist: '',
+      album: '',
+      duration: 0,
+      filePath: '/music/soda.flac',
+      addedAt: '2026-01-01T00:00:00.000Z',
+      source: 'soda',
+      playCount: 0,
+      lastPlayed: null,
+      available: false,
+    });
   });
 });
