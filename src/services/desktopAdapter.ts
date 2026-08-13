@@ -7,7 +7,14 @@ import { parseAudioFile as parseAudioFileSync } from './metadataService';
 import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
 import { logger } from './logger';
 import { APP } from '../constants/config';
-import type { IpcResult, PersistenceBootstrap, TypedElectronIPC, UserDataSnapshot } from '../types/typedIpc';
+import type {
+  IpcResult,
+  PersistenceBootstrap,
+  PersistenceCloseCommitRequest,
+  PersistenceCloseCommitResult,
+  TypedElectronIPC,
+  UserDataSnapshot,
+} from '../types/typedIpc';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
@@ -103,7 +110,7 @@ export interface DesktopAPI {
   // Window control APIs
   minimizeWindow?: () => void;
   maximizeWindow?: () => void;
-  closeWindow?: () => void;
+  closeWindow?: (alreadyFlushed?: boolean) => void;
   isMaximized?: () => Promise<boolean>;
   isFullScreen?: () => Promise<boolean>;
   onFullScreenChange?: (callback: (isFullScreen: boolean) => void) => () => void;
@@ -142,6 +149,9 @@ export interface DesktopAPI {
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
   // Aggregate persistence bootstrap (new typed IPC; optional for stale preload compatibility)
   persistenceLoadBootstrap?: () => Promise<PersistenceBootstrap>;
+  persistenceCommitClose?: (
+    request: PersistenceCloseCommitRequest,
+  ) => Promise<PersistenceCloseCommitResult>;
   // User data store (~/.la/users.json)
   userDataLoad?: () => Promise<UserDataSnapshot>;
   userDataSave?: (data: UserDataSnapshot) => Promise<void>;
@@ -368,9 +378,9 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  closeWindow(): void {
+  closeWindow(alreadyFlushed = false): void {
     if (typeof this.api.closeWindow === 'function') {
-      this.api.closeWindow();
+      this.api.closeWindow(alreadyFlushed);
     }
   }
 
@@ -588,6 +598,20 @@ class ElectronAdapter implements FullDesktopAPI {
       return this.api.persistenceLoadBootstrap();
     }
     throw new Error('Desktop persistence.loadBootstrap API is unavailable');
+  }
+
+  async persistenceCommitClose(
+    request: PersistenceCloseCommitRequest,
+  ): Promise<PersistenceCloseCommitResult> {
+    if (this.api.ipc?.persistence?.commitClose) {
+      return unwrapIpcRead<PersistenceCloseCommitResult>(
+        await this.api.ipc.persistence.commitClose(request),
+      );
+    }
+    if (typeof this.api.persistenceCommitClose === 'function') {
+      return this.api.persistenceCommitClose(request);
+    }
+    throw new Error('Desktop persistence.commitClose API is unavailable');
   }
 
   // ---- User Data Store (~/.la/users.json) ----

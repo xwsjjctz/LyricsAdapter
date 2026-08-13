@@ -51,8 +51,11 @@ export function registerWindowControls(win: BrowserWindow | null): void {
     }
   });
 
-  ipcMain.handle('window-close', async () => {
+  ipcMain.handle('window-close', async (_event, alreadyFlushed = false) => {
     if (win) {
+      if (alreadyFlushed === true) {
+        closeAllowed = true;
+      }
       win.close();
     }
   });
@@ -91,4 +94,3 @@ export function registerWindowControls(win: BrowserWindow | null): void {
     });
   }
 }
-

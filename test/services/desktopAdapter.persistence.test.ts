@@ -12,6 +12,7 @@ vi.mock('@/services/logger', () => ({
 interface PersistenceIpcFixture {
   persistence?: {
     loadBootstrap?: ReturnType<typeof vi.fn>;
+    commitClose?: ReturnType<typeof vi.fn>;
   };
   settings?: {
     get?: ReturnType<typeof vi.fn>;
@@ -171,6 +172,27 @@ describe('desktopAdapter persistence IPC compatibility', () => {
     await expect(adapter.persistenceLoadBootstrap?.()).resolves.toBe(bootstrap);
   });
 
+  it('unwraps close commit results and rejects only the outer IPC failure', async () => {
+    const request = {
+      libraryIndex: { songs: [], settings: { activeSlotId: 'local' } },
+      userData: { mode: 'write' as const, tracks: [] },
+    };
+    const partialResult = {
+      fullyPersisted: false,
+      settings: { status: 'saved' as const },
+      userData: { status: 'error' as const, error: 'users failed' },
+      libraryIndex: { status: 'saved' as const },
+    };
+    const commitClose = vi.fn()
+      .mockResolvedValueOnce({ ok: true, data: partialResult })
+      .mockResolvedValueOnce({ ok: false, error: 'handler rejected' });
+    const adapter = await createAdapter({ persistence: { commitClose } });
+
+    await expect(adapter.persistenceCommitClose?.(request)).resolves.toBe(partialResult);
+    await expect(adapter.persistenceCommitClose?.(request)).rejects.toThrow('handler rejected');
+    expect(commitClose).toHaveBeenNthCalledWith(1, request);
+  });
+
   it('rejects failed typed writes instead of silently reporting success', async () => {
     const adapter = await createAdapter({
       settings: {
@@ -220,5 +242,9 @@ describe('desktopAdapter persistence IPC compatibility', () => {
     await expect(adapter.userDataLoad?.()).rejects.toThrow('userData.load API is unavailable');
     await expect(adapter.userDataSaveLibraryState?.([], {})).rejects.toThrow('saveLibraryState API is unavailable');
     await expect(adapter.persistenceLoadBootstrap?.()).rejects.toThrow('persistence.loadBootstrap API is unavailable');
+    await expect(adapter.persistenceCommitClose?.({
+      libraryIndex: { songs: [], settings: {} },
+      userData: { mode: 'skip' },
+    })).rejects.toThrow('persistence.commitClose API is unavailable');
   });
 });

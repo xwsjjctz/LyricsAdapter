@@ -45,6 +45,7 @@ const typedIpc = {
   },
   persistence: {
     loadBootstrap: async () => ipcRenderer.invoke('ipc:persistence:loadBootstrap'),
+    commitClose: async (request) => ipcRenderer.invoke('ipc:persistence:commitClose', request),
   },
 } satisfies TypedElectronIPC;
 
@@ -143,8 +144,8 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('window-maximize');
   },
 
-  closeWindow: async () => {
-    return ipcRenderer.invoke('window-close');
+  closeWindow: async (alreadyFlushed = false) => {
+    return ipcRenderer.invoke('window-close', alreadyFlushed);
   },
 
   isMaximized: async () => {

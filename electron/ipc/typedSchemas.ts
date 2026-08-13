@@ -22,6 +22,18 @@ export const persistenceBootstrapSchema = z.object({
   libraryIndex: storeReadSchema(libraryIndexSnapshotSchema),
 });
 
+/** Final close snapshot. All physical writes are validated before the use-case runs. */
+export const persistenceCloseCommitSchema = z.object({
+  libraryIndex: libraryIndexSnapshotSchema,
+  userData: z.discriminatedUnion('mode', [
+    z.object({
+      mode: z.literal('write'),
+      tracks: z.array(userTrackRecordSchema),
+    }),
+    z.object({ mode: z.literal('skip') }),
+  ]),
+});
+
 const httpUrlSchema = z.string().url().refine(value => {
   const protocol = new URL(value).protocol;
   return protocol === 'http:' || protocol === 'https:';

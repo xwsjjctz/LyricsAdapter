@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type Handler = () => unknown;
+type Handler = (_event?: unknown, payload?: unknown) => unknown;
 
 const mocks = vi.hoisted(() => {
   const handlers = new Map<string, Handler>();
@@ -11,12 +11,16 @@ const mocks = vi.hoisted(() => {
       handle: vi.fn((channel: string, handler: Handler) => handlers.set(channel, handler)),
     },
     loadBootstrap: vi.fn(),
+    commitClose: vi.fn(),
   };
 });
 
 vi.mock('electron', () => ({ ipcMain: mocks.ipcMain }));
 vi.mock('../../../electron/services/persistenceRepository', () => ({
   persistenceRepository: { loadBootstrap: mocks.loadBootstrap },
+}));
+vi.mock('../../../electron/services/persistenceCommitService', () => ({
+  persistenceCommitService: { commitClose: mocks.commitClose },
 }));
 vi.mock('../../../electron/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

@@ -142,7 +142,7 @@ flowchart LR
 - currentTime 单独按 5 秒 leading + trailing 节流写 `settings.json['playback']`，不会同步写 `users.json`；
 - 导入、重排、下载完成等路径还会直接立即写 `library-index.json`，与防抖写并存。
 
-关闭窗口时 flush 会合并 playback、`users.json` 和 `libraryStorage.flushPendingSave()` 的结果并向主进程报告。主进程当前仍会在失败后关闭窗口，因此三份文件尚未形成同一事务；浏览器原生 `beforeunload` 也不保证等待异步 Promise。Electron 自定义 close handshake 只是让失败可观测，并不等价于事务提交。
+关闭窗口时，renderer 会先排空仍在进行或防抖等待中的旧 `library-index.json` 写入，再从同一份最新四-slot 快照生成最终提交。main `PersistenceCommitService` 固定按 playback settings → users membership/playback → library-index cache 的顺序执行，每个来源失败后仍继续后续写入，并返回逐源 `saved / skipped / error`；这仍不是跨文件事务，但 partial failure 已可明确诊断。标题栏关闭只有在最终提交完整成功时才继续，随后用 already-flushed 标记避免 native close handshake 重复写；系统原生关闭仍保留 3 秒握手，失败或超时会记录后退出。浏览器模式继续使用 best-effort `beforeunload`。
 
 结果是一次崩溃可能产生下列合法但不一致的组合：
 
@@ -195,7 +195,7 @@ flowchart LR
 
 桌面端当前权威顺序已经明确为：可读的 `settings.json` > allowlist 过滤后的 `users.json.settings` 灾备 > 首次升级本地镜像。主进程非空时，本地独有键不再反向写回，曲库保存也不再从 `localStorage` 构造 settings 快照。
 
-循环依赖尚未完全消失：`settings.json` 和 `users.json.settings` 仍保存同一批设置，但后者现在由主进程在曲库事务中复制，缺少 revision 和字段级冲突策略。这是 Phase 1 Repository façade 要继续收口的边界。
+循环依赖尚未完全消失：`settings.json` 和 `users.json.settings` 仍保存同一批设置，但后者现在由主进程在 users 写入时复制，缺少 revision 和字段级冲突策略。这是 Phase 1 Repository façade 要继续收口的边界。
 
 ## 3. IndexedDB
 
@@ -298,8 +298,8 @@ Phase 0 已解决：settings/userData typed IPC 形状漂移与 capability 缺�
 剩余问题按优先级排序：
 
 1. **删除型自愈与数据分类冲突**：IndexedDB corruption recovery 会删除不可重建的 UI 自定义数据；startup cleanup 会无条件删除整个 `userData/audio/`。
-2. **曲库多写者无事务/revision**：立即写、防抖写、退出写和首次重建写可能乱序；JSON 文件之间无法原子提交，窗口关闭也不会因 flush 失败而取消。
-3. **降级会话缺少只读提示**：`users.json` 读取失败时会禁止覆盖权威文件，但 UI 仍允许本次会话增删曲目；关闭只记录 flush 失败，恢复后这些改动可能被旧 users 快照覆盖。
+2. **运行期多写者仍无 revision**：立即写、防抖写和首次重建写仍来自多个调用点；关闭前已能排空旧 cache 写并执行 cache-last，但 JSON 文件之间仍不能原子提交。
+3. **降级会话缺少只读提示**：`users.json` 读取失败时会禁止覆盖权威文件，但 UI 仍允许本次会话增删曲目；标题栏关闭会因最终提交不完整而停下，却没有解释原因，系统原生关闭仍会退出，恢复后这些改动可能被旧 users 快照覆盖。
 4. **secret 仍进入 renderer 宽接口**：`settingsGetAll()` 和恢复快照仍可把解密后的敏感值交给 renderer；Phase 0 已停止反复经曲库保存回传，但最终仍应改成 main-owned purpose-specific commands。
 5. **WebDAV 缓存未按账户命名空间隔离**：换服务器/账号时相同 path 可串数据；配置保存没有触发 IDB snapshot/metadata 清理。
 6. **远端同步缺少并发控制**：chunk-first 只解决单次写顺序，不解决跨设备 lost update。
@@ -409,7 +409,8 @@ cover_blobs
 - [x] main 提供单个只读 `loadBootstrap()`，逐源返回 settings/users/library-index 的成功或失败，不在 transport 层合并权威数据；
 - [x] `useLibraryLoad` 的启动三源读取改走 renderer 薄 façade，并保留一版旧 preload fallback；
 - [x] 把 `useLibraryLoad` 的权威判定、四 slot 归属、播种记录生成和 settings 恢复计划抽成纯 reconciler；
-- [ ] 将运行期写入和关闭 flush 逐步收口到 main use-case；
+- [x] 将关闭时最终 snapshot 收口到 main use-case，并在最终提交前排空旧 cache 写队列；
+- [ ] 将运行期 1 秒曲库写入和 5 秒播放进度写入逐步收口到 main use-case；
 - [ ] 把 settings manager、WebDAV hook 的直接存储调用收口到按领域拆分的 Repository；
 - 长操作使用 operation id / progress / cancellation，renderer 不再拿任意路径或 secret；
 - 为 legacy JSON、localStorage、IDB 写 adapter 和契约测试。

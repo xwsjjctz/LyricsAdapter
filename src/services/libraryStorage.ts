@@ -42,7 +42,17 @@ class LibraryStorageService {
   }
 
   private runSave(library: LibraryIndexData): Promise<boolean> {
-    const savePromise = this.saveLibrary(library).finally(() => {
+    // Serialize physical writes. Starting a newer write while an older one is
+    // still in flight can otherwise let the older snapshot land last and
+    // overwrite the close snapshot.
+    const previousSave = this.saveInFlight;
+    const savePromise = (previousSave
+      ? previousSave.then(
+          () => this.saveLibrary(library),
+          () => this.saveLibrary(library),
+        )
+      : this.saveLibrary(library)
+    ).finally(() => {
       if (this.saveInFlight === savePromise) {
         this.saveInFlight = null;
       }
@@ -147,6 +157,39 @@ class LibraryStorageService {
     }
 
     return true;
+  }
+
+  /**
+   * Drain every runtime cache write before capturing the final close snapshot.
+   *
+   * The loop deliberately waits for the current in-flight write before taking
+   * the pending debounced value. A new pending value may be queued while an
+   * earlier write is settling, so the queue is re-checked after every await.
+   */
+  async drainBeforeClose(): Promise<boolean> {
+    let allSaved = true;
+
+    while (true) {
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = null;
+      }
+
+      const inFlight = this.saveInFlight;
+      if (inFlight) {
+        allSaved = (await inFlight) && allSaved;
+        continue;
+      }
+
+      const pendingLibrary = this.pendingLibrary;
+      this.pendingLibrary = null;
+      if (pendingLibrary) {
+        allSaved = (await this.runSave(pendingLibrary)) && allSaved;
+        continue;
+      }
+
+      return allSaved;
+    }
   }
 
   /**

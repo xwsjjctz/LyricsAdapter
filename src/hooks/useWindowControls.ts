@@ -50,7 +50,7 @@ export const useWindowControls = (): WindowControls => {
     if ((window as Window & { electron?: DesktopAPI }).electron?.closeWindow) {
       void requestLibraryFlush().then((saved) => {
         if (saved) {
-          (window as Window & { electron?: DesktopAPI }).electron!.closeWindow!();
+          (window as Window & { electron?: DesktopAPI }).electron!.closeWindow!(true);
         }
       });
     }

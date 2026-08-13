@@ -1,8 +1,9 @@
 import { ipcMain } from 'electron';
 import { logger } from '../logger';
 import { persistenceRepository } from '../services/persistenceRepository';
-import { errorMessage, fail, ok } from './typedResult';
-import { persistenceBootstrapSchema } from './typedSchemas';
+import { persistenceCommitService } from '../services/persistenceCommitService';
+import { errorMessage, fail, ok, parsePayload } from './typedResult';
+import { persistenceBootstrapSchema, persistenceCloseCommitSchema } from './typedSchemas';
 
 /** Register the typed read-only bootstrap facade after store migrations run. */
 export function registerPersistenceHandlers(): void {
@@ -18,5 +19,18 @@ export function registerPersistenceHandlers(): void {
     }
   });
 
-  logger.info('[PersistenceHandlers] Registered read-only bootstrap channel');
+  ipcMain.handle('ipc:persistence:commitClose', async (_event, payload: unknown) => {
+    const parsed = parsePayload(persistenceCloseCommitSchema, payload);
+    if (!parsed.ok) return parsed;
+
+    try {
+      // Partial physical-store failures are normal use-case results and remain
+      // inside an outer ok envelope so no per-source diagnostics are lost.
+      return ok(await persistenceCommitService.commitClose(parsed.data));
+    } catch (error) {
+      return fail(errorMessage(error));
+    }
+  });
+
+  logger.info('[PersistenceHandlers] Registered bootstrap + close commit channels');
 }

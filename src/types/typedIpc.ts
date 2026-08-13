@@ -25,6 +25,27 @@ export interface PersistenceBootstrap {
   libraryIndex: StoreRead<unknown>;
 }
 
+/** Renderer snapshot handed to the main process for the final close commit. */
+export interface PersistenceCloseCommitRequest {
+  libraryIndex: unknown;
+  userData:
+    | { mode: 'write'; tracks: unknown[] }
+    | { mode: 'skip' };
+}
+
+export type PersistenceWriteOutcome =
+  | { status: 'saved' }
+  | { status: 'skipped'; reason: string }
+  | { status: 'error'; error: string };
+
+/** Per-source durability result. Partial failures remain observable to callers. */
+export interface PersistenceCloseCommitResult {
+  fullyPersisted: boolean;
+  settings: PersistenceWriteOutcome;
+  userData: PersistenceWriteOutcome;
+  libraryIndex: PersistenceWriteOutcome;
+}
+
 export interface TypedElectronIPC {
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
@@ -63,5 +84,6 @@ export interface TypedElectronIPC {
   };
   persistence: {
     loadBootstrap: () => Promise<IpcResult<PersistenceBootstrap>>;
+    commitClose: (request: PersistenceCloseCommitRequest) => Promise<IpcResult<PersistenceCloseCommitResult>>;
   };
 }

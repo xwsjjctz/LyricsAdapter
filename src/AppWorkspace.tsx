@@ -89,9 +89,7 @@ const AppWorkspace: React.FC = () => {
     handleCategoryChange,
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
-  useEffect(() => {
-    activeSlotIdRef.current = activeSlotId;
-  }, [activeSlotId]);
+  activeSlotIdRef.current = activeSlotId;
   const getAppPersistenceData = useCallback((): LibrarySettings => {
     const snapshot = slotsRef.current;
     const extractSlotData = (slot: LibrarySlot) => ({

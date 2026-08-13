@@ -17,6 +17,7 @@ import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { shortcutManager } from '../services/shortcuts';
 import { libraryPersistenceRepository } from '../repositories/libraryPersistenceRepository';
+import { libraryClosePersistenceRepository } from '../repositories/libraryClosePersistenceRepository';
 import {
   buildSettingsFromUserData,
   buildSettingsHydrationPlan,
@@ -100,6 +101,11 @@ export function useLibraryLoad({
 }: UseLibraryLoadOptions) {
   const isFirstLoadRef = useRef(true);
   const userDataWritableRef = useRef(false);
+  const closeSnapshotSourcesRef = useRef({ slots, getPersistenceData, getSlotsSnapshot });
+  const closeFlushInFlightRef = useRef<Promise<boolean> | null>(null);
+  // The close listeners are registered once. Keep their mutable inputs current
+  // without tearing down the native-window handshake on every slot update.
+  closeSnapshotSourcesRef.current = { slots, getPersistenceData, getSlotsSnapshot };
 
   const loadAndRestoreLibrary = async (libraryData: { songs: any[]; cloudSongs?: any[]; onlineSongs?: any[]; playlistSongs?: any[]; settings: any }) => {
     logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0, 'cloud songs:', libraryData.cloudSongs?.length || 0);
@@ -687,77 +693,94 @@ export function useLibraryLoad({
   }, [persistedTimeRef, audioRef]);
 
   useEffect(() => {
-    const flushCurrentLibrary = async (): Promise<boolean> => {
+    const desktop = isDesktop();
+    const runCloseFlush = async (): Promise<boolean> => {
       try {
-        const slotsSnapshot = getSlotsSnapshot?.() ?? slots;
-        const persistData = getPersistenceData();
-        const libraryData = buildLibraryIndexDataForSlots(
+        // Runtime saves may still contain an older snapshot. They must finish
+        // before the final snapshot is captured and handed to the main process.
+        if (desktop) {
+          const drained = await libraryStorage.drainBeforeClose();
+          if (!drained) {
+            logger.warn('[LibraryLoad] A runtime library save failed before close; committing final snapshot');
+          }
+        }
+
+        // No await inside this block: the four slot arrays and playback settings
+        // belong to one renderer snapshot.
+        const sources = closeSnapshotSourcesRef.current;
+        const slotsSnapshot = sources.getSlotsSnapshot?.() ?? sources.slots;
+        const persistData = sources.getPersistenceData();
+        const libraryIndex = buildLibraryIndexDataForSlots(
           slotsSnapshot.local.tracks,
           slotsSnapshot.cloud.tracks,
           persistData,
           slotsSnapshot.online.tracks,
-          slotsSnapshot.playlist.tracks
+          slotsSnapshot.playlist.tracks,
         );
+        const userTracks = [
+          ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
+          ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
+          ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
+          ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
+        ];
 
-        logger.debug('[LibraryLoad] Flushing library before close');
-        let playbackSaved = true;
-        let userDataSaved = true;
-        try {
-          await appStorage.setItem('playback', JSON.stringify(persistData));
-        } catch (e) {
-          playbackSaved = false;
-          logger.warn('[LibraryLoad] Failed to flush playback settings:', e);
-        }
-        if (isDesktop() && userDataWritableRef.current) {
-          try {
-            const api = await getDesktopAPIAsync();
-            const allMinimal = [
-              ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
-              ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
-              ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
-              ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
-            ];
-            if (!api?.userDataSaveLibraryState) throw new Error('User-data state API unavailable');
-            await api.userDataSaveLibraryState(
-              allMinimal,
-              { _json: JSON.stringify(persistData) },
-            );
-          } catch (e) {
-            userDataSaved = false;
-            logger.warn('[LibraryLoad] Failed to flush user data:', e);
-          }
-        } else if (isDesktop()) {
-          userDataSaved = false;
-        }
-        const cacheSaved = await libraryStorage.flushPendingSave(libraryData);
-        return playbackSaved && userDataSaved && cacheSaved;
-      } catch (e) {
-        logger.error('[LibraryLoad] Flush failed:', e);
+        logger.debug('[LibraryLoad] Committing final library snapshot before close');
+        return await libraryClosePersistenceRepository.commit({
+          libraryIndex,
+          userTracks,
+          userDataWritable: userDataWritableRef.current,
+        });
+      } catch (error) {
+        logger.error('[LibraryLoad] Flush failed:', error);
         return false;
       }
+    };
+
+    const flushCurrentLibrary = (): Promise<boolean> => {
+      if (closeFlushInFlightRef.current) return closeFlushInFlightRef.current;
+
+      const operation = runCloseFlush();
+      let trackedOperation: Promise<boolean>;
+      trackedOperation = operation.finally(() => {
+        if (closeFlushInFlightRef.current === trackedOperation) {
+          closeFlushInFlightRef.current = null;
+        }
+      });
+      closeFlushInFlightRef.current = trackedOperation;
+      return trackedOperation;
     };
 
     const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
     let removeWindowCloseListener: (() => void) | undefined;
     let mounted = true;
-    void getDesktopAPIAsync().then(api => {
-      if (!mounted) return;
-      removeWindowCloseListener = api?.onBeforeWindowClose?.(() => flushCurrentLibrary());
-    });
+    if (desktop) {
+      void getDesktopAPIAsync().then(api => {
+        if (!mounted) return;
+        removeWindowCloseListener = api?.onBeforeWindowClose?.(() => flushCurrentLibrary());
+      }).catch(error => {
+        logger.warn('[LibraryLoad] Failed to register close flush listener:', error);
+      });
+    }
 
     const handleBeforeUnload = () => {
       void flushCurrentLibrary();
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Electron uses the awaited native close handshake. Retain beforeunload only
+    // for browser mode, where it remains a best-effort compatibility fallback.
+    if (!desktop) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
 
     return () => {
       mounted = false;
       removeWindowCloseListener?.();
       removeFlushListener();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (!desktop) {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      }
     };
-  }, [slots, getPersistenceData, getSlotsSnapshot]);
+  }, []);
 
   // 组件卸载时清理进度节流的 trailing timer（见上方 playbackSaveTimerRef 注释）
   useEffect(() => {
