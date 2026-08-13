@@ -74,15 +74,10 @@ void i18next
   });
 
 // Persist language changes to the same storage the old manager wrote to, so
-// preferences survive reloads and the desktop settings.json sync.
+// preferences survive reloads and the desktop settings-store sync.
 i18next.on('languageChanged', (lng) => {
   if (!LANGUAGES.includes(lng as Language)) return;
   const lang = lng as Language;
-  try {
-    localStorage.setItem('app-language', lang);
-  } catch {
-    /* ignore */
-  }
   appStorage.setItem('app-language', lang).catch(() => {});
 });
 

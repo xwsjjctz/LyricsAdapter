@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { appStorage } from '../services/appStorage';
 import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 
@@ -15,6 +16,31 @@ interface PersistedSidebarLayout {
   width?: number;
   collapsed?: boolean;
 }
+
+const parsePersistedSidebarLayout = (raw: string): PersistedSidebarLayout | null => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+    const candidate = parsed as Record<string, unknown>;
+    if (
+      candidate['width'] !== undefined
+      && (typeof candidate['width'] !== 'number' || !Number.isFinite(candidate['width']))
+    ) {
+      return null;
+    }
+    if (candidate['collapsed'] !== undefined && typeof candidate['collapsed'] !== 'boolean') {
+      return null;
+    }
+
+    const layout: PersistedSidebarLayout = {};
+    if (typeof candidate['width'] === 'number') layout.width = candidate['width'];
+    if (typeof candidate['collapsed'] === 'boolean') layout.collapsed = candidate['collapsed'];
+    return layout;
+  } catch {
+    return null;
+  }
+};
 
 const clampWidth = (value: number): number =>
   Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
@@ -43,26 +69,59 @@ export function useSidebarLayout(): SidebarLayout {
   const [collapsed, setCollapsed] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
-  // Load persisted layout once on mount.
+  // Load persisted layout once on mount. AppStorage is authoritative; the IDB
+  // read is a one-time migration path for versions that stored layout there.
   useEffect(() => {
     let cancelled = false;
-    void indexedDBStorage.getSetting(STORAGE_KEY).then((raw) => {
-      if (cancelled || !raw) return;
-      try {
-        const parsed = JSON.parse(raw) as PersistedSidebarLayout;
-        if (typeof parsed.width === 'number') setWidth(clampWidth(parsed.width));
-        if (typeof parsed.collapsed === 'boolean') setCollapsed(parsed.collapsed);
-      } catch (error) {
-        logger.warn('[SidebarLayout] load failed:', error);
+
+    const applyPersistedLayout = (layout: PersistedSidebarLayout) => {
+      if (cancelled) return;
+      if (typeof layout.width === 'number') setWidth(clampWidth(layout.width));
+      if (typeof layout.collapsed === 'boolean') setCollapsed(layout.collapsed);
+    };
+
+    const restoreLegacyLayout = async () => {
+      const legacy = await indexedDBStorage.getSetting(STORAGE_KEY);
+      if (!legacy) return;
+
+      const parsedLegacy = parsePersistedSidebarLayout(legacy);
+      if (!parsedLegacy) {
+        logger.warn('[SidebarLayout] Ignoring invalid legacy layout');
+        return;
       }
-    });
+
+      applyPersistedLayout(parsedLegacy);
+      try {
+        await appStorage.setItem(STORAGE_KEY, legacy);
+        await indexedDBStorage.deleteSetting(STORAGE_KEY);
+      } catch (error) {
+        logger.warn('[SidebarLayout] legacy migration failed:', error);
+      }
+    };
+
+    const stored = appStorage.getItem(STORAGE_KEY);
+    if (stored !== null) {
+      const parsedStored = parsePersistedSidebarLayout(stored);
+      if (parsedStored) {
+        applyPersistedLayout(parsedStored);
+        void indexedDBStorage.deleteSetting(STORAGE_KEY).catch((error) => {
+          logger.warn('[SidebarLayout] legacy cleanup failed:', error);
+        });
+      } else {
+        logger.warn('[SidebarLayout] AppStorage layout is invalid; trying legacy IDB data');
+        void restoreLegacyLayout();
+      }
+    } else {
+      void restoreLegacyLayout();
+    }
+
     return () => {
       cancelled = true;
     };
   }, []);
 
   const persist = useCallback((next: PersistedSidebarLayout) => {
-    void indexedDBStorage.setSetting(STORAGE_KEY, JSON.stringify(next)).catch((error) => {
+    void appStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch((error) => {
       logger.error('[SidebarLayout] save failed:', error);
     });
   }, []);

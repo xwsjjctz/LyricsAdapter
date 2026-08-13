@@ -40,7 +40,6 @@ function dependencies(
 ): PersistenceCommitDependencies {
   return {
     savePlayback: vi.fn(() => true),
-    loadSettings: vi.fn(() => ({ 'app-theme': 'dark', __la_settings_migration_version: '1' })),
     saveUserLibraryState: vi.fn(() => true),
     saveLibraryIndex: vi.fn(async (): Promise<IpcResult<void>> => ({ ok: true, data: undefined })),
     ...overrides,
@@ -48,21 +47,13 @@ function dependencies(
 }
 
 describe('PersistenceCommitService close commit', () => {
-  it('writes settings, users, then cache with one serialized playback snapshot', async () => {
+  it('commits authoritative user state once, then writes the cache last', async () => {
     const order: string[] = [];
-    const savePlayback = vi.fn((playbackJson: string) => {
-      order.push('settings');
-      expect(playbackJson).toBe('{"activeSlotId":"local","volume":0.4}');
-      return true;
-    });
-    const loadSettings = vi.fn(() => {
-      order.push('settings-read');
-      return { 'app-theme': 'dark', __la_settings_migration_version: '1' };
-    });
+    const savePlayback = vi.fn(() => true);
     const saveUserLibraryState = vi.fn((_tracks, playback, settings) => {
       order.push('users');
       expect(playback).toEqual({ _json: '{"activeSlotId":"local","volume":0.4}' });
-      expect(settings).toEqual({ 'app-theme': 'dark' });
+      expect(settings).toBeUndefined();
       return true;
     });
     const saveLibraryIndex = vi.fn(async () => {
@@ -71,7 +62,6 @@ describe('PersistenceCommitService close commit', () => {
     });
     const service = new PersistenceCommitService(dependencies({
       savePlayback,
-      loadSettings,
       saveUserLibraryState,
       saveLibraryIndex,
     }));
@@ -82,20 +72,14 @@ describe('PersistenceCommitService close commit', () => {
       userData: { status: 'saved' },
       libraryIndex: { status: 'saved' },
     });
-    expect(order).toEqual(['settings', 'settings-read', 'users', 'cache']);
+    expect(order).toEqual(['users', 'cache']);
+    expect(savePlayback).not.toHaveBeenCalled();
   });
 
   it('attempts every physical source and reports all partial failures', async () => {
     const order: string[] = [];
     const service = new PersistenceCommitService(dependencies({
-      savePlayback: vi.fn(() => {
-        order.push('settings');
-        return false;
-      }),
-      loadSettings: vi.fn(() => {
-        order.push('settings-read');
-        return {};
-      }),
+      savePlayback: vi.fn(() => true),
       saveUserLibraryState: vi.fn(() => {
         order.push('users');
         throw new Error('users disk full');
@@ -108,19 +92,16 @@ describe('PersistenceCommitService close commit', () => {
 
     await expect(service.commitClose(request())).resolves.toEqual({
       fullyPersisted: false,
-      settings: { status: 'error', error: 'Failed to persist playback settings' },
+      settings: { status: 'error', error: 'users disk full' },
       userData: { status: 'error', error: 'users disk full' },
       libraryIndex: { status: 'error', error: 'cache denied' },
     });
-    expect(order).toEqual(['settings', 'settings-read', 'users', 'cache']);
+    expect(order).toEqual(['users', 'cache']);
   });
 
-  it('still saves users while preserving their settings when settings loading fails', async () => {
+  it('saves membership and playback without rewriting independent settings', async () => {
     const saveUserLibraryState = vi.fn(() => true);
     const service = new PersistenceCommitService(dependencies({
-      loadSettings: vi.fn(() => {
-        throw new Error('settings unreadable');
-      }),
       saveUserLibraryState,
     }));
 
@@ -130,7 +111,6 @@ describe('PersistenceCommitService close commit', () => {
     expect(saveUserLibraryState).toHaveBeenCalledWith(
       [{ id: 'track-1', slotId: 'local' }],
       { _json: '{"activeSlotId":"local","volume":0.4}' },
-      undefined,
     );
   });
 
@@ -147,8 +127,8 @@ describe('PersistenceCommitService close commit', () => {
       },
       libraryIndex: { status: 'saved' },
     });
-    expect(deps.loadSettings).not.toHaveBeenCalled();
     expect(deps.saveUserLibraryState).not.toHaveBeenCalled();
+    expect(deps.savePlayback).toHaveBeenCalledWith('{"activeSlotId":"local","volume":0.4}');
   });
 
   it('shares one in-flight close attempt even when concurrent payloads differ', async () => {
@@ -163,7 +143,7 @@ describe('PersistenceCommitService close commit', () => {
     const second = service.commitClose(request('second'));
 
     expect(second).toBe(first);
-    expect(deps.savePlayback).toHaveBeenCalledTimes(1);
+    expect(deps.savePlayback).not.toHaveBeenCalled();
     expect(deps.saveUserLibraryState).toHaveBeenCalledTimes(1);
     expect(deps.saveLibraryIndex).toHaveBeenCalledTimes(1);
     expect(deps.saveLibraryIndex).toHaveBeenCalledWith(request('first').libraryIndex);

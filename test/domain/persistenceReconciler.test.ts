@@ -326,18 +326,24 @@ describe('persistenceReconciler', () => {
     expect(plan).toEqual({ settings: { 'app-theme': 'from-users' } });
   });
 
-  it('filters a settings failure recovery snapshot and lets playback._json win', () => {
+  it('preserves all durable public settings during recovery and lets playback._json win', () => {
     const playbackJson = JSON.stringify({ volume: 0.3 });
     expect(buildSettingsRecoverySnapshot(userData({
       settings: {
         'app-language': 'en',
+        'sidebar-layout': '{"width":220,"collapsed":true}',
+        'playlist-overrides': '{"qq:1":{"name":"Saved"}}',
+        'future-setting': 'must-survive',
+        'webdav-cdn-cache': '{"replaceable":true}',
         playback: JSON.stringify({ volume: 0.9 }),
         'la_new_ux_enabled': 'true',
-        unknown: 'must-not-return',
       },
       playback: { _json: playbackJson },
     }))).toEqual({
       'app-language': 'en',
+      'sidebar-layout': '{"width":220,"collapsed":true}',
+      'playlist-overrides': '{"qq:1":{"name":"Saved"}}',
+      'future-setting': 'must-survive',
       playback: playbackJson,
     });
     expect(buildSettingsRecoverySnapshot(userData())).toEqual({});

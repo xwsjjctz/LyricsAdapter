@@ -1,5 +1,5 @@
 /**
- * IPC handlers for ~/.la/users.json (pure user data store).
+ * IPC handlers for the user-owned portion of ~/.la/state.sqlite3.
  *
  * Separates non-rebuildable user data (track membership, play count, settings)
  * from rebuildable cache (metadata from audio file headers).
@@ -9,11 +9,9 @@ import { userDataStore, UserDataFile, UserTrackRecord } from '../services/userDa
 import { logger } from '../logger';
 import { typedIpcSchemas, userDataSnapshotSchema } from './typedSchemas';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';
-import { settingsStore } from '../services/settingsStore';
-import { filterPublicSettings } from '../../src/shared/persistencePolicy';
 
 export function registerUserDataHandlers(): void {
-  // 首次迁移：从 settings.json / library-index.json 汇入 users.json
+  // Idempotently ensure the SQLite store and its one-time legacy import exist.
   userDataStore.migrateFromLegacy();
 
   // Versioned typed surface. Legacy userData:* channels stay raw until all
@@ -55,8 +53,7 @@ export function registerUserDataHandlers(): void {
     const parsed = parsePayload(typedIpcSchemas.userDataLibraryState, payload);
     if (!parsed.ok) return parsed;
     try {
-      const settings = filterPublicSettings(settingsStore.getAll());
-      return userDataStore.saveLibraryState(parsed.data.tracks, parsed.data.playback, settings)
+      return userDataStore.saveLibraryState(parsed.data.tracks, parsed.data.playback)
         ? ok(undefined)
         : fail('Failed to persist user library state');
     } catch (error) {

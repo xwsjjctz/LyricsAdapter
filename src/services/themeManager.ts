@@ -160,12 +160,12 @@ class ThemeManagerClass {
       const normalizedTheme = this.normalizeThemeId(storedTheme);
       if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
         this.currentThemeId = normalizedTheme;
-        logger.debug('[ThemeManager] Loaded saved theme from localStorage:', storedTheme);
+        logger.debug('[ThemeManager] Loaded saved theme from app storage:', storedTheme);
       } else {
         logger.debug('[ThemeManager] No saved theme found, using default');
       }
     } catch (error) {
-      logger.error('[ThemeManager] Failed to load from localStorage:', error);
+      logger.error('[ThemeManager] Failed to load from app storage:', error);
     }
   }
 
@@ -177,7 +177,6 @@ class ThemeManagerClass {
 
   private saveToStorage(themeId: ThemeId): void {
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, themeId);
       appStorage.setItem(THEME_STORAGE_KEY, themeId).catch(() => {});
       logger.debug('[ThemeManager] Theme saved', themeId);
     } catch (error) {

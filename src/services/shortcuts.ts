@@ -242,7 +242,6 @@ class ShortcutManager {
 
   private saveShortcuts(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.shortcuts));
       appStorage.setItem(STORAGE_KEY, JSON.stringify(this.shortcuts)).catch(() => {});
     } catch (e) {
       logger.error('[Shortcuts] Failed to save shortcuts:', e);

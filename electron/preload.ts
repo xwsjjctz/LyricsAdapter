@@ -308,7 +308,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('cleanup-orphan-covers', activeTrackIds);
   },
 
-  // ---- Settings store (IPC to main process settings.json) ----
+  // ---- Settings store (IPC to main-process SQLite facade) ----
   settingsGet: async (key: string) => {
     return ipcRenderer.invoke('settings:get', key);
   },
@@ -328,7 +328,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('settings:replaceAll', entries);
   },
 
-  // ---- User Data Store (IPC to ~/.la/users.json) ----
+  // ---- User Data Store (IPC to ~/.la/state.sqlite3) ----
   userDataLoad: async () => {
     return ipcRenderer.invoke('userData:load');
   },

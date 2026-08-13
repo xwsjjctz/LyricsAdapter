@@ -1,6 +1,7 @@
 import { logger } from './logger';
 import { appStorage } from './appStorage';
 import { getDesktopAPI } from './desktopAdapter';
+import { indexedDBStorage } from './indexedDBStorage';
 import { buildWebDAVUrl, webDAVHrefToPath } from './webdavPath';
 
 const WEBDAV_CONFIG_KEY = 'webdav-config';
@@ -55,11 +56,13 @@ const AUDIO_EXTENSIONS = ['.flac', '.mp3', '.m4a', '.wav', '.ogg', '.aac'];
 class WebDAVClient {
   private config: WebDAVConfig | null = null;
   private cdnCache: Map<string, CdnCacheEntry> = new Map();
+  private cdnCacheReady: Promise<void> = Promise.resolve();
+  private cdnCacheGeneration = 0;
   private writableCache: { signature: string; result: WritableCheckResult } | null = null;
 
   constructor() {
     this.loadConfig();
-    this.loadCdnCache();
+    this.startCdnCacheLoad();
   }
 
   private loadConfig(): void {
@@ -74,22 +77,37 @@ class WebDAVClient {
     }
   }
 
-  private loadCdnCache(): void {
+  private startCdnCacheLoad(): void {
+    const generation = ++this.cdnCacheGeneration;
+    this.cdnCacheReady = this.loadCdnCache(generation);
+  }
+
+  private async loadCdnCache(generation: number): Promise<void> {
     try {
-      this.cdnCache.clear();
-      const saved = appStorage.getItem(CDN_CACHE_KEY);
+      const saved = await indexedDBStorage.getSetting(CDN_CACHE_KEY);
+      if (generation !== this.cdnCacheGeneration) return;
+
+      const next = new Map<string, CdnCacheEntry>();
       if (saved) {
-        const parsed = JSON.parse(saved);
-        this.cdnCache = new Map(Object.entries(parsed));
+        const parsed = JSON.parse(saved) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Invalid WebDAV CDN cache envelope');
+        }
         const now = Date.now();
-        for (const [key, entry] of this.cdnCache) {
-          if (entry.expiry < now) {
-            this.cdnCache.delete(key);
-          }
+        for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+          if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+          const candidate = value as Record<string, unknown>;
+          if (typeof candidate['url'] !== 'string'
+            || typeof candidate['expiry'] !== 'number'
+            || !Number.isFinite(candidate['expiry'])
+            || candidate['expiry'] <= now) continue;
+          next.set(key, { url: candidate['url'], expiry: candidate['expiry'] });
         }
       }
+      this.cdnCache = next;
     } catch (e) {
       logger.error('[WebDAV] Failed to load CDN cache:', e);
+      if (generation === this.cdnCacheGeneration) this.cdnCache.clear();
     }
   }
 
@@ -97,7 +115,7 @@ class WebDAVClient {
     try {
       const obj = Object.fromEntries(this.cdnCache);
       const json = JSON.stringify(obj);
-      appStorage.setItem(CDN_CACHE_KEY, json).catch(() => {});
+      indexedDBStorage.setSetting(CDN_CACHE_KEY, json).catch(() => {});
     } catch (e) {
       logger.error('[WebDAV] Failed to save CDN cache:', e);
     }
@@ -128,7 +146,7 @@ class WebDAVClient {
    */
   reloadConfig(): void {
     this.loadConfig();
-    this.loadCdnCache();
+    this.startCdnCacheLoad();
     this.writableCache = null; // 配置可能变更，可写性需重新检测
     if (this.config) {
       logger.info('[WebDAV] Config reloaded after settings restore');
@@ -154,8 +172,10 @@ class WebDAVClient {
   }
 
   clearCdnCache(): void {
+    this.cdnCacheGeneration++;
+    this.cdnCacheReady = Promise.resolve();
     this.cdnCache.clear();
-    appStorage.removeItem(CDN_CACHE_KEY).catch(() => {});
+    indexedDBStorage.deleteSetting(CDN_CACHE_KEY).catch(() => {});
     logger.info('[WebDAV] CDN cache cleared');
   }
 
@@ -301,6 +321,7 @@ class WebDAVClient {
   }
 
   async getCdnUrl(filePath: string): Promise<string | null> {
+    await this.cdnCacheReady;
     const cached = this.cdnCache.get(filePath);
     if (cached && cached.expiry > Date.now()) {
       logger.info('[WebDAV] CDN cache hit for:', filePath);

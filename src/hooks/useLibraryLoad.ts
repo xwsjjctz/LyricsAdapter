@@ -16,6 +16,7 @@ import type { UserDataSnapshot } from '../types/typedIpc';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { shortcutManager } from '../services/shortcuts';
+import { LatestWriteQueue } from '../services/latestWriteQueue';
 import { libraryPersistenceRepository } from '../repositories/libraryPersistenceRepository';
 import { libraryClosePersistenceRepository } from '../repositories/libraryClosePersistenceRepository';
 import {
@@ -56,9 +57,9 @@ async function seedUserDataFromCache(
     const tracks = buildUserTracksFromLibraryCache(libraryData);
     if (tracks.length === 0) return;
     await api.userDataSaveLibraryState(tracks, { _json: JSON.stringify(persistData) });
-    logger.info('[LibraryLoad] Seeded ~/.la/users.json from cache, tracks:', tracks.length);
+    logger.info('[LibraryLoad] Seeded ~/.la/state.sqlite3 from cache, tracks:', tracks.length);
   } catch (e) {
-    logger.warn('[LibraryLoad] Failed to seed ~/.la/users.json from cache:', e);
+    logger.warn('[LibraryLoad] Failed to seed ~/.la/state.sqlite3 from cache:', e);
   }
 }
 
@@ -103,6 +104,31 @@ export function useLibraryLoad({
   const userDataWritableRef = useRef(false);
   const closeSnapshotSourcesRef = useRef({ slots, getPersistenceData, getSlotsSnapshot });
   const closeFlushInFlightRef = useRef<Promise<boolean> | null>(null);
+  type RuntimeUserStateWrite =
+    | {
+        kind: 'library';
+        tracks: ReturnType<typeof buildMinimalTracks>;
+        playback: Record<string, string>;
+      }
+    | { kind: 'playback'; playbackJson: string };
+  const runtimeUserStateQueueRef = useRef<LatestWriteQueue<RuntimeUserStateWrite> | null>(null);
+  if (!runtimeUserStateQueueRef.current) {
+    runtimeUserStateQueueRef.current = new LatestWriteQueue(
+      async snapshot => {
+        if (snapshot.kind === 'playback') {
+          await appStorage.setItem('playback', snapshot.playbackJson);
+          return;
+        }
+        const api = await getDesktopAPIAsync();
+        if (!api?.userDataSaveLibraryState) {
+          throw new Error('Desktop user-state API is unavailable');
+        }
+        await api.userDataSaveLibraryState(snapshot.tracks, snapshot.playback);
+      },
+      1000,
+      error => logger.warn('[LibraryLoad] Failed to persist runtime user state:', error),
+    );
+  }
   // The close listeners are registered once. Keep their mutable inputs current
   // without tearing down the native-window handshake on every slot update.
   closeSnapshotSourcesRef.current = { slots, getPersistenceData, getSlotsSnapshot };
@@ -484,10 +510,10 @@ export function useLibraryLoad({
             userDataWritableRef.current = userDataResult.status === 'fulfilled';
 
             if (settingsResult.status === 'rejected') {
-              logger.warn('[LibraryLoad] Failed to load settings.json:', settingsResult.reason);
+              logger.warn('[LibraryLoad] Failed to load SQLite settings:', settingsResult.reason);
             }
             if (userDataResult.status === 'rejected') {
-              logger.warn('[LibraryLoad] Failed to load users.json; user-data writes disabled for this session:', userDataResult.reason);
+              logger.warn('[LibraryLoad] Failed to load SQLite user state; user-data writes disabled for this session:', userDataResult.reason);
             }
 
             if (userData) {
@@ -498,11 +524,14 @@ export function useLibraryLoad({
                   const recoveredSettings = buildSettingsRecoverySnapshot(userData);
                   if (Object.keys(recoveredSettings).length > 0) {
                     try {
-                      await appStorage.replaceAll(recoveredSettings);
-                      logger.info('[LibraryLoad] Repaired settings.json from users.json recovery data');
+                      // The independent settings read may have failed only
+                      // transiently. Upsert the complete validated snapshot;
+                      // never destructively replace keys we could not observe.
+                      await appStorage.setMany(recoveredSettings);
+                      logger.info('[LibraryLoad] Rehydrated SQLite settings from validated user-state data');
                     } catch (repairError) {
                       appStorage.restoreInMemory(recoveredSettings);
-                      logger.warn('[LibraryLoad] Using users.json settings in memory only:', repairError);
+                      logger.warn('[LibraryLoad] Using recovered settings in memory only:', repairError);
                     }
                   } else {
                     logger.warn('[LibraryLoad] Settings recovery snapshot is empty; preserving the main-store failure for retry');
@@ -528,7 +557,7 @@ export function useLibraryLoad({
               );
               if (decision.kind === 'user-data' && decision.data) {
                 const rebuiltLibrary = decision.data;
-                logger.info('[LibraryLoad] Loading user library from ~/.la/users.json, tracks:', getUserTrackRecords(userData).length);
+                logger.info('[LibraryLoad] Loading user library from ~/.la/state.sqlite3, tracks:', getUserTrackRecords(userData).length);
                 restoredLibraryData = rebuiltLibrary;
                 const saved = await libraryStorage.saveLibrary(rebuiltLibrary);
                 if (!saved) {
@@ -610,9 +639,8 @@ export function useLibraryLoad({
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-    // 并行写入 playback 状态到 settings.json（音量/模式/进度/激活插槽）
-    appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
-    // 原子更新曲目归属 + playback；settings 由主进程保留，不再被全量覆盖。
+    // 桌面端把曲目归属 + playback 放进同一个 SQLite 事务；浏览器模式
+    // 仍由 AppStorage 写 localStorage。不要在桌面端再额外写一次 playback。
     if (isDesktop() && userDataWritableRef.current) {
       const allMinimal = [
         ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
@@ -620,12 +648,13 @@ export function useLibraryLoad({
         ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
         ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
       ];
-      getDesktopAPIAsync().then(api => {
-        api?.userDataSaveLibraryState?.(
-          allMinimal,
-          { _json: JSON.stringify(persistData) },
-        ).catch(error => logger.warn('[LibraryLoad] Failed to persist user library state:', error));
-      }).catch(() => {});
+      runtimeUserStateQueueRef.current!.schedule({
+        kind: 'library',
+        tracks: allMinimal,
+        playback: { _json: JSON.stringify(persistData) },
+      });
+    } else if (!isDesktop()) {
+      appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
     }
     // 注意：currentTime 不在本依赖数组中 —— 播放期间 timeupdate（~250ms/次）
     // 引起的进度变化由下方 savePlaybackThrottled 独立节流（5s）落盘，避免每秒
@@ -637,7 +666,7 @@ export function useLibraryLoad({
    * 播放进度节流落盘。
    *
    * <audio> 的 timeupdate 约 250ms 触发一次，若直接驱动写盘会是每秒 ~4 次同步
-   * 磁盘写（settings.json + users.json）。此处用 leading + trailing 节流：每 5s
+   * 磁盘写。此处用 leading + trailing 节流：每 5s
    * 最多落盘一次。退出/切歌由下方 flushCurrentLibrary 兜底，最坏丢失 ≤5s 进度
    *（参考 Apple Music / Spotify）。
    *
@@ -655,8 +684,21 @@ export function useLibraryLoad({
 
     const doSave = () => {
       playbackSaveLastRef.current = Date.now();
-      const persistData = getPersistenceData();
-      appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
+      // A trailing timer can outlive the render that created it. Read through
+      // the always-current close source ref so a later slot switch/index change
+      // cannot be overwritten by that stale closure.
+      const persistData = closeSnapshotSourcesRef.current.getPersistenceData();
+      const playbackJson = JSON.stringify(persistData);
+      if (isDesktop()) {
+        // An older delayed library transaction also contains playback. Put the
+        // lightweight progress update on the same serial queue so it always
+        // lands afterwards and can never be overwritten by that stale snapshot.
+        runtimeUserStateQueueRef.current!
+          .enqueue({ kind: 'playback', playbackJson })
+          .catch(error => logger.warn('[LibraryLoad] Failed to persist playback progress:', error));
+      } else {
+        appStorage.setItem('playback', playbackJson).catch(() => {});
+      }
     };
 
     if (elapsed >= THROTTLE_MS) {
@@ -672,7 +714,7 @@ export function useLibraryLoad({
   }, [
     slots.local.currentTime, slots.cloud.currentTime,
     slots.online.currentTime, slots.playlist.currentTime,
-    // getPersistenceData / appStorage 为稳定引用，不计入依赖
+    // 最新 getPersistenceData 通过 closeSnapshotSourcesRef 读取，不计入依赖
   ]);
 
   useEffect(() => {
@@ -699,6 +741,11 @@ export function useLibraryLoad({
         // Runtime saves may still contain an older snapshot. They must finish
         // before the final snapshot is captured and handed to the main process.
         if (desktop) {
+          try {
+            await runtimeUserStateQueueRef.current?.drain();
+          } catch (error) {
+            logger.warn('[LibraryLoad] A runtime SQLite save failed before close; committing final snapshot:', error);
+          }
           const drained = await libraryStorage.drainBeforeClose();
           if (!drained) {
             logger.warn('[LibraryLoad] A runtime library save failed before close; committing final snapshot');
@@ -785,6 +832,7 @@ export function useLibraryLoad({
   // 组件卸载时清理进度节流的 trailing timer（见上方 playbackSaveTimerRef 注释）
   useEffect(() => {
     return () => {
+      runtimeUserStateQueueRef.current?.cancel();
       if (playbackSaveTimerRef.current) {
         clearTimeout(playbackSaveTimerRef.current);
         playbackSaveTimerRef.current = null;

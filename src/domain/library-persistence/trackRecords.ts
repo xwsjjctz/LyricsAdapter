@@ -46,21 +46,21 @@ function songsToMinimalRecords(
   return songs.map(song => ({
     id: song.id,
     slotId,
-    ...(song.filePath ? { filePath: song.filePath } : undefined),
-    ...(song.webdavPath ? { webdavPath: song.webdavPath } : undefined),
-    ...(song.fileName ? { fileName: song.fileName } : undefined),
-    ...(song.fileSize ? { fileSize: song.fileSize } : undefined),
-    ...(song.lastModified ? { lastModified: song.lastModified } : undefined),
-    ...(song.source ? { source: song.source } : undefined),
-    ...(song.addedAt ? { addedAt: song.addedAt } : undefined),
-    ...(song.playCount != null ? { playCount: song.playCount } : undefined),
-    ...(song.lastPlayed !== undefined ? { lastPlayed: song.lastPlayed } : undefined),
-    ...(song.songmid ? { songmid: song.songmid } : undefined),
-    ...(song.available !== undefined ? { available: song.available } : undefined),
+    ...(typeof song.filePath === 'string' && song.filePath ? { filePath: song.filePath } : undefined),
+    ...(typeof song.webdavPath === 'string' && song.webdavPath ? { webdavPath: song.webdavPath } : undefined),
+    ...(typeof song.fileName === 'string' && song.fileName ? { fileName: song.fileName } : undefined),
+    ...(typeof song.fileSize === 'number' && Number.isFinite(song.fileSize) ? { fileSize: song.fileSize } : undefined),
+    ...(typeof song.lastModified === 'number' && Number.isFinite(song.lastModified) ? { lastModified: song.lastModified } : undefined),
+    ...(typeof song.source === 'string' ? { source: song.source } : undefined),
+    ...(typeof song.addedAt === 'string' && song.addedAt ? { addedAt: song.addedAt } : undefined),
+    ...(typeof song.playCount === 'number' && Number.isFinite(song.playCount) ? { playCount: song.playCount } : undefined),
+    ...((typeof song.lastPlayed === 'string' || song.lastPlayed === null) ? { lastPlayed: song.lastPlayed } : undefined),
+    ...(typeof song.songmid === 'string' && song.songmid ? { songmid: song.songmid } : undefined),
+    ...(typeof song.available === 'boolean' ? { available: song.available } : undefined),
   }));
 }
 
-/** Build the authoritative minimal membership records used to seed users.json. */
+/** Build the authoritative minimal membership records used to seed SQLite. */
 export function buildUserTracksFromLibraryCache(
   libraryData: PersistedLibrarySnapshot,
 ): UserTrackRecord[] {

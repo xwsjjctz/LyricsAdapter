@@ -143,6 +143,7 @@ describe('persistence IPC handlers', () => {
       ok: true,
       data: undefined,
     });
-    expect(mocks.userDataStore.saveLibraryState).toHaveBeenCalledWith(tracks, playback, {});
+    expect(mocks.userDataStore.saveLibraryState).toHaveBeenCalledWith(tracks, playback);
+    expect(mocks.settingsStore.getAll).not.toHaveBeenCalled();
   });
 });

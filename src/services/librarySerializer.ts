@@ -62,7 +62,7 @@ export function buildLibraryIndexDataForSlots(
 
 /**
  * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
- * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
+ * 用于写入 ~/.la/state.sqlite3 —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
  */
 function buildMinimalTrack(track: Track, slotId?: SlotId): UserTrackRecord {
   return {
@@ -87,7 +87,7 @@ export function buildMinimalTracks(tracks: Track[], slotId?: SlotId): UserTrackR
 }
 
 /**
- * 将 users.json 中的最小化曲目记录转换为完整的 LibraryIndexSong。
+ * 将用户状态库中的最小化曲目记录转换为完整的 LibraryIndexSong。
  * title/artist/album/duration 等缓存元数据留空，后续由 metadataCacheService
  * 或文件头重新解析填充。
  */

@@ -23,7 +23,6 @@ import { SETTINGS_MIGRATION_VERSION, SETTINGS_MIGRATION_VERSION_KEY } from '@/sh
 
 const SENSITIVE_KEYS = [
   'webdav-config',
-  'webdav-cdn-cache',
   'qq_music_cookie',
   'netease_cookie',
   'soda_cookie',
@@ -46,11 +45,10 @@ describe('appStorage persistence boundary', () => {
     appStorage.clearCache();
   });
 
-  it('keeps desktop secrets in memory/main-process storage and removes plaintext localStorage copies', async () => {
+  it('keeps all desktop settings in memory/main-process storage without localStorage mirrors', async () => {
     const mainSettings = {
       'app-theme': 'default-dark',
       'webdav-config': '{"password":"webdav-secret"}',
-      'webdav-cdn-cache': '{"/song.flac":{"url":"https://signed.example","expiry":1}}',
       qq_music_cookie: 'qq-secret',
       netease_cookie: 'netease-secret',
       soda_cookie: 'soda-secret',
@@ -65,7 +63,7 @@ describe('appStorage persistence boundary', () => {
 
     await appStorage.init();
 
-    expect(localStorage.getItem('app-theme')).toBe('default-dark');
+    expect(localStorage.getItem('app-theme')).toBeNull();
     for (const key of SENSITIVE_KEYS) {
       expect(appStorage.getItem(key)).toBe(mainSettings[key]);
       expect(localStorage.getItem(key)).toBeNull();
@@ -73,7 +71,10 @@ describe('appStorage persistence boundary', () => {
   });
 
   it('treats a non-empty desktop snapshot as authoritative instead of resurrecting stale local keys', async () => {
-    const api = makeDesktopSettingsApi({ 'app-theme': 'default-dark' });
+    const api = makeDesktopSettingsApi({
+      [SETTINGS_MIGRATION_VERSION_KEY]: SETTINGS_MIGRATION_VERSION,
+      'app-theme': 'default-dark',
+    });
     localStorage.setItem('la_floating_panel', 'true');
     mocks.isDesktop.mockReturnValue(true);
     mocks.getDesktopAPIAsync.mockResolvedValue(api);
@@ -101,13 +102,224 @@ describe('appStorage persistence boundary', () => {
     expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
     expect(appStorage.getItem('la_new_ux_enabled')).toBeNull();
     expect(appStorage.getItem('unknown-stale-key')).toBeNull();
-    expect(localStorage.getItem('app-theme')).toBe('default-light');
+    expect(localStorage.getItem('app-theme')).toBeNull();
     expect(localStorage.getItem('webdav-config')).toBeNull();
     expect(api.settingsSetMany).toHaveBeenCalledWith({
       [SETTINGS_MIGRATION_VERSION_KEY]: SETTINGS_MIGRATION_VERSION,
       'app-theme': 'default-light',
       'webdav-config': '{"password":"legacy-secret"}',
     });
+  });
+
+  it('writes the migration marker last so a partial stale-adapter write remains retryable', async () => {
+    const firstOrder: string[] = [];
+    const firstApi = makeDesktopSettingsApi();
+    firstApi.settingsSetMany.mockImplementationOnce(async (entries: Record<string, string>) => {
+      for (const key of Object.keys(entries)) {
+        firstOrder.push(key);
+        if (key === 'app-language') throw new Error('interrupted incremental fallback');
+      }
+    });
+    localStorage.setItem('app-theme', 'default-light');
+    localStorage.setItem('app-language', 'en');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(firstApi);
+
+    await appStorage.init();
+
+    expect(firstOrder).toEqual(['app-theme', 'app-language']);
+    expect(firstOrder).not.toContain(SETTINGS_MIGRATION_VERSION_KEY);
+    expect(localStorage.getItem('app-theme')).toBe('default-light');
+    expect(localStorage.getItem('app-language')).toBe('en');
+
+    // Simulate a restart after the stale adapter durably wrote only the first
+    // data key. The absent marker must force another merge instead of accepting
+    // that partial SQLite snapshot as authoritative.
+    appStorage.clearCache();
+    const retryOrder: string[] = [];
+    const retryApi = makeDesktopSettingsApi({ 'app-theme': 'default-light' });
+    retryApi.settingsSetMany.mockImplementationOnce(async (entries: Record<string, string>) => {
+      retryOrder.push(...Object.keys(entries));
+    });
+    mocks.getDesktopAPIAsync.mockResolvedValue(retryApi);
+
+    await appStorage.init();
+
+    expect(retryOrder).toEqual([
+      'app-theme',
+      'app-language',
+      SETTINGS_MIGRATION_VERSION_KEY,
+    ]);
+    expect(retryOrder.at(-1)).toBe(SETTINGS_MIGRATION_VERSION_KEY);
+    expect(appStorage.getItem('app-theme')).toBe('default-light');
+    expect(appStorage.getItem('app-language')).toBe('en');
+    expect(localStorage.getItem('app-theme')).toBeNull();
+    expect(localStorage.getItem('app-language')).toBeNull();
+  });
+
+  it('merges legacy config when SQLite initially contains derived playback only', async () => {
+    const playback = '{"activeSlotId":"cloud","volume":0.4}';
+    const api = makeDesktopSettingsApi({ playback });
+    localStorage.setItem('app-theme', 'default-light');
+    localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    await appStorage.init();
+
+    expect(api.settingsSetMany).toHaveBeenCalledWith({
+      [SETTINGS_MIGRATION_VERSION_KEY]: SETTINGS_MIGRATION_VERSION,
+      playback,
+      'app-theme': 'default-light',
+      'webdav-config': '{"password":"legacy-secret"}',
+    });
+    expect(appStorage.getItem('playback')).toBe(playback);
+    expect(appStorage.getItem('app-theme')).toBe('default-light');
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(localStorage.getItem('webdav-config')).toBeNull();
+  });
+
+  it('retains legacy desktop config for retry when its first durable migration fails', async () => {
+    const api = makeDesktopSettingsApi();
+    api.settingsSetMany.mockRejectedValueOnce(new Error('safeStorage unavailable'));
+    localStorage.setItem('app-theme', 'default-light');
+    localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    await appStorage.init();
+
+    expect(appStorage.getItem('app-theme')).toBe('default-light');
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(localStorage.getItem('app-theme')).toBe('default-light');
+    expect(localStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+  });
+
+  it('uses only incremental writes after the complete desktop snapshot cannot be read', async () => {
+    const api = makeDesktopSettingsApi();
+    api.settingsGetAll.mockRejectedValueOnce(new Error('SQLite snapshot unavailable'));
+    localStorage.setItem('app-theme', 'default-dark');
+    localStorage.setItem('app-language', 'zh');
+    localStorage.setItem('la_floating_panel', 'true');
+    localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    await appStorage.init();
+    await appStorage.setItem('app-theme', 'default-light');
+    await appStorage.setMany({ 'app-language': 'en', la_glass_ui: 'true' });
+    await appStorage.removeItem('la_floating_panel');
+
+    expect(api.settingsSet).toHaveBeenCalledWith('app-theme', 'default-light');
+    expect(api.settingsSetMany).toHaveBeenCalledTimes(1);
+    expect(api.settingsSetMany).toHaveBeenCalledWith({
+      'app-language': 'en',
+      la_glass_ui: 'true',
+    });
+    expect(api.settingsDelete).toHaveBeenCalledWith('la_floating_panel');
+    expect(api.settingsReplaceAll).not.toHaveBeenCalled();
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(localStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+  });
+
+  it('rolls back incremental writes without clearing SQLite after a desktop snapshot read failure', async () => {
+    const api = makeDesktopSettingsApi();
+    api.settingsGetAll.mockRejectedValueOnce(new Error('SQLite snapshot unavailable'));
+    localStorage.setItem('app-theme', 'default-dark');
+    localStorage.setItem('app-language', 'zh');
+    localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+    await appStorage.init();
+
+    api.settingsSet.mockRejectedValueOnce(new Error('disk full'));
+    await expect(appStorage.setItem('app-theme', 'default-light')).rejects.toThrow('disk full');
+    expect(appStorage.getItem('app-theme')).toBe('default-dark');
+    expect(localStorage.getItem('app-theme')).toBe('default-dark');
+
+    api.settingsSetMany.mockRejectedValueOnce(new Error('disk full'));
+    await expect(appStorage.setMany({ 'app-language': 'en', la_glass_ui: 'true' })).rejects.toThrow('disk full');
+    expect(appStorage.getItem('app-language')).toBe('zh');
+    expect(appStorage.getItem('la_glass_ui')).toBeNull();
+    expect(localStorage.getItem('app-language')).toBe('zh');
+    expect(localStorage.getItem('la_glass_ui')).toBeNull();
+
+    api.settingsDelete.mockRejectedValueOnce(new Error('disk full'));
+    await expect(appStorage.removeItem('webdav-config')).rejects.toThrow('disk full');
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(localStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(api.settingsReplaceAll).not.toHaveBeenCalled();
+  });
+
+  it('restores an early-read legacy secret when its first durable migration fails', async () => {
+    const api = makeDesktopSettingsApi();
+    api.settingsSetMany.mockRejectedValueOnce(new Error('safeStorage unavailable'));
+    localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    expect(appStorage.getItem('webdav-config')).toBeNull();
+    expect(localStorage.getItem('webdav-config')).toBeNull();
+
+    await appStorage.init();
+
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(localStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+  });
+
+  it('does not create plaintext mirrors for main-only secrets when marker migration fails', async () => {
+    const api = makeDesktopSettingsApi({
+      'app-theme': 'default-dark',
+      'webdav-config': '{"password":"main-only-secret"}',
+    });
+    api.settingsSetMany.mockRejectedValueOnce(new Error('disk full'));
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    await appStorage.init();
+
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"main-only-secret"}');
+    expect(localStorage.getItem('webdav-config')).toBeNull();
+  });
+
+  it('removes newly introduced secrets when a pending replaceAll rolls back', async () => {
+    const api = makeDesktopSettingsApi();
+    api.settingsSetMany.mockRejectedValueOnce(new Error('initial migration failed'));
+    localStorage.setItem('app-theme', 'default-dark');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+    await appStorage.init();
+
+    api.settingsReplaceAll.mockRejectedValueOnce(new Error('disk full'));
+    await expect(appStorage.replaceAll({
+      'webdav-config': '{"password":"new-secret"}',
+    })).rejects.toThrow('disk full');
+
+    expect(localStorage.getItem('webdav-config')).toBeNull();
+    expect(localStorage.getItem('app-theme')).toBe('default-dark');
+  });
+
+  it('never mirrors fresh secrets while a complete migration retry is in flight', async () => {
+    const api = makeDesktopSettingsApi();
+    api.settingsSetMany.mockRejectedValueOnce(new Error('initial migration failed'));
+    localStorage.setItem('app-theme', 'default-dark');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+    await appStorage.init();
+
+    let release!: () => void;
+    api.settingsReplaceAll.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+    const saving = appStorage.setItem('webdav-config', '{"password":"fresh-secret"}');
+
+    expect(appStorage.getItem('webdav-config')).toBe('{"password":"fresh-secret"}');
+    expect(localStorage.getItem('webdav-config')).toBeNull();
+    expect(localStorage.getItem('app-theme')).toBe('default-dark');
+
+    await vi.waitFor(() => expect(api.settingsReplaceAll).toHaveBeenCalledOnce());
+    release();
+    await saving;
+    expect(localStorage.getItem('webdav-config')).toBeNull();
+    expect(localStorage.getItem('app-theme')).toBeNull();
   });
 
   it('uses the migration marker to keep an intentionally empty desktop store authoritative', async () => {
@@ -174,7 +386,44 @@ describe('appStorage persistence boundary', () => {
     expect(api.settingsSet).toHaveBeenCalledWith(key, 'fresh-secret');
   });
 
-  it('filters secrets from desktop setMany while retaining them in the synchronous cache', async () => {
+  it.each([
+    'app-theme',
+    'app-language',
+    'app-shortcuts',
+    'playback',
+    'sidebar-layout',
+    'playlist-overrides',
+  ])('does not mirror regular desktop %s writes into localStorage', async (key) => {
+    const api = makeDesktopSettingsApi();
+    localStorage.setItem(key, 'stale-value');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    await appStorage.setItem(key, 'fresh-value');
+
+    expect(appStorage.getItem(key)).toBe('fresh-value');
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(api.settingsSet).toHaveBeenCalledWith(key, 'fresh-value');
+  });
+
+  it('cleans retired IDB-migrated config mirrors while preserving unrelated origin data', async () => {
+    const api = makeDesktopSettingsApi({ 'app-theme': 'default-dark' });
+    localStorage.setItem('sidebar-layout', '{"width":208}');
+    localStorage.setItem('playlist-overrides', '{}');
+    localStorage.setItem('webdav-cdn-cache', '{"stale":true}');
+    localStorage.setItem('unrelated-origin-data', 'keep-me');
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+
+    await appStorage.init();
+
+    expect(localStorage.getItem('sidebar-layout')).toBeNull();
+    expect(localStorage.getItem('playlist-overrides')).toBeNull();
+    expect(localStorage.getItem('webdav-cdn-cache')).toBeNull();
+    expect(localStorage.getItem('unrelated-origin-data')).toBe('keep-me');
+  });
+
+  it('keeps every desktop setMany value out of localStorage while retaining the synchronous cache', async () => {
     const api = makeDesktopSettingsApi();
     mocks.isDesktop.mockReturnValue(true);
     mocks.getDesktopAPIAsync.mockResolvedValue(api);
@@ -185,7 +434,7 @@ describe('appStorage persistence boundary', () => {
       'webdav-config': '{"password":"secret"}',
     });
 
-    expect(localStorage.getItem('app-language')).toBe('zh');
+    expect(localStorage.getItem('app-language')).toBeNull();
     expect(localStorage.getItem('qq_music_cookie')).toBeNull();
     expect(localStorage.getItem('webdav-config')).toBeNull();
     expect(appStorage.getItem('qq_music_cookie')).toBe('qq-secret');
@@ -213,7 +462,7 @@ describe('appStorage persistence boundary', () => {
     expect(localStorage.getItem('unrelated-origin-data')).toBe('keep-me');
     expect(localStorage.getItem('qq_music_cookie')).toBeNull();
     expect(localStorage.getItem('netease_cookie')).toBeNull();
-    expect(localStorage.getItem('app-language')).toBe('en');
+    expect(localStorage.getItem('app-language')).toBeNull();
     expect(appStorage.getItem('la_floating_panel')).toBeNull();
     expect(appStorage.getItem('netease_cookie')).toBe('new-secret');
     expect(api.settingsReplaceAll).toHaveBeenCalledWith({
@@ -232,7 +481,7 @@ describe('appStorage persistence boundary', () => {
     api.settingsSet.mockRejectedValueOnce(new Error('disk full'));
     await expect(appStorage.setItem('app-theme', 'default-light')).rejects.toThrow('disk full');
     expect(appStorage.getItem('app-theme')).toBe('default-dark');
-    expect(localStorage.getItem('app-theme')).toBe('default-dark');
+    expect(localStorage.getItem('app-theme')).toBeNull();
 
     api.settingsSetMany.mockRejectedValueOnce(new Error('disk full'));
     await expect(appStorage.setMany({ 'app-theme': 'default-light', 'app-language': 'en' })).rejects.toThrow('disk full');

@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { logger } from './logger';
 import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
@@ -22,6 +22,7 @@ import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { registerUserDataHandlers } from './ipc/userDataHandlers';
 import { registerPersistenceHandlers } from './ipc/persistenceHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
+import { userStateRepository } from './services/userStateRepository';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
@@ -44,7 +45,16 @@ app.commandLine.appendSwitch('secure-schemes', 'app,cover,audio,stream');
 // Register all custom schemes in one call (Electron only honours the first call).
 registerAllSchemes();
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
+
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
+  // User-owned settings/library membership live outside Chromium's replaceable
+  // userData directory. Legacy JSON is imported transactionally on first run.
+  userStateRepository.initialize();
   // Register protocol handlers (must be after app is ready)
   await registerAppProtocolHandler();
   registerCoverProtocol();
@@ -83,6 +93,29 @@ app.whenReady().then(async () => {
   scheduleStartupCheck(5000);
 
   logger.info('[Main] All IPC handlers registered');
+}).catch((error: unknown) => {
+  // Never continue with an empty or half-migrated authority store. Legacy JSON
+  // remains untouched, so the next launch can retry after the underlying
+  // filesystem or safeStorage problem is resolved.
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error('[Main] Failed to initialize user state:', error);
+  dialog.showErrorBox(
+    'LyricsAdapter could not start',
+    `The user-state database could not be initialized. No legacy data was deleted.\n\n${message}`,
+  );
+  app.quit();
+});
+
+app.on('second-instance', () => {
+  const window = getWindow();
+  if (!window) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+});
+
+app.once('will-quit', () => {
+  userStateRepository.close();
 });
 
 setupAppLifecycle();

@@ -53,7 +53,7 @@ async function commitLegacy(
     }
   } else if (desktop) {
     // Preserve the existing close contract: recovery mode may persist the
-    // replaceable stores, but closing remains blocked until users.json is safe.
+    // replaceable stores, but closing remains blocked until SQLite user state is safe.
     userDataSaved = false;
   }
 

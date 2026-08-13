@@ -2,158 +2,87 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  isEncryptionAvailable: vi.fn(),
-  encryptString: vi.fn(),
-  decryptString: vi.fn(),
-  existsSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  homedir: vi.fn(),
-  readJsonWithBackup: vi.fn(),
-  writeJsonAtomic: vi.fn(),
-  logger: {
-    debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+  repository: {
+    databasePath: '/virtual-home/.la/state.sqlite3',
+    initialize: vi.fn(),
+    loadUserData: vi.fn(),
+    saveUserData: vi.fn(),
+    saveTracks: vi.fn(),
+    commitLibraryState: vi.fn(),
+    saveSettings: vi.fn(),
+    setPlayback: vi.fn(),
   },
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: mocks.isEncryptionAvailable,
-    encryptString: mocks.encryptString,
-    decryptString: mocks.decryptString,
-  },
-}));
-
-vi.mock('fs', () => ({
-  default: {
-    existsSync: mocks.existsSync,
-    mkdirSync: mocks.mkdirSync,
-    readFileSync: vi.fn(),
-  },
-}));
-
-vi.mock('os', () => ({ default: { homedir: mocks.homedir } }));
-vi.mock('../../electron/utils/atomicWrite', () => ({
-  readJsonWithBackup: mocks.readJsonWithBackup,
-  writeJsonAtomic: mocks.writeJsonAtomic,
+vi.mock('../../electron/services/userStateRepository', () => ({
+  userStateRepository: mocks.repository,
 }));
 vi.mock('../../electron/logger', () => ({ logger: mocks.logger }));
 
-const secrets = {
-  'webdav-config': '{"password":"webdav-secret"}',
-  'webdav-cdn-cache': '{"signed":"url"}',
-  qq_music_cookie: 'qq-secret',
-  netease_cookie: 'netease-secret',
-  soda_cookie: 'soda-secret',
+import { userDataStore, type UserDataFile } from '../../electron/services/userDataStore';
+
+const snapshot: UserDataFile = {
+  schemaVersion: 1,
+  libraryInitialized: true,
+  tracks: [
+    { id: 'local-1', slotId: 'local', filePath: '/music/1.flac' },
+    { id: 'cloud-1', slotId: 'cloud', webdavPath: '/cloud/1.flac' },
+  ],
+  settings: { 'app-theme': 'default-dark' },
+  playback: { _json: '{"activeSlotId":"cloud"}' },
 };
 
-async function loadStore() {
-  return (await import('../../electron/services/userDataStore')).userDataStore;
-}
-
-describe('UserDataStore persistence contract', () => {
+describe('UserDataStore SQLite compatibility facade', () => {
   beforeEach(() => {
-    vi.resetModules();
     vi.clearAllMocks();
-    mocks.homedir.mockReturnValue('/virtual-home');
-    mocks.existsSync.mockReturnValue(false);
-    mocks.readJsonWithBackup.mockReturnValue(null);
-    mocks.writeJsonAtomic.mockImplementation(() => undefined);
-    mocks.isEncryptionAvailable.mockReturnValue(true);
-    mocks.encryptString.mockImplementation((value: string) => Buffer.from(`sealed:${value}`));
-    mocks.decryptString.mockImplementation((buffer: Buffer) => buffer.toString().slice('sealed:'.length));
+    mocks.repository.loadUserData.mockReturnValue(structuredClone(snapshot));
   });
 
-  it('encrypts sensitive backup settings and round-trips them on load', async () => {
-    let diskData: unknown;
-    mocks.writeJsonAtomic.mockImplementation((_path: string, data: unknown) => { diskData = structuredClone(data); });
-    const store = await loadStore();
-    const snapshot = {
-      schemaVersion: 1 as const,
-      libraryInitialized: true,
-      tracks: [{ id: 'track-1' }],
-      settings: secrets,
-      playback: { _json: '{}' },
-    };
-
-    expect(store.save(snapshot)).toBe(true);
-    const persisted = diskData as typeof snapshot;
-    for (const [key, plaintext] of Object.entries(secrets)) {
-      expect(persisted.settings[key]).toMatch(/^enc:[0-9a-f]+$/);
-      expect(persisted.settings[key]).not.toContain(plaintext);
-    }
-
-    mocks.readJsonWithBackup.mockReturnValue({ data: structuredClone(persisted), source: 'main' });
-    expect(store.load()).toEqual(snapshot);
+  it('preserves the versioned snapshot read surface and exposes the SQLite path', () => {
+    expect(userDataStore.load()).toEqual(snapshot);
+    expect(userDataStore.getFilePath()).toBe('/virtual-home/.la/state.sqlite3');
   });
 
-  it('fails closed instead of writing sensitive user data as plaintext', async () => {
-    const store = await loadStore();
-    mocks.isEncryptionAvailable.mockReturnValue(false);
+  it('delegates full and partial writes to repository transactions', () => {
+    const tracks = [{ id: 'playlist-1', slotId: 'playlist' as const }];
+    const playback = { _json: '{"activeSlotId":"playlist"}' };
+    const settings = { 'app-theme': 'default-light' };
 
-    expect(store.save({
-      schemaVersion: 1,
-      libraryInitialized: true,
-      tracks: [],
-      settings: secrets,
-      playback: {},
-    })).toBe(false);
-    expect(mocks.writeJsonAtomic).not.toHaveBeenCalled();
+    expect(userDataStore.save(snapshot)).toBe(true);
+    expect(userDataStore.saveTracks(tracks)).toBe(true);
+    expect(userDataStore.saveLibraryState(tracks, playback)).toBe(true);
+    expect(userDataStore.saveSettings(settings)).toBe(true);
+    expect(userDataStore.savePlayback(playback)).toBe(true);
+
+    expect(mocks.repository.saveUserData).toHaveBeenCalledWith(snapshot);
+    expect(mocks.repository.saveTracks).toHaveBeenCalledWith(tracks);
+    expect(mocks.repository.commitLibraryState).toHaveBeenCalledWith(
+      tracks,
+      playback,
+    );
+    expect(mocks.repository.saveSettings).toHaveBeenCalledWith(settings);
+    expect(mocks.repository.setPlayback).toHaveBeenCalledWith(playback);
   });
 
-  it('throws for an unreadable existing users file instead of reporting an empty library', async () => {
-    mocks.existsSync.mockReturnValue(true);
-    const store = await loadStore();
+  it('keeps the legacy migration hook as idempotent repository initialization', () => {
+    userDataStore.migrateFromLegacy();
 
-    expect(() => store.load()).toThrow('users.json and its backup are unreadable');
+    expect(mocks.repository.initialize).toHaveBeenCalledOnce();
   });
 
-  it('keeps an empty pre-v1 users file migration-pending to avoid clearing a surviving index', async () => {
-    mocks.readJsonWithBackup.mockReturnValue({
-      data: { tracks: [], settings: {}, playback: {} },
-      source: 'main',
+  it.each([
+    ['save', () => userDataStore.save(snapshot), 'saveUserData'],
+    ['saveTracks', () => userDataStore.saveTracks([]), 'saveTracks'],
+    ['saveLibraryState', () => userDataStore.saveLibraryState([], {}), 'commitLibraryState'],
+    ['saveSettings', () => userDataStore.saveSettings({}), 'saveSettings'],
+    ['savePlayback', () => userDataStore.savePlayback({}), 'setPlayback'],
+  ] as const)('reports false when %s cannot commit', (_name, invoke, method) => {
+    mocks.repository[method].mockImplementationOnce(() => {
+      throw new Error('database write failed');
     });
-    const store = await loadStore();
 
-    expect(store.load()).toMatchObject({
-      schemaVersion: 1,
-      libraryInitialized: false,
-      tracks: [],
-    });
-  });
-
-  it('updates library state atomically while preserving or refreshing settings', async () => {
-    const existing = {
-      schemaVersion: 1 as const,
-      libraryInitialized: false,
-      tracks: [],
-      settings: { 'app-theme': 'default-dark' },
-      playback: {},
-    };
-    mocks.readJsonWithBackup.mockReturnValue({ data: existing, source: 'main' });
-    let written: typeof existing | undefined;
-    mocks.writeJsonAtomic.mockImplementation((_path: string, data: typeof existing) => { written = structuredClone(data); });
-    const store = await loadStore();
-
-    expect(store.saveLibraryState(
-      [{ id: 'track-1' }],
-      { _json: '{"volume":0.5}' },
-      { 'app-theme': 'default-light' },
-    )).toBe(true);
-    expect(written).toMatchObject({
-      schemaVersion: 1,
-      libraryInitialized: true,
-      tracks: [{ id: 'track-1' }],
-      settings: { 'app-theme': 'default-light' },
-      playback: { _json: '{"volume":0.5}' },
-    });
-  });
-
-  it('does not start a new migration when only a recoverable backup exists', async () => {
-    mocks.existsSync.mockImplementation((filePath: string) => filePath.endsWith('users.json.bak'));
-    const store = await loadStore();
-
-    store.migrateFromLegacy();
-
-    expect(mocks.writeJsonAtomic).not.toHaveBeenCalled();
+    expect(invoke()).toBe(false);
+    expect(mocks.logger.error).toHaveBeenCalled();
   });
 });

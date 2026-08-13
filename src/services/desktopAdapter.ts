@@ -140,7 +140,7 @@ export interface DesktopAPI {
   showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
   // Online music: push a provider cookie to the main-process stream:// proxy.
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
-  // Settings store (Electron Store–style JSON file in main process)
+  // Settings store (SQLite-backed main-process facade)
   settingsGet?: (key: string) => Promise<string | undefined>;
   settingsGetAll?: () => Promise<Record<string, string>>;
   settingsSet?: (key: string, value: string) => Promise<void>;
@@ -152,7 +152,7 @@ export interface DesktopAPI {
   persistenceCommitClose?: (
     request: PersistenceCloseCommitRequest,
   ) => Promise<PersistenceCloseCommitResult>;
-  // User data store (~/.la/users.json)
+  // User data store (~/.la/state.sqlite3)
   userDataLoad?: () => Promise<UserDataSnapshot>;
   userDataSave?: (data: UserDataSnapshot) => Promise<void>;
   userDataSaveTracks?: (tracks: unknown[]) => Promise<void>;
@@ -518,7 +518,7 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  // ---- Settings store (passthrough to main-process settings.json) ----
+  // ---- Settings store (passthrough to main-process SQLite facade) ----
   async settingsGet(key: string): Promise<string | undefined> {
     // Prefer typed IPC path, fall back to legacy top-level method
     if (this.api.ipc?.settings?.get) {
@@ -614,7 +614,7 @@ class ElectronAdapter implements FullDesktopAPI {
     throw new Error('Desktop persistence.commitClose API is unavailable');
   }
 
-  // ---- User Data Store (~/.la/users.json) ----
+  // ---- User Data Store (~/.la/state.sqlite3) ----
 
   async userDataLoad(): Promise<UserDataSnapshot> {
     if (this.api.ipc?.userData?.load) {

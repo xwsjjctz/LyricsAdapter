@@ -5,10 +5,14 @@
  */
 const SENSITIVE_SETTING_KEYS = new Set([
   'webdav-config',
-  'webdav-cdn-cache',
   'qq_music_cookie',
   'netease_cookie',
   'soda_cookie',
+]);
+
+/** Replaceable runtime caches that belong in the application data directory. */
+const REPLACEABLE_CACHE_SETTING_KEYS = new Set([
+  'webdav-cdn-cache',
 ]);
 
 /** Internal tombstone written after the one-time localStorage migration. */
@@ -31,7 +35,6 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
   'app-theme',
   'playback',
   'webdav-config',
-  'webdav-cdn-cache',
   'qq_music_cookie',
   'qq_music_cookie_last_check',
   'netease_cookie',
@@ -53,6 +56,14 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
 
 export function isSensitiveSettingKey(key: string): boolean {
   return SENSITIVE_SETTING_KEYS.has(key);
+}
+
+export function isReplaceableCacheSettingKey(key: string): boolean {
+  return REPLACEABLE_CACHE_SETTING_KEYS.has(key);
+}
+
+export function isRetiredSettingKey(key: string): boolean {
+  return RETIRED_LOCAL_SETTING_KEYS.has(key);
 }
 
 export function isLegacyMigratableSettingKey(key: string): boolean {

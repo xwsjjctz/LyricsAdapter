@@ -2,7 +2,7 @@
  * IPC handlers for the file‑based settings store.
  *
  * Exposes get/set/setMany/getAll/delete/replaceAll operations on the main‑process
- * settings.json (~/.la/settings.json). Sensitive fields are transparently
+ * SQLite user state (~/.la/state.sqlite3). Sensitive fields are transparently
  * encrypted/decrypted via Electron safeStorage.
  *
  * Compatible with the unified origin (app://localhost) from Plan A.

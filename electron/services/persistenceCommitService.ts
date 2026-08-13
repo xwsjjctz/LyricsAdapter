@@ -4,7 +4,6 @@ import type {
   PersistenceCloseCommitResult,
   PersistenceWriteOutcome,
 } from '../../src/types/typedIpc';
-import { filterPublicSettings } from '../../src/shared/persistencePolicy';
 import { doSaveLibraryIndex } from '../ipc/core/libraryCore';
 import { settingsStore } from './settingsStore';
 import { userDataStore, type UserTrackRecord } from './userDataStore';
@@ -21,11 +20,9 @@ const failed = (error: unknown): PersistenceWriteOutcome => ({
 
 export interface PersistenceCommitDependencies {
   savePlayback: (playbackJson: string) => boolean;
-  loadSettings: () => Record<string, string>;
   saveUserLibraryState: (
     tracks: UserTrackRecord[],
     playback: Record<string, string>,
-    settings?: Record<string, string>,
   ) => boolean;
   saveLibraryIndex: (libraryIndex: unknown) => Promise<IpcResult<void>>;
 }
@@ -33,9 +30,9 @@ export interface PersistenceCommitDependencies {
 /**
  * Main-process use-case for the final close snapshot.
  *
- * Physical stores are intentionally not transactional with each other. Each
- * write is atomic on its own, every source is attempted in order, and callers
- * receive all outcomes so a partial commit is never hidden by the IPC envelope.
+ * User-owned settings, membership and playback are committed in one SQLite
+ * transaction. The replaceable library index is written last and remains an
+ * independent cache, so a cache failure never rolls back authoritative state.
  */
 export class PersistenceCommitService {
   private inFlight: Promise<PersistenceCloseCommitResult> | null = null;
@@ -63,37 +60,33 @@ export class PersistenceCommitService {
     const playbackJson = JSON.stringify(settingsValue);
 
     let settings: PersistenceWriteOutcome;
-    try {
-      settings = this.dependencies.savePlayback(playbackJson)
-        ? saved()
-        : failed('Failed to persist playback settings');
-    } catch (error) {
-      settings = failed(error);
-    }
-
     let userData: PersistenceWriteOutcome;
     if (request.userData.mode === 'skip') {
+      // Preserve the fail-closed compatibility path: do not touch membership,
+      // but still attempt the standalone playback update as older builds did.
+      try {
+        settings = this.dependencies.savePlayback(playbackJson)
+          ? saved()
+          : failed('Failed to persist playback settings');
+      } catch (error) {
+        settings = failed(error);
+      }
       userData = { status: 'skipped', reason: 'User-data writes disabled for this close attempt' };
     } else {
-      // A damaged settings source must not prevent membership/playback from
-      // reaching users.json. Omitting settings preserves the existing snapshot.
-      let publicSettings: Record<string, string> | undefined;
       try {
-        publicSettings = filterPublicSettings(this.dependencies.loadSettings());
-      } catch {
-        publicSettings = undefined;
-      }
-
-      try {
-        userData = this.dependencies.saveUserLibraryState(
+        const committed = this.dependencies.saveUserLibraryState(
           request.userData.tracks as UserTrackRecord[],
           { _json: playbackJson },
-          publicSettings,
-        )
+        );
+        const outcome = committed
           ? saved()
-          : failed('Failed to persist user library state');
+          : failed('Failed to persist authoritative user state');
+        settings = outcome;
+        userData = outcome;
       } catch (error) {
-        userData = failed(error);
+        const outcome = failed(error);
+        settings = outcome;
+        userData = outcome;
       }
     }
 
@@ -117,9 +110,8 @@ export class PersistenceCommitService {
 
 export const persistenceCommitService = new PersistenceCommitService({
   savePlayback: playbackJson => settingsStore.set('playback', playbackJson),
-  loadSettings: () => settingsStore.getAll(),
-  saveUserLibraryState: (tracks, playback, settings) => (
-    userDataStore.saveLibraryState(tracks, playback, settings)
+  saveUserLibraryState: (tracks, playback) => (
+    userDataStore.saveLibraryState(tracks, playback)
   ),
   saveLibraryIndex: libraryIndex => doSaveLibraryIndex(libraryIndex),
 });

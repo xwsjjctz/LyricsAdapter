@@ -8,6 +8,8 @@ import type {
 import {
   filterLegacyMigratableSettings,
   filterPublicSettings,
+  isReplaceableCacheSettingKey,
+  isRetiredSettingKey,
 } from '../../shared/persistencePolicy';
 import type { UserDataSnapshot } from '../../types/typedIpc';
 import { minimalTrackToPersistedSong } from './trackRecords';
@@ -197,7 +199,14 @@ export function resolveUserDataLibrary(
 export function buildSettingsRecoverySnapshot(
   userData: UserDataSnapshot,
 ): Record<string, string> {
-  const recovered = filterLegacyMigratableSettings(userData.settings);
+  // A successful user-data read comes from the same authoritative SQLite
+  // snapshot as settings. Preserve every durable public key so a transient
+  // settings query failure cannot delete newer settings (for example sidebar
+  // layout, playlist overrides, or future keys) through a narrow legacy list.
+  const recovered = Object.fromEntries(
+    Object.entries(filterPublicSettings(userData.settings || {}))
+      .filter(([key]) => !isReplaceableCacheSettingKey(key) && !isRetiredSettingKey(key)),
+  );
   const playbackJson = userData.playback['_json'] || recovered['playback'];
   if (playbackJson) recovered['playback'] = playbackJson;
   return recovered;
