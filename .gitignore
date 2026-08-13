@@ -69,7 +69,6 @@ downloads/
 __pycache__/
 .venv/
 FRONTEND.md
-CLAUDE.md
 *jpg
 *.whl
 talk.md
