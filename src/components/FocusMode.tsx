@@ -926,6 +926,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const handleLyricClick = useCallback((lyricTime: number, idx: number) => {
     if (lyricTime > 0 && onSeek) {
       onSeek(lyricTime);
+      // 点击歌词跳转是明确的播放意图：暂停状态下跳转后自动继续播放
+      if (!isPlaying && onTogglePlay) onTogglePlay();
     }
     // Clicking the currently-active line exits manual follow mode and resumes
     // auto-scrolling. This is the explicit "I'm done browsing" gesture, in
@@ -934,7 +936,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       setIsUserScrolling(false);
       setManualOffsetY(0);
     }
-  }, [activeIndex, isUserScrolling, onSeek]);
+  }, [activeIndex, isUserScrolling, onSeek, isPlaying, onTogglePlay]);
 
   return (
     <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
