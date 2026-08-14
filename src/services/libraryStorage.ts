@@ -3,70 +3,23 @@
  * 处理与 Electron 主进程的通信，实现数据的读写和验证
  */
 
-import { Track, PlaybackContext, LibrarySlot, SyncedLyricLine } from '../types';
+import { Track } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
+import type {
+  PersistedLibrarySettings as LibrarySettings,
+  PersistedLibrarySnapshot as LibraryIndexData,
+} from '../domain/library-persistence/models';
+
+export type {
+  PersistedLibrarySettings as LibrarySettings,
+  PersistedLibrarySnapshot as LibraryIndexData,
+  PersistedLibrarySong as LibraryIndexSong,
+} from '../domain/library-persistence/models';
 
 export interface LibraryData {
   songs: Track[];
   settings: LibrarySettings;
-}
-
-export interface LibraryIndexSong {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  duration: number;
-  lyrics?: string;
-  syncedLyrics?: SyncedLyricLine[];
-  /** Raw QRC/YRC payload, persisted so re-imports / re-caching keep word timing. */
-  wordLyrics?: string;
-  wordLyricsFormat?: 'qrc' | 'yrc';
-  coverUrl?: string;
-  filePath?: string;
-  fileName?: string;
-  fileSize?: number;
-  lastModified?: number;
-  addedAt?: string;
-  playCount?: number;
-  lastPlayed?: string | null;
-  available?: boolean;
-  source?: 'local' | 'webdav' | 'qq' | 'netease' | 'soda';
-  webdavPath?: string;
-  /** Third-party song id (QQ songmid / NetEase numeric id) for online tracks. */
-  songmid?: string;
-}
-
-export interface LibraryIndexData {
-  songs: LibraryIndexSong[];
-  cloudSongs?: LibraryIndexSong[];
-  onlineSongs?: LibraryIndexSong[];
-  playlistSongs?: LibraryIndexSong[];
-  settings: LibrarySettings;
-}
-
-export interface LibrarySettings {
-  volume?: number | undefined;
-  autoScroll?: boolean | undefined;
-  theme?: string | undefined;
-  currentTrackIndex?: number | undefined;
-  currentTrackId?: string | undefined;
-  currentTime?: number | undefined;
-  isPlaying?: boolean | undefined;
-  playbackMode?: 'order' | 'shuffle' | 'repeat-one' | undefined;
-  libraryDataSource?: 'local' | 'cloud' | undefined;
-  localCurrentTrackId?: string | undefined;
-  cloudCurrentTrackId?: string | undefined;
-  activeDataSource?: 'local' | 'cloud' | undefined;
-  localPlaybackContext?: PlaybackContext | undefined;
-  cloudPlaybackContext?: PlaybackContext | undefined;
-  localSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  cloudSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  onlineSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  playlistSlot?: Omit<LibrarySlot, 'id' | 'tracks'> | undefined;
-  activeSlotId?: 'local' | 'cloud' | 'online' | 'playlist' | undefined;
-  [key: string]: any;
 }
 
 interface ValidationResult {
@@ -89,7 +42,17 @@ class LibraryStorageService {
   }
 
   private runSave(library: LibraryIndexData): Promise<boolean> {
-    const savePromise = this.saveLibrary(library).finally(() => {
+    // Serialize physical writes. Starting a newer write while an older one is
+    // still in flight can otherwise let the older snapshot land last and
+    // overwrite the close snapshot.
+    const previousSave = this.saveInFlight;
+    const savePromise = (previousSave
+      ? previousSave.then(
+          () => this.saveLibrary(library),
+          () => this.saveLibrary(library),
+        )
+      : this.saveLibrary(library)
+    ).finally(() => {
       if (this.saveInFlight === savePromise) {
         this.saveInFlight = null;
       }
@@ -194,6 +157,39 @@ class LibraryStorageService {
     }
 
     return true;
+  }
+
+  /**
+   * Drain every runtime cache write before capturing the final close snapshot.
+   *
+   * The loop deliberately waits for the current in-flight write before taking
+   * the pending debounced value. A new pending value may be queued while an
+   * earlier write is settling, so the queue is re-checked after every await.
+   */
+  async drainBeforeClose(): Promise<boolean> {
+    let allSaved = true;
+
+    while (true) {
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = null;
+      }
+
+      const inFlight = this.saveInFlight;
+      if (inFlight) {
+        allSaved = (await inFlight) && allSaved;
+        continue;
+      }
+
+      const pendingLibrary = this.pendingLibrary;
+      this.pendingLibrary = null;
+      if (pendingLibrary) {
+        allSaved = (await this.runSave(pendingLibrary)) && allSaved;
+        continue;
+      }
+
+      return allSaved;
+    }
   }
 
   /**

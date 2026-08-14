@@ -38,12 +38,22 @@ if (typeof g['__filename'] === 'undefined') {
 interface AtomicWriteOptions {
   /** rename 前把现有目标复制为 `<filePath>.bak`，供 load 兜底恢复。默认 false。 */
   keepBackup?: boolean;
+  /** Optional semantic validator used before rotating an existing primary. */
+  validate?: (value: unknown) => boolean;
+}
+
+interface AtomicReadOptions {
+  /** Reject syntactically valid JSON whose store schema is invalid. */
+  validate?: (value: unknown) => boolean;
 }
 
 /**
  * 原子写入 JSON。写入失败会抛出异常（与 writeFileSync 一致），调用方自行 catch。
  */
 export function writeJsonAtomic(filePath: string, data: unknown, options?: AtomicWriteOptions): void {
+  if (options?.validate && !options.validate(data)) {
+    throw new Error(`Refusing to write schema-invalid JSON to ${path.basename(filePath)}`);
+  }
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -52,10 +62,18 @@ export function writeJsonAtomic(filePath: string, data: unknown, options?: Atomi
   if (options?.keepBackup && fs.existsSync(filePath)) {
     const bakPath = `${filePath}.bak`;
     try {
+      // Never replace a known-good backup with a corrupt/truncated primary.
+      // Parsing is cheap for these small JSON stores and closes the recovery
+      // hole where the next failed write could otherwise destroy both copies.
+      const existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      if (options.validate && !options.validate(existing)) {
+        throw new Error('Existing primary failed semantic validation');
+      }
       fs.copyFileSync(filePath, bakPath);
     } catch (e) {
-      // 备份失败不应阻塞主写入 —— 原文件至少会被新数据原子替换。
-      logger.warn(`[AtomicWrite] Failed to create .bak for ${path.basename(filePath)}:`, e);
+      // A backup failure must not block the atomic primary write. An existing
+      // backup is deliberately left untouched.
+      logger.warn(`[AtomicWrite] Skipped invalid/unreadable primary backup for ${path.basename(filePath)}:`, e);
     }
   }
 
@@ -68,12 +86,17 @@ export function writeJsonAtomic(filePath: string, data: unknown, options?: Atomi
  *
  * @returns 解析后的对象；主文件与 .bak 都不可用时返回 null（调用方自行决定默认值）。
  */
-export function readJsonWithBackup<T = unknown>(filePath: string): { data: T; source: 'main' | 'backup' } | null {
+export function readJsonWithBackup<T = unknown>(
+  filePath: string,
+  options?: AtomicReadOptions,
+): { data: T; source: 'main' | 'backup' } | null {
   const tryRead = (p: string): T | null => {
     try {
       if (!fs.existsSync(p)) return null;
       const raw = fs.readFileSync(p, 'utf-8');
-      return JSON.parse(raw) as T;
+      const parsed = JSON.parse(raw) as T;
+      if (options?.validate && !options.validate(parsed)) return null;
+      return parsed;
     } catch {
       return null;
     }
@@ -85,6 +108,14 @@ export function readJsonWithBackup<T = unknown>(filePath: string): { data: T; so
   const backup = tryRead(`${filePath}.bak`);
   if (backup !== null) {
     logger.warn(`[AtomicWrite] ${path.basename(filePath)} corrupted/unreadable, recovered from .bak`);
+    try {
+      // Repair the primary without rotating the backup. If this repair fails,
+      // callers can still use the in-memory backup data and the good .bak stays.
+      writeFileAtomic.sync(filePath, JSON.stringify(backup, null, 2));
+      logger.info(`[AtomicWrite] Repaired ${path.basename(filePath)} from .bak`);
+    } catch (error) {
+      logger.warn(`[AtomicWrite] Failed to repair ${path.basename(filePath)} from .bak:`, error);
+    }
     return { data: backup, source: 'backup' };
   }
 

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
  * Library-facing ViewModel (Phase 4 of the refactor roadmap, §6.4).
  *
  * Repackages the library store + the two controllers into the shape UI
- * consumes, so AppWorkspace can hand both shells (Legacy + NewUx) a single
+ * consumes, so AppWorkspace can hand the application shell a single
  * `library` object instead of threading slots / activeSlotId / viewSlot / the
  * mutation callbacks separately.
  *
@@ -32,7 +32,7 @@ export interface LibraryViewModel {
   // ---- intent callbacks ----
   /** Switch the slot the library panel is browsing. */
   switchViewSlot(slotId: SlotId, options?: { locateCurrentTrack?: boolean }): Promise<void>;
-  /** Play a track; optional slotId override for cross-context playback (New UI). */
+  /** Play a track, optionally overriding the source slot for cross-context playback. */
   selectTrack(index: number, slotId?: SlotId): void;
   removeTrack(trackId: string, deleteFile?: boolean): Promise<void>;
   removeTracks(trackIds: string[], deleteFile?: boolean): Promise<void>;

@@ -39,16 +39,13 @@ interface FocusModeProps {
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
-  ambientLayer?: React.ReactNode;
-  variant?: 'legacy' | 'new-ux';
 }
 
 const FocusModeContent: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef, ambientLayer, variant = 'legacy'
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
 }) => {
   const isLinux = getDesktopAPI()?.platform === 'linux';
-  const isNewUxFocus = variant === 'new-ux';
 
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
@@ -119,7 +116,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // FocusMode uses fixed dark colors for immersive experience (except player controls)
   const focusColors = FOCUS_MODE_COLORS;
   const useDefaultThemeControlGlass =
-    !isNewUxFocus &&
     (currentTheme.id === THEME_IDS.DEFAULT_DARK || currentTheme.id === THEME_IDS.DEFAULT);
 
   // Keep an exact RAF time ref for karaoke and a lighter state snapshot for UI.
@@ -947,7 +943,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         bgBlurRadius={bgBlurRadius}
         isLinux={isLinux}
         canvasRef={canvasRef}
-        ambientLayer={ambientLayer}
       />
 
       <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
@@ -955,16 +950,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         <div className="shrink-0 pt-12" />
 
         {/* Content Section */}
-        <main className={isNewUxFocus
-          ? 'newux-focus-main'
-          : 'flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6'
-        }>
+        <main className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6">
 
           {/* Cover & Title */}
-          <div className={isNewUxFocus
-            ? 'newux-focus-cover-col'
-            : 'flex-none flex flex-col items-center justify-center w-auto p-6'
-          }>
+          <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
             <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} />
             <FocusTrackMeta
               track={track}
@@ -976,10 +965,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           {/* Lyrics */}
           {hasLyrics && (
             <div
-              className={isNewUxFocus
-                ? `newux-focus-lyrics${isVisible ? ' new-ux-focus-lyrics-enter' : ''}`
-                : `flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none`
-              }
+              className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
               ref={lyricsRef}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -1021,7 +1007,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           )}
         </main>
 
-        <div className={isNewUxFocus ? 'newux-focus-controls-wrap' : ''}>
+        <div>
           <FocusControls
             track={track}
             colors={colors}
@@ -1073,9 +1059,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   if (prevProps.playbackMode !== nextProps.playbackMode) return false;
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
-  if (prevProps.ambientLayer !== nextProps.ambientLayer) return false;
-  if (prevProps.variant !== nextProps.variant) return false;
-
   // For currentTime, we allow more frequent updates (0.5 second threshold)
   // This keeps the lyrics scrolling smooth while avoiding excessive re-renders
   const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);

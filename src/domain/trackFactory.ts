@@ -7,7 +7,7 @@ import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
  *
  * This is the **single** place that knows how an online song maps to a Track.
  * Previously the same construction was duplicated in 4 locations
- * (the playlist menu, AppWorkspace.openOnlinePlaylist, usePlayerController for
+ * (the playlist menu and usePlayerController for
  * stream-play and playlist browsing), and they had already started to diverge
  * (coverUrl handling). Funnel all online→Track creation through here so a
  * provider field change only touches one spot.

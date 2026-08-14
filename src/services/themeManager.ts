@@ -10,20 +10,11 @@ import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
-import { settingsManager } from './settingsManager';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
-/**
- * Write a theme's full set of CSS custom properties + the theme-dark/theme-light
- * class onto a given element. Extracted from applyTheme so the New UI shell can
- * pin the default-dark palette onto its own root, isolating itself from global
- * theme switches (the New UI ships a fixed dark look by design).
- *
- * Note: this deliberately does NOT touch font-family (a document-global concern)
- * or the theme-is-transitioning class (a :root animation concern).
- */
-export function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
+/** Write a theme's CSS custom properties and light/dark marker to an element. */
+function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   const colors = theme.colors;
   const fonts = theme.fonts;
   const radius = theme.borderRadius;
@@ -164,16 +155,17 @@ class ThemeManagerClass {
 
   private loadFromStorage(): void {
     try {
+      this.currentThemeId = THEME_IDS.DEFAULT_DARK;
       const storedTheme = appStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
       const normalizedTheme = this.normalizeThemeId(storedTheme);
       if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
         this.currentThemeId = normalizedTheme;
-        logger.debug('[ThemeManager] Loaded saved theme from localStorage:', storedTheme);
+        logger.debug('[ThemeManager] Loaded saved theme from app storage:', storedTheme);
       } else {
         logger.debug('[ThemeManager] No saved theme found, using default');
       }
     } catch (error) {
-      logger.error('[ThemeManager] Failed to load from localStorage:', error);
+      logger.error('[ThemeManager] Failed to load from app storage:', error);
     }
   }
 
@@ -185,7 +177,6 @@ class ThemeManagerClass {
 
   private saveToStorage(themeId: ThemeId): void {
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, themeId);
       appStorage.setItem(THEME_STORAGE_KEY, themeId).catch(() => {});
       logger.debug('[ThemeManager] Theme saved', themeId);
     } catch (error) {
@@ -205,6 +196,16 @@ class ThemeManagerClass {
     this.applyTheme(this.getCurrentTheme());
   }
 
+  /** Re-read a repaired AppStorage snapshot without persisting it again. */
+  reload(): void {
+    const previous = this.currentThemeId;
+    this.loadFromStorage();
+    if (this.currentThemeId === previous) return;
+    this.applyCurrentTheme();
+    this.notifyListeners();
+    logger.info('[ThemeManager] Theme reloaded after settings recovery');
+  }
+
   setTheme(themeId: ThemeId): void {
     const theme = predefinedThemes.find(t => t.id === themeId);
     if (!theme) {
@@ -216,10 +217,6 @@ class ThemeManagerClass {
     this.saveToStorage(themeId);
     this.applyTheme(theme);
     this.notifyListeners();
-    if (settingsManager.getNewUxEnabled()) {
-      settingsManager.setNewUxEnabled(false);
-    }
-
     logger.info('[ThemeManager] Theme changed to:', theme.name);
   }
 

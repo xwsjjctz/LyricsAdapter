@@ -62,7 +62,7 @@
 
 ### 前置要求
 
-- **Node.js** 18.0 或更高版本
+- **Node.js** 20.19 或更高版本（或 22.12+）
 - **npm** 9.0 或更高版本（或 yarn/pnpm）
 - **操作系统**：Windows 10+、macOS 10.15+、Linux (x64/arm64)
 
@@ -93,6 +93,18 @@
 ### 其他命令
 
 ```bash
+# 仅启动浏览器版渲染层
+npm run dev
+
+# 启动带 CDP / 主进程调试端口的 Electron
+npm run electron:debug
+
+# 运行类型检查、单元测试和生产构建
+npm run check
+
+# 运行真实 Electron 冒烟测试
+npm run test:e2e
+
 # 构建 Windows 版本 (x64)
 npm run electron:build:win
 
@@ -480,8 +492,11 @@ interface LibrarySlot {
    ```
 
 3. **开发工具**
-   - React DevTools - React 组件调试
-   - Electron DevTools - Electron 主进程调试
+   - Chromium DevTools / CDP - 渲染进程、DOM、网络与控制台调试
+   - Node Inspector - Electron 主进程断点调试
+   - Playwright MCP - AI Agent 通过 CDP 检查和操作运行中的 Electron
+
+   完整配置和使用方法见 [Electron 调试与 Agent 工作流](DEBUGGING.md)。
 
 ### 代码规范
 
@@ -576,6 +591,8 @@ interface DesktopAPI {
 ```
 
 ### 调试技巧
+
+需要跨渲染进程、预加载脚本和主进程调试时，先运行 `npm run electron:debug`，再按 [DEBUGGING.md](DEBUGGING.md) 连接 CDP、MCP 或 VS Code。
 
 1. **查看日志**
    - 开发环境：控制台查看 `logger.debug()` 和 `logger.info()` 输出

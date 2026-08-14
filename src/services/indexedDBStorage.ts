@@ -146,7 +146,7 @@ class IndexedDBStorageService {
    *
    * 若底层 LevelDB 损坏（"Internal error opening backing store"），
    * 自动 deleteDatabase 后重试一次。IndexedDB 内的全部数据按架构设计
-   * 属于可重建缓存，删除不会影响纯用户数据（~/.la/users.json）。
+   * 属于可重建缓存，删除不会影响纯用户数据（~/.la/state.sqlite3）。
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;

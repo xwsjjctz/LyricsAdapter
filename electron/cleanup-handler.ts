@@ -22,7 +22,11 @@ export function registerCleanupHandlers(): void {
       try {
         cleanupProcess = fork(cleanupScriptPath, [userDataPath, JSON.stringify(activeTrackIds)], {
           detached: true,
-          stdio: 'ignore'
+          stdio: 'ignore',
+          // A fork inherits the parent's Node flags by default. Exclude
+          // inspector flags so Electron main and cleanup never contend for
+          // the same debugging port.
+          execArgv: process.execArgv.filter((arg) => !arg.startsWith('--inspect')),
         });
 
         cleanupProcess.on('error', (err) => {

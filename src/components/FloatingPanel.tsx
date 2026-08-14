@@ -30,7 +30,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ children, onClose, classN
   }, [onClose]);
 
   return (
-    <div ref={panelRef} className={`legacy-floating-panel-shell ${className}`}>
+    <div ref={panelRef} className={`floating-panel-shell ${className}`}>
       {children}
     </div>
   );

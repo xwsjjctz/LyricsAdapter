@@ -6,7 +6,6 @@ import { predefinedThemes } from '../services/themes/predefinedThemes';
 import { useFrostedHeader } from '../hooks/useFrostedHeader';
 import { resolveThemeControls } from '../services/themeControls';
 import { resolveThemeAppearance } from '../services/themeAppearance';
-import { settingsManager } from '../services/settingsManager';
 
 interface ThemeViewProps {
   onHeaderHeightChange?: (height: number) => void;
@@ -83,10 +82,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
 
   const handleApplyTheme = (themeId: ThemeId) => {
     themeManager.setTheme(themeId);
-  };
-
-  const handleEnterNewUx = () => {
-    settingsManager.setNewUxEnabled(true);
   };
 
   const handleToggleDefaultCardMode = (isDark: boolean) => {
@@ -216,7 +211,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleThemes.map((theme) => {
             const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;
-            const isCurrent = !settingsManager.getNewUxEnabled() && theme.id === currentThemeId;
+            const isCurrent = theme.id === currentThemeId;
             const controls = resolveThemeControls(theme);
             const appearance = resolveThemeAppearance(theme);
 
@@ -402,59 +397,6 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
               </div>
             );
           })}
-          <button
-            type="button"
-            className="theme-preview-card relative overflow-hidden text-left transition-all duration-300 group"
-            style={{
-              backgroundColor: '#0a1022',
-              borderRadius: '20px',
-              border: '1px solid rgba(126, 156, 255, 0.35)',
-              boxShadow: '0 18px 40px -24px rgba(77, 112, 255, 0.9)',
-            }}
-            onClick={handleEnterNewUx}
-          >
-            <div className="h-32 relative overflow-hidden bg-[#0a1022]">
-              <div
-                className="absolute inset-0"
-                style={{ background: 'radial-gradient(circle at 20% 120%, #4d70ff 0%, transparent 48%), radial-gradient(circle at 88% 12%, #c778ff 0%, transparent 42%), linear-gradient(135deg, #111a35, #0a1022)' }}
-              />
-              <div className="absolute left-4 right-4 bottom-4 rounded-xl border border-white/10 bg-slate-950/55 p-2 shadow-xl backdrop-blur-md">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-400 text-slate-950 shadow-lg shadow-violet-400/30">
-                    <span className="material-symbols-outlined text-[16px] fill-icon">play_arrow</span>
-                  </span>
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-1.5 w-3/4 rounded-full bg-white/75" />
-                    <div className="h-1 w-1/2 rounded-full bg-white/30" />
-                  </div>
-                  <span className="h-7 w-7 rounded-lg border border-white/10 bg-white/10" />
-                </div>
-              </div>
-              <span className="absolute top-4 left-4 flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
-                <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                New UI
-              </span>
-            </div>
-
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-white">{t('settings.newUx')}</h3>
-                <span className="material-symbols-outlined text-lg text-violet-300">arrow_outward</span>
-              </div>
-              <p className="text-sm mb-3 text-slate-300">{t('settings.newUxDesc')}</p>
-              <div className="flex items-center gap-1 text-xs text-slate-400">
-                <span className="material-symbols-outlined text-sm">dashboard_customize</span>
-                <span>New UI</span>
-              </div>
-            </div>
-
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
-              <span className="flex items-center gap-2 rounded-xl bg-violet-300 px-6 py-3 text-sm font-semibold text-slate-950 transition-transform group-hover:scale-105 group-focus-visible:scale-105">
-                <span className="material-symbols-outlined text-lg">arrow_forward</span>
-                {t('theme.enterNewUx')}
-              </span>
-            </div>
-          </button>
         </div>
       </div>
 

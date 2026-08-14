@@ -3,9 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
-import type { IpcResult } from '../../src/types/typedIpc';
 import { doLoadLibraryIndex, doSaveLibraryIndex } from './core/libraryCore';
 import { qqMusicHeaders } from '../utils/httpHeaders';
+import { fail, ok, parsePayload } from './typedResult';
 import {
   doWebdavDelete,
   doWebdavGetRange,
@@ -17,14 +17,6 @@ import {
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac']);
 const selectedAudioPaths = new Set<string>();
-
-function ok<T>(data: T): IpcResult<T> {
-  return { ok: true, data };
-}
-
-function fail<T = never>(error: string): IpcResult<T> {
-  return { ok: false, error };
-}
 
 function toArrayBuffer(buffer: Buffer): ArrayBuffer {
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
@@ -53,14 +45,6 @@ export function allowAudioPath(filePath: string): void {
 export function canReadAudioPath(filePath: string): boolean {
   const resolved = path.resolve(filePath);
   return isAudioPath(resolved) && (selectedAudioPaths.has(resolved) || isInside(resolveUserDataPath('audio'), resolved));
-}
-
-function parsePayload<T>(schema: { safeParse: (payload: unknown) => { success: true; data: T } | { success: false; error: { message: string } } }, payload: unknown): IpcResult<T> {
-  const parsed = schema.safeParse(payload);
-  if (!parsed.success) {
-    return fail(parsed.error.message);
-  }
-  return ok(parsed.data);
 }
 
 export function registerTypedIpcHandlers(): void {

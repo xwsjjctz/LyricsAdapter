@@ -201,21 +201,11 @@ export function usePlayerController(options: PlayerControllerOptions) {
   } = options;
 
   // ── Browse/play decoupling for third-party playlists ───────────────────────
-  // Opening a third-party playlist card must NOT touch the 'playlist' play
-  // slot: doing so would overwrite the currently-playing list and set its
-  // index to -1, unmounting <audio> and pausing playback. Instead the browsed
-  // songs live here in an independent browsing state that the playlist panel
-  // reads for display. Playback only starts when the user clicks a track in
-  // the panel (playBrowsingTrack).
-  const [browsingTracks, setBrowsingTracks] = useState<{ tracks: Track[]; source: OnlineSource }>({ tracks: [], source: 'qq' });
-  const [browsingPlaylistLoadState, setBrowsingPlaylistLoadState] = useState<PlaylistLoadState>(IDLE_PLAYLIST_LOAD_STATE);
   const [libraryPlaylistLoadState, setLibraryPlaylistLoadState] = useState<PlaylistLoadState>(IDLE_PLAYLIST_LOAD_STATE);
-  // Legacy UI: the playlist being browsed in the Library list. Decoupled from
+  // The playlist being browsed in the Library list. Decoupled from
   // the 'playlist' play slot so opening a playlist never interrupts playback —
   // the slot is only populated when the user actually clicks a track to play.
   const [libraryBrowsingTracks, setLibraryBrowsingTracks] = useState<Track[]>([]);
-  const browsingGenerationRef = useRef(0);
-  const browsingLoadingRef = useRef(false);
   const libraryGenerationRef = useRef(0);
   const libraryLoadingRef = useRef(false);
   const lyricsRequestsInFlightRef = useRef(new Map<string, Promise<OnlineLyricsResult | null>>());
@@ -332,10 +322,8 @@ export function usePlayerController(options: PlayerControllerOptions) {
   }, []);
 
   // Track selection handler that handles cross-slot selection.
-  // `targetSlotId` lets New-UI callers state explicitly which slot the clicked
-  // row belongs to (the open panel may show local/cloud tracks while the active
-  // play context is the 'playlist' slot — e.g. after opening a third-party
-  // playlist card). Legacy callers omit it and fall back to viewSlot.
+  // `targetSlotId` lets a caller state explicitly which slot owns the clicked
+  // row. Ordinary library callers omit it and fall back to viewSlot.
   const handleTrackSelect = useCallback((trackIndex: number, targetSlotId?: SlotId) => {
     const playSlot = targetSlotId ?? viewSlot;
 
@@ -424,11 +412,8 @@ export function usePlayerController(options: PlayerControllerOptions) {
   }, [addOnlineTrack, updateOnlineTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef, setViewSlot, enrichProviderTrackLyrics]);
 
   // UI-facing adapter: normalize an OnlineSong into the shape the internal
-  // handler expects. Moved here from AppWorkspace's two call-site wrappers
-  // (NewUxShell + SearchBox). Uses the NewUxShell variant's conditional
-  // coverUrl inclusion; the SearchBox variant passed coverUrl unconditionally,
-  // but for the resulting Track the two are behaviourally equivalent (an
-  // undefined coverUrl vs. an absent key both fall back to the placeholder).
+  // handler expects. Keeping the normalization here gives every search surface
+  // the same Track shape and cover fallback behavior.
   const playOnlineSong = useCallback((song: OnlineSong, sourceOverride?: OnlineSource) => {
     void handleOnlineStreamPlay({
       songmid: song.songmid,
@@ -457,83 +442,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
       .catch(() => { /* lyrics are best-effort */ });
   }, [activeSlotId, activeOnlineTrack, enrichProviderTrackLyrics, updateOnlineTracks]);
 
-  // New UI: opening a third-party playlist card fetches its songs for BROWSING
-  // only. It deliberately does NOT load them into the 'playlist' play slot nor
-  // switch the active play context — that would pause whatever is currently
-  // playing (see bug: 切换歌单暂停正在播放的歌). Playback starts on demand via
-  // playBrowsingTrack when the user clicks a track inside the panel.
-  const openOnlinePlaylist = useCallback(async (source: OnlineSource, playlistId: string) => {
-    const generation = browsingGenerationRef.current + 1;
-    browsingGenerationRef.current = generation;
-    browsingLoadingRef.current = true;
-    setBrowsingTracks({ tracks: [], source });
-    setBrowsingPlaylistLoadState({
-      source,
-      playlistId,
-      title: null,
-      totalTrackCount: null,
-      nextOffset: 0,
-      hasMore: true,
-      isLoading: true,
-      error: null,
-    });
-
-    try {
-      const page = await loadPlaylistPage(source, playlistId, 0);
-      if (generation !== browsingGenerationRef.current) return;
-      setBrowsingTracks({ tracks: page.tracks, source });
-      setBrowsingPlaylistLoadState({
-        source,
-        playlistId,
-        title: null,
-        totalTrackCount: null,
-        nextOffset: page.count,
-        hasMore: page.count === PLAYLIST_PAGE_SIZE,
-        isLoading: false,
-        error: null,
-      });
-    } catch (error) {
-      if (generation !== browsingGenerationRef.current) return;
-      setBrowsingPlaylistLoadState(prev => ({ ...prev, isLoading: false, hasMore: false, error: playlistErrorMessage(error) }));
-      throw error;
-    } finally {
-      if (generation === browsingGenerationRef.current) browsingLoadingRef.current = false;
-    }
-  }, [loadPlaylistPage]);
-
-  const loadMoreBrowsingPlaylist = useCallback(async () => {
-    const state = browsingPlaylistLoadState;
-    if (!state.playlistId || !state.hasMore || browsingLoadingRef.current) return;
-
-    const generation = browsingGenerationRef.current;
-    const { source, playlistId, nextOffset } = state;
-    browsingLoadingRef.current = true;
-    setBrowsingPlaylistLoadState(prev => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const page = await loadPlaylistPage(source, playlistId, nextOffset);
-      if (generation !== browsingGenerationRef.current) return;
-      setBrowsingTracks(prev => ({
-        source: prev.source,
-        tracks: prev.source === source ? appendUniqueTracks(prev.tracks, page.tracks) : prev.tracks,
-      }));
-      setBrowsingPlaylistLoadState(prev => ({
-        ...prev,
-        nextOffset: nextOffset + page.count,
-        hasMore: page.count === PLAYLIST_PAGE_SIZE,
-        isLoading: false,
-        error: null,
-      }));
-    } catch (error) {
-      if (generation === browsingGenerationRef.current) {
-        setBrowsingPlaylistLoadState(prev => ({ ...prev, isLoading: false, error: playlistErrorMessage(error) }));
-      }
-    } finally {
-      if (generation === browsingGenerationRef.current) browsingLoadingRef.current = false;
-    }
-  }, [browsingPlaylistLoadState, loadPlaylistPage]);
-
-  // Legacy UI: open a playlist as a Library list without starting playback.
+  // Open a playlist as a Library list without starting playback.
   // The browsed tracks live in libraryBrowsingTracks (NOT the 'playlist' play
   // slot), so opening a playlist while another is playing never interrupts it.
   // Playback only starts when the user clicks a row (playLibraryPlaylistTrack).
@@ -613,7 +522,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
   // User clicked a track inside the legacy Library playlist view: commit the
   // browsed list into the 'playlist' play slot (so next/prev traverse it) and
   // start playback at the clicked index. This is the moment browsing becomes
-  // playing — mirroring playBrowsingTrack in the New UI.
+  // playing.
   const playLibraryPlaylistTrack = useCallback((clickedIndex: number) => {
     if (libraryBrowsingTracks.length === 0) return;
     const safeIndex = Math.max(0, Math.min(clickedIndex, libraryBrowsingTracks.length - 1));
@@ -625,23 +534,6 @@ export function usePlayerController(options: PlayerControllerOptions) {
     shouldAutoPlayRef.current = true;
     setIsPlaying(true);
   }, [libraryBrowsingTracks, loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying]);
-
-  // User clicked a track inside the browsed third-party playlist panel: load
-  // the whole browsed list into the 'playlist' play slot (so next/prev traverse
-  // it), start at the clicked index, and begin playback. This is the moment
-  // browsing becomes playing.
-  const playBrowsingTrack = useCallback((clickedIndex: number) => {
-    const { tracks } = browsingTracks;
-    if (tracks.length === 0) return;
-    const safeIndex = Math.max(0, Math.min(clickedIndex, tracks.length - 1));
-    updateSlot(activeSlotId, s => ({ ...s, currentTime: audioRef.current?.currentTime || 0 }));
-    loadPlaylistTracks(tracks);
-    updateSlot('playlist', s => ({ ...s, currentTrackIndex: safeIndex }));
-    setRestoreTime(0);
-    switchTo('playlist');
-    shouldAutoPlayRef.current = true;
-    setIsPlaying(true);
-  }, [browsingTracks, loadPlaylistTracks, updateSlot, activeSlotId, audioRef, setRestoreTime, switchTo, setIsPlaying, shouldAutoPlayRef]);
 
   // Playlist-only circular lyrics window (size 3): prefetch current, previous
   // and next so FocusMode switches are instant even at the list boundaries.
@@ -757,14 +649,9 @@ export function usePlayerController(options: PlayerControllerOptions) {
     handleSearchNavigate,
     handleOnlineStreamPlay,
     playOnlineSong,
-    openOnlinePlaylist,
-    loadMoreBrowsingPlaylist,
     openOnlinePlaylistInLibrary,
     loadMorePlaylistInLibrary,
-    browsingPlaylistLoadState,
     libraryPlaylistLoadState,
-    browsingTracks,
-    playBrowsingTrack,
     libraryBrowsingTracks,
     playLibraryPlaylistTrack,
   };

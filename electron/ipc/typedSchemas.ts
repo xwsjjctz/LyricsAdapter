@@ -1,4 +1,38 @@
 import { z } from 'zod';
+import {
+  stringRecordSchema,
+  userDataSnapshotSchema,
+  userTrackRecordSchema,
+} from '../../src/shared/userDataSchema';
+import { libraryIndexSnapshotSchema } from '../../src/shared/libraryIndexSchema';
+
+export { userDataSnapshotSchema } from '../../src/shared/userDataSchema';
+
+function storeReadSchema<T extends z.ZodTypeAny>(dataSchema: T) {
+  return z.discriminatedUnion('status', [
+    z.object({ status: z.literal('ready'), data: dataSchema }),
+    z.object({ status: z.literal('error'), error: z.string() }),
+  ]);
+}
+
+/** Response schema for the read-only persistence bootstrap facade. */
+export const persistenceBootstrapSchema = z.object({
+  settings: storeReadSchema(stringRecordSchema),
+  userData: storeReadSchema(userDataSnapshotSchema),
+  libraryIndex: storeReadSchema(libraryIndexSnapshotSchema),
+});
+
+/** Final close snapshot. All physical writes are validated before the use-case runs. */
+export const persistenceCloseCommitSchema = z.object({
+  libraryIndex: libraryIndexSnapshotSchema,
+  userData: z.discriminatedUnion('mode', [
+    z.object({
+      mode: z.literal('write'),
+      tracks: z.array(userTrackRecordSchema),
+    }),
+    z.object({ mode: z.literal('skip') }),
+  ]),
+});
 
 const httpUrlSchema = z.string().url().refine(value => {
   const protocol = new URL(value).protocol;
@@ -42,6 +76,26 @@ export const typedIpcSchemas = {
   downloadAudio: z.object({
     url: httpUrlSchema,
     cookieString: z.string(),
+  }),
+  settingsGet: z.object({
+    key: z.string().min(1),
+  }),
+  settingsSet: z.object({
+    key: z.string().min(1),
+    value: z.string(),
+  }),
+  settingsEntries: z.object({
+    entries: stringRecordSchema,
+  }),
+  userDataSave: z.object({
+    data: userDataSnapshotSchema,
+  }),
+  userDataTracks: z.object({
+    tracks: z.array(userTrackRecordSchema),
+  }),
+  userDataLibraryState: z.object({
+    tracks: z.array(userTrackRecordSchema),
+    playback: stringRecordSchema,
   }),
 };
 

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { LibrarySlot, SlotId, Track, ViewMode } from './types';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { LibrarySlot, Track, ViewMode } from './types';
 import { getDesktopAPI, getDesktopAPIAsync } from './services/desktopAdapter';
 import { metadataCacheService } from './services/metadataCacheService';
 import { indexedDBStorage } from './services/indexedDBStorage';
@@ -9,7 +9,7 @@ import { syncOnlineCookiesToMain } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
-import LegacyWorkspace from './components/legacy/LegacyWorkspace';
+import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useImportStore } from './stores/importStore';
@@ -17,9 +17,7 @@ import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSource } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
-import { useNewUxEnabled } from './hooks/new-ui/useNewUxEnabled';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
-import NewUxShell from './components/new-ui/NewUxShell';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
@@ -58,7 +56,6 @@ const AppWorkspace: React.FC = () => {
     glassUI,
     handleNavigate,
   } = useUIStore();
-  const newUxEnabled = useNewUxEnabled();
   const sidebar = useSidebarLayout();
   const {
     slots,
@@ -92,9 +89,7 @@ const AppWorkspace: React.FC = () => {
     handleCategoryChange,
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
-  useEffect(() => {
-    activeSlotIdRef.current = activeSlotId;
-  }, [activeSlotId]);
+  activeSlotIdRef.current = activeSlotId;
   const getAppPersistenceData = useCallback((): LibrarySettings => {
     const snapshot = slotsRef.current;
     const extractSlotData = (slot: LibrarySlot) => ({
@@ -216,28 +211,9 @@ const AppWorkspace: React.FC = () => {
     viewSlot,
     cloudWritable,
   });
-  const [pendingNewUxImportSlot, setPendingNewUxImportSlot] = useState<SlotId | null>(null);
-  useEffect(() => {
-    if (!pendingNewUxImportSlot || viewSlot !== pendingNewUxImportSlot) return;
-    handleImportClick();
-    setPendingNewUxImportSlot(null);
-  }, [handleImportClick, pendingNewUxImportSlot, viewSlot]);
-  const handleNewUxImportIntoSlot = useCallback(async (slotId: SlotId) => {
-    if (slotId === viewSlot) {
-      handleImportClick();
-      return;
-    }
-    setPendingNewUxImportSlot(slotId);
-    await handleSwitchSlot(slotId);
-  }, [handleImportClick, handleSwitchSlot, viewSlot]);
   const { handleReloadFiles } = useLibraryActions({
     tracks: activeTracks,
     setTracks: setActiveTracks,
-    createTrackedBlobUrl,
-  });
-  const { handleReloadFiles: handleReloadLocalFiles } = useLibraryActions({
-    tracks: slots.local.tracks,
-    setTracks: updateLocalTracks,
     createTrackedBlobUrl,
   });
   const importVm = useImportViewModel({
@@ -245,12 +221,10 @@ const AppWorkspace: React.FC = () => {
     importProgress,
     importDisabled,
     importClick: handleImportClick,
-    importIntoSlot: handleNewUxImportIntoSlot,
     dropFiles: handleDropFiles,
     dropFilePaths: handleViewDropFilePaths,
     onFileInputChange: handleFileInputChange,
     reloadFiles: handleReloadFiles,
-    reloadUnavailable: handleReloadLocalFiles,
   });
   const libraryController = useLibraryController({
     viewSlot,
@@ -331,7 +305,6 @@ const AppWorkspace: React.FC = () => {
     playSong: playerController.playOnlineSong,
     download: handleOnlineDownload,
     upload: handleOnlineUpload,
-    openPlaylist: playerController.openOnlinePlaylist,
     navigateToTrack: playerController.handleSearchNavigate,
   });
 
@@ -453,60 +426,8 @@ const AppWorkspace: React.FC = () => {
     />
   ) : null;
 
-  if (newUxEnabled) {
-    return (
-      <>
-        {audioElement}
-        <NewUxShell
-          slots={library.slots}
-          activeSlotId={library.activeSlotId}
-          currentTrack={player.currentTrack}
-          isPlaying={player.isPlaying}
-          currentTime={player.currentTime}
-          volume={player.volume}
-          playbackMode={player.playbackMode}
-          isFocusMode={isFocusMode}
-          onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-          onOpenSlot={library.switchViewSlot}
-          onTrackSelect={library.selectTrack}
-          onRemoveTrack={library.removeTrack}
-          onRemoveMultipleTracks={library.removeTracks}
-          onUpdateTrack={library.updateTrack}
-          onTogglePlay={player.togglePlay}
-          onSkipNext={player.next}
-          onSkipPrev={player.previous}
-          onSeek={player.seek}
-          onVolumeChange={player.changeVolume}
-          onToggleMute={player.toggleMute}
-          onTogglePlaybackMode={player.togglePlaybackMode}
-          onImportIntoSlot={importVm.importIntoSlot}
-          onReloadUnavailable={importVm.reloadUnavailable}
-          onOpenOnlinePlaylist={online.openPlaylist}
-          onLoadMoreOnlinePlaylist={playerController.loadMoreBrowsingPlaylist}
-          onlinePlaylistLoading={playerController.browsingPlaylistLoadState.isLoading}
-          onlinePlaylistHasMore={playerController.browsingPlaylistLoadState.hasMore}
-          onlinePlaylistLoadError={playerController.browsingPlaylistLoadState.error}
-          browsingTracks={playerController.browsingTracks.tracks}
-          onPlayBrowsingTrack={playerController.playBrowsingTrack}
-          onClearOrphanCache={handleClearOrphanCache}
-          isWindowFocused={isWindowFocused}
-          onNavigateToTrack={online.navigateToTrack}
-          onOnlineDownload={online.download}
-          onOnlineUpload={online.upload}
-          onOnlineStreamPlay={online.playSong}
-          onlineProgress={online.progress}
-          cloudImportDisabled={library.cloudImportDisabled}
-          cloudImportDisabledReason={library.cloudImportDisabledReason}
-          audioRef={player.audioRef}
-          fileInputRef={importVm.fileInputRef}
-          onFileInputChange={importVm.onFileInputChange}
-        />
-      </>
-    );
-  }
-
   return (
-    <LegacyWorkspace
+    <AppShell
       ui={{
         viewMode, setViewMode, transitionToView, pageContentRef,
         isFocusMode, setIsFocusMode, autoLocateToken, markTrackSwitch,

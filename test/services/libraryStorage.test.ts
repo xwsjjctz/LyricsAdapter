@@ -85,4 +85,42 @@ describe('libraryStorage debounced saves', () => {
     expect(desktopMocks.saveLibraryIndex).toHaveBeenCalledTimes(1);
     expect(desktopMocks.saveLibraryIndex).toHaveBeenCalledWith(library);
   });
+
+  it('drains an in-flight save before pending data so neither can overwrite the final snapshot', async () => {
+    const inFlight = makeLibrary('in-flight');
+    const pending = makeLibrary('pending');
+    const finalSnapshot = makeLibrary('final');
+    let releaseInFlight!: () => void;
+    const inFlightGate = new Promise<void>(resolve => {
+      releaseInFlight = resolve;
+    });
+    const completionOrder: string[] = [];
+
+    desktopMocks.saveLibraryIndex.mockImplementation(async (library: LibraryIndexData) => {
+      const id = library.songs[0]?.id ?? 'unknown';
+      if (id === 'in-flight') await inFlightGate;
+      completionOrder.push(id);
+      return { success: true };
+    });
+
+    libraryStorage.saveLibraryDebounced(inFlight);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(desktopMocks.saveLibraryIndex).toHaveBeenCalledTimes(1);
+
+    libraryStorage.saveLibraryDebounced(pending);
+    const drain = libraryStorage.drainBeforeClose();
+    await Promise.resolve();
+    expect(desktopMocks.saveLibraryIndex).toHaveBeenCalledTimes(1);
+
+    releaseInFlight();
+    await expect(drain).resolves.toBe(true);
+    await expect(libraryStorage.flushPendingSave(finalSnapshot)).resolves.toBe(true);
+
+    expect(desktopMocks.saveLibraryIndex.mock.calls.map(([library]) => library.songs[0]?.id))
+      .toEqual(['in-flight', 'pending', 'final']);
+    expect(completionOrder).toEqual(['in-flight', 'pending', 'final']);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(desktopMocks.saveLibraryIndex).toHaveBeenCalledTimes(3);
+  });
 });

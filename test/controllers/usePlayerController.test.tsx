@@ -464,9 +464,6 @@ describe('usePlayerController', () => {
     });
   });
 
-  // handlePlayPlaylist was removed in the browse/play decoupling refactor
-  // (see commits 9362aae, 198c6aa). The current flow is:
-  //   controller.openOnlinePlaylist(source, playlistId)   // loads into browsing
-  //   controller.playBrowsingTrack(index)                  // moves to playlist slot + auto-plays
-  // Both paths have their own dedicated coverage; no replacement test here.
+  // Playlist browsing is covered through the Library-facing flow: opening a
+  // playlist does not replace the play slot until a row is selected.
 });

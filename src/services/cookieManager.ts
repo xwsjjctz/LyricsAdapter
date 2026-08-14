@@ -37,6 +37,8 @@ export class CookieStore {
 
   private async loadFromStorage(): Promise<void> {
     try {
+      this.cookie = '';
+      this.lastCheckTime = 0;
       // 凭据存到 ~/.la/settings.json（safeStorage 加密），与 IndexedDB 缓存解耦：
       // 即使 IndexedDB 损坏被清，登录态也保留。appStorage.getItem 同步读，
       // 这里 await init 仅为确保主进程数据已载入内存 cache。
@@ -47,7 +49,7 @@ export class CookieStore {
 
       // 一次性迁移：旧版本把 cookie 存在 IndexedDB settings store 里。
       // 若 appStorage 里没有但 IndexedDB 里有，搬过来并清掉旧位置。
-      if (!storedCookie) {
+      if (storedCookie === null) {
         try {
           await indexedDBStorage.initialize();
           const idbCookie = await indexedDBStorage.getSetting(this.opts.storageKey);
@@ -55,8 +57,10 @@ export class CookieStore {
           if (idbCookie) {
             storedCookie = idbCookie;
             storedCheckTime = idbCheckTime;
-            await appStorage.setItem(this.opts.storageKey, idbCookie);
-            if (idbCheckTime) await appStorage.setItem(this.opts.checkTimeKey, idbCheckTime);
+            await appStorage.setMany({
+              [this.opts.storageKey]: idbCookie,
+              [this.opts.checkTimeKey]: idbCheckTime || '0',
+            });
             try {
               await indexedDBStorage.deleteSetting(this.opts.storageKey);
               await indexedDBStorage.deleteSetting(this.opts.checkTimeKey);
@@ -74,6 +78,8 @@ export class CookieStore {
       if (storedCookie) {
         this.cookie = storedCookie;
         logger.debug(`[CookieManager:${this.opts.scope}] Cookie loaded from storage`);
+      } else if (storedCookie === '') {
+        this.cookie = '';
       }
 
       if (storedCheckTime) {
@@ -84,19 +90,18 @@ export class CookieStore {
     }
   }
 
-  private async saveToStorage(): Promise<void> {
-    try {
-      await appStorage.setItem(this.opts.storageKey, this.cookie);
-      await appStorage.setItem(this.opts.checkTimeKey, this.lastCheckTime.toString());
-    } catch (error) {
-      logger.error(`[CookieManager:${this.opts.scope}] Failed to save to storage:`, error);
-    }
+  private async saveToStorage(cookie: string, lastCheckTime: number): Promise<void> {
+    await appStorage.setMany({
+      [this.opts.storageKey]: cookie,
+      [this.opts.checkTimeKey]: lastCheckTime.toString(),
+    });
   }
 
   async setCookie(cookie: string): Promise<void> {
+    const lastCheckTime = Date.now();
+    await this.saveToStorage(cookie, lastCheckTime);
     this.cookie = cookie;
-    this.lastCheckTime = Date.now();
-    await this.saveToStorage();
+    this.lastCheckTime = lastCheckTime;
     logger.debug(`[CookieManager:${this.opts.scope}] Cookie saved`);
   }
 
@@ -119,13 +124,13 @@ export class CookieStore {
   }
 
   async clearCookie(): Promise<void> {
-    this.cookie = '';
-    this.lastCheckTime = 0;
     try {
-      await appStorage.removeItem(this.opts.storageKey);
-      await appStorage.removeItem(this.opts.checkTimeKey);
+      await this.saveToStorage('', 0);
+      this.cookie = '';
+      this.lastCheckTime = 0;
     } catch (error) {
       logger.error(`[CookieManager:${this.opts.scope}] Failed to clear storage:`, error);
+      throw error;
     }
   }
 
@@ -136,8 +141,9 @@ export class CookieStore {
   }
 
   async updateCheckTime(): Promise<void> {
-    this.lastCheckTime = Date.now();
-    await this.saveToStorage();
+    const lastCheckTime = Date.now();
+    await this.saveToStorage(this.cookie, lastCheckTime);
+    this.lastCheckTime = lastCheckTime;
   }
 
   async validateCookie(): Promise<CookieStatus> {
@@ -293,16 +299,15 @@ export async function syncOnlineCookiesToMain(source?: 'qq' | 'netease' | 'soda'
     (source === undefined || source === 'netease') ? neteaseCookieManager.ensureLoaded() : Promise.resolve(),
     (source === undefined || source === 'soda') ? sodaCookieManager.ensureLoaded() : Promise.resolve(),
   ]);
+  const updates: Promise<void>[] = [];
   if (source === undefined || source === 'qq') {
-    const qq = cookieManager.getCookie();
-    if (qq) void api.setOnlineCookie('qq', qq);
+    updates.push(api.setOnlineCookie('qq', cookieManager.getCookie()));
   }
   if (source === undefined || source === 'netease') {
-    const netease = neteaseCookieManager.getCookie();
-    if (netease) void api.setOnlineCookie('netease', netease);
+    updates.push(api.setOnlineCookie('netease', neteaseCookieManager.getCookie()));
   }
   if (source === undefined || source === 'soda') {
-    const soda = sodaCookieManager.getCookie();
-    if (soda) void api.setOnlineCookie('soda', soda);
+    updates.push(api.setOnlineCookie('soda', sodaCookieManager.getCookie()));
   }
+  await Promise.all(updates);
 }

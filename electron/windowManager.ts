@@ -107,7 +107,9 @@ export async function createWindow(): Promise<BrowserWindow> {
     }
   };
 
-  if (app.isPackaged) {
+  const serveBuiltRenderer = app.isPackaged || process.env['LYRICS_ADAPTER_E2E_STATIC'] === '1';
+
+  if (serveBuiltRenderer) {
     const appUrl = 'app://localhost/index.html';
     log('Loading URL:', appUrl);
 
@@ -130,7 +132,7 @@ export async function createWindow(): Promise<BrowserWindow> {
 
     win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
       log('Failed to load via app://:', errorCode, errorDescription);
-      log('Make sure Vite dev server is running on http://localhost:3000');
+      log('Make sure Vite dev server is running on http://127.0.0.1:3000');
     });
 
     await win.loadURL(appUrl);

@@ -2,6 +2,50 @@ export type IpcResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
+export interface UserDataSnapshot {
+  schemaVersion: 1;
+  libraryInitialized: boolean;
+  tracks: unknown[];
+  settings: Record<string, string>;
+  playback: Record<string, string>;
+}
+
+/** Read status for one physical persistence source during application bootstrap. */
+export type StoreRead<T> =
+  | { status: 'ready'; data: T }
+  | { status: 'error'; error: string };
+
+/**
+ * Independent read results for the three stores used to restore the library.
+ * One damaged source must not hide the other two from the renderer.
+ */
+export interface PersistenceBootstrap {
+  settings: StoreRead<Record<string, string>>;
+  userData: StoreRead<UserDataSnapshot>;
+  libraryIndex: StoreRead<unknown>;
+}
+
+/** Renderer snapshot handed to the main process for the final close commit. */
+export interface PersistenceCloseCommitRequest {
+  libraryIndex: unknown;
+  userData:
+    | { mode: 'write'; tracks: unknown[] }
+    | { mode: 'skip' };
+}
+
+export type PersistenceWriteOutcome =
+  | { status: 'saved' }
+  | { status: 'skipped'; reason: string }
+  | { status: 'error'; error: string };
+
+/** Per-source durability result. Partial failures remain observable to callers. */
+export interface PersistenceCloseCommitResult {
+  fullyPersisted: boolean;
+  settings: PersistenceWriteOutcome;
+  userData: PersistenceWriteOutcome;
+  libraryIndex: PersistenceWriteOutcome;
+}
+
 export interface TypedElectronIPC {
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
@@ -32,9 +76,14 @@ export interface TypedElectronIPC {
     replaceAll: (entries: Record<string, string>) => Promise<IpcResult<void>>;
   };
   userData: {
-    load: () => Promise<IpcResult<unknown>>;
-    save: (data: unknown) => Promise<IpcResult<void>>;
+    load: () => Promise<IpcResult<UserDataSnapshot>>;
+    save: (data: UserDataSnapshot) => Promise<IpcResult<void>>;
     saveTracks: (tracks: unknown[]) => Promise<IpcResult<void>>;
+    saveLibraryState: (tracks: unknown[], playback: Record<string, string>) => Promise<IpcResult<void>>;
     getFilePath: () => Promise<IpcResult<string>>;
+  };
+  persistence: {
+    loadBootstrap: () => Promise<IpcResult<PersistenceBootstrap>>;
+    commitClose: (request: PersistenceCloseCommitRequest) => Promise<IpcResult<PersistenceCloseCommitResult>>;
   };
 }

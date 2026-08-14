@@ -1,7 +1,53 @@
 // Secure preload script using contextBridge
+import type { TypedElectronIPC } from '../src/types/typedIpc';
+
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
 const updaterEventListenerMap = new Map();
+
+const typedIpc = {
+  file: {
+    selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
+    readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
+    allowAudioPath: async (filePath: string) => ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }),
+  },
+  library: {
+    loadIndex: async () => ipcRenderer.invoke('ipc:library:loadIndex'),
+    saveIndex: async (library: unknown) => ipcRenderer.invoke('ipc:library:saveIndex', library),
+  },
+  webdav: {
+    propfind: async (payload: { url: string; authHeader: string; depth: string }) => ipcRenderer.invoke('ipc:webdav:propfind', payload),
+    getRange: async (payload: { url: string; authHeader: string; start: number; end: number }) => ipcRenderer.invoke('ipc:webdav:getRange', payload),
+    put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
+    delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
+    getRedirect: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:getRedirect', payload),
+    mkcol: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:mkcol', payload),
+  },
+  download: {
+    audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
+  },
+  settings: {
+    get: async (key: string) => ipcRenderer.invoke('ipc:settings:get', { key }),
+    getAll: async () => ipcRenderer.invoke('ipc:settings:getAll'),
+    set: async (key: string, value: string) => ipcRenderer.invoke('ipc:settings:set', { key, value }),
+    setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('ipc:settings:setMany', { entries }),
+    delete: async (key: string) => ipcRenderer.invoke('ipc:settings:delete', { key }),
+    replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('ipc:settings:replaceAll', { entries }),
+  },
+  userData: {
+    load: async () => ipcRenderer.invoke('ipc:userData:load'),
+    save: async (data) => ipcRenderer.invoke('ipc:userData:save', { data }),
+    saveTracks: async (tracks: unknown[]) => ipcRenderer.invoke('ipc:userData:saveTracks', { tracks }),
+    saveLibraryState: async (tracks: unknown[], playback: Record<string, string>) => (
+      ipcRenderer.invoke('ipc:userData:saveLibraryState', { tracks, playback })
+    ),
+    getFilePath: async () => ipcRenderer.invoke('ipc:userData:getFilePath'),
+  },
+  persistence: {
+    loadBootstrap: async () => ipcRenderer.invoke('ipc:persistence:loadBootstrap'),
+    commitClose: async (request) => ipcRenderer.invoke('ipc:persistence:commitClose', request),
+  },
+} satisfies TypedElectronIPC;
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -27,36 +73,7 @@ contextBridge.exposeInMainWorld('electron', {
   },
   platform: process.platform,
 
-  ipc: {
-    file: {
-      selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
-      readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
-      allowAudioPath: async (filePath: string) => ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }),
-    },
-    library: {
-      loadIndex: async () => ipcRenderer.invoke('ipc:library:loadIndex'),
-      saveIndex: async (library: unknown) => ipcRenderer.invoke('ipc:library:saveIndex', library),
-    },
-    webdav: {
-      propfind: async (payload: { url: string; authHeader: string; depth: string }) => ipcRenderer.invoke('ipc:webdav:propfind', payload),
-      getRange: async (payload: { url: string; authHeader: string; start: number; end: number }) => ipcRenderer.invoke('ipc:webdav:getRange', payload),
-      put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
-      delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
-      getRedirect: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:getRedirect', payload),
-      mkcol: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:mkcol', payload),
-    },
-      download: {
-        audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
-      },
-      settings: {
-        get: async (key: string) => ipcRenderer.invoke('settings:get', key),
-        getAll: async () => ipcRenderer.invoke('settings:getAll'),
-        set: async (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
-        setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:setMany', entries),
-        delete: async (key: string) => ipcRenderer.invoke('settings:delete', key),
-        replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('settings:replaceAll', entries),
-    },
-  },
+  ipc: typedIpc,
 
   // Check if file exists
   checkFileExists: async (filePath: string) => {
@@ -127,8 +144,8 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('window-maximize');
   },
 
-  closeWindow: async () => {
-    return ipcRenderer.invoke('window-close');
+  closeWindow: async (alreadyFlushed = false) => {
+    return ipcRenderer.invoke('window-close', alreadyFlushed);
   },
 
   isMaximized: async () => {
@@ -291,7 +308,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('cleanup-orphan-covers', activeTrackIds);
   },
 
-  // ---- Settings store (IPC to main process settings.json) ----
+  // ---- Settings store (IPC to main-process SQLite facade) ----
   settingsGet: async (key: string) => {
     return ipcRenderer.invoke('settings:get', key);
   },
@@ -311,7 +328,7 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('settings:replaceAll', entries);
   },
 
-  // ---- User Data Store (IPC to ~/.la/users.json) ----
+  // ---- User Data Store (IPC to ~/.la/state.sqlite3) ----
   userDataLoad: async () => {
     return ipcRenderer.invoke('userData:load');
   },

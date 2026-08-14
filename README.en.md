@@ -48,7 +48,7 @@
 
 ### Prerequisites
 
-- **Node.js** 18.0 or higher
+- **Node.js** 20.19 or higher (or 22.12+)
 - **npm** 9.0 or higher (or yarn/pnpm)
 - **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
 
@@ -79,6 +79,18 @@
 ### Other Commands
 
 ```bash
+# Start the browser-only renderer
+npm run dev
+
+# Start Electron with renderer CDP and main-process debugging
+npm run electron:debug
+
+# Run typecheck, unit tests, and the production build
+npm run check
+
+# Run the real Electron smoke test
+npm run test:e2e
+
 # Build for Windows (x64)
 npm run electron:build:win
 
@@ -96,6 +108,8 @@ npm run electron:build
 ```
 
 Build artifacts will be output to the `release/` directory.
+
+See [Electron Debugging and Agent Workflow](DEBUGGING.md) for CDP, MCP, and main-process debugging.
 
 ---
 

@@ -2,16 +2,32 @@ import { useEffect, useRef } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
-import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from '../services/libraryStorage';
+import type { LibraryIndexData, LibrarySettings } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexDataForSlots, buildMinimalTracks, minimalTrackToLibrarySong, type UserTrackRecord } from '../services/librarySerializer';
+import { buildLibraryIndexDataForSlots, buildMinimalTracks } from '../services/librarySerializer';
 import { logger } from '../services/logger';
 import { addLibraryFlushListener } from '../services/libraryFlushEvent';
 import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 import { appStorage } from '../services/appStorage';
 import { webdavClient } from '../services/webdavClient';
 import { settingsManager } from '../services/settingsManager';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import type { UserDataSnapshot } from '../types/typedIpc';
+import i18next, { LANGUAGES, type Language } from '../i18n';
+import { themeManager } from '../services/themeManager';
+import { shortcutManager } from '../services/shortcuts';
+import { LatestWriteQueue } from '../services/latestWriteQueue';
+import { libraryPersistenceRepository } from '../repositories/libraryPersistenceRepository';
+import { libraryClosePersistenceRepository } from '../repositories/libraryClosePersistenceRepository';
+import {
+  buildSettingsFromUserData,
+  buildSettingsHydrationPlan,
+  buildSettingsRecoverySnapshot,
+  buildUserTracksFromLibraryCache,
+  getUserTrackRecords,
+  hasPersistedTracks,
+  resolveUserDataLibrary,
+} from '../domain/library-persistence/reconcilePersistedLibrary';
 
 interface UseLibraryLoadOptions {
   restoreFromPersistence: (data: any, tracksFromDisk: Track[], onlineTracks?: Track[]) => void;
@@ -31,207 +47,30 @@ interface UseLibraryLoadOptions {
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
 
-interface UserDataSnapshot {
-  tracks?: unknown[];
-  settings?: Record<string, string>;
-  playback?: Record<string, string>;
-}
-
-const SLOT_IDS: SlotId[] = ['local', 'cloud', 'online', 'playlist'];
-
-function isSlotId(value: unknown): value is SlotId {
-  return typeof value === 'string' && SLOT_IDS.includes(value as SlotId);
-}
-
-function hasPersistedTracks(libraryData: Partial<LibraryIndexData>): boolean {
-  return Boolean(
-    libraryData.songs?.length ||
-    libraryData.cloudSongs?.length ||
-    libraryData.onlineSongs?.length ||
-    libraryData.playlistSongs?.length
-  );
-}
-
-function selectSettingsSource(userData: UserDataSnapshot, settingsFromStore?: Record<string, string>): Record<string, string> {
-  return settingsFromStore && Object.keys(settingsFromStore).length > 0
-    ? settingsFromStore
-    : userData.settings || {};
-}
-
-function parsePlaybackSettings(userData: UserDataSnapshot, settingsSource?: Record<string, string>): LibrarySettings {
-  const raw = userData.playback?.['_json'] || settingsSource?.['playback'] || userData.settings?.['playback'];
-  if (!raw) return {};
-
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function buildSettingsFromUserData(
-  userData: UserDataSnapshot,
-  fallbackSettings: LibrarySettings,
-  settingsFromStore?: Record<string, string>
-): LibrarySettings {
-  const settingsSource = selectSettingsSource(userData, settingsFromStore);
-  return {
-    ...fallbackSettings,
-    ...parsePlaybackSettings(userData, settingsSource),
-  };
-}
-
-function getUserTrackRecords(userData: UserDataSnapshot): UserTrackRecord[] {
-  return (userData.tracks || []).filter((record): record is UserTrackRecord => {
-    return Boolean(record && typeof record === 'object' && typeof (record as UserTrackRecord).id === 'string');
-  });
-}
-
-function inferSlotId(record: UserTrackRecord): SlotId {
-  if (isSlotId(record.slotId)) return record.slotId;
-  if (record.source === 'webdav') return 'cloud';
-  if (record.source === 'qq' || record.source === 'netease') return 'online';
-  return 'local';
-}
-
-function collectCachedSongsById(libraryData: Partial<LibraryIndexData>): Map<string, LibraryIndexSong> {
-  const cachedSongs = [
-    ...(libraryData.songs || []),
-    ...(libraryData.cloudSongs || []),
-    ...(libraryData.onlineSongs || []),
-    ...(libraryData.playlistSongs || []),
-  ];
-  return new Map(cachedSongs.map(song => [song.id, song]));
-}
-
-function mergeUserTrackWithCachedSong(record: UserTrackRecord, cached?: LibraryIndexSong): LibraryIndexSong {
-  const userSong = minimalTrackToLibrarySong(record);
-  if (!cached) return userSong;
-
-  const merged: LibraryIndexSong = {
-    ...cached,
-    ...userSong,
-    title: cached.title || userSong.title,
-    artist: cached.artist || userSong.artist,
-    album: cached.album || userSong.album,
-    duration: cached.duration || userSong.duration,
-  };
-  const lyrics = cached.lyrics || userSong.lyrics;
-  const syncedLyrics = cached.syncedLyrics || userSong.syncedLyrics;
-  const coverUrl = cached.coverUrl || userSong.coverUrl;
-  if (lyrics) merged.lyrics = lyrics;
-  if (syncedLyrics) merged.syncedLyrics = syncedLyrics;
-  if (coverUrl) merged.coverUrl = coverUrl;
-  return merged;
-}
-
-/**
- * 将缓存层（library-index.json）的歌曲按 slot 提取为最小化用户记录，
- * 用于在 ~/.la/users.json 尚未被填充时把现有库"播种"进用户数据。
- * 这是"清缓存后可从用户数据重建"目标的兜底：只要 cache 还在，
- * 首次启动就把归属信息写入 users.json，之后清掉 cache 也能恢复。
- */
-function songsToMinimalRecords(songs: LibraryIndexSong[] | undefined, slotId: SlotId): UserTrackRecord[] {
-  if (!songs || songs.length === 0) return [];
-  return songs.map(song => ({
-    id: song.id,
-    slotId,
-    ...(song.filePath ? { filePath: song.filePath } : undefined),
-    ...(song.webdavPath ? { webdavPath: song.webdavPath } : undefined),
-    ...(song.fileName ? { fileName: song.fileName } : undefined),
-    ...(song.fileSize ? { fileSize: song.fileSize } : undefined),
-    ...(song.lastModified ? { lastModified: song.lastModified } : undefined),
-    ...(song.source ? { source: song.source } : undefined),
-    ...(song.addedAt ? { addedAt: song.addedAt } : undefined),
-    ...(song.playCount != null ? { playCount: song.playCount } : undefined),
-    ...(song.lastPlayed !== undefined ? { lastPlayed: song.lastPlayed } : undefined),
-    ...(song.songmid ? { songmid: song.songmid } : undefined),
-    ...(song.available !== undefined ? { available: song.available } : undefined),
-  }));
-}
-
-function collectLocalStorageSnapshot(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key) out[key] = localStorage.getItem(key) ?? '';
-  }
-  return out;
-}
-
 async function seedUserDataFromCache(
   libraryData: LibraryIndexData,
   persistData: LibrarySettings
 ): Promise<void> {
   try {
     const api = await getDesktopAPIAsync();
-    if (!api?.userDataSave) return;
-    const tracks: UserTrackRecord[] = [
-      ...songsToMinimalRecords(libraryData.songs, 'local'),
-      ...songsToMinimalRecords(libraryData.cloudSongs, 'cloud'),
-      ...songsToMinimalRecords(libraryData.onlineSongs, 'online'),
-      ...songsToMinimalRecords(libraryData.playlistSongs, 'playlist'),
-    ];
+    if (!api?.userDataSaveLibraryState) return;
+    const tracks = buildUserTracksFromLibraryCache(libraryData);
     if (tracks.length === 0) return;
-    await api.userDataSave({
-      tracks,
-      settings: collectLocalStorageSnapshot(),
-      playback: { _json: JSON.stringify(persistData) },
-    });
-    logger.info('[LibraryLoad] Seeded ~/.la/users.json from cache, tracks:', tracks.length);
+    await api.userDataSaveLibraryState(tracks, { _json: JSON.stringify(persistData) });
+    logger.info('[LibraryLoad] Seeded ~/.la/state.sqlite3 from cache, tracks:', tracks.length);
   } catch (e) {
-    logger.warn('[LibraryLoad] Failed to seed ~/.la/users.json from cache:', e);
+    logger.warn('[LibraryLoad] Failed to seed ~/.la/state.sqlite3 from cache:', e);
   }
-}
-
-function buildLibraryDataFromUserData(
-  userData: UserDataSnapshot,
-  fallbackSettings: LibrarySettings,
-  settingsFromStore?: Record<string, string>,
-  cachedLibraryData?: Partial<LibraryIndexData>
-): LibraryIndexData | null {
-  const records = getUserTrackRecords(userData);
-  if (records.length === 0) return null;
-  const cachedById = collectCachedSongsById(cachedLibraryData || {});
-
-  const bySlot: Record<SlotId, UserTrackRecord[]> = {
-    local: [],
-    cloud: [],
-    online: [],
-    playlist: [],
-  };
-
-  for (const record of records) {
-    bySlot[inferSlotId(record)].push(record);
-  }
-
-  const toLibrarySong = (record: UserTrackRecord) => mergeUserTrackWithCachedSong(record, cachedById.get(record.id));
-  const cloudSongs = bySlot.cloud.map(toLibrarySong);
-  const onlineSongs = bySlot.online.map(toLibrarySong);
-  const playlistSongs = bySlot.playlist.map(toLibrarySong);
-
-  return {
-    songs: bySlot.local.map(toLibrarySong),
-    ...(cloudSongs.length > 0 ? { cloudSongs } : {}),
-    ...(onlineSongs.length > 0 ? { onlineSongs } : {}),
-    ...(playlistSongs.length > 0 ? { playlistSongs } : {}),
-    settings: buildSettingsFromUserData(userData, fallbackSettings, settingsFromStore),
-  };
 }
 
 async function syncSettingsToAppStorage(settings: Record<string, string>, playbackJson?: string): Promise<void> {
   if (Object.keys(settings).length === 0 && !playbackJson) return;
 
   if (Object.keys(settings).length > 0) {
-    for (const [key, value] of Object.entries(settings)) {
-      localStorage.setItem(key, value);
-    }
     await appStorage.setMany(settings);
   }
 
   if (playbackJson) {
-    localStorage.setItem('playback', playbackJson);
     await appStorage.setItem('playback', playbackJson);
   }
 }
@@ -240,8 +79,7 @@ async function syncUserSettingsToAppStorage(
   userData: UserDataSnapshot,
   settingsFromStore?: Record<string, string>
 ): Promise<void> {
-  const settings = selectSettingsSource(userData, settingsFromStore);
-  const playbackJson = userData.playback?.['_json'] || settings['playback'] || userData.settings?.['playback'];
+  const { settings, playbackJson } = buildSettingsHydrationPlan(userData, settingsFromStore);
   await syncSettingsToAppStorage(settings, playbackJson);
 }
 
@@ -263,6 +101,37 @@ export function useLibraryLoad({
   updateSlot,
 }: UseLibraryLoadOptions) {
   const isFirstLoadRef = useRef(true);
+  const userDataWritableRef = useRef(false);
+  const closeSnapshotSourcesRef = useRef({ slots, getPersistenceData, getSlotsSnapshot });
+  const closeFlushInFlightRef = useRef<Promise<boolean> | null>(null);
+  type RuntimeUserStateWrite =
+    | {
+        kind: 'library';
+        tracks: ReturnType<typeof buildMinimalTracks>;
+        playback: Record<string, string>;
+      }
+    | { kind: 'playback'; playbackJson: string };
+  const runtimeUserStateQueueRef = useRef<LatestWriteQueue<RuntimeUserStateWrite> | null>(null);
+  if (!runtimeUserStateQueueRef.current) {
+    runtimeUserStateQueueRef.current = new LatestWriteQueue(
+      async snapshot => {
+        if (snapshot.kind === 'playback') {
+          await appStorage.setItem('playback', snapshot.playbackJson);
+          return;
+        }
+        const api = await getDesktopAPIAsync();
+        if (!api?.userDataSaveLibraryState) {
+          throw new Error('Desktop user-state API is unavailable');
+        }
+        await api.userDataSaveLibraryState(snapshot.tracks, snapshot.playback);
+      },
+      1000,
+      error => logger.warn('[LibraryLoad] Failed to persist runtime user state:', error),
+    );
+  }
+  // The close listeners are registered once. Keep their mutable inputs current
+  // without tearing down the native-window handshake on every slot update.
+  closeSnapshotSourcesRef.current = { slots, getPersistenceData, getSlotsSnapshot };
 
   const loadAndRestoreLibrary = async (libraryData: { songs: any[]; cloudSongs?: any[]; onlineSongs?: any[]; playlistSongs?: any[]; settings: any }) => {
     logger.debug('[LibraryLoad] Library data loaded, songs:', libraryData.songs?.length || 0, 'cloud songs:', libraryData.cloudSongs?.length || 0);
@@ -630,35 +499,74 @@ export function useLibraryLoad({
     const loadLibraryFromDisk = async () => {
       logger.debug('[LibraryLoad] Loading library from disk...');
       try {
-        const libraryData = await libraryStorage.loadLibrary();
+        const bootstrap = await libraryPersistenceRepository.loadBootstrap();
+        const { libraryData, settingsResult, userDataResult } = bootstrap;
         let restoredLibraryData = libraryData;
 
-        if (isDesktop()) {
+        if (bootstrap.desktop) {
           try {
-            const api = await getDesktopAPIAsync();
-            const mainSettings = await api?.settingsGetAll?.() ?? {};
-            const userData = await api?.userDataLoad?.();
+            const mainSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : {};
+            const userData = userDataResult.status === 'fulfilled' ? userDataResult.value : undefined;
+            userDataWritableRef.current = userDataResult.status === 'fulfilled';
+
+            if (settingsResult.status === 'rejected') {
+              logger.warn('[LibraryLoad] Failed to load SQLite settings:', settingsResult.reason);
+            }
+            if (userDataResult.status === 'rejected') {
+              logger.warn('[LibraryLoad] Failed to load SQLite user state; user-data writes disabled for this session:', userDataResult.reason);
+            }
+
             if (userData) {
               try {
-                await syncUserSettingsToAppStorage(userData, mainSettings);
+                if (settingsResult.status === 'fulfilled') {
+                  await syncUserSettingsToAppStorage(userData, mainSettings);
+                } else {
+                  const recoveredSettings = buildSettingsRecoverySnapshot(userData);
+                  if (Object.keys(recoveredSettings).length > 0) {
+                    try {
+                      // The independent settings read may have failed only
+                      // transiently. Upsert the complete validated snapshot;
+                      // never destructively replace keys we could not observe.
+                      await appStorage.setMany(recoveredSettings);
+                      logger.info('[LibraryLoad] Rehydrated SQLite settings from validated user-state data');
+                    } catch (repairError) {
+                      appStorage.restoreInMemory(recoveredSettings);
+                      logger.warn('[LibraryLoad] Using recovered settings in memory only:', repairError);
+                    }
+                  } else {
+                    logger.warn('[LibraryLoad] Settings recovery snapshot is empty; preserving the main-store failure for retry');
+                  }
+                }
               } catch (e) {
                 logger.warn('[LibraryLoad] Failed to sync ~/.la user settings:', e);
               }
 
-              // 兜底播种：users.json 的 tracks 为空但 cache 有内容时，
-              // 把 cache 的归属信息写入 users.json，确保清缓存后可重建。
-              if (getUserTrackRecords(userData).length === 0 && hasPersistedTracks(libraryData)) {
+              // Only a file explicitly created as migration-pending may seed
+              // from cache. A schema-marked initialized empty array is a valid
+              // user library and must override stale library-index contents.
+              if (!userData.libraryInitialized && hasPersistedTracks(libraryData)) {
                 await seedUserDataFromCache(libraryData, libraryData.settings || {});
               }
 
-              const rebuiltLibrary = buildLibraryDataFromUserData(userData, libraryData.settings || {}, mainSettings, libraryData);
-              if (rebuiltLibrary && hasPersistedTracks(rebuiltLibrary)) {
-                logger.info('[LibraryLoad] Loading user library from ~/.la/users.json, tracks:', getUserTrackRecords(userData).length);
+              const decision = resolveUserDataLibrary(
+                userData,
+                libraryData.settings || {},
+                mainSettings,
+                libraryData,
+                () => new Date().toISOString(),
+              );
+              if (decision.kind === 'user-data' && decision.data) {
+                const rebuiltLibrary = decision.data;
+                logger.info('[LibraryLoad] Loading user library from ~/.la/state.sqlite3, tracks:', getUserTrackRecords(userData).length);
                 restoredLibraryData = rebuiltLibrary;
                 const saved = await libraryStorage.saveLibrary(rebuiltLibrary);
                 if (!saved) {
                   logger.warn('[LibraryLoad] Failed to rebuild library-index cache from user data');
                 }
+              } else if (decision.kind === 'initialized-empty' && decision.data) {
+                restoredLibraryData = decision.data;
+                const saved = await libraryStorage.saveLibrary(restoredLibraryData);
+                if (!saved) logger.warn('[LibraryLoad] Failed to persist initialized empty library cache');
               } else if (hasPersistedTracks(libraryData)) {
                 restoredLibraryData = {
                   ...libraryData,
@@ -676,16 +584,27 @@ export function useLibraryLoad({
               }
             }
 
-            // settings.json 已灌入 localStorage/appStorage，通知在模块导入时
+            // settings.json 已灌入 appStorage 内存 cache（非敏感值另有本地镜像），
+            // 通知在模块导入时
             // 就读取（早于 init 完成）的消费者重新加载，使清空 userData 后
             // WebDAV 配置、偏好设置、登录 cookie 等能自动恢复生效，无需重启或重填。
             try {
               webdavClient.reloadConfig();
               settingsManager.reload();
+              themeManager.reload();
+              shortcutManager.reload();
+              const restoredLanguage = appStorage.getItem('app-language') as Language | null;
+              const nextLanguage = restoredLanguage && LANGUAGES.includes(restoredLanguage)
+                ? restoredLanguage
+                : 'zh';
+              if (i18next.language !== nextLanguage) {
+                await i18next.changeLanguage(nextLanguage);
+              }
               // cookieManager 构造期 loadFromStorage 同样可能读到空，需重新加载
               // 后再把 cookie 同步到主进程 stream:// 代理。
               cookieManager.reload();
               neteaseCookieManager.reload();
+              sodaCookieManager.reload();
               void syncOnlineCookiesToMain();
             } catch (e) {
               logger.warn('[LibraryLoad] Failed to notify settings consumers to reload:', e);
@@ -720,28 +639,22 @@ export function useLibraryLoad({
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-    // 并行写入 playback 状态到 settings.json（音量/模式/进度/激活插槽）
-    appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
-    // 并行写入完整用户数据快照到 ~/.la/users.json（含 tracks + settings + playback）
-    if (isDesktop()) {
+    // 桌面端把曲目归属 + playback 放进同一个 SQLite 事务；浏览器模式
+    // 仍由 AppStorage 写 localStorage。不要在桌面端再额外写一次 playback。
+    if (isDesktop() && userDataWritableRef.current) {
       const allMinimal = [
         ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
         ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
         ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
         ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
       ];
-      const allSettings: Record<string, string> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) allSettings[key] = localStorage.getItem(key) ?? '';
-      }
-      getDesktopAPIAsync().then(api => {
-        api?.userDataSave?.({
-          tracks: allMinimal,
-          settings: allSettings,
-          playback: { _json: JSON.stringify(persistData) },
-        }).catch(() => {});
-      }).catch(() => {});
+      runtimeUserStateQueueRef.current!.schedule({
+        kind: 'library',
+        tracks: allMinimal,
+        playback: { _json: JSON.stringify(persistData) },
+      });
+    } else if (!isDesktop()) {
+      appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
     }
     // 注意：currentTime 不在本依赖数组中 —— 播放期间 timeupdate（~250ms/次）
     // 引起的进度变化由下方 savePlaybackThrottled 独立节流（5s）落盘，避免每秒
@@ -753,7 +666,7 @@ export function useLibraryLoad({
    * 播放进度节流落盘。
    *
    * <audio> 的 timeupdate 约 250ms 触发一次，若直接驱动写盘会是每秒 ~4 次同步
-   * 磁盘写（settings.json + users.json）。此处用 leading + trailing 节流：每 5s
+   * 磁盘写。此处用 leading + trailing 节流：每 5s
    * 最多落盘一次。退出/切歌由下方 flushCurrentLibrary 兜底，最坏丢失 ≤5s 进度
    *（参考 Apple Music / Spotify）。
    *
@@ -771,8 +684,21 @@ export function useLibraryLoad({
 
     const doSave = () => {
       playbackSaveLastRef.current = Date.now();
-      const persistData = getPersistenceData();
-      appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
+      // A trailing timer can outlive the render that created it. Read through
+      // the always-current close source ref so a later slot switch/index change
+      // cannot be overwritten by that stale closure.
+      const persistData = closeSnapshotSourcesRef.current.getPersistenceData();
+      const playbackJson = JSON.stringify(persistData);
+      if (isDesktop()) {
+        // An older delayed library transaction also contains playback. Put the
+        // lightweight progress update on the same serial queue so it always
+        // lands afterwards and can never be overwritten by that stale snapshot.
+        runtimeUserStateQueueRef.current!
+          .enqueue({ kind: 'playback', playbackJson })
+          .catch(error => logger.warn('[LibraryLoad] Failed to persist playback progress:', error));
+      } else {
+        appStorage.setItem('playback', playbackJson).catch(() => {});
+      }
     };
 
     if (elapsed >= THROTTLE_MS) {
@@ -788,7 +714,7 @@ export function useLibraryLoad({
   }, [
     slots.local.currentTime, slots.cloud.currentTime,
     slots.online.currentTime, slots.playlist.currentTime,
-    // getPersistenceData / appStorage 为稳定引用，不计入依赖
+    // 最新 getPersistenceData 通过 closeSnapshotSourcesRef 读取，不计入依赖
   ]);
 
   useEffect(() => {
@@ -809,81 +735,104 @@ export function useLibraryLoad({
   }, [persistedTimeRef, audioRef]);
 
   useEffect(() => {
-    const flushCurrentLibrary = async (): Promise<boolean> => {
+    const desktop = isDesktop();
+    const runCloseFlush = async (): Promise<boolean> => {
       try {
-        const slotsSnapshot = getSlotsSnapshot?.() ?? slots;
-        const persistData = getPersistenceData();
-        const libraryData = buildLibraryIndexDataForSlots(
+        // Runtime saves may still contain an older snapshot. They must finish
+        // before the final snapshot is captured and handed to the main process.
+        if (desktop) {
+          try {
+            await runtimeUserStateQueueRef.current?.drain();
+          } catch (error) {
+            logger.warn('[LibraryLoad] A runtime SQLite save failed before close; committing final snapshot:', error);
+          }
+          const drained = await libraryStorage.drainBeforeClose();
+          if (!drained) {
+            logger.warn('[LibraryLoad] A runtime library save failed before close; committing final snapshot');
+          }
+        }
+
+        // No await inside this block: the four slot arrays and playback settings
+        // belong to one renderer snapshot.
+        const sources = closeSnapshotSourcesRef.current;
+        const slotsSnapshot = sources.getSlotsSnapshot?.() ?? sources.slots;
+        const persistData = sources.getPersistenceData();
+        const libraryIndex = buildLibraryIndexDataForSlots(
           slotsSnapshot.local.tracks,
           slotsSnapshot.cloud.tracks,
           persistData,
           slotsSnapshot.online.tracks,
-          slotsSnapshot.playlist.tracks
+          slotsSnapshot.playlist.tracks,
         );
+        const userTracks = [
+          ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
+          ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
+          ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
+          ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
+        ];
 
-        logger.debug('[LibraryLoad] Flushing library before close');
-        // Best-effort: settings + userData save 失败不阻塞窗口关闭
-        try {
-          await appStorage.setItem('playback', JSON.stringify(persistData));
-        } catch (e) {
-          logger.warn('[LibraryLoad] Failed to flush playback settings:', e);
-        }
-        if (isDesktop()) {
-          try {
-            const api = await getDesktopAPIAsync();
-            const allMinimal = [
-              ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
-              ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
-              ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
-              ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
-            ];
-            const allSettings: Record<string, string> = {};
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key) allSettings[key] = localStorage.getItem(key) ?? '';
-            }
-            await api?.userDataSave?.({
-              tracks: allMinimal,
-              settings: allSettings,
-              playback: { _json: JSON.stringify(persistData) },
-            });
-          } catch (e) {
-            logger.warn('[LibraryLoad] Failed to flush user data:', e);
-          }
-        }
-        // 至少确保 library-index.json 写入
-        return libraryStorage.flushPendingSave(libraryData);
-      } catch (e) {
-        logger.error('[LibraryLoad] Flush failed:', e);
+        logger.debug('[LibraryLoad] Committing final library snapshot before close');
+        return await libraryClosePersistenceRepository.commit({
+          libraryIndex,
+          userTracks,
+          userDataWritable: userDataWritableRef.current,
+        });
+      } catch (error) {
+        logger.error('[LibraryLoad] Flush failed:', error);
         return false;
       }
+    };
+
+    const flushCurrentLibrary = (): Promise<boolean> => {
+      if (closeFlushInFlightRef.current) return closeFlushInFlightRef.current;
+
+      const operation = runCloseFlush();
+      let trackedOperation: Promise<boolean>;
+      trackedOperation = operation.finally(() => {
+        if (closeFlushInFlightRef.current === trackedOperation) {
+          closeFlushInFlightRef.current = null;
+        }
+      });
+      closeFlushInFlightRef.current = trackedOperation;
+      return trackedOperation;
     };
 
     const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
     let removeWindowCloseListener: (() => void) | undefined;
     let mounted = true;
-    void getDesktopAPIAsync().then(api => {
-      if (!mounted) return;
-      removeWindowCloseListener = api?.onBeforeWindowClose?.(() => flushCurrentLibrary());
-    });
+    if (desktop) {
+      void getDesktopAPIAsync().then(api => {
+        if (!mounted) return;
+        removeWindowCloseListener = api?.onBeforeWindowClose?.(() => flushCurrentLibrary());
+      }).catch(error => {
+        logger.warn('[LibraryLoad] Failed to register close flush listener:', error);
+      });
+    }
 
     const handleBeforeUnload = () => {
       void flushCurrentLibrary();
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Electron uses the awaited native close handshake. Retain beforeunload only
+    // for browser mode, where it remains a best-effort compatibility fallback.
+    if (!desktop) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
 
     return () => {
       mounted = false;
       removeWindowCloseListener?.();
       removeFlushListener();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (!desktop) {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      }
     };
-  }, [slots, getPersistenceData, getSlotsSnapshot]);
+  }, []);
 
   // 组件卸载时清理进度节流的 trailing timer（见上方 playbackSaveTimerRef 注释）
   useEffect(() => {
     return () => {
+      runtimeUserStateQueueRef.current?.cancel();
       if (playbackSaveTimerRef.current) {
         clearTimeout(playbackSaveTimerRef.current);
         playbackSaveTimerRef.current = null;

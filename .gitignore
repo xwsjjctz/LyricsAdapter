@@ -69,7 +69,6 @@ downloads/
 __pycache__/
 .venv/
 FRONTEND.md
-CLAUDE.md
 *jpg
 *.whl
 talk.md
@@ -81,9 +80,6 @@ todolist.md
 problem.md
 problems.md
 /talk
-/docs/*
-/docs
-
 /reserve
 /reserve/*
 
@@ -91,12 +87,11 @@ problems.md
 /.opencode
 /binaries
 /binaries/*
-/docs
-/docs/*
 /.playwright-mcp
+/test-results
+/playwright-report
 
 /.codegraph
 /_metadata.json
-AGENTS.md
 /.agents
 /.zcode

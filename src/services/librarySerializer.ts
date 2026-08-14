@@ -1,6 +1,10 @@
 import { Track, type SlotId } from '../types';
 import type { LibraryIndexData, LibraryIndexSong, LibrarySettings } from './libraryStorage';
 import { sanitizePersistedCoverUrl } from './coverUrl';
+import type { UserTrackRecord } from '../domain/library-persistence/models';
+import { minimalTrackToPersistedSong } from '../domain/library-persistence/trackRecords';
+
+export type { UserTrackRecord } from '../domain/library-persistence/models';
 
 function serializeTrack(track: Track): any {
   const coverUrl = sanitizePersistedCoverUrl(track.coverUrl);
@@ -56,25 +60,9 @@ export function buildLibraryIndexDataForSlots(
   return buildLibraryIndexData(localTracks, settings, cloudTracks, onlineTracks, playlistTracks);
 }
 
-export interface UserTrackRecord {
-  id: string;
-  slotId?: SlotId;
-  filePath?: string;
-  webdavPath?: string;
-  fileName?: string;
-  fileSize?: number;
-  lastModified?: number;
-  source?: string;
-  addedAt?: string;
-  playCount?: number;
-  lastPlayed?: string | null;
-  songmid?: string;
-  available?: boolean;
-}
-
 /**
  * 从 Track[] 中提取仅用户不可重建的最小化记录（不含 title/artist/album/duration 等缓存元数据）。
- * 用于写入 ~/.la/users.json —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
+ * 用于写入 ~/.la/state.sqlite3 —— 缓存可清，但用户数据（"哪些歌在我的库里"）永远保留。
  */
 function buildMinimalTrack(track: Track, slotId?: SlotId): UserTrackRecord {
   return {
@@ -99,28 +87,10 @@ export function buildMinimalTracks(tracks: Track[], slotId?: SlotId): UserTrackR
 }
 
 /**
- * 将 users.json 中的最小化曲目记录转换为完整的 LibraryIndexSong。
+ * 将用户状态库中的最小化曲目记录转换为完整的 LibraryIndexSong。
  * title/artist/album/duration 等缓存元数据留空，后续由 metadataCacheService
  * 或文件头重新解析填充。
  */
 export function minimalTrackToLibrarySong(t: UserTrackRecord): LibraryIndexSong {
-  return {
-    id: t.id,
-    title: '',
-    artist: '',
-    album: '',
-    duration: 0,
-    coverUrl: '',
-    filePath: t.filePath || '',
-    fileName: t.fileName || '',
-    fileSize: t.fileSize || 0,
-    lastModified: t.lastModified || 0,
-    addedAt: t.addedAt || new Date().toISOString(),
-    playCount: t.playCount || 0,
-    lastPlayed: t.lastPlayed ?? null,
-    available: t.available ?? true,
-    source: (t.source === 'webdav' ? 'webdav' : t.source === 'qq' ? 'qq' : t.source === 'netease' ? 'netease' : t.source === 'soda' ? 'soda' : 'local'),
-    webdavPath: t.webdavPath || '',
-    songmid: t.songmid || '',
-  };
+  return minimalTrackToPersistedSong(t, () => new Date().toISOString());
 }

@@ -242,7 +242,6 @@ class ShortcutManager {
 
   private saveShortcuts(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.shortcuts));
       appStorage.setItem(STORAGE_KEY, JSON.stringify(this.shortcuts)).catch(() => {});
     } catch (e) {
       logger.error('[Shortcuts] Failed to save shortcuts:', e);
@@ -251,6 +250,12 @@ class ShortcutManager {
 
   getAllShortcuts(): Record<ShortcutAction, ShortcutConfig> {
     return { ...this.shortcuts };
+  }
+
+  /** Refresh bindings after AppStorage has recovered from users.json. */
+  reload(): void {
+    this.shortcuts = this.loadShortcuts();
+    logger.info('[Shortcuts] Bindings reloaded after settings recovery');
   }
 
   getShortcut(action: ShortcutAction): ShortcutConfig {
