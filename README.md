@@ -8,10 +8,12 @@
 
 [![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react&logoColor=white)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.2-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.2.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Electron](https://img.shields.io/badge/Electron-40.0.0-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.1.18-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-8.1.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Electron](https://img.shields.io/badge/Electron-42.5.0-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.3.1-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
+
+[功能特性](#-功能特性) • [界面预览](#-界面预览) • [快速开始](#-快速开始) • [使用指南](#-使用指南) • [项目结构](#-项目结构) • [架构](#-架构)
 
 </div>
 
@@ -22,32 +24,48 @@
 ### 🎵 核心播放功能
 
 - **多格式音频支持** - 完整支持 FLAC、MP3 等常见音频格式
-- **智能元数据解析** - 自动提取音频文件内嵌的标题、艺术家、专辑、封面、歌词等信息
-- **LRC 歌词同步** - 自动解析并同步显示 LRC 格式歌词，支持毫秒级精确同步
+- **智能元数据解析** - 自动提取音频文件内嵌的标题、艺术家、专辑、封面、歌词等信息（Rust lofty 引擎）
+- **同步歌词显示** - LRC 歌词毫秒级精确同步；在线音源可获取 QRC/YRC 逐字歌词，并持久化到音频文件自定义标签
+- **流式本地播放** - 本地文件通过 `audio://` 自定义协议按 Range 请求流式读取，不整载入内存
 - **完整播放控制** - 播放/暂停、上一曲/下一曲、进度调节、音量控制
-- **多种播放模式** - 顺序播放、单曲循环、列表循环
+- **多种播放模式** - 顺序播放、单曲循环、随机播放
 
 ### 🎨 用户界面
 
-- **精美 UI 设计** - 玻璃拟态效果、响应式布局、平滑动画过渡
+- **精美 UI 设计** - 玻璃拟态效果、GSAP 驱动的页面与过渡动画
 - **沉浸式模式** - 全屏显示，动态背景跟随封面色调，歌词实时同步滚动
 - **虚拟化列表** - 大型音乐库流畅滚动，支持拖拽排序
-- **2 种预设主题** - 经典蓝、暖米
-- **6 种语言支持** - 中文、英文、日语、韩语、德语、法语
+- **拼音搜索** - 中文曲目支持拼音首字母与全拼搜索
+- **5 种预设主题** - 默认深色、默认浅色、经典蓝、暖米、粗粝黄
+- **6 种语言支持** - 中文、英文、日语、韩语、德语、法语（i18next）
 
-### 🌐 在线功能
+### 🌐 在线与云端功能
 
-- **WebDAV 支持** - 浏览和播放 WebDAV 服务器上的音乐文件
-- **云端播放** - 支持流式播放远程音频文件，无需下载
+- **多在线音源** - QQ 音乐、网易云音乐、汽水音乐三大音源，可在设置中切换
+- **扫码登录** - QQ 音乐与网易云音乐支持二维码扫码登录，解锁高音质与歌单
+- **在线搜索与下载** - 搜索、试听、下载（128kbps / 320kbps / FLAC），自动写入标签与歌词
+- **歌单支持** - 浏览与播放第三方歌单，独立播放上下文
+- **WebDAV 云曲库** - 浏览、流式播放 WebDAV 服务器上的音乐，支持从本地或在线音源上传
+- **自动更新** - 内置 electron-updater，发布新版本后应用内自动检查更新
+
+### 💾 数据管理
+
+- **SQLite 持久化** - 曲库与设置存储在 `~/.la/state.sqlite3`，独立于 Chromium 可清除的缓存目录
+- **四槽播放上下文** - 本地 / 云端 / 在线 / 歌单各自独立保存进度、音量与浏览状态
+- **封面缓存** - 内嵌封面提取到 `userData/covers/`，经 `cover://` 协议按需降采样
 
 ---
 
 ## 🎬 界面预览
 
 ### 主界面
-简洁优雅的曲库管理界面，双列表（本地/云端）独立播放上下文，支持批量导入、搜索、编辑和拖拽排序
+简洁优雅的曲库管理界面，本地/云端独立播放上下文，支持批量导入、拼音搜索、编辑和拖拽排序
 
-![库界面](resource/LibraryView.png)
+![库界面](resource/LibraryView_1.png)
+
+分类视图按专辑/艺术家浏览曲库，一键切换浏览维度
+
+![分类视图](resource/LibraryView_2.png)
 
 ### 沉浸式歌词模式
 全屏沉浸体验，动态背景跟随封面色调，歌词实时同步滚动
@@ -70,7 +88,7 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/yourusername/LyricsAdapter.git
+   git clone https://github.com/xwsjjctz/LyricsAdapter.git
    cd LyricsAdapter
    ```
 
@@ -137,7 +155,7 @@ npm run electron:build
 
 #### 管理曲目
 
-- **搜索**：使用侧边栏的搜索框快速查找曲目
+- **搜索**：使用侧边栏的搜索框快速查找曲目（支持拼音）
 - **删除**：点击曲目右侧的删除按钮，或进入编辑模式批量删除
 - **排序**：拖拽曲目进行自定义排序
 - **定位**：点击"定位到当前播放"快速定位到正在播放的曲目
@@ -147,19 +165,30 @@ npm run electron:build
 1. 切换到"元数据"视图
 2. 从音乐库选择曲目
 3. 编辑标题、艺术家、专辑、歌词等信息
-4. 保存更改
+4. 保存更改（写回音频文件标签）
+
+### 在线音乐
+
+#### 配置音源
+
+1. 进入"设置"视图，在"音源"部分选择 QQ 音乐 / 网易云音乐 / 汽水音乐
+2. 需要高音质或歌单功能时，在设置中扫码登录对应平台
 
 #### 搜索与下载
 
 1. 切换到"浏览"视图
 2. 在搜索框输入歌曲名、艺术家或专辑名
-3. 点击搜索结果右侧的下载按钮
-4. 选择音质：
+3. 点击搜索结果即可试听（在线流式播放）
+4. 点击下载或上传按钮，选择音质：
    - **128kbps** - 标准音质，文件较小
    - **320kbps** - 高品质，推荐使用
    - **FLAC** - 无损音质，文件较大
 
-下载的文件会自动添加到音乐库，包含完整的元数据和歌词。
+下载的文件会自动写入完整的元数据、封面和歌词（含逐字歌词），并添加到本地音乐库；也可以选择直接上传到 WebDAV 云端。
+
+#### 歌单
+
+在"浏览"视图的歌单标签页查看与播放第三方平台歌单，歌单拥有独立的播放上下文，不影响本地曲库状态。
 
 #### 设置下载路径
 
@@ -181,16 +210,14 @@ npm run electron:build
 
 #### 浏览云端音乐
 
-1. 切换到"浏览"视图
-2. 选择"WebDAV"标签
-3. 浏览服务器目录结构
-4. 点击音频文件即可播放（无需下载）
+1. 切换到"云端"库
+2. 浏览服务器目录结构
+3. 点击音频文件即可播放（无需下载）
 
 #### 云端播放特性
 
-- **流式播放**：音频文件按需加载，不占用本地存储
-- **缓存支持**：已播放的音频片段会被缓存
-- **断点续播**：支持从上次播放位置继续
+- **流式播放**：音频文件按需通过代理加载 Range 分片，不占用本地存储
+- **元数据缓存**：远端曲目元数据与文件列表快照缓存在 IndexedDB，二次进入秒开
 - **独立状态**：云端播放状态与本地库独立保存
 
 ### 沉浸式播放
@@ -208,7 +235,7 @@ npm run electron:build
 
 ### 主题切换
 
-应用内置 2 套主题，暖米和经典蓝
+应用内置 5 套主题：默认深色、默认浅色、经典蓝、暖米、粗粝黄
 
 切换方式：
 1. 点击侧边栏的"主题"按钮
@@ -235,7 +262,7 @@ npm run electron:build
 | `Alt + ↑` | 音量增加 10% | 增加 10% 音量 |
 | `Alt + ↓` | 音量减少 10% | 减少 10% 音量 |
 | `M` | 静音/取消静音 | 切换静音状态 |
-| `Alt + Tab` | 切换播放模式 | 循环切换播放模式 |
+| `Tab` | 切换播放模式 | 循环切换播放模式 |
 
 #### 导航
 
@@ -243,14 +270,10 @@ npm run electron:build
 |--------|------|
 | `Ctrl/Cmd + Enter` | 进入/退出沉浸模式 |
 | `Ctrl/Cmd + F` | 聚焦搜索框 |
-| `Ctrl/Cmd + I` | 导入文件 |
-| `Ctrl/Cmd + L` | 跳转到音乐库 |
 | `Ctrl/Cmd + B` | 跳转到浏览 |
+| `Ctrl/Cmd + Shift + M` | 跳转到元数据视图 |
 | `Ctrl/Cmd + ,` | 打开设置 |
 | `Ctrl/Cmd + T` | 打开主题 |
-| `Ctrl/Cmd + 1` | 切换到本地库 |
-| `Ctrl/Cmd + 2` | 切换到云端库 |
-| `Ctrl/Cmd + M` | 跳转到元数据视图 |
 
 #### 自定义快捷键
 
@@ -267,12 +290,17 @@ npm run electron:build
 | 技术 | 版本 | 说明 |
 |------|------|------|
 | **React** | 18.2.0 | 用户界面框架，使用 Hooks 和函数组件 |
-| **TypeScript** | 5.8.2 | 类型安全的 JavaScript 超集 |
-| **Vite** | 6.2.0 | 下一代前端构建工具，快速热更新 |
-| **Electron** | 40.0.0 | 跨平台桌面应用框架 |
-| **Tailwind CSS** | 4.1.18 | 实用优先的 CSS 框架 |
-| **music-tag-native** | 1.0.0 | 音频元数据解析/写入库（Rust lofty 引擎） |
-| **idb** | 8.0.3 | IndexedDB 封装库 |
+| **TypeScript** | ~5.8.2 | 类型安全的 JavaScript 超集 |
+| **Vite** | ^8.1.0 | 下一代前端构建工具，快速热更新 |
+| **Electron** | ^42.5.0 | 跨平台桌面应用框架 |
+| **Tailwind CSS** | ^4.3.1 | 实用优先的 CSS 框架 |
+| **GSAP** | ^3.15.0 | 页面切换与过渡动画 |
+| **music-tag-native** | ^1.0.0 | 音频元数据解析/写入库（Rust lofty 引擎） |
+| **@applemusic-like-lyrics/lyric** | ^1.0.2 | QRC/YRC 逐字歌词解析 |
+| **i18next / react-i18next** | ^26 / ^17 | 国际化框架（6 种语言） |
+| **zod** | ^4.4.3 | typed IPC payload 校验 |
+| **electron-updater** | ^6.3.9 | 应用自动更新 |
+| **node:sqlite** | 内置 | 用户状态持久化（`~/.la/state.sqlite3`） |
 
 ### 构建工具
 
@@ -286,105 +314,54 @@ npm run electron:build
 
 ```
 LyricsAdapter/
-├── components/              # React 组件
-│   ├── BrowseView.tsx       # 在线浏览与下载视图
-│   ├── Controls.tsx         # 播放控制器（进度条、播放控制、音量）
-│   ├── CookieDialog.tsx     # Cookie 配置对话框
-│   ├── ErrorBoundary.tsx    # 错误边界组件
-│   ├── FocusMode.tsx        # 沉浸式歌词模式（Canvas 动态背景、LRC 同步）
-│   ├── GlobalSearch.tsx     # 全局搜索弹窗
-│   ├── LibraryToolbar.tsx   # 音乐库工具栏（筛选、排序、编辑模式）
-│   ├── LibraryTrackRow.tsx  # 音乐库单曲行组件
-│   ├── LibraryView.tsx      # 音乐库视图（列表、分类筛选、编辑模式）
-│   ├── LyricsOverlay.tsx    # 歌词浮层组件
-│   ├── MainPlayer.tsx       # 主播放器界面
-│   ├── MetadataEditorPopup.tsx # 元数据内联编辑弹窗
-│   ├── MetadataView.tsx     # 元数据编辑视图
-│   ├── QueuePanel.tsx       # 播放队列面板
-│   ├── SearchBox.tsx        # 全局搜索框
-│   ├── SettingsDialog.tsx   # 设置对话框
-│   ├── SettingsView.tsx     # 设置视图
-│   ├── ShortcutsSettings.tsx# 快捷键设置组件
-│   ├── Sidebar.tsx          # 侧边栏导航
-│   ├── ThemeView.tsx        # 主题选择视图
-│   ├── TitleBar.tsx         # 自定义窗口标题栏
-│   └── TrackCover.tsx       # 封面显示组件
-├── hooks/                   # 自定义 React Hooks
-│   ├── useAppLifecycle.ts   # 应用生命周期管理
-│   ├── useBlobUrls.ts       # Blob URL 管理（自动释放）
-│   ├── useFloatingPanel.ts  # 浮动面板状态
-│   ├── useImport.ts         # 文件导入逻辑（桌面+浏览器）
-│   ├── useLibraryActions.ts # 音乐库操作（删除、重载、排序）
-│   ├── useLibraryCloudSync.ts # 云端库同步
-│   ├── useLibraryLoad.ts    # 音乐库加载/保存
-│   ├── useLibrarySlots.ts   # 库槽管理（本地/云端独立播放上下文）
-│   ├── useLibraryVirtualScroll.ts # 虚拟滚动
-│   ├── usePlayback.ts       # 播放控制逻辑
-│   ├── useQQMusicIntegration.ts # QQ 音乐集成
-│   ├── useShortcuts.ts      # 快捷键处理
-│   ├── useWebDAV.ts         # WebDAV 客户端集成
-│   ├── useWindowControls.ts # 窗口控制
-│   └── useWindowFocus.ts    # 窗口焦点检测
-├── services/                # 业务逻辑服务
-│   ├── cookieManager.ts     # Cookie 管理
-│   ├── coverArtService.ts   # 封面服务（提取、缓存）
-│   ├── dataValidator.ts     # 数据验证
-│   ├── debugCommands.ts     # 调试命令注册
-│   ├── desktopAdapter.ts    # Electron API 适配器
-│   ├── i18n.ts              # 国际化（6 种语言）
-│   ├── indexedDBStorage.ts  # IndexedDB 存储（已弃用）
-│   ├── librarySerializer.ts # 音乐库序列化
-│   ├── libraryStorage.ts    # 音乐库存储（文件系统）
-│   ├── logger.ts            # 日志服务（分级、作用域）
-│   ├── metadataCacheService.ts # 元数据缓存
-│   ├── metadataService.ts   # 音频元数据解析
-│   ├── notificationService.ts # 系统通知服务
-│   ├── qqMusicApi.ts        # QQ 音乐 API 集成
-│   ├── settingsManager.ts   # 应用设置管理
-│   ├── shortcuts.ts         # 快捷键管理
-│   ├── themeManager.ts      # 主题管理
-│   ├── webdavClient.ts      # WebDAV 客户端
-│   ├── webdavMetaService.ts # WebDAV 元数据服务
-│   ├── themes/              # 主题配置
-│   │   └── predefinedThemes.ts
-│   ├── webdav/              # WebDAV 子模块
-│   └── workers/             # Web Workers
 ├── electron/                # Electron 主进程
-│   ├── main.ts              # 主进程入口
-│   └── preload.ts           # 预加载脚本
-├── utils/                   # 工具函数
-│   ├── trackProcessor.ts    # 曲目处理工具
-│   └── errorHandler.ts      # 错误处理
-├── constants/               # 常量配置
-│   └── config.ts            # 应用配置常量
-├── types/                   # TypeScript 类型定义
-├── App.tsx                  # 主应用组件
-├── types.ts                 # 全局类型定义（Track、PlaybackContext、LibrarySlot等）
-├── index.tsx                # 应用入口
-├── vite.config.ts           # Vite 配置
-├── tsconfig.json            # TypeScript 配置
-├── package.json             # 项目依赖
-└── README.md                # 项目文档
+│   ├── main.ts              # 入口：协议注册、IPC 注册、窗口创建、更新器
+│   ├── preload.ts           # contextBridge，暴露受控的 window.electron
+│   ├── windowManager.ts     # frameless 窗口与窗口状态
+│   ├── protocols/           # 自定义协议：audio:// cover:// stream:// app://
+│   ├── ipc/                 # typed + legacy IPC handlers（文件、曲库、WebDAV、在线音源、登录…）
+│   └── services/            # SQLite 用户状态仓库、音频元数据读写、设置存储
+├── src/                     # Renderer（React）
+│   ├── AppWorkspace.tsx     # 根组合点（wiring/composition only）
+│   ├── components/          # UI 组件（new-ui/、focus-mode/、settings/、legacy/）
+│   ├── controllers/         # 播放/曲库控制器（状态变更的唯一入口）
+│   ├── viewmodels/          # 面向视图的数据模型
+│   ├── stores/              # hook 聚合层（library / player / import / ui）
+│   ├── hooks/               # 业务 hooks（播放、导入、WebDAV、快捷键…）
+│   ├── services/            # desktopAdapter、libraryStorage、metadataService、
+│   │                        # qqMusicApi / neteaseMusicApi / sodaMusicApi、
+│   │                        # onlineMusicProvider、webdavClient、主题、i18n…
+│   ├── domain/              # 纯领域规则
+│   ├── repositories/        # 数据访问封装
+│   ├── shared/              # LRC/QRC/YRC 解析、持久化策略、schema
+│   └── i18n/                # 6 种语言的 locale 文件
+├── test/                    # Vitest 单元测试 + Playwright Electron E2E
+├── docs/                    # 架构与开发文档（overview / playback-flow / …）
+└── resource/                # 文档截图等资源
 ```
 
+> UI 组件不直接改状态，用户意图通过回调交给 controllers；播放一律走 player controller，曲库变更一律走 library controller。详见 [AGENTS.md](AGENTS.md) 的所有权边界。
+
 ---
+
+## 🏗️ 架构
 
 ### 数据流
 
 #### 文件导入流程
 
 ```
-用户选择文件
+用户选择文件（对话框 / 拖拽）
     ↓
-文件对话框 (Electron IPC)
+路径进入主进程 allowlist（typed IPC）
     ↓
-元数据解析 (metadataService)
+元数据解析（music-tag-native / metadataService）
     ↓
-封面提取与缓存 (coverArtService)
+封面提取与缓存（userData/covers → cover://）
     ↓
-创建 Track 对象 (懒加载 audioUrl)
+创建 Track 对象
     ↓
-保存到音乐库 (libraryStorage)
+保存曲库（librarySerializer → SQLite）
     ↓
 更新 UI
 ```
@@ -392,86 +369,55 @@ LyricsAdapter/
 #### 播放流程
 
 ```
-用户点击播放
+用户点击播放（player controller）
     ↓
-选择曲目 (selectTrack)
+按 Track.source 选择播放 URL：
+  - local   → audio://<路径>（主进程流式 Range 响应）
+  - webdav  → 主进程代理的 HTTP Range 请求
+  - qq/netease/soda → stream://（补 cookie、解析 CDN、转发 Range）
     ↓
-检查 audioUrl
+HTML <audio> 播放，进度/音量/模式同步回对应 slot
     ↓
-若无 → 懒加载文件 (desktopAPI.readFile)
-    ↓
-创建 Blob URL
-    ↓
-Audio 元素播放
-    ↓
-预加载相邻曲目 (500ms 延迟)
+预加载相邻曲目
 ```
 
-#### WebDAV 播放流程
+#### 在线音乐流程
 
 ```
-用户浏览 WebDAV 目录
+用户搜索/打开歌单（BrowseView）
     ↓
-调用 WebDAV PROPFIND (webdavClient.browseDirectory)
+onlineMusicProvider（qq / netease / soda 归一为 OnlineSong）
     ↓
-解析 XML 响应，获取文件列表
+播放 → stream:// 流式试听
+下载 → downloadAndSave + writeAudioMetadata（写入标签/封面/QRC 歌词）
+上传 → 读取字节 PUT 到 WebDAV
     ↓
-用户选择音频文件
-    ↓
-获取重定向 URL (webdavClient.getRedirectUrl)
-    ↓
-通过 Range 请求流式加载音频 (webdavClient.getRange)
-    ↓
-创建 Track 对象（source: 'webdav'）
-    ↓
-添加到云端库槽
-    ↓
-播放时按需加载音频数据
+合并进 local / cloud slot
 ```
 
-### 状态管理
+### 播放槽系统（Library Slots）
 
-应用使用 React Hooks 进行状态管理，采用**独立播放上下文**架构：
+应用维护四个独立槽位，每个槽保存 `tracks`、当前索引、进度、音量、播放模式、滚动位置与筛选状态：
 
-#### 库槽系统 (Library Slots)
-应用维护两个独立的库槽，每个槽拥有完整的播放状态：
+| Slot | 用途 | 侧边栏入口 |
+|------|------|-----------|
+| `local` | 本地导入曲库 | 有 |
+| `cloud` | WebDAV 云曲库 | 有 |
+| `online` | 在线试听最近播放（LRU） | 有 |
+| `playlist` | 歌单播放上下文 | 无（Playlists 视图背后） |
 
-```typescript
-interface LibrarySlot {
-  id: 'local' | 'cloud';      // 槽标识：本地或云端
-  tracks: Track[];            // 曲目列表
-  currentTrackIndex: number;  // 当前播放曲目索引
-  currentTime: number;        // 当前播放时间
-  volume: number;             // 音量
-  playbackMode: 'order' | 'shuffle' | 'repeat-one'; // 播放模式
-  scrollPosition: number;     // 滚动位置
-  filterType: 'default' | 'album' | 'artist'; // 筛选类型
-  categorySelection: string | null; // 分类选择
-}
-```
-
-#### 主要状态
-- **`slots`** - 库槽集合（local 和 cloud）
-- **`activeSlotId`** - 当前活动槽标识
-- **`activeSlot`** - 当前活动槽
-- **`viewMode`** - 当前视图模式
-- **`isFocusMode`** - 是否处于沉浸模式
-- **`searchInputValue`** - 搜索输入值
-
-#### 切换行为
-- 切换列表时保存当前播放状态到对应槽
-- 播放暂停，不自动播放
-- 目标列表的播放状态被恢复（进度、音量、模式）
-- `isPlaying` 在切换后始终设为 `false`（需要手动播放）
+当前播放上下文是 `activeSlotId`，曲库面板浏览的是 `viewSlot`，两者可以不同——例如播放歌单的同时浏览本地曲库。切换槽位会恢复该槽状态，且 `isPlaying` 始终重置为 `false`。
 
 ### 持久化存储
 
-- **音乐库**：`userData/library.json` 和 `userData/library-index.json`
-- **封面缓存**：`userData/covers/`
-- **设置**：`localStorage`
-- **主题**：`localStorage`
-- **快捷键**：`localStorage`
-- **Cookie**：`localStorage`（加密存储）
+| 数据 | 位置 |
+|------|------|
+| 曲库成员、设置、用户状态 | `~/.la/state.sqlite3`（首启自动从旧版 JSON 迁移） |
+| 封面缓存 | `userData/covers/`（`cover://` 协议按需降采样） |
+| 元数据缓存、WebDAV 快照 | IndexedDB（renderer 侧，LRU） |
+| 浏览器模式曲库 | IndexedDB + localStorage |
+
+> 用户数据放在 `~/.la` 而不是 Chromium 的 userData 目录，"清除浏览器数据"不会丢曲库。
 
 ---
 
@@ -481,7 +427,7 @@ interface LibrarySlot {
 
 1. **克隆仓库并安装依赖**
    ```bash
-   git clone https://github.com/yourusername/LyricsAdapter.git
+   git clone https://github.com/xwsjjctz/LyricsAdapter.git
    cd LyricsAdapter
    npm install
    ```
@@ -496,7 +442,8 @@ interface LibrarySlot {
    - Node Inspector - Electron 主进程断点调试
    - Playwright MCP - AI Agent 通过 CDP 检查和操作运行中的 Electron
 
-   完整配置和使用方法见 [Electron 调试与 Agent 工作流](DEBUGGING.md)。
+   完整配置和使用方法见 [Electron 调试与 Agent 工作流](DEBUGGING.md)，
+   架构细节见 [docs/architecture/overview.md](docs/architecture/overview.md)。
 
 ### 代码规范
 
@@ -505,90 +452,27 @@ interface LibrarySlot {
 - **命名**：组件使用 PascalCase，其他使用 camelCase
 - **样式**：使用 Tailwind CSS 类名
 - **日志**：使用 `logger` 服务，不要直接使用 `console.*`
+- **边界**：UI 不改状态，播放走 player controller，曲库变更走 library controller
 
 ### 添加新功能
 
 1. **创建新组件**
-   - 在 `components/` 目录创建 `.tsx` 文件
-   - 定义 Props 接口
+   - 在 `src/components/` 相应子目录创建 `.tsx` 文件
+   - 定义 Props 接口，通过回调向上传递用户意图
    - 使用 Tailwind CSS 编写样式
 
 2. **添加新服务**
-   - 在 `services/` 目录创建 `.ts` 文件
-   - 导出服务类或实例
-   - 在组件中引入使用
+   - 在 `src/services/` 目录创建 `.ts` 文件
+   - 桌面能力一律通过 `services/desktopAdapter.ts` 访问
+   - 新增在线音源实现 `OnlineMusicProvider` 接口即可接入
 
 3. **添加新类型**
-   - 在 `types.ts` 或 `types/` 目录添加类型定义
+   - 在 `src/types.ts` 或 `src/types/` 目录添加类型定义
    - 使用 TypeScript 严格模式
 
 4. **添加新主题**
-   - 在 `services/themes/predefinedThemes.ts` 添加主题配置
-   - 在 `services/i18n.ts` 添加主题名称和描述翻译
-
-### 关键接口
-
-#### Track 接口
-
-```typescript
-interface Track {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  duration: number;           // 秒
-  coverUrl?: string;          // 封面 URL
-  lyrics?: string;            // 纯文本歌词
-  syncedLyrics?: SyncedLyricLine[]; // 同步歌词
-  audioUrl: string;           // Blob URL（播放时创建）
-  available?: boolean;        // 文件是否可用
-  
-  // Electron 持久化字段
-  filePath?: string;          // 文件路径
-  fileName?: string;          // 文件名
-  fileSize?: number;          // 文件大小（字节）
-  lastModified?: number;      // 最后修改时间戳
-  addedAt?: string;           // 添加时间 ISO 字符串
-  playCount?: number;         // 播放次数
-  lastPlayed?: string;        // 最后播放时间
-  
-  // WebDAV 字段
-  source?: 'local' | 'webdav'; // 来源类型
-  webdavPath?: string;        // WebDAV 路径
-  cdnUrl?: string;            // CDN URL（用于流式播放）
-  cdnUrlExpiry?: number;      // CDN URL 过期时间
-}
-
-interface SyncedLyricLine {
-  time: number;  // 秒
-  text: string;
-}
-
-interface LibrarySlot {
-  id: 'local' | 'cloud';      // 槽标识：本地或云端
-  tracks: Track[];            // 曲目列表
-  currentTrackIndex: number;  // 当前播放曲目索引
-  currentTime: number;        // 当前播放时间
-  volume: number;             // 音量
-  playbackMode: 'order' | 'shuffle' | 'repeat-one'; // 播放模式
-  scrollPosition: number;     // 滚动位置
-  filterType: 'default' | 'album' | 'artist'; // 筛选类型
-  categorySelection: string | null; // 分类选择
-}
-```
-
-#### DesktopAPI 接口
-
-```typescript
-interface DesktopAPI {
-  platform: string;
-  readFile(path: string): Promise<{ success: boolean; data?: number[]; error?: string }>;
-  parseAudioMetadata(path: string): Promise<...>;
-  saveCoverThumbnail(...): Promise<...>;
-  selectFiles(...): Promise<...>;
-  // ... 更多方法
-}
-```
+   - 在 `src/services/themes/predefinedThemes.ts` 添加主题配置
+   - 在 `src/i18n/locales/` 添加主题名称和描述翻译
 
 ### 调试技巧
 
@@ -618,34 +502,36 @@ interface DesktopAPI {
 
 **方法**：
 - 在文件选择对话框中按住 `Ctrl` (Windows/Linux) 或 `Cmd` (macOS) 多选
-- 直接拖拽文件夹到应用窗口
+- 直接拖拽文件到应用窗口
 
 ### 2. 应用数据存储在哪里？
 
 **存储位置**：
-- **macOS**: `~/Library/Application Support/lyrics-adapter/`
-- **Windows**: `%APPDATA%/lyrics-adapter/`
-- **Linux**: `~/.config/lyrics-adapter/`
-
-**包含内容**：
-- `library-index.json` - 音乐库索引以及webdav端的covers，这里处理的有问题未来会抽出来
-- `covers/` - 封面缓存
+- **曲库与设置**：`~/.la/state.sqlite3`（所有平台一致，独立于应用缓存）
+- **封面缓存**：
+  - **macOS**: `~/Library/Application Support/lyrics-adapter/covers/`
+  - **Windows**: `%APPDATA%/lyrics-adapter/covers/`
+  - **Linux**: `~/.config/lyrics-adapter/covers/`
 
 ### 3. 如何迁移音乐库？
 
 **步骤**：
-1. 备份上述数据目录
+1. 备份 `~/.la/state.sqlite3` 与音频文件
 2. 在新设备上安装应用
-3. 复制备份的数据目录到对应位置
+3. 恢复数据库文件到相同位置，音频文件保持原路径（或重新导入）
 4. 重启应用
 
 ### 4. 支持哪些音频格式？
 
-**支持格式**：
+**导入格式**：
 - **FLAC** - 无损压缩格式（推荐）
 - **MP3** - 通用有损压缩格式
 
-### 5. 如何自定义快捷键？
+### 5. 在线音源无法播放或音质受限？
+
+部分音源需要登录才能获取完整音质与歌单：进入"设置"视图，选择音源并扫码登录。登录态以加密 Cookie 形式保存在本地。
+
+### 6. 如何自定义快捷键？
 
 **步骤**：
 1. 进入"设置"视图
@@ -673,7 +559,9 @@ interface DesktopAPI {
 - [Vite](https://vitejs.dev/) - 构建工具
 - [Electron](https://www.electronjs.org/) - 桌面应用框架
 - [Tailwind CSS](https://tailwindcss.com/) - CSS 框架
+- [GSAP](https://gsap.com/) - 动画引擎
 - [music-tag-native](https://github.com/subframe7536/music-tag-native) - 音频元数据解析/写入库
+- [@applemusic-like-lyrics/lyric](https://github.com/Steve-xmh/applemusic-like-lyrics) - 逐字歌词解析
 
 ### 图标与设计
 
