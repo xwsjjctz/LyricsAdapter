@@ -36,7 +36,11 @@ function pngChunk(type: string, data: Buffer): Buffer {
 }
 
 /** Dependency-free solid RGBA PNG, deliberately larger than the 512px cache ceiling. */
-function makeLargeCoverFixture(width = 640, height = 640): Buffer {
+function makeLargeCoverFixture(
+  width = 640,
+  height = 640,
+  rgba: readonly [number, number, number, number] = [35, 90, 155, 255],
+): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
@@ -45,10 +49,10 @@ function makeLargeCoverFixture(width = 640, height = 640): Buffer {
 
   const scanline = Buffer.alloc(1 + width * 4);
   for (let offset = 1; offset < scanline.length; offset += 4) {
-    scanline[offset] = 35;
-    scanline[offset + 1] = 90;
-    scanline[offset + 2] = 155;
-    scanline[offset + 3] = 255;
+    scanline[offset] = rgba[0];
+    scanline[offset + 1] = rgba[1];
+    scanline[offset + 2] = rgba[2];
+    scanline[offset + 3] = rgba[3];
   }
   const pixels = Buffer.alloc(scanline.length * height);
   for (let row = 0; row < height; row++) scanline.copy(pixels, row * scanline.length);
@@ -78,6 +82,19 @@ interface FocusEntranceProbe {
   initialOffscreen: boolean | null;
   offscreenAfterFirstFrame: boolean | null;
   initialBackdropPixel: number[] | null;
+}
+
+interface FocusBreathingSample {
+  elapsed: number;
+  rgba: number[];
+}
+
+interface FocusBreathingProbe {
+  initialRgba: number[];
+  samples: FocusBreathingSample[];
+  transitionStartedAt: number | null;
+  completed: boolean;
+  timedOut: boolean;
 }
 
 async function closeElectronApp(electronApp: ElectronApplication | undefined): Promise<void> {
@@ -112,30 +129,54 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
   await Promise.all([isolatedHome, ...Object.values(dirs)].map((dir) => mkdir(dir, { recursive: true })));
 
   const fixtureTrackId = 'e2e-focus-track';
+  const secondFixtureTrackId = 'e2e-focus-track-next';
   const coversDirectory = path.join(dirs.userData, 'covers');
   // A data URL is same-origin/readable in Canvas, which lets the Focus probe
   // inspect alpha without weakening the assertion for a tainted remote image.
   // The persisted cover:// fixture remains independent and is probed below.
-  const focusCanvasCoverDataUrl = `data:image/png;base64,${makeLargeCoverFixture(64, 64).toString('base64')}`;
+  const firstCoverColor = [35, 90, 155, 255] as const;
+  const secondCoverColor = [190, 65, 35, 255] as const;
+  const focusCanvasCoverDataUrls = {
+    [fixtureTrackId]: `data:image/png;base64,${makeLargeCoverFixture(64, 64, firstCoverColor).toString('base64')}`,
+    [secondFixtureTrackId]: `data:image/png;base64,${makeLargeCoverFixture(64, 64, secondCoverColor).toString('base64')}`,
+  };
   await mkdir(coversDirectory, { recursive: true });
   await Promise.all([
     writeFile(
       path.join(coversDirectory, `${fixtureTrackId}.png`),
-      makeLargeCoverFixture(),
+      makeLargeCoverFixture(640, 640, firstCoverColor),
+    ),
+    writeFile(
+      path.join(coversDirectory, `${secondFixtureTrackId}.png`),
+      makeLargeCoverFixture(640, 640, secondCoverColor),
     ),
     writeFile(path.join(dirs.userData, 'library-index.json'), JSON.stringify({
-      songs: [{
-        id: fixtureTrackId,
-        title: 'Focus E2E Fixture',
-        artist: 'LyricsAdapter',
-        album: 'Smoke Test',
-        duration: 120,
-        lyrics: '',
-        syncedLyrics: [],
-        coverUrl: `cover://${fixtureTrackId}.png`,
-        source: 'local',
-        available: false,
-      }],
+      songs: [
+        {
+          id: fixtureTrackId,
+          title: 'Focus E2E Fixture',
+          artist: 'LyricsAdapter',
+          album: 'Smoke Test',
+          duration: 120,
+          lyrics: '',
+          syncedLyrics: [],
+          coverUrl: `cover://${fixtureTrackId}.png`,
+          source: 'local',
+          available: false,
+        },
+        {
+          id: secondFixtureTrackId,
+          title: 'Focus E2E Fixture Next',
+          artist: 'LyricsAdapter',
+          album: 'Smoke Test',
+          duration: 120,
+          lyrics: '',
+          syncedLyrics: [],
+          coverUrl: `cover://${secondFixtureTrackId}.png`,
+          source: 'local',
+          available: false,
+        },
+      ],
       settings: {
         activeSlotId: 'local',
         localSlot: {
@@ -270,7 +311,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     // Substitute only programmatic `new Image()` cover loads so Focus renders
     // the readable solid PNG, while the persisted cover:// protocol/cache probe
     // above and DOM cover images continue to exercise their real paths.
-    await page.evaluate((dataUrl) => {
+    await page.evaluate((dataUrls) => {
       const NativeImage = window.Image;
       class FocusCanvasTestImage extends NativeImage {
         override get src(): string {
@@ -278,11 +319,18 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         }
 
         override set src(value: string) {
-          super.src = value.startsWith('cover://') ? dataUrl : value;
+          if (value.startsWith('cover://')) {
+            const matchedDataUrl = Object.entries(dataUrls)
+              .sort(([left], [right]) => right.length - left.length)
+              .find(([trackId]) => value.includes(trackId))?.[1];
+            super.src = matchedDataUrl ?? value;
+            return;
+          }
+          super.src = value;
         }
       }
       window.Image = FocusCanvasTestImage;
-    }, focusCanvasCoverDataUrl);
+    }, focusCanvasCoverDataUrls);
 
     // Exercise the real FocusMode mount/transition/unmount path in the built
     // Electron renderer; cover:// resize/cache was already probed separately.
@@ -455,6 +503,178 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     });
     await expect(page.locator('[data-focus-backdrop-overlay]'))
       .not.toHaveClass(/backdrop-blur-sm/);
+
+    // Observe the real track-change Canvas frames. The probe anchors its
+    // 1000ms timeline to the first changed pixel rather than the button click,
+    // because a real Image.onload can begin a few frames later on a cold cache.
+    await page.evaluate(() => {
+      const probeWindow = window as typeof window & {
+        __focusBreathingProbe?: FocusBreathingProbe;
+      };
+      const canvas = document.querySelector<HTMLCanvasElement>('.focus-mode-overlay canvas');
+      const context = canvas?.getContext('2d');
+      if (!canvas || !context) throw new Error('Focus backdrop was unavailable for breathing probe');
+
+      const readCenter = () => Array.from(context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data);
+      const initialRgba = readCenter();
+      const probe: FocusBreathingProbe = {
+        initialRgba,
+        samples: [],
+        transitionStartedAt: null,
+        completed: false,
+        timedOut: false,
+      };
+      probeWindow.__focusBreathingProbe = probe;
+
+      const handleNextClick = (event: MouseEvent) => {
+        const button = event.target instanceof Element
+          ? event.target.closest('button')
+          : null;
+        if (!button?.textContent?.includes('skip_next')) return;
+        document.removeEventListener('click', handleNextClick, true);
+
+        let samplingStartedAt: number | null = null;
+        const sampleFrame = (now: number) => {
+          if (samplingStartedAt === null) samplingStartedAt = now;
+          const elapsed = now - samplingStartedAt;
+          const rgba = readCenter();
+          probe.samples.push({ elapsed, rgba });
+
+          if (probe.transitionStartedAt === null) {
+            const alphaDelta = Math.abs((rgba[3] ?? 0) - (initialRgba[3] ?? 0));
+            const rgbDelta = Math.max(
+              ...rgba.slice(0, 3).map((channel, index) =>
+                Math.abs(channel - (initialRgba[index] ?? 0))),
+            );
+            if (alphaDelta >= 2 || rgbDelta >= 2) {
+              probe.transitionStartedAt = elapsed;
+            }
+          }
+
+          if (
+            probe.transitionStartedAt !== null
+            && elapsed - probe.transitionStartedAt >= 1_150
+          ) {
+            probe.completed = true;
+            return;
+          }
+          if (elapsed >= 3_000) {
+            probe.completed = true;
+            probe.timedOut = true;
+            return;
+          }
+          requestAnimationFrame(sampleFrame);
+        };
+        requestAnimationFrame(sampleFrame);
+      };
+      document.addEventListener('click', handleNextClick, true);
+    });
+
+    const nextTrackButton = focusOverlay.locator('button', { hasText: 'skip_next' });
+    await expect(nextTrackButton).toHaveCount(1);
+    await nextTrackButton.click();
+    await expect(focusOverlay.getByRole('heading', {
+      name: 'Focus E2E Fixture Next',
+      exact: true,
+    })).toBeVisible();
+    await expect.poll(() => page!.evaluate(() =>
+      (window as typeof window & { __focusBreathingProbe?: FocusBreathingProbe })
+        .__focusBreathingProbe?.completed ?? false), { timeout: 5_000 }).toBe(true);
+
+    const breathingProbe = await page.evaluate(() =>
+      (window as typeof window & { __focusBreathingProbe?: FocusBreathingProbe })
+        .__focusBreathingProbe ?? null);
+    if (!breathingProbe || breathingProbe.transitionStartedAt === null) {
+      throw new Error('Focus track-change transition never changed a readable Canvas pixel');
+    }
+    expect(breathingProbe.timedOut).toBe(false);
+
+    const rgbDistance = (left: number[], right: number[]) => Math.hypot(
+      ...left.slice(0, 3).map((channel, index) => channel - (right[index] ?? 0)),
+    );
+    const nearestSample = (targetElapsed: number) => breathingProbe.samples.reduce(
+      (nearest, sample) => Math.abs(sample.elapsed - targetElapsed)
+        < Math.abs(nearest.elapsed - targetElapsed) ? sample : nearest,
+    );
+    const transitionSamples = breathingProbe.samples.filter(
+      sample => sample.elapsed >= breathingProbe.transitionStartedAt!,
+    );
+    const minimumAlphaSample = transitionSamples.reduce((minimum, sample) =>
+      (sample.rgba[3] ?? 255) < (minimum.rgba[3] ?? 255) ? sample : minimum);
+    const midpointSample = nearestSample(breathingProbe.transitionStartedAt + 500);
+    const endingSample = nearestSample(breathingProbe.transitionStartedAt + 1_100);
+
+    expect(breathingProbe.initialRgba[3]).toBeGreaterThanOrEqual(250);
+    expect(midpointSample.rgba[3]).toBeGreaterThanOrEqual(180);
+    expect(midpointSample.rgba[3]).toBeLessThanOrEqual(205);
+    expect(midpointSample.rgba[3]).toBeLessThan((breathingProbe.initialRgba[3] ?? 0) - 40);
+    expect(endingSample.rgba[3]).toBeGreaterThanOrEqual(250);
+    expect(Math.abs(
+      minimumAlphaSample.elapsed - (breathingProbe.transitionStartedAt + 500),
+    )).toBeLessThan(120);
+
+    // The two deliberately different solid covers make the cross-fade readable:
+    // blue is dominant before the switch, red after it, and the midpoint is a
+    // distinct dimmed blend rather than either endpoint copied unchanged.
+    expect(breathingProbe.initialRgba[2]).toBeGreaterThan(breathingProbe.initialRgba[0] ?? 0);
+    expect(endingSample.rgba[0]).toBeGreaterThan(endingSample.rgba[2] ?? 0);
+    expect(rgbDistance(breathingProbe.initialRgba, endingSample.rgba)).toBeGreaterThan(40);
+    expect(rgbDistance(breathingProbe.initialRgba, midpointSample.rgba)).toBeGreaterThan(15);
+    expect(rgbDistance(midpointSample.rgba, endingSample.rgba)).toBeGreaterThan(15);
+
+    const finalBreathingCanvasMetrics = await backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Focus backdrop did not expose a 2D context');
+      const rect = canvas.getBoundingClientRect();
+      const alphaAt = (viewportX: number, viewportY: number) => {
+        const x = Math.max(0, Math.min(
+          canvas.width - 1,
+          Math.floor((viewportX - rect.left) * canvas.width / rect.width),
+        ));
+        const y = Math.max(0, Math.min(
+          canvas.height - 1,
+          Math.floor((viewportY - rect.top) * canvas.height / rect.height),
+        ));
+        return context.getImageData(x, y, 1, 1).data[3] ?? 0;
+      };
+      const edgeInset = 1;
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      return {
+        widthRatio: canvas.width / (window.innerWidth + 200),
+        heightRatio: canvas.height / (window.innerHeight + 200),
+        alpha: {
+          center: alphaAt(centerX, centerY),
+          top: alphaAt(centerX, edgeInset),
+          right: alphaAt(window.innerWidth - edgeInset, centerY),
+          bottom: alphaAt(centerX, window.innerHeight - edgeInset),
+          left: alphaAt(edgeInset, centerY),
+        },
+      };
+    });
+    expect(finalBreathingCanvasMetrics.widthRatio).toBeCloseTo(0.5, 2);
+    expect(finalBreathingCanvasMetrics.heightRatio).toBeCloseTo(0.5, 2);
+    for (const [sample, alpha] of Object.entries(finalBreathingCanvasMetrics.alpha)) {
+      expect(alpha, `Settled Focus backdrop ${sample} alpha`).toBeGreaterThanOrEqual(250);
+    }
+    await testInfo.attach('focus-track-change-breathing-metrics', {
+      body: Buffer.from(JSON.stringify({
+        transitionStartedAt: breathingProbe.transitionStartedAt,
+        initial: breathingProbe.initialRgba,
+        midpoint: midpointSample,
+        minimum: minimumAlphaSample,
+        ending: endingSample,
+        finalCanvas: finalBreathingCanvasMetrics,
+        sampleCount: breathingProbe.samples.length,
+      }, null, 2)),
+      contentType: 'application/json',
+    });
 
     const thumbnailDirectory = path.join(coversDirectory, '.thumbnails');
     await expect.poll(async () => {

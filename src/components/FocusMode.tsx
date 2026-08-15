@@ -390,9 +390,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     frameCtx.filter = `brightness(${backdropBrightnessRef.current})`;
     frameCtx.drawImage(preparedCurrent, 0, 0);
 
-    // Paint the old image opaquely, then fade the new one over it. For opaque
-    // covers this is a true colour cross-fade whose combined alpha stays at 1,
-    // instead of the previous source-over formula dipping to 0.75 halfway.
+    // Paint the old image opaquely, then fade the new one over it. This keeps
+    // colour interpolation linear and prevents either cover's blur edge from
+    // creating an accidental alpha seam inside the prepared frame.
     if (preparedIncoming) {
       frameCtx.globalAlpha = transitionProgress;
       frameCtx.drawImage(preparedIncoming, 0, 0);
@@ -405,7 +405,16 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     ctx.clearRect(0, 0, width, height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.globalAlpha = alpha;
+    // Restore the original track-change opacity breathing as a deliberate,
+    // uniform final-pass alpha. The legacy two-draw source-over path produced:
+    //   Aout = A * (1 - A * p * (1 - p))
+    // (Aout = 0.75 at p = 0.5 when A = 1). Applying the same curve after the
+    // opaque colour cross-fade preserves that visual rhythm without bringing
+    // back steady-state edge transparency or nonlinear colour blending.
+    const transitionAlpha = preparedIncoming
+      ? alpha * (1 - alpha * transitionProgress * (1 - transitionProgress))
+      : alpha;
+    ctx.globalAlpha = transitionAlpha;
     ctx.drawImage(frameCanvas, 0, 0);
 
     ctx.globalAlpha = 1.0;
