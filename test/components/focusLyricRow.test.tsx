@@ -55,4 +55,54 @@ describe('FocusLyricRow', () => {
     unmount();
     vi.unstubAllGlobals();
   });
+
+  it('repaints once from the paused snapshot without starting an RAF loop', () => {
+    const requestFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    const currentTimeRef = { current: 1.25 };
+
+    const { container, rerender } = render(
+      <FocusLyricRow
+        lyric={lyric}
+        isActive
+        hasTimestamp
+        shouldAnimate={false}
+        currentTimeRef={currentTimeRef}
+        pausedTime={1.25}
+        fontSize={36}
+        inactiveBlur={1}
+        textPrimary="#fff"
+        textSecondary="#ccc"
+        textMuted="#777"
+        index={0}
+        onSeek={vi.fn()}
+      />,
+    );
+
+    const words = container.querySelectorAll('span');
+    expect(words[0]).toHaveStyle({ backgroundSize: '50% 100%, 100% 100%' });
+
+    rerender(
+      <FocusLyricRow
+        lyric={lyric}
+        isActive
+        hasTimestamp
+        shouldAnimate={false}
+        currentTimeRef={currentTimeRef}
+        pausedTime={1.75}
+        fontSize={36}
+        inactiveBlur={1}
+        textPrimary="#fff"
+        textSecondary="#ccc"
+        textMuted="#777"
+        index={0}
+        onSeek={vi.fn()}
+      />,
+    );
+
+    expect(words[0]).toHaveStyle({ backgroundSize: '100% 100%, 100% 100%' });
+    expect(words[1]).toHaveStyle({ backgroundSize: '50% 100%, 100% 100%' });
+    expect(requestFrame).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 });

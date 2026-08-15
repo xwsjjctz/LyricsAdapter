@@ -31,11 +31,15 @@ describe('coverUrl helpers', () => {
 
   it('preserves persistent cover URLs', () => {
     expect(sanitizePersistedCoverUrl('cover://track.jpg')).toBe('cover://track.jpg');
+    expect(sanitizePersistedCoverUrl('cover://track.jpg?v=contenthash'))
+      .toBe('cover://track.jpg?v=contenthash');
     expect(sanitizePersistedCoverUrl('https://example.com/cover.jpg')).toBe('https://example.com/cover.jpg');
   });
 
   it('keeps thumbnail behavior for cover protocol URLs', () => {
     expect(toCoverThumb('cover://track.jpg', 128)).toBe('cover://track.jpg?size=128');
+    expect(toCoverThumb('cover://track.jpg?v=contenthash', 128))
+      .toBe('cover://track.jpg?v=contenthash&size=128');
   });
 
   it('requests the target size from supported online cover CDNs', () => {
@@ -43,6 +47,11 @@ describe('coverUrl helpers', () => {
       .toBe('https://p1.music.126.net/key/id.jpg?param=128y128');
     expect(toCoverThumb('https://example.qishui.com/image~c5_375x375.jpg', 128))
       .toBe('https://example.qishui.com/image~c5_128x128.jpg');
+  });
+
+  it('keeps seeded placeholder artwork while requesting only its display size', () => {
+    expect(toCoverThumb('https://picsum.photos/seed/example-track/1000/1000', 128))
+      .toBe('https://picsum.photos/seed/example-track/128/128');
   });
 
   it('snaps QQ CDN cover requests to the only sizes the CDN actually serves', () => {

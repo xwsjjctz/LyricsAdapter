@@ -1,10 +1,16 @@
 import { ipcMain } from "electron";
 import fs from "fs";
 import path from "path";
+import { createHash } from "crypto";
 import { app } from "electron";
 import { logger } from "../logger";
 import { sanitizeTrackId, coverExtFromMime } from "../utils/fileUtils";
 import { computeWebdavCoverId } from "../utils/webdavCoverId";
+import {
+  invalidateCoverThumbnails,
+  pruneOrphanCoverThumbnails,
+  writeFileAtomically,
+} from "../protocols/coverProtocol";
 export function registerCoverHandlers(): void {
   ipcMain.handle('save-cover-thumbnail', async (_event, payload: { id: string; data: string; mime: string }) => {
     try {
@@ -23,9 +29,17 @@ export function registerCoverHandlers(): void {
 
       const coverPath = path.join(coverDir, `${safeId}.${ext}`);
       const buffer = Buffer.from(payload.data, 'base64');
-      fs.writeFileSync(coverPath, buffer);
+      if (buffer.length === 0) {
+        return { success: false, error: 'Invalid cover data' };
+      }
 
-      const coverUrl = `cover://${safeId}.${ext}`;
+      // Invalidate first: a permission failure must leave the old source in
+      // place instead of reporting failure after partially changing state.
+      invalidateCoverThumbnails(coverPath);
+      writeFileAtomically(coverPath, buffer);
+
+      const version = createHash('sha256').update(buffer).digest('hex').slice(0, 16);
+      const coverUrl = `cover://${safeId}.${ext}?v=${version}`;
       return { success: true, filePath: coverPath, coverUrl };
     } catch (error) {
       logger.error('Failed to save cover thumbnail:', error);
@@ -47,10 +61,16 @@ export function registerCoverHandlers(): void {
 
       for (const ext of exts) {
         const coverPath = path.join(coverDir, `${safeId}.${ext}`);
+        // Also remove stale derived files when the source has already gone.
+        invalidateCoverThumbnails(coverPath);
         if (fs.existsSync(coverPath)) {
           fs.unlinkSync(coverPath);
           deleted = true;
         }
+      }
+
+      if (fs.existsSync(coverDir)) {
+        pruneOrphanCoverThumbnails(coverDir);
       }
 
       return { success: true, deleted };
@@ -94,7 +114,9 @@ export function registerCoverHandlers(): void {
         const trackId = path.basename(file, ext);
         if (!activeSet.has(trackId)) {
           try {
-            fs.unlinkSync(path.join(coverDir, file));
+            const coverPath = path.join(coverDir, file);
+            invalidateCoverThumbnails(coverPath);
+            fs.unlinkSync(coverPath);
             removed++;
           } catch (e) {
             errors++;
@@ -106,6 +128,15 @@ export function registerCoverHandlers(): void {
         }
       }
 
+      // Remove interrupted temp files and cache entries left behind by covers
+      // deleted outside this IPC path (including older startup cleanup runs).
+      try {
+        pruneOrphanCoverThumbnails(coverDir);
+      } catch (error) {
+        errors++;
+        logger.warn('[Cleanup] Failed to prune orphan cover thumbnails:', error);
+      }
+
       logger.info(`[Cleanup] Orphan covers cleanup: ${removed} removed, ${errors} errors, ${existingCoverIds.length} kept`);
       return { success: true, removed, errors, existingCoverIds };
     } catch (error) {
@@ -114,4 +145,3 @@ export function registerCoverHandlers(): void {
     }
   });
 }
-

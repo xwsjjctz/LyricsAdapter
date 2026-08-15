@@ -38,7 +38,9 @@ export function usePlayback({
   const waitingForCanPlayRef = useRef<boolean>(false);
   const prevAudioUrlRef = useRef<string | null>(null);
   const audioUrlReadyRef = useRef<boolean>(false);
-  const persistedTimeRef = useRef<number>(0);
+  // Exact playback time for persistence and imperative consumers. Unlike the
+  // React state below, updating this ref does not schedule a render.
+  const persistedTimeRef = useRef<number>(initialCurrentTime);
   const lastNonZeroVolumeRef = useRef<number>(0.5);
   const volumeRef = useRef<number>(volume);
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
@@ -46,25 +48,33 @@ export function usePlayback({
   const hasRestoredRef = useRef<boolean>(false);
   const lastTrackIdRef = useRef<string | undefined>(undefined);
   const loadedTrackIdRef = useRef<string | undefined>(undefined);
+  const timeOwnerTrackIdRef = useRef<string | undefined>(undefined);
+  const clockReadyTrackIdRef = useRef<string | undefined>(undefined);
   const skipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
   }, [tracks, currentTrackIndex]);
 
+  const currentTrackId = currentTrack?.id;
+
   useEffect(() => {
     const currentId = currentTrack?.id;
     if (currentId !== lastTrackIdRef.current) {
       lastTrackIdRef.current = currentId;
+      timeOwnerTrackIdRef.current = currentId;
+      clockReadyTrackIdRef.current = undefined;
+      persistedTimeRef.current = currentTrackIndex >= 0 ? initialCurrentTime : 0;
       if (currentTrackIndex >= 0) {
         hasRestoredRef.current = false;
         restoredTimeRef.current = initialCurrentTime;
       }
     }
-  }, [currentTrack?.id, initialCurrentTime]);
+  }, [currentTrack?.id, currentTrackIndex, initialCurrentTime]);
 
   useEffect(() => {
     if (!hasRestoredRef.current && initialCurrentTime > 0) {
       restoredTimeRef.current = initialCurrentTime;
+      persistedTimeRef.current = initialCurrentTime;
     }
   }, [initialCurrentTime]);
 
@@ -152,16 +162,21 @@ export function usePlayback({
 
   const handleTimeUpdate = useCallback(() => {
     if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
+      const nextTime = audioRef.current.currentTime;
+      clockReadyTrackIdRef.current = currentTrackId;
+      persistedTimeRef.current = nextTime;
+      setCurrentTime(nextTime);
     }
-  }, []);
+  }, [currentTrackId]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current && currentTrack) {
+      clockReadyTrackIdRef.current = currentTrack.id;
       if (!hasRestoredRef.current && restoredTimeRef.current > 0) {
         const seekTime = Math.min(restoredTimeRef.current, audioRef.current.duration || Infinity);
         if (seekTime > 0) {
           audioRef.current.currentTime = seekTime;
+          persistedTimeRef.current = seekTime;
           setCurrentTime(seekTime);
           logger.debug('[Playback] Restored time:', seekTime);
         }
@@ -203,6 +218,9 @@ export function usePlayback({
     if (playbackMode === 'repeat-one') {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
+        clockReadyTrackIdRef.current = currentTrackId;
+        persistedTimeRef.current = 0;
+        setCurrentTime(0);
         shouldAutoPlayRef.current = true;
         audioRef.current.play().catch(() => {
           setIsPlaying(false);
@@ -218,7 +236,7 @@ export function usePlayback({
     shouldAutoPlayRef.current = true;
     onTrackSwitch?.();
     setCurrentTrackIndex(nextIndex);
-  }, [playbackMode, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
+  }, [playbackMode, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex, currentTrackId]);
 
   const loadAudioFileForTrack = useCallback(async (track: Track): Promise<Track> => {
     // If already has an audioUrl (from a previous load), skip
@@ -304,9 +322,11 @@ export function usePlayback({
   const handleSeek = useCallback((time: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = time;
+      clockReadyTrackIdRef.current = currentTrackId;
+      persistedTimeRef.current = time;
       setCurrentTime(time);
     }
-  }, []);
+  }, [currentTrackId]);
 
   const handleVolumeChange = useCallback((vol: number) => {
     if (vol > 0) {
@@ -679,6 +699,29 @@ export function usePlayback({
     setIsPlaying(true);
   }, [switchToTrackIndex, currentTrackIndex]);
 
+  const getCurrentPlaybackTime = useCallback((): number => {
+    if (!currentTrackId) return 0;
+
+    // A committed track switch can be observed before its effects replace the
+    // media source. Never attribute a clock owned by the previous track to the
+    // new persistence record during that window.
+    if (timeOwnerTrackIdRef.current !== currentTrackId) {
+      return currentTrackIndex >= 0 ? initialCurrentTime : 0;
+    }
+
+    // Preserve a restored position until loadedmetadata has applied it. Once
+    // the current track owns the media element, read the element directly so
+    // close snapshots are not limited by the browser's timeupdate cadence.
+    if (!hasRestoredRef.current && restoredTimeRef.current > 0) {
+      return restoredTimeRef.current;
+    }
+    if (clockReadyTrackIdRef.current === currentTrackId && audioRef.current) {
+      const audioTime = audioRef.current.currentTime;
+      if (Number.isFinite(audioTime) && audioTime >= 0) return audioTime;
+    }
+    return persistedTimeRef.current;
+  }, [currentTrackId, currentTrackIndex, initialCurrentTime]);
+
   return {
     audioRef,
     setAudioRef,
@@ -708,6 +751,7 @@ export function usePlayback({
     waitingForCanPlayRef,
     audioUrlReadyRef,
     persistedTimeRef,
+    getCurrentPlaybackTime,
     shouldAutoPlayRef,
   };
 }

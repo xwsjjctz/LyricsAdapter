@@ -25,6 +25,7 @@ export interface FocusLyricRowProps {
   hasTimestamp: boolean;
   shouldAnimate: boolean;
   currentTimeRef: React.MutableRefObject<number>;
+  pausedTime?: number | undefined;
   fontSize: number;
   inactiveBlur: number;
   textPrimary: string;
@@ -39,7 +40,7 @@ export interface FocusLyricRowProps {
  * transient ref so a 60fps fill does not re-render FocusMode or the lyric list.
  */
 const FocusLyricRow = memo(({
-  lyric, isActive, hasTimestamp, shouldAnimate, currentTimeRef, fontSize, inactiveBlur,
+  lyric, isActive, hasTimestamp, shouldAnimate, currentTimeRef, pausedTime, fontSize, inactiveBlur,
   textPrimary, textSecondary, textMuted, index, onSeek,
 }: FocusLyricRowProps) => {
   const timedWords = isActive && lyric.words?.length ? lyric.words : undefined;
@@ -56,7 +57,7 @@ const FocusLyricRow = memo(({
 
     let animationId: number | null = null;
     const paint = () => {
-      const playbackTime = currentTimeRef.current;
+      const playbackTime = pausedTime ?? currentTimeRef.current;
       if (playbackTime !== lastPaintedTimeRef.current) {
         lastPaintedTimeRef.current = playbackTime;
         for (let wordIndex = 0; wordIndex < timedWords.length; wordIndex++) {
@@ -74,7 +75,7 @@ const FocusLyricRow = memo(({
     return () => {
       if (animationId !== null) cancelAnimationFrame(animationId);
     };
-  }, [currentTimeRef, shouldAnimate, timedWords]);
+  }, [currentTimeRef, pausedTime, shouldAnimate, timedWords]);
 
   return (
     <p
@@ -95,7 +96,7 @@ const FocusLyricRow = memo(({
       aria-current={isActive ? 'true' : undefined}
     >
       {timedWords ? timedWords.map((word, wordIndex) => {
-        const progress = wordFillProgress(currentTimeRef.current, word);
+        const progress = wordFillProgress(pausedTime ?? currentTimeRef.current, word);
         return (
           <span
             key={`${word.time}-${wordIndex}`}
@@ -122,6 +123,8 @@ const FocusLyricRow = memo(({
   previous.lyric === next.lyric
   && previous.isActive === next.isActive
   && previous.hasTimestamp === next.hasTimestamp
+  && previous.shouldAnimate === next.shouldAnimate
+  && previous.pausedTime === next.pausedTime
   && previous.fontSize === next.fontSize
   && previous.inactiveBlur === next.inactiveBlur
   && previous.textPrimary === next.textPrimary
@@ -129,7 +132,6 @@ const FocusLyricRow = memo(({
   && previous.textMuted === next.textMuted
   && previous.index === next.index
   && previous.onSeek === next.onSeek
-  && previous.shouldAnimate === next.shouldAnimate
   && previous.currentTimeRef === next.currentTimeRef
 ));
 

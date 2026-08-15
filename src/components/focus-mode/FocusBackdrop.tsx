@@ -2,14 +2,12 @@ import React from 'react';
 
 interface FocusBackdropProps {
   hasBackground: boolean;
-  bgBlurRadius: number;
   isLinux: boolean;
   canvasRef: React.Ref<HTMLCanvasElement>;
 }
 
 const FocusBackdrop: React.FC<FocusBackdropProps> = ({
   hasBackground,
-  bgBlurRadius,
   isLinux,
   canvasRef,
 }) => (
@@ -23,12 +21,13 @@ const FocusBackdrop: React.FC<FocusBackdropProps> = ({
           left: '-100px',
           width: 'calc(100% + 200px)',
           height: 'calc(100% + 200px)',
-          filter: `blur(${bgBlurRadius}px) saturate(1.5) brightness(0.55)`,
-          transition: 'filter 700ms ease-in-out',
         }}
       />
     )}
-    <div className={`fixed inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`} />
+    <div
+      data-focus-backdrop-overlay
+      className={`fixed inset-0 pointer-events-none bg-gradient-to-b from-black/30 via-transparent to-black/50${hasBackground ? '' : ' backdrop-blur-sm'}${isLinux ? ' rounded-lg overflow-hidden' : ''}`}
+    />
   </>
 );
 

@@ -333,6 +333,23 @@ export async function writeAudioMetadata(
 
 // ── Cover helpers ────────────────────────────────────────────────────────
 
+/** Extract the flat source filename from raw or content-versioned cover URLs. */
+export function coverFileNameFromUri(uri: string): string | null {
+  if (!uri.startsWith('cover://')) return null;
+  const reference = uri.slice('cover://'.length).split(/[?#]/, 1)[0];
+  if (!reference) return null;
+
+  try {
+    const decoded = decodeURIComponent(reference);
+    if (!/^[a-zA-Z0-9_-]+\.(?:jpe?g|png|webp)$/i.test(decoded)
+      || decoded.includes('/')
+      || decoded.includes('\\')) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveCover(uri: string): Promise<MetaPicture | null> {
   const dataUriMatch = uri.match(/^data:([^;]+);base64,(.+)$/);
   if (dataUriMatch) {
@@ -342,12 +359,18 @@ async function resolveCover(uri: string): Promise<MetaPicture | null> {
   }
 
   if (uri.startsWith('cover://')) {
-    const coverFileName = uri.slice('cover://'.length);
+    const coverFileName = coverFileNameFromUri(uri);
+    if (!coverFileName) {
+      logger.warn('[AudioMetadata] Invalid cover URI:', uri);
+      return null;
+    }
     const coverPath = path.join(app.getPath('userData'), 'covers', coverFileName);
     if (fs.existsSync(coverPath)) {
       const raw = fs.readFileSync(coverPath);
       const ext = path.extname(coverPath).toLowerCase();
-      const mimeType = ext === '.png' ? 'image/png' : 'image/jpeg';
+      const mimeType = ext === '.png'
+        ? 'image/png'
+        : ext === '.webp' ? 'image/webp' : 'image/jpeg';
       return new MetaPicture(mimeType, new Uint8Array(raw));
     }
     logger.warn('[AudioMetadata] Cover file not found:', coverPath);

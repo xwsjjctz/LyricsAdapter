@@ -1,4 +1,4 @@
-import React, { type ReactElement } from 'react';
+import React, { type ReactElement, useCallback, useMemo } from 'react';
 import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
 import { logger } from '../services/logger';
 import type { OnlineSource } from '../services/onlineMusicProvider';
@@ -114,6 +114,46 @@ const AppShell: React.FC<AppShellProps> = ({
     handleNavigate,
   } = ui;
 
+  const toggleFocusMode = useCallback(() => {
+    setIsFocusMode(current => !current);
+  }, [setIsFocusMode]);
+  const openSettings = useCallback(() => {
+    transitionToView(ViewMode.SETTINGS);
+  }, [transitionToView]);
+  const closeOverlayView = useCallback(() => {
+    transitionToView(ViewMode.PLAYER);
+  }, [transitionToView]);
+  const hasUnavailableTracks = useMemo(
+    () => activeTracks.some(track => track.available === false),
+    [activeTracks],
+  );
+  const libraryTrackCounts = useMemo(() => ({
+    local: slots.local.tracks.length,
+    cloud: slots.cloud.tracks.length,
+    online: slots.online.tracks.length,
+  }), [slots.local.tracks.length, slots.cloud.tracks.length, slots.online.tracks.length]);
+  const searchBox = useMemo(() => (
+    <SearchBox
+      isWindowFocused={isWindowFocused}
+      localTracks={slots.local.tracks}
+      cloudTracks={slots.cloud.tracks}
+      onNavigateToTrack={online.navigateToTrack}
+      onOnlineDownload={online.download}
+      onOnlineStreamPlay={online.playSong}
+      onOnlineUpload={online.upload}
+      onlineProgress={online.progress}
+    />
+  ), [
+    isWindowFocused,
+    online.download,
+    online.navigateToTrack,
+    online.playSong,
+    online.progress,
+    online.upload,
+    slots.cloud.tracks,
+    slots.local.tracks,
+  ]);
+
   return (
     <>
       {audioElement}
@@ -124,7 +164,7 @@ const AppShell: React.FC<AppShellProps> = ({
       }}>
         <TitleBar
           isFocusMode={isFocusMode}
-          onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+          onToggleFocusMode={toggleFocusMode}
         />
         <SidebarToggleButton
           onToggle={sidebar.toggleCollapsed}
@@ -135,16 +175,12 @@ const AppShell: React.FC<AppShellProps> = ({
           <Sidebar
           onNavigate={handleNavigate}
           onReloadFiles={importVm.reloadFiles}
-          hasUnavailableTracks={activeTracks.some(t => t.available === false)}
+          hasUnavailableTracks={hasUnavailableTracks}
           currentView={viewMode}
           viewMode={viewMode}
           activeSlotId={viewSlot}
           onSlotChange={handleSwitchSlot}
-          libraryTrackCounts={{
-            local: slots.local.tracks.length,
-            cloud: slots.cloud.tracks.length,
-            online: slots.online.tracks.length,
-          }}
+          libraryTrackCounts={libraryTrackCounts}
           onOpenPlaylist={onOpenPlaylist}
           floating={floatingPanel}
           width={sidebar.width}
@@ -178,7 +214,7 @@ const AppShell: React.FC<AppShellProps> = ({
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 online={online}
-                onNavigateToSettings={() => transitionToView(ViewMode.SETTINGS)}
+                onNavigateToSettings={openSettings}
               />
             ) : viewMode === ViewMode.METADATA ? (
               <MetadataView
@@ -211,7 +247,7 @@ const AppShell: React.FC<AppShellProps> = ({
                 importDisabledReason={
                   library.viewSlot === 'cloud' ? library.cloudImportDisabledReason : undefined
                 }
-                onOpenSettings={() => transitionToView(ViewMode.SETTINGS)}
+                onOpenSettings={openSettings}
                 onDropFiles={importVm.dropFiles}
                 onDropFilePaths={importVm.dropFilePaths}
                 onReorderTracks={library.reorder}
@@ -244,39 +280,28 @@ const AppShell: React.FC<AppShellProps> = ({
                 {...(viewSlot === 'playlist' && playerController.libraryPlaylistLoadState.totalTrackCount != null
                   ? { playlistTrackCount: playerController.libraryPlaylistLoadState.totalTrackCount }
                   : {})}
-                searchBox={
-                  <SearchBox
-                    isWindowFocused={isWindowFocused}
-                    localTracks={slots.local.tracks}
-                    cloudTracks={slots.cloud.tracks}
-                    onNavigateToTrack={online.navigateToTrack}
-                    onOnlineDownload={online.download}
-                    onOnlineStreamPlay={online.playSong}
-                    onOnlineUpload={online.upload}
-                    onlineProgress={online.progress}
-                  />
-                }
+                searchBox={searchBox}
               />
               </div>
             )}
           </div>
           {viewMode === ViewMode.SETTINGS && (
             <FloatingPanel
-              onClose={() => transitionToView(ViewMode.PLAYER)}
+              onClose={closeOverlayView}
               className="floating-panel-shell--settings"
             >
               <SettingsPanel
-                onClose={() => transitionToView(ViewMode.PLAYER)}
+                onClose={closeOverlayView}
                 onClearOrphanCache={onClearOrphanCache}
               />
             </FloatingPanel>
           )}
           {viewMode === ViewMode.THEME && (
             <FloatingPanel
-              onClose={() => transitionToView(ViewMode.PLAYER)}
+              onClose={closeOverlayView}
               className="floating-panel-shell--theme"
             >
-              <ThemePanel onClose={() => transitionToView(ViewMode.PLAYER)} />
+              <ThemePanel onClose={closeOverlayView} />
             </FloatingPanel>
           )}
           <Controls
@@ -292,7 +317,7 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleMute={player.toggleMute}
             playbackMode={player.playbackMode}
             onTogglePlaybackMode={player.togglePlaybackMode}
-            onToggleFocus={() => setIsFocusMode(!isFocusMode)}
+            onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             forceUpdateCounter={0}
             audioRef={player.audioRef}
@@ -313,7 +338,7 @@ const AppShell: React.FC<AppShellProps> = ({
           onToggleMute={player.toggleMute}
           playbackMode={player.playbackMode}
           onTogglePlaybackMode={player.togglePlaybackMode}
-          onToggleFocus={() => setIsFocusMode(!isFocusMode)}
+          onToggleFocus={toggleFocusMode}
           audioRef={player.audioRef}
         />
         </div>

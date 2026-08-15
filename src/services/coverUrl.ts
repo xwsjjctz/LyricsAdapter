@@ -75,6 +75,16 @@ export function toCoverThumb(url: string | undefined, size: number): string | un
       return parsed.toString();
     }
 
+    // Placeholder artwork is seed-stable, so requesting the display size keeps
+    // the same image while avoiding a 1000x1000 decoded texture for a 40px row.
+    if (host === 'picsum.photos') {
+      parsed.pathname = parsed.pathname.replace(
+        /\/\d+\/\d+\/?$/,
+        `/${targetSize}/${targetSize}`,
+      );
+      return parsed.toString();
+    }
+
     const normalized = parsed.toString();
     let resized = normalized;
     // QQ Music album/artist CDN path: T002R300x300M000 / T001R300x300M000.
