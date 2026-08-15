@@ -26,7 +26,7 @@ const FocusBackdrop: React.FC<FocusBackdropProps> = ({
     )}
     <div
       data-focus-backdrop-overlay
-      className={`fixed inset-0 pointer-events-none bg-gradient-to-b from-black/30 via-transparent to-black/50${hasBackground ? '' : ' backdrop-blur-sm'}${isLinux ? ' rounded-lg overflow-hidden' : ''}`}
+      className={`fixed inset-0 pointer-events-none bg-gradient-to-b from-black/30 via-transparent to-black/50 backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`}
     />
   </>
 );

@@ -321,8 +321,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         override set src(value: string) {
           if (value.startsWith('cover://')) {
             const matchedDataUrl = Object.entries(dataUrls)
-              .sort(([left], [right]) => right.length - left.length)
-              .find(([trackId]) => value.includes(trackId))?.[1];
+              .find(([trackId]) => value.startsWith(`cover://${trackId}.png`))?.[1];
             super.src = matchedDataUrl ?? value;
             return;
           }
@@ -501,8 +500,23 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       }, null, 2)),
       contentType: 'application/json',
     });
-    await expect(page.locator('[data-focus-backdrop-overlay]'))
-      .not.toHaveClass(/backdrop-blur-sm/);
+    const focusBackdropOverlay = page.locator('[data-focus-backdrop-overlay]');
+    await expect(focusBackdropOverlay).toHaveClass(/backdrop-blur-sm/);
+    const backdropFilters = await focusBackdropOverlay.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        standard: style.getPropertyValue('backdrop-filter'),
+        webkit: style.getPropertyValue('-webkit-backdrop-filter'),
+      };
+    });
+    expect(
+      [backdropFilters.standard, backdropFilters.webkit]
+        .some(value => /blur\([^)]+\)/.test(value) && value !== 'none'),
+    ).toBe(true);
+    await testInfo.attach('focus-backdrop-filter-metrics', {
+      body: Buffer.from(JSON.stringify(backdropFilters, null, 2)),
+      contentType: 'application/json',
+    });
 
     // Observe the real track-change Canvas frames. The probe anchors its
     // 1000ms timeline to the first changed pixel rather than the button click,
