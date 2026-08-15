@@ -59,6 +59,22 @@ html.electron[data-window-effect] #root {
   transition-timing-function: ease;
 }
 
+/* Theme colour interpolation must not replace FocusMode's own entrance
+   choreography. Without these scoped overrides, entering during the theme
+   manager's 420ms window drops the slide transform and shortens both layers
+   from 600ms to 360ms. */
+:root.theme-is-transitioning body .focus-mode-overlay {
+  transition-property: transform;
+  transition-duration: 600ms;
+  transition-timing-function: ease-in-out;
+}
+
+:root.theme-is-transitioning body .focus-mode-content {
+  transition-property: opacity;
+  transition-duration: 600ms;
+  transition-timing-function: ease-in-out;
+}
+
 .theme-preview-card,
 .theme-preview-color {
   transition-property: background-color, color, border-color, box-shadow, opacity, filter;

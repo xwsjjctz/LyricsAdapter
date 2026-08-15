@@ -41,8 +41,7 @@ interface UseLibraryLoadOptions {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setVolume: (volume: number) => void;
   setPlaybackMode: (mode: 'order' | 'shuffle' | 'repeat-one') => void;
-  audioRef: React.MutableRefObject<HTMLAudioElement | null>;
-  persistedTimeRef: React.MutableRefObject<number>;
+  currentPlaybackTime: number;
   onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number }) => void;
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
 }
@@ -95,8 +94,7 @@ export function useLibraryLoad({
   setIsPlaying,
   setVolume,
   setPlaybackMode,
-  audioRef,
-  persistedTimeRef,
+  currentPlaybackTime,
   onLibrarySettingsRestored,
   updateSlot,
 }: UseLibraryLoadOptions) {
@@ -658,15 +656,16 @@ export function useLibraryLoad({
     }
     // 注意：currentTime 不在本依赖数组中 —— 播放期间 timeupdate（~250ms/次）
     // 引起的进度变化由下方 savePlaybackThrottled 独立节流（5s）落盘，避免每秒
-    // 4 次同步磁盘写。此处落盘的 persistData 仍含最新 currentTime（取值时是最新的），
-    // 只是进度的高频变化不再驱动本 effect。
+    // 4 次同步磁盘写。persistData 会从 ref-backed playback clock 读取 active slot
+    // 的最新时间，因此不需要把每个 tick 复制进 slots。
   }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.volume, slots.playlist.playbackMode]);
 
   /**
    * 播放进度节流落盘。
    *
    * <audio> 的 timeupdate 约 250ms 触发一次，若直接驱动写盘会是每秒 ~4 次同步
-   * 磁盘写。此处用 leading + trailing 节流：每 5s
+   * 磁盘写。React 时间只负责触发此 effect；快照从 ref-backed live clock 读取。
+   * 此处用 leading + trailing 节流：每 5s
    * 最多落盘一次。退出/切歌由下方 flushCurrentLibrary 兜底，最坏丢失 ≤5s 进度
    *（参考 Apple Music / Spotify）。
    *
@@ -712,27 +711,9 @@ export function useLibraryLoad({
       }, THROTTLE_MS - elapsed);
     }
   }, [
-    slots.local.currentTime, slots.cloud.currentTime,
-    slots.online.currentTime, slots.playlist.currentTime,
+    currentPlaybackTime,
     // 最新 getPersistenceData 通过 closeSnapshotSourcesRef 读取，不计入依赖
   ]);
-
-  useEffect(() => {
-    if (!isDesktop()) return;
-
-    persistedTimeRef.current = 0;
-
-    const interval = setInterval(() => {
-      if (!audioRef.current) return;
-      const nowTime = audioRef.current.currentTime || 0;
-
-      if (Math.abs(nowTime - persistedTimeRef.current) >= 5) {
-        persistedTimeRef.current = nowTime;
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [persistedTimeRef, audioRef]);
 
   useEffect(() => {
     const desktop = isDesktop();

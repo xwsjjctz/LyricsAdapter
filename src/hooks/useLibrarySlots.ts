@@ -103,13 +103,6 @@ export function useLibrarySlots() {
     });
   }, [activeSlotId]);
 
-  const setActiveCurrentTime = useCallback((time: number) => {
-    setSlots(prev => ({
-      ...prev,
-      [activeSlotId]: { ...prev[activeSlotId], currentTime: time },
-    }));
-  }, [activeSlotId]);
-
   const setActiveVolume = useCallback((volume: number) => {
     setSlots(prev => ({
       ...prev,
@@ -405,7 +398,6 @@ export function useLibrarySlots() {
     updateSlot,
     setActiveTrackIndex,
     setActiveTracks,
-    setActiveCurrentTime,
     setActiveVolume,
     setActivePlaybackMode,
     setActiveScrollPosition,

@@ -23,6 +23,77 @@ const FOCUS_MODE_COLORS = {
   borderLight: 'rgba(255, 255, 255, 0.1)',
 };
 
+// Keep the backdrop below CSS pixel resolution without flattening its colour
+// gradients as aggressively as the former 0.25 scale. At 0.5 the visible
+// bitmap still has only one quarter of the full-resolution pixels, while the
+// expensive blur remains off the full-window compositor path.
+const BACKDROP_RENDER_SCALE = 0.5;
+const BACKDROP_OVERSCAN_PX = 100;
+const BACKDROP_SATURATION = 1.5;
+const BACKDROP_RESTING_BRIGHTNESS = 0.55;
+const BACKDROP_DIM_BRIGHTNESS = 0.3;
+const BACKDROP_TRANSITION_DURATION_MS = 1000;
+// Canvas2D blur samples transparent pixels outside its backing store. Prepare
+// an edge-extended source with enough filter padding, then crop the centre, so
+// an opaque cover remains opaque at every visible window edge.
+const BACKDROP_FILTER_PADDING_MULTIPLIER = 4;
+
+interface PreparedBackdrop {
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+  scaledBlurRadius: number;
+}
+
+function coverSourceRect(
+  img: HTMLImageElement,
+  targetWidth: number,
+  targetHeight: number,
+): { x: number; y: number; width: number; height: number } {
+  const imageRatio = img.naturalWidth / img.naturalHeight;
+  const targetRatio = targetWidth / targetHeight;
+
+  if (imageRatio > targetRatio) {
+    const height = img.naturalHeight;
+    const width = height * targetRatio;
+    return { x: (img.naturalWidth - width) / 2, y: 0, width, height };
+  }
+
+  const width = img.naturalWidth;
+  const height = width / targetRatio;
+  return { x: 0, y: (img.naturalHeight - height) / 2, width, height };
+}
+
+function drawEdgeExtendedCover(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  padding: number,
+): void {
+  const source = coverSourceRect(img, width, height);
+  const edgeWidth = Math.min(1, source.width);
+  const edgeHeight = Math.min(1, source.height);
+  const rightX = source.x + source.width - edgeWidth;
+  const bottomY = source.y + source.height - edgeHeight;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, source.x, source.y, source.width, source.height, padding, padding, width, height);
+
+  // Extend the source's outermost pixels through the filter padding. This is
+  // equivalent to an edge-clamped blur and avoids mixing transparent black into
+  // the visible viewport without zooming or changing the cover crop.
+  ctx.drawImage(img, source.x, source.y, source.width, edgeHeight, padding, 0, width, padding);
+  ctx.drawImage(img, source.x, bottomY, source.width, edgeHeight, padding, padding + height, width, padding);
+  ctx.drawImage(img, source.x, source.y, edgeWidth, source.height, 0, padding, padding, height);
+  ctx.drawImage(img, rightX, source.y, edgeWidth, source.height, padding + width, padding, padding, height);
+  ctx.drawImage(img, source.x, source.y, edgeWidth, edgeHeight, 0, 0, padding, padding);
+  ctx.drawImage(img, rightX, source.y, edgeWidth, edgeHeight, padding + width, 0, padding, padding);
+  ctx.drawImage(img, source.x, bottomY, edgeWidth, edgeHeight, 0, padding + height, padding, padding);
+  ctx.drawImage(img, rightX, bottomY, edgeWidth, edgeHeight, padding + width, padding + height, padding, padding);
+}
+
 interface FocusModeProps {
   track: Track | null;
   isVisible: boolean;
@@ -76,15 +147,18 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
   // Canvas-based color gradient transition
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [transitionProgress, setTransitionProgress] = useState(0); // 0 to 1
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [hasBackground, setHasBackground] = useState(false);
+  const currentBackgroundRef = useRef<HTMLImageElement | null>(null);
+  const incomingBackgroundRef = useRef<HTMLImageElement | null>(null);
+  const transitionProgressRef = useRef(1);
+  const backdropBrightnessRef = useRef(BACKDROP_RESTING_BRIGHTNESS);
   const animationFrameRef = useRef<number | null>(null);
   const backgroundLoadGenerationRef = useRef(0);
+  const backdropSourceScratchRef = useRef<HTMLCanvasElement | null>(null);
+  const backdropFilteredScratchRef = useRef<HTMLCanvasElement | null>(null);
+  const backdropFrameScratchRef = useRef<HTMLCanvasElement | null>(null);
+  const preparedBackdropCacheRef = useRef<WeakMap<HTMLImageElement, PreparedBackdrop>>(new WeakMap());
 
-  // Background images for blending
-  const [bgImage1, setBgImage1] = useState<HTMLImageElement | null>(null);
-  const [bgImage2, setBgImage2] = useState<HTMLImageElement | null>(null);
-  const [canvasOpacity, setCanvasOpacity] = useState(1); // Canvas is always visible
   // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
   const canvasOpacityRef = useRef(0);
   const enterExitAnimRef = useRef<number | null>(null);
@@ -95,12 +169,15 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
+  const bgBlurTransRef = useRef(bgBlurTrans);
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
   // Sync with settingsManager when changed externally (e.g. from SettingsView slider)
   useEffect(() => {
     const unsubscribe = settingsManager.subscribe(() => {
-      setBgBlurTrans(settingsManager.getBgBlurTrans());
+      const transparency = settingsManager.getBgBlurTrans();
+      bgBlurTransRef.current = transparency;
+      setBgBlurTrans(transparency);
       const radius = settingsManager.getFocusBgBlurRadius();
       bgBlurRadiusRef.current = radius;
       setBgBlurRadius(radius);
@@ -125,7 +202,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const lastTimeRef = useRef(0); // Track last time value to avoid unnecessary updates
 
   useEffect(() => {
-    if (!isVisible || !audioRef?.current) {
+    if (!isVisible || !isPlaying || !audioRef?.current) {
       return;
     }
 
@@ -163,7 +240,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       }
       lastTimeRef.current = 0;
     };
-  }, [isVisible, audioRef, track?.id]);
+  }, [isVisible, isPlaying, audioRef, track?.id]);
 
   // Browser fallback and paused seeks do not necessarily run the audio RAF.
   useEffect(() => {
@@ -173,64 +250,175 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     }
   }, [audioRef, currentTime]);
 
-  // Use realtime currentTime for more accurate lyrics sync
-  const activeCurrentTime = isVisible && audioRef?.current ? realtimeCurrentTime : currentTime;
+  // A paused player has no moving clock: read its exact media time once during
+  // render and stop both Focus RAF loops until playback resumes.
+  const pausedCurrentTime = !isPlaying && audioRef?.current
+    ? audioRef.current.currentTime
+    : currentTime;
+  if (!isPlaying) realtimeCurrentTimeRef.current = pausedCurrentTime;
+
+  // Use realtime currentTime for more accurate lyrics sync while playing.
+  const activeCurrentTime = isVisible && audioRef?.current
+    ? (isPlaying ? realtimeCurrentTime : pausedCurrentTime)
+    : currentTime;
 
   const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
 
-  // Helper function to draw image with cover mode (like CSS background-size: cover)
-  const drawImageCover = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, canvasWidth: number, canvasHeight: number) => {
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const canvasRatio = canvasWidth / canvasHeight;
-
-    let drawWidth, drawHeight, offsetX, offsetY;
-
-    if (imgRatio > canvasRatio) {
-      drawHeight = canvasHeight;
-      drawWidth = drawHeight * imgRatio;
-      offsetX = (canvasWidth - drawWidth) / 2;
-      offsetY = 0;
-    } else {
-      drawWidth = canvasWidth;
-      drawHeight = drawWidth / imgRatio;
-      offsetX = 0;
-      offsetY = (canvasHeight - drawHeight) / 2;
+  const prepareBackdrop = useCallback((
+    img: HTMLImageElement,
+    width: number,
+    height: number,
+  ): HTMLCanvasElement | null => {
+    const scaledBlurRadius = bgBlurRadiusRef.current * BACKDROP_RENDER_SCALE;
+    const cached = preparedBackdropCacheRef.current.get(img);
+    if (
+      cached
+      && cached.width === width
+      && cached.height === height
+      && cached.scaledBlurRadius === scaledBlurRadius
+    ) {
+      return cached.canvas;
     }
 
-    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-  };
+    const padding = Math.max(
+      2,
+      Math.ceil(scaledBlurRadius * BACKDROP_FILTER_PADDING_MULTIPLIER),
+    );
+    const paddedWidth = width + padding * 2;
+    const paddedHeight = height + padding * 2;
+    const sourceCanvas = backdropSourceScratchRef.current ?? document.createElement('canvas');
+    const filteredCanvas = backdropFilteredScratchRef.current ?? document.createElement('canvas');
+    backdropSourceScratchRef.current = sourceCanvas;
+    backdropFilteredScratchRef.current = filteredCanvas;
 
-  // Render canvas with color gradient transition
-  const renderCanvas = useCallback((progress: number) => () => {
+    if (sourceCanvas.width !== paddedWidth) sourceCanvas.width = paddedWidth;
+    if (sourceCanvas.height !== paddedHeight) sourceCanvas.height = paddedHeight;
+    if (filteredCanvas.width !== paddedWidth) filteredCanvas.width = paddedWidth;
+    if (filteredCanvas.height !== paddedHeight) filteredCanvas.height = paddedHeight;
+
+    const sourceCtx = sourceCanvas.getContext('2d');
+    const filteredCtx = filteredCanvas.getContext('2d');
+    if (!sourceCtx || !filteredCtx) return null;
+
+    sourceCtx.clearRect(0, 0, paddedWidth, paddedHeight);
+    drawEdgeExtendedCover(sourceCtx, img, width, height, padding);
+
+    filteredCtx.filter = 'none';
+    filteredCtx.globalAlpha = 1;
+    filteredCtx.clearRect(0, 0, paddedWidth, paddedHeight);
+    filteredCtx.imageSmoothingEnabled = true;
+    filteredCtx.imageSmoothingQuality = 'high';
+    filteredCtx.filter = `blur(${scaledBlurRadius}px) saturate(${BACKDROP_SATURATION})`;
+    filteredCtx.drawImage(sourceCanvas, 0, 0);
+    filteredCtx.filter = 'none';
+
+    const preparedCanvas = document.createElement('canvas');
+    preparedCanvas.width = width;
+    preparedCanvas.height = height;
+    const preparedCtx = preparedCanvas.getContext('2d');
+    if (!preparedCtx) return null;
+    preparedCtx.imageSmoothingEnabled = true;
+    preparedCtx.imageSmoothingQuality = 'high';
+    preparedCtx.drawImage(
+      filteredCanvas,
+      padding,
+      padding,
+      width,
+      height,
+      0,
+      0,
+      width,
+      height,
+    );
+
+    preparedBackdropCacheRef.current.set(img, {
+      canvas: preparedCanvas,
+      width,
+      height,
+      scaledBlurRadius,
+    });
+    return preparedCanvas;
+  }, []);
+
+  // Render the complete backdrop frame directly. Transition progress and the
+  // brightness "breathing" value live in refs so a cover cross-fade does not
+  // cause a React commit on every animation frame.
+  const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !bgImage1 || !bgImage1.complete || bgImage1.naturalWidth === 0) return;
+    const currentBackground = currentBackgroundRef.current;
+    if (!canvas || !ctx || !currentBackground || !currentBackground.complete || currentBackground.naturalWidth === 0) return;
 
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const cssWidth = Math.max(1, window.innerWidth + BACKDROP_OVERSCAN_PX * 2);
+    const cssHeight = Math.max(1, window.innerHeight + BACKDROP_OVERSCAN_PX * 2);
+    const width = Math.max(1, Math.ceil(cssWidth * BACKDROP_RENDER_SCALE));
+    const height = Math.max(1, Math.ceil(cssHeight * BACKDROP_RENDER_SCALE));
     // Assigning width/height clears and reallocates the backing store. During a
     // transition this function runs every frame, so only resize when necessary.
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
 
-    ctx.clearRect(0, 0, width, height);
+    const preparedCurrent = prepareBackdrop(currentBackground, width, height);
+    if (!preparedCurrent) return;
 
     // Effective backdrop alpha: 0.3 at the dim end (factor 0) up to bgBlurTrans
     // at full visibility (factor 1). canvasOpacityRef is animated on enter/exit.
-    const alpha = 0.3 + (bgBlurTrans - 0.3) * canvasOpacityRef.current;
-    if (bgImage2 && bgImage2.complete && bgImage2.naturalWidth > 0) {
-      ctx.globalAlpha = (1 - progress) * alpha;
-      drawImageCover(ctx, bgImage1, width, height);
+    const alpha = 0.3 + (bgBlurTransRef.current - 0.3) * canvasOpacityRef.current;
+    const incomingBackground = incomingBackgroundRef.current;
+    const transitionProgress = transitionProgressRef.current;
+    const preparedIncoming = incomingBackground
+      && incomingBackground.complete
+      && incomingBackground.naturalWidth > 0
+      ? prepareBackdrop(incomingBackground, width, height)
+      : null;
+    if (incomingBackground && !preparedIncoming) return;
 
-      ctx.globalAlpha = progress * alpha;
-      drawImageCover(ctx, bgImage2, width, height);
-    } else {
-      ctx.globalAlpha = alpha;
-      drawImageCover(ctx, bgImage1, width, height);
+    const frameCanvas = backdropFrameScratchRef.current ?? document.createElement('canvas');
+    backdropFrameScratchRef.current = frameCanvas;
+    if (frameCanvas.width !== width) frameCanvas.width = width;
+    if (frameCanvas.height !== height) frameCanvas.height = height;
+    const frameCtx = frameCanvas.getContext('2d');
+    if (!frameCtx) return;
+
+    frameCtx.filter = 'none';
+    frameCtx.globalAlpha = 1;
+    frameCtx.clearRect(0, 0, width, height);
+    frameCtx.imageSmoothingEnabled = true;
+    frameCtx.imageSmoothingQuality = 'high';
+    // Blur and saturation are cached per decoded cover. Animation frames only
+    // apply the inexpensive brightness matrix and alpha blend.
+    frameCtx.filter = `brightness(${backdropBrightnessRef.current})`;
+    frameCtx.drawImage(preparedCurrent, 0, 0);
+
+    // Paint the old image opaquely, then fade the new one over it. This keeps
+    // colour interpolation linear and prevents either cover's blur edge from
+    // creating an accidental alpha seam inside the prepared frame.
+    if (preparedIncoming) {
+      frameCtx.globalAlpha = transitionProgress;
+      frameCtx.drawImage(preparedIncoming, 0, 0);
     }
+    frameCtx.globalAlpha = 1;
+    frameCtx.filter = 'none';
+
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, width, height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    // Restore the original track-change opacity breathing as a deliberate,
+    // uniform final-pass alpha. The legacy two-draw source-over path produced:
+    //   Aout = A * (1 - A * p * (1 - p))
+    // (Aout = 0.75 at p = 0.5 when A = 1). Applying the same curve after the
+    // opaque colour cross-fade preserves that visual rhythm without bringing
+    // back steady-state edge transparency or nonlinear colour blending.
+    const transitionAlpha = preparedIncoming
+      ? alpha * (1 - alpha * transitionProgress * (1 - transitionProgress))
+      : alpha;
+    ctx.globalAlpha = transitionAlpha;
+    ctx.drawImage(frameCanvas, 0, 0);
 
     ctx.globalAlpha = 1.0;
-  }, [bgImage1, bgImage2, bgBlurTrans]);
+  }, [prepareBackdrop]);
 
   // Duration of the canvas backdrop alpha fade on enter/exit (matches the
   // Focus Mode slide). Entry: alpha 0.3 → bgBlurTrans; exit: bgBlurTrans → 0.3.
@@ -248,11 +436,14 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const target = isVisible ? 1 : 0;
     const from = canvasOpacityRef.current;
     if (from === target) {
-      const render = renderCanvas(1);
-      render();
+      renderCanvas();
       return;
     }
 
+    // Preserve the original Focus entrance cadence. The pre-load pass may draw
+    // nothing; when the background commits it restarts from the factor already
+    // reached, just as changing the old bgImage state changed renderCanvas'
+    // identity. A very late image therefore appears at the completed alpha.
     const startTime = performance.now();
     const animate = (now: number) => {
       const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION, 1);
@@ -262,8 +453,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       //   away, so the dimming is visible.
       const eased = target === 1 ? Math.pow(p, 3) : 1 - Math.pow(1 - p, 3);
       canvasOpacityRef.current = from + (target - from) * eased;
-      const render = renderCanvas(1);
-      render();
+      renderCanvas();
       if (p < 1) {
         enterExitAnimRef.current = requestAnimationFrame(animate);
       } else {
@@ -279,7 +469,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         enterExitAnimRef.current = null;
       }
     };
-  }, [isVisible, renderCanvas]);
+  }, [hasBackground, isVisible, renderCanvas]);
 
   // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
   const lyricsLines = useMemo(() => {
@@ -523,7 +713,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // Recenter the active lyric after its size or spacing changes.
   useEffect(() => {
     preScrolledIndexRef.current = -1;
-  }, [lyricsFontSize, lyricLineSpacing]);
+  }, [lyricsFontSize, lyricLineSpacing, track?.id]);
   
   // Start the line transition before its first word begins to fill.
   const PRE_SCROLL_TIME = 0.2;
@@ -537,10 +727,33 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const bezierEaseOutLong = (t: number): number => {
     return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
   };
+
+  const lyricScrollTargetIndex = useMemo(() => {
+    if (activeIndex < 0) return -1;
+
+    // Preserve the previous "first line inside the pre-scroll window" rule,
+    // but find it in O(log n) instead of scanning every lyric at 20fps.
+    const earliestTime = activeCurrentTime - 0.1;
+    const latestTime = activeCurrentTime + PRE_SCROLL_TIME;
+    let low = 0;
+    let high = lyricsLines.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (lyricsLines[middle]!.time <= earliestTime) low = middle + 1;
+      else high = middle;
+    }
+    if (low < lyricsLines.length && lyricsLines[low]!.time <= latestTime) return low;
+    return activeIndex;
+  }, [activeCurrentTime, activeIndex, lyricsLines]);
   
   // Calculate auto position with pre-scroll logic.
   useEffect(() => {
-    if (!isVisible || activeIndex < 0 || !lyricListRef.current || isUserScrolling) return;
+    if (!isVisible || lyricScrollTargetIndex < 0 || !lyricListRef.current || isUserScrolling) return;
+
+    // Most 20fps time snapshots stay within the same lyric. Exit before any
+    // DOM collection or layout read unless the visual target actually changed.
+    if (lyricScrollTargetIndex === preScrolledIndexRef.current) return;
+    preScrolledIndexRef.current = lyricScrollTargetIndex;
 
     const container = lyricsRef.current;
     const lyricList = lyricListRef.current;
@@ -548,39 +761,17 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
     const containerHeight = container.clientHeight;
     const lineElements = Array.from(lyricList.children) as HTMLElement[];
-    
-    // Find the NEXT lyric index to pre-scroll to
-    // Look for lyrics that will start within PRE_SCROLL_TIME window
-    let targetIndex = -1;
-    for (let i = 0; i < lyricsLines.length; i++) {
-      const lyricTime = lyricsLines[i]!.time;
-      // Trigger scroll shortly before this lyric begins.
-      if (activeCurrentTime >= lyricTime - PRE_SCROLL_TIME && 
-          activeCurrentTime < lyricTime + 0.1) {
-        targetIndex = i;
-        break;
-      }
-    }
-    
-    // Fallback to activeIndex if no pre-scroll target found
-    if (targetIndex === -1) {
-      targetIndex = activeIndex;
-    }
-    
-    // Skip if already scrolled to this index
-    if (targetIndex === preScrolledIndexRef.current) return;
-    preScrolledIndexRef.current = targetIndex;
-    
-    if (!lineElements[targetIndex]) return;
+
+    if (!lineElements[lyricScrollTargetIndex]) return;
 
     // Calculate cumulative offset to the target line
     const GAP = lyricLineSpacing;
     let offsetToTarget = 0;
-    for (let i = 0; i < targetIndex; i++) {
+    for (let i = 0; i < lyricScrollTargetIndex; i++) {
       offsetToTarget += lineElements[i]!.offsetHeight + GAP;
     }
 
-    const targetLineHeight = lineElements[targetIndex]!.offsetHeight;
+    const targetLineHeight = lineElements[lyricScrollTargetIndex]!.offsetHeight;
     const autoOffsetY = containerHeight * 0.1 - offsetToTarget - targetLineHeight / 2;
     
     autoOffsetRef.current = autoOffsetY;
@@ -622,7 +813,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
 
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [activeCurrentTime, isVisible, isUserScrolling, track?.syncedLyrics, lyricsLines, activeIndex, lyricsFontSize, lyricLineSpacing, applyLyricOffset]);
+  }, [isVisible, isUserScrolling, track?.syncedLyrics, lyricScrollTargetIndex, lyricsFontSize, lyricLineSpacing, applyLyricOffset]);
 
   // Manual scroll mode: directly apply offset without auto-position
   useEffect(() => {
@@ -721,19 +912,33 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
   }, []);
 
-  // Canvas-based color gradient transition for background switching
+  // Settings change infrequently, so bake their new values into the small
+  // backing bitmap once instead of leaving a live compositor filter attached.
   useEffect(() => {
-    if (!track?.id || !track?.coverUrl) return;
+    bgBlurTransRef.current = bgBlurTrans;
+    bgBlurRadiusRef.current = bgBlurRadius;
+    renderCanvas();
+  }, [bgBlurTrans, bgBlurRadius, renderCanvas]);
 
-    // If bgImage1 just loaded and canvasOpacity < 1, apply initial brightness
-    if (bgImage1 && canvasOpacity < 1) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        // Set initial brightness to 0.3 when fading in
-        canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.3)`;
-      }
-    }
-  }, [bgImage1, canvasOpacity, bgBlurRadius]);
+  // The canvas backing dimensions only change when the window does. Coalesce a
+  // resize burst into one redraw and keep the steady-state backdrop completely
+  // idle.
+  useEffect(() => {
+    let resizeFrame: number | null = null;
+    const handleResize = () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        renderCanvas();
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+    };
+  }, [renderCanvas]);
 
   // Load the active background only while FocusMode is actually visible. The
   // host component unmounts this content after the exit animation, releasing
@@ -765,109 +970,65 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
 
     img.onload = () => {
-      // An Image stored in React state must not retain this closure: it captures
-      // the previous bgImage values and would otherwise form an unbounded chain
-      // of decoded covers across track switches.
+      // Images kept for drawing must not retain this closure. Otherwise each
+      // decoded cover can retain the previous transition through captured state.
       clearImageHandlers();
       if (!isCurrentLoad()) return;
 
-      // Start transition from current to new background
-      const oldBg = bgImage2 || bgImage1;
-      if (!oldBg) {
-        // First load, set as bg1
-        setBgImage1(img);
-        setBgImage2(null);
-        setTransitionProgress(1);
-
-        // Apply brightness animation for first load
-        // Only animate if focus mode is visible
-        const canvas = canvasRef.current;
-        if (canvas && isVisible) {
-          // Set initial brightness to 0.3
-          canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.3)`;
-
-          const startTime = performance.now();
-          const duration = 700; // 700ms animation
-
-          const animateFirstLoad = (currentTime: number) => {
-            if (!isCurrentLoad()) return;
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            // Brightness fade-in: 0.3 -> 0.55
-            const breathingBrightness = 0.3 + 0.25 * progress;
-            canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(${breathingBrightness})`;
-
-            if (progress < 1) {
-              animationFrameRef.current = requestAnimationFrame(animateFirstLoad);
-            } else {
-              animationFrameRef.current = null;
-            }
-            // No need to reset - it ends at brightness(0.55) which matches static state
-          };
-
-          animationFrameRef.current = requestAnimationFrame(animateFirstLoad);
-        } else if (canvas) {
-          // If not visible, just set to normal values
-          canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.55)`;
-        }
+      const previousBackground = incomingBackgroundRef.current || currentBackgroundRef.current;
+      if (!previousBackground) {
+        currentBackgroundRef.current = img;
+        incomingBackgroundRef.current = null;
+        transitionProgressRef.current = 1;
+        // The original first-load brightness animation was scheduled before its
+        // conditional Canvas existed, so the actually observed entrance used
+        // the resting brightness and only the page/alpha fades. Keep that visual
+        // contract while retaining the new pre-filtered Canvas pipeline.
+        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+        setHasBackground(true);
+        renderCanvas();
         return;
       }
 
-      // Start color gradient transition
-      setIsTransitioning(true);
-      setTransitionProgress(0);
-
+      currentBackgroundRef.current = previousBackground;
+      incomingBackgroundRef.current = img;
+      transitionProgressRef.current = 0;
+      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+      setHasBackground(true);
+      renderCanvas();
       const startTime = performance.now();
-      const duration = 1000; // 1000ms transition (slower, more dramatic)
 
       const animate = (currentTime: number) => {
         if (!isCurrentLoad()) return;
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        setTransitionProgress(progress);
+        const progress = Math.min(
+          (currentTime - startTime) / BACKDROP_TRANSITION_DURATION_MS,
+          1,
+        );
+        transitionProgressRef.current = progress;
 
         // Brightness breathing effect: goes from 0.55 -> 0.3 -> 0.55
-        // Using sine wave for smooth curve, more transparent during transition
-        const breathingBrightness = 0.55 - 0.25 * Math.sin(progress * Math.PI);
-
-        // Directly update canvas filter for immediate effect
-        const canvas = canvasRef.current;
-        if (canvas) {
-          canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(${breathingBrightness})`;
-        }
+        // using the same sine curve and timing as the previous CSS-filter path.
+        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS
+          - (BACKDROP_RESTING_BRIGHTNESS - BACKDROP_DIM_BRIGHTNESS)
+            * Math.sin(progress * Math.PI);
+        renderCanvas();
 
         if (progress < 1) {
           animationFrameRef.current = requestAnimationFrame(animate);
         } else {
-          // Transition complete
-          setIsTransitioning(false);
-          setBgImage1(img);
-          setBgImage2(null);
-          setTransitionProgress(1);
-          setCanvasOpacity(1); // Reset canvas opacity to fully opaque
-
-          // Reset filter to normal
-          if (canvas) {
-            canvas.style.filter = `blur(${bgBlurRadiusRef.current}px) saturate(1.5) brightness(0.55)`;
-          }
-
-          if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
-          }
+          currentBackgroundRef.current = img;
+          incomingBackgroundRef.current = null;
+          transitionProgressRef.current = 1;
+          backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+          animationFrameRef.current = null;
+          renderCanvas();
         }
       };
 
-      // Start animation
-      if (animationFrameRef.current) {
+      if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
       }
       animationFrameRef.current = requestAnimationFrame(animate);
-
-      // Update bg2 to the new image during transition
-      setBgImage2(img);
     };
 
     img.onerror = () => {
@@ -875,8 +1036,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       if (!isCurrentLoad()) return;
       // If load fails, don't change background - keep previous one
       logger.warn('[FocusMode] Failed to load cover image for transition');
-      setBgImage2(null);
-      setIsTransitioning(false);
+      incomingBackgroundRef.current = null;
+      transitionProgressRef.current = 1;
+      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+      renderCanvas();
     };
 
     // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
@@ -896,7 +1059,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       // image because it may still be the currently painted transition source.
       if (!img.complete) img.src = '';
     };
-  }, [isVisible, track?.id, track?.coverUrl]);
+  }, [isVisible, track?.id, track?.coverUrl, renderCanvas]);
 
   useLayoutEffect(() => () => {
     const canvas = canvasRef.current;
@@ -904,23 +1067,34 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       canvas.width = 0;
       canvas.height = 0;
     }
+    const sourceScratch = backdropSourceScratchRef.current;
+    if (sourceScratch) {
+      sourceScratch.width = 0;
+      sourceScratch.height = 0;
+    }
+    const filteredScratch = backdropFilteredScratchRef.current;
+    if (filteredScratch) {
+      filteredScratch.width = 0;
+      filteredScratch.height = 0;
+    }
+    const frameScratch = backdropFrameScratchRef.current;
+    if (frameScratch) {
+      frameScratch.width = 0;
+      frameScratch.height = 0;
+    }
+    backdropSourceScratchRef.current = null;
+    backdropFilteredScratchRef.current = null;
+    backdropFrameScratchRef.current = null;
+    preparedBackdropCacheRef.current = new WeakMap();
+    currentBackgroundRef.current = null;
+    incomingBackgroundRef.current = null;
   }, []);
 
-  // Render canvas when transitioning or when bgImage1 loads
-  useEffect(() => {
-    // Render during transition
-    if (isTransitioning && bgImage1 && bgImage2) {
-      const render = renderCanvas(transitionProgress);
-      const frame = requestAnimationFrame(render);
-      return () => cancelAnimationFrame(frame);
-    }
-
-    // Also render when bgImage1 loads and we're not transitioning
-    if (!isTransitioning && bgImage1 && !bgImage2) {
-      const render = renderCanvas(1); // Progress = 1 (fully visible)
-      render();
-    }
-  }, [isTransitioning, transitionProgress, bgImage1, bgImage2, renderCanvas]);
+  // The canvas is conditionally mounted after the first image arrives. Paint the
+  // current refs once that DOM node exists; subsequent frames draw directly.
+  useLayoutEffect(() => {
+    if (hasBackground) renderCanvas();
+  }, [hasBackground, renderCanvas]);
 
   // Handle click on synced lyric line to seek
   const handleLyricClick = useCallback((lyricTime: number, idx: number) => {
@@ -941,13 +1115,12 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   return (
     <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
-        hasBackground={Boolean(bgImage1)}
-        bgBlurRadius={bgBlurRadius}
+        hasBackground={hasBackground}
         isLinux={isLinux}
         canvasRef={canvasRef}
       />
 
-      <div className={`relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`focus-mode-content relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" />
 
@@ -993,8 +1166,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
                       index={idx}
                       isActive={isActive}
                       hasTimestamp={Boolean(hasTimestamp)}
-                      shouldAnimate={isActive && isVisible}
+                      shouldAnimate={isActive && isVisible && isPlaying}
                       currentTimeRef={realtimeCurrentTimeRef}
+                      pausedTime={!isPlaying && isActive ? activeCurrentTime : undefined}
                       fontSize={lyricsFontSize}
                       inactiveBlur={inactiveLyricBlur}
                       textPrimary={focusColors.textPrimary}
@@ -1063,6 +1237,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
   // For currentTime, we allow more frequent updates (0.5 second threshold)
   // This keeps the lyrics scrolling smooth while avoiding excessive re-renders
+  if (!nextProps.isPlaying && prevProps.currentTime !== nextProps.currentTime) return false;
   const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);
   if (timeDiff > 0.5) return false;
 

@@ -22,6 +22,13 @@ interface UseLibraryVirtualScrollResult {
   rowMeasureRef: (node: HTMLDivElement | null) => void;
 }
 
+// The first render happens before ResizeObserver can report the real viewport.
+// Use the current window height (with a conservative minimum) so large
+// libraries never mount every row for that single commit, while unusually tall
+// windows cannot show a blank strip before the observer reports its exact size.
+// The observer replaces this estimate immediately.
+const INITIAL_VIEWPORT_HEIGHT = 720;
+
 /**
  * Virtual scroll math for the track list.
  *
@@ -45,22 +52,29 @@ export function useLibraryVirtualScroll({
   const overscan = 6;
   const baseRowHeight = rowHeight || 64;
   const rowStride = baseRowHeight + rowGap;
+  const initialViewportHeight = typeof window === 'undefined'
+    ? INITIAL_VIEWPORT_HEIGHT
+    : Math.max(INITIAL_VIEWPORT_HEIGHT, window.innerHeight);
+  const effectiveViewportHeight = viewportHeight || initialViewportHeight;
 
   const totalHeight = itemCount > 0
     ? (itemCount - 1) * rowStride + baseRowHeight
     : 0;
   // 阈值降到 40：避免中小曲库（≤200）全量渲染所有行，减少 DOM 节点与封面解码后的 GPU 纹理占用。
   // 虚拟化下首行始终渲染，rowMeasure 高度测量不受影响。
-  const shouldVirtualize = itemCount > 40 && viewportHeight > 0;
+  const shouldVirtualize = itemCount > 40;
   // topInset offsets the list content below the frosted header band. Windowing is
   // computed against the offset-adjusted scroll position so the rendered slice and
   // the visual content stay in sync (rows scroll under the band).
   const effectiveScroll = Math.max(0, scrollTop - topInset);
   const startIndex = shouldVirtualize
-    ? Math.max(0, Math.floor(effectiveScroll / rowStride) - overscan)
+    ? Math.min(
+        Math.max(0, itemCount - 1),
+        Math.max(0, Math.floor(effectiveScroll / rowStride) - overscan),
+      )
     : 0;
   const endIndex = shouldVirtualize
-    ? Math.min(itemCount, Math.ceil((effectiveScroll + viewportHeight) / rowStride) + overscan)
+    ? Math.min(itemCount, Math.ceil((effectiveScroll + effectiveViewportHeight) / rowStride) + overscan)
     : itemCount;
   const visibleCount = shouldVirtualize ? endIndex - startIndex : itemCount;
   const paddingTop = (shouldVirtualize ? startIndex * rowStride : 0) + topInset;

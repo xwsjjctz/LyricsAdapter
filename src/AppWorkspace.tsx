@@ -67,7 +67,6 @@ const AppWorkspace: React.FC = () => {
     updateSlot,
     setActiveTrackIndex,
     setActiveTracks,
-    setActiveCurrentTime,
     loadCloudTracks,
     mergeCloudTracks,
     updateLocalTracks,
@@ -90,26 +89,6 @@ const AppWorkspace: React.FC = () => {
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
   activeSlotIdRef.current = activeSlotId;
-  const getAppPersistenceData = useCallback((): LibrarySettings => {
-    const snapshot = slotsRef.current;
-    const extractSlotData = (slot: LibrarySlot) => ({
-      currentTrackIndex: slot.currentTrackIndex,
-      currentTime: slot.currentTime,
-      volume: slot.volume,
-      playbackMode: slot.playbackMode,
-      scrollPosition: slot.scrollPosition,
-      filterType: slot.filterType,
-      categorySelection: slot.categorySelection,
-    });
-
-    return {
-      localSlot: extractSlotData(snapshot.local),
-      cloudSlot: extractSlotData(snapshot.cloud),
-      onlineSlot: extractSlotData(snapshot.online),
-      playlistSlot: extractSlotData(snapshot.playlist),
-      activeSlotId: activeSlotIdRef.current,
-    };
-  }, [slotsRef]);
   const {
     audioRef,
     setAudioRef,
@@ -135,6 +114,7 @@ const AppWorkspace: React.FC = () => {
     handleAudioError,
     selectTrack,
     persistedTimeRef,
+    getCurrentPlaybackTime,
     shouldAutoPlayRef,
     setRestoreTime,
     activeBlobUrlsRef,
@@ -146,10 +126,33 @@ const AppWorkspace: React.FC = () => {
     activeSlotId,
     setActiveTracks,
     setActiveTrackIndex,
-    setActiveCurrentTime,
     updateSlot,
     onTrackSwitch: markTrackSwitch,
   });
+  const getAppPersistenceData = useCallback((): LibrarySettings => {
+    const snapshot = slotsRef.current;
+    const activeId = activeSlotIdRef.current;
+    const activePlaybackTime = getCurrentPlaybackTime();
+    const extractSlotData = (slot: LibrarySlot) => ({
+      currentTrackIndex: slot.currentTrackIndex,
+      // Inactive slots are committed explicitly when playback crosses slot
+      // boundaries. Only the active slot reads the ref-backed live clock.
+      currentTime: slot.id === activeId ? activePlaybackTime : slot.currentTime,
+      volume: slot.volume,
+      playbackMode: slot.playbackMode,
+      scrollPosition: slot.scrollPosition,
+      filterType: slot.filterType,
+      categorySelection: slot.categorySelection,
+    });
+
+    return {
+      localSlot: extractSlotData(snapshot.local),
+      cloudSlot: extractSlotData(snapshot.cloud),
+      onlineSlot: extractSlotData(snapshot.online),
+      playlistSlot: extractSlotData(snapshot.playlist),
+      activeSlotId: activeId,
+    };
+  }, [getCurrentPlaybackTime, slotsRef]);
   const player = usePlayerViewModel({
     currentTrack,
     isPlaying,
@@ -267,8 +270,7 @@ const AppWorkspace: React.FC = () => {
     setIsPlaying,
     setVolume,
     setPlaybackMode,
-    audioRef,
-    persistedTimeRef,
+    currentPlaybackTime: currentTime,
     updateSlot,
     onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime }) => {
       if (restoredSlotId) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Track } from '../types';
 import { useBlobUrls } from '../hooks/useBlobUrls';
 import { usePlayback } from '../hooks/usePlayback';
@@ -10,7 +10,6 @@ interface PlayerStoreOptions {
   activeSlotId: LibrarySlotId;
   setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   setActiveTrackIndex: (index: number | ((prev: number) => number)) => void;
-  setActiveCurrentTime: (time: number) => void;
   updateSlot: (slotId: LibrarySlotId, updater: (slot: any) => any) => void;
   onTrackSwitch: () => void;
 }
@@ -21,7 +20,6 @@ export function usePlayerStore({
   activeSlotId,
   setActiveTracks,
   setActiveTrackIndex,
-  setActiveCurrentTime,
   updateSlot,
   onTrackSwitch,
 }: PlayerStoreOptions) {
@@ -36,17 +34,6 @@ export function usePlayerStore({
     onTrackSwitch,
     initialCurrentTime: restoreTime,
   });
-  const prevSlotIdRef = useRef(activeSlotId);
-
-  useEffect(() => {
-    if (activeSlotId !== prevSlotIdRef.current) {
-      prevSlotIdRef.current = activeSlotId;
-      return;
-    }
-    if (playback.currentTime > 0) {
-      setActiveCurrentTime(playback.currentTime);
-    }
-  }, [playback.currentTime, setActiveCurrentTime, activeSlotId]);
 
   useEffect(() => {
     updateSlot(activeSlotId, slot => slot.volume !== playback.volume ? { ...slot, volume: playback.volume } : slot);

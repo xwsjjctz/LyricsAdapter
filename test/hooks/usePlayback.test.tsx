@@ -85,6 +85,81 @@ describe('usePlayback', () => {
     webdavMocks.clearCdnCache.mockReset();
   });
 
+  it('keeps an exact ref-backed playback clock for persistence and seeking', () => {
+    const track = makeTrack({ id: 'clock', audioUrl: 'audio://localhost/clock.flac' });
+    const audio = makeAudioElement();
+    const { result } = renderPlayback([track]);
+
+    act(() => result.current.setAudioRef(audio));
+    audio.currentTime = 3.75;
+    act(() => result.current.handleTimeUpdate());
+
+    expect(result.current.currentTime).toBe(3.75);
+    expect(result.current.persistedTimeRef.current).toBe(3.75);
+    expect(result.current.getCurrentPlaybackTime()).toBe(3.75);
+
+    act(() => result.current.handleSeek(8.5));
+
+    expect(audio.currentTime).toBe(8.5);
+    expect(result.current.currentTime).toBe(8.5);
+    expect(result.current.persistedTimeRef.current).toBe(8.5);
+    expect(result.current.getCurrentPlaybackTime()).toBe(8.5);
+  });
+
+  it('does not attribute the previous media element time to a newly selected track', () => {
+    const tracks = [
+      makeTrack({ id: 'one', audioUrl: 'audio://localhost/one.flac' }),
+      makeTrack({ id: 'two', audioUrl: 'audio://localhost/two.flac' }),
+    ];
+    const audio = makeAudioElement();
+    const { result, rerender } = renderHook(
+      ({ index }: { index: number }) => usePlayback({
+        tracks,
+        setTracks: vi.fn(),
+        currentTrackIndex: index,
+        setCurrentTrackIndex: vi.fn(),
+        revokeBlobUrl: vi.fn(),
+      }),
+      { initialProps: { index: 0 } },
+    );
+
+    act(() => result.current.setAudioRef(audio));
+    audio.currentTime = 7.25;
+    act(() => result.current.handleTimeUpdate());
+    expect(result.current.getCurrentPlaybackTime()).toBe(7.25);
+
+    rerender({ index: 1 });
+
+    // The mock media element deliberately retains its old currentTime across
+    // load(); persistence must still use the new track's reset clock.
+    expect(audio.currentTime).toBe(7.25);
+    expect(result.current.persistedTimeRef.current).toBe(0);
+    expect(result.current.getCurrentPlaybackTime()).toBe(0);
+  });
+
+  it('preserves and applies a restored playback position', () => {
+    const track = makeTrack({ id: 'restored', audioUrl: 'audio://localhost/restored.flac' });
+    const audio = makeAudioElement();
+    const { result } = renderHook(() => usePlayback({
+      tracks: [track],
+      setTracks: vi.fn(),
+      currentTrackIndex: 0,
+      setCurrentTrackIndex: vi.fn(),
+      revokeBlobUrl: vi.fn(),
+      initialCurrentTime: 6.25,
+    }));
+
+    act(() => result.current.setAudioRef(audio));
+    expect(result.current.getCurrentPlaybackTime()).toBe(6.25);
+
+    act(() => result.current.handleLoadedMetadata());
+
+    expect(audio.currentTime).toBe(6.25);
+    expect(result.current.currentTime).toBe(6.25);
+    expect(result.current.persistedTimeRef.current).toBe(6.25);
+    expect(result.current.getCurrentPlaybackTime()).toBe(6.25);
+  });
+
   it('releases the previous media pipeline before assigning the next source', () => {
     const pause = vi.fn();
     const load = vi.fn();
