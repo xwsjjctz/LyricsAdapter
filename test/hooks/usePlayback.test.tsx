@@ -46,14 +46,18 @@ function makeTrack(overrides: Partial<Track> & { id: string }): Track {
 }
 
 function renderPlayback(initialTracks: Track[], initialIndex = 0) {
+  const setTracks = vi.fn();
+  const setCurrentTrackIndex = vi.fn();
+  const revokeBlobUrl = vi.fn();
+  const onTrackSwitch = vi.fn();
   return renderHook(() =>
     usePlayback({
       tracks: initialTracks,
-      setTracks: vi.fn(),
+      setTracks,
       currentTrackIndex: initialIndex,
-      setCurrentTrackIndex: vi.fn(),
-      revokeBlobUrl: vi.fn(),
-      onTrackSwitch: vi.fn(),
+      setCurrentTrackIndex,
+      revokeBlobUrl,
+      onTrackSwitch,
       initialCurrentTime: 0,
     })
   );
@@ -106,6 +110,54 @@ describe('usePlayback', () => {
     expect(result.current.getCurrentPlaybackTime()).toBe(8.5);
   });
 
+  it('resynchronizes the shared clock from the media element when the window regains focus', () => {
+    const track = makeTrack({ id: 'focus-resync', audioUrl: 'audio://localhost/focus-resync.flac' });
+    const audio = makeAudioElement();
+    const { result } = renderPlayback([track]);
+
+    act(() => result.current.setAudioRef(audio));
+    audio.currentTime = 2.25;
+    act(() => result.current.handleTimeUpdate());
+
+    audio.currentTime = 8.75;
+    expect(result.current.getCurrentPlaybackTime()).toBe(8.75);
+    act(() => window.dispatchEvent(new Event('focus')));
+
+    expect(result.current.currentTime).toBe(8.75);
+    expect(result.current.persistedTimeRef.current).toBe(8.75);
+    expect(result.current.getCurrentPlaybackTime()).toBe(8.75);
+  });
+
+  it('resamples immediately and on the next frame when the renderer becomes visible', () => {
+    const track = makeTrack({ id: 'visible-resync', audioUrl: 'audio://localhost/visible-resync.flac' });
+    const audio = makeAudioElement();
+    const { result } = renderPlayback([track]);
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+
+    act(() => result.current.setAudioRef(audio));
+    audio.currentTime = 1;
+    act(() => result.current.handleTimeUpdate());
+
+    audio.currentTime = 4;
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(result.current.currentTime).toBe(4);
+    expect(frames).toHaveLength(1);
+
+    audio.currentTime = 5;
+    act(() => frames[0]!(16));
+    expect(result.current.currentTime).toBe(5);
+
+    visibility.mockRestore();
+    requestFrame.mockRestore();
+    cancelFrame.mockRestore();
+  });
+
   it('does not attribute the previous media element time to a newly selected track', () => {
     const tracks = [
       makeTrack({ id: 'one', audioUrl: 'audio://localhost/one.flac' }),
@@ -135,6 +187,47 @@ describe('usePlayback', () => {
     expect(audio.currentTime).toBe(7.25);
     expect(result.current.persistedTimeRef.current).toBe(0);
     expect(result.current.getCurrentPlaybackTime()).toBe(0);
+  });
+
+  it('ignores old-source time events during a debounced track switch', () => {
+    vi.useFakeTimers();
+    const tracks = [
+      makeTrack({ id: 'one', audioUrl: 'audio://localhost/one.flac' }),
+      makeTrack({ id: 'two', audioUrl: 'audio://localhost/two.flac' }),
+    ];
+    const audio = makeAudioElement('audio://localhost/one.flac');
+    const { result, unmount } = renderHook(() => {
+      const [index, setIndex] = useState(0);
+      return usePlayback({
+        tracks,
+        setTracks: vi.fn(),
+        currentTrackIndex: index,
+        setCurrentTrackIndex: setIndex,
+        revokeBlobUrl: vi.fn(),
+      });
+    });
+
+    act(() => result.current.setAudioRef(audio));
+    audio.currentTime = 2.25;
+    act(() => result.current.handleTimeUpdate());
+
+    act(() => result.current.skipForward());
+    audio.currentTime = 7.75;
+    act(() => result.current.handleTimeUpdate());
+    act(() => window.dispatchEvent(new Event('focus')));
+
+    expect(result.current.persistedTimeRef.current).toBe(0);
+    expect(result.current.getCurrentPlaybackTime()).toBe(0);
+
+    act(() => vi.advanceTimersByTime(150));
+    act(() => result.current.handleLoadedMetadata());
+    audio.currentTime = 1.5;
+    act(() => result.current.handleTimeUpdate());
+
+    expect(result.current.currentTime).toBe(1.5);
+    expect(result.current.persistedTimeRef.current).toBe(1.5);
+    unmount();
+    vi.useRealTimers();
   });
 
   it('preserves and applies a restored playback position', () => {

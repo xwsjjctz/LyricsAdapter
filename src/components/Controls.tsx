@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../services/coverUrl';
 import { useGlassUI } from '../hooks/useGlassUI';
+import OverflowMarquee from './OverflowMarquee';
 
 interface ControlsProps {
   track: Track | null;
@@ -19,8 +20,6 @@ interface ControlsProps {
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
   isFocusMode: boolean;
-  forceUpdateCounter?: number; // Force re-render after restore
-  audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
   floating?: boolean;
 }
 
@@ -35,18 +34,16 @@ const formatTime = (seconds: number): string => {
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
-  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode, forceUpdateCounter: _forceUpdateCounter, audioRef: _audioRef,
+  playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode,
   floating = false
 }) => {
   const { t } = useTranslation();
   const glassUI = useGlassUI();
 
-// Use audio element's currentTime directly for progress calculation
-  // This ensures we show the actual audio playback position
-  const actualCurrentTime = _audioRef?.current ? _audioRef.current.currentTime : currentTime;
-  
-  // Calculate progress percentage
-  const progress = track ? (actualCurrentTime / track.duration) * 100 : 0;
+  const displayCurrentTime = Number.isFinite(currentTime) ? Math.max(0, currentTime) : 0;
+  const progress = track && track.duration > 0
+    ? Math.min(100, (displayCurrentTime / track.duration) * 100)
+    : 0;
 
   return (
     <div
@@ -81,31 +78,13 @@ const Controls: React.FC<ControlsProps> = memo(({
                 <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>open_in_full</span>
               </div>
             </div>
-            <div className="w-[130px] flex flex-col justify-center overflow-hidden">
-              {track.title.length > 15 || track.artist.length > 15 ? (
-                <div
-                  className="whitespace-nowrap"
-                  style={{
-                    animation: 'scroll-left 10s linear infinite'
-                  }}
-                >
-                  <p className="text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: 'var(--theme-text-heading-weight)' }}>
-                    {track.title + ' '}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                    {track.artist + ' '}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm truncate group-hover:text-primary transition-colors" title={track.title} style={{ color: 'var(--theme-text-primary)', fontWeight: 'var(--theme-text-heading-weight)' }}>
-                    {track.title}
-                  </p>
-                  <p className="text-xs truncate" title={track.artist} style={{ color: 'var(--theme-text-muted)' }}>
-                    {track.artist}
-                  </p>
-                </>
-              )}
+            <div className="w-[130px] min-w-0 flex flex-col justify-center overflow-hidden">
+              <div className="text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: 'var(--theme-text-heading-weight)' }}>
+                <OverflowMarquee text={track.title} />
+              </div>
+              <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                <OverflowMarquee text={track.artist} />
+              </div>
             </div>
           </div>
         ) : (
@@ -140,10 +119,10 @@ const Controls: React.FC<ControlsProps> = memo(({
 
         {/* Progress Bar */}
         <div className="flex items-center gap-3 flex-1">
-          <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(actualCurrentTime)}</span>
-          <div className="flex-1 relative h-4 group flex items-center" key={`progress-${currentTime}`}>
+          <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(displayCurrentTime)}</span>
+          <div className="flex-1 relative h-4 group flex items-center">
             <input
-              type="range" min="0" max={track?.duration || 100} step="0.1" value={actualCurrentTime}
+              type="range" min="0" max={track?.duration || 100} step="0.1" value={displayCurrentTime}
               onChange={(e) => onSeek(Number(e.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
@@ -204,9 +183,6 @@ const Controls: React.FC<ControlsProps> = memo(({
 }, (prevProps, nextProps) => {
   // Custom comparison for React.memo
   // Only re-render when critical props actually change
-  // Note: We intentionally allow re-renders when currentTime changes significantly
-  // to update the progress bar, but we could optimize this further if needed
-
   // Check track identity (reference equality)
   if (prevProps.track !== nextProps.track) return false;
 
@@ -230,16 +206,12 @@ const Controls: React.FC<ControlsProps> = memo(({
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
 
-  // Allow re-render when currentTime changes more than 1 second
-  // This prevents excessive re-renders during playback
-  const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);
-  if (timeDiff > 1) return false;
+  // Native media timeupdate is already low-frequency. Keep every committed
+  // sample so the progress bar never lags behind the shared playback clock.
+  if (prevProps.currentTime !== nextProps.currentTime) return false;
 
   // Check floating mode
   if (prevProps.floating !== nextProps.floating) return false;
-
-  // Check force update counter
-  if (prevProps.forceUpdateCounter !== nextProps.forceUpdateCounter) return false;
 
   // All props are effectively the same, skip re-render
   return true;

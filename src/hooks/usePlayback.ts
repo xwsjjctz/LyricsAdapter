@@ -50,6 +50,7 @@ export function usePlayback({
   const loadedTrackIdRef = useRef<string | undefined>(undefined);
   const timeOwnerTrackIdRef = useRef<string | undefined>(undefined);
   const clockReadyTrackIdRef = useRef<string | undefined>(undefined);
+  const hasObservedTrackRef = useRef(false);
   const skipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
@@ -61,7 +62,15 @@ export function usePlayback({
     const currentId = currentTrack?.id;
     if (currentId !== lastTrackIdRef.current) {
       lastTrackIdRef.current = currentId;
-      timeOwnerTrackIdRef.current = currentId;
+      // The selected track changes before the debounced source replacement.
+      // Keep the old media clock unowned during that window so a trailing
+      // timeupdate from the previous source cannot be attributed to the new
+      // track. The very first track is safe to claim because no prior source
+      // exists; subsequent sources claim ownership in the loader below.
+      timeOwnerTrackIdRef.current = currentId && !hasObservedTrackRef.current
+        ? currentId
+        : undefined;
+      if (currentId) hasObservedTrackRef.current = true;
       clockReadyTrackIdRef.current = undefined;
       persistedTimeRef.current = currentTrackIndex >= 0 ? initialCurrentTime : 0;
       if (currentTrackIndex >= 0) {
@@ -113,13 +122,23 @@ export function usePlayback({
     audio.load();
   }, []);
 
-  const replaceAudioSource = useCallback((nextUrl: string, force = false) => {
+  const replaceAudioSource = useCallback((nextUrl: string, ownerTrackId: string, force = false) => {
     const audio = audioRef.current;
     if (!audio) return;
     const currentUrl = audio.getAttribute('src') || '';
-    if (!force && currentUrl === nextUrl) return;
+    if (!force && currentUrl === nextUrl) {
+      if (nextUrl) timeOwnerTrackIdRef.current = ownerTrackId;
+      return;
+    }
     if (currentUrl || audio.srcObject) releaseAudioElement(audio);
-    if (nextUrl) audio.src = nextUrl;
+    if (nextUrl) {
+      audio.src = nextUrl;
+      timeOwnerTrackIdRef.current = ownerTrackId;
+      clockReadyTrackIdRef.current = undefined;
+    } else {
+      timeOwnerTrackIdRef.current = undefined;
+      clockReadyTrackIdRef.current = undefined;
+    }
   }, [releaseAudioElement]);
 
   const setAudioRef = useCallback((node: HTMLAudioElement | null) => {
@@ -127,6 +146,8 @@ export function usePlayback({
     if (!node) {
       if (previous) releaseAudioElement(previous);
       loadedTrackIdRef.current = undefined;
+      timeOwnerTrackIdRef.current = undefined;
+      clockReadyTrackIdRef.current = undefined;
       audioUrlReadyRef.current = false;
       waitingForCanPlayRef.current = false;
     }
@@ -160,17 +181,29 @@ export function usePlayback({
     });
   }, [currentTrack]);
 
-  const handleTimeUpdate = useCallback(() => {
-    if (audioRef.current) {
-      const nextTime = audioRef.current.currentTime;
-      clockReadyTrackIdRef.current = currentTrackId;
-      persistedTimeRef.current = nextTime;
-      setCurrentTime(nextTime);
-    }
+  const commitCurrentTime = useCallback((nextTime: number) => {
+    if (
+      !currentTrackId
+      || timeOwnerTrackIdRef.current !== currentTrackId
+      || clockReadyTrackIdRef.current !== currentTrackId
+      || !Number.isFinite(nextTime)
+      || nextTime < 0
+    ) return;
+    persistedTimeRef.current = nextTime;
+    setCurrentTime(previous => Math.abs(previous - nextTime) < 0.001 ? previous : nextTime);
   }, [currentTrackId]);
+
+  const handleTimeUpdate = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrackId || timeOwnerTrackIdRef.current !== currentTrackId) return;
+    // A timeupdate from the owned source proves its media clock is ready.
+    clockReadyTrackIdRef.current = currentTrackId;
+    commitCurrentTime(audio.currentTime);
+  }, [commitCurrentTime, currentTrackId]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current && currentTrack) {
+      if (timeOwnerTrackIdRef.current !== currentTrack.id) return;
       clockReadyTrackIdRef.current = currentTrack.id;
       if (!hasRestoredRef.current && restoredTimeRef.current > 0) {
         const seekTime = Math.min(restoredTimeRef.current, audioRef.current.duration || Infinity);
@@ -216,7 +249,12 @@ export function usePlayback({
 
   const handleTrackEnded = useCallback(() => {
     if (playbackMode === 'repeat-one') {
-      if (audioRef.current) {
+      if (
+        audioRef.current
+        && currentTrackId
+        && timeOwnerTrackIdRef.current === currentTrackId
+        && clockReadyTrackIdRef.current === currentTrackId
+      ) {
         audioRef.current.currentTime = 0;
         clockReadyTrackIdRef.current = currentTrackId;
         persistedTimeRef.current = 0;
@@ -320,9 +358,13 @@ export function usePlayback({
   }, [tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const handleSeek = useCallback((time: number) => {
-    if (audioRef.current) {
+    if (
+      audioRef.current
+      && currentTrackId
+      && timeOwnerTrackIdRef.current === currentTrackId
+      && clockReadyTrackIdRef.current === currentTrackId
+    ) {
       audioRef.current.currentTime = time;
-      clockReadyTrackIdRef.current = currentTrackId;
       persistedTimeRef.current = time;
       setCurrentTime(time);
     }
@@ -388,11 +430,14 @@ export function usePlayback({
       return;
     }
 
-    loadedTrackIdRef.current = currentTrack.id;
-
     logger.debug('[Playback] Track changed:', currentTrack.title, 'index:', currentTrackIndex, 'source:', currentTrack.source);
 
     releaseAudioElement(audioRef.current);
+    // The previous pipeline is now detached. Ownership remains empty until a
+    // concrete replacement source is installed below.
+    timeOwnerTrackIdRef.current = undefined;
+    clockReadyTrackIdRef.current = undefined;
+    loadedTrackIdRef.current = currentTrack.id;
     audioUrlReadyRef.current = false;
 
     if (currentTrack.source === 'webdav') {
@@ -412,7 +457,7 @@ export function usePlayback({
           ) return;
           logger.info('[Playback] CDN URL result:', cdnUrl ? cdnUrl.substring(0, 100) + '...' : 'null');
           if (cdnUrl) {
-            replaceAudioSource(cdnUrl);
+            replaceAudioSource(cdnUrl, capturedTrackId);
             audioUrlReadyRef.current = true;
             await playOrPause(shouldPlay);
           } else {
@@ -456,7 +501,7 @@ export function usePlayback({
         ) return;
         const audioUrl = buildOnlineStreamUrl(source!, songmid!);
         logger.info('[Playback] Loading online audio:', audioUrl.slice(0, 60));
-        replaceAudioSource(audioUrl);
+        replaceAudioSource(audioUrl, capturedTrackId);
 	        audioUrlReadyRef.current = true;
 	        if (shouldPlay) {
 	          await playOrPause(true).catch(() => {});
@@ -491,7 +536,7 @@ export function usePlayback({
         // 懒加载完成后直接播放，绕过 loadedTrackIdRef 守卫
         // （该守卫会拦截后续的 effect 重入，导致 play() 永远不被调用）
         if (audioRef.current && updatedTrack.audioUrl) {
-          replaceAudioSource(updatedTrack.audioUrl);
+          replaceAudioSource(updatedTrack.audioUrl, updatedTrack.id);
           audioUrlReadyRef.current = true;
           if (shouldAutoPlayRef.current) {
             audioRef.current.play().then(() => {
@@ -518,7 +563,7 @@ export function usePlayback({
     audioUrlReadyRef.current = true;
 
     if (currentTrack.audioUrl) {
-      replaceAudioSource(currentTrack.audioUrl);
+      replaceAudioSource(currentTrack.audioUrl, currentTrack.id);
       if (shouldAutoPlayRef.current) {
         audioRef.current.play().then(() => {
           logger.debug('[Playback] ✓ Playback started successfully');
@@ -647,7 +692,7 @@ export function usePlayback({
             ) return;
             logger.info('[Playback] WebDAV recovery: got fresh CDN URL, resuming playback');
 
-            replaceAudioSource(freshCdnUrl, true);
+            replaceAudioSource(freshCdnUrl, failedTrackId, true);
             audioUrlReadyRef.current = true;
             shouldAutoPlayRef.current = true;
             waitingForCanPlayRef.current = true;
@@ -721,6 +766,46 @@ export function usePlayback({
     }
     return persistedTimeRef.current;
   }, [currentTrackId, currentTrackIndex, initialCurrentTime]);
+
+  // Chromium throttles both `timeupdate` and requestAnimationFrame while an
+  // Electron window is minimized. Resample the media clock as soon as the
+  // renderer becomes visible again so every progress UI snaps to the real
+  // playback position instead of replaying stale state and slowly catching up.
+  useEffect(() => {
+    let followUpFrame: number | null = null;
+
+    const syncFromMediaClock = () => {
+      if (
+        !currentTrackId
+        || timeOwnerTrackIdRef.current !== currentTrackId
+        || clockReadyTrackIdRef.current !== currentTrackId
+      ) return;
+      commitCurrentTime(getCurrentPlaybackTime());
+    };
+
+    const syncNowAndNextFrame = () => {
+      syncFromMediaClock();
+      if (followUpFrame !== null) window.cancelAnimationFrame(followUpFrame);
+      followUpFrame = window.requestAnimationFrame(() => {
+        followUpFrame = null;
+        syncFromMediaClock();
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') syncNowAndNextFrame();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', syncNowAndNextFrame);
+    window.addEventListener('pageshow', syncNowAndNextFrame);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', syncNowAndNextFrame);
+      window.removeEventListener('pageshow', syncNowAndNextFrame);
+      if (followUpFrame !== null) window.cancelAnimationFrame(followUpFrame);
+    };
+  }, [commitCurrentTime, currentTrackId, getCurrentPlaybackTime]);
 
   return {
     audioRef,

@@ -187,8 +187,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative"
-      style={{ width: '360px' }}
+      className="global-search-box relative"
     >
       {/* Input bar */}
       <div

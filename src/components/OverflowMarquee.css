@@ -1,0 +1,50 @@
+.overflow-marquee {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.overflow-marquee__track--static {
+  display: block;
+  width: 100%;
+}
+
+.overflow-marquee__track--static .overflow-marquee__copy {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overflow-marquee__track--scrolling {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: overflow-marquee-loop var(--overflow-marquee-duration) linear infinite;
+}
+
+.overflow-marquee__copy {
+  flex: none;
+  white-space: nowrap;
+}
+
+.overflow-marquee__track--scrolling .overflow-marquee__copy + .overflow-marquee__copy {
+  margin-left: var(--overflow-marquee-gap);
+}
+
+@keyframes overflow-marquee-loop {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(calc(-1 * var(--overflow-marquee-distance)), 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overflow-marquee__track--scrolling {
+    animation: none;
+    transform: none;
+  }
+}

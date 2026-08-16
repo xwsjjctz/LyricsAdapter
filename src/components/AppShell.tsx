@@ -319,8 +319,6 @@ const AppShell: React.FC<AppShellProps> = ({
             onTogglePlaybackMode={player.togglePlaybackMode}
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
-            forceUpdateCounter={0}
-            audioRef={player.audioRef}
             floating={floatingPanel}
           />
         </main>

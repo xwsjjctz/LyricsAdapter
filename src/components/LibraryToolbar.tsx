@@ -3,6 +3,7 @@ import { i18n } from '../services/i18n';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
+import { readableForeground } from '../services/colorUtils';
 
 interface LibraryToolbarProps {
   dataSource: SlotId;
@@ -57,6 +58,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   searchBox,
 }) => {
   const { t } = useTranslation();
+  const localImportForeground = readableForeground(colors.primary);
   const renderImportButton = (icon: 'upload_file' | 'cloud_upload') => {
     if (!onImportClick) return null;
 
@@ -67,7 +69,11 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         className="w-10 h-10 flex items-center justify-center transition-colors"
         style={{
           borderRadius: 'var(--theme-control-radius)',
-          color: importDisabled ? colors.textMuted : '#fff',
+          color: importDisabled
+            ? colors.textMuted
+            : dataSource === 'local'
+              ? localImportForeground
+              : '#fff',
           backgroundColor: importDisabled ? colors.backgroundCard : colors.primary,
           border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
           boxShadow: importDisabled ? 'none' : 'var(--theme-elevated-shadow)',
@@ -83,8 +89,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   };
 
   return (
-    <div className="mb-4 flex-shrink-0 flex items-center justify-between">
-      <div>
+    <div className="library-toolbar mb-4 flex-shrink-0 flex items-center justify-between">
+      <div className="library-toolbar-leading">
         <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
           {playlistTitle ?? getDataSourceTitle(dataSource)}
         </h1>
@@ -114,7 +120,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="library-toolbar-actions flex items-center gap-2">
         {searchBox}
         {dataSource === 'cloud' ? (
           <>
