@@ -25,6 +25,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && playwright test --config=test/playwright.electron.config.ts",
     "test:e2e:run": "playwright test --config=test/playwright.electron.config.ts",
+    "test:memory": "npm run build && cross-env MEMORY_BENCHMARK=1 playwright test --config=test/playwright.electron.config.ts electron.memory.spec.ts",
+    "test:memory:run": "cross-env MEMORY_BENCHMARK=1 playwright test --config=test/playwright.electron.config.ts electron.memory.spec.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
     "check": "npm run typecheck && npm run typecheck:e2e && npm test && npm run build"

@@ -501,7 +501,14 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       contentType: 'application/json',
     });
     const focusBackdropOverlay = page.locator('[data-focus-backdrop-overlay]');
-    await expect(focusBackdropOverlay).toHaveClass(/backdrop-blur-sm/);
+    const rendererPlatform = await page.evaluate(() => (
+      window as typeof window & { electron?: SmokeElectronAPI }
+    ).electron?.platform);
+    if (rendererPlatform === 'win32') {
+      await expect(focusBackdropOverlay).not.toHaveClass(/backdrop-blur-sm/);
+    } else {
+      await expect(focusBackdropOverlay).toHaveClass(/backdrop-blur-sm/);
+    }
     const backdropFilters = await focusBackdropOverlay.evaluate((element) => {
       const style = getComputedStyle(element);
       return {
@@ -509,10 +516,9 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         webkit: style.getPropertyValue('-webkit-backdrop-filter'),
       };
     });
-    expect(
-      [backdropFilters.standard, backdropFilters.webkit]
-        .some(value => /blur\([^)]+\)/.test(value) && value !== 'none'),
-    ).toBe(true);
+    const hasCompositorBlur = [backdropFilters.standard, backdropFilters.webkit]
+      .some(value => /blur\([^)]+\)/.test(value) && value !== 'none');
+    expect(hasCompositorBlur).toBe(rendererPlatform !== 'win32');
     await testInfo.attach('focus-backdrop-filter-metrics', {
       body: Buffer.from(JSON.stringify(backdropFilters, null, 2)),
       contentType: 'application/json',
