@@ -39,7 +39,10 @@ export async function createWindow(): Promise<BrowserWindow> {
     title: 'LyricsAdapter',
     frame: false,
     transparent: isMacOS || process.platform === 'linux',
-    ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
+    // Mica is the Windows backdrop intended for long-lived app windows. Acrylic
+    // continuously samples the desktop like a transient surface and keeps a
+    // noticeably larger DWM/GPU working set while the player sits idle.
+    ...(isWindows ? { backgroundMaterial: 'mica' as const } : {}),
     ...(isWindows ? { backgroundColor: '#00000000' } : {}),
     ...(isMacOS ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',

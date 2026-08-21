@@ -9,7 +9,7 @@ const platform = window.electron?.platform;
 if (platform) {
   document.documentElement.classList.add('electron');
   if (platform === 'win32') {
-    document.documentElement.dataset['windowEffect'] = 'acrylic';
+    document.documentElement.dataset['windowEffect'] = 'mica';
   } else if (platform === 'darwin') {
     document.documentElement.dataset['windowEffect'] = 'vibrancy';
   }
