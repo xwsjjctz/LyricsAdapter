@@ -515,9 +515,9 @@ textarea.no-scrollbar::-webkit-scrollbar {
   position: absolute;
   z-index: 35;
   top: 0;
-  /* List shells extend 24px with negative margins + padding. Pull the overlay
-     back to the actual scroll viewport edge so category panes do not clip it. */
-  right: 26px;
+  /* List shells extend 24px beyond the rows. Keep the thumb in that outer
+     gutter so highlighted rows and the scroll indicator remain distinct. */
+  right: 12px;
   bottom: 0;
   width: 5px;
   pointer-events: none;
