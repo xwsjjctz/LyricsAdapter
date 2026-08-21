@@ -102,7 +102,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
           }}
         >
           <div
-            className="absolute top-0 left-0 h-full transition-all duration-100"
+            className="absolute top-0 left-0 h-full"
             style={{ width: `${progress}%`, backgroundColor: colors.primary, boxShadow: `0 0 15px ${colors.glowColor}`, borderRadius: 'var(--theme-progress-radius)' }}
           />
           <div

@@ -15,6 +15,8 @@ import GsapModal from './GsapModal';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { useGlassUI } from '../hooks/useGlassUI';
+import { readableForeground } from '../services/colorUtils';
+import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -127,10 +129,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [isHighlightTransitionSuppressed, setIsHighlightTransitionSuppressed] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const glassUI = useGlassUI();
-  // Measured height of the frosted header band (toolbar + column header) when glass UI is on.
-  // Drives topInset so the virtualized list content starts below the band yet scrolls under it.
-  const [headerBandHeight, setHeaderBandHeight] = useState(0);
-  const headerBandRef = useRef<HTMLDivElement>(null);
   const { loadProgress, refreshCloudTracks } = useLibraryCloudSync({
     dataSource,
     onLoadCloudTracks,
@@ -178,26 +176,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return unsubscribe;
   }, []);
 
-  // Measure the frosted header band height so topInset tracks its real size
-  // (varies with import-progress bar, edit-mode column header, filter type).
-  useEffect(() => {
-    if (!glassUI) {
-      setHeaderBandHeight(0);
-      onHeaderHeightChange?.(0);
-      return;
-    }
-    const el = headerBandRef.current;
-    if (!el) return;
-    const update = () => {
-      const h = el.getBoundingClientRect().height;
-      setHeaderBandHeight(h);
-      onHeaderHeightChange?.(h);
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [glassUI, filterType, isEditMode, onHeaderHeightChange]);
+  // The library header stays in normal document flow. Clear any frosted-header
+  // height left by another view so list rows never pass behind this header.
+  useLayoutEffect(() => {
+    onHeaderHeightChange?.(0);
+  }, [onHeaderHeightChange]);
 
   const filteredTracks = displayTracks;
 
@@ -260,6 +243,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Theme colors
   const colors = currentTheme.colors;
+  const localImportForeground = readableForeground(colors.primary);
   // 当前播放指示器形态：'inline' 时不渲染浮动跟随滑块，改用行内实色高亮，
   // 彻底规避浮动定位错位，且滚动时无跟随动画。
   const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
@@ -302,12 +286,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     };
   }, [dataSource, handleRefreshCloud, onImportClick, onOpenSettings]);
 
-  // Glass UI insets. topInset offsets the default (virtualized) list below the
-  // frosted header band so rows scroll under it; the hook windows against it and
-  // rowTop() accounts for it. Category views keep the toolbar in-flow (frosted)
-  // and just reserve bottom space. bottomInset lets the last rows scroll clear of
-  // the overlaid ControlBar.
-  const topInset = glassUI && filterType === 'default' ? headerBandHeight : 0;
+  // The header no longer overlays the track list, so no top inset is needed.
+  // bottomInset still lets the final rows clear the optional glass ControlBar.
+  const topInset = 0;
   const bottomInset = glassUI ? 96 : 0; // ControlBar height (h-24)
 
   const {
@@ -331,9 +312,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const shouldVirtualize = endIndex > startIndex || startIndex > 0;
   const visibleTracks = shouldVirtualize ? activeTracks.slice(startIndex, endIndex) : activeTracks;
 
-  // Absolute content-y of a row, including the topInset offset introduced by the
-  // frosted header band. Use this everywhere a row's position is computed so the
-  // highlight slider, locate math, and visibility checks stay aligned with the band.
+  // Absolute content-y of a row. Keep the inset term shared with the virtual-scroll
+  // math even though the in-flow library header currently makes it zero.
   const rowTop = (idx: number) => idx * rowStride + topInset;
   // Max scrollTop: list height (rows + top inset) plus bottom inset, minus viewport.
   const maxScrollTop = (clientHeight: number) =>
@@ -474,8 +454,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     const container = scrollContainerRef.current;
     const timer = setTimeout(() => {
-      // Effective viewport excludes the frosted header (topInset) and ControlBar
-      // (bottomInset); locating must land the track where it isn't occluded.
+      // The optional ControlBar inset keeps located rows clear of the bottom overlay.
       const viewTop = container.scrollTop + topInset;
       const viewBottom = container.scrollTop + container.clientHeight - bottomInset;
       const itemTop = rowTop(currentTrackInFilteredIndex);
@@ -590,9 +569,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   }, [filterType]);
 
   // Check if current track is visible in viewport
-  // Account for the frosted header (topInset) and overlaid ControlBar (bottomInset):
-  // a track sitting within the scroll viewport but occluded by either glass band
-  // must still count as "not visible" so the locate button stays on screen.
+  // Account for the overlaid ControlBar: a track underneath it must count as
+  // "not visible" so the locate button stays on screen.
   const isCurrentTrackVisible = useCallback(() => {
     if (currentTrackInFilteredIndex < 0 || !scrollContainerRef.current) return false;
     const container = scrollContainerRef.current;
@@ -622,8 +600,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       if (container) {
         const itemTop = rowTop(currentTrackInFilteredIndex);
         const itemBottom = itemTop + baseRowHeight;
-        // Effective viewport excludes the frosted header (top) and ControlBar (bottom);
-        // a track covered by either band is treated as out of view.
+        // A track covered by the optional ControlBar is treated as out of view.
         const viewportTop = newScrollTop + topInset;
         const viewportBottom = newScrollTop + container.clientHeight - bottomInset;
 
@@ -913,22 +890,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   return (
     <div
-      className="w-full flex flex-col h-full relative transition-all duration-300"
+      className="library-view w-full flex flex-col h-full relative transition-all duration-300"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Header band: toolbar (+ default column header). In default mode with glass UI
-          it becomes a frosted absolute overlay (list scrolls under it, height measured
-          via ResizeObserver → topInset). In category mode it stays in-flow but frosted. */}
-      <div
-        ref={headerBandRef}
-        className={
-          glassUI
-            ? 'flex-shrink-0 relative z-30'
-            : 'flex-shrink-0'
-        }
-      >
+      {/* Toolbar and column labels stay in flow above the scrolling rows. */}
+      <div className="flex-shrink-0">
       <LibraryToolbar
         dataSource={dataSource}
         colors={colors}
@@ -959,7 +927,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {filterType === 'default' && (
         <div className="flex-shrink-0">
           <div
-            className={`grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b grid-cols-[48px_1fr_1fr_120px] select-none ${glassUI ? 'mb-0' : 'mb-2'}`}
+            className="library-track-grid grid gap-4 px-4 py-2 mb-2 text-xs font-bold uppercase tracking-widest border-b select-none"
             style={{ color: colors.textMuted, borderColor: colors.borderLight }}
             onDoubleClick={handleScrollToTop}
           >
@@ -975,7 +943,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             ) : (
               <span>#</span>
             )}
-            <span>{t('library.titleCol')}</span><span className="pl-8">{t('library.albumCol')}</span>
+            <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
             {isEditMode ? (
               <span className="text-right">{t('library.actionCol')}</span>
             ) : (
@@ -989,7 +957,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
         <div
-          className={glassUI ? 'absolute inset-0 overflow-hidden relative' : 'flex-1 relative min-h-0 overflow-hidden'}
+          className="library-track-scroll-shell flex-1 relative min-h-0 overflow-hidden"
           style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
         >
           {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
@@ -1024,7 +992,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
           <div
             ref={scrollContainerRef}
-            className="h-full min-h-0 overflow-y-auto no-scrollbar"
+            className="library-track-scroll no-scrollbar h-full min-h-0 overflow-y-auto"
             onScroll={handleScroll}
           >
             {filteredTracks.length > 0 ? (
@@ -1088,7 +1056,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all"
                       style={{
                         backgroundColor: dataSource === 'local' && importDisabled ? colors.backgroundCard : colors.primary,
-                        color: dataSource === 'local' && importDisabled ? colors.textMuted : '#fff',
+                        color: dataSource === 'local' && importDisabled
+                          ? colors.textMuted
+                          : dataSource === 'local'
+                            ? localImportForeground
+                            : '#fff',
                         borderRadius: 'var(--theme-control-radius)',
                         border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
                         cursor: dataSource === 'local' && importDisabled ? 'not-allowed' : 'pointer',
@@ -1119,6 +1091,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               </div>
             )}
           </div>
+          <LibraryOverlayScrollbar
+            scrollRef={scrollContainerRef}
+            contentHeight={totalHeight + bottomInset}
+            bottomInset={bottomInset}
+          />
         </div>
       ) : (
         <div className="flex-1 flex gap-4 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
@@ -1185,7 +1162,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           </div>
 
            {/* 右侧歌曲列表 */}
-           <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+           <div className="library-track-pane flex-1 flex flex-col min-w-0 relative overflow-hidden">
              {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
              {isDragging && (
                <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
@@ -1198,7 +1175,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              )}
              <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
                <div
-                 className="grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 grid-cols-[48px_1fr_1fr_120px] select-none"
+                 className="library-track-grid grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 select-none"
                  style={{ color: colors.textMuted, borderColor: colors.borderLight }}
                  onDoubleClick={handleScrollToTop}
                >
@@ -1214,7 +1191,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 ) : (
                   <span>#</span>
                 )}
-                 <span>{t('library.titleCol')}</span><span className="pl-8">{t('library.albumCol')}</span>
+                 <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
                 {isEditMode ? (
                   <span className="text-right">{t('library.actionCol')}</span>
                 ) : (
@@ -1222,7 +1199,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 )}
                </div>
              </div>
-             <div className="flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
+             <div className="library-track-scroll-shell flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
                {/* Sliding highlight overlay (outside scroll clipping) */}
                <div className="absolute inset-0 pointer-events-none">
                  {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
@@ -1245,7 +1222,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
               <div
                 ref={scrollContainerRef}
-                className="h-full min-h-0 overflow-y-auto no-scrollbar"
+                className="library-track-scroll no-scrollbar h-full min-h-0 overflow-y-auto"
                 onScroll={handleScroll}
               >
                  {visibleTracks.length > 0 ? (
@@ -1273,7 +1250,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                              const realIndex = displayIndexMap.get(track.id) ?? -1;
                              if (realIndex >= 0) onTrackSelect(realIndex);
                            }}
-                             className="grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px]"
+                             className="library-track-grid grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10"
                             style={{
                               ...animationStyle,
                               opacity: isUnavailable ? 0.4 : 1,
@@ -1317,7 +1294,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                <p className="text-xs opacity-50 truncate">{track.artist}</p>
                              </div>
                            </div>
-                           <div className="text-sm opacity-50 truncate pl-8">{track.album}</div>
+                           <div className="library-track-album text-sm opacity-50 truncate pl-8">{track.album}</div>
                            {isEditMode ? (
                              <div className="flex items-center justify-end gap-2">
                                <button
@@ -1359,6 +1336,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   </div>
                 )}
               </div>
+              <LibraryOverlayScrollbar
+                scrollRef={scrollContainerRef}
+                contentHeight={totalHeight + bottomInset}
+                bottomInset={bottomInset}
+              />
             </div>
           </div>
         </div>

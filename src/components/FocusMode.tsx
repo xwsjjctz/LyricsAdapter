@@ -33,6 +33,7 @@ const BACKDROP_SATURATION = 1.5;
 const BACKDROP_RESTING_BRIGHTNESS = 0.55;
 const BACKDROP_DIM_BRIGHTNESS = 0.3;
 const BACKDROP_TRANSITION_DURATION_MS = 1000;
+const CLOCK_RESYNC_THRESHOLD_SECONDS = 0.25;
 // Canvas2D blur samples transparent pixels outside its backing store. Prepare
 // an edge-extended source with enough filter padding, then crop the centre, so
 // an opaque cover remains opaque at every visible window edge.
@@ -242,13 +243,18 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
   }, [isVisible, isPlaying, audioRef, track?.id]);
 
-  // Browser fallback and paused seeks do not necessarily run the audio RAF.
-  useEffect(() => {
-    if (!audioRef?.current) {
+  // Browser fallback, paused seeks, and renderer restoration all need the
+  // shared clock. During normal playback the local RAF remains authoritative;
+  // only a meaningful drift triggers this pre-paint correction.
+  useLayoutEffect(() => {
+    if (!Number.isFinite(currentTime) || currentTime < 0) return;
+    const drift = Math.abs(realtimeCurrentTimeRef.current - currentTime);
+    if (!isPlaying || drift >= CLOCK_RESYNC_THRESHOLD_SECONDS) {
       realtimeCurrentTimeRef.current = currentTime;
+      lastTimeRef.current = currentTime;
       setRealtimeCurrentTime(currentTime);
     }
-  }, [audioRef, currentTime]);
+  }, [currentTime, isPlaying]);
 
   // A paused player has no moving clock: read its exact media time once during
   // render and stop both Focus RAF loops until playback resumes.
@@ -1235,11 +1241,11 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   if (prevProps.playbackMode !== nextProps.playbackMode) return false;
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
-  // For currentTime, we allow more frequent updates (0.5 second threshold)
-  // This keeps the lyrics scrolling smooth while avoiding excessive re-renders
+  // Keep the prop threshold aligned with the layout-effect drift correction;
+  // otherwise a 0.25–0.5s restoration drift could be filtered before paint.
   if (!nextProps.isPlaying && prevProps.currentTime !== nextProps.currentTime) return false;
   const timeDiff = Math.abs(prevProps.currentTime - nextProps.currentTime);
-  if (timeDiff > 0.5) return false;
+  if (timeDiff >= CLOCK_RESYNC_THRESHOLD_SECONDS) return false;
 
   // All props are effectively the same, skip re-render
   return true;

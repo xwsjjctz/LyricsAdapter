@@ -442,6 +442,102 @@ textarea.no-scrollbar::-webkit-scrollbar {
   display: none !important;
 }
 
+/* Library layout is container-driven because the resizable sidebar changes the
+   usable width independently of the app window. Header and rows share the same
+   grid class so responsive column changes can never drift out of alignment. */
+.library-view {
+  container-name: library-view;
+  container-type: inline-size;
+}
+
+/* Category layouts subtract the fixed artist/album rail. Reusing the same
+   container name makes their track grids respond to the actual right pane. */
+.library-track-pane {
+  container-name: library-view;
+  container-type: inline-size;
+}
+
+.library-track-grid {
+  grid-template-columns: 48px minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
+}
+
+.library-toolbar {
+  gap: 1rem;
+}
+
+.library-toolbar-leading,
+.library-toolbar-actions {
+  min-width: 0;
+}
+
+.global-search-box {
+  flex: 0 1 22.5rem;
+  width: clamp(12rem, 28vw, 22.5rem);
+  min-width: 0;
+  max-width: 100%;
+}
+
+@container library-view (max-width: 760px) {
+  .library-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .library-toolbar-leading,
+  .library-toolbar-actions {
+    width: 100%;
+  }
+
+  .library-toolbar-actions {
+    justify-content: flex-end;
+  }
+
+  .global-search-box {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .library-track-grid {
+    grid-template-columns: 40px minmax(0, 1fr) 72px;
+  }
+
+  .library-track-album {
+    display: none;
+  }
+}
+
+/* The native gutter stays hidden; a visual thumb overlays the list so header
+   and row columns retain identical usable width on every desktop platform. */
+.library-track-scroll {
+  scrollbar-width: none;
+}
+
+.library-overlay-scrollbar {
+  position: absolute;
+  z-index: 35;
+  top: 0;
+  /* List shells extend 24px with negative margins + padding. Pull the overlay
+     back to the actual scroll viewport edge so category panes do not clip it. */
+  right: 26px;
+  bottom: 0;
+  width: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.library-track-scroll-shell:hover > .library-overlay-scrollbar,
+.library-overlay-scrollbar.is-scrolling {
+  opacity: 1;
+}
+
+.library-overlay-scrollbar__thumb {
+  width: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-text-muted, rgba(255, 255, 255, 0.42)) 58%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-background-dark, #0b0d14) 30%, transparent);
+  will-change: transform;
+}
+
 /* Immersive scrollbar for the sidebar playlist window. Keep the track
    transparent so the sidebar surface remains visible behind the thumb. */
 .sidebar-playlist-scroll {

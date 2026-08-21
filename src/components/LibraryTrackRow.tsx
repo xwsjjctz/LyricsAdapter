@@ -86,7 +86,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         boxShadow: playingIndicator === 'inline' && isCurrentTrack ? 'var(--theme-elevated-shadow)' : undefined,
         zIndex: playingIndicator === 'inline' && isCurrentTrack ? 20 : undefined,
       }}
-      className={`grid gap-4 px-4 transition-all items-center relative z-10 grid-cols-[48px_1fr_1fr_120px] ${
+      className={`library-track-grid grid gap-4 px-4 transition-all items-center relative z-10 ${
         isDragged ? 'opacity-40' : canDrag ? 'cursor-move' : isEditMode || isUnavailable ? 'cursor-default' : 'cursor-pointer'
       }`}
       onMouseEnter={e => {
@@ -130,7 +130,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
         </div>
       </div>
-      <div className="text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
+      <div className="library-track-album text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
       {isEditMode ? (
         <div className="flex items-center justify-end gap-2">
           <button
