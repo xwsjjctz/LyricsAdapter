@@ -25,7 +25,7 @@ describe('ProviderLyricsCache', () => {
     await cache.getOrLoad('qq', 'a', loadA);
     await cache.getOrLoad('netease', 'b', loadB);
     await cache.getOrLoad('qq', 'a', loadA);
-    await cache.getOrLoad('soda', 'c', loadC);
+    await cache.getOrLoad('qq', 'c', loadC);
     await cache.getOrLoad('netease', 'b', loadB);
 
     expect(loadA).toHaveBeenCalledTimes(1);
@@ -109,13 +109,13 @@ describe('ProviderLyricsCache', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(lyrics('available later'));
 
-    await expect(cache.getOrLoad('soda', 'eventual', loader)).resolves.toBeNull();
+    await expect(cache.getOrLoad('netease', 'eventual', loader)).resolves.toBeNull();
     now += 59_999;
-    await expect(cache.getOrLoad('soda', 'eventual', loader)).resolves.toBeNull();
+    await expect(cache.getOrLoad('netease', 'eventual', loader)).resolves.toBeNull();
     expect(loader).toHaveBeenCalledTimes(1);
 
     now += 1;
-    await expect(cache.getOrLoad('soda', 'eventual', loader)).resolves.toEqual(lyrics('available later'));
+    await expect(cache.getOrLoad('netease', 'eventual', loader)).resolves.toEqual(lyrics('available later'));
     expect(loader).toHaveBeenCalledTimes(2);
   });
 

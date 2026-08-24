@@ -52,6 +52,14 @@ describe('SettingsManager persistence contract', () => {
     expect(settingsManager.getOnlineSource()).toBe('qq');
   });
 
+  it('falls back to QQ Music when a removed provider was stored', () => {
+    storageMocks.getItem.mockImplementation(key => key === 'la_online_source' ? 'soda' : null);
+
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+
+    expect(settingsManager.getOnlineSource()).toBe('qq');
+  });
+
   it('does not let an older failed write roll back a newer successful value', async () => {
     const older = deferred();
     const newer = deferred();
@@ -60,13 +68,13 @@ describe('SettingsManager persistence contract', () => {
       .mockImplementationOnce(() => newer.promise);
 
     const olderResult = settingsManager.setOnlineSource('netease');
-    const newerResult = settingsManager.setOnlineSource('soda');
+    const newerResult = settingsManager.setOnlineSource('qq');
     newer.resolve();
     await expect(newerResult).resolves.toBe(true);
     older.reject(new Error('older write failed'));
 
     await expect(olderResult).resolves.toBe(false);
-    expect(settingsManager.getOnlineSource()).toBe('soda');
+    expect(settingsManager.getOnlineSource()).toBe('qq');
   });
 
   it('lets save flows await download-path durability', async () => {

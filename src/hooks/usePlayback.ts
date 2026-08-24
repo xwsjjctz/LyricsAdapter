@@ -478,11 +478,10 @@ export function usePlayback({
       return;
     }
 
-    // Online streaming (QQ / NetEase / Soda) via the stream:// protocol proxy.
+    // Online streaming (QQ / NetEase) via the stream:// protocol proxy.
     if (
       currentTrack.source === 'qq'
       || currentTrack.source === 'netease'
-      || currentTrack.source === 'soda'
     ) {
       const capturedTrackId = currentTrack.id;
       const capturedAudio = audioRef.current;

@@ -49,7 +49,7 @@ function snapToQqCdnSize(target: number): number {
 }
 
 /**
- * 请求适合显示尺寸的封面。cover:// 追加 ?size=N；网易、QQ、汽水的
+ * 请求适合显示尺寸的封面。cover:// 追加 ?size=N；网易、QQ 的
  * 已知 CDN URL 改写为其原生缩略图格式；未知远程/blob/data URL 原样返回。
  *
  * size 选择参考（DPR=2 Retina，含 hover scale 余量）：
@@ -100,11 +100,6 @@ export function toCoverThumb(url: string | undefined, size: number): string | un
         `$1${qqSize}x${qqSize}$2`,
       );
     }
-    // Soda image CDN suffix used by sodaMusicApi: ~c5_375x375.jpg.
-    resized = resized.replace(
-      /~c5_\d+x\d+(?=\.(?:jpe?g|png|webp))/i,
-      `~c5_${targetSize}x${targetSize}`,
-    );
     return resized === normalized ? url : resized;
   } catch {
     return url;

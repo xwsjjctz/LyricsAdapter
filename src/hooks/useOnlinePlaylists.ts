@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { cookieManager, neteaseCookieManager, sodaCookieManager } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
-import { sodaMusicApi } from '../services/sodaMusicApi';
 import { logger } from '../services/logger';
 import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
@@ -23,9 +22,21 @@ import type { PlaylistInfo } from '../services/onlineMusicProvider';
 export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: boolean } {
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cookieRevision, setCookieRevision] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setCookieRevision(revision => revision + 1);
+    const unsubscribeQQ = cookieManager.subscribe(refresh);
+    const unsubscribeNetEase = neteaseCookieManager.subscribe(refresh);
+    return () => {
+      unsubscribeQQ();
+      unsubscribeNetEase();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
 
     // Phase 1: show cached playlists only for sources that currently have a
     // cookie. This prevents an old cache from making logged-out sources look
@@ -34,14 +45,12 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
       await Promise.all([
         cookieManager.ensureLoaded(),
         neteaseCookieManager.ensureLoaded(),
-        sodaCookieManager.ensureLoaded(),
       ]);
       if (cancelled) return;
 
       const authenticatedSources = new Set<PlaylistInfo['source']>();
       if (cookieManager.hasCookie()) authenticatedSources.add('qq');
       if (neteaseCookieManager.hasCookie()) authenticatedSources.add('netease');
-      if (sodaCookieManager.hasCookie()) authenticatedSources.add('soda');
 
       const cached = await loadPlaylistCache();
       if (cancelled || !cached) return;
@@ -51,9 +60,6 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
       }
       if (cached.netease && authenticatedSources.has('netease')) {
         fromCache.push(...cached.netease.map(p => ({ ...p, source: 'netease' as const })));
-      }
-      if (cached.soda && authenticatedSources.has('soda')) {
-        fromCache.push(...cached.soda.map(p => ({ ...p, source: 'soda' as const })));
       }
       if (fromCache.length > 0) {
         setPlaylists(fromCache);
@@ -95,21 +101,6 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
         logger.warn('[useOnlinePlaylists] NetEase playlists failed:', e);
       }
 
-      // Soda Music uses a manually supplied Cookie; upstream QR login is not
-      // stable enough to expose here.
-      try {
-        await sodaCookieManager.ensureLoaded();
-        if (sodaCookieManager.hasCookie()) {
-          const status = await sodaCookieManager.validateCookie();
-          if (status.valid) {
-            const soda = await sodaMusicApi.getPlaylists();
-            results.push(...soda.map(p => ({ ...p, source: 'soda' as const })));
-          }
-        }
-      } catch (e) {
-        logger.warn('[useOnlinePlaylists] Soda playlists failed:', e);
-      }
-
       if (!cancelled) {
         setPlaylists(results);
         setLoading(false);
@@ -117,11 +108,9 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
         // Update cache with fresh data
         const qqResults = results.filter(p => p.source === 'qq');
         const neteaseResults = results.filter(p => p.source === 'netease');
-        const sodaResults = results.filter(p => p.source === 'soda');
         savePlaylistCache(
           qqResults.length > 0 ? qqResults : undefined,
           neteaseResults.length > 0 ? neteaseResults : undefined,
-          sodaResults.length > 0 ? sodaResults : undefined,
         );
       }
     };
@@ -131,7 +120,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cookieRevision]);
 
   return { playlists, loading };
 }

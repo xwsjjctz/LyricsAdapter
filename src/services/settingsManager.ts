@@ -69,7 +69,7 @@ class SettingsManager {
       this.qqMusicEnabled = appStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
 
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
-      this.onlineSource = storedSource === 'netease' || storedSource === 'soda' ? storedSource : 'qq';
+      this.onlineSource = storedSource === 'netease' ? storedSource : 'qq';
 
       this.glassUI = appStorage.getItem(GLASS_UI_KEY) === 'true';
 
@@ -209,7 +209,7 @@ class SettingsManager {
     return persisted;
   }
 
-  // --- Online Source (QQ Music / NetEase Cloud Music / Soda Music) ---
+  // --- Online Source (QQ Music / NetEase Cloud Music) ---
 
   getOnlineSource(): OnlineSource {
     return this.onlineSource;

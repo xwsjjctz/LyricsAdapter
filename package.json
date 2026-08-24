@@ -18,6 +18,7 @@
     "electron:build:win": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --x64",
     "electron:build:win:arm64": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --win --arm64",
     "electron:build:mac": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --mac",
+    "electron:build:mac:adhoc": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_OPTIONS=--no-deprecation electron-builder --mac --dir -c.mac.identity=-",
     "electron:build:mac:dev": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_OPTIONS=--no-deprecation electron-builder --mac --dir",
     "electron:build:linux": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder --linux",
     "test": "vitest run",
@@ -25,6 +26,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && playwright test --config=test/playwright.electron.config.ts",
     "test:e2e:run": "playwright test --config=test/playwright.electron.config.ts",
+    "test:memory": "npm run build && cross-env MEMORY_BENCHMARK=1 playwright test --config=test/playwright.electron.config.ts electron.memory.spec.ts",
+    "test:memory:run": "cross-env MEMORY_BENCHMARK=1 playwright test --config=test/playwright.electron.config.ts electron.memory.spec.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
     "check": "npm run typecheck && npm run typecheck:e2e && npm test && npm run build"
@@ -83,6 +86,10 @@
       "dist-electron/**/*"
     ],
     "extraResources": [
+      {
+        "from": "app-icon.png",
+        "to": "app-icon.png"
+      },
       {
         "from": "dist",
         "to": "dist",

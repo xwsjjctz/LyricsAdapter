@@ -12,6 +12,7 @@ import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
 import FocusLyricRow from './focus-mode/FocusLyricRow';
+import { useFocusModeScale } from './focus-mode/focusModeScale';
 
 // FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
 const FOCUS_MODE_COLORS = {
@@ -170,6 +171,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
+  const focusScale = useFocusModeScale();
+  const effectiveLyricsFontSize = Math.round(lyricsFontSize * focusScale * 100) / 100;
+  const effectiveLyricLineSpacing = Math.round(lyricLineSpacing * focusScale * 100) / 100;
+  const hasScaledLayout = focusScale > 1;
   const bgBlurTransRef = useRef(bgBlurTrans);
   const bgBlurRadiusRef = useRef(bgBlurRadius);
 
@@ -538,7 +543,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const lineElements = Array.from(lyricList.children) as HTMLElement[];
     if (lineElements.length === 0) return { min: -Infinity, max: Infinity };
 
-    const GAP = lyricLineSpacing;
+    const GAP = effectiveLyricLineSpacing;
     
     // Calculate total content height
     let totalContentHeight = 0;
@@ -560,7 +565,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const maxOffset = containerHeight * 0.2 - lastLineHeight / 2;
 
     return { min: minOffset, max: maxOffset };
-  }, [lyricLineSpacing]);
+  }, [effectiveLyricLineSpacing]);
 
   // Handle wheel scroll - manual scrolling with momentum
   // Using native event listener with passive: false to allow preventDefault
@@ -719,7 +724,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // Recenter the active lyric after its size or spacing changes.
   useEffect(() => {
     preScrolledIndexRef.current = -1;
-  }, [lyricsFontSize, lyricLineSpacing, track?.id]);
+  }, [effectiveLyricsFontSize, effectiveLyricLineSpacing, track?.id]);
   
   // Start the line transition before its first word begins to fill.
   const PRE_SCROLL_TIME = 0.2;
@@ -771,7 +776,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     if (!lineElements[lyricScrollTargetIndex]) return;
 
     // Calculate cumulative offset to the target line
-    const GAP = lyricLineSpacing;
+    const GAP = effectiveLyricLineSpacing;
     let offsetToTarget = 0;
     for (let i = 0; i < lyricScrollTargetIndex; i++) {
       offsetToTarget += lineElements[i]!.offsetHeight + GAP;
@@ -819,7 +824,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
 
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [isVisible, isUserScrolling, track?.syncedLyrics, lyricScrollTargetIndex, lyricsFontSize, lyricLineSpacing, applyLyricOffset]);
+  }, [isVisible, isUserScrolling, track?.syncedLyrics, lyricScrollTargetIndex, effectiveLyricsFontSize, effectiveLyricLineSpacing, applyLyricOffset]);
 
   // Manual scroll mode: directly apply offset without auto-position
   useEffect(() => {
@@ -1128,18 +1133,31 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
       <div className={`focus-mode-content relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
-        <div className="shrink-0 pt-12" />
+        <div className="shrink-0 pt-12" style={hasScaledLayout ? { paddingTop: `${48 * focusScale}px` } : undefined} />
 
         {/* Content Section */}
-        <main className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6">
+        <main
+          className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
+          style={hasScaledLayout ? {
+            marginBottom: `${96 * focusScale}px`,
+            maxWidth: `${1024 * focusScale}px`,
+            paddingRight: `${32 * focusScale}px`,
+            gap: `${128 * focusScale}px`,
+            transform: `translateX(${24 * focusScale}px)`,
+          } : undefined}
+        >
 
           {/* Cover & Title */}
-          <div className="flex-none flex flex-col items-center justify-center w-auto p-6">
-            <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} />
+          <div
+            className="flex-none flex flex-col items-center justify-center w-auto p-6"
+            style={hasScaledLayout ? { padding: `${24 * focusScale}px` } : undefined}
+          >
+            <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} scale={focusScale} />
             <FocusTrackMeta
               track={track}
               textPrimary={focusColors.textPrimary}
               textMuted={focusColors.textMuted}
+              scale={focusScale}
             />
           </div>
 
@@ -1152,14 +1170,26 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseLeave}
-              style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
+              style={{
+                cursor: isDraggingRef.current ? 'grabbing' : 'grab',
+                ...(hasScaledLayout ? {
+                  paddingLeft: `${32 * focusScale}px`,
+                  paddingRight: `${32 * focusScale}px`,
+                } : {}),
+              }}
             >
               <div
                 ref={lyricListRef}
                 className="flex flex-col py-36 px-8 will-change-transform"
                 style={{
                   transform: 'translateY(0px)',
-                  gap: `${lyricLineSpacing}px`,
+                  gap: `${effectiveLyricLineSpacing}px`,
+                  ...(hasScaledLayout ? {
+                    paddingTop: `${144 * focusScale}px`,
+                    paddingBottom: `${144 * focusScale}px`,
+                    paddingLeft: `${32 * focusScale}px`,
+                    paddingRight: `${32 * focusScale}px`,
+                  } : {}),
                 }}
               >
                 {lyricsLines.map((lyric, idx) => {
@@ -1175,7 +1205,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
                       shouldAnimate={isActive && isVisible && isPlaying}
                       currentTimeRef={realtimeCurrentTimeRef}
                       pausedTime={!isPlaying && isActive ? activeCurrentTime : undefined}
-                      fontSize={lyricsFontSize}
+                      fontSize={effectiveLyricsFontSize}
                       inactiveBlur={inactiveLyricBlur}
                       textPrimary={focusColors.textPrimary}
                       textSecondary={focusColors.textSecondary}
@@ -1210,6 +1240,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             onMouseEnter={handlePlayerMouseEnter}
             onMouseLeave={handlePlayerMouseLeave}
             glassMaterial={useDefaultThemeControlGlass}
+            scale={focusScale}
           />
         </div>
       </div>

@@ -12,6 +12,7 @@ interface CookieStatus {
 
 /** Per-source cookie validation strategy. */
 type CookieValidator = (cookie: string) => Promise<CookieStatus>;
+type CookieListener = () => void;
 
 interface CookieStoreOptions {
   storageKey: string;
@@ -30,6 +31,7 @@ export class CookieStore {
   private cookie: string = '';
   private lastCheckTime: number = 0;
   private initPromise: Promise<void>;
+  private listeners = new Set<CookieListener>();
 
   constructor(private readonly opts: CookieStoreOptions) {
     this.initPromise = this.loadFromStorage();
@@ -102,6 +104,7 @@ export class CookieStore {
     await this.saveToStorage(cookie, lastCheckTime);
     this.cookie = cookie;
     this.lastCheckTime = lastCheckTime;
+    this.notify();
     logger.debug(`[CookieManager:${this.opts.scope}] Cookie saved`);
   }
 
@@ -128,6 +131,7 @@ export class CookieStore {
       await this.saveToStorage('', 0);
       this.cookie = '';
       this.lastCheckTime = 0;
+      this.notify();
     } catch (error) {
       logger.error(`[CookieManager:${this.opts.scope}] Failed to clear storage:`, error);
       throw error;
@@ -172,6 +176,17 @@ export class CookieStore {
     await this.initPromise;
   }
 
+  subscribe(listener: CookieListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach(listener => listener());
+  }
+
   /**
    * 重新从 appStorage 加载 cookie。
    *
@@ -182,7 +197,7 @@ export class CookieStore {
    * 完成后调用本方法重新加载，使登录态恢复生效。
    */
   reload(): void {
-    this.initPromise = this.loadFromStorage();
+    this.initPromise = this.loadFromStorage().then(() => this.notify());
   }
 }
 
@@ -240,23 +255,6 @@ const validateNetEaseCookie: CookieValidator = async (cookie: string): Promise<C
   return { valid: true };
 };
 
-/** Soda Music cookie validator — the desktop-only `me` endpoint requires an authenticated session. */
-const validateSodaCookie: CookieValidator = async (cookie: string): Promise<CookieStatus> => {
-  const desktopAPI = getDesktopAPI();
-  if (!desktopAPI?.sodaRequest) {
-    return { valid: false, message: '汽水音乐仅在桌面端可用' };
-  }
-  const result = await desktopAPI.sodaRequest('me', {}, cookie);
-  if (!result.success) {
-    return { valid: false, message: result.error || '验证失败' };
-  }
-  const data = result.data as { my_info?: { id?: string } } | undefined;
-  if (!data?.my_info?.id) {
-    return { valid: false, message: 'Cookie 无效或已过期' };
-  }
-  return { valid: true };
-};
-
 /** QQ Music cookie store (original singleton name preserved for back-compat). */
 export const cookieManager = new CookieStore({
   storageKey: 'qq_music_cookie',
@@ -273,31 +271,22 @@ export const neteaseCookieManager = new CookieStore({
   validate: validateNetEaseCookie,
 });
 
-/** Soda Music requires a manually supplied cookie; upstream QR login is not stable. */
-export const sodaCookieManager = new CookieStore({
-  storageKey: 'soda_cookie',
-  checkTimeKey: 'soda_cookie_last_check',
-  scope: 'SodaMusic',
-  validate: validateSodaCookie,
-});
-
 /**
- * Push the current QQ, NetEase and Soda cookies from the renderer stores into
- * the main-process `stream://` proxy. Ensures both stores are loaded first.
+ * Push the current QQ and NetEase cookies from the renderer stores into the
+ * main-process `stream://` proxy. Ensures both stores are loaded first.
  *
  * Single source of truth for the cookie-sync side effect that was previously
- * duplicated in AppWorkspace (startup sync), SettingsView and
- * useOnlineMusicSettings (post-login push). Callers may pass a `source` to
+ * duplicated in AppWorkspace (startup sync) and the online-music settings
+ * flow (post-login push). Callers may pass a `source` to
  * sync only one provider (used after a single-provider login); omit it to sync
  * both.
  */
-export async function syncOnlineCookiesToMain(source?: 'qq' | 'netease' | 'soda'): Promise<void> {
+export async function syncOnlineCookiesToMain(source?: 'qq' | 'netease'): Promise<void> {
   const api = await getDesktopAPIAsync();
   if (!api?.setOnlineCookie) return;
   await Promise.all([
     (source === undefined || source === 'qq') ? cookieManager.ensureLoaded() : Promise.resolve(),
     (source === undefined || source === 'netease') ? neteaseCookieManager.ensureLoaded() : Promise.resolve(),
-    (source === undefined || source === 'soda') ? sodaCookieManager.ensureLoaded() : Promise.resolve(),
   ]);
   const updates: Promise<void>[] = [];
   if (source === undefined || source === 'qq') {
@@ -305,9 +294,6 @@ export async function syncOnlineCookiesToMain(source?: 'qq' | 'netease' | 'soda'
   }
   if (source === undefined || source === 'netease') {
     updates.push(api.setOnlineCookie('netease', neteaseCookieManager.getCookie()));
-  }
-  if (source === undefined || source === 'soda') {
-    updates.push(api.setOnlineCookie('soda', sodaCookieManager.getCookie()));
   }
   await Promise.all(updates);
 }

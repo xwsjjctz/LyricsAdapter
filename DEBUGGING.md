@@ -17,6 +17,7 @@ npm run dev              # 仅浏览器渲染层，不启动 Electron
 npm run electron:dev     # 普通 Electron 开发，不开放调试端口
 npm run electron:debug   # Electron + CDP 9222 + Main Inspector 9229
 npm run test:e2e         # 构建并运行真实 Electron 冒烟测试
+npm run test:memory      # 构建并采集空闲/FocusMode 跨平台内存报告
 npm run check            # 应用/E2E 类型检查 + 单元测试 + 生产构建
 ```
 
@@ -74,6 +75,32 @@ Vite 仅监听本机 `127.0.0.1`，端口固定为 3000。该端口被占用时�
 - 将 `HOME`、`USERPROFILE`、Electron `userData` 和 XDG 目录全部隔离到临时目录。
 
 测试不会读取或写入开发者真实的 `~/.la`、音乐库或设置。它是快速集成冒烟测试，不等同于最终 ASAR/签名安装包测试。
+
+## Windows / macOS 内存基准
+
+在需要对比的每台机器上使用相同提交执行：
+
+```bash
+npm run test:memory
+```
+
+测试使用固定的 1200×800 Electron 窗口和隔离数据目录，先采集空闲基线，再重复三轮进入、退出 FocusMode。每个阶段默认等待 2 秒并取三次采样的中位数。终端会打印阶段汇总，完整 JSON 写入 `test-results/memory/`，其中包括：
+
+- Electron 的 Browser、Tab、GPU、Utility 等逐进程工作集；
+- Windows 可用的逐进程 `privateBytes`；
+- 主进程私有内存、Renderer JS Heap、DOM/图片/Canvas 数量；
+- FocusMode 相对空闲基线的增量，以及退出后的保留量；
+- OS、架构、Electron/Chromium/Node 版本、CPU 和总物理内存。
+
+这是趋势基准，不设置固定 MB 通过线。Windows 优先观察 `privateBytes`，其他平台观察工作集；由于 macOS 内存压缩和平台进程统计口径不同，不应把任务管理器与活动监视器的总数直接作为回归结论。判断泄漏时重点查看多轮 `post-focus-*` 是否持续阶梯式增长。
+
+可以通过环境变量增加稳定时间或轮数，例如：
+
+```bash
+npx cross-env MEMORY_BENCHMARK_CYCLES=8 MEMORY_BENCHMARK_SETTLE_MS=5000 npm run test:memory
+```
+
+构建产物没有变化时可执行 `npm run test:memory:run` 跳过重新构建。
 
 ## 常见问题
 

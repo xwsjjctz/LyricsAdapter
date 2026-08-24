@@ -25,7 +25,6 @@ const SENSITIVE_KEYS = [
   'webdav-config',
   'qq_music_cookie',
   'netease_cookie',
-  'soda_cookie',
 ] as const;
 
 function makeDesktopSettingsApi(initial: Record<string, string> = {}) {
@@ -51,7 +50,6 @@ describe('appStorage persistence boundary', () => {
       'webdav-config': '{"password":"webdav-secret"}',
       qq_music_cookie: 'qq-secret',
       netease_cookie: 'netease-secret',
-      soda_cookie: 'soda-secret',
     };
     const api = makeDesktopSettingsApi(mainSettings);
 
@@ -92,6 +90,8 @@ describe('appStorage persistence boundary', () => {
     localStorage.setItem('app-theme', 'default-light');
     localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
     localStorage.setItem('la_new_ux_enabled', 'true');
+    localStorage.setItem('soda_cookie', 'retired-secret');
+    localStorage.setItem('soda_cookie_last_check', '123');
     localStorage.setItem('unknown-stale-key', 'stale');
     mocks.isDesktop.mockReturnValue(true);
     mocks.getDesktopAPIAsync.mockResolvedValue(api);
@@ -101,6 +101,8 @@ describe('appStorage persistence boundary', () => {
     expect(appStorage.getItem('app-theme')).toBe('default-light');
     expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
     expect(appStorage.getItem('la_new_ux_enabled')).toBeNull();
+    expect(appStorage.getItem('soda_cookie')).toBeNull();
+    expect(appStorage.getItem('soda_cookie_last_check')).toBeNull();
     expect(appStorage.getItem('unknown-stale-key')).toBeNull();
     expect(localStorage.getItem('app-theme')).toBeNull();
     expect(localStorage.getItem('webdav-config')).toBeNull();
@@ -525,11 +527,11 @@ describe('appStorage persistence boundary', () => {
     await appStorage.setItem('webdav-config', '{"password":"browser-secret"}');
     expect(localStorage.getItem('webdav-config')).toBe('{"password":"browser-secret"}');
 
-    await appStorage.replaceAll({ soda_cookie: 'browser-soda-cookie' });
+    await appStorage.replaceAll({ netease_cookie: 'browser-netease-cookie' });
     expect(localStorage.getItem('app-language')).toBeNull();
     expect(localStorage.getItem('qq_music_cookie')).toBeNull();
     expect(localStorage.getItem('webdav-config')).toBeNull();
-    expect(localStorage.getItem('soda_cookie')).toBe('browser-soda-cookie');
+    expect(localStorage.getItem('netease_cookie')).toBe('browser-netease-cookie');
     expect(mocks.getDesktopAPIAsync).not.toHaveBeenCalled();
   });
 });

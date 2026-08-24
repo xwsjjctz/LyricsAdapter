@@ -24,6 +24,7 @@ interface FocusControlsProps {
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   glassMaterial?: boolean;
+  scale?: number;
 }
 
 const formatTime = (seconds: number): string => {
@@ -59,6 +60,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   onMouseEnter,
   onMouseLeave,
   glassMaterial = false,
+  scale = 1,
 }) => {
   const panelStyle: React.CSSProperties = glassMaterial
     ? {
@@ -77,15 +79,25 @@ const FocusControls: React.FC<FocusControlsProps> = ({
         backgroundColor: colors.backgroundDark,
         boxShadow: 'var(--theme-surface-shadow)',
       };
+  const scaledPanelStyle: React.CSSProperties = scale > 1
+    ? {
+        ...panelStyle,
+        transform: `scale(${scale})`,
+        transformOrigin: 'center bottom',
+      }
+    : panelStyle;
 
   return (
-  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5">
+  <div
+    className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-5"
+    style={scale > 1 ? { bottom: `${24 * scale}px` } : undefined}
+  >
     <div
       ref={playerRef}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className="glass p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
-      style={panelStyle}
+      style={scaledPanelStyle}
     >
       <div className="w-full flex items-center gap-3">
         <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>

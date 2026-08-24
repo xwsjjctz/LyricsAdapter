@@ -41,7 +41,7 @@
 
 ### 🌐 在线与云端功能
 
-- **多在线音源** - QQ 音乐、网易云音乐、汽水音乐三大音源，可在设置中切换
+- **多在线音源** - QQ 音乐与网易云音乐，可在设置中切换
 - **扫码登录** - QQ 音乐与网易云音乐支持二维码扫码登录，解锁高音质与歌单
 - **在线搜索与下载** - 搜索、试听、下载（128kbps / 320kbps / FLAC），自动写入标签与歌词
 - **歌单支持** - 浏览与播放第三方歌单，独立播放上下文
@@ -171,7 +171,7 @@ npm run electron:build
 
 #### 配置音源
 
-1. 进入"设置"视图，在"音源"部分选择 QQ 音乐 / 网易云音乐 / 汽水音乐
+1. 进入"设置"视图，在"音源"部分选择 QQ 音乐 / 网易云音乐
 2. 需要高音质或歌单功能时，在设置中扫码登录对应平台
 
 #### 搜索与下载
@@ -329,7 +329,7 @@ LyricsAdapter/
 │   ├── stores/              # hook 聚合层（library / player / import / ui）
 │   ├── hooks/               # 业务 hooks（播放、导入、WebDAV、快捷键…）
 │   ├── services/            # desktopAdapter、libraryStorage、metadataService、
-│   │                        # qqMusicApi / neteaseMusicApi / sodaMusicApi、
+│   │                        # qqMusicApi / neteaseMusicApi、
 │   │                        # onlineMusicProvider、webdavClient、主题、i18n…
 │   ├── domain/              # 纯领域规则
 │   ├── repositories/        # 数据访问封装
@@ -374,7 +374,7 @@ LyricsAdapter/
 按 Track.source 选择播放 URL：
   - local   → audio://<路径>（主进程流式 Range 响应）
   - webdav  → 主进程代理的 HTTP Range 请求
-  - qq/netease/soda → stream://（补 cookie、解析 CDN、转发 Range）
+  - qq/netease → stream://（补 cookie、解析 CDN、转发 Range）
     ↓
 HTML <audio> 播放，进度/音量/模式同步回对应 slot
     ↓
@@ -386,7 +386,7 @@ HTML <audio> 播放，进度/音量/模式同步回对应 slot
 ```
 用户搜索/打开歌单（BrowseView）
     ↓
-onlineMusicProvider（qq / netease / soda 归一为 OnlineSong）
+onlineMusicProvider（qq / netease 归一为 OnlineSong）
     ↓
 播放 → stream:// 流式试听
 下载 → downloadAndSave + writeAudioMetadata（写入标签/封面/QRC 歌词）

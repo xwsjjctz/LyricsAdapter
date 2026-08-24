@@ -11,7 +11,7 @@ import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 import { appStorage } from '../services/appStorage';
 import { webdavClient } from '../services/webdavClient';
 import { settingsManager } from '../services/settingsManager';
-import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
 import type { UserDataSnapshot } from '../types/typedIpc';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
@@ -197,7 +197,9 @@ export function useLibraryLoad({
 
     let restoredOnlineTracks: Track[] = [];
     if (libraryData.onlineSongs && libraryData.onlineSongs.length > 0) {
-      restoredOnlineTracks = libraryData.onlineSongs.map((song: any) => ({
+      restoredOnlineTracks = libraryData.onlineSongs
+        .filter((song: any) => song.source === 'qq' || song.source === 'netease')
+        .map((song: any) => ({
         id: song.id,
         title: song.title || 'Unknown',
         artist: song.artist || 'Unknown Artist',
@@ -218,7 +220,9 @@ export function useLibraryLoad({
 
     let restoredPlaylistTracks: Track[] = [];
     if (libraryData.playlistSongs && libraryData.playlistSongs.length > 0) {
-      restoredPlaylistTracks = libraryData.playlistSongs.map((song: any) => ({
+      restoredPlaylistTracks = libraryData.playlistSongs
+        .filter((song: any) => song.source === 'qq' || song.source === 'netease')
+        .map((song: any) => ({
         id: song.id,
         title: song.title || 'Unknown',
         artist: song.artist || 'Unknown Artist',
@@ -602,7 +606,6 @@ export function useLibraryLoad({
               // 后再把 cookie 同步到主进程 stream:// 代理。
               cookieManager.reload();
               neteaseCookieManager.reload();
-              sodaCookieManager.reload();
               void syncOnlineCookiesToMain();
             } catch (e) {
               logger.warn('[LibraryLoad] Failed to notify settings consumers to reload:', e);

@@ -12,7 +12,7 @@ beforeEach(() => {
 
 describe('notify', () => {
   it('should use Electron API when available', async () => {
-    const showNotification = vi.fn();
+    const showNotification = vi.fn().mockResolvedValue({ ok: true });
     (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue({
       showNotification,
     });
@@ -22,13 +22,41 @@ describe('notify', () => {
   });
 
   it('should pass options to Electron notification', async () => {
-    const showNotification = vi.fn();
+    const showNotification = vi.fn().mockResolvedValue({ ok: true });
     (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue({
       showNotification,
     });
 
     await notify('Title', 'Body', { silent: true });
     expect(showNotification).toHaveBeenCalledWith('Title', 'Body', { silent: true });
+  });
+
+  it('should forward artwork candidates to Electron', async () => {
+    const showNotification = vi.fn().mockResolvedValue({ ok: true });
+    (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue({ showNotification });
+
+    await notify('Title', 'Body', { artworkUrls: ['cover://first.jpg', 'cover://second.jpg'] });
+
+    expect(showNotification).toHaveBeenCalledWith('Title', 'Body', {
+      artworkUrls: ['cover://first.jpg', 'cover://second.jpg'],
+    });
+  });
+
+  it('should fall back to Web Notification when the main process rejects delivery', async () => {
+    const showNotification = vi.fn().mockResolvedValue({ ok: false, reason: 'unsupported' });
+    (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue({ showNotification });
+    const NotificationMock = vi.fn().mockImplementation(() => ({}));
+    (NotificationMock as any).permission = 'granted';
+    const origNotification = globalThis.Notification;
+    (globalThis as any).Notification = NotificationMock;
+
+    await notify('Fallback', 'Body', { artworkUrls: ['cover://first.jpg'] });
+
+    expect(NotificationMock).toHaveBeenCalledWith('Fallback', {
+      body: 'Body',
+      icon: 'cover://first.jpg',
+    });
+    (globalThis as any).Notification = origNotification;
   });
 
   it('should create Web Notification when no Electron API', async () => {

@@ -66,7 +66,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
       <button
         onClick={onImportClick}
         disabled={importDisabled}
-        className="w-10 h-10 flex items-center justify-center transition-colors"
+        className="w-10 h-10 shrink-0 flex items-center justify-center transition-colors"
         style={{
           borderRadius: 'var(--theme-control-radius)',
           color: importDisabled
@@ -128,7 +128,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             <button
               onClick={onRefreshCloud}
               disabled={isRefreshing}
-              className="w-10 h-10 flex items-center justify-center"
+              className="w-10 h-10 shrink-0 flex items-center justify-center"
               style={{
                 borderRadius: 'var(--theme-control-radius)',
                 color: colors.textSecondary,
@@ -156,7 +156,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         ) : (
           /* Local：编辑按钮 + 下拉删除菜单 */
           <div
-            className="relative"
+            className="relative shrink-0"
             onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
             onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
           >

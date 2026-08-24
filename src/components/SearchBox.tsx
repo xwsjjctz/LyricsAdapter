@@ -1,26 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { match } from 'pinyin-pro';
-import { Track } from '../types';
+import { useTranslation } from 'react-i18next';
+import { cookieManager } from '../services/cookieManager';
+import { i18n } from '../services/i18n';
+import { logger } from '../services/logger';
+import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { type OnlineSong } from '../services/onlineMusicProvider';
 import { qqMusicApi } from '../services/qqMusicApi';
-import { neteaseMusicApi } from '../services/neteaseMusicApi';
-import { cookieManager } from '../services/cookieManager';
-import { useTranslation } from 'react-i18next';
-import { i18n } from '../services/i18n';
-import { themeManager } from '../services/themeManager';
 import { settingsManager } from '../services/settingsManager';
-import { ThemeConfig } from '../types/theme';
-import { logger } from '../services/logger';
-import TrackCover from './TrackCover';
+import { themeManager } from '../services/themeManager';
+import type { Track } from '../types';
+import type { ThemeConfig } from '../types/theme';
+import { OnlineSearchCard, SearchSectionLabel, TrackSearchCard } from './search/SearchResultCards';
 
 const ONLINE_SEARCH_DEBOUNCE_MS = 500;
 const MAX_RESULTS = 8;
-
-const qualityOptions = [
-  { value: '128' as const, label: '128kbps' },
-  { value: '320' as const, label: '320kbps' },
-  { value: 'flac' as const, label: 'FLAC' },
-];
 
 function normalizeSearchText(value: string): string {
   return value
@@ -35,9 +29,7 @@ function trackMatchesSearch(track: Track, query: string): boolean {
   if (!trimmedQuery) return false;
 
   const searchText = [track.title, track.artist, track.album, track.fileName].filter(Boolean).join(' ');
-  if (normalizeSearchText(searchText).includes(normalizeSearchText(trimmedQuery))) {
-    return true;
-  }
+  if (normalizeSearchText(searchText).includes(normalizeSearchText(trimmedQuery))) return true;
 
   return match(searchText, trimmedQuery, {
     insensitive: true,
@@ -70,378 +62,253 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [onlineResults, setOnlineResults] = useState<{ source: 'qq' | 'netease'; song: OnlineSong }[]>([]);
-  const [qqLoading, setQqLoading] = useState(false);
+  const [onlineLoading, setOnlineLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [openQualityId, setOpenQualityId] = useState<string | null>(null);
   const [openUploadQualityId, setOpenUploadQualityId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
-  useEffect(() => {
-    const u1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    return () => { u1(); };
-  }, []);
+  useEffect(() => themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme())), []);
 
   const colors = currentTheme.colors;
   const isExpanded = isFocused && query.trim().length > 0;
 
-  // Filter local/cloud tracks
   const filteredLocal = useMemo(() => {
     if (!query.trim()) return [];
-    return localTracks.filter(t => trackMatchesSearch(t, query)).slice(0, MAX_RESULTS);
+    return localTracks.filter(track => trackMatchesSearch(track, query)).slice(0, MAX_RESULTS);
   }, [localTracks, query]);
 
   const filteredCloud = useMemo(() => {
     if (!query.trim()) return [];
-    return cloudTracks.filter(t => trackMatchesSearch(t, query)).slice(0, MAX_RESULTS);
+    return cloudTracks.filter(track => trackMatchesSearch(track, query)).slice(0, MAX_RESULTS);
   }, [cloudTracks, query]);
 
-  // Online music search (debounced) — searches ALL logged-in providers.
   useEffect(() => {
     if (!query.trim() || !isExpanded || !settingsManager.getQqMusicEnabled()) {
       setOnlineResults([]);
-      setQqLoading(false);
+      setOnlineLoading(false);
       return;
     }
-    setQqLoading(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const qqCookieLoaded = cookieManager.hasCookie();
-      // Use allSettled (not all) so a single provider failing — e.g. QQ being
-      // blocked by CSP/CORS in a packaged build — does not also discard the
-      // successful provider's results. Each provider is handled independently.
+
+    let isCurrentSearch = true;
+    const searchQuery = query.trim();
+    setOnlineResults([]);
+    setOnlineLoading(true);
+    const debounceTimer = setTimeout(async () => {
       const [qqResult, neteaseResult] = await Promise.allSettled([
-        qqCookieLoaded ? qqMusicApi.searchMusic(query.trim(), MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
-        neteaseMusicApi.searchMusic(query.trim(), MAX_RESULTS),
+        cookieManager.hasCookie() ? qqMusicApi.searchMusic(searchQuery, MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
+        neteaseMusicApi.searchMusic(searchQuery, MAX_RESULTS),
       ]);
-      if (qqResult.status === 'rejected') {
-        logger.warn('[SearchBox] QQ search failed:', qqResult.reason);
-      }
-      if (neteaseResult.status === 'rejected') {
-        logger.warn('[SearchBox] NetEase search failed:', neteaseResult.reason);
-      }
+
+      if (!isCurrentSearch) return;
+
+      if (qqResult.status === 'rejected') logger.warn('[SearchBox] QQ search failed:', qqResult.reason);
+      if (neteaseResult.status === 'rejected') logger.warn('[SearchBox] NetEase search failed:', neteaseResult.reason);
+
       const qqSongs = qqResult.status === 'fulfilled' ? qqResult.value : [];
       const neteaseSongs = neteaseResult.status === 'fulfilled' ? neteaseResult.value : [];
-      const merged: { source: 'qq' | 'netease'; song: OnlineSong }[] = [
+      setOnlineResults([
         ...qqSongs.map(song => ({ source: 'qq' as const, song })),
         ...neteaseSongs.map(song => ({ source: 'netease' as const, song })),
-      ];
-      setOnlineResults(merged);
-      setQqLoading(false);
+      ]);
+      setOnlineLoading(false);
     }, ONLINE_SEARCH_DEBOUNCE_MS);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+
+    return () => {
+      isCurrentSearch = false;
+      clearTimeout(debounceTimer);
+    };
   }, [query, isExpanded]);
 
-  // Reset selections
-  useEffect(() => { setSelectedIndex(-1); setOpenQualityId(null); setOpenUploadQualityId(null); }, [query]);
+  useEffect(() => {
+    setSelectedIndex(-1);
+    setOpenQualityId(null);
+    setOpenUploadQualityId(null);
+  }, [query]);
 
-  // Click outside → collapse
   useEffect(() => {
     if (!isExpanded) return;
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsFocused(false);
-      }
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsFocused(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isExpanded]);
 
-  // Keyboard navigation
+  const collapse = useCallback(() => {
+    setIsFocused(false);
+    setQuery('');
+    setSelectedIndex(-1);
+  }, []);
+
   const totalItems = filteredLocal.length + filteredCloud.length + onlineResults.length;
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setQuery('');
-      setIsFocused(false);
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      collapse();
       inputRef.current?.blur();
       return;
     }
     if (!isExpanded || totalItems === 0) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(p => Math.min(p + 1, totalItems - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(p => Math.max(p - 1, 0)); }
-    else if (e.key === 'Enter' && selectedIndex >= 0) {
-      e.preventDefault();
-      let offset = 0;
-      if (selectedIndex < offset + filteredLocal.length) { onNavigateToTrack(filteredLocal[selectedIndex - offset]!); collapse(); return; }
-      offset += filteredLocal.length;
-      if (selectedIndex < offset + filteredCloud.length) { onNavigateToTrack(filteredCloud[selectedIndex - offset]!); collapse(); return; }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSelectedIndex(previous => Math.min(previous + 1, totalItems - 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSelectedIndex(previous => Math.max(previous - 1, 0));
+    } else if (event.key === 'Enter' && selectedIndex >= 0) {
+      event.preventDefault();
+      if (selectedIndex < filteredLocal.length) {
+        onNavigateToTrack(filteredLocal[selectedIndex]!);
+        collapse();
+        return;
+      }
+
+      const cloudIndex = selectedIndex - filteredLocal.length;
+      if (cloudIndex < filteredCloud.length) {
+        onNavigateToTrack(filteredCloud[cloudIndex]!);
+        collapse();
+        return;
+      }
+
+      const onlineResult = onlineResults[cloudIndex - filteredCloud.length];
+      if (onlineResult) onOnlineStreamPlay(onlineResult.song, onlineResult.source);
     }
-  }, [isExpanded, totalItems, selectedIndex, filteredLocal, filteredCloud, onNavigateToTrack]);
-
-  const collapse = () => { setIsFocused(false); setQuery(''); setSelectedIndex(-1); };
-
-  const handleFocus = () => setIsFocused(true);
-  const handleChange = (v: string) => { setQuery(v); if (!isFocused) setIsFocused(true); };
-
+  }, [collapse, filteredCloud, filteredLocal, isExpanded, onNavigateToTrack, onOnlineStreamPlay, onlineResults, selectedIndex, totalItems]);
 
   const hasLocal = filteredLocal.length > 0;
   const hasCloud = filteredCloud.length > 0;
-  const qqEnabled = settingsManager.getQqMusicEnabled();
-  const hasQQ = qqEnabled && (onlineResults.length > 0 || qqLoading);
-  const hasAny = hasLocal || hasCloud || hasQQ;
-  let resultOffset = 0;
+  const onlineEnabled = settingsManager.getQqMusicEnabled();
+  const hasOnline = onlineEnabled && (onlineResults.length > 0 || onlineLoading);
+  const hasAny = hasLocal || hasCloud || hasOnline;
+  const cloudOffset = filteredLocal.length;
+  const onlineOffset = cloudOffset + filteredCloud.length;
 
   return (
-    <div
-      ref={containerRef}
-      className="global-search-box relative"
-    >
-      {/* Input bar */}
+    <div ref={containerRef} className="global-search-box">
       <div
-        className="flex items-center shrink-0 relative"
+        className={`global-search-surface${isExpanded ? ' global-search-surface--expanded' : ''}`}
         style={{
-          height: '36px',
-          background: colors.backgroundDark,
-          backdropFilter: 'blur(16px)',
-          border: `var(--theme-control-border-width) solid ${colors.borderLight}`,
-          borderRadius: isExpanded ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
-          boxShadow: 'var(--theme-elevated-shadow)',
-          transition: 'border-color 0.25s ease, border-radius 0.25s ease',
-        }}
+          '--search-background': colors.backgroundDark,
+          '--search-border': colors.borderLight,
+          '--search-shadow': 'var(--theme-elevated-shadow)',
+        } as React.CSSProperties}
       >
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: colors.textSecondary }}>search</span>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={t('search.typeToSearch')}
-          value={query}
-          onChange={e => handleChange(e.target.value)}
-          onFocus={handleFocus}
-          onKeyDown={handleKeyDown}
-          className="w-full h-full pl-9 pr-8 text-xs font-medium bg-transparent focus:outline-none"
-          style={{ color: isWindowFocused ? colors.textPrimary : colors.textSecondary }}
-        />
-        {query && (
-          <button
-            onClick={collapse}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full transition-colors"
-            style={{ color: colors.textMuted }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textPrimary; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
-          >
-            <span className="material-symbols-outlined text-xs">close</span>
-          </button>
-        )}
-      </div>
-
-      {/* Results panel */}
-      <div
-        className="overflow-hidden"
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: '100%',
-          zIndex: 50,
-          transform: isExpanded ? 'scaleY(1)' : 'scaleY(0)',
-          transformOrigin: 'top center',
-          opacity: isExpanded ? 1 : 0,
-          transition: 'transform 0.25s ease, opacity 0.2s ease',
-          background: colors.backgroundDark,
-          backdropFilter: 'blur(20px)',
-          border: isExpanded ? `var(--theme-control-border-width) solid ${colors.borderLight}` : 'var(--theme-control-border-width) solid transparent',
-          borderTop: 'none',
-          borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
-          boxShadow: isExpanded ? 'var(--theme-elevated-shadow)' : 'none',
-        }}
-      >
-        <div className="max-h-[min(55vh,480px)] overflow-y-auto no-scrollbar">
-          {!hasAny ? (
-            <div className="px-5 py-10 text-center" style={{ color: colors.textMuted }}>
-              <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
-              <p className="text-sm">{t('search.noResults')}</p>
-            </div>
-          ) : (
-            /* ── Row-based result layout ── */
-            <div className="py-3">
-              {hasLocal && (
-                <div className="mb-2">
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
-                    <span className="material-symbols-outlined text-xs">hard_drive</span>
-                    {t('sidebar.local')}
-                    <span className="opacity-50">({filteredLocal.length})</span>
-                  </div>
-                  {filteredLocal.map((track, idx) => (
-                    <ResultRow key={track.id} track={track} source="local" isSelected={selectedIndex === resultOffset + idx} colors={colors}
-                      onClick={() => { onNavigateToTrack(track); collapse(); }} />
-                  ))}
-                </div>
-              )}
-              {(() => { resultOffset += filteredLocal.length; return null; })()}
-
-              {hasCloud && (
-                <div className="mb-2">
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
-                    <span className="material-symbols-outlined text-xs">cloud</span>
-                    {t('sidebar.cloud')}
-                    <span className="opacity-50">({filteredCloud.length})</span>
-                  </div>
-                  {filteredCloud.map((track, idx) => (
-                    <ResultRow key={track.id} track={track} source="cloud" isSelected={selectedIndex === resultOffset + idx} colors={colors}
-                      onClick={() => { onNavigateToTrack(track); collapse(); }} />
-                  ))}
-                </div>
-              )}
-              {(() => { resultOffset += filteredCloud.length; return null; })()}
-
-              {hasQQ && (
-                <div>
-                  <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] flex items-center gap-2" style={{ color: colors.textMuted }}>
-                    <span className="material-symbols-outlined text-xs">language</span>{i18n.t('search.thirdPartySource')}
-                    {qqLoading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
-                  </div>
-                  {onlineResults.length === 0 && qqLoading ? (
-                    <div className="px-4 py-3 text-xs" style={{ color: colors.textMuted }}>{t('search.searching')}...</div>
-                  ) : (
-                    onlineResults.map(({ source, song }, idx) => (
-                      <QQRow key={`${source}-${song.songmid}`} song={song} isSelected={selectedIndex === resultOffset + idx} colors={colors}
-                        source={source}
-                        {...(onlineProgress[song.songmid] != null ? { progress: onlineProgress[song.songmid] } : {})}
-                        openQualityId={openQualityId} openUploadQualityId={openUploadQualityId}
-                        onToggleQuality={id => setOpenQualityId(p => p === id ? null : id)}
-                        onToggleUploadQuality={id => setOpenUploadQualityId(p => p === id ? null : id)}
-                        onDownload={(s, q) => { onOnlineDownload(s, q); setOpenQualityId(null); }}
-                        onUpload={(s, q) => { onOnlineUpload(s, q); setOpenUploadQualityId(null); }}
-                        onStreamPlay={(s) => onOnlineStreamPlay(s, source)}
-                      />
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+        <div className="global-search-bar">
+          <span className="material-symbols-outlined global-search-bar__icon" style={{ color: colors.textSecondary }}>search</span>
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder={t('search.typeToSearch')}
+            value={query}
+            onChange={event => { setQuery(event.target.value); setIsFocused(true); }}
+            onFocus={() => setIsFocused(true)}
+            onKeyDown={handleKeyDown}
+            className="global-search-bar__input"
+            style={{ color: isWindowFocused ? colors.textPrimary : colors.textSecondary }}
+          />
+          {query && (
+            <button type="button" onClick={collapse} className="global-search-bar__close" style={{ color: colors.textMuted }}>
+              <span className="material-symbols-outlined">close</span>
+            </button>
           )}
+        </div>
+
+        <div className="global-search-results" aria-hidden={!isExpanded}>
+          <div className="global-search-results__scroll no-scrollbar">
+            {!hasAny ? (
+              <div className="global-search-empty" style={{ color: colors.textMuted }}>
+                <span className="material-symbols-outlined">search_off</span>
+                <p>{t('search.noResults')}</p>
+              </div>
+            ) : (
+              <div className="search-result-sections">
+                {hasLocal && (
+                  <section className="search-result-section">
+                    <SearchSectionLabel icon="hard_drive" label={t('sidebar.local')} count={filteredLocal.length} colors={colors} />
+                    <div className="search-result-grid">
+                      {filteredLocal.map((track, index) => (
+                        <TrackSearchCard
+                          key={track.id}
+                          track={track}
+                          source="local"
+                          isSelected={selectedIndex === index}
+                          colors={colors}
+                          onClick={() => { onNavigateToTrack(track); collapse(); }}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {hasCloud && (
+                  <section className="search-result-section">
+                    <SearchSectionLabel icon="cloud" label={t('sidebar.cloud')} count={filteredCloud.length} colors={colors} />
+                    <div className="search-result-grid">
+                      {filteredCloud.map((track, index) => (
+                        <TrackSearchCard
+                          key={track.id}
+                          track={track}
+                          source="cloud"
+                          isSelected={selectedIndex === cloudOffset + index}
+                          colors={colors}
+                          onClick={() => { onNavigateToTrack(track); collapse(); }}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {hasOnline && (
+                  <section className="search-result-section">
+                    <SearchSectionLabel
+                      icon="language"
+                      label={i18n.t('search.thirdPartySource')}
+                      {...(onlineResults.length > 0 ? { count: onlineResults.length } : {})}
+                      isLoading={onlineLoading}
+                      colors={colors}
+                    />
+                    {onlineResults.length === 0 ? (
+                      <div className="search-result-loading" style={{ color: colors.textMuted }}>{t('search.searching')}...</div>
+                    ) : (
+                      <div className="search-result-grid">
+                        {onlineResults.map(({ source, song }, index) => (
+                          <OnlineSearchCard
+                            key={`${source}-${song.songmid}`}
+                            song={song}
+                            source={source}
+                            isSelected={selectedIndex === onlineOffset + index}
+                            colors={colors}
+                            {...(onlineProgress[song.songmid] ? { progress: onlineProgress[song.songmid] } : {})}
+                            isDownloadMenuOpen={openQualityId === song.songmid}
+                            isUploadMenuOpen={openUploadQualityId === song.songmid}
+                            onToggleDownloadMenu={() => {
+                              setOpenUploadQualityId(null);
+                              setOpenQualityId(previous => previous === song.songmid ? null : song.songmid);
+                            }}
+                            onToggleUploadMenu={() => {
+                              setOpenQualityId(null);
+                              setOpenUploadQualityId(previous => previous === song.songmid ? null : song.songmid);
+                            }}
+                            onDownload={quality => { onOnlineDownload(song, quality); setOpenQualityId(null); }}
+                            onUpload={quality => { onOnlineUpload(song, quality); setOpenUploadQualityId(null); }}
+                            onStreamPlay={() => onOnlineStreamPlay(song, source)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
-
-// Result row for local/cloud
-const ResultRow: React.FC<{
-  track: Track; source: 'local' | 'cloud'; isSelected: boolean;
-  colors: ThemeConfig['colors']; onClick: () => void;
-}> = ({ track, source, isSelected, colors, onClick }) => (
-  <div onClick={onClick}
-    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all cursor-pointer border"
-    style={{ backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent', borderColor: isSelected ? `${colors.primary}44` : 'transparent' }}
-    onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.borderColor = isSelected ? `${colors.primary}44` : `${colors.borderLight}`; }}
-    onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? colors.backgroundCardHover : 'transparent'; e.currentTarget.style.borderColor = isSelected ? `${colors.primary}44` : 'transparent'; }}
-  >
-    <TrackCover trackId={track.id} filePath={track.filePath} fallbackUrl={track.coverUrl} className="size-10 rounded-lg object-cover flex-shrink-0 shadow-md" />
-    <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-sm font-semibold truncate min-w-0" style={{ color: colors.textPrimary }}>{track.title}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ backgroundColor: source === 'local' ? `${colors.primary}20` : `${colors.accent}20`, color: source === 'local' ? colors.primary : colors.accent }}>
-          {source === 'local' ? i18n.t('sidebar.local') : i18n.t('sidebar.cloud')}
-        </span>
-      </div>
-      <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
-        <span className="truncate max-w-[160px]">{track.artist || i18n.t('common.unknownArtist')}</span>
-        <span className="opacity-30">•</span>
-        <span className="truncate">{track.album || i18n.t('common.unknownAlbum')}</span>
-      </div>
-    </div>
-    <span className="text-[11px] tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>
-      {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
-    </span>
-  </div>
-);
-
-// Result row for online music (QQ Music / NetEase)
-const QQRow: React.FC<{
-  song: OnlineSong; isSelected: boolean; colors: ThemeConfig['colors']; source: 'qq' | 'netease';
-  progress?: { type: 'download' | 'upload'; percent: number };
-  openQualityId: string | null; openUploadQualityId: string | null;
-  onToggleQuality: (id: string) => void; onToggleUploadQuality: (id: string) => void;
-  onDownload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-  onUpload: (song: OnlineSong, quality: '128' | '320' | 'flac') => void;
-  onStreamPlay: (song: OnlineSong) => void;
-}> = ({ song, isSelected, colors, source, progress, openQualityId, openUploadQualityId, onToggleQuality, onToggleUploadQuality, onDownload, onUpload, onStreamPlay }) => { const badgeLabel = source === 'qq' ? i18n.t('search.sourceQq') : i18n.t('search.sourceNetease'); return (
-  <div onClick={() => onStreamPlay(song)}
-    className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition-all border cursor-pointer"
-    style={{ backgroundColor: isSelected ? colors.backgroundCardHover : 'transparent', borderColor: isSelected ? `${colors.warning}44` : 'transparent' }}
-    onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : `${colors.borderLight}`; }}
-    onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? colors.backgroundCardHover : 'transparent'; e.currentTarget.style.borderColor = isSelected ? `${colors.warning}44` : 'transparent'; }}
-  >
-    <img src={song.coverUrl || `https://picsum.photos/seed/${song.songmid}/80/80`} className="size-10 rounded-lg object-cover flex-shrink-0 shadow-md" alt="" />
-    <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>{song.songname}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ backgroundColor: `${colors.warning}20`, color: colors.warning }}>{badgeLabel}</span>
-      </div>
-      <div className="mt-1 flex items-center gap-2 text-xs min-w-0" style={{ color: colors.textMuted }}>
-        <span className="truncate max-w-[150px]">{song.singer?.map(s => s.name).join(', ')}</span>
-        <span className="opacity-30">•</span>
-        <span className="truncate">{song.albumname || i18n.t('common.unknownAlbum')}</span>
-      </div>
-    </div>
-    <span className="text-[11px] tabular-nums mr-1 flex-shrink-0" style={{ color: colors.textMuted }}>
-      {song.interval ? `${Math.floor(song.interval / 60)}:${Math.floor(song.interval % 60).toString().padStart(2, '0')}` : '--:--'}
-    </span>
-    {/* Progress bar or action buttons */}
-    {progress ? (
-      <div className="flex items-center gap-1.5 mr-1" style={{ minWidth: 72 }}>
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
-          <div className="h-full rounded-full transition-all duration-300" style={{
-            width: `${progress.percent}%`,
-            backgroundColor: progress.type === 'upload' ? colors.accent : colors.primary,
-          }} />
-        </div>
-        <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: colors.textMuted }}>{progress.percent}%</span>
-      </div>
-    ) : (
-    <>{/* Download */}
-    <div className="relative">
-      <button onClick={e => { e.stopPropagation(); onToggleQuality(song.songmid); }}
-        className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
-        style={{ color: colors.textMuted }}
-        onMouseEnter={e => { e.currentTarget.style.color = colors.primary; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.backgroundColor = 'transparent'; }}
-        title={i18n.t('browse.download')}>
-        <span className="material-symbols-outlined text-sm">download</span>
-      </button>
-      {openQualityId === song.songmid && (
-        <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg shadow-xl overflow-hidden" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
-          {qualityOptions.map(opt => (
-            <button key={opt.value} onClick={e => { e.stopPropagation(); onDownload(song, opt.value); }}
-              className="w-full px-3 py-1.5 text-left text-xs transition-all" style={{ color: colors.textSecondary }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.primary; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-    {/* Upload */}
-    <div className="relative">
-      <button onClick={e => { e.stopPropagation(); onToggleUploadQuality(song.songmid); }}
-        className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
-        style={{ color: colors.textMuted }}
-        onMouseEnter={e => { e.currentTarget.style.color = colors.accent; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.backgroundColor = 'transparent'; }}
-        title={i18n.t('browse.uploadToCloud')}>
-        <span className="material-symbols-outlined text-sm">cloud_upload</span>
-      </button>
-      {openUploadQualityId === song.songmid && (
-        <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg shadow-xl overflow-hidden" style={{ backgroundColor: colors.backgroundCard, border: `1px solid ${colors.borderLight}` }}>
-          {qualityOptions.map(opt => (
-            <button key={opt.value} onClick={e => { e.stopPropagation(); onUpload(song, opt.value); }}
-              className="w-full px-3 py-1.5 text-left text-xs transition-all" style={{ color: colors.textSecondary }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.accent; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-    </>
-    )}
-  </div>
-); };
 
 export default SearchBox;

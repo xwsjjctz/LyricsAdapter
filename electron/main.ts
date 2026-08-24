@@ -14,7 +14,6 @@ import { registerMetadataHandlers } from './ipc/metadataHandlers';
 import { registerQQMusicHandlers } from './ipc/qqMusicHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
-import { registerSodaHandlers } from './ipc/sodaHandlers';
 import { registerQQLoginHandlers } from './ipc/qqLoginHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
@@ -23,10 +22,18 @@ import { registerUserDataHandlers } from './ipc/userDataHandlers';
 import { registerPersistenceHandlers } from './ipc/persistenceHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 import { userStateRepository } from './services/userStateRepository';
+import { APP } from '../src/constants/config';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 app.commandLine.appendSwitch('log-level', '3');
+
+// Windows toast delivery is keyed by the AppUserModelID. Keep it identical to
+// electron-builder's appId so packaged and development notifications share the
+// same application identity and icon.
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP.APP_ID);
+}
 
 // Force the custom schemes to be treated as secure contexts at the Chromium
 // level. `registerSchemesAsPrivileged({ secure: true })` does not always
@@ -73,7 +80,6 @@ app.whenReady().then(async () => {
   registerMetadataHandlers();
   registerQQMusicHandlers();
   registerNetEaseHandlers();
-  registerSodaHandlers();
   registerQQLoginHandlers();
   registerCleanupHandlers();
   registerSettingsHandlers();

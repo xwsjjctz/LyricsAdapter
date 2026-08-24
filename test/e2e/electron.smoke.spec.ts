@@ -509,10 +509,9 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         webkit: style.getPropertyValue('-webkit-backdrop-filter'),
       };
     });
-    expect(
-      [backdropFilters.standard, backdropFilters.webkit]
-        .some(value => /blur\([^)]+\)/.test(value) && value !== 'none'),
-    ).toBe(true);
+    const hasCompositorBlur = [backdropFilters.standard, backdropFilters.webkit]
+      .some(value => /blur\([^)]+\)/.test(value) && value !== 'none');
+    expect(hasCompositorBlur).toBe(true);
     await testInfo.attach('focus-backdrop-filter-metrics', {
       body: Buffer.from(JSON.stringify(backdropFilters, null, 2)),
       contentType: 'application/json',

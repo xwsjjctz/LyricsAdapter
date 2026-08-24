@@ -74,6 +74,50 @@ export function useImport({
   const { t } = useTranslation();
   const [importProgress, setImportProgress] = useState<{ loaded: number; total: number } | null>(null);
 
+  const notifyTrackResult = useCallback((
+    kind: 'import' | 'upload',
+    successfulTracks: Track[],
+    failedCount = 0,
+  ): void => {
+    const firstTrack = successfulTracks[0];
+    const title = t(kind === 'import'
+      ? 'notifications.importComplete'
+      : failedCount > 0
+        ? 'notifications.uploadFailed'
+        : 'notifications.uploadComplete');
+    let body: string;
+    if (!firstTrack) {
+      body = t('notifications.importPartialCount')
+        .replace('{success}', '0')
+        .replace('{failed}', String(failedCount));
+    } else if (failedCount > 0) {
+      body = t(kind === 'import'
+        ? 'notifications.importBatchPartial'
+        : 'notifications.uploadBatchPartial')
+        .replace('{title}', firstTrack.title)
+        .replace('{success}', String(successfulTracks.length))
+        .replace('{failed}', String(failedCount));
+    } else if (successfulTracks.length === 1) {
+      body = t(kind === 'import'
+        ? 'notifications.importTrackSuccess'
+        : 'notifications.uploadTrackSuccess')
+        .replace('{title}', firstTrack.title);
+    } else {
+      body = t(kind === 'import'
+        ? 'notifications.importBatchSuccess'
+        : 'notifications.uploadBatchSuccess')
+        .replace('{title}', firstTrack.title)
+        .replace('{count}', String(successfulTracks.length));
+    }
+    notify(title, body, {
+      silent: true,
+      artworkUrls: successfulTracks
+        .slice(0, 3)
+        .map(track => track.coverUrl)
+        .filter((url): url is string => Boolean(url)),
+    });
+  }, [t]);
+
   const buildImportSettings = useCallback(() => {
     if (getPersistenceData) {
       return getPersistenceData();
@@ -411,25 +455,18 @@ export function useImport({
     logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
     logger.debug(`[Import] Failed: ${totalFailed}`);
 
-    if (totalFailed > 0) {
-        logger.error(`[Import] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
-        notify(
-          t('notifications.importComplete'),
-          t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
-        );
-      } else {
-        logger.debug(`[Import] ✓ All files imported successfully`);
-        notify(
-          t('notifications.importComplete'),
-          t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
-        );
-      }
-
       logger.debug('[Import] Manually triggering library save after import...');
       logger.debug(`[Import] Saving ${tracks.length} tracks to disk...`);
       const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
       await libraryStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Manual library save completed');
+      if (totalFailed > 0) {
+        logger.error(`[Import] ⚠️ ${totalFailed} file(s) failed to import! Check console above for details.`);
+        notifyTrackResult('import', importedTracksAll, totalFailed);
+      } else {
+        logger.debug('[Import] ✓ All files imported successfully');
+        notifyTrackResult('import', importedTracksAll);
+      }
       setImportProgress(null);
     } catch (error) {
       logger.error('[Import] Failed to import files:', error);
@@ -445,7 +482,8 @@ export function useImport({
     tracks,
     cloudTracks,
     volume,
-    persistedTimeRef
+    persistedTimeRef,
+    notifyTrackResult,
   ]);
 
   // Handle dropped file paths (Electron mode with getPathForFile)
@@ -559,15 +597,9 @@ export function useImport({
     logger.debug(`[Import] Failed: ${totalFailed}`);
 
     if (totalFailed > 0) {
-      notify(
-        t('notifications.importComplete'),
-        t('notifications.importPartialCount').replace('{success}', String(totalProcessed - totalFailed)).replace('{failed}', String(totalFailed))
-      );
+      notifyTrackResult('import', importedTracksAll, totalFailed);
     } else if (totalProcessed > 0) {
-      notify(
-        t('notifications.importComplete'),
-        t('notifications.importSuccessCount').replace('{count}', String(totalProcessed))
-      );
+      notifyTrackResult('import', importedTracksAll);
     }
     setImportProgress(null);
   }, [
@@ -581,7 +613,8 @@ export function useImport({
     isPlaying,
     playbackMode,
     volume,
-    persistedTimeRef
+    persistedTimeRef,
+    notifyTrackResult,
   ]);
 
   // Handle dropped File objects (Web mode or Electron fallback)
@@ -648,6 +681,7 @@ export function useImport({
     }
 
     logger.debug('[Import] ✓ All files imported successfully');
+    if (importedTracksAll.length > 0) notifyTrackResult('import', importedTracksAll);
     setImportProgress(null);
   }, [
     createTracksMap,
@@ -660,7 +694,8 @@ export function useImport({
     isPlaying,
     playbackMode,
     volume,
-    persistedTimeRef
+    persistedTimeRef,
+    notifyTrackResult,
   ]);
 
   const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -702,6 +737,7 @@ export function useImport({
     const BATCH_SIZE = 10;
     const UI_UPDATE_BATCH = 20;
     const allNewTracks: Track[] = [];
+    const importedTracksAll: Track[] = [];
     let totalProcessed = 0;
 
     setImportProgress({ loaded: 0, total: newFiles.length });
@@ -714,6 +750,7 @@ export function useImport({
       totalProcessed += batch.length;
       setImportProgress({ loaded: totalProcessed, total: newFiles.length });
       allNewTracks.push(...batchTracks);
+      importedTracksAll.push(...batchTracks);
 
       if (allNewTracks.length >= UI_UPDATE_BATCH) {
         logger.debug(`[Import] Updating UI with ${allNewTracks.length} new track(s)...`);
@@ -727,19 +764,23 @@ export function useImport({
       setTracks(prev => [...prev, ...allNewTracks]);
     }
 
-    logger.debug('[Import] ✓ All files imported successfully');
-
     // Save to IndexedDB in browser mode
     if (!isDesktop()) {
-      const finalTracks = [...tracks, ...allNewTracks];
+      const trackMap = new Map<string, Track>();
+      for (const track of tracks) trackMap.set(track.id, track);
+      for (const track of importedTracksAll) trackMap.set(track.id, track);
+      const finalTracks = Array.from(trackMap.values());
       const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
       await indexedDBStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Library saved to IndexedDB');
     }
 
+    logger.debug('[Import] ✓ All files imported successfully');
+    if (importedTracksAll.length > 0) notifyTrackResult('import', importedTracksAll);
+
     setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [createTracksMap, processWebFileBatch, setTracks, tracks, cloudTracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef]);
+  }, [createTracksMap, processWebFileBatch, setTracks, tracks, cloudTracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef, notifyTrackResult]);
 
   const handleCloudDropFilePaths = useCallback(async (filePaths: { path: string; name: string }[]) => {
     logger.debug('[Import] Cloud path import (upload to WebDAV) triggered');
@@ -854,23 +895,13 @@ export function useImport({
         mergeCloudTracks(added, [], []);
       }
 
-      if (failed > 0) {
-        notify(
-          t('notifications.uploadFailed'),
-          t('notifications.importPartialCount').replace('{success}', String(added.length)).replace('{failed}', String(failed))
-        );
-      } else if (added.length > 0) {
-        notify(
-          t('notifications.uploadComplete'),
-          t('notifications.importSuccessCount').replace('{count}', String(added.length))
-        );
-      }
+      if (failed > 0 || added.length > 0) notifyTrackResult('upload', added, failed);
       setImportProgress(null);
     } catch (error) {
       logger.error('[Import] Cloud path import failed:', error);
       setImportProgress(null);
     }
-  }, [mergeCloudTracks]);
+  }, [mergeCloudTracks, notifyTrackResult]);
 
   /**
    * 云列表导入：选择本地音频 → 上传到 WebDAV 根目录 → 合并进 cloud slot。

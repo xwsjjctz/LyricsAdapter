@@ -45,7 +45,7 @@ async function createLoadedStore(cookie: string, checkTime: string) {
   mocks.storageGetItem.mockImplementation((key: string) => {
     if (key === STORAGE_KEY) return cookie;
     if (key === CHECK_TIME_KEY) return checkTime;
-    // The module also constructs its three application singletons. Treat those
+    // The module also constructs its two application singletons. Treat those
     // unrelated stores as explicitly empty so they do not enter IDB migration.
     return '';
   });
@@ -54,7 +54,6 @@ async function createLoadedStore(cookie: string, checkTime: string) {
   await Promise.all([
     module.cookieManager.ensureLoaded(),
     module.neteaseCookieManager.ensureLoaded(),
-    module.sodaCookieManager.ensureLoaded(),
   ]);
   mocks.storageSetMany.mockClear();
 
@@ -87,6 +86,8 @@ describe('CookieStore durable-write contract', () => {
   it('does not publish a new cookie or check time when setCookie persistence fails', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(100_000_000);
     const store = await createLoadedStore('old=value', '0');
+    const listener = vi.fn();
+    store.subscribe(listener);
     const failure = new Error('settings disk full');
     mocks.storageSetMany.mockRejectedValueOnce(failure);
 
@@ -99,11 +100,14 @@ describe('CookieStore durable-write contract', () => {
     expect(store.getCookie()).toBe('old=value');
     expect(store.hasCookie()).toBe(true);
     expect(store.shouldCheckCookie()).toBe(true);
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it('does not clear the in-memory cookie or check time when clearCookie persistence fails', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(10_000);
     const store = await createLoadedStore('old=value', '9000');
+    const listener = vi.fn();
+    store.subscribe(listener);
     const failure = new Error('settings disk full');
     mocks.storageSetMany.mockRejectedValueOnce(failure);
 
@@ -116,6 +120,7 @@ describe('CookieStore durable-write contract', () => {
     expect(store.getCookie()).toBe('old=value');
     expect(store.hasCookie()).toBe(true);
     expect(store.shouldCheckCookie()).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it("persists cookie='' and checkTime='0' before clearing memory", async () => {
@@ -132,5 +137,20 @@ describe('CookieStore durable-write contract', () => {
     expect(store.getCookie()).toBe('');
     expect(store.hasCookie()).toBe(false);
     expect(store.shouldCheckCookie()).toBe(true);
+  });
+
+  it('notifies subscribers after durable login and logout changes', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(10_000);
+    const store = await createLoadedStore('', '0');
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+
+    await store.setCookie('new=value');
+    await store.clearCookie();
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    await store.setCookie('newer=value');
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 });

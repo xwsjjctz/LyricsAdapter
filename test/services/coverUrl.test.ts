@@ -45,8 +45,6 @@ describe('coverUrl helpers', () => {
   it('requests the target size from supported online cover CDNs', () => {
     expect(toCoverThumb('https://p1.music.126.net/key/id.jpg?param=800y800', 128))
       .toBe('https://p1.music.126.net/key/id.jpg?param=128y128');
-    expect(toCoverThumb('https://example.qishui.com/image~c5_375x375.jpg', 128))
-      .toBe('https://example.qishui.com/image~c5_128x128.jpg');
   });
 
   it('keeps seeded placeholder artwork while requesting only its display size', () => {

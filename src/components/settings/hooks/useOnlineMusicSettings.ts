@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cookieManager, neteaseCookieManager, sodaCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
+import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
 import { settingsManager, type OnlineSource } from '@/services/settingsManager';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
@@ -24,11 +24,9 @@ interface UseOnlineMusicSettingsResult {
   onlineSource: OnlineSource;
   cookie: string;
   neteaseCookie: string;
-  sodaCookie: string;
   downloadPath: string;
   qqLoggedIn: boolean;
   neteaseLoggedIn: boolean;
-  sodaLoggedIn: boolean;
   qrState: 'idle' | 'loading' | QRLoginStatus;
   qrImage: string | null;
   qrMsg: string;
@@ -40,7 +38,6 @@ interface UseOnlineMusicSettingsResult {
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
   setNeteaseCookie: (v: string) => void;
-  setSodaCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
   handleSave: () => Promise<void>;
   startQr: (source: OnlineSource) => Promise<void>;
@@ -59,11 +56,9 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
   const [onlineSource, setOnlineSourceState] = useState<OnlineSource>('qq');
   const [cookie, setCookie] = useState('');
   const [neteaseCookie, setNeteaseCookie] = useState('');
-  const [sodaCookie, setSodaCookie] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [qqLoggedIn, setQqLoggedIn] = useState(false);
   const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
-  const [sodaLoggedIn, setSodaLoggedIn] = useState(false);
   const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string>('');
@@ -80,15 +75,12 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     (async () => {
       await cookieManager.ensureLoaded();
       await neteaseCookieManager.ensureLoaded();
-      await sodaCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
-      setSodaCookie(sodaCookieManager.getCookie());
       setOnlineSourceState(settingsManager.getOnlineSource());
       setQqLoggedIn(cookieManager.hasCookie());
       setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
-      setSodaLoggedIn(sodaCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
     })();
   }, []);
@@ -173,10 +165,6 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
   }, [handleQrPollResult, stopQrPolling]);
 
   const startQr = useCallback(async (source: OnlineSource): Promise<void> => {
-    if (source === 'soda') {
-      resetQr();
-      return;
-    }
     stopQrPolling();
     sessionRef.current = null;
     setQrImage(null);
@@ -196,16 +184,9 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       setQrMsg((e as Error).message || t('settingsDialog.qrError'));
       setQrState('error');
     }
-  }, [beginQrPolling, resetQr, stopQrPolling]);
+  }, [beginQrPolling, stopQrPolling]);
 
   const handleQrLogout = useCallback(async (): Promise<void> => {
-    if (onlineSource === 'soda') {
-      await sodaCookieManager.clearCookie();
-      setSodaCookie('');
-      setSodaLoggedIn(false);
-      resetQr();
-      return;
-    }
     if (onlineSource === 'qq') {
       await cookieManager.clearCookie();
       setCookie('');
@@ -236,7 +217,6 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       return;
     }
     resetQr();
-    if (onlineSource === 'soda') return;
     const loggedIn =
       onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
     if (!loggedIn) {
@@ -266,28 +246,21 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       }
       const cookieStore = onlineSource === 'netease'
         ? neteaseCookieManager
-        : onlineSource === 'soda'
-          ? sodaCookieManager
-          : cookieManager;
+        : cookieManager;
       const cookieValue = (onlineSource === 'netease'
         ? neteaseCookie
-        : onlineSource === 'soda'
-          ? sodaCookie
-          : cookie).trim();
+        : cookie).trim();
       if (cookieValue) {
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();
         if (!status.valid) {
           showMessage(t('settingsDialog.cookieInvalid'), 'error');
           await cookieStore.clearCookie();
-          if (onlineSource === 'soda') setSodaLoggedIn(false);
           return;
         }
-        if (onlineSource === 'soda') setSodaLoggedIn(true);
         void syncOnlineCookiesToMain(onlineSource);
       } else {
         await cookieStore.clearCookie();
-        if (onlineSource === 'soda') setSodaLoggedIn(false);
       }
       if (!await settingsManager.setDownloadPath(downloadPath.trim())) {
         throw new Error('Failed to persist download path');
@@ -299,24 +272,20 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     } finally {
       setIsSaving(false);
     }
-  }, [cookie, downloadPath, neteaseCookie, onlineSource, showMessage, sodaCookie]);
+  }, [cookie, downloadPath, neteaseCookie, onlineSource, showMessage]);
 
   const isQrLoggedIn = onlineSource === 'qq'
     ? qqLoggedIn
-    : onlineSource === 'netease'
-      ? neteaseLoggedIn
-      : sodaLoggedIn;
+    : neteaseLoggedIn;
   const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
 
   return {
     onlineSource,
     cookie,
     neteaseCookie,
-    sodaCookie,
     downloadPath,
     qqLoggedIn,
     neteaseLoggedIn,
-    sodaLoggedIn,
     qrState,
     qrImage,
     qrMsg,
@@ -328,7 +297,6 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     setOnlineSource,
     setCookie,
     setNeteaseCookie,
-    setSodaCookie,
     setDownloadPath,
     handleSave,
     startQr,

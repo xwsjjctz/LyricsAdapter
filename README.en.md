@@ -41,7 +41,7 @@
 
 ### 🌐 Online & Cloud
 
-- **Multiple online providers** — QQ Music, NetEase Cloud Music, and Soda Music, switchable in settings
+- **Multiple online providers** — QQ Music and NetEase Cloud Music, switchable in settings
 - **QR login** — Scan-to-login for QQ Music and NetEase Cloud Music to unlock high quality and playlists
 - **Search, stream & download** — Search, preview via streaming, download at 128kbps / 320kbps / FLAC with tags and lyrics written automatically
 - **Playlists** — Browse and play third-party playlists with a dedicated play context
@@ -170,7 +170,7 @@ Build artifacts are output to `release/`.
 
 #### Configuring Providers
 
-1. Open the "Settings" view and pick QQ Music / NetEase Cloud Music / Soda Music under "Online Source"
+1. Open the "Settings" view and pick QQ Music / NetEase Cloud Music under "Online Source"
 2. For high quality or playlists, scan the QR code in settings to log in
 
 #### Search & Download
@@ -328,7 +328,7 @@ LyricsAdapter/
 │   ├── stores/              # Hook aggregation (library / player / import / ui)
 │   ├── hooks/               # Business hooks (playback, import, WebDAV, shortcuts…)
 │   ├── services/            # desktopAdapter, libraryStorage, metadataService,
-│   │                        # qqMusicApi / neteaseMusicApi / sodaMusicApi,
+│   │                        # qqMusicApi / neteaseMusicApi,
 │   │                        # onlineMusicProvider, webdavClient, themes, i18n…
 │   ├── domain/              # Pure domain rules
 │   ├── repositories/        # Data access wrappers
@@ -373,7 +373,7 @@ User plays a track (player controller)
 URL picked by Track.source:
   - local   → audio://<path> (streamed Range responses from the main process)
   - webdav  → proxied HTTP Range requests
-  - qq/netease/soda → stream:// (cookie injection, CDN resolution, Range forwarding)
+  - qq/netease → stream:// (cookie injection, CDN resolution, Range forwarding)
     ↓
 HTML <audio> plays; progress/volume/mode sync back to the slot
     ↓
@@ -385,7 +385,7 @@ Adjacent tracks preloaded
 ```
 User searches / opens a playlist (BrowseView)
     ↓
-onlineMusicProvider (qq / netease / soda normalized to OnlineSong)
+onlineMusicProvider (qq / netease normalized to OnlineSong)
     ↓
 Play → streaming preview via stream://
 Download → downloadAndSave + writeAudioMetadata (tags/cover/QRC lyrics)

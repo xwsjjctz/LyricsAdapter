@@ -38,7 +38,6 @@ const sensitiveSettings = {
   'webdav-config': '{"password":"webdav-secret"}',
   qq_music_cookie: 'qq-secret',
   netease_cookie: 'netease-secret',
-  soda_cookie: 'soda-secret',
 };
 
 const openRepositories: UserStateRepository[] = [];
@@ -144,7 +143,7 @@ describe('UserStateRepository SQLite migration and transaction contract', () => 
       expect(row?.value).not.toContain(plaintext);
     }
     expect(storedSettings.some(row => row.key === 'webdav-cdn-cache')).toBe(false);
-    expect(electronMocks.encryptString).toHaveBeenCalledTimes(4);
+    expect(electronMocks.encryptString).toHaveBeenCalledTimes(3);
   });
 
   it('imports the pre-~/.la settings file when no newer settings source exists', () => {

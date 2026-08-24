@@ -130,26 +130,26 @@ describe('buildLibraryIndexData', () => {
     expect(s.available).toBe(true);
   });
 
-  it('keeps the legacy minimal-record conversion contract', () => {
+  it('normalizes records from removed providers to local files', () => {
     const result = minimalTrackToLibrarySong({
-      id: 'soda-track',
-      filePath: '/music/soda.flac',
+      id: 'removed-provider-track',
+      filePath: '/music/legacy-download.flac',
       addedAt: '2026-01-01T00:00:00.000Z',
-      source: 'soda',
+      source: 'removed-provider',
       playCount: 0,
       lastPlayed: null,
       available: false,
     });
 
     expect(result).toMatchObject({
-      id: 'soda-track',
+      id: 'removed-provider-track',
       title: '',
       artist: '',
       album: '',
       duration: 0,
-      filePath: '/music/soda.flac',
+      filePath: '/music/legacy-download.flac',
       addedAt: '2026-01-01T00:00:00.000Z',
-      source: 'soda',
+      source: 'local',
       playCount: 0,
       lastPlayed: null,
       available: false,

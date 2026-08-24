@@ -91,7 +91,6 @@ export function getSourceOptions(): { value: OnlineSource; label: string }[] {
   return [
     { value: 'qq', label: i18n.t('settingsDialog.onlineSourceQq') },
     { value: 'netease', label: i18n.t('settingsDialog.onlineSourceNetease') },
-    { value: 'soda', label: i18n.t('settingsDialog.onlineSourceSoda') },
   ];
 }
 
