@@ -340,7 +340,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="mt-5 flex shrink-0 items-center justify-start gap-2 border-t pt-3" style={{ borderColor: 'var(--theme-border-light)' }}>
+      <div className="mt-5 flex shrink-0 items-center justify-start gap-2 pt-3">
         {renderUtilityButton(ViewMode.SETTINGS, 'settings', t('settings.title'))}
         {renderUtilityButton(ViewMode.THEME, 'checkroom', t('sidebar.theme'))}
       </div>
