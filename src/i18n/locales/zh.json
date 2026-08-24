@@ -373,7 +373,7 @@
   "notifications.importComplete": "导入完成",
   "notifications.importSuccessCount": "成功导入 {count} 首歌曲",
   "notifications.importPartialCount": "成功导入 {success} 首歌曲，{failed} 首失败",
-  "notifications.trackDownloadSuccess": "“{title}”下载成功",
+  "notifications.trackDownloadSuccess": "{artist} - {title} 下载完毕",
   "notifications.importTrackSuccess": "“{title}”导入成功",
   "notifications.importBatchSuccess": "“{title}”等 {count} 首歌曲导入成功",
   "notifications.importBatchPartial": "“{title}”等 {success} 首歌曲导入成功，{failed} 首失败",

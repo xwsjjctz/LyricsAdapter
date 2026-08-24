@@ -373,7 +373,7 @@
   "notifications.importComplete": "가져오기 완료",
   "notifications.importSuccessCount": "{count}곡 가져오기 성공",
   "notifications.importPartialCount": "{success}곡 가져오기 성공, {failed}곡 실패",
-  "notifications.trackDownloadSuccess": "\u201c{title}\u201d 다운로드 완료",
+  "notifications.trackDownloadSuccess": "{artist} - {title} 다운로드 완료",
   "notifications.importTrackSuccess": "\u201c{title}\u201d 가져오기 완료",
   "notifications.importBatchSuccess": "\u201c{title}\u201d 외 {count}곡 가져오기 완료",
   "notifications.importBatchPartial": "\u201c{title}\u201d 외 {success}곡 가져오기 성공, {failed}곡 실패",

@@ -202,7 +202,9 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed' } }));
       notify(
         t('notifications.downloadComplete'),
-        t('notifications.trackDownloadSuccess').replace('{title}', song.songname),
+        t('notifications.trackDownloadSuccess')
+          .replace('{artist}', singer)
+          .replace('{title}', song.songname),
         {
           silent: true,
           artworkUrls: [downloadedTrack?.coverUrl || coverUrl].filter((url): url is string => Boolean(url)),

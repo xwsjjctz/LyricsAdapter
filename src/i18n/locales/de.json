@@ -373,7 +373,7 @@
   "notifications.importComplete": "Import abgeschlossen",
   "notifications.importSuccessCount": "{count} Titel erfolgreich importiert",
   "notifications.importPartialCount": "{success} Titel importiert, {failed} fehlgeschlagen",
-  "notifications.trackDownloadSuccess": "\u201e{title}\u201c wurde erfolgreich heruntergeladen",
+  "notifications.trackDownloadSuccess": "{artist} - {title} heruntergeladen",
   "notifications.importTrackSuccess": "\u201e{title}\u201c wurde erfolgreich importiert",
   "notifications.importBatchSuccess": "\u201e{title}\u201c und insgesamt {count} Titel wurden importiert",
   "notifications.importBatchPartial": "\u201e{title}\u201c und {success} Titel importiert, {failed} fehlgeschlagen",

@@ -36,6 +36,7 @@ describe('notification artwork composition', () => {
     expect(svg).toContain(appIcon);
     expect(svg.indexOf(third)).toBeLessThan(svg.indexOf(second));
     expect(svg.indexOf(second)).toBeLessThan(svg.indexOf(first));
-    expect(svg).toContain('cx="218" cy="218"');
+    expect(svg).toContain('cx="224" cy="224"');
+    expect(svg).toContain('width="40" height="40"');
   });
 });

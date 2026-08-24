@@ -78,7 +78,7 @@ export function buildNotificationArtworkSvg(artworkDataUrls: string[], appIconDa
     })
     .join('');
   const badge = appIconDataUrl
-    ? `<circle cx="218" cy="218" r="35" fill="#1c1828" stroke="white" stroke-opacity="0.9" stroke-width="5"/><image href="${escapeXmlAttribute(appIconDataUrl)}" x="190" y="190" width="56" height="56" preserveAspectRatio="xMidYMid meet"/>`
+    ? `<circle cx="224" cy="224" r="27" fill="#1c1828" stroke="white" stroke-opacity="0.9" stroke-width="4"/><image href="${escapeXmlAttribute(appIconDataUrl)}" x="204" y="204" width="40" height="40" preserveAspectRatio="xMidYMid meet"/>`
     : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">${layers}${badge}</svg>`;
 }

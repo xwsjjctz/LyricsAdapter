@@ -373,7 +373,7 @@
   "notifications.importComplete": "インポート完了",
   "notifications.importSuccessCount": "{count} 曲のインポートに成功しました",
   "notifications.importPartialCount": "{success} 曲インポート成功、{failed} 曲失敗",
-  "notifications.trackDownloadSuccess": "「{title}」のダウンロードが完了しました",
+  "notifications.trackDownloadSuccess": "{artist} - {title} のダウンロードが完了しました",
   "notifications.importTrackSuccess": "「{title}」のインポートが完了しました",
   "notifications.importBatchSuccess": "「{title}」ほか {count} 曲のインポートが完了しました",
   "notifications.importBatchPartial": "「{title}」ほか {success} 曲のインポートに成功、{failed} 曲失敗",

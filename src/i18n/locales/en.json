@@ -373,7 +373,7 @@
   "notifications.importComplete": "Import Complete",
   "notifications.importSuccessCount": "Successfully imported {count} track(s)",
   "notifications.importPartialCount": "Imported {success} track(s), {failed} failed",
-  "notifications.trackDownloadSuccess": "\u201c{title}\u201d downloaded successfully",
+  "notifications.trackDownloadSuccess": "{artist} - {title} downloaded",
   "notifications.importTrackSuccess": "\u201c{title}\u201d imported successfully",
   "notifications.importBatchSuccess": "\u201c{title}\u201d and {count} tracks imported successfully",
   "notifications.importBatchPartial": "\u201c{title}\u201d and {success} tracks imported, {failed} failed",
