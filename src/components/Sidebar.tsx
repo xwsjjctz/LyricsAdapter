@@ -38,8 +38,6 @@ interface SidebarProps {
   onResizeStart?: (event: React.PointerEvent) => void;
 }
 
-const PLAYLIST_SOURCES: OnlineSource[] = ['qq', 'netease'];
-
 const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   currentView,
@@ -112,20 +110,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     const { visible, all } = applyOverrides(onlinePlaylists, playlistOverrides);
     return isPlaylistEditMode ? all : visible;
   }, [isPlaylistEditMode, onlinePlaylists, playlistOverrides]);
-
-  const playlistsBySource = useMemo(() => {
-    const groups: Record<OnlineSource, PlaylistInfo[]> = {
-      qq: [],
-      netease: [],
-    };
-    playlistsForDisplay.forEach((playlist) => groups[playlist.source].push(playlist));
-    return groups;
-  }, [playlistsForDisplay]);
-
-  const sourceLabels = useMemo<Record<OnlineSource, string>>(() => ({
-    qq: t('settingsDialog.onlineSourceQq'),
-    netease: t('settingsDialog.onlineSourceNetease'),
-  }), [i18n.language, t]);
 
   const handlePlaylistClick = useCallback(async (playlist: PlaylistInfo) => {
     if (!onOpenPlaylist || isPlaylistEditMode) return;
@@ -245,74 +229,61 @@ const Sidebar: React.FC<SidebarProps> = ({
     </button>
   );
 
-  const playlistItems = PLAYLIST_SOURCES.flatMap((source) => {
-    const sourcePlaylists = playlistsBySource[source];
-    if (sourcePlaylists.length === 0) return [];
-    return [
+  const playlistItems = playlistsForDisplay.map((playlist) => {
+    const playlistKey = `${playlist.source}:${playlist.id}`;
+    const isHidden = Boolean(playlistOverrides[playlistKey]?.hidden);
+    return (
       <div
-        key={`${source}-heading`}
-        className="px-4 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
-        style={{ color: 'var(--theme-text-muted)' }}
+        key={playlistKey}
+        className="relative"
       >
-        {sourceLabels[source]}
-      </div>,
-      ...sourcePlaylists.map((playlist) => {
-        const playlistKey = `${playlist.source}:${playlist.id}`;
-        const isHidden = Boolean(playlistOverrides[playlistKey]?.hidden);
-        return (
-          <div
-            key={playlistKey}
-            className="relative"
+        <button
+          type="button"
+          onClick={() => void handlePlaylistClick(playlist)}
+          className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 ${isPlaylistEditMode ? 'pr-10' : 'pr-3'} text-left transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_70%,transparent)] ${isHidden ? 'opacity-45' : ''}`}
+          style={{
+            backgroundColor: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist'
+              ? 'color-mix(in srgb, var(--theme-control-item-bg-active) 62%, transparent)'
+              : 'transparent',
+            color: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist'
+              ? 'var(--theme-control-item-fg-active)'
+              : 'var(--theme-control-action-fg)',
+          }}
+        >
+          <span
+            className="h-8 w-8 shrink-0 overflow-hidden rounded-md"
+            style={{ backgroundColor: 'var(--theme-control-icon-bg)' }}
           >
-            <button
-              type="button"
-              onClick={() => void handlePlaylistClick(playlist)}
-              className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 ${isPlaylistEditMode ? 'pr-10' : 'pr-3'} text-left transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_70%,transparent)] ${isHidden ? 'opacity-45' : ''}`}
-              style={{
-                backgroundColor: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist'
-                  ? 'color-mix(in srgb, var(--theme-control-item-bg-active) 62%, transparent)'
-                  : 'transparent',
-                color: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist'
-                  ? 'var(--theme-control-item-fg-active)'
-                  : 'var(--theme-control-action-fg)',
-              }}
-            >
-              <span
-                className="h-8 w-8 shrink-0 overflow-hidden rounded-md"
-                style={{ backgroundColor: 'var(--theme-control-icon-bg)' }}
-              >
-                {playlist.coverUrl ? (
-                  <img src={playlist.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                ) : (
-                  <span className="material-symbols-outlined flex h-full items-center justify-center text-[17px]" style={{ color: 'var(--theme-control-icon-fg)' }}>
-                    queue_music
-                  </span>
-                )}
+            {playlist.coverUrl ? (
+              <img src={playlist.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+            ) : (
+              <span className="material-symbols-outlined flex h-full items-center justify-center text-[17px]" style={{ color: 'var(--theme-control-icon-fg)' }}>
+                queue_music
               </span>
-              <span className="min-w-0 flex-1 truncate text-xs font-medium">{playlist.name}</span>
-              <span className="shrink-0 text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>{playlist.songCount}</span>
-              <span
-                className="absolute left-1 top-2 bottom-2 w-1 rounded-full transition-opacity"
-                style={{ backgroundColor: 'var(--theme-primary)', opacity: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist' ? 1 : 0 }}
-              />
-            </button>
-            {isPlaylistEditMode && (
-              <button
-                type="button"
-                onClick={() => void handleTogglePlaylistVisibility(playlist)}
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
-                style={{ color: isHidden ? 'var(--theme-text-muted)' : 'var(--theme-control-icon-fg)' }}
-                aria-label={isHidden ? '显示歌单' : '隐藏歌单'}
-              >
-                <span className="material-symbols-outlined text-[17px]">
-                  {isHidden ? 'visibility_off' : 'visibility'}
-                </span>
-              </button>
             )}
-          </div>
-        );
-      }),
-    ];
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">{playlist.name}</span>
+          <span className="shrink-0 text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>{playlist.songCount}</span>
+          <span
+            className="absolute left-1 top-2 bottom-2 w-1 rounded-full transition-opacity"
+            style={{ backgroundColor: 'var(--theme-primary)', opacity: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist' ? 1 : 0 }}
+          />
+        </button>
+        {isPlaylistEditMode && (
+          <button
+            type="button"
+            onClick={() => void handleTogglePlaylistVisibility(playlist)}
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
+            style={{ color: isHidden ? 'var(--theme-text-muted)' : 'var(--theme-control-icon-fg)' }}
+            aria-label={isHidden ? '显示歌单' : '隐藏歌单'}
+          >
+            <span className="material-symbols-outlined text-[17px]">
+              {isHidden ? 'visibility_off' : 'visibility'}
+            </span>
+          </button>
+        )}
+      </div>
+    );
   });
 
   return (
@@ -333,7 +304,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 style={{ color: isPlaylistEditMode ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)' }}
                 aria-label={isPlaylistEditMode ? '完成编辑' : '编辑歌单'}
               >
-                <span className="material-symbols-outlined text-[16px]">
+                <span className="material-symbols-outlined leading-none" style={{ fontSize: 18 }}>
                   {isPlaylistEditMode ? 'done' : 'edit'}
                 </span>
               </button>
