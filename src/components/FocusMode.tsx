@@ -117,11 +117,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
   isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
 }) => {
-  const platform = getDesktopAPI()?.platform;
-  const isLinux = platform === 'linux';
-  // The backdrop Canvas is already pre-blurred. A second full-window compositor
-  // blur is inexpensive on macOS but allocates a large D3D surface on Windows.
-  const useBackdropCompositorBlur = platform !== 'win32';
+  const isLinux = getDesktopAPI()?.platform === 'linux';
 
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
@@ -1127,7 +1123,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       <FocusBackdrop
         hasBackground={hasBackground}
         isLinux={isLinux}
-        useCompositorBlur={useBackdropCompositorBlur}
         canvasRef={canvasRef}
       />
 
