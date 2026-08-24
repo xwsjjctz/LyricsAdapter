@@ -22,9 +22,21 @@ import type { PlaylistInfo } from '../services/onlineMusicProvider';
 export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: boolean } {
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cookieRevision, setCookieRevision] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setCookieRevision(revision => revision + 1);
+    const unsubscribeQQ = cookieManager.subscribe(refresh);
+    const unsubscribeNetEase = neteaseCookieManager.subscribe(refresh);
+    return () => {
+      unsubscribeQQ();
+      unsubscribeNetEase();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
 
     // Phase 1: show cached playlists only for sources that currently have a
     // cookie. This prevents an old cache from making logged-out sources look
@@ -108,7 +120,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cookieRevision]);
 
   return { playlists, loading };
 }

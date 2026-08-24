@@ -12,6 +12,7 @@ interface CookieStatus {
 
 /** Per-source cookie validation strategy. */
 type CookieValidator = (cookie: string) => Promise<CookieStatus>;
+type CookieListener = () => void;
 
 interface CookieStoreOptions {
   storageKey: string;
@@ -30,6 +31,7 @@ export class CookieStore {
   private cookie: string = '';
   private lastCheckTime: number = 0;
   private initPromise: Promise<void>;
+  private listeners = new Set<CookieListener>();
 
   constructor(private readonly opts: CookieStoreOptions) {
     this.initPromise = this.loadFromStorage();
@@ -102,6 +104,7 @@ export class CookieStore {
     await this.saveToStorage(cookie, lastCheckTime);
     this.cookie = cookie;
     this.lastCheckTime = lastCheckTime;
+    this.notify();
     logger.debug(`[CookieManager:${this.opts.scope}] Cookie saved`);
   }
 
@@ -128,6 +131,7 @@ export class CookieStore {
       await this.saveToStorage('', 0);
       this.cookie = '';
       this.lastCheckTime = 0;
+      this.notify();
     } catch (error) {
       logger.error(`[CookieManager:${this.opts.scope}] Failed to clear storage:`, error);
       throw error;
@@ -172,6 +176,17 @@ export class CookieStore {
     await this.initPromise;
   }
 
+  subscribe(listener: CookieListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach(listener => listener());
+  }
+
   /**
    * 重新从 appStorage 加载 cookie。
    *
@@ -182,7 +197,7 @@ export class CookieStore {
    * 完成后调用本方法重新加载，使登录态恢复生效。
    */
   reload(): void {
-    this.initPromise = this.loadFromStorage();
+    this.initPromise = this.loadFromStorage().then(() => this.notify());
   }
 }
 
