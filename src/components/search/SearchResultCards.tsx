@@ -69,7 +69,7 @@ const QualityMenu: React.FC<{
 }> = ({ colors, accent, onSelect }) => (
   <div
     className="search-quality-menu"
-    style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}
+    style={{ backgroundColor: colors.backgroundDark, borderColor: colors.borderLight }}
     onClick={event => event.stopPropagation()}
   >
     {qualityOptions.map(option => (

@@ -68,7 +68,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [openUploadQualityId, setOpenUploadQualityId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
@@ -94,13 +93,17 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       return;
     }
 
+    let isCurrentSearch = true;
+    const searchQuery = query.trim();
+    setOnlineResults([]);
     setOnlineLoading(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
+    const debounceTimer = setTimeout(async () => {
       const [qqResult, neteaseResult] = await Promise.allSettled([
-        cookieManager.hasCookie() ? qqMusicApi.searchMusic(query.trim(), MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
-        neteaseMusicApi.searchMusic(query.trim(), MAX_RESULTS),
+        cookieManager.hasCookie() ? qqMusicApi.searchMusic(searchQuery, MAX_RESULTS) : Promise.resolve([] as OnlineSong[]),
+        neteaseMusicApi.searchMusic(searchQuery, MAX_RESULTS),
       ]);
+
+      if (!isCurrentSearch) return;
 
       if (qqResult.status === 'rejected') logger.warn('[SearchBox] QQ search failed:', qqResult.reason);
       if (neteaseResult.status === 'rejected') logger.warn('[SearchBox] NetEase search failed:', neteaseResult.reason);
@@ -115,7 +118,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     }, ONLINE_SEARCH_DEBOUNCE_MS);
 
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      isCurrentSearch = false;
+      clearTimeout(debounceTimer);
     };
   }, [query, isExpanded]);
 

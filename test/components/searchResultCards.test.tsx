@@ -47,7 +47,8 @@ describe('OnlineSearchCard', () => {
 
   it('preserves quality selection and progress presentation', () => {
     const onDownload = vi.fn();
-    renderOnlineCard({ isDownloadMenuOpen: true, onDownload });
+    const { container: menuContainer } = renderOnlineCard({ isDownloadMenuOpen: true, onDownload });
+    expect(menuContainer.querySelector('.search-quality-menu')).toHaveStyle({ backgroundColor: colors.backgroundDark });
     fireEvent.click(screen.getByRole('button', { name: 'FLAC' }));
     expect(onDownload).toHaveBeenCalledWith('flac');
 
