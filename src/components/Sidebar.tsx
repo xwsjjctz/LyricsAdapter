@@ -38,7 +38,7 @@ interface SidebarProps {
   onResizeStart?: (event: React.PointerEvent) => void;
 }
 
-const PLAYLIST_SOURCES: OnlineSource[] = ['qq', 'netease', 'soda'];
+const PLAYLIST_SOURCES: OnlineSource[] = ['qq', 'netease'];
 
 const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
@@ -117,7 +117,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     const groups: Record<OnlineSource, PlaylistInfo[]> = {
       qq: [],
       netease: [],
-      soda: [],
     };
     playlistsForDisplay.forEach((playlist) => groups[playlist.source].push(playlist));
     return groups;
@@ -126,7 +125,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const sourceLabels = useMemo<Record<OnlineSource, string>>(() => ({
     qq: t('settingsDialog.onlineSourceQq'),
     netease: t('settingsDialog.onlineSourceNetease'),
-    soda: t('settingsDialog.onlineSourceSoda'),
   }), [i18n.language, t]);
 
   const handlePlaylistClick = useCallback(async (playlist: PlaylistInfo) => {

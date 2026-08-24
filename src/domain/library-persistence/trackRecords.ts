@@ -30,9 +30,7 @@ export function minimalTrackToPersistedSong(
         ? 'qq'
         : record.source === 'netease'
           ? 'netease'
-          : record.source === 'soda'
-            ? 'soda'
-            : 'local',
+          : 'local',
     webdavPath: record.webdavPath || '',
     songmid: record.songmid || '',
   };

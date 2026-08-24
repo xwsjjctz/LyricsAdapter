@@ -54,7 +54,7 @@ function hasWordTimedLyrics(track: Track): boolean {
 function isProviderTrack(track: Track): track is Track & { source: OnlineSource; songmid: string } {
   return Boolean(
     track.songmid
-    && (track.source === 'qq' || track.source === 'netease' || track.source === 'soda')
+    && (track.source === 'qq' || track.source === 'netease')
   );
 }
 

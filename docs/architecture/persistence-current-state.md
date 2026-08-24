@@ -63,7 +63,7 @@ flowchart LR
 | 曲库展示快照 | `app.getPath('userData')/library-index.json` | 快速恢复缓存；保留 title、artist、lyrics、cover URL 等展示字段 | 可由 SQLite 归属、音频标签和网络来源重建 |
 | 封面缩略图 | `app.getPath('userData')/covers/` | 派生文件缓存，通过 `cover://` 引用 | 原始音频或网络来源可达时可重建 |
 | renderer metadata | Chromium IndexedDB `lyrics-adapter-db` | local/WebDAV metadata、文件列表 snapshot 等缓存 | 桌面端可删除并重建 |
-| 在线歌单列表 | IndexedDB `settings/playlist-cache` | 降低首次网络等待的列表缓存 | 可重新请求 QQ / 网易云 / Soda |
+| 在线歌单列表 | IndexedDB `settings/playlist-cache` | 降低首次网络等待的列表缓存 | 可重新请求 QQ / 网易云 |
 | WebDAV CDN 签名 URL | IndexedDB `settings/webdav-cdn-cache` | 有 TTL 的临时访问 URL 缓存，不是配置或凭据权威 | 可随时清理并向 provider 重新解析 |
 | WebDAV 元数据 | IndexedDB `webdavMetadata`、`webdavFileListSnapshot` | 本机缓存 | 可由远端列表、音频标签或远端 `Metadata/` 重建 |
 | WebDAV manifest/chunks | 远端 `Metadata/_manifest.json`、`_chunk_NNNN.json` | 跨设备派生投影，不是用户曲库权威 | 可重建，但可能有较高网络代价 |
@@ -125,18 +125,17 @@ PRIMARY KEY (slot_id, position)
 
 ## 敏感设置
 
-以下四个键在写入 SQLite 前必须经过 Electron `safeStorage` 加密：
+以下三个键在写入 SQLite 前必须经过 Electron `safeStorage` 加密：
 
 1. `webdav-config`
 2. `qq_music_cookie`
 3. `netease_cookie`
-4. `soda_cookie`
 
 磁盘值使用 `enc:` 前缀加十六进制密文。Repository 读取时解密，调用方仍看到原有字符串接口，因此不需要改变现有设置 UI 或 provider 交互。
 
 若 `safeStorage` 不可用，敏感值写入会失败，而不会降级成明文。Linux 的 `basic_text` backend 也按不可用处理，因为 Electron 明确将其标为未受保护。已有密文无法解密时，数据库的逻辑校验同样失败，应用不会把该状态当作空配置继续启动。
 
-`safeStorage` 密文依赖生成它的操作系统用户凭据存储，可视为机器/用户环境绑定。直接把 `state.sqlite3` 复制到另一台机器并不保证四个敏感值可解密；非敏感状态仍可检查，但跨机器恢复通常需要重新输入 WebDAV 密码和在线 cookie，或未来提供显式的可移植 export。
+`safeStorage` 密文依赖生成它的操作系统用户凭据存储，可视为机器/用户环境绑定。直接把 `state.sqlite3` 复制到另一台机器并不保证这些敏感值可解密；非敏感状态仍可检查，但跨机器恢复通常需要重新输入 WebDAV 密码和在线 cookie，或未来提供显式的可移植 export。
 
 `webdav-cdn-cache` 不属于上述敏感 SQLite 设置。它可能包含短期签名 URL，仍应按临时敏感缓存保护，但它没有不可重建价值，放在应用数据目录的 IndexedDB 中并可随时清除。
 
@@ -197,7 +196,7 @@ Repository 按 schema 验证以下来源：
 
 它们可用于人工核对或回退到旧版本，但只包含迁移时刻的数据。SQLite 生效后的新增曲目、播放进度和设置不会同步回这些文件，因此它们不是当前备份。
 
-旧版本曾允许部分凭据以明文落在 JSON 中，所以被冻结的 `settings.json`、`users.json` 或 `.bak` 仍可能保留历史 WebDAV 密码、cookie 或签名 URL。SQLite 迁移会加密导入的四个权威敏感键，但不会回写或清洗 legacy 文件。保留它们有助于人工回退，也意味着文件权限、复制和备份都必须按含敏感信息处理；确认不再需要旧版本回退后，应由用户通过明确流程处置，而不是由应用静默删除。
+旧版本曾允许部分凭据以明文落在 JSON 中，所以被冻结的 `settings.json`、`users.json` 或 `.bak` 仍可能保留历史 WebDAV 密码、cookie 或签名 URL。SQLite 迁移会加密导入的三个权威敏感键，但不会回写或清洗 legacy 文件。保留它们有助于人工回退，也意味着文件权限、复制和备份都必须按含敏感信息处理；确认不再需要旧版本回退后，应由用户通过明确流程处置，而不是由应用静默删除。
 
 ## 启动、运行期与关闭提交
 

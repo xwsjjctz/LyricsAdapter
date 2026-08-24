@@ -174,9 +174,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      // Soda returns decrypted MP4/M4A media; its quality is chosen from the
-      // account entitlement server-side and cannot be forced by file suffix.
-      const ext = provider.id === 'soda' ? 'm4a' : quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
@@ -184,9 +182,8 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
       const desktopAPI = getDesktopAPI();
       const [lyrics, result] = await Promise.all([
         fetchLyrics(song, provider),
-        provider.id === 'soda'
-          ? desktopAPI?.downloadSodaAudio?.(song.songmid, cookie, fullPath)
-          : provider.getMusicUrl(song.songmid, quality).then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+        provider.getMusicUrl(song.songmid, quality)
+          .then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
       ]);
       if (!result?.success || !result.filePath) throw new Error('Download failed');
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
@@ -226,7 +223,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = provider.id === 'soda' ? 'm4a' : quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
+      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
       const fileName = buildSafeMusicFileName(singer, song.songname, ext);
       const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
@@ -234,9 +231,8 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
       const desktopAPI = getDesktopAPI();
       const [lyrics, dlResult, coverBase64] = await Promise.all([
         fetchLyrics(song, provider),
-        provider.id === 'soda'
-          ? desktopAPI?.downloadSodaAudio?.(song.songmid, cookie, fullPath)
-          : provider.getMusicUrl(song.songmid, quality).then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+        provider.getMusicUrl(song.songmid, quality)
+          .then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
         coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
       ]);
       if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');

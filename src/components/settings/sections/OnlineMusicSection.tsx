@@ -14,7 +14,6 @@ interface OnlineMusicSectionProps {
   onlineSource: OnlineSource;
   cookie: string;
   neteaseCookie: string;
-  sodaCookie: string;
   downloadPath: string;
   isQrLoggedIn: boolean;
   qrScanning: boolean;
@@ -27,7 +26,6 @@ interface OnlineMusicSectionProps {
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
   setNeteaseCookie: (v: string) => void;
-  setSodaCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
   onSave: () => void;
   startQr: (source: OnlineSource) => void;
@@ -44,7 +42,6 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   onlineSource,
   cookie,
   neteaseCookie,
-  sodaCookie,
   downloadPath,
   isQrLoggedIn,
   qrScanning,
@@ -57,7 +54,6 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   setOnlineSource,
   setCookie,
   setNeteaseCookie,
-  setSodaCookie,
   setDownloadPath,
   onSave,
   startQr,
@@ -144,8 +140,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
 
         <div className="min-w-0">
           <div className="text-xs mb-1.5 flex items-center justify-between gap-2" style={{ color: colors.textSecondary }}>
-            <span>{onlineSource === 'soda' ? t('settingsDialog.cookieLoginTitle') : t('settingsDialog.qrTitle')}</span>
-            {onlineSource !== 'soda' && (qrImage || qrState === 'error' || qrState === 'expired') && (
+            <span>{t('settingsDialog.qrTitle')}</span>
+            {(qrImage || qrState === 'error' || qrState === 'expired') && (
               <button
                 type="button"
                 onClick={() => startQr(onlineSource)}
@@ -165,32 +161,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               color: colors.textMuted,
             }}
           >
-            {onlineSource === 'soda' && (
-              <div className="flex flex-col items-center gap-2 text-center px-2">
-                <span className="material-symbols-outlined text-5xl" style={{ color: isQrLoggedIn ? '#22c55e' : colors.textMuted }}>
-                  {isQrLoggedIn ? 'check_circle' : 'key'}
-                </span>
-                <span className="text-xs" style={{ color: colors.textSecondary }}>
-                  {isQrLoggedIn ? t('settingsDialog.qrLoggedIn') : t('settingsDialog.cookieLoginTitle')}
-                </span>
-                <button
-                  type="button"
-                  onClick={isQrLoggedIn ? onQrLogout : onSave}
-                  disabled={isSaving}
-                  className="px-2 py-1 text-xs transition-all disabled:opacity-50"
-                  style={{
-                    backgroundColor: isQrLoggedIn ? colors.backgroundCard : `${colors.primary}20`,
-                    color: isQrLoggedIn ? colors.textSecondary : colors.primary,
-                    border: `1px solid ${isQrLoggedIn ? colors.borderLight : colors.primary}`,
-                    borderRadius: 'var(--theme-control-radius)',
-                  }}
-                >
-                  {isQrLoggedIn ? t('settingsDialog.qrLogout') : t('settingsDialog.cookieLoginAction')}
-                </button>
-              </div>
-            )}
             {/* Logged-in panel */}
-            {onlineSource !== 'soda' && (isQrLoggedIn && !qrScanning ? (
+            {isQrLoggedIn && !qrScanning ? (
               <div className="flex flex-col items-center gap-1.5 text-center px-2">
                 <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
                 <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoggedIn')}</span>
@@ -272,7 +244,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   {t('settingsDialog.qrRefresh')}
                 </button>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -282,15 +254,12 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
             <label className="block text-xs mb-1.5" style={{ color: colors.textSecondary }}>
               {onlineSource === 'netease'
                 ? t('settingsDialog.neteaseCookieLabel')
-                : onlineSource === 'soda'
-                  ? t('settingsDialog.sodaCookieLabel')
-                  : t('settingsDialog.cookie')}
+                : t('settingsDialog.cookie')}
             </label>
             <textarea
-              value={onlineSource === 'netease' ? neteaseCookie : onlineSource === 'soda' ? sodaCookie : cookie}
+              value={onlineSource === 'netease' ? neteaseCookie : cookie}
               onChange={(e) => {
                 if (onlineSource === 'netease') setNeteaseCookie(e.target.value);
-                else if (onlineSource === 'soda') setSodaCookie(e.target.value);
                 else setCookie(e.target.value);
               }}
               placeholder={t('settingsDialog.pasteCookie')}

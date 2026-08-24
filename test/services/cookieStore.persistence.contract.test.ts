@@ -45,7 +45,7 @@ async function createLoadedStore(cookie: string, checkTime: string) {
   mocks.storageGetItem.mockImplementation((key: string) => {
     if (key === STORAGE_KEY) return cookie;
     if (key === CHECK_TIME_KEY) return checkTime;
-    // The module also constructs its three application singletons. Treat those
+    // The module also constructs its two application singletons. Treat those
     // unrelated stores as explicitly empty so they do not enter IDB migration.
     return '';
   });
@@ -54,7 +54,6 @@ async function createLoadedStore(cookie: string, checkTime: string) {
   await Promise.all([
     module.cookieManager.ensureLoaded(),
     module.neteaseCookieManager.ensureLoaded(),
-    module.sodaCookieManager.ensureLoaded(),
   ]);
   mocks.storageSetMany.mockClear();
 

@@ -308,27 +308,6 @@ describe('usePlayback', () => {
     expect(source).toBe('audio://localhost/music/two.flac');
   });
 
-  it('routes Soda tracks through the stream protocol', () => {
-    const local = makeTrack({ id: 'local', audioUrl: 'audio://localhost/local.flac' });
-    const soda = makeTrack({ id: 'soda-track', source: 'soda', songmid: 'soda-123' });
-    const audio = makeAudioElement();
-    const { result, rerender } = renderHook(
-      ({ index }: { index: number }) => usePlayback({
-        tracks: [local, soda],
-        setTracks: vi.fn(),
-        currentTrackIndex: index,
-        setCurrentTrackIndex: vi.fn(),
-        revokeBlobUrl: vi.fn(),
-      }),
-      { initialProps: { index: 0 } },
-    );
-
-    act(() => result.current.setAudioRef(audio));
-    rerender({ index: 1 });
-
-    expect(audio.getAttribute('src')).toBe('stream://soda/soda-123?q=320');
-  });
-
   it('reloads the same track after its audio element is remounted', () => {
     const one = makeTrack({ id: 'one', audioUrl: 'audio://localhost/one.flac' });
     const two = makeTrack({ id: 'two', audioUrl: 'audio://localhost/two.flac' });

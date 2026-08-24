@@ -7,7 +7,6 @@ const SENSITIVE_SETTING_KEYS = new Set([
   'webdav-config',
   'qq_music_cookie',
   'netease_cookie',
-  'soda_cookie',
 ]);
 
 /** Replaceable runtime caches that belong in the application data directory. */
@@ -22,6 +21,8 @@ export const USER_DATA_SCHEMA_VERSION = 1 as const;
 
 const RETIRED_LOCAL_SETTING_KEYS = new Set([
   'la_new_ux_enabled',
+  'soda_cookie',
+  'soda_cookie_last_check',
 ]);
 
 /**
@@ -39,8 +40,6 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
   'qq_music_cookie_last_check',
   'netease_cookie',
   'netease_cookie_last_check',
-  'soda_cookie',
-  'soda_cookie_last_check',
   'la_download_path',
   'la_floating_panel',
   'la_bg_blur_trans',
