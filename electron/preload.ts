@@ -1,5 +1,6 @@
 // Secure preload script using contextBridge
 import type { TypedElectronIPC } from '../src/types/typedIpc';
+import type { AppNotificationOptions } from '../src/types/notification';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -351,8 +352,13 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   // Show a system notification via main process (Notification API)
-  showNotification: async (title: string, body: string, options?: { silent?: boolean }) => {
-    return ipcRenderer.invoke('notification:show', { title, body, silent: options?.silent });
+  showNotification: async (title: string, body: string, options?: AppNotificationOptions) => {
+    return ipcRenderer.invoke('notification:show', {
+      title,
+      body,
+      silent: options?.silent,
+      artworkUrls: options?.artworkUrls,
+    });
   },
 
   // Listen for updater state changes

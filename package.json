@@ -86,6 +86,10 @@
     ],
     "extraResources": [
       {
+        "from": "app-icon.png",
+        "to": "app-icon.png"
+      },
+      {
         "from": "dist",
         "to": "dist",
         "filter": [

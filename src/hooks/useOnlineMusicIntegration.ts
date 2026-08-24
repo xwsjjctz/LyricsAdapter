@@ -195,13 +195,19 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
           ...(coverUrl != null && { coverUrl }),
         });
       }
-      // Build a Track from the downloaded file and add it to the local library.
-      if (onDownloadComplete) {
-        const track = await buildDownloadedTrack(result.filePath, fileName, song, lyrics);
-        if (track) onDownloadComplete(track);
-      }
+      // Build a Track so the notification can use its persisted cover even when
+      // no library callback was supplied.
+      const downloadedTrack = await buildDownloadedTrack(result.filePath, fileName, song, lyrics);
+      if (downloadedTrack && onDownloadComplete) onDownloadComplete(downloadedTrack);
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed' } }));
-      notify(t('notifications.downloadComplete'), song.songname, { silent: true });
+      notify(
+        t('notifications.downloadComplete'),
+        t('notifications.trackDownloadSuccess').replace('{title}', song.songname),
+        {
+          silent: true,
+          artworkUrls: [downloadedTrack?.coverUrl || coverUrl].filter((url): url is string => Boolean(url)),
+        },
+      );
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] download failed:', err);
@@ -285,7 +291,10 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
         ...(coverBase64 != null ? { coverUrl: coverBase64 } : coverUrl != null ? { coverUrl } : {}),
       };
       mergeCloudTracks([cloudTrack], [], []);
-      notify(t('notifications.uploadComplete'), `${song.songname} → WebDAV`, { silent: true });
+      notify(t('notifications.uploadComplete'), `${song.songname} → WebDAV`, {
+        silent: true,
+        artworkUrls: [coverBase64 || coverUrl].filter((url): url is string => Boolean(url)),
+      });
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] upload failed:', err);

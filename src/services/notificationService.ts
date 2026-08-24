@@ -1,5 +1,6 @@
 import { getDesktopAPI } from './desktopAdapter';
 import { logger } from './logger';
+import type { AppNotificationOptions } from '../types/notification';
 
 /**
  * 显示系统通知。
@@ -11,13 +12,14 @@ import { logger } from './logger';
 export async function notify(
   title: string,
   body: string,
-  options?: { silent?: boolean }
+  options?: AppNotificationOptions
 ): Promise<void> {
   try {
     const api = getDesktopAPI();
     if (api?.showNotification) {
-      await api.showNotification(title, body, options);
-      return;
+      const result = await api.showNotification(title, body, options);
+      if (result.ok) return;
+      logger.warn('[Notification] Main-process notification failed, trying renderer fallback:', result.reason);
     }
 
     // 浏览器 fallback（无 Electron）
@@ -31,6 +33,7 @@ export async function notify(
     const n = new Notification(title, {
       body,
       ...(options?.silent !== undefined && { silent: options.silent }),
+      ...(options?.artworkUrls?.[0] ? { icon: options.artworkUrls[0] } : {}),
     });
     n.onclick = () => {
       n.close();

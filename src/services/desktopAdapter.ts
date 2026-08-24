@@ -18,6 +18,7 @@ import type {
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
+import type { AppNotificationOptions } from '../types/notification';
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
 type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
@@ -137,7 +138,7 @@ export interface DesktopAPI {
   onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
-  showNotification?: (title: string, body: string, options?: { silent?: boolean }) => Promise<{ ok: boolean; reason?: string }>;
+  showNotification?: (title: string, body: string, options?: AppNotificationOptions) => Promise<{ ok: boolean; reason?: string }>;
   // Online music: push a provider cookie to the main-process stream:// proxy.
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
   // Settings store (SQLite-backed main-process facade)
@@ -503,7 +504,7 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  async showNotification(title: string, body: string, options?: { silent?: boolean }): Promise<{ ok: boolean; reason?: string }> {
+  async showNotification(title: string, body: string, options?: AppNotificationOptions): Promise<{ ok: boolean; reason?: string }> {
     if (typeof this.api.showNotification === 'function') {
       return this.api.showNotification(title, body, options);
     }
