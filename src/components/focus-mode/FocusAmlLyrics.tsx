@@ -53,7 +53,7 @@ export default function FocusAmlLyrics({
 
   const style = useMemo<AmlStyle>(() => ({
     '--focus-amll-font-size-adjustment': `${fontSize - 30}px`,
-    '--focus-amll-line-spacing-adjustment': `${(lineSpacing - 32) / 2}px`,
+    '--focus-amll-line-spacing-adjustment': `${(lineSpacing - 24) / 2}px`,
   }), [fontSize, lineSpacing]);
 
   useLayoutEffect(() => {

@@ -11,6 +11,9 @@ beforeEach(() => {
   (settingsManager as any).glassUI = false;
   (settingsManager as any).gsapButtonBounce = true;
   (settingsManager as any).focusBgBlurRadius = 80;
+  (settingsManager as any).focusLyricsFontSize = 30;
+  (settingsManager as any).focusLyricLineSpacing = 24;
+  (settingsManager as any).focusInactiveLyricBlur = 2;
 });
 
 describe('downloadPath', () => {
@@ -124,6 +127,13 @@ describe('focusBgBlurRadius', () => {
     settingsManager.setFocusBgBlurRadius(96);
     expect(settingsManager.getFocusBgBlurRadius()).toBe(80);
     expect(localStorage.getItem('la_focus_bg_blur_radius')).toBe('80');
+  });
+});
+
+describe('focus lyrics appearance', () => {
+  it('should default to a 30px font size and 24px line spacing', () => {
+    expect(settingsManager.getFocusLyricsFontSize()).toBe(30);
+    expect(settingsManager.getFocusLyricLineSpacing()).toBe(24);
   });
 });
 

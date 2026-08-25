@@ -61,7 +61,7 @@ describe('FocusAmlLyrics', () => {
         isPlaying
         isVisible
         fontSize={30}
-        lineSpacing={32}
+        lineSpacing={24}
         inactiveBlur={2}
         onSeek={vi.fn()}
       />,
