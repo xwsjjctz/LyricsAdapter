@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.3.1",
   "type": "module",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
   "main": "dist-electron/main.js",
   "author": "xwsjjctz",
   "license": "GPLv3",
@@ -64,7 +67,7 @@
     "@types/write-file-atomic": "^4.0.3",
     "@vitejs/plugin-react": "^6.0.3",
     "cross-env": "^7.0.3",
-    "electron": "^42.5.0",
+    "electron": "^42.10.0",
     "electron-builder": "^26.15.3",
     "jsdom": "^25.0.1",
     "react": "18.2.0",
