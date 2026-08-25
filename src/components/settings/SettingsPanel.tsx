@@ -277,8 +277,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                     max="40"
                     step="1"
                     value={focusLyricsFontSize}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
                       setFocusLyricsFontSize(value);
                       settingsManager.setFocusLyricsFontSize(value);
                     }}
@@ -299,8 +299,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                     max="48"
                     step="1"
                     value={focusLyricLineSpacing}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
                       setFocusLyricLineSpacing(value);
                       settingsManager.setFocusLyricLineSpacing(value);
                     }}
@@ -313,23 +313,40 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
               {/* Focus Mode 非当前歌词模糊 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
                 <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusInactiveLyricBlur')}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusInactiveLyricBlur}px</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="12"
-                    step="1"
-                    value={focusInactiveLyricBlur}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
+                {isBrutalistTheme ? (
+                  <RetroSwitch
+                    checked={focusInactiveLyricBlur > 0}
+                    ariaLabel={t('settings.focusInactiveLyricBlur')}
+                    onChange={(enabled) => {
+                      const value = enabled ? 2 : 0;
                       setFocusInactiveLyricBlur(value);
                       settingsManager.setFocusInactiveLyricBlur(value);
                     }}
-                    className={rangeClassName}
-                    style={rangeStyle((focusInactiveLyricBlur / 12) * 100)}
                   />
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={focusInactiveLyricBlur > 0}
+                    aria-label={t('settings.focusInactiveLyricBlur')}
+                    onClick={() => {
+                      const value = focusInactiveLyricBlur > 0 ? 0 : 2;
+                      setFocusInactiveLyricBlur(value);
+                      settingsManager.setFocusInactiveLyricBlur(value);
+                    }}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
+                    style={{
+                      backgroundColor: focusInactiveLyricBlur > 0 ? colors.primary : colors.borderLight,
+                    }}
+                  >
+                    <span
+                      className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                      style={{
+                        transform: focusInactiveLyricBlur > 0 ? 'translateX(22px)' : 'translateX(2px)',
+                      }}
+                    />
+                  </button>
+                )}
               </div>
 
               {/* 第三方音源开关 */}

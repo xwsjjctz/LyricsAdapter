@@ -1,7 +1,7 @@
 import { logger } from './logger';
 // parseLRCLyrics 已收敛到 src/shared/lrcParser.ts（全项目唯一真身），
 // 此处 re-export 保持 `import { parseLRCLyrics } from './metadataService'` 兼容。
-export { parseLRCLyrics, parseLyrics, parseWordLyrics } from '../shared/lrcParser';
+export { parseLRCLyrics, parseLyrics } from '../shared/lrcParser';
 import { parseLRCLyrics } from '../shared/lrcParser';
 
 interface CoverNeededRange {
