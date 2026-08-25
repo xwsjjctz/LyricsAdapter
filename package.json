@@ -110,6 +110,7 @@
       "repo": "LyricsAdapter"
     },
     "win": {
+      "icon": "app-icon-win.ico",
       "target": [
         "nsis"
       ]
