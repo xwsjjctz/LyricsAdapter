@@ -89,6 +89,7 @@ describe('appStorage persistence boundary', () => {
     const api = makeDesktopSettingsApi();
     localStorage.setItem('app-theme', 'default-light');
     localStorage.setItem('webdav-config', '{"password":"legacy-secret"}');
+    localStorage.setItem('la_focus_amll_lyrics_enabled', 'true');
     localStorage.setItem('la_new_ux_enabled', 'true');
     localStorage.setItem('soda_cookie', 'retired-secret');
     localStorage.setItem('soda_cookie_last_check', '123');
@@ -100,16 +101,19 @@ describe('appStorage persistence boundary', () => {
 
     expect(appStorage.getItem('app-theme')).toBe('default-light');
     expect(appStorage.getItem('webdav-config')).toBe('{"password":"legacy-secret"}');
+    expect(appStorage.getItem('la_focus_amll_lyrics_enabled')).toBe('true');
     expect(appStorage.getItem('la_new_ux_enabled')).toBeNull();
     expect(appStorage.getItem('soda_cookie')).toBeNull();
     expect(appStorage.getItem('soda_cookie_last_check')).toBeNull();
     expect(appStorage.getItem('unknown-stale-key')).toBeNull();
     expect(localStorage.getItem('app-theme')).toBeNull();
     expect(localStorage.getItem('webdav-config')).toBeNull();
+    expect(localStorage.getItem('la_focus_amll_lyrics_enabled')).toBeNull();
     expect(api.settingsSetMany).toHaveBeenCalledWith({
       [SETTINGS_MIGRATION_VERSION_KEY]: SETTINGS_MIGRATION_VERSION,
       'app-theme': 'default-light',
       'webdav-config': '{"password":"legacy-secret"}',
+      'la_focus_amll_lyrics_enabled': 'true',
     });
   });
 

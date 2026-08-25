@@ -158,8 +158,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           artist: 'LyricsAdapter',
           album: 'Smoke Test',
           duration: 120,
-          lyrics: '',
-          syncedLyrics: [],
+          lyrics: 'Focus legacy renderer\nFocus AMLL renderer',
+          syncedLyrics: [
+            { time: 0, text: 'Focus legacy renderer' },
+            { time: 4, text: 'Focus AMLL renderer' },
+          ],
           coverUrl: `cover://${fixtureTrackId}.png`,
           source: 'local',
           available: false,
@@ -170,8 +173,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           artist: 'LyricsAdapter',
           album: 'Smoke Test',
           duration: 120,
-          lyrics: '',
-          syncedLyrics: [],
+          lyrics: 'Second Focus lyric\nRenderer switch fixture',
+          syncedLyrics: [
+            { time: 0, text: 'Second Focus lyric' },
+            { time: 4, text: 'Renderer switch fixture' },
+          ],
           coverUrl: `cover://${secondFixtureTrackId}.png`,
           source: 'local',
           available: false,
@@ -384,6 +390,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await focusToggle.click();
     const focusOverlay = page.locator('.focus-mode-overlay');
     await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
     await expect.poll(() => page!.evaluate(() => {
       const probe = (window as typeof window & {
         __focusEntranceProbe?: FocusEntranceProbe;
@@ -704,6 +712,48 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     );
     expect(thumbnailStats.every(fileStat => fileStat.size > 0)).toBe(true);
 
+    await focusToggle.click();
+    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
+
+    // The experimental setting is off by default, persists through the main
+    // settings store, and swaps the renderer without keeping both trees mounted.
+    const settingsButton = page.getByRole('button', {
+      name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
+    }).first();
+    await settingsButton.click();
+    const amllLyricsSwitch = page.getByRole('switch', { name: /AMLL/i });
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
+    await amllLyricsSwitch.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(() => page!.evaluate(async () => {
+      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
+      const settings = await api?.settingsGetAll?.();
+      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
+    })).toBe('true');
+    await page.getByRole('button', { name: 'Close settings panel' }).click();
+
+    await focusToggle.click();
+    await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(0);
+    await focusToggle.click();
+    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
+
+    await settingsButton.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
+    await amllLyricsSwitch.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
+    await expect.poll(() => page!.evaluate(async () => {
+      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
+      const settings = await api?.settingsGetAll?.();
+      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
+    })).toBe('false');
+    await page.getByRole('button', { name: 'Close settings panel' }).click();
+
+    await focusToggle.click();
+    await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 

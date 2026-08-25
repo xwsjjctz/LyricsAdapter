@@ -284,6 +284,8 @@
   "settings.focusLyricsFontSize": "Schriftgröße der Focus-Mode-Texte",
   "settings.focusLyricLineSpacing": "Zeilenabstand für scrollende Liedtexte",
   "settings.focusInactiveLyricBlur": "Unschärfe inaktiver Focus-Mode-Texte",
+  "settings.focusAmlLyricsEnabled": "AMLL-Liedtextanzeige",
+  "settings.focusAmlLyricsEnabledDesc": "AMLL für wortweise Animationen und Bildlauf verwenden; dies kann den Speicherverbrauch erhöhen.",
   "settings.clearCache": "Cache leeren",
   "settings.clearCacheDesc": "Lösche verwaiste Metadaten und Cover-Cache entfernter Titel",
   "settings.clearCacheConfirmTitle": "Cache leeren?",

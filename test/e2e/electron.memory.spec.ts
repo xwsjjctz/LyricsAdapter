@@ -12,6 +12,11 @@ import {
 } from '@playwright/test';
 
 const benchmarkEnabled = process.env['MEMORY_BENCHMARK'] === '1';
+const configuredLyricsRenderer = process.env['MEMORY_BENCHMARK_LYRICS_RENDERER'];
+if (configuredLyricsRenderer && configuredLyricsRenderer !== 'legacy' && configuredLyricsRenderer !== 'amll') {
+  throw new Error('MEMORY_BENCHMARK_LYRICS_RENDERER must be "legacy" or "amll"');
+}
+const lyricsRenderer: 'legacy' | 'amll' = configuredLyricsRenderer === 'amll' ? 'amll' : 'legacy';
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const require = createRequire(import.meta.url);
 const electronExecutable = require('electron') as string;
@@ -306,6 +311,14 @@ test.describe('cross-platform Electron memory benchmark', () => {
     };
     await Promise.all([isolatedHome, ...Object.values(dirs)]
       .map(directory => mkdir(directory, { recursive: true })));
+    const legacySettingsDirectory = path.join(isolatedHome, '.la');
+    await mkdir(legacySettingsDirectory, { recursive: true });
+    await writeFile(
+      path.join(legacySettingsDirectory, 'settings.json'),
+      JSON.stringify({
+        la_focus_amll_lyrics_enabled: lyricsRenderer === 'amll' ? 'true' : 'false',
+      }),
+    );
 
     const trackId = 'memory-benchmark-track';
     const coversDirectory = path.join(dirs.userData, 'covers');
@@ -407,7 +420,14 @@ test.describe('cross-platform Electron memory benchmark', () => {
         await focusToggle.click();
         await expect(focusOverlay).toBeVisible();
         await expect(focusOverlay.locator('canvas')).toHaveCount(1, { timeout: 10_000 });
-        await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
+        const activeLyrics = lyricsRenderer === 'amll'
+          ? focusOverlay.locator('.amll-lyric-player')
+          : focusOverlay.getByTestId('focus-legacy-lyrics');
+        const inactiveLyrics = lyricsRenderer === 'amll'
+          ? focusOverlay.getByTestId('focus-legacy-lyrics')
+          : focusOverlay.locator('.amll-lyric-player');
+        await expect(activeLyrics).toHaveCount(1, { timeout: 10_000 });
+        await expect(inactiveLyrics).toHaveCount(0);
         await capturePhase(`focus-${cycle}`);
 
         await focusToggle.click();
@@ -447,7 +467,13 @@ test.describe('cross-platform Electron memory benchmark', () => {
         generatedAt: new Date().toISOString(),
         platform,
         runtime,
-        configuration: { cycles, settleMs, samplesPerPhase, sampleIntervalMs },
+        configuration: {
+          cycles,
+          settleMs,
+          samplesPerPhase,
+          sampleIntervalMs,
+          lyricsRenderer,
+        },
         measurementNotes: [
           'Electron app.getAppMetrics() values and process.getProcessMemoryInfo() values are reported in KiB.',
           'privateBytes is available for every process only on Windows; workingSet is retained for cross-platform inspection.',
@@ -471,7 +497,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
       const safeTimestamp = report.generatedAt.replace(/[:.]/g, '-');
       const reportPath = path.join(
         reportDirectory,
-        `memory-${platform.os}-${platform.arch}-${safeTimestamp}.json`,
+        `memory-${lyricsRenderer}-${platform.os}-${platform.arch}-${safeTimestamp}.json`,
       );
       const reportBody = `${JSON.stringify(report, null, 2)}\n`;
       await writeFile(reportPath, reportBody);

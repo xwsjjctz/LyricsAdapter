@@ -1,4 +1,3 @@
-import type { MutableRefObject } from 'react';
 import type { Track } from '../types';
 
 /**
@@ -18,10 +17,10 @@ export type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
  * `duration` is derived here (previously inlined at each call site as
  * `currentTrack?.duration ?? 0`).
  *
- * `audioRef` is exposed as an escape hatch for slice 1 only: FocusMode's
- * requestAnimationFrame lyrics loop needs sub-frame timing that the React
- * `currentTime` state cannot provide. Encapsulating it (e.g. behind a
- * `subscribeTime(cb)` API) is deferred — see docs/refactor-backlog.md.
+ * `getCurrentPlaybackTime` gives FocusMode sub-frame timing without exposing
+ * the media element. The playback engine guards that read with track/source
+ * ownership, so a debounced track switch cannot leak the previous song's
+ * media clock into the newly selected lyrics.
  */
 export interface PlayerViewModel {
   // ---- state reads ----
@@ -31,7 +30,7 @@ export interface PlayerViewModel {
   duration: number;
   volume: number;
   playbackMode: PlaybackMode;
-  audioRef: MutableRefObject<HTMLAudioElement | null>;
+  getCurrentPlaybackTime(): number;
 
   // ---- intent callbacks ----
   togglePlay(): void;
@@ -49,7 +48,7 @@ export interface PlayerViewModelOptions {
   currentTime: number;
   volume: number;
   playbackMode: PlaybackMode;
-  audioRef: MutableRefObject<HTMLAudioElement | null>;
+  getCurrentPlaybackTime: () => number;
 
   togglePlay: () => void;
   skipForward: () => void;
@@ -67,7 +66,7 @@ export function usePlayerViewModel(opts: PlayerViewModelOptions): PlayerViewMode
     currentTime,
     volume,
     playbackMode,
-    audioRef,
+    getCurrentPlaybackTime,
     togglePlay,
     skipForward,
     skipBackward,
@@ -84,7 +83,7 @@ export function usePlayerViewModel(opts: PlayerViewModelOptions): PlayerViewMode
     duration: currentTrack?.duration ?? 0,
     volume,
     playbackMode,
-    audioRef,
+    getCurrentPlaybackTime,
 
     togglePlay,
     next: skipForward,

@@ -51,6 +51,7 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
   'la_focus_lyrics_font_size',
   'la_focus_lyric_line_spacing',
   'la_focus_inactive_lyric_blur',
+  'la_focus_amll_lyrics_enabled',
 ]);
 
 export function isSensitiveSettingKey(key: string): boolean {

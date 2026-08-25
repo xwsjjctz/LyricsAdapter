@@ -284,6 +284,8 @@
   "settings.focusLyricsFontSize": "Taille des paroles du mode Focus",
   "settings.focusLyricLineSpacing": "Espacement des lignes de paroles défilantes",
   "settings.focusInactiveLyricBlur": "Flou des paroles inactives en mode Focus",
+  "settings.focusAmlLyricsEnabled": "Paroles défilantes AMLL",
+  "settings.focusAmlLyricsEnabledDesc": "Utilise AMLL pour l’animation mot à mot et le défilement ; peut augmenter l’utilisation de la mémoire.",
   "settings.clearCache": "Vider le cache",
   "settings.clearCacheDesc": "Nettoyer les métadonnées et caches de pochettes des pistes supprimées",
   "settings.clearCacheConfirmTitle": "Vider le cache ?",

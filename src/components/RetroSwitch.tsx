@@ -3,11 +3,18 @@ import React from 'react';
 interface RetroSwitchProps {
   checked: boolean;
   ariaLabel: string;
+  ariaDescribedBy?: string;
   onChange: (checked: boolean) => void;
   className?: string;
 }
 
-const RetroSwitch: React.FC<RetroSwitchProps> = ({ checked, ariaLabel, onChange, className = '' }) => {
+const RetroSwitch: React.FC<RetroSwitchProps> = ({
+  checked,
+  ariaLabel,
+  ariaDescribedBy,
+  onChange,
+  className = '',
+}) => {
   return (
     <button
       type="button"
@@ -15,6 +22,7 @@ const RetroSwitch: React.FC<RetroSwitchProps> = ({ checked, ariaLabel, onChange,
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       onClick={() => onChange(!checked)}
     >
       <span className="retro-switch__thumb" />

@@ -42,6 +42,9 @@ describe('SettingsManager persistence contract', () => {
     storageMocks.setItem.mockResolvedValue(undefined);
     (settingsManager as unknown as { onlineSource: string }).onlineSource = 'qq';
     (settingsManager as unknown as { downloadPath: string }).downloadPath = '';
+    (settingsManager as unknown as { focusAmlLyricsEnabled: boolean }).focusAmlLyricsEnabled = false;
+    (settingsManager as unknown as { focusAmlLyricsDurableValue: boolean }).focusAmlLyricsDurableValue = false;
+    (settingsManager as unknown as { focusAmlLyricsPersistenceQueue: Promise<void> }).focusAmlLyricsPersistenceQueue = Promise.resolve();
     (settingsManager as unknown as { persistenceRevisions: Map<string, number> }).persistenceRevisions.clear();
   });
 
@@ -58,6 +61,40 @@ describe('SettingsManager persistence contract', () => {
     (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
 
     expect(settingsManager.getOnlineSource()).toBe('qq');
+  });
+
+  it('restores AMLL lyrics only from an explicit true value', () => {
+    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'true' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
+
+    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'invalid' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+  });
+
+  it('rolls back the AMLL renderer flag when persistence fails', async () => {
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(settingsManager.setFocusAmlLyricsEnabled(true)).resolves.toBe(false);
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+  });
+
+  it('returns to the last durable AMLL value when two rapid writes both fail', async () => {
+    const older = deferred();
+    const newer = deferred();
+    storageMocks.setItem
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise);
+
+    const olderResult = settingsManager.setFocusAmlLyricsEnabled(true);
+    const newerResult = settingsManager.setFocusAmlLyricsEnabled(false);
+    older.reject(new Error('first write failed'));
+    await expect(olderResult).resolves.toBe(false);
+    newer.reject(new Error('second write failed'));
+
+    await expect(newerResult).resolves.toBe(false);
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
   });
 
   it('does not let an older failed write roll back a newer successful value', async () => {
