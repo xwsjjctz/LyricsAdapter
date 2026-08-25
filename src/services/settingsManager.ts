@@ -30,7 +30,7 @@ class SettingsManager {
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 30;
-  private focusLyricLineSpacing: number = 32;
+  private focusLyricLineSpacing: number = 24;
   private focusInactiveLyricBlur: number = 2;
   private listeners: Set<Listener> = new Set();
   /** Prevent an older failed async write from rolling back a newer value. */
@@ -51,7 +51,7 @@ class SettingsManager {
       this.gsapButtonBounce = true;
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 30;
-      this.focusLyricLineSpacing = 32;
+      this.focusLyricLineSpacing = 24;
       this.focusInactiveLyricBlur = 2;
 
       this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';

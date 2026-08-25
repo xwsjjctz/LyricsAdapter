@@ -319,8 +319,19 @@ test.describe('cross-platform Electron memory benchmark', () => {
           artist: 'LyricsAdapter',
           album: 'Cross-platform benchmark',
           duration: 180,
-          lyrics: '',
-          syncedLyrics: [],
+          lyrics: 'Memory benchmark lyric\nExercises AMLL mount and cleanup\nAcross repeated focus cycles',
+          syncedLyrics: [
+            {
+              time: 0,
+              text: 'Memory benchmark lyric',
+              words: [
+                { time: 0, duration: 1.5, text: 'Memory benchmark ' },
+                { time: 1.5, duration: 1.5, text: 'lyric' },
+              ],
+            },
+            { time: 3, text: 'Exercises AMLL mount and cleanup' },
+            { time: 6, text: 'Across repeated focus cycles' },
+          ],
           coverUrl: `cover://${trackId}.png`,
           source: 'local',
           available: false,
@@ -396,6 +407,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
         await focusToggle.click();
         await expect(focusOverlay).toBeVisible();
         await expect(focusOverlay.locator('canvas')).toHaveCount(1, { timeout: 10_000 });
+        await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
         await capturePhase(`focus-${cycle}`);
 
         await focusToggle.click();

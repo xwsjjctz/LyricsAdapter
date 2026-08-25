@@ -1,0 +1,53 @@
+.focus-amll-lyrics {
+  --amll-lp-color: rgba(255, 255, 255, 0.96);
+  --focus-amll-font-size-adjustment: 0px;
+  --focus-amll-line-spacing-adjustment: 0px;
+  --amll-lp-font-size: calc(clamp(30px, max(4.5vh, 2.45vw), 44px) + var(--focus-amll-font-size-adjustment));
+  --amll-lp-hover-bg-color: rgba(255, 255, 255, 0.08);
+
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  cursor: grab;
+  color: var(--amll-lp-color);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+  font-size: var(--amll-lp-font-size);
+  font-synthesis: none;
+  font-kerning: normal;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.focus-amll-lyrics:active {
+  cursor: grabbing;
+}
+
+.focus-amll-lyrics > .amll-lyric-player {
+  mix-blend-mode: plus-lighter;
+}
+
+.focus-amll-lyrics .amll-lyric-player [class*="_lyricLineWrapper"] {
+  padding-block: calc(0.38em + var(--focus-amll-line-spacing-adjustment));
+}
+
+.focus-amll-lyrics .amll-lyric-player [class*="_lyricMainLine"] {
+  font-weight: 700;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+.focus-amll-lyrics .amll-lyric-player [class*="_lyricSubLine"] {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+@media (max-width: 1023px) {
+  .focus-amll-lyrics {
+    --amll-lp-font-size: calc(clamp(27px, 4.5vw, 38px) + var(--focus-amll-font-size-adjustment));
+  }
+}
