@@ -3,10 +3,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
   requestLibraryFlush: vi.fn(),
+  requestPlaybackShutdown: vi.fn(),
 }));
 
 vi.mock('@/services/libraryFlushEvent', () => ({
   requestLibraryFlush: mocks.requestLibraryFlush,
+}));
+vi.mock('@/services/playbackShutdown', () => ({
+  requestPlaybackShutdown: mocks.requestPlaybackShutdown,
 }));
 
 import { useWindowControls } from '@/hooks/useWindowControls';
@@ -15,6 +19,8 @@ describe('useWindowControls close handshake', () => {
   beforeEach(() => {
     mocks.requestLibraryFlush.mockReset();
     mocks.requestLibraryFlush.mockResolvedValue(true);
+    mocks.requestPlaybackShutdown.mockReset();
+    mocks.requestPlaybackShutdown.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -39,6 +45,7 @@ describe('useWindowControls close handshake', () => {
 
     await waitFor(() => expect(closeWindow).toHaveBeenCalledWith(true));
     expect(mocks.requestLibraryFlush).toHaveBeenCalledTimes(1);
+    expect(mocks.requestPlaybackShutdown).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the title-bar window open when the renderer commit reports failure', async () => {
@@ -60,5 +67,6 @@ describe('useWindowControls close handshake', () => {
     await waitFor(() => expect(mocks.requestLibraryFlush).toHaveBeenCalledTimes(1));
 
     expect(closeWindow).not.toHaveBeenCalled();
+    expect(mocks.requestPlaybackShutdown).not.toHaveBeenCalled();
   });
 });

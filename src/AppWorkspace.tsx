@@ -12,6 +12,7 @@ import { useShortcuts } from './hooks/useShortcuts';
 import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
+import { useAppClosePreparation } from './hooks/useAppClosePreparation';
 import { useImportStore } from './stores/importStore';
 import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSource } from './services/onlineMusicProvider';
@@ -341,6 +342,7 @@ const AppWorkspace: React.FC = () => {
     duration: currentTrack?.duration || 0
   });
   useAppLifecycle({ activeBlobUrlsRef });
+  useAppClosePreparation();
 
   // 清理孤儿缓存：删除已不在库中的曲目残留的元数据、封面等缓存
   const handleClearOrphanCache = useCallback(async (): Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }> => {
