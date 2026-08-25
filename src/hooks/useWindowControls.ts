@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DesktopAPI } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
+import { requestPlaybackShutdown } from '../services/playbackShutdown';
 
 interface WindowControls {
   minimize: () => void;
@@ -48,8 +49,9 @@ export const useWindowControls = (): WindowControls => {
 
   const close = useCallback(() => {
     if ((window as Window & { electron?: DesktopAPI }).electron?.closeWindow) {
-      void requestLibraryFlush().then((saved) => {
+      void requestLibraryFlush().then(async (saved) => {
         if (saved) {
+          await requestPlaybackShutdown();
           (window as Window & { electron?: DesktopAPI }).electron!.closeWindow!(true);
         }
       });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, lazy, memo, Suspense } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { themeManager } from '../services/themeManager';
@@ -11,8 +11,10 @@ import FocusBackdrop from './focus-mode/FocusBackdrop';
 import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
-import FocusLyricRow from './focus-mode/FocusLyricRow';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
+import { hasTrackLyrics } from './focus-mode/amllLyrics';
+
+const FocusAmlLyrics = lazy(() => import('./focus-mode/FocusAmlLyrics'));
 
 // FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
 const FOCUS_MODE_COLORS = {
@@ -129,20 +131,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     return unsubscribe;
   }, []);
 
-  const lyricsRef = useRef<HTMLDivElement>(null);
-  const lyricListRef = useRef<HTMLDivElement>(null);
-  const autoOffsetRef = useRef(0);
-  const currentOffsetRef = useRef(0);
-  const lyricAnimationRef = useRef<number | null>(null);
-  const preScrolledIndexRef = useRef<number>(-1);
-  const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const [manualOffsetY, setManualOffsetY] = useState(0);
-  const isDraggingRef = useRef(false);
-  const dragStartYRef = useRef(0);
-  const dragStartOffsetRef = useRef(0);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollAnimationRef = useRef<number | null>(null);
-  const prevActiveIndexRef = useRef<number>(-1);
   const playerRef = useRef<HTMLDivElement>(null);
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   const playerHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -201,9 +189,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const useDefaultThemeControlGlass =
     (currentTheme.id === THEME_IDS.DEFAULT_DARK || currentTheme.id === THEME_IDS.DEFAULT);
 
-  // Keep an exact RAF time ref for karaoke and a lighter state snapshot for UI.
+  // AMLL extrapolates animation frames internally; a 20fps media-clock snapshot
+  // keeps React and the controls light while regularly correcting its timeline.
   const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
-  const realtimeCurrentTimeRef = useRef(currentTime);
   const lastUpdateRef = useRef(0);
   const lastTimeRef = useRef(0); // Track last time value to avoid unnecessary updates
 
@@ -218,12 +206,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     let animationId: number;
 
     const updateTime = (timestamp: number) => {
-      if (audioRef.current) {
-        realtimeCurrentTimeRef.current = audioRef.current.currentTime;
-      }
-
-      // Active-line selection, controls and pre-scroll only need a lightweight
-      // 20fps React update. The word fill above still reads the ref every frame.
+      // Controls and AMLL clock correction only need a lightweight 20fps React
+      // update. AMLL owns its own requestAnimationFrame presentation loop.
       if (timestamp - lastUpdateRef.current > 50) {
         lastUpdateRef.current = timestamp;
         if (audioRef.current) {
@@ -253,21 +237,18 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // only a meaningful drift triggers this pre-paint correction.
   useLayoutEffect(() => {
     if (!Number.isFinite(currentTime) || currentTime < 0) return;
-    const drift = Math.abs(realtimeCurrentTimeRef.current - currentTime);
+    const drift = Math.abs(lastTimeRef.current - currentTime);
     if (!isPlaying || drift >= CLOCK_RESYNC_THRESHOLD_SECONDS) {
-      realtimeCurrentTimeRef.current = currentTime;
       lastTimeRef.current = currentTime;
       setRealtimeCurrentTime(currentTime);
     }
-  }, [currentTime, isPlaying]);
+  }, [currentTime, isPlaying, track?.id]);
 
   // A paused player has no moving clock: read its exact media time once during
   // render and stop both Focus RAF loops until playback resumes.
   const pausedCurrentTime = !isPlaying && audioRef?.current
     ? audioRef.current.currentTime
     : currentTime;
-  if (!isPlaying) realtimeCurrentTimeRef.current = pausedCurrentTime;
-
   // Use realtime currentTime for more accurate lyrics sync while playing.
   const activeCurrentTime = isVisible && audioRef?.current
     ? (isPlaying ? realtimeCurrentTime : pausedCurrentTime)
@@ -482,185 +463,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
   }, [hasBackground, isVisible, renderCanvas]);
 
-  // Parse lyrics - use synced lyrics if available, otherwise fall back to plain text
-  const lyricsLines = useMemo(() => {
-    if (track?.syncedLyrics && track.syncedLyrics.length > 0) {
-      // NetEase lyrics carry no `[ti:]` title header (they start at 作词/作曲
-      // or the first verse), so synthesize one from track metadata to match the
-      // QQ Music lyric-list presentation. QQ/local/WebDAV lyrics already embed
-      // their own title line, so leave those untouched.
-      if (track.source === 'netease' && (track.title || track.artist)) {
-        const titleText = [track.title, track.artist].filter(Boolean).join(' - ');
-        if (titleText) {
-          return [{ time: 0, text: titleText }, ...track.syncedLyrics];
-        }
-      }
-      return track.syncedLyrics;
-    }
-    // Fall back to plain text lyrics
-    if (track?.lyrics) {
-      const plainLines = track.lyrics.split(/\r?\n/)
-        .map(line => line.trim().replace(/^\[\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?\]/, ''))
-        .filter(line => line.length > 0 && line !== '//');
-      // Convert to synced lyrics format with even distribution
-      return plainLines.map((text, _idx) => ({
-        time: 0, // No timing info for plain lyrics
-        text
-      }));
-    }
-    return [];
-  }, [track?.syncedLyrics, track?.lyrics, track?.source, track?.title, track?.artist]);
-  const hasLyrics = lyricsLines.length > 0;
-
-  // Find the currently active lyric line based on timestamp
-  const activeIndex = useMemo(() => {
-    if (!track || lyricsLines.length === 0) return -1;
-
-    // If we have synced lyrics, find the line based on current time
-    if (track.syncedLyrics && track.syncedLyrics.length > 0) {
-        for (let i = lyricsLines.length - 1; i >= 0; i--) {
-        if (lyricsLines[i] && activeCurrentTime >= lyricsLines[i]!.time) {
-          return i;
-        }
-      }
-      return 0;
-    }
-
-    // Fall back to percentage-based for plain text lyrics
-    if (track.duration > 0) {
-      return Math.floor((activeCurrentTime / track.duration) * lyricsLines.length);
-    }
-    return 0;
-  }, [activeCurrentTime, lyricsLines, track]);
-
-  // Calculate scroll boundaries for lyrics
-  const getScrollBounds = useCallback(() => {
-    const container = lyricsRef.current;
-    const lyricList = lyricListRef.current;
-    if (!container || !lyricList) return { min: -Infinity, max: Infinity };
-    
-    const containerHeight = container.clientHeight;
-    const lineElements = Array.from(lyricList.children) as HTMLElement[];
-    if (lineElements.length === 0) return { min: -Infinity, max: Infinity };
-
-    const GAP = effectiveLyricLineSpacing;
-    
-    // Calculate total content height
-    let totalContentHeight = 0;
-    for (let i = 0; i < lineElements.length; i++) {
-      totalContentHeight += lineElements[i]!.offsetHeight;
-      if (i < lineElements.length - 1) {
-        totalContentHeight += GAP;
-      }
-    }
-
-    // First line should stay visible - restrict downward scroll
-    // Keep first line within upper half of container (around 8% from top)
-    const firstLineHeight = lineElements[0]!.offsetHeight;
-    const minOffset = containerHeight * 0.02 - totalContentHeight + firstLineHeight / 2;
-    
-    // Restrict upward scroll - keep first line from scrolling too far up
-    // Limit to 20% from top so first line stays visible when scrolling down
-    const lastLineHeight = lineElements[lineElements.length - 1]!.offsetHeight;
-    const maxOffset = containerHeight * 0.2 - lastLineHeight / 2;
-
-    return { min: minOffset, max: maxOffset };
-  }, [effectiveLyricLineSpacing]);
-
-  // Handle wheel scroll - manual scrolling with momentum
-  // Using native event listener with passive: false to allow preventDefault
-  const handleWheelRef = useRef<(e: WheelEvent) => void>();
-  
-  useEffect(() => {
-    const lyricsEl = lyricsRef.current;
-    if (!lyricsEl) return;
-
-    handleWheelRef.current = (e: WheelEvent) => {
-      e.preventDefault();
-      setIsUserScrolling(true);
-
-      const bounds = getScrollBounds();
-
-      // Update manual offset based on wheel delta with bounds
-      setManualOffsetY(prev => {
-        const newValue = prev - e.deltaY;
-        // Clamp to bounds relative to auto offset
-        const minManual = bounds.min - autoOffsetRef.current;
-        const maxManual = bounds.max - autoOffsetRef.current;
-        return Math.max(minManual, Math.min(maxManual, newValue));
-      });
-
-      // Resume auto-scroll after a short period of inactivity. The manual-scroll
-      // state is transient: the user browses, then playback takes over again.
-      // (The original cause of "lyrics can't scroll" was the wheel listener not
-      // being bound at all — fixed via the hasLyrics dependency — NOT this timer.)
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsUserScrolling(false);
-        setManualOffsetY(0);
-      }, 3000);
-    };
-
-    const handler = (e: WheelEvent) => handleWheelRef.current?.(e);
-    lyricsEl.addEventListener('wheel', handler, { passive: false });
-    return () => lyricsEl.removeEventListener('wheel', handler);
-    // The lyrics container (lyricsRef) mounts only once `hasLyrics` is true —
-    // it is fetched asynchronously. This effect MUST re-run when hasLyrics
-    // changes (and when the active lyric list changes, since bounds depend on
-    // the number of lines), otherwise the wheel listener is bound once against
-    // a null ref and never re-attached to the real element. That was the root
-    // cause of "Focus Mode 歌词无法手动滚动".
-  }, [getScrollBounds, hasLyrics, lyricsLines]);
-
-  // Handle mouse drag start
-  const handleMouseDown = (e: React.MouseEvent) => {
-    isDraggingRef.current = true;
-    dragStartYRef.current = e.clientY;
-    dragStartOffsetRef.current = manualOffsetY;
-    setIsUserScrolling(true);
-
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-  };
-
-  // Handle mouse drag move
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingRef.current) return;
-    const deltaY = e.clientY - dragStartYRef.current;
-    const newOffset = dragStartOffsetRef.current + deltaY;
-    
-    // Apply scroll bounds
-    const bounds = getScrollBounds();
-    const minManual = bounds.min - autoOffsetRef.current;
-    const maxManual = bounds.max - autoOffsetRef.current;
-    setManualOffsetY(Math.max(minManual, Math.min(maxManual, newOffset)));
-  };
-
-  // Handle mouse drag end
-  const handleMouseUp = () => {
-    if (!isDraggingRef.current) return;
-    isDraggingRef.current = false;
-
-    // Resume auto-scroll after a short period of inactivity (same as wheel).
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsUserScrolling(false);
-      setManualOffsetY(0);
-    }, 3000);
-  };
-
-  // Handle mouse leave during drag
-  const handleMouseLeave = () => {
-    if (isDraggingRef.current) {
-      isDraggingRef.current = false;
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsUserScrolling(false);
-        setManualOffsetY(0);
-      }, 3000);
-    }
-  };
+  const hasLyrics = hasTrackLyrics(track);
 
   // Handle player mouse enter
   const handlePlayerMouseEnter = () => {
@@ -686,10 +489,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       if (playerHideTimeoutRef.current) {
         clearTimeout(playerHideTimeoutRef.current);
       }
-      if (lyricAnimationRef.current !== null) {
-        cancelAnimationFrame(lyricAnimationRef.current);
-        lyricAnimationRef.current = null;
-      }
     };
   }, []);
 
@@ -711,190 +510,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     );
   }, []);
 
-  // Hardware-accelerated lyric positioning using CSS transform with bezier easing.
-  // The offset is transient DOM state: keeping it out of React avoids repainting
-  // every lyric row during the 500–900ms line transition.
-  const applyLyricOffset = useCallback((nextOffset: number) => {
-    currentOffsetRef.current = nextOffset;
-    if (lyricListRef.current) {
-      lyricListRef.current.style.transform = `translateY(${nextOffset}px)`;
-    }
-  }, []);
-
-  // Recenter the active lyric after its size or spacing changes.
-  useEffect(() => {
-    preScrolledIndexRef.current = -1;
-  }, [effectiveLyricsFontSize, effectiveLyricLineSpacing, track?.id]);
-  
-  // Start the line transition before its first word begins to fill.
-  const PRE_SCROLL_TIME = 0.2;
-  
-  // Cubic bezier curve: ease-out-cubic with slight overshoot for natural feel
-  const bezierEaseOut = (t: number): number => {
-    return 1 - Math.pow(1 - t, 3) * (1 - t * 0.3);
-  };
-  
-  // More pronounced curve for long distances - ease-out-expo variant
-  const bezierEaseOutLong = (t: number): number => {
-    return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-  };
-
-  const lyricScrollTargetIndex = useMemo(() => {
-    if (activeIndex < 0) return -1;
-
-    // Preserve the previous "first line inside the pre-scroll window" rule,
-    // but find it in O(log n) instead of scanning every lyric at 20fps.
-    const earliestTime = activeCurrentTime - 0.1;
-    const latestTime = activeCurrentTime + PRE_SCROLL_TIME;
-    let low = 0;
-    let high = lyricsLines.length;
-    while (low < high) {
-      const middle = Math.floor((low + high) / 2);
-      if (lyricsLines[middle]!.time <= earliestTime) low = middle + 1;
-      else high = middle;
-    }
-    if (low < lyricsLines.length && lyricsLines[low]!.time <= latestTime) return low;
-    return activeIndex;
-  }, [activeCurrentTime, activeIndex, lyricsLines]);
-  
-  // Calculate auto position with pre-scroll logic.
-  useEffect(() => {
-    if (!isVisible || lyricScrollTargetIndex < 0 || !lyricListRef.current || isUserScrolling) return;
-
-    // Most 20fps time snapshots stay within the same lyric. Exit before any
-    // DOM collection or layout read unless the visual target actually changed.
-    if (lyricScrollTargetIndex === preScrolledIndexRef.current) return;
-    preScrolledIndexRef.current = lyricScrollTargetIndex;
-
-    const container = lyricsRef.current;
-    const lyricList = lyricListRef.current;
-    if (!container || !track?.syncedLyrics) return;
-
-    const containerHeight = container.clientHeight;
-    const lineElements = Array.from(lyricList.children) as HTMLElement[];
-
-    if (!lineElements[lyricScrollTargetIndex]) return;
-
-    // Calculate cumulative offset to the target line
-    const GAP = effectiveLyricLineSpacing;
-    let offsetToTarget = 0;
-    for (let i = 0; i < lyricScrollTargetIndex; i++) {
-      offsetToTarget += lineElements[i]!.offsetHeight + GAP;
-    }
-
-    const targetLineHeight = lineElements[lyricScrollTargetIndex]!.offsetHeight;
-    const autoOffsetY = containerHeight * 0.1 - offsetToTarget - targetLineHeight / 2;
-    
-    autoOffsetRef.current = autoOffsetY;
-
-    // Cancel any ongoing animation
-    if (lyricAnimationRef.current !== null) {
-      cancelAnimationFrame(lyricAnimationRef.current);
-      lyricAnimationRef.current = null;
-    }
-
-    // Animate with longer, slower duration for more visible motion
-    const startY = currentOffsetRef.current;
-    const targetY = autoOffsetY;
-    const distance = targetY - startY;
-    const startTime = performance.now();
-    
-    // Longer duration: 500ms for short, up to 900ms for long moves
-    const absDistance = Math.abs(distance);
-    const isLongDistance = absDistance > containerHeight * 0.3;
-    const duration = isLongDistance ? 900 : Math.min(500 + absDistance * 0.4, 750);
-    
-    const easeFn = isLongDistance ? bezierEaseOutLong : bezierEaseOut;
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const rawProgress = Math.min(elapsed / duration, 1);
-      
-      const easedProgress = easeFn(rawProgress);
-      const newY = startY + distance * easedProgress;
-      
-      applyLyricOffset(newY);
-
-      if (rawProgress < 1) {
-        lyricAnimationRef.current = requestAnimationFrame(animate);
-      } else {
-        applyLyricOffset(targetY);
-        lyricAnimationRef.current = null;
-      }
-    };
-
-    lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [isVisible, isUserScrolling, track?.syncedLyrics, lyricScrollTargetIndex, effectiveLyricsFontSize, effectiveLyricLineSpacing, applyLyricOffset]);
-
-  // Manual scroll mode: directly apply offset without auto-position
-  useEffect(() => {
-    if (!isVisible) return;
-
-    if (isUserScrolling) {
-      // Cancel any animation during manual scroll
-      if (lyricAnimationRef.current !== null) {
-        cancelAnimationFrame(lyricAnimationRef.current);
-        lyricAnimationRef.current = null;
-      }
-
-      const combinedY = autoOffsetRef.current + manualOffsetY;
-      applyLyricOffset(combinedY);
-    } else {
-      // Auto mode: keep the lyrics pinned to the auto offset. This also handles
-      // the transition OUT of manual mode (the 3s resume timer sets
-      // isUserScrolling=false). The previous guard `manualOffsetY > 0.5` failed
-      // because the timer resets manualOffsetY to 0 in the SAME commit, so the
-      // resume animation never ran and lyrics got stuck at the manual position.
-      // Now: if the current offset is off from the auto target, ease back to it.
-      const targetY = autoOffsetRef.current;
-      if (Math.abs(currentOffsetRef.current - targetY) > 0.5) {
-        const startY = currentOffsetRef.current;
-        const distance = targetY - startY;
-        const startTime = performance.now();
-        const duration = 600;
-
-        const animateReturn = (currentTime: number) => {
-          const elapsed = currentTime - startTime;
-          const rawProgress = Math.min(elapsed / duration, 1);
-          const easedProgress = bezierEaseOut(rawProgress);
-
-          const newY = startY + distance * easedProgress;
-          applyLyricOffset(newY);
-
-          if (rawProgress < 1) {
-            lyricAnimationRef.current = requestAnimationFrame(animateReturn);
-          } else {
-            applyLyricOffset(targetY);
-            lyricAnimationRef.current = null;
-          }
-        };
-
-        if (lyricAnimationRef.current !== null) {
-          cancelAnimationFrame(lyricAnimationRef.current);
-        }
-        lyricAnimationRef.current = requestAnimationFrame(animateReturn);
-      }
-    }
-  }, [manualOffsetY, isUserScrolling, isVisible, applyLyricOffset]);
-
-  // Reset scroll state when track changes
-  useEffect(() => {
-    prevActiveIndexRef.current = -1;
-    preScrolledIndexRef.current = -1;
-    lastTimeRef.current = 0;
-    realtimeCurrentTimeRef.current = 0;
-    setRealtimeCurrentTime(0);
-    applyLyricOffset(0);
-    setManualOffsetY(0);
-    setIsUserScrolling(false);
-    autoOffsetRef.current = 0;
-
-    if (lyricAnimationRef.current !== null) {
-      cancelAnimationFrame(lyricAnimationRef.current);
-      lyricAnimationRef.current = null;
-    }
-  }, [track?.id, applyLyricOffset]);
-
   // Reset player visibility when focus mode becomes visible
   useEffect(() => {
     if (isVisible) {
@@ -910,18 +525,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       }, 1000);
     }
   }, [isVisible]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      if (scrollAnimationRef.current !== null) {
-        cancelAnimationFrame(scrollAnimationRef.current);
-      }
-    };
-  }, []);
 
   // Settings change infrequently, so bake their new values into the small
   // backing bitmap once instead of leaving a live compositor filter attached.
@@ -1107,21 +710,11 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     if (hasBackground) renderCanvas();
   }, [hasBackground, renderCanvas]);
 
-  // Handle click on synced lyric line to seek
-  const handleLyricClick = useCallback((lyricTime: number, idx: number) => {
-    if (lyricTime > 0 && onSeek) {
-      onSeek(lyricTime);
-      // 点击歌词跳转是明确的播放意图：暂停状态下跳转后自动继续播放
-      if (!isPlaying && onTogglePlay) onTogglePlay();
-    }
-    // Clicking the currently-active line exits manual follow mode and resumes
-    // auto-scrolling. This is the explicit "I'm done browsing" gesture, in
-    // place of the old automatic 3-second snap-back.
-    if (isUserScrolling && idx === activeIndex) {
-      setIsUserScrolling(false);
-      setManualOffsetY(0);
-    }
-  }, [activeIndex, isUserScrolling, onSeek, isPlaying, onTogglePlay]);
+  const handleLyricSeek = useCallback((lyricTime: number) => {
+    onSeek(lyricTime);
+    // A lyric click is explicit playback intent, matching the previous Focus Mode behavior.
+    if (!isPlaying) onTogglePlay();
+  }, [isPlaying, onSeek, onTogglePlay]);
 
   return (
     <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
@@ -1162,61 +755,28 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           </div>
 
           {/* Lyrics */}
-          {hasLyrics && (
+          {hasLyrics && track ? (
             <div
-              className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
-              ref={lyricsRef}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseLeave}
-              style={{
-                cursor: isDraggingRef.current ? 'grabbing' : 'grab',
-                ...(hasScaledLayout ? {
-                  paddingLeft: `${32 * focusScale}px`,
-                  paddingRight: `${32 * focusScale}px`,
-                } : {}),
-              }}
+              className="flex-1 h-full min-w-0 max-h-[50vh] lg:max-h-[60vh] overflow-hidden relative px-8 select-none"
+              style={hasScaledLayout ? {
+                paddingLeft: `${32 * focusScale}px`,
+                paddingRight: `${32 * focusScale}px`,
+              } : undefined}
             >
-              <div
-                ref={lyricListRef}
-                className="flex flex-col py-36 px-8 will-change-transform"
-                style={{
-                  transform: 'translateY(0px)',
-                  gap: `${effectiveLyricLineSpacing}px`,
-                  ...(hasScaledLayout ? {
-                    paddingTop: `${144 * focusScale}px`,
-                    paddingBottom: `${144 * focusScale}px`,
-                    paddingLeft: `${32 * focusScale}px`,
-                    paddingRight: `${32 * focusScale}px`,
-                  } : {}),
-                }}
-              >
-                {lyricsLines.map((lyric, idx) => {
-                  const isActive = idx === activeIndex;
-                  const hasTimestamp = track?.syncedLyrics && lyric.time > 0;
-                  return (
-                    <FocusLyricRow
-                      key={idx}
-                      lyric={lyric}
-                      index={idx}
-                      isActive={isActive}
-                      hasTimestamp={Boolean(hasTimestamp)}
-                      shouldAnimate={isActive && isVisible && isPlaying}
-                      currentTimeRef={realtimeCurrentTimeRef}
-                      pausedTime={!isPlaying && isActive ? activeCurrentTime : undefined}
-                      fontSize={effectiveLyricsFontSize}
-                      inactiveBlur={inactiveLyricBlur}
-                      textPrimary={focusColors.textPrimary}
-                      textSecondary={focusColors.textSecondary}
-                      textMuted={focusColors.textMuted}
-                      onSeek={handleLyricClick}
-                    />
-                  );
-                })}
-              </div>
+              <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
+                <FocusAmlLyrics
+                  track={track}
+                  currentTime={activeCurrentTime}
+                  isPlaying={isPlaying}
+                  isVisible={isVisible}
+                  fontSize={effectiveLyricsFontSize}
+                  lineSpacing={effectiveLyricLineSpacing}
+                  inactiveBlur={inactiveLyricBlur}
+                  onSeek={handleLyricSeek}
+                />
+              </Suspense>
             </div>
-          )}
+          ) : null}
         </main>
 
         <div>

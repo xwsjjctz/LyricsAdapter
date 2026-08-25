@@ -33,6 +33,7 @@ vi.mock('@/services/cookieManager', () => ({
 }));
 
 import { usePlayback } from '@/hooks/usePlayback';
+import { requestPlaybackShutdown } from '@/services/playbackShutdown';
 
 function makeTrack(overrides: Partial<Track> & { id: string }): Track {
   return {
@@ -126,6 +127,35 @@ describe('usePlayback', () => {
     expect(result.current.currentTime).toBe(8.75);
     expect(result.current.persistedTimeRef.current).toBe(8.75);
     expect(result.current.getCurrentPlaybackTime()).toBe(8.75);
+  });
+
+  it('fades out and pauses the active audio element during app shutdown', async () => {
+    vi.useFakeTimers();
+    const track = makeTrack({ id: 'shutdown', audioUrl: 'audio://localhost/shutdown.flac' });
+    const audio = makeAudioElement();
+    let paused = false;
+    const pause = vi.fn(() => { paused = true; });
+    Object.defineProperty(audio, 'paused', { configurable: true, get: () => paused });
+    Object.defineProperty(audio, 'pause', { configurable: true, value: pause });
+    const { result, unmount } = renderPlayback([track]);
+
+    act(() => result.current.setAudioRef(audio));
+    const playingVolume = audio.volume;
+    let shutdown!: Promise<void>;
+    act(() => { shutdown = requestPlaybackShutdown(); });
+
+    expect(audio.volume).toBe(playingVolume);
+    expect(pause).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+      await shutdown;
+    });
+
+    expect(audio.volume).toBe(0);
+    expect(pause).toHaveBeenCalledTimes(1);
+    unmount();
+    vi.useRealTimers();
   });
 
   it('resamples immediately and on the next frame when the renderer becomes visible', () => {

@@ -782,16 +782,6 @@ export function useLibraryLoad({
     };
 
     const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
-    let removeWindowCloseListener: (() => void) | undefined;
-    let mounted = true;
-    if (desktop) {
-      void getDesktopAPIAsync().then(api => {
-        if (!mounted) return;
-        removeWindowCloseListener = api?.onBeforeWindowClose?.(() => flushCurrentLibrary());
-      }).catch(error => {
-        logger.warn('[LibraryLoad] Failed to register close flush listener:', error);
-      });
-    }
 
     const handleBeforeUnload = () => {
       void flushCurrentLibrary();
@@ -804,8 +794,6 @@ export function useLibraryLoad({
     }
 
     return () => {
-      mounted = false;
-      removeWindowCloseListener?.();
       removeFlushListener();
       if (!desktop) {
         window.removeEventListener('beforeunload', handleBeforeUnload);

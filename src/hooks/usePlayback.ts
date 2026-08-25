@@ -5,6 +5,7 @@ import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
 import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playbackSource';
 import { UI } from '../constants/config';
+import { addPlaybackShutdownListener, fadeOutAndPauseAudio } from '../services/playbackShutdown';
 
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 
@@ -52,6 +53,7 @@ export function usePlayback({
   const clockReadyTrackIdRef = useRef<string | undefined>(undefined);
   const hasObservedTrackRef = useRef(false);
   const skipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shutdownInFlightRef = useRef<Promise<void> | null>(null);
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
   }, [tracks, currentTrackIndex]);
@@ -99,6 +101,21 @@ export function usePlayback({
       }
     };
   }, []);
+
+  useEffect(() => addPlaybackShutdownListener(() => {
+    if (shutdownInFlightRef.current) return shutdownInFlightRef.current;
+
+    shouldAutoPlayRef.current = false;
+    const operation = fadeOutAndPauseAudio(audioRef.current);
+    let trackedOperation: Promise<void>;
+    trackedOperation = operation.finally(() => {
+      if (shutdownInFlightRef.current === trackedOperation) {
+        shutdownInFlightRef.current = null;
+      }
+    });
+    shutdownInFlightRef.current = trackedOperation;
+    return trackedOperation;
+  }), []);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
     if (length <= 1) return exclude;
