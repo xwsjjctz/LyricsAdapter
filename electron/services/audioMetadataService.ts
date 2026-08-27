@@ -133,14 +133,7 @@ function fromAmlLines(lines: LyricLine[], fallbackText: string, includeWordTimin
     .map((line) => {
       const text = line.words.map((word) => word.word).join('');
       const words = includeWordTiming
-        ? line.words
-          .filter((word) => word.word && Number.isFinite(word.startTime) && Number.isFinite(word.endTime))
-          .map((word) => ({
-            time: word.startTime / 1000,
-            duration: Math.max(0, (word.endTime - word.startTime) / 1000),
-            text: word.word,
-          }))
-          .filter((word) => word.duration > 0)
+        ? timedWordsPreservingSeparators(line.words)
         : [];
       return {
         time: line.startTime / 1000,
@@ -156,6 +149,38 @@ function fromAmlLines(lines: LyricLine[], fallbackText: string, includeWordTimin
       : plainLyricsText(fallbackText),
     syncedLyrics,
   };
+}
+
+/** Keep zero-duration QRC separators (usually English spaces) in rendered text. */
+function timedWordsPreservingSeparators(words: LyricLine['words']): SyncedLyricWord[] {
+  const timedWords: SyncedLyricWord[] = [];
+  let prefix = '';
+
+  for (const word of words) {
+    if (!word.word) continue;
+    const hasFiniteTiming = Number.isFinite(word.startTime) && Number.isFinite(word.endTime);
+    const duration = hasFiniteTiming ? (word.endTime - word.startTime) / 1000 : 0;
+
+    if (duration <= 0) {
+      const previous = timedWords[timedWords.length - 1];
+      if (previous) previous.text += word.word;
+      else prefix += word.word;
+      continue;
+    }
+
+    timedWords.push({
+      time: word.startTime / 1000,
+      duration,
+      text: prefix + word.word,
+    });
+    prefix = '';
+  }
+
+  if (prefix && timedWords.length > 0) {
+    timedWords[timedWords.length - 1]!.text += prefix;
+  }
+
+  return timedWords;
 }
 
 /**

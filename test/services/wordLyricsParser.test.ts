@@ -55,6 +55,26 @@ describe('word-timed lyric parsing', () => {
     );
   });
 
+  it('preserves zero-duration spaces between QRC English words', () => {
+    const qrc = '<QrcInfos><Lyric_1 LyricContent="'
+      + '[18042,2100]Could(18042,490) (18532,0)you(18532,80) (18612,0)'
+      + 'spare(18612,520) (19132,0)a(19132,40) (19172,10)second(19182,960)'
+      + '" /></QrcInfos>';
+    const parsed = parseLyrics('', qrc, 'qrc');
+    const line = parsed.syncedLyrics?.[0];
+
+    expect(line?.text).toBe('Could you spare a second');
+    expect(line?.words?.map((word) => word.text).join('')).toBe(line?.text);
+    expect(line?.words).toEqual([
+      { time: 18.042, duration: 0.49, text: 'Could ' },
+      { time: 18.532, duration: 0.08, text: 'you ' },
+      { time: 18.612, duration: 0.52, text: 'spare ' },
+      { time: 19.132, duration: 0.04, text: 'a' },
+      { time: 19.172, duration: 0.01, text: ' ' },
+      { time: 19.182, duration: 0.96, text: 'second' },
+    ]);
+  });
+
   it('prefers valid word-timed lyrics and falls back to LRC when absent', () => {
     expect(parseLyrics('[00:01.20]逐行歌词', '[1000,200](1000,200,0)逐字', 'yrc').syncedLyrics?.[0])
       .toMatchObject({ time: 1, text: '逐字', words: [{ time: 1, duration: 0.2, text: '逐字' }] });
