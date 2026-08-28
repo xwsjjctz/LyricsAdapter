@@ -164,8 +164,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     () => settingsManager.getFocusAmlLyricsEnabled(),
   );
   const focusScale = useFocusModeScale();
-  const effectiveLyricsFontSize = Math.round(lyricsFontSize * focusScale * 100) / 100;
-  const effectiveLyricLineSpacing = Math.round(lyricLineSpacing * focusScale * 100) / 100;
+  // Keep lyric density stable as the window grows. The vh-based lyric viewport
+  // gets taller instead, revealing more surrounding lines.
   const hasScaledLayout = focusScale > 1;
   const bgBlurTransRef = useRef(bgBlurTrans);
   const bgBlurRadiusRef = useRef(bgBlurRadius);
@@ -708,10 +708,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             isPlaying={isPlaying}
             isVisible={isVisible}
             useAmlLyrics={focusAmlLyricsEnabled}
-            fontSize={effectiveLyricsFontSize}
-            lineSpacing={effectiveLyricLineSpacing}
+            fontSize={lyricsFontSize}
+            lineSpacing={lyricLineSpacing}
             inactiveBlur={inactiveLyricBlur}
-            scale={focusScale}
             textPrimary={focusColors.textPrimary}
             textSecondary={focusColors.textSecondary}
             textMuted={focusColors.textMuted}

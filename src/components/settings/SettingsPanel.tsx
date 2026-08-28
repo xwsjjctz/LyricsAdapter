@@ -34,10 +34,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
-  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(30);
-  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(24);
+  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
+  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(30);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
-  const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(false);
+  const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(true);
 
   // Clear-cache confirmation
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -319,7 +319,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricsFontSize}px</span>
                   <input
                     type="range"
-                    min="16"
+                    min="24"
                     max="40"
                     step="1"
                     value={focusLyricsFontSize}
@@ -329,7 +329,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       settingsManager.setFocusLyricsFontSize(value);
                     }}
                     className={rangeClassName}
-                    style={rangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
+                    style={rangeStyle(((focusLyricsFontSize - 24) / 16) * 100)}
                   />
                 </div>
               </div>

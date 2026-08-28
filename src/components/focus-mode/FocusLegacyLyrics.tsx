@@ -30,7 +30,6 @@ export interface FocusLegacyLyricsProps {
   fontSize: number;
   lineSpacing: number;
   inactiveBlur: number;
-  scale: number;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
@@ -50,7 +49,6 @@ export default function FocusLegacyLyrics({
   fontSize,
   lineSpacing,
   inactiveBlur,
-  scale,
   textPrimary,
   textSecondary,
   textMuted,
@@ -68,8 +66,6 @@ export default function FocusLegacyLyrics({
   const dragStartYRef = useRef(0);
   const dragStartOffsetRef = useRef(0);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasScaledLayout = scale > 1;
-
   // Match the lyric source preparation used immediately before the AMLL migration.
   const lyricsLines = useMemo(() => {
     if (track.syncedLyrics?.length) {
@@ -324,7 +320,7 @@ export default function FocusLegacyLyrics({
 
   return (
     <div
-      className="flex-1 h-full max-h-[50vh] lg:max-h-[60vh] overflow-hidden mask-fade relative px-8 select-none"
+      className="h-full overflow-hidden relative select-none"
       ref={lyricsRef}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -332,10 +328,6 @@ export default function FocusLegacyLyrics({
       onMouseLeave={handleMouseLeave}
       style={{
         cursor: isDraggingRef.current ? 'grabbing' : 'grab',
-        ...(hasScaledLayout ? {
-          paddingLeft: `${32 * scale}px`,
-          paddingRight: `${32 * scale}px`,
-        } : {}),
       }}
       data-testid="focus-legacy-lyrics"
     >
@@ -345,12 +337,6 @@ export default function FocusLegacyLyrics({
         style={{
           transform: 'translateY(0px)',
           gap: `${lineSpacing}px`,
-          ...(hasScaledLayout ? {
-            paddingTop: `${144 * scale}px`,
-            paddingBottom: `${144 * scale}px`,
-            paddingLeft: `${32 * scale}px`,
-            paddingRight: `${32 * scale}px`,
-          } : {}),
         }}
       >
         {lyricsLines.map((lyric, index) => {

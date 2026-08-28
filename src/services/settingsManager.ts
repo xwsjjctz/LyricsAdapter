@@ -30,11 +30,11 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
-  private focusLyricsFontSize: number = 30;
-  private focusLyricLineSpacing: number = 24;
+  private focusLyricsFontSize: number = 24;
+  private focusLyricLineSpacing: number = 30;
   private focusInactiveLyricBlur: number = 2;
-  private focusAmlLyricsEnabled: boolean = false;
-  private focusAmlLyricsDurableValue: boolean = false;
+  private focusAmlLyricsEnabled: boolean = true;
+  private focusAmlLyricsDurableValue: boolean = true;
   private focusAmlLyricsPersistenceQueue: Promise<void> = Promise.resolve();
   private listeners: Set<Listener> = new Set();
   /** Prevent an older failed async write from rolling back a newer value. */
@@ -54,11 +54,11 @@ class SettingsManager {
       this.glassUI = false;
       this.gsapButtonBounce = true;
       this.focusBgBlurRadius = 80;
-      this.focusLyricsFontSize = 30;
-      this.focusLyricLineSpacing = 24;
+      this.focusLyricsFontSize = 24;
+      this.focusLyricLineSpacing = 30;
       this.focusInactiveLyricBlur = 2;
-      this.focusAmlLyricsEnabled = false;
-      this.focusAmlLyricsDurableValue = false;
+      this.focusAmlLyricsEnabled = true;
+      this.focusAmlLyricsDurableValue = true;
 
       this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';
 
@@ -93,7 +93,7 @@ class SettingsManager {
       if (lyricFontSize) {
         const parsed = parseFloat(lyricFontSize);
         if (!isNaN(parsed)) {
-          this.focusLyricsFontSize = Math.max(16, Math.min(40, parsed));
+          this.focusLyricsFontSize = Math.max(24, Math.min(40, parsed));
         }
       }
 
@@ -113,7 +113,10 @@ class SettingsManager {
         }
       }
 
-      this.focusAmlLyricsEnabled = appStorage.getItem(FOCUS_AMLL_LYRICS_ENABLED_KEY) === 'true';
+      const storedAmlLyricsEnabled = appStorage.getItem(FOCUS_AMLL_LYRICS_ENABLED_KEY);
+      if (storedAmlLyricsEnabled === 'true' || storedAmlLyricsEnabled === 'false') {
+        this.focusAmlLyricsEnabled = storedAmlLyricsEnabled === 'true';
+      }
       this.focusAmlLyricsDurableValue = this.focusAmlLyricsEnabled;
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from settings store:', error);
@@ -289,7 +292,7 @@ class SettingsManager {
 
   setFocusLyricsFontSize(value: number): Promise<boolean> {
     const previous = this.focusLyricsFontSize;
-    this.focusLyricsFontSize = Math.max(16, Math.min(40, value));
+    this.focusLyricsFontSize = Math.max(24, Math.min(40, value));
     const persisted = this.persistSetting(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize), () => { this.focusLyricsFontSize = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric font size set to: ${this.focusLyricsFontSize}`);

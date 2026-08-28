@@ -76,6 +76,25 @@ describe('FocusAmlLyrics', () => {
     vi.useRealTimers();
   });
 
+  it('uses configured pixel typography instead of viewport-relative sizing', () => {
+    const { getByTestId } = render(
+      <FocusAmlLyrics
+        track={track}
+        currentTime={2}
+        isPlaying
+        isVisible
+        fontSize={34}
+        lineSpacing={28}
+        inactiveBlur={2}
+        onSeek={vi.fn()}
+      />,
+    );
+
+    const player = getByTestId('lyric-player');
+    expect(player.style.getPropertyValue('--amll-lp-font-size')).toBe('34px');
+    expect(player.style.getPropertyValue('--focus-amll-line-spacing-adjustment')).toBe('2px');
+  });
+
   it('returns to the current lyric three seconds after the last wheel input', () => {
     const { getByTestId } = render(
       <FocusAmlLyrics

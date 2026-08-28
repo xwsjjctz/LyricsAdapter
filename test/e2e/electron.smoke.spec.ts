@@ -390,8 +390,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await focusToggle.click();
     const focusOverlay = page.locator('.focus-mode-overlay');
     await expect(focusOverlay).toBeVisible();
-    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
-    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(0);
     await expect.poll(() => page!.evaluate(() => {
       const probe = (window as typeof window & {
         __focusEntranceProbe?: FocusEntranceProbe;
@@ -715,31 +715,13 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 
-    // The experimental setting is off by default, persists through the main
+    // The experimental setting is on by default, persists through the main
     // settings store, and swaps the renderer without keeping both trees mounted.
     const settingsButton = page.getByRole('button', {
       name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
     }).first();
     await settingsButton.click();
     const amllLyricsSwitch = page.getByRole('switch', { name: /AMLL/i });
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
-    await amllLyricsSwitch.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
-    await expect.poll(() => page!.evaluate(async () => {
-      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      const settings = await api?.settingsGetAll?.();
-      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
-    })).toBe('true');
-    await page.getByRole('button', { name: 'Close settings panel' }).click();
-
-    await focusToggle.click();
-    await expect(focusOverlay).toBeVisible();
-    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
-    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(0);
-    await focusToggle.click();
-    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
-
-    await settingsButton.click();
     await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
     await amllLyricsSwitch.click();
     await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
@@ -754,6 +736,60 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await expect(focusOverlay).toBeVisible();
     await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
     await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
+    await focusToggle.click();
+    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
+
+    await settingsButton.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
+    await amllLyricsSwitch.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(() => page!.evaluate(async () => {
+      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
+      const settings = await api?.settingsGetAll?.();
+      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
+    })).toBe('true');
+    await page.getByRole('button', { name: 'Close settings panel' }).click();
+
+    await focusToggle.click();
+    await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(0);
+
+    const readFocusLyricsMetrics = () => page!.evaluate(() => {
+      const viewport = document.querySelector<HTMLElement>('.focus-lyrics-viewport');
+      const player = document.querySelector<HTMLElement>('.focus-amll-lyrics');
+      if (!viewport || !player) throw new Error('Focus lyrics layout is incomplete');
+      const viewportStyle = getComputedStyle(viewport);
+      const playerStyle = getComputedStyle(player);
+      return {
+        viewportHeight: viewport.getBoundingClientRect().height,
+        fontSize: playerStyle.fontSize,
+        viewportPaddingLeft: viewportStyle.paddingLeft,
+        lineSpacingAdjustment: playerStyle.getPropertyValue('--focus-amll-line-spacing-adjustment'),
+        maskImage: viewportStyle.maskImage || viewportStyle.webkitMaskImage,
+      };
+    });
+
+    const defaultLyricsMetrics = await readFocusLyricsMetrics();
+    expect(defaultLyricsMetrics.fontSize).toBe('24px');
+    expect(defaultLyricsMetrics.lineSpacingAdjustment).toBe('3px');
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1500, 1000);
+    });
+    await expect.poll(() => page!.evaluate(() => [window.innerWidth, window.innerHeight]))
+      .toEqual([1500, 1000]);
+    const enlargedLyricsMetrics = await readFocusLyricsMetrics();
+    expect(enlargedLyricsMetrics.viewportHeight).toBeGreaterThan(defaultLyricsMetrics.viewportHeight);
+    expect(enlargedLyricsMetrics.fontSize).toBe(defaultLyricsMetrics.fontSize);
+    expect(enlargedLyricsMetrics.viewportPaddingLeft).toBe(defaultLyricsMetrics.viewportPaddingLeft);
+    expect(enlargedLyricsMetrics.lineSpacingAdjustment).toBe(defaultLyricsMetrics.lineSpacingAdjustment);
+    expect(enlargedLyricsMetrics.maskImage).toContain('72px');
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1200, 800);
+    });
+    await expect.poll(() => page!.evaluate(() => [window.innerWidth, window.innerHeight]))
+      .toEqual([1200, 800]);
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 

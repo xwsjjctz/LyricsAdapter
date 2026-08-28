@@ -2,6 +2,7 @@ import { lazy, Suspense, type MutableRefObject } from 'react';
 import type { Track } from '../../types';
 import FocusLegacyLyrics from './FocusLegacyLyrics';
 import { hasTrackLyrics } from './focusLyricsTrack';
+import './FocusLyrics.css';
 
 const FocusAmlLyrics = lazy(() => import('./FocusAmlLyrics'));
 
@@ -15,7 +16,6 @@ export interface FocusLyricsProps {
   fontSize: number;
   lineSpacing: number;
   inactiveBlur: number;
-  scale: number;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
@@ -33,7 +33,6 @@ export default function FocusLyrics({
   fontSize,
   lineSpacing,
   inactiveBlur,
-  scale,
   textPrimary,
   textSecondary,
   textMuted,
@@ -41,47 +40,40 @@ export default function FocusLyrics({
 }: FocusLyricsProps) {
   if (!track || !hasTrackLyrics(track)) return null;
 
-  if (!useAmlLyrics) {
-    return (
-      <FocusLegacyLyrics
-        track={track}
-        currentTime={currentTime}
-        currentTimeRef={currentTimeRef}
-        isPlaying={isPlaying}
-        isVisible={isVisible}
-        fontSize={fontSize}
-        lineSpacing={lineSpacing}
-        inactiveBlur={inactiveBlur}
-        scale={scale}
-        textPrimary={textPrimary}
-        textSecondary={textSecondary}
-        textMuted={textMuted}
-        onSeek={onSeek}
-      />
-    );
-  }
-
   return (
     <div
-      className="flex-1 h-full min-w-0 max-h-[50vh] lg:max-h-[60vh] overflow-hidden relative px-8 select-none"
-      style={scale > 1 ? {
-        paddingLeft: `${32 * scale}px`,
-        paddingRight: `${32 * scale}px`,
-      } : undefined}
-      data-testid="focus-amll-lyrics"
+      className="focus-lyrics-viewport flex-1 h-full min-h-0 min-w-0 max-h-[50vh] lg:max-h-[60vh] overflow-hidden relative px-8 select-none"
+      data-testid={useAmlLyrics ? 'focus-amll-lyrics' : undefined}
     >
-      <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
-        <FocusAmlLyrics
+      {!useAmlLyrics ? (
+        <FocusLegacyLyrics
           track={track}
           currentTime={currentTime}
+          currentTimeRef={currentTimeRef}
           isPlaying={isPlaying}
           isVisible={isVisible}
           fontSize={fontSize}
           lineSpacing={lineSpacing}
           inactiveBlur={inactiveBlur}
+          textPrimary={textPrimary}
+          textSecondary={textSecondary}
+          textMuted={textMuted}
           onSeek={onSeek}
         />
-      </Suspense>
+      ) : (
+        <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
+          <FocusAmlLyrics
+            track={track}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            isVisible={isVisible}
+            fontSize={fontSize}
+            lineSpacing={lineSpacing}
+            inactiveBlur={inactiveBlur}
+            onSeek={onSeek}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

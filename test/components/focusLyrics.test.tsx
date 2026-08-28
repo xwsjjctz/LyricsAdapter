@@ -10,9 +10,13 @@ const rendererMocks = vi.hoisted(() => ({
 vi.mock('@/components/focus-mode/FocusLegacyLyrics', async () => {
   const React = await import('react');
   return {
-    default: function MockLegacyLyrics() {
+    default: function MockLegacyLyrics(props: { fontSize: number; lineSpacing: number }) {
       React.useEffect(() => () => rendererMocks.legacyUnmounted(), []);
-      return React.createElement('div', { 'data-testid': 'mock-legacy-renderer' });
+      return React.createElement('div', {
+        'data-testid': 'mock-legacy-renderer',
+        'data-font-size': props.fontSize,
+        'data-line-spacing': props.lineSpacing,
+      });
     },
   };
 });
@@ -20,9 +24,13 @@ vi.mock('@/components/focus-mode/FocusLegacyLyrics', async () => {
 vi.mock('@/components/focus-mode/FocusAmlLyrics', async () => {
   const React = await import('react');
   return {
-    default: function MockAmlLyrics() {
+    default: function MockAmlLyrics(props: { fontSize: number; lineSpacing: number }) {
       React.useEffect(() => () => rendererMocks.amllUnmounted(), []);
-      return React.createElement('div', { 'data-testid': 'mock-amll-renderer' });
+      return React.createElement('div', {
+        'data-testid': 'mock-amll-renderer',
+        'data-font-size': props.fontSize,
+        'data-line-spacing': props.lineSpacing,
+      });
     },
   };
 });
@@ -49,14 +57,27 @@ const baseProps: FocusLyricsProps = {
   fontSize: 30,
   lineSpacing: 24,
   inactiveBlur: 2,
-  scale: 1,
   textPrimary: '#fff',
   textSecondary: '#ccc',
   textMuted: '#777',
   onSeek: vi.fn(),
 };
 
-describe('FocusLyrics renderer selection', () => {
+describe('FocusLyrics', () => {
+  it('keeps lyric typography at the configured size while its viewport grows', async () => {
+    const { rerender } = render(<FocusLyrics {...baseProps} fontSize={34} lineSpacing={28} />);
+
+    expect(screen.getByTestId('mock-legacy-renderer')).toHaveAttribute('data-font-size', '34');
+    expect(screen.getByTestId('mock-legacy-renderer')).toHaveAttribute('data-line-spacing', '28');
+    expect(screen.getByTestId('mock-legacy-renderer').parentElement).toHaveClass('focus-lyrics-viewport');
+
+    rerender(<FocusLyrics {...baseProps} useAmlLyrics fontSize={34} lineSpacing={28} />);
+    const amlRenderer = await screen.findByTestId('mock-amll-renderer');
+    expect(amlRenderer).toHaveAttribute('data-font-size', '34');
+    expect(amlRenderer).toHaveAttribute('data-line-spacing', '28');
+    expect(screen.getByTestId('focus-amll-lyrics')).toHaveClass('focus-lyrics-viewport');
+  });
+
   it('defaults to legacy and fully swaps renderers when the experiment changes', async () => {
     rendererMocks.legacyUnmounted.mockClear();
     rendererMocks.amllUnmounted.mockClear();

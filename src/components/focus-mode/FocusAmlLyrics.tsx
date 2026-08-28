@@ -28,7 +28,7 @@ export class FocusDomLyricPlayer extends DomLyricPlayer {
 }
 
 type AmlStyle = CSSProperties & {
-  '--focus-amll-font-size-adjustment': string;
+  '--amll-lp-font-size': string;
   '--focus-amll-line-spacing-adjustment': string;
 };
 
@@ -66,7 +66,7 @@ export default function FocusAmlLyrics({
   previousTrackRef.current = track.id;
 
   const style = useMemo<AmlStyle>(() => ({
-    '--focus-amll-font-size-adjustment': `${fontSize - 30}px`,
+    '--amll-lp-font-size': `${fontSize}px`,
     '--focus-amll-line-spacing-adjustment': `${(lineSpacing - 24) / 2}px`,
   }), [fontSize, lineSpacing]);
 

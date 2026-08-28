@@ -63,14 +63,18 @@ describe('SettingsManager persistence contract', () => {
     expect(settingsManager.getOnlineSource()).toBe('qq');
   });
 
-  it('restores AMLL lyrics only from an explicit true value', () => {
-    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'true' : null);
+  it('defaults AMLL lyrics on while respecting explicit stored values', () => {
+    storageMocks.getItem.mockReturnValue(null);
     (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
     expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
 
-    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'invalid' : null);
+    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'false' : null);
     (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
     expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+
+    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'invalid' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
   });
 
   it('rolls back the AMLL renderer flag when persistence fails', async () => {
