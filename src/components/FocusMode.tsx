@@ -145,6 +145,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const [blurUnderlyingViewForTrackChange, setBlurUnderlyingViewForTrackChange] = useState(false);
   const currentBackgroundRef = useRef<HTMLImageElement | null>(null);
   const incomingBackgroundRef = useRef<HTMLImageElement | null>(null);
+  const currentBackgroundTrackIdRef = useRef<string | null>(null);
+  const incomingBackgroundTrackIdRef = useRef<string | null>(null);
   const transitionProgressRef = useRef(1);
   const backdropBrightnessRef = useRef(BACKDROP_RESTING_BRIGHTNESS);
   const animationFrameRef = useRef<number | null>(null);
@@ -374,9 +376,16 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       return;
     }
 
+    const currentPhase = Math.cbrt(Math.max(0, Math.min(1, canvasOpacityRef.current)));
+    const remainingDuration = CANVAS_ALPHA_DURATION_MS * (1 - currentPhase);
+    if (remainingDuration <= 0) {
+      setBlurUnderlyingView(false);
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setBlurUnderlyingView(false);
-    }, CANVAS_ALPHA_DURATION_MS);
+    }, remainingDuration);
     return () => window.clearTimeout(timer);
   }, [isVisible]);
 
@@ -393,27 +402,26 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     }
 
     const target = isVisible ? 1 : 0;
-    const from = canvasOpacityRef.current;
-    if (from === target) {
+    const fromFactor = Math.max(0, Math.min(1, canvasOpacityRef.current));
+    const fromPhase = Math.cbrt(fromFactor);
+    const targetPhase = target;
+    const phaseDistance = Math.abs(targetPhase - fromPhase);
+    if (phaseDistance === 0) {
       renderCanvas();
       return;
     }
 
-    // Preserve the original Focus entrance cadence. The pre-load pass may draw
-    // nothing; when the background commits it restarts from the factor already
-    // reached, just as changing the old bgImage state changed renderCanvas'
-    // identity. A very late image therefore appears at the completed alpha.
+    // Model the cubic fade as one global 0..1 phase. Reversing an interrupted
+    // transition starts at the exact current phase and only runs for the
+    // remaining distance, instead of replaying a fresh 600ms easing curve.
+    const duration = CANVAS_ALPHA_DURATION_MS * phaseDistance;
     const startTime = performance.now();
     const animate = (now: number) => {
-      const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION_MS, 1);
-      // Entry (target 1): ease-in → alpha ramps up LATE, once more of the page
-      //   is on screen, so the brightening is easier to perceive.
-      // Exit (target 0): ease-out → alpha drops EARLY, before the page slides
-      //   away, so the dimming is visible.
-      const eased = target === 1 ? Math.pow(p, 3) : 1 - Math.pow(1 - p, 3);
-      canvasOpacityRef.current = from + (target - from) * eased;
+      const progress = Math.min((now - startTime) / duration, 1);
+      const phase = fromPhase + (targetPhase - fromPhase) * progress;
+      canvasOpacityRef.current = phase * phase * phase;
       renderCanvas();
-      if (p < 1) {
+      if (progress < 1) {
         enterExitAnimRef.current = requestAnimationFrame(animate);
       } else {
         canvasOpacityRef.current = target;
@@ -527,6 +535,33 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       setBlurUnderlyingViewForTrackChange(false);
       return;
     }
+    const trackId = track.id;
+
+    // A quick exit/re-entry keeps this component mounted. Reuse the prepared
+    // cover for the same track instead of mistaking visibility reversal for a
+    // new track and replaying the 1000ms cover breathing transition.
+    if (currentBackgroundRef.current && currentBackgroundTrackIdRef.current === trackId) {
+      incomingBackgroundRef.current = null;
+      incomingBackgroundTrackIdRef.current = null;
+      transitionProgressRef.current = 1;
+      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+      setBlurUnderlyingViewForTrackChange(false);
+      setHasBackground(true);
+      renderCanvas();
+      return;
+    }
+    if (incomingBackgroundRef.current && incomingBackgroundTrackIdRef.current === trackId) {
+      currentBackgroundRef.current = incomingBackgroundRef.current;
+      currentBackgroundTrackIdRef.current = trackId;
+      incomingBackgroundRef.current = null;
+      incomingBackgroundTrackIdRef.current = null;
+      transitionProgressRef.current = 1;
+      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+      setBlurUnderlyingViewForTrackChange(false);
+      setHasBackground(true);
+      renderCanvas();
+      return;
+    }
 
     // Activate the Library View blur as soon as a replacement cover starts
     // loading. It will already be in the compositor before the Canvas cross-fade
@@ -567,7 +602,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       const previousBackground = incomingBackgroundRef.current || currentBackgroundRef.current;
       if (!previousBackground) {
         currentBackgroundRef.current = img;
+        currentBackgroundTrackIdRef.current = trackId;
         incomingBackgroundRef.current = null;
+        incomingBackgroundTrackIdRef.current = null;
         transitionProgressRef.current = 1;
         // The original first-load brightness animation was scheduled before its
         // conditional Canvas existed, so the actually observed entrance used
@@ -579,8 +616,13 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         return;
       }
 
+      const previousTrackId = incomingBackgroundRef.current
+        ? incomingBackgroundTrackIdRef.current
+        : currentBackgroundTrackIdRef.current;
       currentBackgroundRef.current = previousBackground;
+      currentBackgroundTrackIdRef.current = previousTrackId;
       incomingBackgroundRef.current = img;
+      incomingBackgroundTrackIdRef.current = trackId;
       transitionProgressRef.current = 0;
       backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       setHasBackground(true);
@@ -606,7 +648,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           animationFrameRef.current = requestAnimationFrame(animate);
         } else {
           currentBackgroundRef.current = img;
+          currentBackgroundTrackIdRef.current = trackId;
           incomingBackgroundRef.current = null;
+          incomingBackgroundTrackIdRef.current = null;
           transitionProgressRef.current = 1;
           backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
           animationFrameRef.current = null;
@@ -627,6 +671,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       // If load fails, don't change background - keep previous one
       logger.warn('[FocusMode] Failed to load cover image for transition');
       incomingBackgroundRef.current = null;
+      incomingBackgroundTrackIdRef.current = null;
       transitionProgressRef.current = 1;
       backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       renderCanvas();
@@ -679,6 +724,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     preparedBackdropCacheRef.current = new WeakMap();
     currentBackgroundRef.current = null;
     incomingBackgroundRef.current = null;
+    currentBackgroundTrackIdRef.current = null;
+    incomingBackgroundTrackIdRef.current = null;
   }, []);
 
   // The canvas is conditionally mounted after the first image arrives. Paint the
@@ -826,10 +873,20 @@ const FOCUS_MODE_EXIT_DURATION_MS = 700;
 const FocusMode: React.FC<FocusModeProps> = (props) => {
   const [shouldMountContent, setShouldMountContent] = useState(props.isVisible);
   const [isPresented, setIsPresented] = useState(false);
+  const isExitTransitionRef = useRef(false);
 
   useLayoutEffect(() => {
     if (props.isVisible) {
+      const isReversingExit = isExitTransitionRef.current && shouldMountContent;
+      isExitTransitionRef.current = false;
       setShouldMountContent(true);
+      if (isReversingExit) {
+        // The existing DOM and CSS transitions are still alive. Reverse them
+        // immediately from their computed state instead of staging a new entry.
+        setIsPresented(true);
+        return;
+      }
+
       let presentFrame = 0;
       const mountFrame = window.requestAnimationFrame(() => {
         presentFrame = window.requestAnimationFrame(() => {
@@ -844,10 +901,13 @@ const FocusMode: React.FC<FocusModeProps> = (props) => {
 
     setIsPresented(false);
     if (!shouldMountContent) {
+      isExitTransitionRef.current = false;
       return;
     }
 
+    isExitTransitionRef.current = true;
     const timer = window.setTimeout(() => {
+      isExitTransitionRef.current = false;
       setShouldMountContent(false);
     }, FOCUS_MODE_EXIT_DURATION_MS);
     return () => window.clearTimeout(timer);

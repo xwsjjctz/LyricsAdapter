@@ -739,6 +739,52 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     );
     expect(thumbnailStats.every(fileStat => fileStat.size > 0)).toBe(true);
 
+    // Interrupt a real exit with the same CmdOrCtrl+Enter shortcut used by the
+    // app. The existing overlay must reverse in place, and the Canvas alpha must
+    // finish over the shortened remaining distance rather than replaying 600ms.
+    const focusShortcut = process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter';
+    await focusOverlay.evaluate((element) => {
+      element.setAttribute('data-focus-interruption-probe', 'same-overlay');
+    });
+    await page.keyboard.press(focusShortcut);
+    await page.waitForTimeout(150);
+    const interruptedExitAlpha = await backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Focus backdrop did not expose a 2D context');
+      return context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data[3] ?? 0;
+    });
+    expect(interruptedExitAlpha).toBeLessThan(245);
+
+    await page.keyboard.press(focusShortcut);
+    await expect(focusOverlay).toHaveAttribute('data-focus-interruption-probe', 'same-overlay');
+    await page.waitForTimeout(250);
+    const interruptedReturnAlpha = await backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Focus backdrop did not expose a 2D context');
+      return context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data[3] ?? 0;
+    });
+    expect(interruptedReturnAlpha).toBeGreaterThanOrEqual(250);
+    await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
+    await testInfo.attach('focus-interruption-metrics', {
+      body: Buffer.from(JSON.stringify({
+        interruptedExitAlpha,
+        interruptedReturnAlpha,
+      }, null, 2)),
+      contentType: 'application/json',
+    });
+
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 
