@@ -13,6 +13,7 @@ const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
+const FOCUS_AMLL_LYRICS_ENABLED_KEY = 'la_focus_amll_lyrics_enabled';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
 export type OnlineSource = OnlineMusicSource;
@@ -29,9 +30,12 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
-  private focusLyricsFontSize: number = 30;
-  private focusLyricLineSpacing: number = 24;
+  private focusLyricsFontSize: number = 24;
+  private focusLyricLineSpacing: number = 30;
   private focusInactiveLyricBlur: number = 2;
+  private focusAmlLyricsEnabled: boolean = true;
+  private focusAmlLyricsDurableValue: boolean = true;
+  private focusAmlLyricsPersistenceQueue: Promise<void> = Promise.resolve();
   private listeners: Set<Listener> = new Set();
   /** Prevent an older failed async write from rolling back a newer value. */
   private persistenceRevisions = new Map<string, number>();
@@ -50,9 +54,11 @@ class SettingsManager {
       this.glassUI = false;
       this.gsapButtonBounce = true;
       this.focusBgBlurRadius = 80;
-      this.focusLyricsFontSize = 30;
-      this.focusLyricLineSpacing = 24;
+      this.focusLyricsFontSize = 24;
+      this.focusLyricLineSpacing = 30;
       this.focusInactiveLyricBlur = 2;
+      this.focusAmlLyricsEnabled = true;
+      this.focusAmlLyricsDurableValue = true;
 
       this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';
 
@@ -87,7 +93,7 @@ class SettingsManager {
       if (lyricFontSize) {
         const parsed = parseFloat(lyricFontSize);
         if (!isNaN(parsed)) {
-          this.focusLyricsFontSize = Math.max(16, Math.min(40, parsed));
+          this.focusLyricsFontSize = Math.max(24, Math.min(40, parsed));
         }
       }
 
@@ -106,6 +112,12 @@ class SettingsManager {
           this.focusInactiveLyricBlur = Math.max(0, Math.min(12, parsed));
         }
       }
+
+      const storedAmlLyricsEnabled = appStorage.getItem(FOCUS_AMLL_LYRICS_ENABLED_KEY);
+      if (storedAmlLyricsEnabled === 'true' || storedAmlLyricsEnabled === 'false') {
+        this.focusAmlLyricsEnabled = storedAmlLyricsEnabled === 'true';
+      }
+      this.focusAmlLyricsDurableValue = this.focusAmlLyricsEnabled;
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from settings store:', error);
     }
@@ -280,7 +292,7 @@ class SettingsManager {
 
   setFocusLyricsFontSize(value: number): Promise<boolean> {
     const previous = this.focusLyricsFontSize;
-    this.focusLyricsFontSize = Math.max(16, Math.min(40, value));
+    this.focusLyricsFontSize = Math.max(24, Math.min(40, value));
     const persisted = this.persistSetting(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize), () => { this.focusLyricsFontSize = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric font size set to: ${this.focusLyricsFontSize}`);
@@ -315,6 +327,43 @@ class SettingsManager {
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode inactive lyric blur set to: ${this.focusInactiveLyricBlur}`);
     return persisted;
+  }
+
+  // --- Focus Mode AMLL Lyrics Renderer ---
+
+  getFocusAmlLyricsEnabled(): boolean {
+    return this.focusAmlLyricsEnabled;
+  }
+
+  setFocusAmlLyricsEnabled(enabled: boolean): Promise<boolean> {
+    const revision = (this.persistenceRevisions.get(FOCUS_AMLL_LYRICS_ENABLED_KEY) ?? 0) + 1;
+    this.persistenceRevisions.set(FOCUS_AMLL_LYRICS_ENABLED_KEY, revision);
+    this.focusAmlLyricsEnabled = enabled;
+    this.notify();
+    logger.debug(`[SettingsManager] Focus Mode AMLL lyrics enabled set to: ${enabled}`);
+
+    const persist = async (): Promise<boolean> => {
+      try {
+        await appStorage.setItem(
+          FOCUS_AMLL_LYRICS_ENABLED_KEY,
+          enabled ? 'true' : 'false',
+        );
+        this.focusAmlLyricsDurableValue = enabled;
+        return true;
+      } catch (error) {
+        if (this.persistenceRevisions.get(FOCUS_AMLL_LYRICS_ENABLED_KEY) === revision) {
+          this.focusAmlLyricsEnabled = this.focusAmlLyricsDurableValue;
+          this.notify();
+        }
+        logger.error('[SettingsManager] Failed to persist AMLL lyrics setting; rolled back current runtime state when safe:', error);
+        return false;
+      }
+    };
+    const operation = this.focusAmlLyricsPersistenceQueue
+      .catch(() => undefined)
+      .then(persist);
+    this.focusAmlLyricsPersistenceQueue = operation.then(() => undefined);
+    return operation;
   }
 
   // --- Legacy (kept for backward compatibility, no-op now) ---

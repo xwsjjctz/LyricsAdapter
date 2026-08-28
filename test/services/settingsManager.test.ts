@@ -11,9 +11,13 @@ beforeEach(() => {
   (settingsManager as any).glassUI = false;
   (settingsManager as any).gsapButtonBounce = true;
   (settingsManager as any).focusBgBlurRadius = 80;
-  (settingsManager as any).focusLyricsFontSize = 30;
-  (settingsManager as any).focusLyricLineSpacing = 24;
+  (settingsManager as any).focusLyricsFontSize = 24;
+  (settingsManager as any).focusLyricLineSpacing = 30;
   (settingsManager as any).focusInactiveLyricBlur = 2;
+  (settingsManager as any).focusAmlLyricsEnabled = true;
+  (settingsManager as any).focusAmlLyricsDurableValue = true;
+  (settingsManager as any).focusAmlLyricsPersistenceQueue = Promise.resolve();
+  (settingsManager as any).persistenceRevisions.clear();
 });
 
 describe('downloadPath', () => {
@@ -131,9 +135,31 @@ describe('focusBgBlurRadius', () => {
 });
 
 describe('focus lyrics appearance', () => {
-  it('should default to a 30px font size and 24px line spacing', () => {
-    expect(settingsManager.getFocusLyricsFontSize()).toBe(30);
-    expect(settingsManager.getFocusLyricLineSpacing()).toBe(24);
+  it('should default to a 24px font size and 30px line spacing', () => {
+    expect(settingsManager.getFocusLyricsFontSize()).toBe(24);
+    expect(settingsManager.getFocusLyricLineSpacing()).toBe(30);
+  });
+
+  it('should clamp the lyric font size to a 24px minimum', () => {
+    settingsManager.setFocusLyricsFontSize(16);
+    expect(settingsManager.getFocusLyricsFontSize()).toBe(24);
+    expect(localStorage.getItem('la_focus_lyrics_font_size')).toBe('24');
+  });
+});
+
+describe('focus AMLL lyrics renderer', () => {
+  it('defaults to the AMLL renderer', () => {
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
+  });
+
+  it('persists both enabled and disabled states', async () => {
+    await settingsManager.setFocusAmlLyricsEnabled(true);
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
+    expect(localStorage.getItem('la_focus_amll_lyrics_enabled')).toBe('true');
+
+    await settingsManager.setFocusAmlLyricsEnabled(false);
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+    expect(localStorage.getItem('la_focus_amll_lyrics_enabled')).toBe('false');
   });
 });
 

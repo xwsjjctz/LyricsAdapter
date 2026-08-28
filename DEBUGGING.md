@@ -78,13 +78,16 @@ Vite 仅监听本机 `127.0.0.1`，端口固定为 3000。该端口被占用时�
 
 ## Windows / macOS 内存基准
 
-在需要对比的每台机器上使用相同提交执行：
+在需要对比的每台机器上使用相同提交，分别启动两个全新的进程执行：
 
 ```bash
-npm run test:memory
+npx cross-env MEMORY_BENCHMARK_LYRICS_RENDERER=legacy npm run test:memory
+npx cross-env MEMORY_BENCHMARK_LYRICS_RENDERER=amll npm run test:memory
 ```
 
-测试使用固定的 1200×800 Electron 窗口和隔离数据目录，先采集空闲基线，再重复三轮进入、退出 FocusMode。每个阶段默认等待 2 秒并取三次采样的中位数。终端会打印阶段汇总，完整 JSON 写入 `test-results/memory/`，其中包括：
+未指定 `MEMORY_BENCHMARK_LYRICS_RENDERER` 时默认测试 `legacy`；其他值会直接报错，避免拼写错误后测错渲染器。两种模式都从隔离设置和全新 Electron 进程启动，不能在同一进程中先加载 AMLL 再把结果当作 Legacy 冷启动基线。
+
+测试使用固定的 1200×800 Electron 窗口和隔离数据目录，先采集空闲基线，再重复三轮进入、退出 FocusMode。每个阶段默认等待 2 秒并取三次采样的中位数。终端会打印阶段汇总，完整 JSON 写入 `test-results/memory/`，文件名包含 `legacy` 或 `amll`，其中包括：
 
 - Electron 的 Browser、Tab、GPU、Utility 等逐进程工作集；
 - Windows 可用的逐进程 `privateBytes`；

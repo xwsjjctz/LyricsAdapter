@@ -284,6 +284,8 @@
   "settings.focusLyricsFontSize": "Focus Mode の歌詞サイズ",
   "settings.focusLyricLineSpacing": "スクロール歌詞の行間",
   "settings.focusInactiveLyricBlur": "Focus Mode の非アクティブ歌詞ぼかし",
+  "settings.focusAmlLyricsEnabled": "AMLL スクロール歌詞",
+  "settings.focusAmlLyricsEnabledDesc": "AMLL の単語単位アニメーションとスクロールを使用します。メモリ使用量が増える場合があります。",
   "settings.clearCache": "キャッシュをクリア",
   "settings.clearCacheDesc": "削除した曲の残留メタデータとカバーキャッシュをクリア",
   "settings.clearCacheConfirmTitle": "キャッシュをクリアしますか？",

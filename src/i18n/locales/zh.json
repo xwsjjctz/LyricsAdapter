@@ -284,6 +284,8 @@
   "settings.focusLyricsFontSize": "Focus Mode 滚动歌词字号",
   "settings.focusLyricLineSpacing": "滚动歌词行间距",
   "settings.focusInactiveLyricBlur": "Focus Mode 非当前歌词模糊",
+  "settings.focusAmlLyricsEnabled": "AMLL 滚动歌词",
+  "settings.focusAmlLyricsEnabledDesc": "使用 AMLL 的逐字动画与滚动效果；可能增加内存占用。",
   "settings.clearCache": "清理缓存",
   "settings.clearCacheDesc": "清理已移除歌曲的残留元数据和封面缓存",
   "settings.clearCacheConfirmTitle": "确认清理缓存？",

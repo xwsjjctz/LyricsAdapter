@@ -160,7 +160,7 @@ const AppWorkspace: React.FC = () => {
     currentTime,
     volume,
     playbackMode,
-    audioRef,
+    getCurrentPlaybackTime,
     togglePlay,
     skipForward,
     skipBackward,

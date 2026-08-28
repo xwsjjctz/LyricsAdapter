@@ -337,7 +337,7 @@ const AppShell: React.FC<AppShellProps> = ({
           playbackMode={player.playbackMode}
           onTogglePlaybackMode={player.togglePlaybackMode}
           onToggleFocus={toggleFocusMode}
-          audioRef={player.audioRef}
+          getCurrentPlaybackTime={player.getCurrentPlaybackTime}
         />
         </div>
       </div>

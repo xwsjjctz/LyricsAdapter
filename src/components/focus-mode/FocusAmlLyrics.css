@@ -1,8 +1,7 @@
 .focus-amll-lyrics {
   --amll-lp-color: rgba(255, 255, 255, 0.96);
-  --focus-amll-font-size-adjustment: 0px;
+  --amll-lp-font-size: 24px;
   --focus-amll-line-spacing-adjustment: 0px;
-  --amll-lp-font-size: calc(clamp(30px, max(4.5vh, 2.45vw), 44px) + var(--focus-amll-font-size-adjustment));
   --amll-lp-hover-bg-color: rgba(255, 255, 255, 0.08);
 
   width: 100%;
@@ -44,10 +43,4 @@
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.2;
-}
-
-@media (max-width: 1023px) {
-  .focus-amll-lyrics {
-    --amll-lp-font-size: calc(clamp(27px, 4.5vw, 38px) + var(--focus-amll-font-size-adjustment));
-  }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { hasTrackLyrics, trackToAmlLyricLines } from '@/components/focus-mode/amllLyrics';
+import { trackToAmlLyricLines } from '@/components/focus-mode/amllLyrics';
+import { hasTrackLyrics } from '@/components/focus-mode/focusLyricsTrack';
 import type { Track } from '@/types';
 
 function makeTrack(overrides: Partial<Track> = {}): Track {

@@ -66,14 +66,7 @@ function fromAmlLines(lines: LyricLine[], fallbackText: string, includeWordTimin
     .map((line) => {
       const text = line.words.map((word) => word.word).join('');
       const words = includeWordTiming
-        ? line.words
-          .filter((word) => word.word && Number.isFinite(word.startTime) && Number.isFinite(word.endTime))
-          .map((word) => ({
-            time: word.startTime / 1000,
-            duration: Math.max(0, (word.endTime - word.startTime) / 1000),
-            text: word.word,
-          }))
-          .filter((word) => word.duration > 0)
+        ? timedWordsPreservingSeparators(line.words)
         : [];
       return {
         time: line.startTime / 1000,
@@ -89,6 +82,42 @@ function fromAmlLines(lines: LyricLine[], fallbackText: string, includeWordTimin
       : plainLyricsText(fallbackText),
     syncedLyrics: syncedLyrics.length > 0 ? syncedLyrics : undefined,
   };
+}
+
+/**
+ * QQ QRC commonly stores spaces between English words as zero-duration tokens.
+ * AMLL needs positive-duration words, so fold those separators into the nearest
+ * timed token instead of dropping them and rendering the whole line joined up.
+ */
+function timedWordsPreservingSeparators(words: LyricLine['words']): NonNullable<SyncedLyricLine['words']> {
+  const timedWords: NonNullable<SyncedLyricLine['words']> = [];
+  let prefix = '';
+
+  for (const word of words) {
+    if (!word.word) continue;
+    const hasFiniteTiming = Number.isFinite(word.startTime) && Number.isFinite(word.endTime);
+    const duration = hasFiniteTiming ? (word.endTime - word.startTime) / 1000 : 0;
+
+    if (duration <= 0) {
+      const previous = timedWords[timedWords.length - 1];
+      if (previous) previous.text += word.word;
+      else prefix += word.word;
+      continue;
+    }
+
+    timedWords.push({
+      time: word.startTime / 1000,
+      duration,
+      text: prefix + word.word,
+    });
+    prefix = '';
+  }
+
+  if (prefix && timedWords.length > 0) {
+    timedWords[timedWords.length - 1]!.text += prefix;
+  }
+
+  return timedWords;
 }
 
 function plainLyricsText(value: string): string {

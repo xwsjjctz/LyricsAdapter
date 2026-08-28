@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, lazy, memo, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { themeManager } from '../services/themeManager';
@@ -12,9 +12,11 @@ import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
-import { hasTrackLyrics } from './focus-mode/amllLyrics';
-
-const FocusAmlLyrics = lazy(() => import('./focus-mode/FocusAmlLyrics'));
+import FocusLyrics from './focus-mode/FocusLyrics';
+import {
+  CLOCK_RESYNC_THRESHOLD_SECONDS,
+  useFocusPlaybackClock,
+} from './focus-mode/useFocusPlaybackClock';
 
 // FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
 const FOCUS_MODE_COLORS = {
@@ -35,8 +37,9 @@ const BACKDROP_OVERSCAN_PX = 100;
 const BACKDROP_SATURATION = 1.5;
 const BACKDROP_RESTING_BRIGHTNESS = 0.55;
 const BACKDROP_DIM_BRIGHTNESS = 0.3;
+const BACKDROP_TRANSITION_EDGE_ALPHA = 0.5;
 const BACKDROP_TRANSITION_DURATION_MS = 1000;
-const CLOCK_RESYNC_THRESHOLD_SECONDS = 0.25;
+const CANVAS_ALPHA_DURATION_MS = 600;
 // Canvas2D blur samples transparent pixels outside its backing store. Prepare
 // an edge-extended source with enough filter padding, then crop the centre, so
 // an opaque cover remains opaque at every visible window edge.
@@ -113,12 +116,12 @@ interface FocusModeProps {
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
   onTogglePlaybackMode: () => void;
   onToggleFocus: () => void;
-  audioRef?: React.RefObject<HTMLAudioElement>; // Access to audio element
+  getCurrentPlaybackTime: () => number;
 }
 
 const FocusModeContent: React.FC<FocusModeProps> = memo(({
   track, isVisible, currentTime,
-  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, audioRef
+  isPlaying, onTogglePlay, onSkipNext, onSkipPrev, onSeek, volume, onVolumeChange, onToggleMute, playbackMode, onTogglePlaybackMode, onToggleFocus: _onToggleFocus, getCurrentPlaybackTime
 }) => {
   const isLinux = getDesktopAPI()?.platform === 'linux';
 
@@ -138,8 +141,12 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // Canvas-based color gradient transition
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasBackground, setHasBackground] = useState(false);
+  const [blurUnderlyingView, setBlurUnderlyingView] = useState(true);
+  const [blurUnderlyingViewForTrackChange, setBlurUnderlyingViewForTrackChange] = useState(false);
   const currentBackgroundRef = useRef<HTMLImageElement | null>(null);
   const incomingBackgroundRef = useRef<HTMLImageElement | null>(null);
+  const currentBackgroundTrackIdRef = useRef<string | null>(null);
+  const incomingBackgroundTrackIdRef = useRef<string | null>(null);
   const transitionProgressRef = useRef(1);
   const backdropBrightnessRef = useRef(BACKDROP_RESTING_BRIGHTNESS);
   const animationFrameRef = useRef<number | null>(null);
@@ -149,7 +156,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const backdropFrameScratchRef = useRef<HTMLCanvasElement | null>(null);
   const preparedBackdropCacheRef = useRef<WeakMap<HTMLImageElement, PreparedBackdrop>>(new WeakMap());
 
-  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
+  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.5, 1 → bgBlurTrans).
   const canvasOpacityRef = useRef(0);
   const enterExitAnimRef = useRef<number | null>(null);
 
@@ -159,9 +166,12 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const [lyricsFontSize, setLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [lyricLineSpacing, setLyricLineSpacing] = useState(() => settingsManager.getFocusLyricLineSpacing());
   const [inactiveLyricBlur, setInactiveLyricBlur] = useState(() => settingsManager.getFocusInactiveLyricBlur());
+  const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(
+    () => settingsManager.getFocusAmlLyricsEnabled(),
+  );
   const focusScale = useFocusModeScale();
-  const effectiveLyricsFontSize = Math.round(lyricsFontSize * focusScale * 100) / 100;
-  const effectiveLyricLineSpacing = Math.round(lyricLineSpacing * focusScale * 100) / 100;
+  // Keep lyric density stable as the window grows. The vh-based lyric viewport
+  // gets taller instead, revealing more surrounding lines.
   const hasScaledLayout = focusScale > 1;
   const bgBlurTransRef = useRef(bgBlurTrans);
   const bgBlurRadiusRef = useRef(bgBlurRadius);
@@ -178,6 +188,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       setLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
+      setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
     });
     return unsubscribe;
   }, []);
@@ -189,70 +200,13 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const useDefaultThemeControlGlass =
     (currentTheme.id === THEME_IDS.DEFAULT_DARK || currentTheme.id === THEME_IDS.DEFAULT);
 
-  // AMLL extrapolates animation frames internally; a 20fps media-clock snapshot
-  // keeps React and the controls light while regularly correcting its timeline.
-  const [realtimeCurrentTime, setRealtimeCurrentTime] = useState(currentTime);
-  const lastUpdateRef = useRef(0);
-  const lastTimeRef = useRef(0); // Track last time value to avoid unnecessary updates
-
-  useEffect(() => {
-    if (!isVisible || !isPlaying || !audioRef?.current) {
-      return;
-    }
-
-    // Reset time ref when track changes to ensure sync
-    lastTimeRef.current = 0;
-
-    let animationId: number;
-
-    const updateTime = (timestamp: number) => {
-      // Controls and AMLL clock correction only need a lightweight 20fps React
-      // update. AMLL owns its own requestAnimationFrame presentation loop.
-      if (timestamp - lastUpdateRef.current > 50) {
-        lastUpdateRef.current = timestamp;
-        if (audioRef.current) {
-          const newTime = audioRef.current.currentTime;
-          // Only update state if time actually changed
-          if (newTime !== lastTimeRef.current) {
-            lastTimeRef.current = newTime;
-            setRealtimeCurrentTime(newTime);
-          }
-        }
-      }
-      animationId = requestAnimationFrame(updateTime);
-    };
-
-    animationId = requestAnimationFrame(updateTime);
-
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-      lastTimeRef.current = 0;
-    };
-  }, [isVisible, isPlaying, audioRef, track?.id]);
-
-  // Browser fallback, paused seeks, and renderer restoration all need the
-  // shared clock. During normal playback the local RAF remains authoritative;
-  // only a meaningful drift triggers this pre-paint correction.
-  useLayoutEffect(() => {
-    if (!Number.isFinite(currentTime) || currentTime < 0) return;
-    const drift = Math.abs(lastTimeRef.current - currentTime);
-    if (!isPlaying || drift >= CLOCK_RESYNC_THRESHOLD_SECONDS) {
-      lastTimeRef.current = currentTime;
-      setRealtimeCurrentTime(currentTime);
-    }
-  }, [currentTime, isPlaying, track?.id]);
-
-  // A paused player has no moving clock: read its exact media time once during
-  // render and stop both Focus RAF loops until playback resumes.
-  const pausedCurrentTime = !isPlaying && audioRef?.current
-    ? audioRef.current.currentTime
-    : currentTime;
-  // Use realtime currentTime for more accurate lyrics sync while playing.
-  const activeCurrentTime = isVisible && audioRef?.current
-    ? (isPlaying ? realtimeCurrentTime : pausedCurrentTime)
-    : currentTime;
+  const { activeCurrentTime, realtimeCurrentTimeRef } = useFocusPlaybackClock({
+    trackId: track?.id,
+    isVisible,
+    currentTime,
+    isPlaying,
+    getCurrentPlaybackTime,
+  });
 
   const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
 
@@ -353,9 +307,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const preparedCurrent = prepareBackdrop(currentBackground, width, height);
     if (!preparedCurrent) return;
 
-    // Effective backdrop alpha: 0.3 at the dim end (factor 0) up to bgBlurTrans
+    // Effective backdrop alpha: 0.5 at the dim end (factor 0) up to bgBlurTrans
     // at full visibility (factor 1). canvasOpacityRef is animated on enter/exit.
-    const alpha = 0.3 + (bgBlurTransRef.current - 0.3) * canvasOpacityRef.current;
+    const alpha = BACKDROP_TRANSITION_EDGE_ALPHA
+      + (bgBlurTransRef.current - BACKDROP_TRANSITION_EDGE_ALPHA) * canvasOpacityRef.current;
     const incomingBackground = incomingBackgroundRef.current;
     const transitionProgress = transitionProgressRef.current;
     const preparedIncoming = incomingBackground
@@ -412,9 +367,30 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     ctx.globalAlpha = 1.0;
   }, [prepareBackdrop]);
 
+  // Keep the small live backdrop blur below the prepared cover only while the
+  // Library View can show through its entrance/exit alpha. Once the cover is
+  // opaque, remove that compositor layer completely.
+  useLayoutEffect(() => {
+    if (!isVisible) {
+      setBlurUnderlyingView(true);
+      return;
+    }
+
+    const currentPhase = Math.cbrt(Math.max(0, Math.min(1, canvasOpacityRef.current)));
+    const remainingDuration = CANVAS_ALPHA_DURATION_MS * (1 - currentPhase);
+    if (remainingDuration <= 0) {
+      setBlurUnderlyingView(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setBlurUnderlyingView(false);
+    }, remainingDuration);
+    return () => window.clearTimeout(timer);
+  }, [isVisible]);
+
   // Duration of the canvas backdrop alpha fade on enter/exit (matches the
-  // Focus Mode slide). Entry: alpha 0.3 → bgBlurTrans; exit: bgBlurTrans → 0.3.
-  const CANVAS_ALPHA_DURATION = 600;
+  // Focus Mode slide). Entry: alpha 0.5 → bgBlurTrans; exit: bgBlurTrans → 0.5.
 
   // Animate the backdrop alpha on enter/exit. canvasOpacityRef is a 0..1 factor
   // baked into the draw alpha by renderCanvas; we redraw each frame so the fade
@@ -426,27 +402,26 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     }
 
     const target = isVisible ? 1 : 0;
-    const from = canvasOpacityRef.current;
-    if (from === target) {
+    const fromFactor = Math.max(0, Math.min(1, canvasOpacityRef.current));
+    const fromPhase = Math.cbrt(fromFactor);
+    const targetPhase = target;
+    const phaseDistance = Math.abs(targetPhase - fromPhase);
+    if (phaseDistance === 0) {
       renderCanvas();
       return;
     }
 
-    // Preserve the original Focus entrance cadence. The pre-load pass may draw
-    // nothing; when the background commits it restarts from the factor already
-    // reached, just as changing the old bgImage state changed renderCanvas'
-    // identity. A very late image therefore appears at the completed alpha.
+    // Model the cubic fade as one global 0..1 phase. Reversing an interrupted
+    // transition starts at the exact current phase and only runs for the
+    // remaining distance, instead of replaying a fresh 600ms easing curve.
+    const duration = CANVAS_ALPHA_DURATION_MS * phaseDistance;
     const startTime = performance.now();
     const animate = (now: number) => {
-      const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION, 1);
-      // Entry (target 1): ease-in → alpha ramps up LATE, once more of the page
-      //   is on screen, so the brightening is easier to perceive.
-      // Exit (target 0): ease-out → alpha drops EARLY, before the page slides
-      //   away, so the dimming is visible.
-      const eased = target === 1 ? Math.pow(p, 3) : 1 - Math.pow(1 - p, 3);
-      canvasOpacityRef.current = from + (target - from) * eased;
+      const progress = Math.min((now - startTime) / duration, 1);
+      const phase = fromPhase + (targetPhase - fromPhase) * progress;
+      canvasOpacityRef.current = phase * phase * phase;
       renderCanvas();
-      if (p < 1) {
+      if (progress < 1) {
         enterExitAnimRef.current = requestAnimationFrame(animate);
       } else {
         canvasOpacityRef.current = target;
@@ -462,8 +437,6 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       }
     };
   }, [hasBackground, isVisible, renderCanvas]);
-
-  const hasLyrics = hasTrackLyrics(track);
 
   // Handle player mouse enter
   const handlePlayerMouseEnter = () => {
@@ -558,7 +531,44 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // host component unmounts this content after the exit animation, releasing
   // the canvas, decoded images and lyric DOM while ordinary playback continues.
   useEffect(() => {
-    if (!isVisible || !track?.id || !track?.coverUrl) return;
+    if (!isVisible || !track?.id || !track?.coverUrl) {
+      setBlurUnderlyingViewForTrackChange(false);
+      return;
+    }
+    const trackId = track.id;
+
+    // A quick exit/re-entry keeps this component mounted. Reuse the prepared
+    // cover for the same track instead of mistaking visibility reversal for a
+    // new track and replaying the 1000ms cover breathing transition.
+    if (currentBackgroundRef.current && currentBackgroundTrackIdRef.current === trackId) {
+      incomingBackgroundRef.current = null;
+      incomingBackgroundTrackIdRef.current = null;
+      transitionProgressRef.current = 1;
+      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+      setBlurUnderlyingViewForTrackChange(false);
+      setHasBackground(true);
+      renderCanvas();
+      return;
+    }
+    if (incomingBackgroundRef.current && incomingBackgroundTrackIdRef.current === trackId) {
+      currentBackgroundRef.current = incomingBackgroundRef.current;
+      currentBackgroundTrackIdRef.current = trackId;
+      incomingBackgroundRef.current = null;
+      incomingBackgroundTrackIdRef.current = null;
+      transitionProgressRef.current = 1;
+      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+      setBlurUnderlyingViewForTrackChange(false);
+      setHasBackground(true);
+      renderCanvas();
+      return;
+    }
+
+    // Activate the Library View blur as soon as a replacement cover starts
+    // loading. It will already be in the compositor before the Canvas cross-fade
+    // reveals the view underneath.
+    if (currentBackgroundRef.current || incomingBackgroundRef.current) {
+      setBlurUnderlyingViewForTrackChange(true);
+    }
 
     const generation = backgroundLoadGenerationRef.current + 1;
     backgroundLoadGenerationRef.current = generation;
@@ -592,7 +602,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       const previousBackground = incomingBackgroundRef.current || currentBackgroundRef.current;
       if (!previousBackground) {
         currentBackgroundRef.current = img;
+        currentBackgroundTrackIdRef.current = trackId;
         incomingBackgroundRef.current = null;
+        incomingBackgroundTrackIdRef.current = null;
         transitionProgressRef.current = 1;
         // The original first-load brightness animation was scheduled before its
         // conditional Canvas existed, so the actually observed entrance used
@@ -604,8 +616,13 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         return;
       }
 
+      const previousTrackId = incomingBackgroundRef.current
+        ? incomingBackgroundTrackIdRef.current
+        : currentBackgroundTrackIdRef.current;
       currentBackgroundRef.current = previousBackground;
+      currentBackgroundTrackIdRef.current = previousTrackId;
       incomingBackgroundRef.current = img;
+      incomingBackgroundTrackIdRef.current = trackId;
       transitionProgressRef.current = 0;
       backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       setHasBackground(true);
@@ -631,11 +648,14 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           animationFrameRef.current = requestAnimationFrame(animate);
         } else {
           currentBackgroundRef.current = img;
+          currentBackgroundTrackIdRef.current = trackId;
           incomingBackgroundRef.current = null;
+          incomingBackgroundTrackIdRef.current = null;
           transitionProgressRef.current = 1;
           backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
           animationFrameRef.current = null;
           renderCanvas();
+          setBlurUnderlyingViewForTrackChange(false);
         }
       };
 
@@ -651,9 +671,11 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       // If load fails, don't change background - keep previous one
       logger.warn('[FocusMode] Failed to load cover image for transition');
       incomingBackgroundRef.current = null;
+      incomingBackgroundTrackIdRef.current = null;
       transitionProgressRef.current = 1;
       backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       renderCanvas();
+      setBlurUnderlyingViewForTrackChange(false);
     };
 
     // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
@@ -702,6 +724,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     preparedBackdropCacheRef.current = new WeakMap();
     currentBackgroundRef.current = null;
     incomingBackgroundRef.current = null;
+    currentBackgroundTrackIdRef.current = null;
+    incomingBackgroundTrackIdRef.current = null;
   }, []);
 
   // The canvas is conditionally mounted after the first image arrives. Paint the
@@ -721,6 +745,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       <FocusBackdrop
         hasBackground={hasBackground}
         isLinux={isLinux}
+        blurUnderlyingView={blurUnderlyingView || blurUnderlyingViewForTrackChange}
         canvasRef={canvasRef}
       />
 
@@ -755,28 +780,21 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           </div>
 
           {/* Lyrics */}
-          {hasLyrics && track ? (
-            <div
-              className="flex-1 h-full min-w-0 max-h-[50vh] lg:max-h-[60vh] overflow-hidden relative px-8 select-none"
-              style={hasScaledLayout ? {
-                paddingLeft: `${32 * focusScale}px`,
-                paddingRight: `${32 * focusScale}px`,
-              } : undefined}
-            >
-              <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
-                <FocusAmlLyrics
-                  track={track}
-                  currentTime={activeCurrentTime}
-                  isPlaying={isPlaying}
-                  isVisible={isVisible}
-                  fontSize={effectiveLyricsFontSize}
-                  lineSpacing={effectiveLyricLineSpacing}
-                  inactiveBlur={inactiveLyricBlur}
-                  onSeek={handleLyricSeek}
-                />
-              </Suspense>
-            </div>
-          ) : null}
+          <FocusLyrics
+            track={track}
+            currentTime={activeCurrentTime}
+            currentTimeRef={realtimeCurrentTimeRef}
+            isPlaying={isPlaying}
+            isVisible={isVisible}
+            useAmlLyrics={focusAmlLyricsEnabled}
+            fontSize={lyricsFontSize}
+            lineSpacing={lyricLineSpacing}
+            inactiveBlur={inactiveLyricBlur}
+            textPrimary={focusColors.textPrimary}
+            textSecondary={focusColors.textSecondary}
+            textMuted={focusColors.textMuted}
+            onSeek={handleLyricSeek}
+          />
         </main>
 
         <div>
@@ -832,6 +850,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   if (prevProps.playbackMode !== nextProps.playbackMode) return false;
   if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
   if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
+  if (prevProps.getCurrentPlaybackTime !== nextProps.getCurrentPlaybackTime) return false;
   // Keep the prop threshold aligned with the layout-effect drift correction;
   // otherwise a 0.25–0.5s restoration drift could be filtered before paint.
   if (!nextProps.isPlaying && prevProps.currentTime !== nextProps.currentTime) return false;
@@ -854,10 +873,20 @@ const FOCUS_MODE_EXIT_DURATION_MS = 700;
 const FocusMode: React.FC<FocusModeProps> = (props) => {
   const [shouldMountContent, setShouldMountContent] = useState(props.isVisible);
   const [isPresented, setIsPresented] = useState(false);
+  const isExitTransitionRef = useRef(false);
 
   useLayoutEffect(() => {
     if (props.isVisible) {
+      const isReversingExit = isExitTransitionRef.current && shouldMountContent;
+      isExitTransitionRef.current = false;
       setShouldMountContent(true);
+      if (isReversingExit) {
+        // The existing DOM and CSS transitions are still alive. Reverse them
+        // immediately from their computed state instead of staging a new entry.
+        setIsPresented(true);
+        return;
+      }
+
       let presentFrame = 0;
       const mountFrame = window.requestAnimationFrame(() => {
         presentFrame = window.requestAnimationFrame(() => {
@@ -872,10 +901,13 @@ const FocusMode: React.FC<FocusModeProps> = (props) => {
 
     setIsPresented(false);
     if (!shouldMountContent) {
+      isExitTransitionRef.current = false;
       return;
     }
 
+    isExitTransitionRef.current = true;
     const timer = window.setTimeout(() => {
+      isExitTransitionRef.current = false;
       setShouldMountContent(false);
     }, FOCUS_MODE_EXIT_DURATION_MS);
     return () => window.clearTimeout(timer);

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/react';
-import type { LyricLineMouseEvent, OptimizeLyricOptions } from '@applemusic-like-lyrics/core';
+import {
+  DomLyricPlayer,
+  type LyricLineMouseEvent,
+  type OptimizeLyricOptions,
+} from '@applemusic-like-lyrics/core';
 import '@applemusic-like-lyrics/core/style.css';
 import './FocusAmlLyrics.css';
 import type { Track } from '../../types';
@@ -13,8 +17,18 @@ const AMLL_OPTIMIZE_OPTIONS: OptimizeLyricOptions = {
   resetLineTimestamps: false,
 };
 
+// AMLL 0.5.2 does not disconnect this observer in its base dispose(). Without
+// this adapter, switching the experiment off can retain the disposed player.
+export class FocusDomLyricPlayer extends DomLyricPlayer {
+  override dispose(): void {
+    this.resetScroll();
+    this.resizeObserver.disconnect();
+    super.dispose();
+  }
+}
+
 type AmlStyle = CSSProperties & {
-  '--focus-amll-font-size-adjustment': string;
+  '--amll-lp-font-size': string;
   '--focus-amll-line-spacing-adjustment': string;
 };
 
@@ -52,7 +66,7 @@ export default function FocusAmlLyrics({
   previousTrackRef.current = track.id;
 
   const style = useMemo<AmlStyle>(() => ({
-    '--focus-amll-font-size-adjustment': `${fontSize - 30}px`,
+    '--amll-lp-font-size': `${fontSize}px`,
     '--focus-amll-line-spacing-adjustment': `${(lineSpacing - 24) / 2}px`,
   }), [fontSize, lineSpacing]);
 
@@ -105,6 +119,7 @@ export default function FocusAmlLyrics({
   return (
     <LyricPlayer
       ref={playerRef}
+      lyricPlayer={FocusDomLyricPlayer}
       className="focus-amll-lyrics"
       style={style}
       lyricLines={lyricLines}

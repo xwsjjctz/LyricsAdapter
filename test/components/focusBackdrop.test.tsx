@@ -4,16 +4,35 @@ import { describe, expect, it } from 'vitest';
 import FocusBackdrop from '@/components/focus-mode/FocusBackdrop';
 
 describe('FocusBackdrop', () => {
-  it('retains the secondary blur over the pre-blurred backdrop', () => {
+  it('places the temporary Library blur below the prepared cover canvas', () => {
     const { container } = render(
       <FocusBackdrop
-        hasBackground={false}
+        hasBackground
         isLinux={false}
+        blurUnderlyingView
         canvasRef={createRef<HTMLCanvasElement>()}
       />,
     );
 
-    expect(container.querySelector('[data-focus-backdrop-overlay]'))
-      .toHaveClass('backdrop-blur-sm');
+    const libraryBlur = container.querySelector('[data-focus-library-backdrop-blur]');
+    const canvas = container.querySelector('canvas');
+    const overlay = container.querySelector('[data-focus-backdrop-overlay]');
+    expect(libraryBlur).toHaveClass('backdrop-blur-sm');
+    expect(libraryBlur?.compareDocumentPosition(canvas!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(overlay).toHaveClass('bg-gradient-to-b');
+    expect(overlay).not.toHaveClass('backdrop-blur-sm');
+  });
+
+  it('removes the live Library blur after the transition', () => {
+    const { container } = render(
+      <FocusBackdrop
+        hasBackground={false}
+        isLinux={false}
+        blurUnderlyingView={false}
+        canvasRef={createRef<HTMLCanvasElement>()}
+      />,
+    );
+
+    expect(container.querySelector('[data-focus-library-backdrop-blur]')).toBeNull();
   });
 });

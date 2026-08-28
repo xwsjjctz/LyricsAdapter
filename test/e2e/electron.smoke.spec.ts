@@ -82,6 +82,8 @@ interface FocusEntranceProbe {
   initialOffscreen: boolean | null;
   offscreenAfterFirstFrame: boolean | null;
   initialBackdropPixel: number[] | null;
+  underlyingBlurObserved: boolean;
+  underlyingBlurFilter: string | null;
 }
 
 interface FocusBreathingSample {
@@ -93,6 +95,7 @@ interface FocusBreathingProbe {
   initialRgba: number[];
   samples: FocusBreathingSample[];
   transitionStartedAt: number | null;
+  underlyingBlurObserved: boolean;
   completed: boolean;
   timedOut: boolean;
 }
@@ -158,8 +161,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           artist: 'LyricsAdapter',
           album: 'Smoke Test',
           duration: 120,
-          lyrics: '',
-          syncedLyrics: [],
+          lyrics: 'Focus legacy renderer\nFocus AMLL renderer',
+          syncedLyrics: [
+            { time: 0, text: 'Focus legacy renderer' },
+            { time: 4, text: 'Focus AMLL renderer' },
+          ],
           coverUrl: `cover://${fixtureTrackId}.png`,
           source: 'local',
           available: false,
@@ -170,8 +176,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           artist: 'LyricsAdapter',
           album: 'Smoke Test',
           duration: 120,
-          lyrics: '',
-          syncedLyrics: [],
+          lyrics: 'Second Focus lyric\nRenderer switch fixture',
+          syncedLyrics: [
+            { time: 0, text: 'Second Focus lyric' },
+            { time: 4, text: 'Renderer switch fixture' },
+          ],
           coverUrl: `cover://${secondFixtureTrackId}.png`,
           source: 'local',
           available: false,
@@ -350,6 +359,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         initialOffscreen: null,
         offscreenAfterFirstFrame: null,
         initialBackdropPixel: null,
+        underlyingBlurObserved: false,
+        underlyingBlurFilter: null,
       };
       probeWindow.__focusEntranceProbe = probe;
 
@@ -362,6 +373,16 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           requestAnimationFrame(() => {
             probe.offscreenAfterFirstFrame = overlay.classList.contains('translate-y-full');
           });
+        }
+
+        const underlyingBlur = overlay.querySelector<HTMLElement>(
+          '[data-focus-library-backdrop-blur]',
+        );
+        if (underlyingBlur && !probe.underlyingBlurObserved) {
+          const style = getComputedStyle(underlyingBlur);
+          probe.underlyingBlurObserved = true;
+          probe.underlyingBlurFilter = style.getPropertyValue('backdrop-filter')
+            || style.getPropertyValue('-webkit-backdrop-filter');
         }
 
         const canvas = overlay.querySelector<HTMLCanvasElement>('canvas');
@@ -384,6 +405,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await focusToggle.click();
     const focusOverlay = page.locator('.focus-mode-overlay');
     await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(0);
     await expect.poll(() => page!.evaluate(() => {
       const probe = (window as typeof window & {
         __focusEntranceProbe?: FocusEntranceProbe;
@@ -431,6 +454,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
         .__focusEntranceProbe?.initialBackdropPixel ?? null);
     if (!initialBackdropPixel) throw new Error('Focus entrance pixel probe did not run');
+    const entranceProbe = await page.evaluate(() =>
+      (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
+        .__focusEntranceProbe ?? null);
+    expect(entranceProbe?.underlyingBlurObserved).toBe(true);
+    expect(entranceProbe?.underlyingBlurFilter).toMatch(/blur\([^)]+\)/);
     // The page entrance and backdrop alpha settle within 600ms now that the
     // first cover no longer runs a separate 700ms brightness pass. Keep a little
     // scheduling margin before the final pixel probe.
@@ -501,7 +529,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       contentType: 'application/json',
     });
     const focusBackdropOverlay = page.locator('[data-focus-backdrop-overlay]');
-    await expect(focusBackdropOverlay).toHaveClass(/backdrop-blur-sm/);
+    await expect(focusBackdropOverlay).not.toHaveClass(/backdrop-blur-sm/);
+    await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
     const backdropFilters = await focusBackdropOverlay.evaluate((element) => {
       const style = getComputedStyle(element);
       return {
@@ -511,7 +540,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     });
     const hasCompositorBlur = [backdropFilters.standard, backdropFilters.webkit]
       .some(value => /blur\([^)]+\)/.test(value) && value !== 'none');
-    expect(hasCompositorBlur).toBe(true);
+    expect(hasCompositorBlur).toBe(false);
     await testInfo.attach('focus-backdrop-filter-metrics', {
       body: Buffer.from(JSON.stringify(backdropFilters, null, 2)),
       contentType: 'application/json',
@@ -539,6 +568,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         initialRgba,
         samples: [],
         transitionStartedAt: null,
+        underlyingBlurObserved: false,
         completed: false,
         timedOut: false,
       };
@@ -557,6 +587,9 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           const elapsed = now - samplingStartedAt;
           const rgba = readCenter();
           probe.samples.push({ elapsed, rgba });
+          probe.underlyingBlurObserved ||= document.querySelector(
+            '[data-focus-library-backdrop-blur]',
+          ) !== null;
 
           if (probe.transitionStartedAt === null) {
             const alphaDelta = Math.abs((rgba[3] ?? 0) - (initialRgba[3] ?? 0));
@@ -606,6 +639,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       throw new Error('Focus track-change transition never changed a readable Canvas pixel');
     }
     expect(breathingProbe.timedOut).toBe(false);
+    expect(breathingProbe.underlyingBlurObserved).toBe(true);
+    await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
 
     const rgbDistance = (left: number[], right: number[]) => Math.hypot(
       ...left.slice(0, 3).map((channel, index) => channel - (right[index] ?? 0)),
@@ -704,6 +739,130 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     );
     expect(thumbnailStats.every(fileStat => fileStat.size > 0)).toBe(true);
 
+    // Interrupt a real exit with the same CmdOrCtrl+Enter shortcut used by the
+    // app. The existing overlay must reverse in place, and the Canvas alpha must
+    // finish over the shortened remaining distance rather than replaying 600ms.
+    const focusShortcut = process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter';
+    await focusOverlay.evaluate((element) => {
+      element.setAttribute('data-focus-interruption-probe', 'same-overlay');
+    });
+    await page.keyboard.press(focusShortcut);
+    await page.waitForTimeout(150);
+    const interruptedExitAlpha = await backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Focus backdrop did not expose a 2D context');
+      return context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data[3] ?? 0;
+    });
+    expect(interruptedExitAlpha).toBeLessThan(245);
+
+    await page.keyboard.press(focusShortcut);
+    await expect(focusOverlay).toHaveAttribute('data-focus-interruption-probe', 'same-overlay');
+    await page.waitForTimeout(250);
+    const interruptedReturnAlpha = await backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Focus backdrop did not expose a 2D context');
+      return context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data[3] ?? 0;
+    });
+    expect(interruptedReturnAlpha).toBeGreaterThanOrEqual(250);
+    await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
+    await testInfo.attach('focus-interruption-metrics', {
+      body: Buffer.from(JSON.stringify({
+        interruptedExitAlpha,
+        interruptedReturnAlpha,
+      }, null, 2)),
+      contentType: 'application/json',
+    });
+
+    await focusToggle.click();
+    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
+
+    // The experimental setting is on by default, persists through the main
+    // settings store, and swaps the renderer without keeping both trees mounted.
+    const settingsButton = page.getByRole('button', {
+      name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
+    }).first();
+    await settingsButton.click();
+    const amllLyricsSwitch = page.getByRole('switch', { name: /AMLL/i });
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
+    await amllLyricsSwitch.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
+    await expect.poll(() => page!.evaluate(async () => {
+      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
+      const settings = await api?.settingsGetAll?.();
+      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
+    })).toBe('false');
+    await page.getByRole('button', { name: 'Close settings panel' }).click();
+
+    await focusToggle.click();
+    await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
+    await focusToggle.click();
+    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
+
+    await settingsButton.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
+    await amllLyricsSwitch.click();
+    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(() => page!.evaluate(async () => {
+      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
+      const settings = await api?.settingsGetAll?.();
+      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
+    })).toBe('true');
+    await page.getByRole('button', { name: 'Close settings panel' }).click();
+
+    await focusToggle.click();
+    await expect(focusOverlay).toBeVisible();
+    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(1, { timeout: 10_000 });
+    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(0);
+
+    const readFocusLyricsMetrics = () => page!.evaluate(() => {
+      const viewport = document.querySelector<HTMLElement>('.focus-lyrics-viewport');
+      const player = document.querySelector<HTMLElement>('.focus-amll-lyrics');
+      if (!viewport || !player) throw new Error('Focus lyrics layout is incomplete');
+      const viewportStyle = getComputedStyle(viewport);
+      const playerStyle = getComputedStyle(player);
+      return {
+        viewportHeight: viewport.getBoundingClientRect().height,
+        fontSize: playerStyle.fontSize,
+        viewportPaddingLeft: viewportStyle.paddingLeft,
+        lineSpacingAdjustment: playerStyle.getPropertyValue('--focus-amll-line-spacing-adjustment'),
+        maskImage: viewportStyle.maskImage || viewportStyle.webkitMaskImage,
+      };
+    });
+
+    const defaultLyricsMetrics = await readFocusLyricsMetrics();
+    expect(defaultLyricsMetrics.fontSize).toBe('24px');
+    expect(defaultLyricsMetrics.lineSpacingAdjustment).toBe('3px');
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1500, 1000);
+    });
+    await expect.poll(() => page!.evaluate(() => [window.innerWidth, window.innerHeight]))
+      .toEqual([1500, 1000]);
+    const enlargedLyricsMetrics = await readFocusLyricsMetrics();
+    expect(enlargedLyricsMetrics.viewportHeight).toBeGreaterThan(defaultLyricsMetrics.viewportHeight);
+    expect(enlargedLyricsMetrics.fontSize).toBe(defaultLyricsMetrics.fontSize);
+    expect(enlargedLyricsMetrics.viewportPaddingLeft).toBe(defaultLyricsMetrics.viewportPaddingLeft);
+    expect(enlargedLyricsMetrics.lineSpacingAdjustment).toBe(defaultLyricsMetrics.lineSpacingAdjustment);
+    expect(enlargedLyricsMetrics.maskImage).toContain('72px');
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1200, 800);
+    });
+    await expect.poll(() => page!.evaluate(() => [window.innerWidth, window.innerHeight]))
+      .toEqual([1200, 800]);
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 

@@ -284,6 +284,8 @@
   "settings.focusLyricsFontSize": "Focus Mode Lyric Font Size",
   "settings.focusLyricLineSpacing": "Scrolling Lyric Line Spacing",
   "settings.focusInactiveLyricBlur": "Focus Mode Inactive Lyric Blur",
+  "settings.focusAmlLyricsEnabled": "AMLL Scrolling Lyrics",
+  "settings.focusAmlLyricsEnabledDesc": "Use AMLL for word-by-word animation and scrolling; this may increase memory usage.",
   "settings.clearCache": "Clear Cache",
   "settings.clearCacheDesc": "Clean up orphaned metadata and cover cache for removed tracks",
   "settings.clearCacheConfirmTitle": "Clear cache?",

@@ -34,9 +34,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
-  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(30);
-  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(24);
+  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
+  const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(30);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
+  const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(true);
 
   // Clear-cache confirmation
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -58,6 +59,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
+      setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
     })();
   }, []);
 
@@ -69,6 +71,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
+      setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
     });
     return unsubscribe;
   }, []);
@@ -220,6 +223,49 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                 {t('settings.experimental')}
               </h3>
 
+              {/* AMLL 滚动歌词实验开关 */}
+              <div className="mt-3 pt-3 border-t flex items-center justify-between gap-4" style={{ borderColor: colors.borderLight }}>
+                <div className="min-w-0">
+                  <div className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusAmlLyricsEnabled')}</div>
+                  <div id="focus-amll-lyrics-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>{t('settings.focusAmlLyricsEnabledDesc')}</div>
+                </div>
+                {isBrutalistTheme ? (
+                  <RetroSwitch
+                    checked={focusAmlLyricsEnabled}
+                    ariaLabel={t('settings.focusAmlLyricsEnabled')}
+                    ariaDescribedBy="focus-amll-lyrics-description"
+                    onChange={(enabled) => {
+                      setFocusAmlLyricsEnabled(enabled);
+                      settingsManager.setFocusAmlLyricsEnabled(enabled);
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={focusAmlLyricsEnabled}
+                    aria-label={t('settings.focusAmlLyricsEnabled')}
+                    aria-describedby="focus-amll-lyrics-description"
+                    onClick={() => {
+                      const enabled = !focusAmlLyricsEnabled;
+                      setFocusAmlLyricsEnabled(enabled);
+                      settingsManager.setFocusAmlLyricsEnabled(enabled);
+                    }}
+                    className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    style={{
+                      backgroundColor: focusAmlLyricsEnabled ? colors.primary : colors.borderLight,
+                    }}
+                  >
+                    <span
+                      className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                      style={{
+                        transform: focusAmlLyricsEnabled ? 'translateX(22px)' : 'translateX(2px)',
+                      }}
+                    />
+                  </button>
+                )}
+              </div>
+
               {/* 背景模糊透明度滑块 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
                 <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.bgBlurTrans')}</span>
@@ -273,7 +319,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusLyricsFontSize}px</span>
                   <input
                     type="range"
-                    min="16"
+                    min="24"
                     max="40"
                     step="1"
                     value={focusLyricsFontSize}
@@ -283,7 +329,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                       settingsManager.setFocusLyricsFontSize(value);
                     }}
                     className={rangeClassName}
-                    style={rangeStyle(((focusLyricsFontSize - 16) / 24) * 100)}
+                    style={rangeStyle(((focusLyricsFontSize - 24) / 16) * 100)}
                   />
                 </div>
               </div>
@@ -313,40 +359,23 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
               {/* Focus Mode 非当前歌词模糊 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
                 <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusInactiveLyricBlur')}</span>
-                {isBrutalistTheme ? (
-                  <RetroSwitch
-                    checked={focusInactiveLyricBlur > 0}
-                    ariaLabel={t('settings.focusInactiveLyricBlur')}
-                    onChange={(enabled) => {
-                      const value = enabled ? 2 : 0;
+                <div className="flex items-center gap-2">
+                  <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusInactiveLyricBlur}px</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="12"
+                    step="1"
+                    value={focusInactiveLyricBlur}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
                       setFocusInactiveLyricBlur(value);
                       settingsManager.setFocusInactiveLyricBlur(value);
                     }}
+                    className={rangeClassName}
+                    style={rangeStyle((focusInactiveLyricBlur / 12) * 100)}
                   />
-                ) : (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={focusInactiveLyricBlur > 0}
-                    aria-label={t('settings.focusInactiveLyricBlur')}
-                    onClick={() => {
-                      const value = focusInactiveLyricBlur > 0 ? 0 : 2;
-                      setFocusInactiveLyricBlur(value);
-                      settingsManager.setFocusInactiveLyricBlur(value);
-                    }}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
-                    style={{
-                      backgroundColor: focusInactiveLyricBlur > 0 ? colors.primary : colors.borderLight,
-                    }}
-                  >
-                    <span
-                      className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                      style={{
-                        transform: focusInactiveLyricBlur > 0 ? 'translateX(22px)' : 'translateX(2px)',
-                      }}
-                    />
-                  </button>
-                )}
+                </div>
               </div>
 
               {/* 第三方音源开关 */}

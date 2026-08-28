@@ -1,11 +1,31 @@
 import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Track } from '@/types';
-import FocusAmlLyrics from '@/components/focus-mode/FocusAmlLyrics';
+import FocusAmlLyrics, { FocusDomLyricPlayer } from '@/components/focus-mode/FocusAmlLyrics';
 
 const playerMocks = vi.hoisted(() => ({
   resetScroll: vi.fn(),
   calcLayout: vi.fn().mockResolvedValue(undefined),
+}));
+
+const coreCleanupMocks = vi.hoisted(() => ({
+  resetScroll: vi.fn(),
+  disconnect: vi.fn(),
+  dispose: vi.fn(),
+}));
+
+vi.mock('@applemusic-like-lyrics/core', () => ({
+  DomLyricPlayer: class MockDomLyricPlayer {
+    resizeObserver = { disconnect: coreCleanupMocks.disconnect };
+
+    resetScroll(): void {
+      coreCleanupMocks.resetScroll();
+    }
+
+    dispose(): void {
+      coreCleanupMocks.dispose();
+    }
+  },
 }));
 
 vi.mock('@applemusic-like-lyrics/react', async () => {
@@ -47,10 +67,32 @@ describe('FocusAmlLyrics', () => {
     vi.useFakeTimers();
     playerMocks.resetScroll.mockClear();
     playerMocks.calcLayout.mockClear();
+    coreCleanupMocks.resetScroll.mockClear();
+    coreCleanupMocks.disconnect.mockClear();
+    coreCleanupMocks.dispose.mockClear();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('uses configured pixel typography instead of viewport-relative sizing', () => {
+    const { getByTestId } = render(
+      <FocusAmlLyrics
+        track={track}
+        currentTime={2}
+        isPlaying
+        isVisible
+        fontSize={34}
+        lineSpacing={28}
+        inactiveBlur={2}
+        onSeek={vi.fn()}
+      />,
+    );
+
+    const player = getByTestId('lyric-player');
+    expect(player.style.getPropertyValue('--amll-lp-font-size')).toBe('34px');
+    expect(player.style.getPropertyValue('--focus-amll-line-spacing-adjustment')).toBe('2px');
   });
 
   it('returns to the current lyric three seconds after the last wheel input', () => {
@@ -87,5 +129,19 @@ describe('FocusAmlLyrics', () => {
 
     expect(playerMocks.resetScroll).toHaveBeenCalledTimes(1);
     expect(playerMocks.calcLayout).toHaveBeenCalledWith(false, false);
+  });
+
+  it('disconnects the observer before disposing the AMLL player', () => {
+    const player = new FocusDomLyricPlayer();
+
+    player.dispose();
+
+    expect(coreCleanupMocks.resetScroll).toHaveBeenCalledOnce();
+    expect(coreCleanupMocks.disconnect).toHaveBeenCalledOnce();
+    expect(coreCleanupMocks.dispose).toHaveBeenCalledOnce();
+    expect(coreCleanupMocks.resetScroll.mock.invocationCallOrder[0])
+      .toBeLessThan(coreCleanupMocks.disconnect.mock.invocationCallOrder[0]!);
+    expect(coreCleanupMocks.disconnect.mock.invocationCallOrder[0])
+      .toBeLessThan(coreCleanupMocks.dispose.mock.invocationCallOrder[0]!);
   });
 });
