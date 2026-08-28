@@ -82,6 +82,8 @@ interface FocusEntranceProbe {
   initialOffscreen: boolean | null;
   offscreenAfterFirstFrame: boolean | null;
   initialBackdropPixel: number[] | null;
+  underlyingBlurObserved: boolean;
+  underlyingBlurFilter: string | null;
 }
 
 interface FocusBreathingSample {
@@ -93,6 +95,7 @@ interface FocusBreathingProbe {
   initialRgba: number[];
   samples: FocusBreathingSample[];
   transitionStartedAt: number | null;
+  underlyingBlurObserved: boolean;
   completed: boolean;
   timedOut: boolean;
 }
@@ -356,6 +359,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         initialOffscreen: null,
         offscreenAfterFirstFrame: null,
         initialBackdropPixel: null,
+        underlyingBlurObserved: false,
+        underlyingBlurFilter: null,
       };
       probeWindow.__focusEntranceProbe = probe;
 
@@ -368,6 +373,16 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           requestAnimationFrame(() => {
             probe.offscreenAfterFirstFrame = overlay.classList.contains('translate-y-full');
           });
+        }
+
+        const underlyingBlur = overlay.querySelector<HTMLElement>(
+          '[data-focus-library-backdrop-blur]',
+        );
+        if (underlyingBlur && !probe.underlyingBlurObserved) {
+          const style = getComputedStyle(underlyingBlur);
+          probe.underlyingBlurObserved = true;
+          probe.underlyingBlurFilter = style.getPropertyValue('backdrop-filter')
+            || style.getPropertyValue('-webkit-backdrop-filter');
         }
 
         const canvas = overlay.querySelector<HTMLCanvasElement>('canvas');
@@ -439,6 +454,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
         .__focusEntranceProbe?.initialBackdropPixel ?? null);
     if (!initialBackdropPixel) throw new Error('Focus entrance pixel probe did not run');
+    const entranceProbe = await page.evaluate(() =>
+      (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
+        .__focusEntranceProbe ?? null);
+    expect(entranceProbe?.underlyingBlurObserved).toBe(true);
+    expect(entranceProbe?.underlyingBlurFilter).toMatch(/blur\([^)]+\)/);
     // The page entrance and backdrop alpha settle within 600ms now that the
     // first cover no longer runs a separate 700ms brightness pass. Keep a little
     // scheduling margin before the final pixel probe.
@@ -509,7 +529,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       contentType: 'application/json',
     });
     const focusBackdropOverlay = page.locator('[data-focus-backdrop-overlay]');
-    await expect(focusBackdropOverlay).toHaveClass(/backdrop-blur-sm/);
+    await expect(focusBackdropOverlay).not.toHaveClass(/backdrop-blur-sm/);
+    await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
     const backdropFilters = await focusBackdropOverlay.evaluate((element) => {
       const style = getComputedStyle(element);
       return {
@@ -519,7 +540,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     });
     const hasCompositorBlur = [backdropFilters.standard, backdropFilters.webkit]
       .some(value => /blur\([^)]+\)/.test(value) && value !== 'none');
-    expect(hasCompositorBlur).toBe(true);
+    expect(hasCompositorBlur).toBe(false);
     await testInfo.attach('focus-backdrop-filter-metrics', {
       body: Buffer.from(JSON.stringify(backdropFilters, null, 2)),
       contentType: 'application/json',
@@ -547,6 +568,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         initialRgba,
         samples: [],
         transitionStartedAt: null,
+        underlyingBlurObserved: false,
         completed: false,
         timedOut: false,
       };
@@ -565,6 +587,9 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           const elapsed = now - samplingStartedAt;
           const rgba = readCenter();
           probe.samples.push({ elapsed, rgba });
+          probe.underlyingBlurObserved ||= document.querySelector(
+            '[data-focus-library-backdrop-blur]',
+          ) !== null;
 
           if (probe.transitionStartedAt === null) {
             const alphaDelta = Math.abs((rgba[3] ?? 0) - (initialRgba[3] ?? 0));
@@ -614,6 +639,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       throw new Error('Focus track-change transition never changed a readable Canvas pixel');
     }
     expect(breathingProbe.timedOut).toBe(false);
+    expect(breathingProbe.underlyingBlurObserved).toBe(true);
+    await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
 
     const rgbDistance = (left: number[], right: number[]) => Math.hypot(
       ...left.slice(0, 3).map((channel, index) => channel - (right[index] ?? 0)),

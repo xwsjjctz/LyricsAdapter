@@ -37,7 +37,9 @@ const BACKDROP_OVERSCAN_PX = 100;
 const BACKDROP_SATURATION = 1.5;
 const BACKDROP_RESTING_BRIGHTNESS = 0.55;
 const BACKDROP_DIM_BRIGHTNESS = 0.3;
+const BACKDROP_TRANSITION_EDGE_ALPHA = 0.5;
 const BACKDROP_TRANSITION_DURATION_MS = 1000;
+const CANVAS_ALPHA_DURATION_MS = 600;
 // Canvas2D blur samples transparent pixels outside its backing store. Prepare
 // an edge-extended source with enough filter padding, then crop the centre, so
 // an opaque cover remains opaque at every visible window edge.
@@ -139,6 +141,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // Canvas-based color gradient transition
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasBackground, setHasBackground] = useState(false);
+  const [blurUnderlyingView, setBlurUnderlyingView] = useState(true);
+  const [blurUnderlyingViewForTrackChange, setBlurUnderlyingViewForTrackChange] = useState(false);
   const currentBackgroundRef = useRef<HTMLImageElement | null>(null);
   const incomingBackgroundRef = useRef<HTMLImageElement | null>(null);
   const transitionProgressRef = useRef(1);
@@ -150,7 +154,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const backdropFrameScratchRef = useRef<HTMLCanvasElement | null>(null);
   const preparedBackdropCacheRef = useRef<WeakMap<HTMLImageElement, PreparedBackdrop>>(new WeakMap());
 
-  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
+  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.5, 1 → bgBlurTrans).
   const canvasOpacityRef = useRef(0);
   const enterExitAnimRef = useRef<number | null>(null);
 
@@ -301,9 +305,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const preparedCurrent = prepareBackdrop(currentBackground, width, height);
     if (!preparedCurrent) return;
 
-    // Effective backdrop alpha: 0.3 at the dim end (factor 0) up to bgBlurTrans
+    // Effective backdrop alpha: 0.5 at the dim end (factor 0) up to bgBlurTrans
     // at full visibility (factor 1). canvasOpacityRef is animated on enter/exit.
-    const alpha = 0.3 + (bgBlurTransRef.current - 0.3) * canvasOpacityRef.current;
+    const alpha = BACKDROP_TRANSITION_EDGE_ALPHA
+      + (bgBlurTransRef.current - BACKDROP_TRANSITION_EDGE_ALPHA) * canvasOpacityRef.current;
     const incomingBackground = incomingBackgroundRef.current;
     const transitionProgress = transitionProgressRef.current;
     const preparedIncoming = incomingBackground
@@ -360,9 +365,23 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     ctx.globalAlpha = 1.0;
   }, [prepareBackdrop]);
 
+  // Keep the small live backdrop blur below the prepared cover only while the
+  // Library View can show through its entrance/exit alpha. Once the cover is
+  // opaque, remove that compositor layer completely.
+  useLayoutEffect(() => {
+    if (!isVisible) {
+      setBlurUnderlyingView(true);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setBlurUnderlyingView(false);
+    }, CANVAS_ALPHA_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [isVisible]);
+
   // Duration of the canvas backdrop alpha fade on enter/exit (matches the
-  // Focus Mode slide). Entry: alpha 0.3 → bgBlurTrans; exit: bgBlurTrans → 0.3.
-  const CANVAS_ALPHA_DURATION = 600;
+  // Focus Mode slide). Entry: alpha 0.5 → bgBlurTrans; exit: bgBlurTrans → 0.5.
 
   // Animate the backdrop alpha on enter/exit. canvasOpacityRef is a 0..1 factor
   // baked into the draw alpha by renderCanvas; we redraw each frame so the fade
@@ -386,7 +405,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     // identity. A very late image therefore appears at the completed alpha.
     const startTime = performance.now();
     const animate = (now: number) => {
-      const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION, 1);
+      const p = Math.min((now - startTime) / CANVAS_ALPHA_DURATION_MS, 1);
       // Entry (target 1): ease-in → alpha ramps up LATE, once more of the page
       //   is on screen, so the brightening is easier to perceive.
       // Exit (target 0): ease-out → alpha drops EARLY, before the page slides
@@ -504,7 +523,17 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // host component unmounts this content after the exit animation, releasing
   // the canvas, decoded images and lyric DOM while ordinary playback continues.
   useEffect(() => {
-    if (!isVisible || !track?.id || !track?.coverUrl) return;
+    if (!isVisible || !track?.id || !track?.coverUrl) {
+      setBlurUnderlyingViewForTrackChange(false);
+      return;
+    }
+
+    // Activate the Library View blur as soon as a replacement cover starts
+    // loading. It will already be in the compositor before the Canvas cross-fade
+    // reveals the view underneath.
+    if (currentBackgroundRef.current || incomingBackgroundRef.current) {
+      setBlurUnderlyingViewForTrackChange(true);
+    }
 
     const generation = backgroundLoadGenerationRef.current + 1;
     backgroundLoadGenerationRef.current = generation;
@@ -582,6 +611,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
           animationFrameRef.current = null;
           renderCanvas();
+          setBlurUnderlyingViewForTrackChange(false);
         }
       };
 
@@ -600,6 +630,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       transitionProgressRef.current = 1;
       backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       renderCanvas();
+      setBlurUnderlyingViewForTrackChange(false);
     };
 
     // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
@@ -667,6 +698,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       <FocusBackdrop
         hasBackground={hasBackground}
         isLinux={isLinux}
+        blurUnderlyingView={blurUnderlyingView || blurUnderlyingViewForTrackChange}
         canvasRef={canvasRef}
       />
 
