@@ -1,10 +1,12 @@
 export const BACKDROP_ALPHA_TRANSITION_DURATION_MS = 1000;
+export const BACKDROP_ALPHA_EXIT_DURATION_MS = 600;
 export const BACKDROP_ALPHA_EDGE_OPACITY = 0.3;
 
 // Warping linear time before smoothstep delays most of the reveal until after
 // the 600ms page slide. At phase 0.6 the resulting Canvas factor is ~0.4, which
 // maps the visible backdrop from its 30% edge alpha to approximately 58%.
 const BACKDROP_ALPHA_TIME_EXPONENT = 1.65;
+const BACKDROP_ALPHA_EXIT_POWER = 2.4;
 const INVERSE_ITERATIONS = 24;
 
 const clampUnit = (value: number): number => Math.max(0, Math.min(1, value));
@@ -27,4 +29,14 @@ export function backdropAlphaPhaseFromFactor(factor: number): number {
     else upper = midpoint;
   }
   return (lower + upper) / 2;
+}
+
+/** Exit drops immediately, then eases into the 30% edge opacity. */
+export function backdropAlphaFactorAtExitProgress(progress: number): number {
+  return Math.pow(1 - clampUnit(progress), BACKDROP_ALPHA_EXIT_POWER);
+}
+
+/** Invert the exit curve so direction changes continue from the current alpha. */
+export function backdropAlphaExitProgressFromFactor(factor: number): number {
+  return 1 - Math.pow(clampUnit(factor), 1 / BACKDROP_ALPHA_EXIT_POWER);
 }

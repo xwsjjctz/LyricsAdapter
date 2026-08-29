@@ -13,7 +13,10 @@ import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
 import {
   BACKDROP_ALPHA_EDGE_OPACITY,
+  BACKDROP_ALPHA_EXIT_DURATION_MS,
   BACKDROP_ALPHA_TRANSITION_DURATION_MS,
+  backdropAlphaExitProgressFromFactor,
+  backdropAlphaFactorAtExitProgress,
   backdropAlphaFactorAtPhase,
   backdropAlphaPhaseFromFactor,
 } from './focus-mode/focusBackdropAlpha';
@@ -405,30 +408,33 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       enterExitAnimRef.current = null;
     }
 
-    const target = isVisible ? 1 : 0;
     const fromFactor = Math.max(0, Math.min(1, canvasOpacityRef.current));
-    const fromPhase = backdropAlphaPhaseFromFactor(fromFactor);
-    const targetPhase = target;
-    const phaseDistance = Math.abs(targetPhase - fromPhase);
-    if (phaseDistance === 0) {
+    const targetFactor = isVisible ? 1 : 0;
+    if (fromFactor === targetFactor) {
       renderCanvas();
       return;
     }
 
-    // Model the delayed fade as one global 0..1 phase. Reversing an interrupted
-    // transition starts at the exact current phase and only runs for the
-    // remaining distance, instead of replaying a fresh 1000ms easing curve.
-    const duration = BACKDROP_ALPHA_TRANSITION_DURATION_MS * phaseDistance;
+    // Entry and exit deliberately use different curves. Both are invertible, so
+    // changing direction continues from the current factor without an alpha jump.
+    const fromPosition = isVisible
+      ? backdropAlphaPhaseFromFactor(fromFactor)
+      : backdropAlphaExitProgressFromFactor(fromFactor);
+    const duration = (isVisible
+      ? BACKDROP_ALPHA_TRANSITION_DURATION_MS
+      : BACKDROP_ALPHA_EXIT_DURATION_MS) * (1 - fromPosition);
     const startTime = performance.now();
     const animate = (now: number) => {
       const progress = Math.min((now - startTime) / duration, 1);
-      const phase = fromPhase + (targetPhase - fromPhase) * progress;
-      canvasOpacityRef.current = backdropAlphaFactorAtPhase(phase);
+      const position = fromPosition + (1 - fromPosition) * progress;
+      canvasOpacityRef.current = isVisible
+        ? backdropAlphaFactorAtPhase(position)
+        : backdropAlphaFactorAtExitProgress(position);
       renderCanvas();
       if (progress < 1) {
         enterExitAnimRef.current = requestAnimationFrame(animate);
       } else {
-        canvasOpacityRef.current = target;
+        canvasOpacityRef.current = targetFactor;
         enterExitAnimRef.current = null;
       }
     };
@@ -867,9 +873,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
 FocusModeContent.displayName = 'FocusModeContent';
 
-// The page is visually off-screen after 600ms, but retain the mounted Canvas
-// long enough for the full opacity timeline to remain interruptible.
-const FOCUS_MODE_EXIT_DURATION_MS = BACKDROP_ALPHA_TRANSITION_DURATION_MS + 100;
+// The page and exit alpha both finish around 600ms. Keep a small buffer before
+// unmounting the Canvas so the final frame is painted and remains interruptible.
+const FOCUS_MODE_EXIT_DURATION_MS = BACKDROP_ALPHA_EXIT_DURATION_MS + 100;
 
 /**
  * Keep the content mounted just long enough for its exit transition, then
