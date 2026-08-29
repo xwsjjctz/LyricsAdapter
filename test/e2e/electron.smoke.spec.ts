@@ -82,6 +82,8 @@ interface FocusEntranceProbe {
   initialOffscreen: boolean | null;
   offscreenAfterFirstFrame: boolean | null;
   initialBackdropPixel: number[] | null;
+  pageSettleBackdropPixel: number[] | null;
+  pageSettleSampleScheduled: boolean;
   underlyingBlurObserved: boolean;
   underlyingBlurFilter: string | null;
 }
@@ -359,6 +361,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         initialOffscreen: null,
         offscreenAfterFirstFrame: null,
         initialBackdropPixel: null,
+        pageSettleBackdropPixel: null,
+        pageSettleSampleScheduled: false,
         underlyingBlurObserved: false,
         underlyingBlurFilter: null,
       };
@@ -373,6 +377,31 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           requestAnimationFrame(() => {
             probe.offscreenAfterFirstFrame = overlay.classList.contains('translate-y-full');
           });
+        }
+
+        if (
+          overlay.classList.contains('translate-y-0')
+          && !probe.pageSettleSampleScheduled
+        ) {
+          probe.pageSettleSampleScheduled = true;
+          window.setTimeout(() => {
+            const sample = () => {
+              const canvas = overlay.querySelector<HTMLCanvasElement>('canvas');
+              const context = canvas?.getContext('2d');
+              if (!canvas || !context || canvas.width === 0 || canvas.height === 0) {
+                requestAnimationFrame(sample);
+                return;
+              }
+              probe.pageSettleBackdropPixel = Array.from(context.getImageData(
+                Math.floor(canvas.width / 2),
+                Math.floor(canvas.height / 2),
+                1,
+                1,
+              ).data);
+              observer.disconnect();
+            };
+            sample();
+          }, 600);
         }
 
         const underlyingBlur = overlay.querySelector<HTMLElement>(
@@ -395,11 +424,15 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
               1,
               1,
             ).data);
-            observer.disconnect();
           }
         }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class'],
+      });
     });
 
     await focusToggle.click();
@@ -459,10 +492,31 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         .__focusEntranceProbe ?? null);
     expect(entranceProbe?.underlyingBlurObserved).toBe(true);
     expect(entranceProbe?.underlyingBlurFilter).toMatch(/blur\([^)]+\)/);
-    // The page entrance and backdrop alpha settle within 600ms now that the
-    // first cover no longer runs a separate 700ms brightness pass. Keep a little
-    // scheduling margin before the final pixel probe.
-    await page.waitForTimeout(800);
+    await expect.poll(() => page!.evaluate(() =>
+      (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
+        .__focusEntranceProbe?.pageSettleBackdropPixel ?? null), { timeout: 2_000 })
+      .not.toBeNull();
+    const pageSettleBackdropPixel = await page.evaluate(() =>
+      (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
+        .__focusEntranceProbe?.pageSettleBackdropPixel ?? null);
+    if (!pageSettleBackdropPixel) throw new Error('Focus page-settle pixel probe did not run');
+    expect(pageSettleBackdropPixel[3]).toBeGreaterThanOrEqual(135);
+    expect(pageSettleBackdropPixel[3]).toBeLessThanOrEqual(175);
+
+    // The page itself settles at 600ms while the delayed Canvas reveal continues
+    // to 1000ms. Poll the actual backing pixel instead of coupling to wall-clock
+    // scheduling margin.
+    await expect.poll(() => backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) return 0;
+      return context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data[3] ?? 0;
+    }), { timeout: 2_000 }).toBeGreaterThanOrEqual(250);
     const canvasMetrics = await backdropCanvas.evaluate((element) => {
       const canvas = element as HTMLCanvasElement;
       const context = canvas.getContext('2d');
@@ -524,6 +578,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       body: Buffer.from(JSON.stringify({
         entranceStyles,
         initialBackdropPixel,
+        pageSettleBackdropPixel,
         finalBackdropPixel: canvasMetrics.centerRgba,
       }, null, 2)),
       contentType: 'application/json',

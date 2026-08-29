@@ -11,6 +11,12 @@ import FocusBackdrop from './focus-mode/FocusBackdrop';
 import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
+import {
+  BACKDROP_ALPHA_EDGE_OPACITY,
+  BACKDROP_ALPHA_TRANSITION_DURATION_MS,
+  backdropAlphaFactorAtPhase,
+  backdropAlphaPhaseFromFactor,
+} from './focus-mode/focusBackdropAlpha';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
 import FocusLyrics from './focus-mode/FocusLyrics';
 import {
@@ -37,9 +43,7 @@ const BACKDROP_OVERSCAN_PX = 100;
 const BACKDROP_SATURATION = 1.5;
 const BACKDROP_RESTING_BRIGHTNESS = 0.55;
 const BACKDROP_DIM_BRIGHTNESS = 0.3;
-const BACKDROP_TRANSITION_EDGE_ALPHA = 0.5;
 const BACKDROP_TRANSITION_DURATION_MS = 1000;
-const CANVAS_ALPHA_DURATION_MS = 600;
 // Canvas2D blur samples transparent pixels outside its backing store. Prepare
 // an edge-extended source with enough filter padding, then crop the centre, so
 // an opaque cover remains opaque at every visible window edge.
@@ -156,7 +160,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const backdropFrameScratchRef = useRef<HTMLCanvasElement | null>(null);
   const preparedBackdropCacheRef = useRef<WeakMap<HTMLImageElement, PreparedBackdrop>>(new WeakMap());
 
-  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.5, 1 → bgBlurTrans).
+  // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
   const canvasOpacityRef = useRef(0);
   const enterExitAnimRef = useRef<number | null>(null);
 
@@ -307,10 +311,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const preparedCurrent = prepareBackdrop(currentBackground, width, height);
     if (!preparedCurrent) return;
 
-    // Effective backdrop alpha: 0.5 at the dim end (factor 0) up to bgBlurTrans
+    // Effective backdrop alpha: 0.3 at the dim end (factor 0) up to bgBlurTrans
     // at full visibility (factor 1). canvasOpacityRef is animated on enter/exit.
-    const alpha = BACKDROP_TRANSITION_EDGE_ALPHA
-      + (bgBlurTransRef.current - BACKDROP_TRANSITION_EDGE_ALPHA) * canvasOpacityRef.current;
+    const alpha = BACKDROP_ALPHA_EDGE_OPACITY
+      + (bgBlurTransRef.current - BACKDROP_ALPHA_EDGE_OPACITY) * canvasOpacityRef.current;
     const incomingBackground = incomingBackgroundRef.current;
     const transitionProgress = transitionProgressRef.current;
     const preparedIncoming = incomingBackground
@@ -376,8 +380,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       return;
     }
 
-    const currentPhase = Math.cbrt(Math.max(0, Math.min(1, canvasOpacityRef.current)));
-    const remainingDuration = CANVAS_ALPHA_DURATION_MS * (1 - currentPhase);
+    const currentPhase = backdropAlphaPhaseFromFactor(canvasOpacityRef.current);
+    const remainingDuration = BACKDROP_ALPHA_TRANSITION_DURATION_MS * (1 - currentPhase);
     if (remainingDuration <= 0) {
       setBlurUnderlyingView(false);
       return;
@@ -389,8 +393,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     return () => window.clearTimeout(timer);
   }, [isVisible]);
 
-  // Duration of the canvas backdrop alpha fade on enter/exit (matches the
-  // Focus Mode slide). Entry: alpha 0.5 → bgBlurTrans; exit: bgBlurTrans → 0.5.
+  // The page slide still lasts 600ms. The backdrop uses a delayed 1000ms reveal:
+  // alpha 0.3 → ~0.58 while the page enters, then ~0.58 → bgBlurTrans afterwards.
 
   // Animate the backdrop alpha on enter/exit. canvasOpacityRef is a 0..1 factor
   // baked into the draw alpha by renderCanvas; we redraw each frame so the fade
@@ -403,7 +407,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
     const target = isVisible ? 1 : 0;
     const fromFactor = Math.max(0, Math.min(1, canvasOpacityRef.current));
-    const fromPhase = Math.cbrt(fromFactor);
+    const fromPhase = backdropAlphaPhaseFromFactor(fromFactor);
     const targetPhase = target;
     const phaseDistance = Math.abs(targetPhase - fromPhase);
     if (phaseDistance === 0) {
@@ -411,15 +415,15 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       return;
     }
 
-    // Model the cubic fade as one global 0..1 phase. Reversing an interrupted
+    // Model the delayed fade as one global 0..1 phase. Reversing an interrupted
     // transition starts at the exact current phase and only runs for the
-    // remaining distance, instead of replaying a fresh 600ms easing curve.
-    const duration = CANVAS_ALPHA_DURATION_MS * phaseDistance;
+    // remaining distance, instead of replaying a fresh 1000ms easing curve.
+    const duration = BACKDROP_ALPHA_TRANSITION_DURATION_MS * phaseDistance;
     const startTime = performance.now();
     const animate = (now: number) => {
       const progress = Math.min((now - startTime) / duration, 1);
       const phase = fromPhase + (targetPhase - fromPhase) * progress;
-      canvasOpacityRef.current = phase * phase * phase;
+      canvasOpacityRef.current = backdropAlphaFactorAtPhase(phase);
       renderCanvas();
       if (progress < 1) {
         enterExitAnimRef.current = requestAnimationFrame(animate);
@@ -863,7 +867,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
 FocusModeContent.displayName = 'FocusModeContent';
 
-const FOCUS_MODE_EXIT_DURATION_MS = 700;
+// The page is visually off-screen after 600ms, but retain the mounted Canvas
+// long enough for the full opacity timeline to remain interruptible.
+const FOCUS_MODE_EXIT_DURATION_MS = BACKDROP_ALPHA_TRANSITION_DURATION_MS + 100;
 
 /**
  * Keep the content mounted just long enough for its exit transition, then
