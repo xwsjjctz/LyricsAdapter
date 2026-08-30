@@ -28,6 +28,8 @@
 - **Synced lyrics** — LRC lyrics with millisecond precision; word-by-word QRC/YRC karaoke lyrics from online providers, persisted back into custom audio tags
 - **Streaming local playback** — Local files are streamed via the custom `audio://` protocol with Range requests, never fully loaded into memory
 - **Complete playback controls** — Play/pause, previous/next track, seek, volume control
+- **System media integration** — Publishes metadata, artwork, and playback actions to macOS Control Center and Windows system media controls
+- **Native system lyrics** — Live lyrics in the macOS menu bar and inside the Windows taskbar, with a taskbar-adjacent overlay fallback
 - **Multiple playback modes** — Sequential, repeat-one, shuffle
 
 ### 🎨 User Interface
@@ -82,6 +84,7 @@ Full-screen experience with a dynamic background following the cover colors and 
 - **Node.js** 20.19 or higher (or 22.12+)
 - **npm** 9.0 or higher (or yarn/pnpm)
 - **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
+- **Windows packaging**: .NET 8 SDK (builds the taskbar helper; the shipped helper is self-contained)
 
 ### Installation & Setup
 

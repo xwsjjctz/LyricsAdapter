@@ -20,8 +20,10 @@ import { registerCleanupHandlers } from './cleanup-handler';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { registerUserDataHandlers } from './ipc/userDataHandlers';
 import { registerPersistenceHandlers } from './ipc/persistenceHandlers';
+import { registerSystemLyricsHandlers } from './ipc/systemLyricsHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 import { userStateRepository } from './services/userStateRepository';
+import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
 import { APP } from '../src/constants/config';
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
@@ -57,11 +59,25 @@ if (!hasSingleInstanceLock) {
   app.quit();
 }
 
+const systemLyricsCoordinator = new SystemLyricsCoordinator(action => {
+  const window = getWindow();
+  if (!window || window.isDestroyed()) return;
+  window.webContents.send('system-lyrics-action', action);
+});
+
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
   // User-owned settings/library membership live outside Chromium's replaceable
   // userData directory. Legacy JSON is imported transactionally on first run.
   userStateRepository.initialize();
+  // Register the macOS status item eagerly so the music-note icon is visible
+  // even before the first renderer update. A native lyrics failure must never
+  // prevent the player itself from starting.
+  try {
+    systemLyricsCoordinator.initialize();
+  } catch (error) {
+    logger.warn('[SystemLyrics] Failed to initialize the native surface:', error);
+  }
   // Register protocol handlers (must be after app is ready)
   await registerAppProtocolHandler();
   registerCoverProtocol();
@@ -88,6 +104,7 @@ app.whenReady().then(async () => {
   // aggregate read facade can be called by the renderer.
   registerPersistenceHandlers();
   registerNotificationHandlers();
+  registerSystemLyricsHandlers(systemLyricsCoordinator);
 
   await createWindow();
 
@@ -121,6 +138,7 @@ app.on('second-instance', () => {
 });
 
 app.once('will-quit', () => {
+  systemLyricsCoordinator.stop();
   userStateRepository.close();
 });
 

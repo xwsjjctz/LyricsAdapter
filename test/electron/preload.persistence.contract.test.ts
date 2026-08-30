@@ -25,12 +25,18 @@ interface ExposedPersistenceApi {
     persistence: {
       loadBootstrap: () => Promise<unknown>;
     };
+    systemLyrics: {
+      update: (state: unknown) => Promise<unknown>;
+      onAction: (callback: (action: string) => void) => () => void;
+    };
   };
 }
 
 function executePreload(): {
   api: ExposedPersistenceApi;
   invoke: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  removeListener: ReturnType<typeof vi.fn>;
   response: { ok: true; data: { contract: string } };
 } {
   const preloadPath = path.resolve(process.cwd(), 'electron/preload.ts');
@@ -44,6 +50,8 @@ function executePreload(): {
 
   const response = { ok: true as const, data: { contract: 'typed-ipc-result' } };
   const invoke = vi.fn().mockResolvedValue(response);
+  const on = vi.fn();
+  const removeListener = vi.fn();
   let exposed: ExposedPersistenceApi | undefined;
   const electron = {
     contextBridge: {
@@ -53,8 +61,8 @@ function executePreload(): {
     },
     ipcRenderer: {
       invoke,
-      on: vi.fn(),
-      removeListener: vi.fn(),
+      on,
+      removeListener,
       send: vi.fn(),
     },
     webUtils: {
@@ -82,7 +90,7 @@ function executePreload(): {
   }, { filename: preloadPath });
 
   if (!exposed) throw new Error('Preload did not expose window.electron');
-  return { api: exposed, invoke, response };
+  return { api: exposed, invoke, on, removeListener, response };
 }
 
 describe('preload persistence typed IPC contract', () => {
@@ -142,5 +150,31 @@ describe('preload persistence typed IPC contract', () => {
 
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith('ipc:persistence:loadBootstrap');
+  });
+
+  it('routes system lyrics state and native actions through the typed bridge', async () => {
+    const { api, invoke, on, removeListener, response } = executePreload();
+    const state = {
+      trackId: 'track-1', title: 'Title', artist: 'Artist',
+      line: 'Current line', nextLine: 'Next line', isPlaying: true,
+    };
+
+    await expect(api.ipc.systemLyrics.update(state)).resolves.toBe(response);
+    expect(invoke).toHaveBeenCalledWith('ipc:systemLyrics:update', state);
+
+    const callback = vi.fn();
+    const unsubscribe = api.ipc.systemLyrics.onAction(callback);
+    const handler = on.mock.calls.find(call => call[0] === 'system-lyrics-action')?.[1] as (
+      event: unknown,
+      action: string,
+    ) => void;
+    handler({}, 'next');
+    expect(callback).toHaveBeenCalledWith('next');
+
+    handler({}, 'not-an-action');
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    expect(removeListener).toHaveBeenCalledWith('system-lyrics-action', handler);
   });
 });

@@ -5,7 +5,7 @@ import { logger } from '../services/logger';
 import { webdavClient } from '../services/webdavClient';
 import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playbackSource';
 import { UI } from '../constants/config';
-import { addPlaybackShutdownListener, fadeOutAndPauseAudio } from '../services/playbackShutdown';
+import { addPlaybackShutdownListener, pauseAudioBeforeShutdown } from '../services/playbackShutdown';
 
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 
@@ -54,6 +54,7 @@ export function usePlayback({
   const hasObservedTrackRef = useRef(false);
   const skipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shutdownInFlightRef = useRef<Promise<void> | null>(null);
+  const shutdownRequestedRef = useRef(false);
   const currentTrack = useMemo(() => {
     return currentTrackIndex >= 0 ? tracks[currentTrackIndex] ?? null : null;
   }, [tracks, currentTrackIndex]);
@@ -102,20 +103,37 @@ export function usePlayback({
     };
   }, []);
 
-  useEffect(() => addPlaybackShutdownListener(() => {
-    if (shutdownInFlightRef.current) return shutdownInFlightRef.current;
-
-    shouldAutoPlayRef.current = false;
-    const operation = fadeOutAndPauseAudio(audioRef.current);
-    let trackedOperation: Promise<void>;
-    trackedOperation = operation.finally(() => {
-      if (shutdownInFlightRef.current === trackedOperation) {
-        shutdownInFlightRef.current = null;
+  useEffect(() => {
+    const stopPlayback = () => {
+      shutdownRequestedRef.current = true;
+      shouldAutoPlayRef.current = false;
+      waitingForCanPlayRef.current = false;
+      if (skipTimerRef.current !== null) {
+        clearTimeout(skipTimerRef.current);
+        skipTimerRef.current = null;
       }
-    });
-    shutdownInFlightRef.current = trackedOperation;
-    return trackedOperation;
-  }), []);
+      if (shutdownInFlightRef.current) return shutdownInFlightRef.current;
+
+      setIsPlaying(false);
+      const operation = pauseAudioBeforeShutdown(audioRef.current);
+      let trackedOperation: Promise<void>;
+      trackedOperation = operation.finally(() => {
+        if (shutdownInFlightRef.current === trackedOperation) {
+          shutdownInFlightRef.current = null;
+        }
+      });
+      shutdownInFlightRef.current = trackedOperation;
+      return trackedOperation;
+    };
+    const removeShutdownListener = addPlaybackShutdownListener(stopPlayback);
+    const handleBeforeUnload = () => { void stopPlayback(); };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      removeShutdownListener();
+    };
+  }, []);
 
   const getRandomIndex = useCallback((exclude: number, length: number) => {
     if (length <= 1) return exclude;
@@ -184,7 +202,7 @@ export function usePlayback({
   }, [currentTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const togglePlay = useCallback(() => {
-    if (!audioRef.current || !currentTrack) return;
+    if (shutdownRequestedRef.current || !audioRef.current || !currentTrack) return;
 
     setIsPlaying(prevIsPlaying => {
       if (prevIsPlaying) {
@@ -265,6 +283,8 @@ export function usePlayback({
   }, [tracks.length, playbackMode, getRandomIndex]);
 
   const handleTrackEnded = useCallback(() => {
+    if (shutdownRequestedRef.current) return;
+
     if (playbackMode === 'repeat-one') {
       if (
         audioRef.current
@@ -316,18 +336,23 @@ export function usePlayback({
   // The caller is responsible for any `.catch()` adaptor (Online branch needs
   // one; WebDAV relies on the outer try/catch in handleWebdav).
   const playOrPause = useCallback(async (shouldPlay: boolean) => {
-    if (!audioRef.current) return;
-    if (shouldPlay) {
-      await audioRef.current.play();
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (shouldPlay && !shutdownRequestedRef.current) {
+      await audio.play();
+      if (shutdownRequestedRef.current || audioRef.current !== audio) {
+        audio.pause();
+        return;
+      }
       shouldAutoPlayRef.current = false;
       setIsPlaying(true);
     } else {
-      audioRef.current.pause();
+      audio.pause();
     }
   }, []);
 
   const skipForward = useCallback(() => {
-    if (tracks.length === 0) return;
+    if (shutdownRequestedRef.current || tracks.length === 0) return;
 
     // 清除之前的延迟定时器（快速连按时的防抖）
     if (skipTimerRef.current !== null) {
@@ -343,6 +368,7 @@ export function usePlayback({
     // 延迟触发自动播放：快速连按时只有最后一次会生效
     skipTimerRef.current = setTimeout(() => {
       skipTimerRef.current = null;
+      if (shutdownRequestedRef.current) return;
       shouldAutoPlayRef.current = true;
       // 清除已加载标记，强制 effect 重新加载当前曲目
       loadedTrackIdRef.current = undefined;
@@ -351,7 +377,7 @@ export function usePlayback({
   }, [tracks.length, getNextTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
   const skipBackward = useCallback(() => {
-    if (tracks.length === 0) return;
+    if (shutdownRequestedRef.current || tracks.length === 0) return;
 
     // 清除之前的延迟定时器（快速连按时的防抖）
     if (skipTimerRef.current !== null) {
@@ -367,6 +393,7 @@ export function usePlayback({
     // 延迟触发自动播放：快速连按时只有最后一次会生效
     skipTimerRef.current = setTimeout(() => {
       skipTimerRef.current = null;
+      if (shutdownRequestedRef.current) return;
       shouldAutoPlayRef.current = true;
       // 清除已加载标记，强制 effect 重新加载当前曲目
       loadedTrackIdRef.current = undefined;
@@ -415,14 +442,29 @@ export function usePlayback({
   const handleCanPlay = useCallback(() => {
     logger.debug('[Playback] Audio is ready to play');
 
+    if (shutdownRequestedRef.current) {
+      waitingForCanPlayRef.current = false;
+      audioRef.current?.pause();
+      return;
+    }
+
     if (waitingForCanPlayRef.current && audioRef.current) {
       waitingForCanPlayRef.current = false;
       logger.debug('[Playback] Attempting playback after canplay');
-      audioRef.current.play().then(() => {
+      const audio = audioRef.current;
+      audio.play().then(() => {
+        if (shutdownRequestedRef.current || audioRef.current !== audio) {
+          audio.pause();
+          return;
+        }
         logger.debug('[Playback] ✓ Playback started after canplay');
         setIsPlaying(true);
         shouldAutoPlayRef.current = false;
       }).catch((e) => {
+        if (shutdownRequestedRef.current) {
+          audio.pause();
+          return;
+        }
         logger.debug('[Playback] Playback failed after canplay:', e);
         setIsPlaying(false);
         shouldAutoPlayRef.current = true;
@@ -431,7 +473,7 @@ export function usePlayback({
   }, []);
 
   useEffect(() => {
-    if (!audioRef.current || !currentTrack) return;
+    if (shutdownRequestedRef.current || !audioRef.current || !currentTrack) return;
 
     // 跳过同曲目（id 相同）的重复加载，避免元数据刷新等操作中断正在播放的音频
     if (currentTrack.id === loadedTrackIdRef.current) {
@@ -468,7 +510,8 @@ export function usePlayback({
         try {
           const cdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
           if (
-            loadedTrackIdRef.current !== capturedTrackId
+            shutdownRequestedRef.current
+            || loadedTrackIdRef.current !== capturedTrackId
             || !audioRef.current
             || audioRef.current !== capturedAudio
           ) return;
@@ -481,7 +524,7 @@ export function usePlayback({
             logger.error('[Playback] Failed to get CDN URL for:', currentTrack.webdavPath);
           }
         } catch (e: any) {
-          if (e.name === 'AbortError') return;
+          if (e.name === 'AbortError' || shutdownRequestedRef.current) return;
           if (
             loadedTrackIdRef.current !== capturedTrackId
             || !audioRef.current
@@ -511,7 +554,8 @@ export function usePlayback({
           return;
         }
         if (
-          loadedTrackIdRef.current !== capturedTrackId
+          shutdownRequestedRef.current
+          || loadedTrackIdRef.current !== capturedTrackId
           || !audioRef.current
           || audioRef.current !== capturedAudio
         ) return;
@@ -544,21 +588,30 @@ export function usePlayback({
         });
 
         // 防止过期异步回调：如果当前已经切到其他曲目，不设置 src 和播放
-        if (loadedTrackIdRef.current !== updatedTrack.id) {
+        if (shutdownRequestedRef.current || loadedTrackIdRef.current !== updatedTrack.id) {
           logger.debug('[Playback] Stale async load ignored for:', updatedTrack.title);
           return;
         }
 
         // 懒加载完成后直接播放，绕过 loadedTrackIdRef 守卫
         // （该守卫会拦截后续的 effect 重入，导致 play() 永远不被调用）
-        if (audioRef.current && updatedTrack.audioUrl) {
+        const audio = audioRef.current;
+        if (audio && updatedTrack.audioUrl) {
           replaceAudioSource(updatedTrack.audioUrl, updatedTrack.id);
           audioUrlReadyRef.current = true;
-          if (shouldAutoPlayRef.current) {
-            audioRef.current.play().then(() => {
+          if (shouldAutoPlayRef.current && !shutdownRequestedRef.current) {
+            audio.play().then(() => {
+              if (shutdownRequestedRef.current || audioRef.current !== audio) {
+                audio.pause();
+                return;
+              }
               shouldAutoPlayRef.current = false;
               setIsPlaying(true);
             }).catch((e) => {
+              if (shutdownRequestedRef.current) {
+                audio.pause();
+                return;
+              }
               logger.debug('[Playback] Lazy-load play failed, waiting for canplay:', e);
               waitingForCanPlayRef.current = true;
             });
@@ -580,12 +633,21 @@ export function usePlayback({
 
     if (currentTrack.audioUrl) {
       replaceAudioSource(currentTrack.audioUrl, currentTrack.id);
-      if (shouldAutoPlayRef.current) {
-        audioRef.current.play().then(() => {
+      const audio = audioRef.current;
+      if (shouldAutoPlayRef.current && !shutdownRequestedRef.current) {
+        audio.play().then(() => {
+          if (shutdownRequestedRef.current || audioRef.current !== audio) {
+            audio.pause();
+            return;
+          }
           logger.debug('[Playback] ✓ Playback started successfully');
           shouldAutoPlayRef.current = false;
           setIsPlaying(true);
         }).catch((e) => {
+          if (shutdownRequestedRef.current) {
+            audio.pause();
+            return;
+          }
           logger.debug('[Playback] Playback failed, waiting for canplay:', e);
           waitingForCanPlayRef.current = true;
         });
@@ -679,6 +741,14 @@ export function usePlayback({
       return;
     }
 
+    if (shutdownRequestedRef.current) {
+      shouldAutoPlayRef.current = false;
+      waitingForCanPlayRef.current = false;
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
     logger.error('[Playback] Audio error:', e);
     logger.error('[Playback] Audio error code:', audio.error?.code);
     logger.error('[Playback] Audio error message:', audio.error?.message);
@@ -701,7 +771,8 @@ export function usePlayback({
             if (!currentTrack.webdavPath || !audioRef.current) return;
             const freshCdnUrl = await webdavClient.getCdnUrl(currentTrack.webdavPath);
             if (
-              !freshCdnUrl
+              shutdownRequestedRef.current
+              || !freshCdnUrl
               || !audioRef.current
               || loadedTrackIdRef.current !== failedTrackId
               || audioRef.current !== failedAudio
@@ -749,6 +820,8 @@ export function usePlayback({
   }, [currentTrack, currentTime, replaceAudioSource, setTracks]);
 
   const selectTrack = useCallback((idx: number) => {
+    if (shutdownRequestedRef.current) return;
+
     shouldAutoPlayRef.current = true;
     if (idx === currentTrackIndex) {
       // 选中同一首曲目：直接恢复播放（switchToTrackIndex 会跳过同 index 的切换）

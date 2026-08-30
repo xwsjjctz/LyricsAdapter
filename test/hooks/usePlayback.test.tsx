@@ -129,7 +129,7 @@ describe('usePlayback', () => {
     expect(result.current.getCurrentPlaybackTime()).toBe(8.75);
   });
 
-  it('fades out and pauses the active audio element during app shutdown', async () => {
+  it('pauses the active audio element synchronously during app shutdown', async () => {
     vi.useFakeTimers();
     const track = makeTrack({ id: 'shutdown', audioUrl: 'audio://localhost/shutdown.flac' });
     const audio = makeAudioElement();
@@ -139,21 +139,206 @@ describe('usePlayback', () => {
     Object.defineProperty(audio, 'pause', { configurable: true, value: pause });
     const { result, unmount } = renderPlayback([track]);
 
-    act(() => result.current.setAudioRef(audio));
+    act(() => {
+      result.current.setAudioRef(audio);
+      result.current.setIsPlaying(true);
+    });
+    expect(result.current.isPlaying).toBe(true);
     const playingVolume = audio.volume;
     let shutdown!: Promise<void>;
     act(() => { shutdown = requestPlaybackShutdown(); });
 
-    expect(audio.volume).toBe(playingVolume);
-    expect(pause).not.toHaveBeenCalled();
+    expect(playingVolume).toBeGreaterThan(0);
+    expect(audio.volume).toBe(0);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(result.current.isPlaying).toBe(false);
+
+    act(() => result.current.handleCanPlay());
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(pause).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      vi.advanceTimersByTime(80);
+      await vi.advanceTimersByTimeAsync(80);
       await shutdown;
     });
 
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('uses beforeunload as a synchronous pause fallback', async () => {
+    vi.useFakeTimers();
+    const track = makeTrack({ id: 'beforeunload', audioUrl: 'audio://localhost/beforeunload.flac' });
+    const audio = makeAudioElement();
+    Object.defineProperty(audio, 'paused', { configurable: true, value: false });
+    const { result, unmount } = renderPlayback([track]);
+
+    act(() => result.current.setAudioRef(audio));
+    act(() => window.dispatchEvent(new Event('beforeunload')));
+
     expect(audio.volume).toBe(0);
-    expect(pause).toHaveBeenCalledTimes(1);
+    expect(audio.pause).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(80); });
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('cancels a pending skip and ignores ended playback after shutdown starts', async () => {
+    vi.useFakeTimers();
+    const tracks = [
+      makeTrack({ id: 'shutdown-one', audioUrl: 'audio://localhost/shutdown-one.flac' }),
+    ];
+    const audio = makeAudioElement('audio://localhost/shutdown-one.flac');
+    const { result, unmount } = renderHook(() => {
+      const [index, setIndex] = useState(0);
+      return usePlayback({
+        tracks,
+        setTracks: vi.fn(),
+        currentTrackIndex: index,
+        setCurrentTrackIndex: setIndex,
+        revokeBlobUrl: vi.fn(),
+      });
+    });
+
+    act(() => result.current.setAudioRef(audio));
+    act(() => result.current.handleLoadedMetadata());
+    const timersBeforeSkip = vi.getTimerCount();
+    act(() => {
+      result.current.setPlaybackMode('repeat-one');
+      result.current.skipForward();
+    });
+    expect(vi.getTimerCount()).toBe(timersBeforeSkip + 1);
+    let shutdown!: Promise<void>;
+    act(() => { shutdown = requestPlaybackShutdown(); });
+    // The skip timer is gone; only shutdown's 80ms settle timer was added.
+    expect(vi.getTimerCount()).toBe(timersBeforeSkip + 1);
+    act(() => result.current.handleTrackEnded());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+      await shutdown;
+    });
+
+    expect(result.current.shouldAutoPlayRef.current).toBe(false);
+    expect(audio.play).not.toHaveBeenCalled();
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('does not restore playing state when an in-flight canplay promise resolves after shutdown', async () => {
+    vi.useFakeTimers();
+    let resolvePlay!: () => void;
+    const pendingPlay = new Promise<void>(resolve => { resolvePlay = resolve; });
+    const audio = makeAudioElement();
+    Object.defineProperty(audio, 'play', {
+      configurable: true,
+      value: vi.fn(() => pendingPlay),
+    });
+    const track = makeTrack({ id: 'late-canplay', audioUrl: 'audio://localhost/late-canplay.flac' });
+    const { result, unmount } = renderPlayback([track]);
+
+    act(() => result.current.setAudioRef(audio));
+    result.current.waitingForCanPlayRef.current = true;
+    act(() => result.current.handleCanPlay());
+    expect(audio.play).toHaveBeenCalledTimes(1);
+
+    let shutdown!: Promise<void>;
+    act(() => { shutdown = requestPlaybackShutdown(); });
+    await act(async () => {
+      resolvePlay();
+      await pendingPlay;
+      await Promise.resolve();
+    });
+
+    expect(result.current.isPlaying).toBe(false);
+    expect(result.current.shouldAutoPlayRef.current).toBe(false);
+    expect(audio.pause).toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+      await shutdown;
+    });
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('does not start local source recovery after shutdown', async () => {
+    vi.useFakeTimers();
+    const track = makeTrack({
+      id: 'shutdown-local-error',
+      source: 'local',
+      filePath: '/music/shutdown-local-error.flac',
+      audioUrl: 'blob:shutdown-local-error',
+    });
+    const audio = makeAudioElement('blob:shutdown-local-error');
+    Object.defineProperty(audio, 'paused', { value: false, configurable: true });
+    Object.defineProperty(audio, 'error', {
+      value: { code: 4, message: 'unsupported' },
+      configurable: true,
+    });
+    const { result, unmount } = renderPlayback([track]);
+    act(() => result.current.setAudioRef(audio));
+
+    let shutdown!: Promise<void>;
+    act(() => { shutdown = requestPlaybackShutdown(); });
+    act(() => {
+      result.current.handleAudioError({ target: audio } as unknown as React.SyntheticEvent<HTMLAudioElement>);
+    });
+
+    expect(audio.getAttribute('src')).toBe('blob:shutdown-local-error');
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(result.current.shouldAutoPlayRef.current).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+      await shutdown;
+    });
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('discards a WebDAV error-recovery URL that arrives after shutdown', async () => {
+    vi.useFakeTimers();
+    let resolveFreshUrl!: (url: string) => void;
+    const freshUrl = new Promise<string>(resolve => { resolveFreshUrl = resolve; });
+    webdavMocks.getCdnUrl.mockReturnValue(freshUrl);
+    const track = makeTrack({
+      id: 'shutdown-webdav-error',
+      source: 'webdav',
+      webdavPath: '/shutdown-webdav-error.flac',
+      audioUrl: 'https://cdn.example/stale.flac',
+    });
+    const audio = makeAudioElement('https://cdn.example/stale.flac');
+    Object.defineProperty(audio, 'paused', { value: false, configurable: true });
+    Object.defineProperty(audio, 'error', {
+      value: { code: 4, message: 'unsupported' },
+      configurable: true,
+    });
+    const { result, unmount } = renderPlayback([track]);
+    act(() => result.current.setAudioRef(audio));
+
+    act(() => {
+      result.current.handleAudioError({ target: audio } as unknown as React.SyntheticEvent<HTMLAudioElement>);
+    });
+    expect(webdavMocks.getCdnUrl).toHaveBeenCalledWith('/shutdown-webdav-error.flac');
+
+    let shutdown!: Promise<void>;
+    act(() => { shutdown = requestPlaybackShutdown(); });
+    await act(async () => {
+      resolveFreshUrl('https://cdn.example/fresh.flac');
+      await freshUrl;
+      await Promise.resolve();
+    });
+
+    expect(audio.getAttribute('src')).toBe('https://cdn.example/stale.flac');
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(result.current.shouldAutoPlayRef.current).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+      await shutdown;
+    });
     unmount();
     vi.useRealTimers();
   });

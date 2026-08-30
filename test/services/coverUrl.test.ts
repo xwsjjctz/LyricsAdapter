@@ -1,11 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_COVER_ARTWORK_URL,
   parseCoverDataUrl,
   sanitizePersistedCoverUrl,
   toCoverThumb,
 } from '@/services/coverUrl';
 
 describe('coverUrl helpers', () => {
+  it('provides the shared 256px default cover artwork', () => {
+    expect(DEFAULT_COVER_ARTWORK_URL).toMatch(/^data:image\/svg\+xml;charset=utf-8,/);
+
+    const encodedSvg = DEFAULT_COVER_ARTWORK_URL.split(',', 2)[1];
+    expect(encodedSvg).toBeDefined();
+    const svg = decodeURIComponent(encodedSvg!);
+    expect(svg).toContain('width="256" height="256"');
+    expect(svg).toContain('viewBox="0 0 40 40"');
+    expect(svg).toContain('fill="#222"');
+    expect(svg).toContain('fill="#666"');
+    expect(svg).toContain('>♪</text>');
+    expect(toCoverThumb(DEFAULT_COVER_ARTWORK_URL, 128)).toBe(DEFAULT_COVER_ARTWORK_URL);
+  });
+
   it('parses supported image data URLs', () => {
     expect(parseCoverDataUrl('data:image/png;base64,abc123')).toEqual({
       mime: 'image/png',

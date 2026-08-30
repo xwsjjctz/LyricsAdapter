@@ -77,6 +77,14 @@ export const typedIpcSchemas = {
     url: httpUrlSchema,
     cookieString: z.string(),
   }),
+  systemLyricsState: z.object({
+    trackId: z.string().max(4096).nullable(),
+    title: z.string().max(512),
+    artist: z.string().max(512),
+    line: z.string().max(4096),
+    nextLine: z.string().max(4096),
+    isPlaying: z.boolean(),
+  }),
   settingsGet: z.object({
     key: z.string().min(1),
   }),

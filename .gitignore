@@ -74,6 +74,9 @@ FRONTEND.md
 talk.md
 /release
 /dist-electron
+/dist-native
+/native/windows-taskbar-lyrics/bin
+/native/windows-taskbar-lyrics/obj
 /src-tauri/target
 /src-tauri/gen/schemas
 todolist.md

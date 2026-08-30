@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fadeOutAndPauseAudio } from '@/services/playbackShutdown';
+import { pauseAudioBeforeShutdown } from '@/services/playbackShutdown';
 
-describe('fadeOutAndPauseAudio', () => {
+describe('pauseAudioBeforeShutdown', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('reaches silence before pausing the media pipeline', async () => {
+  it('mutes and pauses synchronously before waiting for the audio backend to settle', async () => {
     vi.useFakeTimers();
     let paused = false;
     const pause = vi.fn(() => { paused = true; });
@@ -16,15 +16,16 @@ describe('fadeOutAndPauseAudio', () => {
       pause,
     } as unknown as HTMLAudioElement;
 
-    const shutdown = fadeOutAndPauseAudio(audio, 80);
-    vi.advanceTimersByTime(40);
-    expect(audio.volume).toBeGreaterThan(0);
-    expect(pause).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(40);
-    await shutdown;
+    let settled = false;
+    const shutdown = pauseAudioBeforeShutdown(audio, 80).then(() => { settled = true; });
 
     expect(audio.volume).toBe(0);
     expect(pause).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(80);
+    await shutdown;
+
+    expect(settled).toBe(true);
   });
 });

@@ -1,10 +1,15 @@
 // Secure preload script using contextBridge
 import type { TypedElectronIPC } from '../src/types/typedIpc';
 import type { AppNotificationOptions } from '../src/types/notification';
+import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
 const updaterEventListenerMap = new Map();
+
+function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
+  return action === 'toggle-play' || action === 'previous' || action === 'next';
+}
 
 const typedIpc = {
   file: {
@@ -47,6 +52,16 @@ const typedIpc = {
   persistence: {
     loadBootstrap: async () => ipcRenderer.invoke('ipc:persistence:loadBootstrap'),
     commitClose: async (request) => ipcRenderer.invoke('ipc:persistence:commitClose', request),
+  },
+  systemLyrics: {
+    update: async (state: SystemLyricsState) => ipcRenderer.invoke('ipc:systemLyrics:update', state),
+    onAction: (callback: (action: SystemLyricsAction) => void) => {
+      const handler = (_event: unknown, action: unknown) => {
+        if (isSystemLyricsAction(action)) callback(action);
+      };
+      ipcRenderer.on('system-lyrics-action', handler);
+      return () => ipcRenderer.removeListener('system-lyrics-action', handler);
+    },
   },
 } satisfies TypedElectronIPC;
 

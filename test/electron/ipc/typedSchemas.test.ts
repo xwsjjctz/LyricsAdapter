@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { persistenceBootstrapSchema, typedIpcSchemas } from '../../../electron/ipc/typedSchemas';
 
 describe('typedIpcSchemas', () => {
+  it('bounds system lyrics payloads passed to native surfaces', () => {
+    expect(typedIpcSchemas.systemLyricsState.safeParse({
+      trackId: 'track-1',
+      title: 'Title',
+      artist: 'Artist',
+      line: 'Current line',
+      nextLine: 'Next line',
+      isPlaying: true,
+    }).success).toBe(true);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({
+      trackId: null,
+      title: '',
+      artist: '',
+      line: 'x'.repeat(4097),
+      nextLine: '',
+      isPlaying: false,
+    }).success).toBe(false);
+  });
+
   it('accepts valid WebDAV range payloads', () => {
     const result = typedIpcSchemas.webdavRange.safeParse({
       url: 'https://example.com/music/song.flac',

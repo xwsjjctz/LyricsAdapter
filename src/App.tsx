@@ -27,6 +27,7 @@ import { useLibraryViewModel } from './viewmodels/useLibraryViewModel';
 import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
 import { useImportViewModel } from './viewmodels/useImportViewModel';
 import { useMediaSession } from './hooks/useMediaSession';
+import { useSystemLyrics } from './hooks/useSystemLyrics';
 
 declare global {
   interface Window {
@@ -183,6 +184,14 @@ const AppContent: React.FC = () => {
     next: player.next,
     previous: player.previous,
     seek: player.seek,
+  });
+  useSystemLyrics({
+    currentTrack: player.currentTrack,
+    currentTime: player.currentTime,
+    isPlaying: player.isPlaying,
+    togglePlay: player.togglePlay,
+    next: player.next,
+    previous: player.previous,
   });
   const playerController = usePlayerController({
     activeSlotId,

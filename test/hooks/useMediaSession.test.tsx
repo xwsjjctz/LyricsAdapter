@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseMediaSessionOptions } from '@/hooks/useMediaSession';
+import { DEFAULT_COVER_ARTWORK_URL } from '@/services/coverUrl';
 import type { Track } from '@/types';
 
 const loggerMocks = vi.hoisted(() => ({
@@ -233,6 +234,11 @@ describe('useMediaSession', () => {
       title: 'Test title',
       artist: 'Test artist',
       album: 'Test album',
+      artwork: [{
+        src: DEFAULT_COVER_ARTWORK_URL,
+        sizes: '256x256',
+        type: 'image/svg+xml',
+      }],
     });
     expect(harness.session.metadata).toMatchObject({
       title: 'Test title',
@@ -255,10 +261,36 @@ describe('useMediaSession', () => {
       title: 'Second title',
       artist: 'Second artist',
       album: 'Second album',
+      artwork: [{
+        src: DEFAULT_COVER_ARTWORK_URL,
+        sizes: '256x256',
+        type: 'image/svg+xml',
+      }],
     });
 
     rerender({ options: makeOptions({ currentTrack: null, duration: 0 }) });
     expect(harness.metadataAssignments.at(-1)).toBeNull();
+  });
+
+  it.each([
+    { label: 'missing', coverUrl: undefined },
+    { label: 'empty', coverUrl: '' },
+    { label: 'whitespace-only', coverUrl: '   ' },
+  ])('publishes the default artwork without fetching for a $label cover URL', ({ coverUrl }) => {
+    const harness = installMediaSession();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useMediaSession(makeOptions({
+      currentTrack: makeTrack({ coverUrl }),
+    })));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(harness.session.metadata?.artwork).toEqual([{
+      src: DEFAULT_COVER_ARTWORK_URL,
+      sizes: '256x256',
+      type: 'image/svg+xml',
+    }]);
   });
 
   it('materializes a cover thumbnail as a self-contained data image before publishing artwork', async () => {
@@ -331,6 +363,11 @@ describe('useMediaSession', () => {
       title: 'Second title',
       artist: 'Second artist',
       album: 'Second album',
+      artwork: [{
+        src: DEFAULT_COVER_ARTWORK_URL,
+        sizes: '256x256',
+        type: 'image/svg+xml',
+      }],
     });
 
     pendingFetch.resolve(responseWithBlob(new Blob(['stale'], { type: 'image/jpeg' })));

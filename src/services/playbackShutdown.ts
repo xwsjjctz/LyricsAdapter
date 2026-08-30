@@ -4,44 +4,27 @@ interface PlaybackShutdownEventDetail {
   waitUntil: (promise: Promise<unknown>) => void;
 }
 
-export const PLAYBACK_SHUTDOWN_FADE_MS = 80;
+export const PLAYBACK_SHUTDOWN_SETTLE_MS = 80;
 
-export function fadeOutAndPauseAudio(
+/**
+ * Stop the media pipeline synchronously, then keep the renderer alive briefly
+ * so the platform audio backend can observe the pause before Chromium tears it
+ * down. In particular, the pause must not depend on renderer timers: macOS may
+ * throttle them as soon as Cmd+Q starts application shutdown.
+ */
+export function pauseAudioBeforeShutdown(
   audio: HTMLAudioElement | null,
-  durationMs = PLAYBACK_SHUTDOWN_FADE_MS,
+  settleMs = PLAYBACK_SHUTDOWN_SETTLE_MS,
 ): Promise<void> {
-  if (!audio || audio.paused) return Promise.resolve();
+  if (!audio) return Promise.resolve();
 
-  const initialVolume = audio.volume;
-  if (initialVolume <= 0 || durationMs <= 0) {
-    audio.volume = 0;
-    audio.pause();
-    return Promise.resolve();
-  }
+  // Calling pause even when `paused` currently reads true also cancels a
+  // pending play() promise before it can activate the output device.
+  audio.pause();
+  audio.volume = 0;
 
-  const stepCount = Math.max(1, Math.ceil(durationMs / 10));
-  const stepDuration = durationMs / stepCount;
-
-  return new Promise(resolve => {
-    let currentStep = 0;
-
-    const applyNextStep = () => {
-      currentStep += 1;
-      const progress = Math.min(1, currentStep / stepCount);
-      audio.volume = Math.max(0, initialVolume * (1 - progress));
-
-      if (progress >= 1) {
-        audio.volume = 0;
-        audio.pause();
-        resolve();
-        return;
-      }
-
-      setTimeout(applyNextStep, stepDuration);
-    };
-
-    setTimeout(applyNextStep, stepDuration);
-  });
+  if (settleMs <= 0) return Promise.resolve();
+  return new Promise(resolve => setTimeout(resolve, settleMs));
 }
 
 export function requestPlaybackShutdown(): Promise<void> {
