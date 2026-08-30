@@ -9,8 +9,9 @@ LyricsAdapter 是一个 Electron + React + Vite 桌面音乐播放器。Electron
 ```mermaid
 flowchart TD
   User["用户操作"]
-  UI["React UI\nLibraryView / NewUxShell / Controls / FocusMode"]
-  Workspace["AppWorkspace\n应用组合与部分控制逻辑"]
+  UI["React UI\nAppShell / LibraryView / Controls / FocusMode"]
+  Workspace["AppContent (src/App.tsx)\n应用组合与生命周期装配"]
+  Controllers["Controllers + ViewModels\n播放/曲库 intent 与 UI 契约"]
   Stores["Hook 聚合层\nlibraryStore / playerStore / importStore / uiStore"]
   Hooks["业务 hooks\nusePlayback / useImport / useWebDAV / useLibraryLoad"]
   Services["renderer services\ndesktopAdapter / libraryStorage / metadataService / webdavClient"]
@@ -20,7 +21,8 @@ flowchart TD
   FS["userData 与本地文件\nlibrary-index.json / covers / audio paths"]
   Remote["远端服务\nWebDAV / QQ Music / NetEase"]
 
-  User --> UI --> Workspace --> Stores --> Hooks --> Services
+  User --> UI --> Workspace
+  Workspace --> Controllers --> Stores --> Hooks --> Services
   Services --> Preload --> IPC --> FS
   Services --> Preload --> IPC --> Remote
   UI --> Protocols
@@ -60,25 +62,20 @@ flowchart TD
 - 旧的扁平 API：`readFile`、`selectFiles`、`loadLibraryIndex`、`webdavGetRange`、`downloadAndSave` 等。
 - 事件订阅：下载进度、窗口关闭前 flush、快捷键、更新器事件。
 
-renderer 代码的约束是尽量通过 `services/desktopAdapter.ts` 使用这些能力，避免在业务代码里直接读写 `window.electron`。当前仍有少量直接调用，例如 `AppWorkspace` 里同步在线音乐 cookie 到 `stream://` 协议。
+renderer 业务代码通过 `services/desktopAdapter.ts` 使用这些能力，避免直接读写 `window.electron`。除 `index.tsx` 启动时读取平台以及 adapter 自身的桥接实现外，业务调用都经过 adapter；在线音乐 cookie 也由 `syncOnlineCookiesToMain()` 经 adapter 同步到 `stream://` 协议。
 
 ### Renderer 进程
 
-renderer 的根组合点是 `AppWorkspace.tsx`。它挂载全局 `<audio>` 元素，组合 UI、stores、业务 hooks 和 services，并把大量回调传给 legacy UI 与新 UI。
+renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出的 `App` 只负责用 `ErrorBoundary` 包住 `AppContent`；后者挂载全局 `<audio>`，组合 stores、controllers、viewmodels、业务 hooks 与 `AppShell`。
 
-当前 `AppWorkspace` 的职责较重，既做组合，也包含以下业务逻辑：
+当前主要意图边界是：
 
-- view-slot-aware 单曲/批量删除。
-- 曲目重排与立即保存。
-- 搜索结果跨 slot 定位与播放。
-- 跨 slot 选歌。
-- 在线搜索结果的即时 streaming play。
-- 在线歌单播放上下文加载。
-- 播放列表歌词窗口预取/淘汰。
-- 孤儿缓存清理。
-- 下载完成后加入本地库。
+- `usePlayerController` 负责跨 slot 选歌、搜索定位、在线流播放、歌单播放上下文和歌单歌词窗口。
+- `useLibraryController` 负责 view-slot-aware 删除、批量删除、重排、元数据更新和下载完成后的曲库写入。
+- player/library/import/online viewmodel 向 `AppShell` 提供面向 UI 的状态和回调。
+- `AppContent` 保留应用级装配，例如持久化快照、启动恢复、cookie 启动同步、生命周期注册和孤儿缓存清理。
 
-这和仓库约定中的“`AppWorkspace` 保持 wiring/composition only”还有差距，是后续重构计划的主要焦点。
+文件长度不作为组合根的架构边界；判断标准是领域状态变更是否继续由对应 controller、hook 或 service 持有。
 
 ## 核心状态模型
 
@@ -238,7 +235,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 - 调 `writeAudioMetadata` 写标签。
 - 上传到 WebDAV 时再读本地文件字节，PUT 到远端，并上传 `.meta.json`，随后把 Track 合并进 cloud slot。
 
-在线音乐 provider 只负责搜索、获取 URL、歌词、歌单等，不应直接控制播放器。当前播放意图仍由 `AppWorkspace` 处理。
+在线音乐 provider 只负责搜索、获取 URL、歌词、歌单等，不直接控制播放器。播放意图由 `usePlayerController` 处理，`AppContent` 只负责装配 controller 与 viewmodel。
 
 ## 播放架构
 
@@ -321,10 +318,10 @@ renderer 侧读取：
 
 当前架构已经有清晰的跨进程边界和 slot 模型，但还有一些需要重构时特别留意的点：
 
-- `AppWorkspace.tsx` 超过一千行，包含控制器逻辑、持久化触发、在线流播放和 UI composition。
-- `useLibraryActions` 与 `AppWorkspace` 中的 view-slot-aware 删除逻辑有重叠，前者仍以 active tracks 为中心。
+- `AppContent` 仍直接编排持久化快照和孤儿缓存清理；若继续增长，应按领域边界下沉，而不是按行数机械拆文件。
+- `useLibraryActions` 目前仍保留文件重载入口，曲库 mutation 则由 `useLibraryController` 统一持有。
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
 - `useWebDAV` 很复杂，且 `useLibraryCloudSync` 当前从 `LibraryView` 内触发云同步，UI 组件仍承载业务副作用入口。
-- `desktopAdapter` 已经提供统一入口，但仍存在直接 `window.electron` 调用。
+- `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
 - typed IPC 与 legacy IPC 并存，短期利于兼容，长期会带来重复维护成本。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。

@@ -322,7 +322,7 @@ LyricsAdapter/
 │   ├── ipc/                 # typed + legacy IPC handlers（文件、曲库、WebDAV、在线音源、登录…）
 │   └── services/            # SQLite 用户状态仓库、音频元数据读写、设置存储
 ├── src/                     # Renderer（React）
-│   ├── AppWorkspace.tsx     # 根组合点（wiring/composition only）
+│   ├── App.tsx              # 根组合点 + ErrorBoundary（wiring/composition only）
 │   ├── components/          # UI 组件（new-ui/、focus-mode/、settings/、legacy/）
 │   ├── controllers/         # 播放/曲库控制器（状态变更的唯一入口）
 │   ├── viewmodels/          # 面向视图的数据模型

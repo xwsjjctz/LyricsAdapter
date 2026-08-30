@@ -123,13 +123,15 @@ function applyEnrichedLyrics(current: Track, enriched: Track): Track {
 /**
  * Player Controller (Phase 1 of the refactor roadmap).
  *
- * Owns playback *intent* orchestration that previously lived in AppWorkspace:
+ * Owns playback *intent* orchestration that previously lived in the renderer
+ * composition root:
  * cross-slot selection, search-result navigation, online stream play and
  * playlist play. It does NOT own the <audio> lifecycle, URL resolution, or
  * error recovery — those stay in usePlayback.
  *
  * Migration policy (roadmap Rule 1): logic is moved here verbatim from
- * AppWorkspace, not redesigned. Dep arrays are reproduced exactly to avoid
+ * the former composition root, not redesigned. Dep arrays are reproduced
+ * exactly to avoid
  * accidental behaviour changes; any known dep-array gaps are recorded in
  * docs/refactor-backlog.md rather than fixed here.
  */
@@ -373,7 +375,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
 
   // Click a third-party search result → stream it via stream:// protocol
   // and record in the online-playback slot (LRU, most-recent at head).
-  // Accepts the pre-normalized inline shape used by the original AppWorkspace
+  // Accepts the pre-normalized inline shape used by the former composition-root
   // handler; UI callers use playOnlineSong below which normalizes OnlineSong.
   const handleOnlineStreamPlay = useCallback(async (song: {
     songmid: string; title: string; artist: string; album: string;

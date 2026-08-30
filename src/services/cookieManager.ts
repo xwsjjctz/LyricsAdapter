@@ -276,7 +276,7 @@ export const neteaseCookieManager = new CookieStore({
  * main-process `stream://` proxy. Ensures both stores are loaded first.
  *
  * Single source of truth for the cookie-sync side effect that was previously
- * duplicated in AppWorkspace (startup sync) and the online-music settings
+ * duplicated in the renderer composition root (startup sync) and online settings
  * flow (post-login push). Callers may pass a `source` to
  * sync only one provider (used after a single-provider login); omit it to sync
  * both.

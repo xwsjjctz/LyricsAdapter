@@ -10,7 +10,7 @@ export type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
  * Player-facing ViewModel (Phase 4 of the refactor roadmap, §6.3).
  *
  * Repackages the player store + engine into the exact shape UI components
- * consume, so AppWorkspace can hand the application shell a single
+ * consume, so the composition root can hand the application shell a single
  * `player` object instead of threading ~13 separate props into each.
  *
  * This is a thin composition layer — no business logic, no state of its own.

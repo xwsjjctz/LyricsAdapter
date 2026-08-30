@@ -321,7 +321,7 @@ LyricsAdapter/
 │   ├── ipc/                 # typed + legacy IPC handlers (files, library, WebDAV, providers, login…)
 │   └── services/            # SQLite user-state repository, audio metadata, settings store
 ├── src/                     # Renderer (React)
-│   ├── AppWorkspace.tsx     # Root composition point (wiring/composition only)
+│   ├── App.tsx              # Root composition + ErrorBoundary (wiring only)
 │   ├── components/          # UI components (new-ui/, focus-mode/, settings/, legacy/)
 │   ├── controllers/         # Player/library controllers (the only state mutators)
 │   ├── viewmodels/          # View-facing data models

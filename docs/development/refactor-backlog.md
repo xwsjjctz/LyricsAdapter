@@ -86,7 +86,7 @@ Phase 2 严格遵循「迁移优先」（Rule 1），不改 API 形状以保持 
 ## RF-007
 
 Location:
-`src/AppWorkspace.tsx` — MetadataView 的 `onUpdateTrack`（约 632 行）
+`src/components/AppShell.tsx` — MetadataView 的 `onUpdateTrack`
 
 Problem:
 NewUxShell / LibraryView 的 `onUpdateTrack` 已迁入 `libraryController.updateTrack`（作用于 `viewSlot`）。但 MetadataView 的 `onUpdateTrack` 仍用 `setActiveTracks(prev => prev.map(...))`，作用于 **active slot** 而非 viewSlot。两者语义不同（active vs view），同一 prop 名 `onUpdateTrack` 行为不一致。
@@ -116,16 +116,6 @@ Phase 4 PlayerViewModel 把 `audioRef` 作为逃生舱暴露（roadmap §6.5 明
 
 ---
 
-## RF-011
+## RF-011 ✅ 已解决（Online/Import ViewModel，2026-08-30）
 
-Location:
-`src/AppWorkspace.tsx` — Online/Import props 仍未 ViewModel 化
-
-Problem:
-Phase 4 只建了 PlayerViewModel + LibraryViewModel。以下 props 仍由 AppWorkspace 逐字段透传给 NewUxShell / LibraryView，未归入 VM：
-- **Online 域**（roadmap §6.2 列为独立 `useOnlineViewModel`）：`onOnlineStreamPlay`、`onOnlineDownload`、`onOnlineUpload`、`onlineProgress`、`onOpenOnlinePlaylist`、`onNavigateToTrack`（搜索定位）。这些目前散在 playerController + useOnlineMusicIntegration。
-- **Import 域**（独立 `useImportViewModel`）：`fileInputRef`、`onFileInputChange`、`onImportIntoSlot`、`onReloadUnavailable`、`importProgress`、`onDropFiles`、`onDropFilePaths`、`importDisabled`。
-- **App 级**：`onClearOrphanCache`（缓存服务编排，非 VM 形态）。
-
-Reason not fixed now:
-本次 Phase 4 只做 Player + Library 两个 VM（roadmap §6.3/§6.4，收益最大、风险最低）。Online VM 涉及把 `openOnlinePlaylist`/`playOnlineSong` 从 playerController 迁到独立的 online/playlist controller（roadmap §5.2），是更大的改动；Import VM 涉及拆分 useImport 的文件选择/批处理/上传职责。留待后续 slice。
+`useOnlineViewModel` 和 `useImportViewModel` 已建立，`AppContent` 把两个面向 UI 的对象交给 `AppShell`，不再逐字段透传 Online/Import props。`onClearOrphanCache` 仍属于应用级组合逻辑，不纳入 ViewModel。保留记录以追溯。

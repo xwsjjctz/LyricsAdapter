@@ -24,7 +24,7 @@ import type { useImportViewModel } from '../viewmodels/useImportViewModel';
 import type { useOnlineViewModel } from '../viewmodels/useOnlineViewModel';
 import type { usePlayerController } from '../controllers/usePlayerController';
 
-// The single application shell. AppWorkspace owns wiring while this component
+// The single application shell. AppContent owns wiring while this component
 // remains presentational; all state and user intents arrive via props.
 
 interface AppShellProps {

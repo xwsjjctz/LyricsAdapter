@@ -14,13 +14,14 @@ import type { LibrarySettings } from '../services/libraryStorage';
 /**
  * Library Controller (Phase 2 of the refactor roadmap, §4).
  *
- * Owns library *mutation* intent that previously lived in AppWorkspace:
+ * Owns library *mutation* intent that previously lived in the renderer
+ * composition root:
  * view-slot-aware removal (single + batch), reorder, and track metadata
  * updates. UI components must not call `updateSlot` directly for these
  * operations — they go through this controller.
  *
  * Migration policy (roadmap Rule 1): logic is moved here verbatim from
- * AppWorkspace, not redesigned. The delete API keeps its existing
+ * the former composition root, not redesigned. The delete API keeps its existing
  * `(trackId, deleteFile = false)` boolean signature; the roadmap §4.3
  * recommendation to split into removeFromLibrary / deleteManagedTrack /
  * deleteCloudTrack is recorded in docs/refactor-backlog.md (RF-006).
@@ -38,7 +39,7 @@ export interface LibraryControllerOptions {
   updateSlot: (slotId: SlotId, updater: (slot: any) => any) => void;
   /** Replace the local slot's tracks (from useLibrarySlots). */
   updateLocalTracks: (tracks: Track[]) => void;
-  /** Build the persistence payload (from AppWorkspace). */
+  /** Build the persistence payload (from the composition root). */
   getAppPersistenceData: () => LibrarySettings;
 
   /** Player store (from usePlayback) */
@@ -239,7 +240,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
 
   // Add a freshly downloaded track to the local slot. Dedupes by filePath,
   // appends, persists the metadata cache, and saves the library index
-  // immediately (not debounced). Moved verbatim from AppWorkspace.
+  // immediately (not debounced). Moved verbatim from the former composition root.
   const addDownloadedTrack = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
     const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
