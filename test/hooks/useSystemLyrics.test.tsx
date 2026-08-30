@@ -39,7 +39,7 @@ const track: Track = {
     { time: 5, text: 'Second line' },
   ],
 };
-const longLine = '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯';
+const longLine = '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯辰';
 
 function makeOptions(overrides: Partial<UseSystemLyricsOptions> = {}): UseSystemLyricsOptions {
   const currentTime = overrides.currentTime ?? 1;
@@ -155,7 +155,7 @@ describe('useSystemLyrics', () => {
     vi.useRealTimers();
   });
 
-  it('samples the exact playback clock every 100ms and deduplicates unchanged cursors', async () => {
+  it('samples the exact playback clock every 50ms and deduplicates unchanged cursors', async () => {
     vi.useFakeTimers();
     let playbackTime = 0;
     const wordTimedTrack: Track = {
@@ -178,13 +178,21 @@ describe('useSystemLyrics', () => {
 
     playbackTime = 0.05;
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(49);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(mocks.update).toHaveBeenCalledTimes(1);
 
     playbackTime = 1;
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(49);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(mocks.update).toHaveBeenCalledTimes(2);
     expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({ lineCursor: 12 }));

@@ -20,7 +20,7 @@ let win: BrowserWindow | null = null;
 export function shouldThrottleRendererInBackground(
   platform: NodeJS.Platform,
 ): boolean {
-  // Only macOS owns the 100ms status-item lyric sampler. Other platforms keep
+  // Only macOS owns the 50ms status-item lyric sampler. Other platforms keep
   // Electron's energy-saving default because their native surfaces do not need it.
   return platform !== 'darwin';
 }

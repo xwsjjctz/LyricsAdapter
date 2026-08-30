@@ -61,7 +61,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 
 /**
  * Translate absolute QRC/YRC word timing to a user-visible character cursor.
- * Returning an integer keeps the 100ms native-surface sampler deduplicable.
+ * Returning an integer keeps the 50ms native-surface sampler deduplicable.
  */
 function findWordTimedCursor(
   line: SyncedLyricLine,

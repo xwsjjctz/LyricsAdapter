@@ -1,6 +1,7 @@
 import {
   Tray,
   nativeImage,
+  type NativeImage,
   type Point,
   type Rectangle,
 } from 'electron';
@@ -13,14 +14,19 @@ import {
   type SystemLyricsState,
 } from '../../src/types/systemLyrics';
 import { logger } from '../logger';
+import {
+  MENU_BAR_CONTROL_STRIP_WIDTH,
+  createMenuBarControlImage,
+} from './menuBarControlImage';
 
-// Native Tray titles have no public width control. Full-width padding keeps
-// Chinese lyrics and the Chinese hover controls on the same 18-slot footprint;
-// narrow Latin glyphs can still render a little shorter because AppKit falls
-// back to a different font for CJK text.
+// Native Tray titles have no public width control. Full-width padding keeps the
+// common CJK lyric case on a stable 24-slot footprint; narrow Latin glyphs can
+// still render a little shorter because AppKit falls back across fonts.
 const IDEOGRAPHIC_SPACE = '\u3000';
-const SCROLL_CURSOR_ANCHOR = 12;
 const CONTROL_REGION_COUNT = 3;
+const CONTROL_FALLBACK_GRAPHEMES = SYSTEM_LYRICS_WINDOW_GRAPHEMES
+  + CONTROL_REGION_COUNT;
+const TEXT_PRESENTATION_SELECTOR = '\ufe0e';
 
 export type MenuBarLyricsActionHandler = (
   action: SystemLyricsAction,
@@ -56,9 +62,9 @@ function padGraphemeWindow(
 }
 
 /**
- * Builds the fixed 18-grapheme lyric window rendered by the macOS status item. Long
- * lines follow the renderer-provided karaoke cursor without introducing an
- * ellipsis that would fight the scrolling text.
+ * Builds the fixed grapheme lyric window rendered by the macOS status item.
+ * Long lines follow the renderer-provided karaoke cursor without introducing
+ * an ellipsis that would fight the scrolling text.
  */
 export function formatMenuBarLyricsTitle(
   state: SystemLyricsState,
@@ -78,14 +84,19 @@ export function formatMenuBarLyricsTitle(
   const cursor = state.lineCursor === null || !Number.isFinite(state.lineCursor)
     ? 0
     : Math.max(0, Math.floor(state.lineCursor));
-  const cursorAnchor = Math.min(SCROLL_CURSOR_ANCHOR, windowSize - 1);
+  const cursorAnchor = Math.min(Math.floor(windowSize * 2 / 3), windowSize - 1);
   const offset = Math.min(maximumOffset, Math.max(0, cursor - cursorAnchor));
   return graphemes.slice(offset, offset + windowSize).join('');
 }
 
-function centeredControlLabel(label: string, width: number): string {
-  const graphemes = splitGraphemes(label).slice(0, width);
-  const remaining = Math.max(0, width - graphemes.length);
+function centeredControlFallback(controls: readonly string[]): string {
+  const graphemes = controls.flatMap((control, index) => (
+    index === 0 ? [control] : [IDEOGRAPHIC_SPACE, control]
+  ));
+  const remaining = Math.max(
+    0,
+    CONTROL_FALLBACK_GRAPHEMES - graphemes.length,
+  );
   const leftPadding = Math.floor(remaining / 2);
   const rightPadding = remaining - leftPadding;
   return [
@@ -95,29 +106,32 @@ function centeredControlLabel(label: string, width: number): string {
   ].join('');
 }
 
-/** Build three equally-sized hover targets while retaining the lyric width. */
+/** Text-only fallback when macOS cannot load one of the native SF Symbols. */
 export function formatMenuBarControls(isPlaying: boolean): string {
-  const segmentWidth = Math.floor(
-    SYSTEM_LYRICS_WINDOW_GRAPHEMES / CONTROL_REGION_COUNT,
-  );
-  return [
-    centeredControlLabel('上一首', segmentWidth),
-    centeredControlLabel(isPlaying ? '暂停' : '播放', segmentWidth),
-    centeredControlLabel('下一首', segmentWidth),
-  ].join('');
+  return centeredControlFallback([
+    `⏮${TEXT_PRESENTATION_SELECTOR}`,
+    `${isPlaying ? '⏸' : '▶'}${TEXT_PRESENTATION_SELECTOR}`,
+    `⏭${TEXT_PRESENTATION_SELECTOR}`,
+  ]);
 }
 
 /**
- * Owns the title-only macOS status item. Player commands remain intents routed
- * through the renderer's player controller; this service only translates native
- * pointer interaction and renders the latest serializable playback snapshot.
+ * Owns the macOS status item. Player commands remain intents routed through the
+ * renderer's player controller; this service only translates native pointer
+ * interaction and renders the latest serializable playback snapshot.
  */
 export class MenuBarLyricsService {
   private tray: Tray | null = null;
+  private emptyImage: NativeImage | null = null;
   private state: SystemLyricsState = EMPTY_STATE;
   private onAction: MenuBarLyricsActionHandler = EMPTY_ACTION_HANDLER;
-  private lastTitle = '';
+  private lastPresentationKey = '';
   private hovered = false;
+  private usingControlImage = false;
+  private controlCanvasWidth = MENU_BAR_CONTROL_STRIP_WIDTH;
+  private readonly controlImageCache = new Map<string, NativeImage>();
+  private controlImageFailedForHover = false;
+  private reportedControlImageFallback = false;
 
   constructor(private readonly platform: NodeJS.Platform = process.platform) {}
 
@@ -135,10 +149,15 @@ export class MenuBarLyricsService {
     }
 
     try {
-      const tray = new Tray(nativeImage.createEmpty());
+      const emptyImage = nativeImage.createEmpty();
+      const tray = new Tray(emptyImage);
       this.tray = tray;
-      this.lastTitle = '';
+      this.emptyImage = emptyImage;
+      this.lastPresentationKey = '';
       this.hovered = false;
+      this.usingControlImage = false;
+      this.controlImageFailedForHover = false;
+      this.reportedControlImageFallback = false;
       tray.setContextMenu(null);
       tray.setIgnoreDoubleClickEvents(true);
       tray.setToolTip('');
@@ -146,7 +165,7 @@ export class MenuBarLyricsService {
       this.render();
       logger.info('[MenuBarLyrics] Status item ready:', {
         bounds: tray.getBounds(),
-        mode: 'title-only',
+        mode: 'lyrics-with-native-controls',
       });
       return true;
     } catch (error) {
@@ -167,13 +186,26 @@ export class MenuBarLyricsService {
     this.destroyTray();
     this.state = EMPTY_STATE;
     this.onAction = EMPTY_ACTION_HANDLER;
-    this.lastTitle = '';
+    this.lastPresentationKey = '';
     this.hovered = false;
+    this.usingControlImage = false;
+    this.emptyImage = null;
+    this.controlImageCache.clear();
+    this.controlImageFailedForHover = false;
+    this.reportedControlImageFallback = false;
   }
 
   private bindPointerEvents(tray: Tray): void {
     tray.on('mouse-enter', () => {
-      if (!this.isLiveTray(tray)) return;
+      if (!this.isLiveTray(tray) || this.hovered) return;
+      // Use the pre-hover title bounds as a transparent image canvas. Tray adds
+      // its own image inset, so the control presentation can only expand here,
+      // never contract underneath the pointer that triggered mouse-enter.
+      const measuredWidth = Math.round(tray.getBounds().width);
+      this.controlCanvasWidth = Number.isFinite(measuredWidth)
+        ? Math.max(MENU_BAR_CONTROL_STRIP_WIDTH, measuredWidth)
+        : MENU_BAR_CONTROL_STRIP_WIDTH;
+      this.controlImageFailedForHover = false;
       this.hovered = true;
       this.render();
     });
@@ -181,6 +213,7 @@ export class MenuBarLyricsService {
       if (!this.isLiveTray(tray)) return;
       this.hovered = false;
       this.render();
+      this.controlImageFailedForHover = false;
     });
     tray.on('click', (_event, bounds, position) => {
       if (!this.hovered || !this.isLiveTray(tray)) return;
@@ -194,17 +227,24 @@ export class MenuBarLyricsService {
     position: Point,
   ): SystemLyricsAction | null {
     if (
-      !Number.isFinite(bounds.x)
-      || !Number.isFinite(bounds.width)
+      !Number.isFinite(bounds.width)
       || !Number.isFinite(position.x)
       || bounds.width <= 0
     ) {
       return null;
     }
 
-    const relativeX = position.x - bounds.x;
+    // Electron's macOS Tray implementation reports `position` from AppKit's
+    // locationInWindow, while `bounds` is the status item's screen rectangle.
+    // The event x-coordinate is therefore already local to the status item.
+    const relativeX = position.x;
     if (relativeX < 0 || relativeX > bounds.width) return null;
-    const ratio = Math.min(relativeX / bounds.width, 1 - Number.EPSILON);
+    const controlWidth = Math.min(bounds.width, MENU_BAR_CONTROL_STRIP_WIDTH);
+    const controlStart = (bounds.width - controlWidth) / 2;
+    const controlX = relativeX - controlStart;
+    if (controlX < 0 || controlX >= controlWidth) return null;
+
+    const ratio = Math.min(controlX / controlWidth, 1 - Number.EPSILON);
     if (ratio < 1 / CONTROL_REGION_COUNT) return 'previous';
     if (ratio < 2 / CONTROL_REGION_COUNT) return 'toggle-play';
     return 'next';
@@ -214,13 +254,74 @@ export class MenuBarLyricsService {
     const tray = this.liveTray();
     if (!tray) return;
 
-    const title = this.hovered
-      ? formatMenuBarControls(this.state.isPlaying)
-      : formatMenuBarLyricsTitle(this.state);
-    if (title === this.lastTitle) return;
+    if (this.hovered) {
+      this.renderControls(tray);
+      return;
+    }
+
+    const title = formatMenuBarLyricsTitle(this.state);
+    const presentationKey = `lyrics:${title}`;
+    if (presentationKey === this.lastPresentationKey) return;
 
     tray.setTitle(title, { fontType: 'monospaced' });
-    this.lastTitle = title;
+    if (this.usingControlImage) {
+      tray.setImage(this.emptyImage ?? nativeImage.createEmpty());
+      this.usingControlImage = false;
+    }
+    this.lastPresentationKey = presentationKey;
+  }
+
+  private renderControls(tray: Tray): void {
+    const cacheKey = `${this.controlCanvasWidth}:${this.state.isPlaying}`;
+    let image = this.controlImageFailedForHover
+      ? undefined
+      : this.controlImageCache.get(cacheKey);
+    if (image === undefined && !this.controlImageFailedForHover) {
+      const createdImage = createMenuBarControlImage(
+        this.state.isPlaying,
+        this.controlCanvasWidth,
+      );
+      if (createdImage) {
+        image = createdImage;
+        if (this.controlImageCache.size >= 8) this.controlImageCache.clear();
+        this.controlImageCache.set(cacheKey, createdImage);
+      } else {
+        // Keep one hover on a single presentation path. Retrying after a play
+        // state change could replace the wide fallback title with an image and
+        // move the pointer outside the status item before mouse-leave arrives.
+        this.controlImageFailedForHover = true;
+        if (!this.reportedControlImageFallback) {
+          this.reportedControlImageFallback = true;
+          logger.warn(
+            '[MenuBarLyrics] Native SF Symbol controls unavailable; using text fallback.',
+          );
+        }
+      }
+    }
+
+    if (image) {
+      const presentationKey = `controls-image:${cacheKey}`;
+      if (presentationKey === this.lastPresentationKey) return;
+
+      // Add the full-width transparent template image before clearing the lyric
+      // title, so entering the control state never shrinks the hover target.
+      tray.setImage(image);
+      tray.setTitle('');
+      this.usingControlImage = true;
+      this.lastPresentationKey = presentationKey;
+      return;
+    }
+
+    const title = formatMenuBarControls(this.state.isPlaying);
+    const presentationKey = `controls-title:${title}`;
+    if (presentationKey === this.lastPresentationKey) return;
+
+    tray.setTitle(title, { fontType: 'monospaced' });
+    if (this.usingControlImage) {
+      tray.setImage(this.emptyImage ?? nativeImage.createEmpty());
+      this.usingControlImage = false;
+    }
+    this.lastPresentationKey = presentationKey;
   }
 
   private runAction(action: SystemLyricsAction): void {
@@ -248,6 +349,9 @@ export class MenuBarLyricsService {
     const tray = this.liveTray();
     this.tray = null;
     this.hovered = false;
+    this.usingControlImage = false;
+    this.controlImageFailedForHover = false;
+    this.lastPresentationKey = '';
     if (tray) tray.destroy();
   }
 }

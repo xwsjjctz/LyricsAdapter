@@ -10,7 +10,7 @@ import { buildSystemLyricsState } from '../services/systemLyricsState';
 
 const UPDATE_RETRY_BASE_DELAY_MS = 250;
 const UPDATE_RETRY_MAX_DELAY_MS = 30_000;
-const PLAYING_SAMPLE_INTERVAL_MS = 100;
+const PLAYING_SAMPLE_INTERVAL_MS = 50;
 
 interface PendingSystemLyricsUpdate {
   generation: number;

@@ -20,7 +20,8 @@ const track: Track = {
   ],
 };
 
-const longLine = '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯';
+const windowLine = '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯';
+const longLine = `${windowLine}辰`;
 
 describe('systemLyricsState', () => {
   it('finds the active line with a bounded binary search', () => {
@@ -72,7 +73,7 @@ describe('systemLyricsState', () => {
             { time: 2, duration: 2, text: '一二三四五六' },
             { time: 4, duration: 2, text: '七八九十甲乙' },
             { time: 6, duration: 2, text: '丙丁戊己庚辛' },
-            { time: 8, duration: 2, text: '壬癸子丑寅卯' },
+            { time: 8, duration: 2, text: '壬癸子丑寅卯辰' },
           ],
         },
         { time: 12, text: 'Next line' },
@@ -80,7 +81,7 @@ describe('systemLyricsState', () => {
     };
 
     expect(buildSystemLyricsState(wordTimedTrack, 5, true).lineCursor).toBe(9);
-    expect(buildSystemLyricsState(wordTimedTrack, 10, true).lineCursor).toBe(23);
+    expect(buildSystemLyricsState(wordTimedTrack, 10, true).lineCursor).toBe(24);
   });
 
   it('holds the completed word during a timing gap and advances at the next word', () => {
@@ -140,13 +141,13 @@ describe('systemLyricsState', () => {
     expect(buildSystemLyricsState(finalLineTrack, 20, true).lineCursor).toBe(12);
   });
 
-  it('does not publish a cursor for lyrics that already fit the native window', () => {
+  it('does not publish a cursor for a 24-grapheme lyric that fits the native window', () => {
     const shortWordTimedTrack: Track = {
       ...track,
       syncedLyrics: [{
         time: 0,
-        text: 'Short lyric',
-        words: [{ time: 0, duration: 2, text: 'Short lyric' }],
+        text: windowLine,
+        words: [{ time: 0, duration: 2, text: windowLine }],
       }],
     };
 

@@ -2,7 +2,7 @@
 export type SystemLyricsAction = 'toggle-play' | 'previous' | 'next';
 
 /** Fixed number of user-visible characters reserved by native lyric surfaces. */
-export const SYSTEM_LYRICS_WINDOW_GRAPHEMES = 18;
+export const SYSTEM_LYRICS_WINDOW_GRAPHEMES = 24;
 
 /** Minimal, serializable playback snapshot shared with native lyrics surfaces. */
 export interface SystemLyricsState {
