@@ -1,51 +1,62 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { splitGraphemes } from '@/shared/graphemes';
+import {
+  SYSTEM_LYRICS_WINDOW_GRAPHEMES,
+  type SystemLyricsState,
+} from '@/types/systemLyrics';
 
 const electronMocks = vi.hoisted(() => {
-  class MockNativeImage {
-    readonly setTemplateImage = vi.fn();
-    readonly isEmpty = vi.fn(() => this.empty);
-    readonly resize = vi.fn((): MockNativeImage => this);
-
-    constructor(
-      readonly source: string,
-      private readonly empty = false,
-    ) {}
-  }
+  type Listener = (...args: unknown[]) => void;
 
   class MockTray {
     static instances: MockTray[] = [];
 
-    readonly image: unknown;
+    readonly listeners = new Map<string, Listener[]>();
     destroyed = false;
     title = '';
-    toolTip = '';
-    contextMenu: { template: Array<Record<string, unknown>> } | null = null;
-    setTitle = vi.fn((title: string) => { this.title = title; });
-    setToolTip = vi.fn((toolTip: string) => { this.toolTip = toolTip; });
-    setContextMenu = vi.fn((menu: { template: Array<Record<string, unknown>> }) => {
+    titleOptions: unknown;
+    toolTip = 'not-cleared';
+    contextMenu: unknown = 'not-cleared';
+    ignoreDoubleClickEvents = false;
+
+    readonly on = vi.fn((event: string, listener: Listener) => {
+      const listeners = this.listeners.get(event) ?? [];
+      listeners.push(listener);
+      this.listeners.set(event, listeners);
+      return this;
+    });
+    readonly setTitle = vi.fn((title: string, options?: unknown) => {
+      this.title = title;
+      this.titleOptions = options;
+    });
+    readonly setToolTip = vi.fn((toolTip: string) => {
+      this.toolTip = toolTip;
+    });
+    readonly setContextMenu = vi.fn((menu: unknown) => {
       this.contextMenu = menu;
     });
-    getBounds = vi.fn(() => ({ x: 0, y: 0, width: 120, height: 24 }));
-    isDestroyed = vi.fn(() => this.destroyed);
-    destroy = vi.fn(() => { this.destroyed = true; });
+    readonly setIgnoreDoubleClickEvents = vi.fn((ignore: boolean) => {
+      this.ignoreDoubleClickEvents = ignore;
+    });
+    readonly getBounds = vi.fn(() => ({ x: 100, y: 0, width: 90, height: 24 }));
+    readonly isDestroyed = vi.fn(() => this.destroyed);
+    readonly destroy = vi.fn(() => {
+      this.destroyed = true;
+    });
 
-    constructor(image: unknown) {
-      this.image = image;
+    constructor(readonly image: unknown) {
       MockTray.instances.push(this);
+    }
+
+    emit(event: string, ...args: unknown[]): void {
+      for (const listener of this.listeners.get(event) ?? []) listener(...args);
     }
   }
 
   return {
-    MockNativeImage,
     MockTray,
-    app: {
-      isPackaged: false,
-      getAppPath: vi.fn(() => '/workspace/LyricsAdapter'),
-    },
-    createFromNamedImage: vi.fn(),
-    createFromPath: vi.fn(),
+    emptyImage: { kind: 'empty-image' },
     createEmpty: vi.fn(),
-    buildFromTemplate: vi.fn((template: Array<Record<string, unknown>>) => ({ template })),
     logger: {
       error: vi.fn(),
       info: vi.fn(),
@@ -55,234 +66,254 @@ const electronMocks = vi.hoisted(() => {
 });
 
 vi.mock('electron', () => ({
-  app: electronMocks.app,
   Tray: electronMocks.MockTray,
-  nativeImage: {
-    createFromNamedImage: electronMocks.createFromNamedImage,
-    createFromPath: electronMocks.createFromPath,
-    createEmpty: electronMocks.createEmpty,
-  },
-  Menu: { buildFromTemplate: electronMocks.buildFromTemplate },
+  nativeImage: { createEmpty: electronMocks.createEmpty },
 }));
 
 vi.mock('@/../electron/logger', () => ({ logger: electronMocks.logger }));
 
 import {
   MenuBarLyricsService,
+  formatMenuBarControls,
   formatMenuBarLyricsTitle,
-  truncateMenuBarText,
 } from '@/../electron/services/menuBarLyricsService';
+
+const IDEOGRAPHIC_SPACE = '\u3000';
+const EVENT = {};
+const BOUNDS = { x: 100, y: 0, width: 90, height: 24 };
+
+function state(overrides: Partial<SystemLyricsState> = {}): SystemLyricsState {
+  return {
+    trackId: 'track-1',
+    title: '测试歌曲',
+    artist: '测试歌手',
+    line: '今天 天气真好',
+    nextLine: '下一行',
+    isPlaying: true,
+    lineCursor: null,
+    ...overrides,
+  };
+}
+
+function point(x: number): { x: number; y: number } {
+  return { x, y: 12 };
+}
 
 describe('MenuBarLyricsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     electronMocks.MockTray.instances.length = 0;
-    electronMocks.app.isPackaged = false;
-    electronMocks.app.getAppPath.mockReturnValue('/workspace/LyricsAdapter');
-    electronMocks.createFromNamedImage.mockReturnValue(
-      new electronMocks.MockNativeImage('system-symbol'),
-    );
-    electronMocks.createFromPath.mockReturnValue(
-      new electronMocks.MockNativeImage('application-icon'),
-    );
-    electronMocks.createEmpty.mockReturnValue(
-      new electronMocks.MockNativeImage('title-only', true),
-    );
+    electronMocks.createEmpty.mockReturnValue(electronMocks.emptyImage);
   });
 
-  it('does not create a tray outside macOS', () => {
+  it('does not create a status item outside macOS', () => {
     const service = new MenuBarLyricsService('win32');
 
     expect(service.start(vi.fn())).toBe(false);
-    expect(electronMocks.createFromNamedImage).not.toHaveBeenCalled();
-    expect(electronMocks.createFromPath).not.toHaveBeenCalled();
     expect(electronMocks.createEmpty).not.toHaveBeenCalled();
     expect(electronMocks.MockTray.instances).toHaveLength(0);
   });
 
-  it('starts with the macOS music-note system symbol and remains idempotent', () => {
+  it('starts one title-only status item with no context menu or tooltip', () => {
     const service = new MenuBarLyricsService('darwin');
-    const firstActionHandler = vi.fn();
-    const replacementActionHandler = vi.fn();
 
-    expect(service.start(firstActionHandler)).toBe(true);
-    expect(service.start(replacementActionHandler)).toBe(true);
+    expect(service.start(vi.fn())).toBe(true);
+    expect(service.start(vi.fn())).toBe(true);
 
     const tray = electronMocks.MockTray.instances[0]!;
-    const systemSymbol = vi.mocked(electronMocks.createFromNamedImage).mock.results[0]!
-      .value as InstanceType<typeof electronMocks.MockNativeImage>;
+    expect(electronMocks.createEmpty).toHaveBeenCalledOnce();
     expect(electronMocks.MockTray.instances).toHaveLength(1);
-    expect(electronMocks.createFromNamedImage).toHaveBeenCalledOnce();
-    expect(electronMocks.createFromNamedImage).toHaveBeenCalledWith('music.note');
-    expect(systemSymbol.setTemplateImage).toHaveBeenCalledWith(true);
-    expect(electronMocks.createFromPath).not.toHaveBeenCalled();
-    expect(electronMocks.createEmpty).not.toHaveBeenCalled();
-    expect(tray.image).toBe(systemSymbol);
-    expect(tray.title).toBe('LyricsAdapter');
-    expect(tray.toolTip).toBe('LyricsAdapter');
+    expect(tray.image).toBe(electronMocks.emptyImage);
+    expect(tray.setContextMenu).toHaveBeenCalledWith(null);
+    expect(tray.setIgnoreDoubleClickEvents).toHaveBeenCalledOnce();
+    expect(tray.setIgnoreDoubleClickEvents).toHaveBeenCalledWith(true);
+    expect(tray.setToolTip).toHaveBeenCalledWith('');
+    expect(tray.contextMenu).toBeNull();
+    expect(tray.toolTip).toBe('');
+    expect(tray.title).toBe(`LyricsAdapter${IDEOGRAPHIC_SPACE.repeat(5)}`);
+    expect(tray.titleOptions).toEqual({ fontType: 'monospaced' });
+    expect(tray.on.mock.calls.map(([event]) => event)).toEqual([
+      'mouse-enter',
+      'mouse-leave',
+      'click',
+    ]);
     expect(electronMocks.logger.info).toHaveBeenCalledWith(
       '[MenuBarLyrics] Status item ready:',
-      expect.objectContaining({ iconSource: 'system-symbol' }),
+      expect.objectContaining({ mode: 'title-only' }),
     );
-
-    const toggleItem = tray.contextMenu?.template[0];
-    expect(toggleItem?.['label']).toBe('播放');
-    (toggleItem?.['click'] as (() => void))();
-    expect(firstActionHandler).not.toHaveBeenCalled();
-    expect(replacementActionHandler).toHaveBeenCalledWith('toggle-play');
   });
 
-  it('falls back to a resized application icon when the system symbol is empty', () => {
-    const emptySymbol = new electronMocks.MockNativeImage('empty-symbol', true);
-    const applicationIcon = new electronMocks.MockNativeImage('application-icon');
-    const resizedIcon = new electronMocks.MockNativeImage('resized-application-icon');
-    electronMocks.createFromNamedImage.mockReturnValue(emptySymbol);
-    electronMocks.createFromPath.mockReturnValue(applicationIcon);
-    applicationIcon.resize.mockReturnValue(resizedIcon);
-
-    const service = new MenuBarLyricsService('darwin');
-
-    expect(service.start(vi.fn())).toBe(true);
-    expect(electronMocks.createFromPath).toHaveBeenCalledWith(
-      '/workspace/LyricsAdapter/app-icon.png',
-    );
-    expect(applicationIcon.resize).toHaveBeenCalledWith({
-      width: 16,
-      height: 16,
-      quality: 'best',
+  it('reports startup failure without retaining a broken tray', () => {
+    electronMocks.createEmpty.mockImplementationOnce(() => {
+      throw new Error('native failure');
     });
-    expect(electronMocks.MockTray.instances[0]?.image).toBe(resizedIcon);
-    expect(electronMocks.createEmpty).not.toHaveBeenCalled();
-    expect(electronMocks.logger.info).toHaveBeenCalledWith(
-      '[MenuBarLyrics] Status item ready:',
-      expect.objectContaining({ iconSource: 'application-icon' }),
-    );
-  });
-
-  it('retains title-only lyrics when neither visible icon can be decoded', () => {
-    const emptySymbol = new electronMocks.MockNativeImage('empty-symbol', true);
-    const emptyApplicationIcon = new electronMocks.MockNativeImage('empty-application-icon', true);
-    const titleOnlyImage = new electronMocks.MockNativeImage('title-only', true);
-    electronMocks.createFromNamedImage.mockReturnValue(emptySymbol);
-    electronMocks.createFromPath.mockReturnValue(emptyApplicationIcon);
-    electronMocks.createEmpty.mockReturnValue(titleOnlyImage);
-
     const service = new MenuBarLyricsService('darwin');
 
-    expect(service.start(vi.fn())).toBe(true);
-    expect(titleOnlyImage.setTemplateImage).toHaveBeenCalledWith(true);
-    expect(electronMocks.MockTray.instances[0]?.image).toBe(titleOnlyImage);
-    expect(electronMocks.logger.info).toHaveBeenCalledWith(
-      '[MenuBarLyrics] Status item ready:',
-      expect.objectContaining({ iconSource: 'title-only' }),
+    expect(service.start(vi.fn())).toBe(false);
+    expect(electronMocks.MockTray.instances).toHaveLength(0);
+    expect(electronMocks.logger.error).toHaveBeenCalledWith(
+      '[MenuBarLyrics] Failed to start:',
+      expect.any(Error),
     );
   });
 
-  it('normalizes and renders the current lyric without rebuilding a stable menu', () => {
+  it('shows controls on enter, updates their play state, and restores lyrics on leave', () => {
     const service = new MenuBarLyricsService('darwin');
     service.start(vi.fn());
-    const tray = electronMocks.MockTray.instances[0]!;
-    electronMocks.buildFromTemplate.mockClear();
-
-    service.update({
-      trackId: 'track-1',
-      line: '  今天\n  天气\t真好  ',
-      nextLine: '下一行',
-      title: '测试歌曲',
-      artist: '测试歌手',
-      isPlaying: true,
-    });
-    service.update({
-      trackId: 'track-1',
-      line: '下一行',
-      nextLine: '',
-      title: '测试歌曲',
-      artist: '测试歌手',
-      isPlaying: true,
-    });
-
-    expect(tray.setTitle).toHaveBeenNthCalledWith(2, '今天 天气 真好');
-    expect(tray.title).toBe('下一行');
-    expect(tray.toolTip).toBe('LyricsAdapter — 正在播放：测试歌曲 — 测试歌手');
-    expect(electronMocks.buildFromTemplate).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps useful text for paused tracks and tracks without lyrics', () => {
-    const service = new MenuBarLyricsService('darwin');
-    service.start(vi.fn());
+    service.update(state({ line: '我们还会再见' }));
     const tray = electronMocks.MockTray.instances[0]!;
 
-    service.update({
-      trackId: 'track-1', title: 'Starboy', artist: 'The Weeknd', line: '', nextLine: '', isPlaying: true,
-    });
-    expect(tray.title).toBe('♪ Starboy');
+    tray.emit('mouse-enter', EVENT, point(120));
+    expect(tray.title).toBe(formatMenuBarControls(true));
 
-    service.update({
-      trackId: 'track-1', title: 'Starboy', artist: 'The Weeknd', line: '我们还会再见', nextLine: '', isPlaying: false,
-    });
-    expect(tray.title).toBe('已暂停 · 我们还会再见');
-    expect(tray.contextMenu?.template[0]?.['label']).toBe('播放');
-    expect(tray.toolTip).toBe('LyricsAdapter — 已暂停：Starboy — The Weeknd');
+    service.update(state({ line: '不应在悬停时显示', isPlaying: false }));
+    expect(tray.title).toBe(formatMenuBarControls(false));
+    expect(tray.title).toContain('播放');
+    expect(tray.title).not.toContain('不应在悬停时显示');
+
+    tray.emit('mouse-leave', EVENT, point(120));
+    expect(tray.title).toBe(formatMenuBarLyricsTitle(state({
+      line: '不应在悬停时显示',
+      isPlaying: false,
+    })));
+    expect(tray.title).not.toContain('已暂停');
   });
 
-  it('routes menu commands to player-intent callbacks', () => {
+  it('routes the three hover regions and treats exact boundaries consistently', () => {
     const service = new MenuBarLyricsService('darwin');
     const onAction = vi.fn();
     service.start(onAction);
-    service.update({
-      trackId: 'track-1', title: '歌曲', artist: '歌手', line: '歌词', nextLine: '', isPlaying: true,
-    });
-    const template = electronMocks.MockTray.instances[0]!.contextMenu!.template;
+    const tray = electronMocks.MockTray.instances[0]!;
 
-    (template[0]?.['click'] as (() => void))();
-    (template[2]?.['click'] as (() => void))();
-    (template[3]?.['click'] as (() => void))();
+    tray.emit('click', EVENT, BOUNDS, point(110));
+    expect(onAction).not.toHaveBeenCalled();
+
+    tray.emit('mouse-enter', EVENT, point(110));
+    tray.emit('click', EVENT, BOUNDS, point(100));
+    tray.emit('click', EVENT, BOUNDS, point(129.999));
+    tray.emit('click', EVENT, BOUNDS, point(130));
+    tray.emit('click', EVENT, BOUNDS, point(159.999));
+    tray.emit('click', EVENT, BOUNDS, point(160));
+    tray.emit('click', EVENT, BOUNDS, point(190));
 
     expect(onAction.mock.calls).toEqual([
-      ['toggle-play'],
       ['previous'],
+      ['previous'],
+      ['toggle-play'],
+      ['toggle-play'],
+      ['next'],
       ['next'],
     ]);
   });
 
-  it('destroys and resets the status item on stop', () => {
+  it('ignores invalid or out-of-bounds click coordinates', () => {
     const service = new MenuBarLyricsService('darwin');
-    service.start(vi.fn());
+    const onAction = vi.fn();
+    service.start(onAction);
+    const tray = electronMocks.MockTray.instances[0]!;
+    tray.emit('mouse-enter', EVENT, point(110));
+
+    tray.emit('click', EVENT, BOUNDS, point(99));
+    tray.emit('click', EVENT, BOUNDS, point(191));
+    tray.emit('click', EVENT, { ...BOUNDS, width: 0 }, point(100));
+    tray.emit('click', EVENT, { ...BOUNDS, width: Number.NaN }, point(100));
+    tray.emit('click', EVENT, BOUNDS, point(Number.NaN));
+
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('stops routing clicks after leave or destruction', () => {
+    const service = new MenuBarLyricsService('darwin');
+    const onAction = vi.fn();
+    service.start(onAction);
     const tray = electronMocks.MockTray.instances[0]!;
 
+    tray.emit('mouse-enter', EVENT, point(110));
+    tray.emit('mouse-leave', EVENT, point(110));
+    tray.emit('click', EVENT, BOUNDS, point(110));
+    const titleUpdatesBeforeStop = tray.setTitle.mock.calls.length;
     service.stop();
-    service.update({
-      trackId: 'track-1', title: '歌曲', artist: '歌手', line: '不应渲染', nextLine: '', isPlaying: true,
-    });
+    tray.emit('mouse-enter', EVENT, point(110));
+    tray.emit('click', EVENT, BOUNDS, point(110));
+    service.update(state({ line: '不应渲染' }));
 
+    expect(onAction).not.toHaveBeenCalled();
     expect(tray.destroy).toHaveBeenCalledOnce();
-    expect(tray.setTitle).toHaveBeenCalledOnce();
+    expect(tray.setTitle).toHaveBeenCalledTimes(titleUpdatesBeforeStop);
+  });
+
+  it('replaces the action handler without duplicating native listeners', () => {
+    const service = new MenuBarLyricsService('darwin');
+    const firstHandler = vi.fn();
+    const replacementHandler = vi.fn();
+    service.start(firstHandler);
+    service.start(replacementHandler);
+    const tray = electronMocks.MockTray.instances[0]!;
+
+    tray.emit('mouse-enter', EVENT, point(110));
+    tray.emit('click', EVENT, BOUNDS, point(145));
+
+    expect(firstHandler).not.toHaveBeenCalled();
+    expect(replacementHandler).toHaveBeenCalledOnce();
+    expect(replacementHandler).toHaveBeenCalledWith('toggle-play');
+    expect(tray.listeners.get('click')).toHaveLength(1);
   });
 });
 
-describe('menu bar lyric formatting', () => {
-  it('truncates by grapheme and keeps the ellipsis inside the limit', () => {
-    expect(truncateMenuBarText('👩‍🎤👩‍🎤👩‍🎤👩‍🎤', 3)).toBe('👩‍🎤👩‍🎤…');
+describe('menu-bar title formatting', () => {
+  it('always renders exactly eighteen graphemes and pads short lyrics with full-width spaces', () => {
+    const title = formatMenuBarLyricsTitle(state({ line: '你好👩‍🎤' }));
+
+    expect(splitGraphemes(title)).toHaveLength(SYSTEM_LYRICS_WINDOW_GRAPHEMES);
+    expect(title.startsWith('你好👩‍🎤')).toBe(true);
+    expect(title.endsWith(IDEOGRAPHIC_SPACE.repeat(15))).toBe(true);
   });
 
-  it('uses the app name when no track is active', () => {
-    expect(formatMenuBarLyricsTitle({
-      trackId: null, title: '', artist: '', line: '', nextLine: '', isPlaying: false,
-    }))
-      .toBe('LyricsAdapter');
+  it('does not add an icon or paused prefix to lyrics and title fallback', () => {
+    const pausedLyric = formatMenuBarLyricsTitle(state({
+      line: '我们还会再见',
+      isPlaying: false,
+    }));
+    const titleFallback = formatMenuBarLyricsTitle(state({
+      line: '',
+      title: 'Starboy',
+      isPlaying: false,
+    }));
+
+    expect(pausedLyric.startsWith('我们还会再见')).toBe(true);
+    expect(pausedLyric).not.toContain('已暂停');
+    expect(pausedLyric).not.toContain('♪');
+    expect(titleFallback.startsWith('Starboy')).toBe(true);
+    expect(titleFallback).not.toContain('♪');
   });
 
-  it('caps the default menu-bar title to eighteen graphemes', () => {
-    const title = formatMenuBarLyricsTitle({
-      trackId: 'track-1',
-      title: 'Title',
-      artist: 'Artist',
-      line: '一二三四五六七八九十一二三四五六七八九十',
-      nextLine: '',
-      isPlaying: true,
-    });
+  it('scrolls a long line after cursor slot twelve without an ellipsis', () => {
+    const graphemes = Array.from(
+      { length: 26 },
+      (_, index) => String.fromCodePoint(0x4e00 + index),
+    );
+    const line = graphemes.join('');
 
-    expect(Array.from(title)).toHaveLength(18);
-    expect(title.endsWith('…')).toBe(true);
+    expect(formatMenuBarLyricsTitle(state({ line, lineCursor: null })))
+      .toBe(graphemes.slice(0, 18).join(''));
+    expect(formatMenuBarLyricsTitle(state({ line, lineCursor: 12 })))
+      .toBe(graphemes.slice(0, 18).join(''));
+    expect(formatMenuBarLyricsTitle(state({ line, lineCursor: 13 })))
+      .toBe(graphemes.slice(1, 19).join(''));
+    expect(formatMenuBarLyricsTitle(state({ line, lineCursor: 999 })))
+      .toBe(graphemes.slice(-18).join(''));
+    expect(formatMenuBarLyricsTitle(state({ line, lineCursor: 999 })))
+      .not.toContain('…');
+  });
+
+  it('centers each hover label in one third of the fixed window', () => {
+    const playing = splitGraphemes(formatMenuBarControls(true));
+    const paused = splitGraphemes(formatMenuBarControls(false));
+
+    expect(playing).toHaveLength(SYSTEM_LYRICS_WINDOW_GRAPHEMES);
+    expect(playing.slice(0, 6).join('')).toBe(`${IDEOGRAPHIC_SPACE}上一首${IDEOGRAPHIC_SPACE.repeat(2)}`);
+    expect(playing.slice(6, 12).join('')).toBe(`${IDEOGRAPHIC_SPACE.repeat(2)}暂停${IDEOGRAPHIC_SPACE.repeat(2)}`);
+    expect(playing.slice(12).join('')).toBe(`${IDEOGRAPHIC_SPACE}下一首${IDEOGRAPHIC_SPACE.repeat(2)}`);
+    expect(paused.slice(6, 12).join('')).toBe(`${IDEOGRAPHIC_SPACE.repeat(2)}播放${IDEOGRAPHIC_SPACE.repeat(2)}`);
   });
 });

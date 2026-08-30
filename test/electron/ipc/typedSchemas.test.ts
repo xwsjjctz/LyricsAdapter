@@ -8,6 +8,7 @@ describe('typedIpcSchemas', () => {
       title: 'Title',
       artist: 'Artist',
       line: 'Current line',
+      lineCursor: 0,
       nextLine: 'Next line',
       isPlaying: true,
     }).success).toBe(true);
@@ -16,9 +17,34 @@ describe('typedIpcSchemas', () => {
       title: '',
       artist: '',
       line: 'x'.repeat(4097),
+      lineCursor: null,
       nextLine: '',
       isPlaying: false,
     }).success).toBe(false);
+  });
+
+  it('accepts nullable bounded lyric cursors and rejects invalid offsets', () => {
+    const state = {
+      trackId: 'track-1',
+      title: 'Title',
+      artist: 'Artist',
+      line: 'Current line',
+      nextLine: 'Next line',
+      isPlaying: true,
+    };
+
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: null }).success)
+      .toBe(true);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 0 }).success)
+      .toBe(true);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 4095 }).success)
+      .toBe(true);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: -1 }).success)
+      .toBe(false);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 4096 }).success)
+      .toBe(false);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 1.5 }).success)
+      .toBe(false);
   });
 
   it('accepts valid WebDAV range payloads', () => {

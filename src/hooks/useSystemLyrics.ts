@@ -10,6 +10,7 @@ import { buildSystemLyricsState } from '../services/systemLyricsState';
 
 const UPDATE_RETRY_BASE_DELAY_MS = 250;
 const UPDATE_RETRY_MAX_DELAY_MS = 30_000;
+const PLAYING_SAMPLE_INTERVAL_MS = 100;
 
 interface PendingSystemLyricsUpdate {
   generation: number;
@@ -25,6 +26,7 @@ export interface UseSystemLyricsOptions {
   currentTrack: Track | null;
   currentTime: number;
   isPlaying: boolean;
+  getCurrentPlaybackTime: () => number;
   togglePlay: () => void;
   next: () => void;
   previous: () => void;
@@ -34,6 +36,7 @@ export function useSystemLyrics({
   currentTrack,
   currentTime,
   isPlaying,
+  getCurrentPlaybackTime,
   togglePlay,
   next,
   previous,
@@ -43,7 +46,33 @@ export function useSystemLyrics({
     state: PendingSystemLyricsUpdate['state'],
     serialized: string,
   ) => void>();
+  const playbackRef = useRef({
+    currentTrack,
+    currentTime,
+    isPlaying,
+    getCurrentPlaybackTime,
+  });
+  const publishSnapshotRef = useRef<() => void>();
   callbacksRef.current = { togglePlay, next, previous };
+  playbackRef.current = {
+    currentTrack,
+    currentTime,
+    isPlaying,
+    getCurrentPlaybackTime,
+  };
+  publishSnapshotRef.current = () => {
+    const playback = playbackRef.current;
+    const exactTime = playback.getCurrentPlaybackTime();
+    const sampledTime = Number.isFinite(exactTime) && exactTime >= 0
+      ? exactTime
+      : playback.currentTime;
+    const state = buildSystemLyricsState(
+      playback.currentTrack,
+      sampledTime,
+      playback.isPlaying,
+    );
+    enqueueUpdateRef.current?.(state, JSON.stringify(state));
+  };
 
   useEffect(() => {
     const bridge = getDesktopAPI()?.ipc?.systemLyrics;
@@ -62,7 +91,7 @@ export function useSystemLyrics({
       retryTimer = null;
     };
 
-    const scheduleRetry = (flush: () => void, expectedGeneration: number) => {
+    const scheduleRetry = (flush: () => void) => {
       if (!active || retryTimer !== null) return;
       const delay = Math.min(
         UPDATE_RETRY_BASE_DELAY_MS * (2 ** Math.min(retryAttempt, 7)),
@@ -71,13 +100,23 @@ export function useSystemLyrics({
       retryAttempt += 1;
       retryTimer = setTimeout(() => {
         retryTimer = null;
-        if (!active || desired?.generation !== expectedGeneration) return;
+        if (!active) return;
+        if (desired?.serialized === published) {
+          retryAttempt = 0;
+          return;
+        }
         flush();
       }, delay);
     };
 
     const flush = () => {
-      if (!active || inFlight || !desired || desired.serialized === published) return;
+      if (
+        !active
+        || inFlight
+        || retryTimer !== null
+        || !desired
+        || desired.serialized === published
+      ) return;
 
       const request = desired;
       inFlight = true;
@@ -85,35 +124,31 @@ export function useSystemLyrics({
         if (!active) return;
         if (!result.ok) {
           logger.warn('[SystemLyrics] Native surface update failed:', result.error);
-          if (desired?.generation === request.generation) {
-            scheduleRetry(flush, request.generation);
-          }
+          // Cursor samples may replace `desired` while this request is in flight.
+          // Back off the transport itself, then retry whichever snapshot is latest.
+          scheduleRetry(flush);
           return;
         }
 
+        retryAttempt = 0;
         // Only the latest desired generation may confirm the dedupe marker.
         // Older successful requests are followed immediately by the latest one.
         if (desired?.generation === request.generation) {
           published = request.serialized;
-          retryAttempt = 0;
         }
       }).catch(error => {
         if (!active) return;
         logger.warn('[SystemLyrics] Failed to publish native lyrics state:', error);
-        if (desired?.generation === request.generation) {
-          scheduleRetry(flush, request.generation);
-        }
+        scheduleRetry(flush);
       }).finally(() => {
         inFlight = false;
         if (!active) return;
-        if (desired?.generation !== request.generation) flush();
+        if (retryTimer === null && desired?.generation !== request.generation) flush();
       });
     };
 
     enqueueUpdateRef.current = (state, serialized) => {
       if (!active || desired?.serialized === serialized) return;
-      clearRetry();
-      retryAttempt = 0;
       desired = { generation: ++generation, serialized, state };
       flush();
     };
@@ -142,8 +177,21 @@ export function useSystemLyrics({
     const bridge = getDesktopAPI()?.ipc?.systemLyrics;
     if (!bridge) return;
 
-    const state = buildSystemLyricsState(currentTrack, currentTime, isPlaying);
-    const serialized = JSON.stringify(state);
-    enqueueUpdateRef.current?.(state, serialized);
-  }, [currentTrack, currentTime, isPlaying]);
+    publishSnapshotRef.current?.();
+  }, [currentTrack, currentTime, getCurrentPlaybackTime, isPlaying]);
+
+  useEffect(() => {
+    const desktop = getDesktopAPI();
+    if (
+      !currentTrack
+      || !isPlaying
+      || desktop?.platform !== 'darwin'
+      || !desktop.ipc?.systemLyrics
+    ) return;
+
+    const sampleTimer = setInterval(() => {
+      publishSnapshotRef.current?.();
+    }, PLAYING_SAMPLE_INTERVAL_MS);
+    return () => clearInterval(sampleTimer);
+  }, [currentTrack?.id, isPlaying]);
 }

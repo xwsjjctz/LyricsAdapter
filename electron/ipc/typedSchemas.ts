@@ -82,6 +82,7 @@ export const typedIpcSchemas = {
     title: z.string().max(512),
     artist: z.string().max(512),
     line: z.string().max(4096),
+    lineCursor: z.number().int().min(0).max(4095).nullable(),
     nextLine: z.string().max(4096),
     isPlaying: z.boolean(),
   }),

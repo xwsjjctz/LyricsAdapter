@@ -4,6 +4,7 @@ import type { Track } from '@/types';
 import type { SystemLyricsAction } from '@/types/systemLyrics';
 
 const mocks = vi.hoisted(() => ({
+  platform: 'darwin',
   update: vi.fn(),
   onAction: vi.fn(),
   unsubscribe: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/services/desktopAdapter', () => ({
   getDesktopAPI: () => ({
+    platform: mocks.platform,
     ipc: {
       systemLyrics: {
         update: mocks.update,
@@ -37,12 +39,15 @@ const track: Track = {
     { time: 5, text: 'Second line' },
   ],
 };
+const longLine = '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯';
 
 function makeOptions(overrides: Partial<UseSystemLyricsOptions> = {}): UseSystemLyricsOptions {
+  const currentTime = overrides.currentTime ?? 1;
   return {
     currentTrack: track,
-    currentTime: 1,
+    currentTime,
     isPlaying: true,
+    getCurrentPlaybackTime: () => currentTime,
     togglePlay: vi.fn(),
     next: vi.fn(),
     previous: vi.fn(),
@@ -55,6 +60,7 @@ describe('useSystemLyrics', () => {
 
   beforeEach(() => {
     actionListener = undefined;
+    mocks.platform = 'darwin';
     mocks.update.mockReset().mockResolvedValue({ ok: true, data: undefined });
     mocks.unsubscribe.mockReset();
     mocks.onAction.mockReset().mockImplementation((callback: (action: SystemLyricsAction) => void) => {
@@ -149,6 +155,136 @@ describe('useSystemLyrics', () => {
     vi.useRealTimers();
   });
 
+  it('samples the exact playback clock every 100ms and deduplicates unchanged cursors', async () => {
+    vi.useFakeTimers();
+    let playbackTime = 0;
+    const wordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: longLine,
+        words: [{ time: 0, duration: 2, text: longLine }],
+      }],
+    };
+
+    const { unmount } = renderHook(() => useSystemLyrics(makeOptions({
+      currentTrack: wordTimedTrack,
+      currentTime: 0,
+      getCurrentPlaybackTime: () => playbackTime,
+    })));
+    await act(async () => Promise.resolve());
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({ lineCursor: 0 }));
+
+    playbackTime = 0.05;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    playbackTime = 1;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(2);
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({ lineCursor: 12 }));
+
+    unmount();
+  });
+
+  it('keeps the retry backoff while cursor samples replace the desired snapshot', async () => {
+    vi.useFakeTimers();
+    let playbackTime = 0;
+    const wordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: longLine,
+        words: [{ time: 0, duration: 2, text: longLine }],
+      }],
+    };
+    mocks.update.mockReset()
+      .mockResolvedValueOnce({ ok: false, error: 'native unavailable' })
+      .mockResolvedValue({ ok: true, data: undefined });
+
+    const { unmount } = renderHook(() => useSystemLyrics(makeOptions({
+      currentTrack: wordTimedTrack,
+      currentTime: 0,
+      getCurrentPlaybackTime: () => playbackTime,
+    })));
+    await act(async () => Promise.resolve());
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    playbackTime = 0.5;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    playbackTime = 1;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(149);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(2);
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      lineCursor: 12,
+    }));
+
+    unmount();
+  });
+
+  it('does not start high-frequency cursor sampling outside macOS', async () => {
+    vi.useFakeTimers();
+    mocks.platform = 'win32';
+    let playbackTime = 0;
+    const wordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: longLine,
+        words: [{ time: 0, duration: 2, text: longLine }],
+      }],
+    };
+    const { rerender, unmount } = renderHook(
+      ({ options }: { options: UseSystemLyricsOptions }) => useSystemLyrics(options),
+      {
+        initialProps: {
+          options: makeOptions({
+            currentTrack: wordTimedTrack,
+            currentTime: 0,
+            getCurrentPlaybackTime: () => playbackTime,
+          }),
+        },
+      },
+    );
+    await act(async () => Promise.resolve());
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    playbackTime = 1;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    rerender({
+      options: makeOptions({
+        currentTrack: wordTimedTrack,
+        currentTime: 1,
+        getCurrentPlaybackTime: () => playbackTime,
+      }),
+    });
+    await act(async () => Promise.resolve());
+    expect(mocks.update).toHaveBeenCalledTimes(2);
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      lineCursor: 12,
+    }));
+
+    unmount();
+  });
+
   it('keeps one action subscription, uses latest callbacks, and ignores unknown actions', async () => {
     const firstNext = vi.fn();
     const latestNext = vi.fn();
@@ -184,6 +320,7 @@ describe('useSystemLyrics', () => {
       artist: '',
       line: '',
       nextLine: '',
+      lineCursor: null,
       isPlaying: false,
     });
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Track } from '@/types';
+import { countGraphemes } from '@/shared/graphemes';
 import {
   buildSystemLyricsState,
   findActiveLyricIndex,
@@ -19,6 +20,8 @@ const track: Track = {
   ],
 };
 
+const longLine = '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯';
+
 describe('systemLyricsState', () => {
   it('finds the active line with a bounded binary search', () => {
     const lines = track.syncedLyrics!;
@@ -36,6 +39,7 @@ describe('systemLyricsState', () => {
       artist: 'Test artist',
       line: 'Second line',
       nextLine: 'Third line',
+      lineCursor: null,
       isPlaying: true,
     });
   });
@@ -52,8 +56,101 @@ describe('systemLyricsState', () => {
       artist: '',
       line: '',
       nextLine: '',
+      lineCursor: null,
       isPlaying: false,
     });
+  });
+
+  it('derives a grapheme cursor from exact QRC/YRC word timing', () => {
+    const wordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [
+        {
+          time: 2,
+          text: longLine,
+          words: [
+            { time: 2, duration: 2, text: '一二三四五六' },
+            { time: 4, duration: 2, text: '七八九十甲乙' },
+            { time: 6, duration: 2, text: '丙丁戊己庚辛' },
+            { time: 8, duration: 2, text: '壬癸子丑寅卯' },
+          ],
+        },
+        { time: 12, text: 'Next line' },
+      ],
+    };
+
+    expect(buildSystemLyricsState(wordTimedTrack, 5, true).lineCursor).toBe(9);
+    expect(buildSystemLyricsState(wordTimedTrack, 10, true).lineCursor).toBe(23);
+  });
+
+  it('holds the completed word during a timing gap and advances at the next word', () => {
+    const wordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: longLine,
+        words: [
+          { time: 0, duration: 1, text: longLine.slice(0, 12) },
+          { time: 2, duration: 1, text: longLine.slice(12) },
+        ],
+      }],
+    };
+
+    expect(buildSystemLyricsState(wordTimedTrack, 1.5, true).lineCursor).toBe(11);
+    expect(buildSystemLyricsState(wordTimedTrack, 2, true).lineCursor).toBe(12);
+  });
+
+  it('calculates the cursor against the same whitespace-normalized text that is displayed', () => {
+    const rawLine = '一二三四五六    七八九十甲乙\t丙丁戊己庚辛壬癸子丑寅卯';
+    const normalizedLine = '一二三四五六 七八九十甲乙 丙丁戊己庚辛壬癸子丑寅卯';
+    const whitespaceTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: rawLine,
+        words: [{ time: 0, duration: 2, text: rawLine }],
+      }],
+    };
+
+    const state = buildSystemLyricsState(whitespaceTrack, 1, true);
+
+    expect(state.line).toBe(normalizedLine);
+    expect(state.lineCursor).toBe(Math.floor(countGraphemes(normalizedLine) / 2));
+  });
+
+  it('uses line timing for long ordinary LRC lines', () => {
+    const lineTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [
+        { time: 2, text: longLine },
+        { time: 6, text: 'Next line' },
+      ],
+    };
+
+    expect(buildSystemLyricsState(lineTimedTrack, 4, true).lineCursor).toBe(12);
+  });
+
+  it('uses the track ending to estimate progress for the final LRC line', () => {
+    const finalLineTrack: Track = {
+      ...track,
+      duration: 30,
+      syncedLyrics: [{ time: 10, text: longLine }],
+    };
+
+    expect(buildSystemLyricsState(finalLineTrack, 20, true).lineCursor).toBe(12);
+  });
+
+  it('does not publish a cursor for lyrics that already fit the native window', () => {
+    const shortWordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: 'Short lyric',
+        words: [{ time: 0, duration: 2, text: 'Short lyric' }],
+      }],
+    };
+
+    expect(buildSystemLyricsState(shortWordTimedTrack, 1, true).lineCursor).toBeNull();
   });
 
   it('bounds supplementary Unicode text by UTF-16 length for the IPC schema', () => {
@@ -76,5 +173,19 @@ describe('systemLyricsState', () => {
     expect(state.nextLine).toHaveLength(4096);
     expect(state.trackId?.endsWith('🎵')).toBe(true);
     expect(state.title.endsWith('🎵')).toBe(true);
+  });
+
+  it('keeps the maximum cursor inside the 4096-character IPC line bound', () => {
+    const boundaryLine = 'x'.repeat(4_096);
+    const boundaryTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: boundaryLine,
+        words: [{ time: 0, duration: 1, text: boundaryLine }],
+      }],
+    };
+
+    expect(buildSystemLyricsState(boundaryTrack, 2, true).lineCursor).toBe(4_095);
   });
 });

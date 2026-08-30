@@ -189,6 +189,7 @@ const AppContent: React.FC = () => {
     currentTrack: player.currentTrack,
     currentTime: player.currentTime,
     isPlaying: player.isPlaying,
+    getCurrentPlaybackTime: player.getCurrentPlaybackTime,
     togglePlay: player.togglePlay,
     next: player.next,
     previous: player.previous,

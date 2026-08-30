@@ -25,6 +25,7 @@ describe('systemLyricsHandlers', () => {
       title: 'Title',
       artist: 'Artist',
       line: 'Current line',
+      lineCursor: 4,
       nextLine: 'Next line',
       isPlaying: true,
     };
@@ -59,6 +60,7 @@ describe('systemLyricsHandlers', () => {
       title: '',
       artist: '',
       line: '',
+      lineCursor: null,
       nextLine: '',
       isPlaying: false,
     })).resolves.toEqual({ ok: false, error: 'surface unavailable' });

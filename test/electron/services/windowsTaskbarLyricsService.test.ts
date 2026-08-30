@@ -55,6 +55,7 @@ const PLAYING_STATE = {
   title: '测试歌曲',
   artist: '测试歌手',
   line: '当前歌词',
+  lineCursor: 0,
   nextLine: '下一行',
   isPlaying: true,
 };

@@ -17,6 +17,14 @@ process.env['VITE_PUBLIC'] = app.isPackaged
 
 let win: BrowserWindow | null = null;
 
+export function shouldThrottleRendererInBackground(
+  platform: NodeJS.Platform,
+): boolean {
+  // Only macOS owns the 100ms status-item lyric sampler. Other platforms keep
+  // Electron's energy-saving default because their native surfaces do not need it.
+  return platform !== 'darwin';
+}
+
 export function getWindow(): BrowserWindow | null {
   return win;
 }
@@ -49,6 +57,9 @@ export async function createWindow(): Promise<BrowserWindow> {
       contextIsolation: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
+      // macOS menu-bar lyrics sample the track-owned media clock in the renderer.
+      // Keep that timer accurate while the window is minimized or occluded.
+      backgroundThrottling: shouldThrottleRendererInBackground(process.platform),
       // sandbox disabled: custom app:// protocol (protocol.handle) is
       // incompatible with OS-level renderer sandbox. contextIsolation
       // provides the security boundary instead.

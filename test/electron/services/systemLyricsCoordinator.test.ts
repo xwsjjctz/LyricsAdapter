@@ -18,6 +18,7 @@ const PLAYING_STATE: SystemLyricsState = {
   title: 'Title',
   artist: 'Artist',
   line: 'Current line',
+  lineCursor: 0,
   nextLine: 'Next line',
   isPlaying: true,
 };
