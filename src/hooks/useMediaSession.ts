@@ -4,7 +4,7 @@ import { toCoverThumb } from '../services/coverUrl';
 import { logger } from '../services/logger';
 
 const DEFAULT_SEEK_OFFSET_SECONDS = 10;
-const MEDIA_SESSION_ARTWORK_SIZE = 512;
+const MEDIA_SESSION_ARTWORK_SIZE = 256;
 
 interface MediaSessionPlaybackIntent {
   currentTrack: Track | null;

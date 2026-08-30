@@ -279,7 +279,7 @@ describe('useMediaSession', () => {
       album: 'Test album',
     }]);
     expect(fetchMock).toHaveBeenCalledWith(
-      'cover://track-1.jpg?size=512',
+      'cover://track-1.jpg?size=256',
       { signal: expect.any(AbortSignal) },
     );
 
@@ -290,13 +290,13 @@ describe('useMediaSession', () => {
       album: 'Test album',
       artwork: [{
         src: 'data:image/png;base64,Y292ZXItYnl0ZXM=',
-        sizes: '512x512',
+        sizes: '256x256',
         type: 'image/png',
       }],
     });
     expect(harness.session.metadata?.artwork).toEqual([{
       src: 'data:image/png;base64,Y292ZXItYnl0ZXM=',
-      sizes: '512x512',
+      sizes: '256x256',
       type: 'image/png',
     }]);
   });
@@ -413,11 +413,11 @@ describe('useMediaSession', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(metadataInits.at(-1)?.artwork).toEqual([{
       src: coverUrl,
-      sizes: '512x512',
+      sizes: '256x256',
     }]);
     expect(harness.session.metadata?.artwork).toEqual([{
       src: coverUrl,
-      sizes: '512x512',
+      sizes: '256x256',
     }]);
   });
 
@@ -602,7 +602,7 @@ describe('useMediaSession', () => {
     expect(attempts).toHaveLength(2);
     expect(attempts[0]?.artwork).toEqual([{
       src: 'data:image/png;base64,YmFkLWFydA==',
-      sizes: '512x512',
+      sizes: '256x256',
     }]);
     expect(attempts[1]).toEqual({
       title: 'Test title',
