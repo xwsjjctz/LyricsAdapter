@@ -79,7 +79,6 @@
     "i18next": "^26.3.5",
     "jsdom": "^25.0.1",
     "node-gyp": "^12.4.0",
-    "prebuildify": "^6.0.1",
     "qrcode": "^1.5.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -124,9 +123,7 @@
     ],
     "asar": true,
     "asarUnpack": [
-      "node_modules/@lyrics-adapter/macos-statusbar-native/prebuilds/**/*.node",
       "node_modules/@lyrics-adapter/macos-statusbar-native/build/Release/*.node",
-      "node_modules/@lyrics-adapter/windows-taskbar-native/prebuilds/**/*.node",
       "node_modules/@lyrics-adapter/windows-taskbar-native/build/Release/*.node"
     ],
     "npmRebuild": true,

@@ -84,7 +84,8 @@ Full-screen experience with a dynamic background following the cover colors and 
 - **Node.js** 24.19.x
 - **npm** 9.0 or higher (or yarn/pnpm)
 - **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
-- **Windows native bridge**: normal x64 development uses the bundled Node-API v8 prebuild and does not require Python; only C++ changes or additional architecture builds require Visual Studio 2022 with **Desktop development with C++**, Python 3, and `npm run native:rebuild:taskbar -- --from-source`
+- **Windows native bridge**: source installs require Visual Studio 2022 with **Desktop development with C++** and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:taskbar -- --force`
+- **macOS native bridge**: source installs require Xcode Command Line Tools and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:macos-statusbar -- --force`
 
 ### Installation & Setup
 
@@ -309,7 +310,7 @@ Full keyboard shortcut support, all customizable.
 
 - **Vite Plugin Electron** — Electron integration
 - **Electron Builder** — Cross-platform packaging
-- **prebuildify / node-gyp / @electron/rebuild** — Bundled Node-API prebuilds plus an explicit maintainer source-build path
+- **node-gyp / @electron/rebuild** — Source builds of Node-API modules for the current Electron version and system architecture
 - **cross-env** — Cross-platform environment variables
 
 ---

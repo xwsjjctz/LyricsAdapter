@@ -1,6 +1,0 @@
-{
-  "arch": "arm64",
-  "nodeApi": 8,
-  "electronVersionUsedToBuild": "42.10.0",
-  "sourceHash": "09ea9a10381f3d2669df53a19917dd9d243b0e77271cb091ff12137156075388"
-}

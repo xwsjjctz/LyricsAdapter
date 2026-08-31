@@ -14,7 +14,7 @@ function bridge(apiVersion = 1) {
 }
 
 describe('macOS status bar native bridge loader', () => {
-  it.runIf(process.platform === 'darwin')('loads the bundled Node-API prebuild', () => {
+  it.runIf(process.platform === 'darwin')('loads the source-built Node-API module', () => {
     const nativeBridge = loadMacosStatusbarNativeBridge();
     expect(nativeBridge?.getApiVersion()).toBe(1);
   });

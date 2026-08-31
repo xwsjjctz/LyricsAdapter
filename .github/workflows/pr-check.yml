@@ -55,13 +55,45 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Rebuild taskbar bridge from source
-        run: npm run native:rebuild:taskbar -- --from-source
+        run: npm run native:rebuild:taskbar -- --force
 
       - name: Type check
         run: npm run typecheck
 
       - name: Unit tests
         run: npm test
+
+  native-build-macos:
+    name: macOS native build
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: npm
+
+      - name: Setup Python for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Rebuild status bar bridge from source
+        run: npm run native:rebuild:macos-statusbar -- --force
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Native bridge tests
+        run: npx vitest run test/electron/native/macosStatusbarNative.test.ts test/electron/services/menuBarLyricsService.test.ts

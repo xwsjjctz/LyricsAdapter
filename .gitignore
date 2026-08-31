@@ -76,7 +76,9 @@ talk.md
 /dist-electron
 /native/windows-taskbar-native/bin/
 /native/windows-taskbar-native/build/
+/native/windows-taskbar-native/prebuilds/
 /native/macos-statusbar-native/build/
+/native/macos-statusbar-native/prebuilds/
 /src-tauri/target
 /src-tauri/gen/schemas
 todolist.md

@@ -9,6 +9,10 @@
 #include <string>
 
 constexpr uint32_t kApiVersion = 1;
+NSString* const kStatusItemAutosaveName =
+    @"com.lyricsadapter.app.menu-bar-lyrics";
+NSString* const kStatusItemPreferredPositionPrefix =
+    @"NSStatusItem Preferred Position";
 
 struct AddonError final : public std::runtime_error {
   AddonError(std::string code, std::string message)
@@ -224,6 +228,7 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 - (void)setPlaying:(BOOL)playing {
   _playing = playing;
   self.toggleImageView.image = [self symbolImage:(playing ? @"pause.fill" : @"play.fill")];
+  [self setNeedsLayout:YES];
 }
 
 - (void)layout {
@@ -242,7 +247,12 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
                                        NSUInteger index, BOOL* stop) {
     (void)stop;
     CGFloat centerX = originX + regionWidth * (static_cast<CGFloat>(index) + 0.5);
-    imageView.frame = NSMakeRect(centerX - iconSize / 2.0, iconY,
+    // The middle SF Symbols sit slightly high beside the previous/next glyphs.
+    // Apply the same optical correction to both play and pause so switching
+    // playback state cannot move the perceived control centre.
+    CGFloat opticalYOffset = imageView == self.toggleImageView ? -0.75 : 0.0;
+    imageView.frame = NSMakeRect(centerX - iconSize / 2.0,
+                                 iconY + opticalYOffset,
                                  iconSize, iconSize);
   }];
 }
@@ -329,7 +339,9 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 
   CGFloat lineHeight = lyric.size.height;
   NSRect textRect = NSInsetRect(self.bounds, 6.0, 0.0);
-  textRect.origin.y = std::floor(NSMidY(self.bounds) - lineHeight / 2.0);
+  // Centring the font's full line box leaves its visible ink slightly low in
+  // the menu bar. One point of optical lift aligns it with adjacent icons.
+  textRect.origin.y = std::floor(NSMidY(self.bounds) - lineHeight / 2.0) + 1.0;
   textRect.size.height = std::ceil(lineHeight);
   [lyric drawWithRect:textRect
               options:(NSStringDrawingUsesLineFragmentOrigin |
@@ -340,6 +352,23 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 
 LyricsStatusItemView* gLyricsView = nil;
 
+void RemoveStatusItemPreservingPreferredPosition() {
+  if (gStatusItem == nil) return;
+
+  // AppKit removes the preferred-position default together with a status item.
+  // Restore it so an explicitly stopped/restarted bridge behaves the same as a
+  // normal app relaunch and does not return to Ice's always-hidden section.
+  NSUserDefaults* defaults = NSUserDefaults.standardUserDefaults;
+  NSString* key = [NSString
+      stringWithFormat:@"%@ %@", kStatusItemPreferredPositionPrefix,
+                       kStatusItemAutosaveName];
+  id preferredPosition = [defaults objectForKey:key];
+  [[NSStatusBar systemStatusBar] removeStatusItem:gStatusItem];
+  if (preferredPosition != nil) {
+    [defaults setObject:preferredPosition forKey:key];
+  }
+}
+
 void DeleteCallbackReference() {
   if (gEnv != nullptr && gActionCallback != nullptr) {
     napi_delete_reference(gEnv, gActionCallback);
@@ -349,9 +378,7 @@ void DeleteCallbackReference() {
 
 void StopStatusItemInternal() {
   RequireMainThread();
-  if (gStatusItem != nil) {
-    [[NSStatusBar systemStatusBar] removeStatusItem:gStatusItem];
-  }
+  RemoveStatusItemPreservingPreferredPosition();
   gLyricsView = nil;
   gStatusItem = nil;
   DeleteCallbackReference();
@@ -360,9 +387,7 @@ void StopStatusItemInternal() {
 void Cleanup(void* data) {
   (void)data;
   if ([NSThread isMainThread]) {
-    if (gStatusItem != nil) {
-      [[NSStatusBar systemStatusBar] removeStatusItem:gStatusItem];
-    }
+    RemoveStatusItemPreservingPreferredPosition();
     gLyricsView = nil;
     gStatusItem = nil;
   }
@@ -433,6 +458,10 @@ napi_value StartStatusItem(napi_env env, napi_callback_info info) {
       throw AddonError("ERR_STATUS_ITEM",
                        "AppKit failed to create an NSStatusItem button.");
     }
+    // Give AppKit a stable identity so the user's menu bar position and
+    // visibility survive app restarts and remain compatible with managers
+    // such as Ice.
+    gStatusItem.autosaveName = kStatusItemAutosaveName;
 
     NSStatusBarButton* button = gStatusItem.button;
     button.title = @"";

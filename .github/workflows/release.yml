@@ -32,7 +32,14 @@ jobs:
           node-version: 24.19.0
           cache: npm
 
+      - name: Setup Python for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
       - name: Install dependencies
+        env:
+          npm_config_msvs_version: '2022'
         run: npm ci
 
       # macOS 构建：已移除 Apple 签名 & 公证，走全量下载更新。

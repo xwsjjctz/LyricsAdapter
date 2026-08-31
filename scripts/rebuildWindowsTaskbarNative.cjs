@@ -6,18 +6,14 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const PACKAGE_NAME = '@lyrics-adapter/windows-taskbar-native';
-const SOURCE_BUILD = process.argv.includes('--from-source')
+const FORCE_REBUILD = process.argv.includes('--from-source')
   || process.argv.includes('--force');
 const ALLOW_MISSING = process.argv.includes('--allow-missing');
 const ARCHITECTURES = {
   x64: {
-    directory: 'win32-x64',
-    filename: 'node.napi.node',
     peMachine: 0x8664,
   },
   arm64: {
-    directory: 'win32-arm64',
-    filename: 'node.napi.armv8.node',
     peMachine: 0xaa64,
   },
 };
@@ -41,23 +37,29 @@ if (!architecture) {
 const projectRoot = process.cwd();
 const moduleRoot = path.join(projectRoot, 'native', 'windows-taskbar-native');
 const packagePath = path.join(moduleRoot, 'package.json');
+const installedRoot = path.join(
+  projectRoot,
+  'node_modules',
+  '@lyrics-adapter',
+  'windows-taskbar-native',
+);
 const binaryPath = path.join(
-  moduleRoot,
+  installedRoot,
   'build',
   'Release',
   'windows_taskbar_native.node',
 );
-const prebuildDirectory = path.join(
-  moduleRoot,
-  'prebuilds',
-  architecture.directory,
+const metadataPath = path.join(
+  installedRoot,
+  'build',
+  'Release',
+  '.lyrics-adapter-native.json',
 );
-const prebuildPath = path.join(prebuildDirectory, architecture.filename);
-const metadataPath = path.join(prebuildDirectory, 'metadata.json');
 const sourcePaths = [
   path.join(moduleRoot, 'binding.gyp'),
   path.join(moduleRoot, 'src', 'addon.cc'),
 ];
+const electronVersion = require('electron/package.json').version;
 
 if (!fs.existsSync(packagePath)) {
   console.error(`[TaskbarNative] Missing source package: ${moduleRoot}`);
@@ -89,14 +91,17 @@ function readPeMachine(filePath) {
   }
 }
 
-function inspectPrebuild() {
-  if (readPeMachine(prebuildPath) !== architecture.peMachine) {
+function inspectBuild() {
+  if (readPeMachine(binaryPath) !== architecture.peMachine) {
     return { current: false, reason: 'binary is missing or has the wrong architecture' };
   }
   try {
     const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     if (metadata.arch !== targetArch || metadata.nodeApi !== 8) {
       return { current: false, reason: 'metadata is incompatible' };
+    }
+    if (metadata.electronVersion !== electronVersion) {
+      return { current: false, reason: 'Electron version changed' };
     }
     if (metadata.sourceHash !== sourceHash()) {
       return { current: false, reason: 'native sources changed' };
@@ -174,42 +179,30 @@ function findPython() {
   return null;
 }
 
-const prebuild = inspectPrebuild();
-if (!SOURCE_BUILD) {
-  if (prebuild.current) {
-    console.log(`[TaskbarNative] ${targetArch} Node-API v8 prebuild is current.`);
-    process.exit(0);
-  }
-  const message = `[TaskbarNative] ${targetArch} prebuild unavailable: ${prebuild.reason}.`;
+const nodeModulesPackage = path.join(installedRoot, 'package.json');
+if (!fs.existsSync(nodeModulesPackage)) {
+  const message = `[TaskbarNative] Missing installed optional dependency: ${PACKAGE_NAME}`;
   if (ALLOW_MISSING) {
-    console.warn(`${message} Run npm run native:rebuild:taskbar -- --from-source after installing the Windows C++ toolchain and Python 3.`);
+    console.warn(message);
     process.exit(0);
   }
   console.error(message);
-  console.error('[TaskbarNative] Rebuild it explicitly with: npm run native:rebuild:taskbar -- --from-source');
   process.exit(1);
 }
+
+const build = inspectBuild();
+if (!FORCE_REBUILD && build.current) {
+  console.log(`[TaskbarNative] ${targetArch} source build is current.`);
+  process.exit(0);
+}
+console.log(`[TaskbarNative] Rebuilding ${targetArch} from source: ${build.reason}.`);
 
 const python = findPython();
 if (!python) {
-  console.error('[TaskbarNative] Python 3 is required only for an explicit source rebuild.');
+  console.error('[TaskbarNative] Python 3 is required to build the native taskbar module.');
   console.error('[TaskbarNative] Install Python 3 or set PYTHON / npm_config_python to python.exe.');
   process.exit(1);
 }
-
-const nodeModulesPackage = path.join(
-  projectRoot,
-  'node_modules',
-  '@lyrics-adapter',
-  'windows-taskbar-native',
-  'package.json',
-);
-if (!fs.existsSync(nodeModulesPackage)) {
-  console.error(`[TaskbarNative] Missing installed optional dependency: ${PACKAGE_NAME}`);
-  process.exit(1);
-}
-
-const electronVersion = require('electron/package.json').version;
 const rebuildMain = require.resolve('@electron/rebuild');
 const rebuildCli = path.join(path.dirname(rebuildMain), 'cli.js');
 const nodeOptions = [
@@ -249,12 +242,10 @@ if (readPeMachine(binaryPath) !== architecture.peMachine) {
   process.exit(1);
 }
 
-fs.mkdirSync(prebuildDirectory, { recursive: true });
-fs.copyFileSync(binaryPath, prebuildPath);
 fs.writeFileSync(metadataPath, `${JSON.stringify({
   arch: targetArch,
   nodeApi: 8,
-  electronVersionUsedToBuild: electronVersion,
+  electronVersion,
   sourceHash: sourceHash(),
 }, null, 2)}\n`, 'utf8');
-console.log(`[TaskbarNative] Wrote ${targetArch} Node-API prebuild: ${prebuildPath}`);
+console.log(`[TaskbarNative] Built ${targetArch} Node-API module: ${binaryPath}`);

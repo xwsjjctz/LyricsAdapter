@@ -85,7 +85,8 @@
 - **Node.js** 24.19.x
 - **npm** 9.0 或更高版本（或 yarn/pnpm）
 - **操作系统**：Windows 10+、macOS 10.15+、Linux (x64/arm64)
-- **Windows 原生桥接**：x64 日常开发直接使用仓库内的 Node-API v8 预编译文件，无需 Python；仅在修改 C++ 或生成其他架构产物时，需要 Visual Studio 2022 的“使用 C++ 的桌面开发”工作负载与 Python 3，并执行 `npm run native:rebuild:taskbar -- --from-source`
+- **Windows 原生桥接**：源码安装需要 Visual Studio 2022 的“使用 C++ 的桌面开发”工作负载与 Python 3；`npm install` 会自动针对当前 Electron/架构编译，也可执行 `npm run native:rebuild:taskbar -- --force`
+- **macOS 原生桥接**：源码安装需要 Xcode Command Line Tools 与 Python 3；`npm install` 会自动针对当前 Electron/架构编译，也可执行 `npm run native:rebuild:macos-statusbar -- --force`
 
 ### 安装与运行
 
@@ -310,7 +311,7 @@ npm run electron:build
 
 - **Vite Plugin Electron** - Electron 集成插件
 - **Electron Builder** - 跨平台打包工具
-- **prebuildify / node-gyp / @electron/rebuild** - 分发 Node-API 预编译文件，并为维护者提供显式源码重建
+- **node-gyp / @electron/rebuild** - 针对当前 Electron 与系统架构从源码编译 Node-API 模块
 - **cross-env** - 跨平台环境变量设置
 
 ---

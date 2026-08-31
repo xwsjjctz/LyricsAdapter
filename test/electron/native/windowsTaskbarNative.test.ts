@@ -14,7 +14,7 @@ function bridge(apiVersion = 2) {
 }
 
 describe('Windows taskbar native bridge loader', () => {
-  it.runIf(process.platform === 'win32')('loads the bundled Node-API prebuild', () => {
+  it.runIf(process.platform === 'win32')('loads the source-built Node-API module', () => {
     const nativeBridge = loadWindowsTaskbarNativeBridge();
     expect(nativeBridge?.getApiVersion()).toBe(2);
   });

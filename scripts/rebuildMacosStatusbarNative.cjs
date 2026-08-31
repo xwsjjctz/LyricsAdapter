@@ -6,6 +6,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const PACKAGE_NAME = '@lyrics-adapter/macos-statusbar-native';
+const FORCE_REBUILD = process.argv.includes('--from-source')
+  || process.argv.includes('--force');
 const ALLOW_MISSING = process.argv.includes('--allow-missing');
 
 if (process.platform !== 'darwin') process.exit(0);
@@ -22,17 +24,23 @@ const installedRoot = path.join(
   '@lyrics-adapter',
   'macos-statusbar-native',
 );
-const prebuildDirectory = path.join(
-  sourceRoot,
-  'prebuilds',
-  `darwin-${process.arch}`,
+const binaryPath = path.join(
+  installedRoot,
+  'build',
+  'Release',
+  'macos_statusbar_native.node',
 );
-const prebuildPath = path.join(prebuildDirectory, 'node.napi.node');
-const metadataPath = path.join(prebuildDirectory, 'metadata.json');
+const metadataPath = path.join(
+  installedRoot,
+  'build',
+  'Release',
+  '.lyrics-adapter-native.json',
+);
 const sourcePaths = [
   path.join(sourceRoot, 'binding.gyp'),
   path.join(sourceRoot, 'src', 'addon.mm'),
 ];
+const electronVersion = require('electron/package.json').version;
 
 function sourceHash() {
   const hash = crypto.createHash('sha256');
@@ -45,21 +53,17 @@ function sourceHash() {
   return hash.digest('hex');
 }
 
-function isCurrentPrebuild() {
-  if (!fs.existsSync(prebuildPath)) return false;
+function isCurrentBuild() {
+  if (!fs.existsSync(binaryPath)) return false;
   try {
     const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     return metadata.arch === process.arch
       && metadata.nodeApi === 8
+      && metadata.electronVersion === electronVersion
       && metadata.sourceHash === sourceHash();
   } catch {
     return false;
   }
-}
-
-if (isCurrentPrebuild()) {
-  console.log(`[MacosStatusbarNative] ${process.arch} Node-API v8 prebuild is current.`);
-  process.exit(0);
 }
 
 if (!fs.existsSync(path.join(installedRoot, 'package.json'))) {
@@ -70,6 +74,11 @@ if (!fs.existsSync(path.join(installedRoot, 'package.json'))) {
   }
   console.error(message);
   process.exit(1);
+}
+
+if (!FORCE_REBUILD && isCurrentBuild()) {
+  console.log(`[MacosStatusbarNative] ${process.arch} source build is current.`);
+  process.exit(0);
 }
 
 const rebuildMain = require.resolve('@electron/rebuild');
@@ -99,36 +108,15 @@ if (result.error) {
   process.exit(1);
 }
 if (result.status !== 0) process.exit(result.status ?? 1);
-
-const binaryPath = path.join(
-  installedRoot,
-  'build',
-  'Release',
-  'macos_statusbar_native.node',
-);
 if (!fs.existsSync(binaryPath)) {
   console.error('[MacosStatusbarNative] Rebuild did not produce the native module.');
   process.exit(1);
 }
 
-fs.mkdirSync(prebuildDirectory, { recursive: true });
-fs.copyFileSync(binaryPath, prebuildPath);
 fs.writeFileSync(metadataPath, `${JSON.stringify({
   arch: process.arch,
   nodeApi: 8,
-  electronVersionUsedToBuild: require('electron/package.json').version,
+  electronVersion,
   sourceHash: sourceHash(),
 }, null, 2)}\n`, 'utf8');
-
-const installedPrebuildDirectory = path.join(
-  installedRoot,
-  'prebuilds',
-  `darwin-${process.arch}`,
-);
-if (path.resolve(installedPrebuildDirectory) !== path.resolve(prebuildDirectory)) {
-  fs.mkdirSync(installedPrebuildDirectory, { recursive: true });
-  fs.copyFileSync(prebuildPath, path.join(installedPrebuildDirectory, 'node.napi.node'));
-  fs.copyFileSync(metadataPath, path.join(installedPrebuildDirectory, 'metadata.json'));
-}
-
-console.log(`[MacosStatusbarNative] Wrote ${process.arch} Node-API prebuild: ${prebuildPath}`);
+console.log(`[MacosStatusbarNative] Built ${process.arch} Node-API module: ${binaryPath}`);
