@@ -57,7 +57,7 @@ LyricsAdapter is an Electron + React + Vite desktop music player.
 
 ## Ownership Boundaries
 
-- Do not add new business logic to `AppWorkspace.tsx`; keep it as wiring/composition only and move domain behavior into the appropriate controller, hook, or service.
+- Treat the renderer composition root (`App.tsx` and any extracted composition component) as wiring/composition only. File length is not an architecture boundary; move domain behavior into the appropriate controller, hook, or service.
 - UI components must not call `updateSlot` or mutate slot state directly. They should emit user intent through props/callbacks and let controllers own state changes.
 - Playback behavior must go through the player controller. Do not start, stop, seek, switch tracks, or alter playback state from UI components, providers, or unrelated services.
 - Library mutations must go through the library controller. Imports, removals, metadata updates, slot changes, and persistence-triggering changes belong there.

@@ -1,0 +1,184 @@
+:root {
+  color-scheme: dark light;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  --widget-foreground: rgb(255 255 255);
+  --widget-hover-background: rgb(255 255 255 / 5.88%);
+  --widget-hover-highlight: rgb(255 255 255 / 9.02%);
+  --widget-accent: #60cdff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --widget-foreground: rgb(28 28 28 / 89.4%);
+    --widget-hover-background: rgb(255 255 255 / 60%);
+    --widget-hover-highlight: rgb(255 255 255 / 36.5%);
+  }
+}
+
+@supports (color: AccentColor) {
+  :root {
+    --widget-accent: AccentColor;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  color: var(--widget-foreground);
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+.taskbar-lyrics-widget {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 2px 8px 2px 2px;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: transparent;
+  transition: background-color 200ms cubic-bezier(0.33, 1, 0.68, 1);
+  contain: layout paint style;
+}
+
+.taskbar-lyrics-widget::after {
+  position: absolute;
+  inset: 0 0 1.25px;
+  border-top: 1.25px solid transparent;
+  border-radius: 5px;
+  content: "";
+  pointer-events: none;
+  transition: border-top-color 200ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.taskbar-lyrics-widget:hover {
+  background-color: var(--widget-hover-background);
+}
+
+.taskbar-lyrics-widget:hover::after {
+  border-top-color: var(--widget-hover-highlight);
+}
+
+.artwork {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.artwork-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artwork-image[hidden],
+.artwork-placeholder[hidden] {
+  display: none;
+}
+
+.artwork-placeholder {
+  color: var(--widget-accent);
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.lyrics {
+  display: grid;
+  grid-template-rows: 19px 19px;
+  align-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.current-lyric,
+.next-lyric {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--widget-foreground);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.next-lyric {
+  margin-top: -1.5px;
+  opacity: 0.5;
+}
+
+.taskbar-lyrics-widget.is-single-line .lyrics {
+  grid-template-rows: 19px;
+}
+
+.taskbar-lyrics-widget.is-single-line .next-lyric {
+  display: none;
+}
+
+.taskbar-lyrics-widget[hidden] {
+  display: none;
+}
+
+@media (max-height: 35px) {
+  .taskbar-lyrics-widget {
+    grid-template-columns: 24px minmax(0, 1fr);
+    column-gap: 6px;
+    padding: 2px 6px 2px 2px;
+  }
+
+  .artwork {
+    width: 24px;
+    height: 24px;
+  }
+
+  .artwork-placeholder {
+    font-size: 18px;
+  }
+
+  .lyrics,
+  .taskbar-lyrics-widget.is-single-line .lyrics {
+    grid-template-rows: minmax(0, 24px);
+  }
+
+  .current-lyric {
+    font-size: 12px;
+    line-height: 24px;
+  }
+
+  .next-lyric {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taskbar-lyrics-widget,
+  .taskbar-lyrics-widget::after {
+    transition: none;
+  }
+}

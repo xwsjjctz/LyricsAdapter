@@ -6,8 +6,9 @@
 
 | 参与者 | 文件 | 职责 |
 | --- | --- | --- |
-| UI | `components/LibraryView.tsx`、`components/new-ui/NewUxShell.tsx`、`components/Controls.tsx`、`components/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
-| 应用组合层 | `AppWorkspace.tsx` | 连接 UI 与 hooks/stores，处理跨 slot 选歌、在线流播放、歌单播放 |
+| UI | `components/AppShell.tsx`、`components/LibraryView.tsx`、`components/Controls.tsx`、`components/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
+| 应用组合层 | `App.tsx` 中的 `AppContent` | 挂载 `<audio>`，连接 UI、stores、controllers、viewmodels 与生命周期 hooks |
+| 播放意图 | `controllers/usePlayerController.ts` | 处理同/跨 slot 选歌、在线流播放、歌单浏览与播放上下文 |
 | 播放聚合层 | `stores/playerStore.ts` | 包装 `usePlayback`，同步播放时间、音量、播放模式到 active slot |
 | 播放核心 | `hooks/usePlayback.ts` | 控制 `<audio>`，按 track source 解析播放 URL，处理事件与错误恢复 |
 | 曲库状态 | `hooks/useLibrarySlots.ts`、`stores/libraryStore.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
@@ -20,7 +21,7 @@
 sequenceDiagram
   participant U as 用户
   participant UI as UI
-  participant A as AppWorkspace
+  participant C as usePlayerController
   participant LS as Library slots
   participant P as usePlayback
   participant Audio as HTML audio
@@ -28,9 +29,9 @@ sequenceDiagram
   participant Store as useLibraryLoad
 
   U->>UI: 点击曲目或控制按钮
-  UI->>A: onTrackSelect / onTogglePlay / onSkipNext
-  A->>LS: 更新 activeSlot 或目标 slot index
-  A->>P: selectTrack / shouldAutoPlay / setIsPlaying
+  UI->>C: selectTrack / playOnlineSong / 播放控制 intent
+  C->>LS: 更新 activeSlot 或目标 slot index
+  C->>P: selectTrack / shouldAutoPlay / setIsPlaying
   P->>P: 根据 currentTrack.source 解析播放 URL
   P->>Audio: 设置 src 或等待 React src 更新
   Audio->>Main: 请求 audio:// 或 stream:// 或远端 URL
@@ -43,7 +44,7 @@ sequenceDiagram
 
 ## 启动恢复
 
-启动后 `AppWorkspace` 调用 `useLibraryLoad()`，流程如下：
+启动后 `AppContent` 调用 `useLibraryLoad()`，流程如下：
 
 1. `libraryStorage.loadLibrary()` 读取 `userData/library-index.json`，找不到时返回空库。
 2. `useLibraryLoad` 把 `songs/cloudSongs/onlineSongs/playlistSongs` 重建为 `Track[]`。
@@ -61,7 +62,7 @@ sequenceDiagram
 
 当用户点击的曲目属于当前 `activeSlotId`：
 
-1. `AppWorkspace.handleTrackSelect(index)` 调用 `selectTrack(index)`。
+1. `usePlayerController.handleTrackSelect(index)` 调用 `selectTrack(index)`。
 2. `selectTrack` 设置 `shouldAutoPlayRef.current = true`。
 3. 如果点击的是同一首，直接 `audio.play()` 恢复播放。
 4. 如果是不同 index，`switchToTrackIndex()` 触发 `onTrackSwitch`，更新 `currentTrackIndex`，并把 `isPlaying` 设为 `true`。
@@ -129,8 +130,8 @@ WebDAV 曲目的 `source === 'webdav'`，播放时不直接用 `webdavPath` 作�
 
 流程：
 
-1. UI 调用 `AppWorkspace.handleOnlineStreamPlay(song, source)`。
-2. `AppWorkspace` 构造 `Track`：
+1. UI 通过 online viewmodel 调用 `usePlayerController.playOnlineSong(song, source)`。
+2. player controller 归一化并构造 `Track`：
    - `id = online-${source}-${songmid}`
    - `source = 'qq' | 'netease'`
    - `songmid = song.songmid`
@@ -146,7 +147,7 @@ QQ 和网易的 cookie 在应用启动时从 renderer cookie store 同步到主�
 
 ### 在线歌单 playlist slot
 
-播放完整在线歌单时，`AppWorkspace.handlePlayPlaylist()` 会把歌单歌曲映射成 `Track[]` 后加载到 `playlist` slot，并把 `activeSlotId` 切到 `playlist`。这些 Track 的 source 仍然是 `qq` 或 `netease`，所以实际音频 URL 解析仍走 `stream://` 分支。
+打开在线歌单时，`usePlayerController.openOnlinePlaylistInLibrary()` 先把分页结果放入独立的浏览列表，不中断当前播放。用户点击其中一行后，`playLibraryPlaylistTrack()` 才把当前浏览列表提交到 `playlist` slot，设置点击 index 并切换 `activeSlotId`。这些 Track 的 source 仍然是 `qq` 或 `netease`，所以实际音频 URL 解析仍走 `stream://` 分支。
 
 `playlist` slot 的特点：
 
@@ -210,7 +211,7 @@ actualVolume = linearVolume * linearVolume
 
 ## Audio 事件与状态写回
 
-`AppWorkspace` 创建的 `<audio>` 绑定了：
+`AppContent` 创建的 `<audio>` 绑定了：
 
 | 事件 | handler | 作用 |
 | --- | --- | --- |
@@ -245,10 +246,10 @@ actualVolume = linearVolume * linearVolume
 
 播放路径已经比较清楚，但源码中还有一些职责交叠：
 
-- 跨 slot 选歌、在线流播放、歌单播放现在在 `AppWorkspace`，不是独立 player controller。
+- 跨 slot 选歌、在线流播放和歌单播放已经集中到 `usePlayerController`；`AppContent` 只负责装配其输入输出。
 - `usePlayback` 除了控制 `<audio>`，还会写回 Track duration、从 metadata cache 补歌词。
 - `usePlayback` 同时负责 source URL 解析、错误恢复、播放控制和状态维护，单个 hook 较大。
-- 删除曲目时既可能影响曲库状态，也可能暂停当前 audio，这部分在 `AppWorkspace` 和 `useLibraryActions` 里存在重叠实现。
+- 删除曲目时既可能影响曲库状态，也可能暂停当前 audio，这些 mutation 集中在 `useLibraryController`，仍需谨慎维护 active/view slot 语义。
 - 当前源码没有看到音频相邻曲目预加载逻辑；只有封面/歌词一类的异步补全和 playlist 歌词窗口预取。
 
 这些问题不会阻塞当前播放功能，但会增加后续修改播放行为时的回归风险。

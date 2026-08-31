@@ -4,9 +4,11 @@
 
 本文档用于指导 LyricsAdapter 在保持现有功能稳定的前提下进行渐进式架构重构。
 
+> 状态说明（2026-08-30）：`AppWorkspace.tsx` 已合并为 `App.tsx` 内的私有 `AppContent`。下文的 `AppWorkspace` 多为历史迁移步骤；当前以及最终状态中的组合根名称是 `AppContent`，且不以固定行数作为拆分标准。
+
 本轮重构不以“大规模重写”为目标，而是解决随着功能持续增加出现的以下问题：
 
-* `AppWorkspace` 承担过多业务编排职责；
+* 当时的 `AppWorkspace` 承担过多业务编排职责；
 * UI 层直接接触底层状态结构；
 * 播放控制逻辑分散在多个 Hook、Callback 和 Effect 中；
 * Library Slot 可以从多个位置直接修改；
@@ -277,7 +279,7 @@ const handleTrackSelect = (index: number) => {
 
 满足以下条件才算完成：
 
-* `AppWorkspace` 不再直接组织基础播放状态迁移；
+* `AppContent` 不再直接组织基础播放状态迁移；
 * 播放一首 Slot 内歌曲只需要一次 Controller 调用；
 * Playlist 播放通过 Controller 进入统一流程；
 * 新旧 UI 播放行为保持一致；
@@ -420,7 +422,7 @@ removeTrack(trackId, {
 * 批量删除行为集中；
 * 重排逻辑集中；
 * Track Metadata 更新有明确入口；
-* AppWorkspace 中 Library 操作逻辑明显减少。
+* `AppContent` 中不再直接实现 Library mutation。
 
 ---
 
@@ -604,7 +606,7 @@ hooks/
 而不是：
 
 ```text
-                   AppWorkspace
+                   AppContent
           /       /      |       \
        Slot   Player   Import   Online
         │        │        │        │
@@ -1097,7 +1099,7 @@ Playback 当前存在隐式状态机特征，但第一阶段应该先通过 Cont
 当本轮重构完成时，LyricsAdapter 应该达到以下状态：
 
 ```text
-AppWorkspace
+AppContent
 ```
 
 只负责：

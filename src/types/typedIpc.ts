@@ -1,3 +1,5 @@
+import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
+
 export type IpcResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
@@ -85,5 +87,9 @@ export interface TypedElectronIPC {
   persistence: {
     loadBootstrap: () => Promise<IpcResult<PersistenceBootstrap>>;
     commitClose: (request: PersistenceCloseCommitRequest) => Promise<IpcResult<PersistenceCloseCommitResult>>;
+  };
+  systemLyrics: {
+    update: (state: SystemLyricsState) => Promise<IpcResult<void>>;
+    onAction: (callback: (action: SystemLyricsAction) => void) => () => void;
   };
 }

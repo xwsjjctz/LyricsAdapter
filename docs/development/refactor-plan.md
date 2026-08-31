@@ -2,9 +2,11 @@
 
 本文基于当前源码提出重构路线。目标不是一次性大改，而是按行为边界拆小步，每一步都能独立验证并保持播放器可用。
 
+> 状态说明（2026-08-30）：独立的 `AppWorkspace.tsx` 已合并为 `App.tsx` 内的私有 `AppContent`。下文保留的 `AppWorkspace` 名称用于描述当时的迁移来源；当前组合根一律指 `AppContent`。组合根以职责而非文件行数验收。
+
 ## 重构目标
 
-1. 让 `AppWorkspace.tsx` 回到 composition/wiring 角色。
+1. 让 `App.tsx` 中的 `AppContent` 保持 composition/wiring 角色。
 2. 明确播放器、曲库、导入、云同步、在线音乐之间的所有权边界。
 3. 降低跨 slot 播放、WebDAV 同步、在线 streaming 的回归风险。
 4. 消除重复逻辑，特别是删除、持久化、IPC fallback、元数据解析相关重复。
@@ -19,9 +21,9 @@
 
 ## 当前诊断
 
-### 1. `AppWorkspace` 职责过多
+### 1. 原组合根职责过多
 
-`AppWorkspace.tsx` 当前承担：
+最初的 `AppWorkspace.tsx` 曾同时承担：
 
 - UI composition。
 - view-slot-aware 删除。
@@ -86,7 +88,7 @@ renderer 主线程 parser 与 worker parser 有大量重复逻辑。它们当前
 
 ```mermaid
 flowchart TD
-  App["AppWorkspace\n只组合"]
+  App["AppContent (src/App.tsx)\n只组合"]
   UI["UI components\n只发 intent"]
   PlayerC["usePlayerController\n选歌/slot 播放上下文/播放意图"]
   LibraryC["useLibraryController\n删除/重排/metadata update/缓存清理"]
@@ -118,7 +120,7 @@ flowchart TD
 | 层 | 可做 | 不做 |
 | --- | --- | --- |
 | UI components | 展示状态、发 intent | 直接 `updateSlot`、直接控制 player、直接持久化 |
-| AppWorkspace | 创建 controller、传 props、选择 legacy/new UI | 业务分支和状态变更细节 |
+| AppContent | 创建 controller/viewmodel、传 props、装配应用生命周期 | 业务分支和领域状态变更细节 |
 | Player controller | 选歌、跨 slot 播放、playlist 播放上下文、播放 intent | 文件导入、曲库删除、provider 搜索 |
 | Library controller | 删除、批量删除、重排、metadata update、缓存清理 | 播放 URL 解析、在线 provider 内部请求 |
 | Import controller | 把导入结果提交到 local/cloud slot | UI 展示、播放控制 |
@@ -374,7 +376,7 @@ UI 变化：
 
 每个 phase 完成时应满足：
 
-- `AppWorkspace` 行数和职责减少，且没有新增业务分支。
+- 组合根没有新增业务分支或领域状态变更；是否拆分按职责判断，不设固定行数门槛。
 - UI 组件只接收状态和 callbacks，不直接做 slot mutation。
 - 关键流程有测试或明确手动验证记录。
 - `npx tsc --noEmit` 通过。
@@ -386,7 +388,7 @@ UI 变化：
 推荐先做 Phase 1 到 Phase 3：
 
 1. 播放 URL 解析纯函数化，风险低、收益快。
-2. Player controller 下沉，直接减少 `AppWorkspace` 最大复杂度。
+2. Player controller 下沉，直接减少组合根中的播放编排复杂度。
 3. Library controller 合并删除/重排，减少重复逻辑和误删风险。
 
 等这三步稳定后，再处理导入和 WebDAV。导入与 WebDAV 都涉及大量 I/O 和缓存，应该在测试护栏更充分后动。

@@ -39,6 +39,16 @@ const httpUrlSchema = z.string().url().refine(value => {
   return protocol === 'http:' || protocol === 'https:';
 }, 'Only http and https URLs are allowed');
 
+const systemLyricsCoverUrlSchema = z.string().max(8192).refine(value => {
+  if (value === '') return true;
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'cover:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}, 'Only cover and https artwork URLs are allowed');
+
 export const typedIpcSchemas = {
   filePath: z.object({
     filePath: z.string().min(1),
@@ -76,6 +86,17 @@ export const typedIpcSchemas = {
   downloadAudio: z.object({
     url: httpUrlSchema,
     cookieString: z.string(),
+  }),
+  systemLyricsState: z.object({
+    trackId: z.string().max(4096).nullable(),
+    coverUrl: systemLyricsCoverUrlSchema,
+    title: z.string().max(512),
+    artist: z.string().max(512),
+    line: z.string().max(4096),
+    lineCursor: z.number().int().min(0).max(4095).nullable(),
+    lineProgress: z.number().int().min(0).max(4096).nullable(),
+    nextLine: z.string().max(4096),
+    isPlaying: z.boolean(),
   }),
   settingsGet: z.object({
     key: z.string().min(1),

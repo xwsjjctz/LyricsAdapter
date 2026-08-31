@@ -19,21 +19,82 @@ async function defaultFn(context) {
 
   if (electronPlatformName === 'darwin') {
     cleanMacOS(appOutDir)
+    cleanMacosStatusbarNative(appOutDir)
   } else {
     cleanWinLinux(appOutDir, electronPlatformName)
+    if (electronPlatformName === 'win32') {
+      cleanWindowsTaskbarNative(context)
+    }
   }
 }
 
-function cleanMacOS(appOutDir) {
-  // 尝试多种可能的 Resources 路径
-  const resourceDirs = [
-    path.join(appOutDir, 'Contents', 'Resources'),
-  ]
+function cleanWindowsTaskbarNative(context) {
+  const nativeRoot = path.join(
+    context.appOutDir,
+    'resources',
+    'app.asar.unpacked',
+    'node_modules',
+    '@lyrics-adapter',
+    'windows-taskbar-native',
+  )
+  if (!fs.existsSync(nativeRoot)) {
+    throw new Error(`[cleanLocales] Missing packaged taskbar native module: ${nativeRoot}`)
+  }
 
-  // 如果 appOutDir 本身包含 .app 目录
+  cleanNativeBuildRoot(nativeRoot, 'windows_taskbar_native.node', 'taskbar bridge')
+  console.log(`[cleanLocales] Taskbar native runtime ready for ${String(context.arch)}`)
+}
+
+function cleanMacosStatusbarNative(appOutDir) {
+  const resourcesDir = macResourceDirectories(appOutDir)
+    .find(directory => fs.existsSync(directory))
+  if (!resourcesDir) {
+    throw new Error(`[cleanLocales] Missing macOS Resources directory in ${appOutDir}`)
+  }
+
+  const nativeRoot = path.join(
+    resourcesDir,
+    'app.asar.unpacked',
+    'node_modules',
+    '@lyrics-adapter',
+    'macos-statusbar-native',
+  )
+  if (!fs.existsSync(nativeRoot)) {
+    throw new Error(`[cleanLocales] Missing packaged macOS status bar native module: ${nativeRoot}`)
+  }
+
+  cleanNativeBuildRoot(nativeRoot, 'macos_statusbar_native.node', 'macOS status bar bridge')
+  console.log('[cleanLocales] macOS status bar native runtime ready')
+}
+
+function cleanNativeBuildRoot(nativeRoot, binaryFilename, label) {
+  fs.rmSync(path.join(nativeRoot, 'bin'), { recursive: true, force: true })
+  const buildRoot = path.join(nativeRoot, 'build')
+  const releaseRoot = path.join(buildRoot, 'Release')
+  const binaryPath = path.join(releaseRoot, binaryFilename)
+
+  if (!fs.existsSync(binaryPath)) {
+    throw new Error(`[cleanLocales] Packaged ${label} has no runtime .node binary`)
+  }
+
+  for (const entry of fs.readdirSync(buildRoot)) {
+    const entryPath = path.join(buildRoot, entry)
+    if (entry !== 'Release') {
+      fs.rmSync(entryPath, { recursive: true, force: true })
+      continue
+    }
+    for (const releaseEntry of fs.readdirSync(releaseRoot)) {
+      if (releaseEntry !== binaryFilename) {
+        fs.rmSync(path.join(releaseRoot, releaseEntry), { recursive: true, force: true })
+      }
+    }
+  }
+}
+
+function macResourceDirectories(appOutDir) {
+  const resourceDirs = [path.join(appOutDir, 'Contents', 'Resources')]
   try {
-    const entries = fs.readdirSync(appOutDir)
-    for (const entry of entries) {
+    for (const entry of fs.readdirSync(appOutDir)) {
       if (entry.endsWith('.app')) {
         resourceDirs.push(path.join(appOutDir, entry, 'Contents', 'Resources'))
       }
@@ -41,8 +102,11 @@ function cleanMacOS(appOutDir) {
   } catch {
     // appOutDir 不是目录
   }
+  return resourceDirs
+}
 
-  for (const resourcesDir of resourceDirs) {
+function cleanMacOS(appOutDir) {
+  for (const resourcesDir of macResourceDirectories(appOutDir)) {
     if (!fs.existsSync(resourcesDir)) continue
     console.log(`[cleanLocales] Scanning: ${resourcesDir}`)
 

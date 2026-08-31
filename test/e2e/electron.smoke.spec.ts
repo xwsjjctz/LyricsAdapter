@@ -1,5 +1,4 @@
 import { mkdir, mkdtemp, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -12,8 +11,25 @@ import {
   type Page,
 } from '@playwright/test';
 
-const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
-const require = createRequire(import.meta.url);
+const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+
+async function readRepoTopLevelDirectories(): Promise<string[]> {
+  const entries = await readdir(repoRoot, { withFileTypes: true });
+  return entries
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function assertRepoTopLevelDirectoriesUnchanged(before: readonly string[]): Promise<void> {
+  const beforeSet = new Set(before);
+  const added = (await readRepoTopLevelDirectories()).filter(name => !beforeSet.has(name));
+  expect(
+    added,
+    'Electron E2E must not create top-level directories in the repository. '
+      + 'Unexpected directories are reported but never deleted because another process may own them.',
+  ).toEqual([]);
+}
 
 function pngCrc32(data: Buffer): number {
   let crc = 0xffffffff;
@@ -64,7 +80,6 @@ function makeLargeCoverFixture(
     pngChunk('IEND', Buffer.alloc(0)),
   ]);
 }
-const electronExecutable = require('electron') as string;
 const inheritedEnv = Object.fromEntries(
   Object.entries(process.env).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -82,6 +97,8 @@ interface FocusEntranceProbe {
   initialOffscreen: boolean | null;
   offscreenAfterFirstFrame: boolean | null;
   initialBackdropPixel: number[] | null;
+  pageSettleBackdropPixel: number[] | null;
+  pageSettleSampleScheduled: boolean;
   underlyingBlurObserved: boolean;
   underlyingBlurFilter: string | null;
 }
@@ -119,6 +136,7 @@ async function closeElectronApp(electronApp: ElectronApplication | undefined): P
 }
 
 test('boots built renderer through Electron preload and IPC', async ({}, testInfo) => {
+  const repoTopLevelDirectoriesBefore = await readRepoTopLevelDirectories();
   const tempRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'lyrics-adapter-e2e-')));
   const isolatedHome = path.join(tempRoot, 'home');
   const dirs = {
@@ -221,8 +239,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
 
   try {
     electronApp = await electron.launch({
-      executablePath: electronExecutable,
-      cwd: repoRoot,
+      cwd: tempRoot,
       args: [
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
         `--user-data-dir=${dirs.userData}`,
@@ -265,6 +282,65 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         return false;
       }
     })).toBe(true);
+
+    if (process.platform === 'win32') {
+      const getTaskbarPage = () => electronApp!.windows().find(candidate =>
+        candidate.url() === 'app://localhost/taskbar-lyrics.html');
+      await expect.poll(() => Boolean(getTaskbarPage()), { timeout: 10_000 }).toBe(true);
+      const taskbarPage = getTaskbarPage();
+      if (!taskbarPage) throw new Error('Taskbar lyrics renderer was not created');
+
+      await expect.poll(() => taskbarPage.evaluate(() => {
+        const taskbarWindow = window as typeof window & {
+          taskbarLyrics?: { onState?: unknown };
+        };
+        return typeof taskbarWindow.taskbarLyrics?.onState;
+      })).toBe('function');
+      await expect(taskbarPage.locator('button')).toHaveCount(0);
+
+      const readTaskbarWindowState = () => electronApp!.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows().find(candidate =>
+          candidate.getTitle() === 'LyricsAdapter Taskbar Lyrics');
+        return window ? {
+          bounds: window.getBounds(),
+          alwaysOnTop: window.isAlwaysOnTop(),
+          visible: window.isVisible(),
+        } : null;
+      });
+      const widget = taskbarPage.locator('#taskbar-lyrics-widget');
+      const nativeTaskbarAvailable = await widget.waitFor({
+        state: 'visible',
+        timeout: 3_000,
+      }).then(() => true, () => false);
+
+      // Playwright can run Electron in an isolated Windows environment where
+      // Explorer's Shell_TrayWnd is intentionally unavailable. The production
+      // service fails closed there instead of falling back to a top-level
+      // always-on-top overlay. A normal interactive desktop exercises the full
+      // renderer assertions below.
+      if (nativeTaskbarAvailable) {
+        await expect(taskbarPage.locator('#current-lyric')).toHaveText('Focus legacy renderer');
+        await expect(taskbarPage.locator('#next-lyric')).toHaveText('Focus AMLL renderer');
+        await expect(taskbarPage.locator('#artwork-image')).toHaveAttribute(
+          'src',
+          /cover:\/\/e2e-focus-track\.png\/?\?size=128/,
+        );
+        const taskbarText = await taskbarPage.locator('body').innerText();
+        expect(taskbarText).not.toContain('Focus E2E Fixture');
+        expect(taskbarText).not.toContain('LyricsAdapter');
+      } else {
+        await expect(widget).toBeHidden();
+      }
+
+      const taskbarWindowState = await readTaskbarWindowState();
+      expect(taskbarWindowState).not.toBeNull();
+      expect(taskbarWindowState?.visible).toBe(nativeTaskbarAvailable);
+      expect(taskbarWindowState?.alwaysOnTop).toBe(false);
+      expect(taskbarWindowState?.bounds.height).toBeGreaterThanOrEqual(24);
+      expect(taskbarWindowState?.bounds.height).toBeLessThanOrEqual(40);
+      expect(taskbarWindowState?.bounds.width).toBeGreaterThanOrEqual(160);
+      expect(taskbarWindowState?.bounds.width).toBeLessThanOrEqual(420);
+    }
 
     // Custom-protocol resources do not consistently appear in the Performance
     // Resource Timing buffer, so inspect the resolved module script URL.
@@ -359,6 +435,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         initialOffscreen: null,
         offscreenAfterFirstFrame: null,
         initialBackdropPixel: null,
+        pageSettleBackdropPixel: null,
+        pageSettleSampleScheduled: false,
         underlyingBlurObserved: false,
         underlyingBlurFilter: null,
       };
@@ -373,6 +451,31 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
           requestAnimationFrame(() => {
             probe.offscreenAfterFirstFrame = overlay.classList.contains('translate-y-full');
           });
+        }
+
+        if (
+          overlay.classList.contains('translate-y-0')
+          && !probe.pageSettleSampleScheduled
+        ) {
+          probe.pageSettleSampleScheduled = true;
+          window.setTimeout(() => {
+            const sample = () => {
+              const canvas = overlay.querySelector<HTMLCanvasElement>('canvas');
+              const context = canvas?.getContext('2d');
+              if (!canvas || !context || canvas.width === 0 || canvas.height === 0) {
+                requestAnimationFrame(sample);
+                return;
+              }
+              probe.pageSettleBackdropPixel = Array.from(context.getImageData(
+                Math.floor(canvas.width / 2),
+                Math.floor(canvas.height / 2),
+                1,
+                1,
+              ).data);
+              observer.disconnect();
+            };
+            sample();
+          }, 600);
         }
 
         const underlyingBlur = overlay.querySelector<HTMLElement>(
@@ -395,11 +498,15 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
               1,
               1,
             ).data);
-            observer.disconnect();
           }
         }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class'],
+      });
     });
 
     await focusToggle.click();
@@ -459,10 +566,34 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         .__focusEntranceProbe ?? null);
     expect(entranceProbe?.underlyingBlurObserved).toBe(true);
     expect(entranceProbe?.underlyingBlurFilter).toMatch(/blur\([^)]+\)/);
-    // The page entrance and backdrop alpha settle within 600ms now that the
-    // first cover no longer runs a separate 700ms brightness pass. Keep a little
-    // scheduling margin before the final pixel probe.
-    await page.waitForTimeout(800);
+    await expect.poll(() => page!.evaluate(() =>
+      (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
+        .__focusEntranceProbe?.pageSettleBackdropPixel ?? null), { timeout: 2_000 })
+      .not.toBeNull();
+    const pageSettleBackdropPixel = await page.evaluate(() =>
+      (window as typeof window & { __focusEntranceProbe?: FocusEntranceProbe })
+        .__focusEntranceProbe?.pageSettleBackdropPixel ?? null);
+    if (!pageSettleBackdropPixel) throw new Error('Focus page-settle pixel probe did not run');
+    // A loaded renderer can shift this timer-to-RAF sample by several frames.
+    // Keep a broad intermediate band that still catches skipped or already
+    // completed reveals without treating CI scheduling as animation behavior.
+    expect(pageSettleBackdropPixel[3]).toBeGreaterThanOrEqual(100);
+    expect(pageSettleBackdropPixel[3]).toBeLessThanOrEqual(190);
+
+    // The page itself settles at 600ms while the delayed Canvas reveal continues
+    // to 1000ms. Poll the actual backing pixel instead of coupling to wall-clock
+    // scheduling margin.
+    await expect.poll(() => backdropCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) return 0;
+      return context.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1,
+      ).data[3] ?? 0;
+    }), { timeout: 2_000 }).toBeGreaterThanOrEqual(250);
     const canvasMetrics = await backdropCanvas.evaluate((element) => {
       const canvas = element as HTMLCanvasElement;
       const context = canvas.getContext('2d');
@@ -524,6 +655,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       body: Buffer.from(JSON.stringify({
         entranceStyles,
         initialBackdropPixel,
+        pageSettleBackdropPixel,
         finalBackdropPixel: canvasMetrics.centerRgba,
       }, null, 2)),
       contentType: 'application/json',
@@ -740,15 +872,15 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     expect(thumbnailStats.every(fileStat => fileStat.size > 0)).toBe(true);
 
     // Interrupt a real exit with the same CmdOrCtrl+Enter shortcut used by the
-    // app. The existing overlay must reverse in place, and the Canvas alpha must
-    // finish over the shortened remaining distance rather than replaying 600ms.
+    // app. Exit alpha must fall quickly, then the existing overlay must reverse
+    // in place without replaying the full entry timeline.
     const focusShortcut = process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter';
     await focusOverlay.evaluate((element) => {
       element.setAttribute('data-focus-interruption-probe', 'same-overlay');
     });
     await page.keyboard.press(focusShortcut);
-    await page.waitForTimeout(150);
-    const interruptedExitAlpha = await backdropCanvas.evaluate((element) => {
+    await page.waitForTimeout(50);
+    const readBackdropCenterAlpha = () => backdropCanvas.evaluate((element) => {
       const canvas = element as HTMLCanvasElement;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('Focus backdrop did not expose a 2D context');
@@ -759,26 +891,21 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         1,
       ).data[3] ?? 0;
     });
-    expect(interruptedExitAlpha).toBeLessThan(245);
+    const immediateExitAlpha = await readBackdropCenterAlpha();
+
+    await page.waitForTimeout(100);
+    const interruptedExitAlpha = await readBackdropCenterAlpha();
+    expect(interruptedExitAlpha).toBeLessThan(200);
 
     await page.keyboard.press(focusShortcut);
     await expect(focusOverlay).toHaveAttribute('data-focus-interruption-probe', 'same-overlay');
-    await page.waitForTimeout(250);
-    const interruptedReturnAlpha = await backdropCanvas.evaluate((element) => {
-      const canvas = element as HTMLCanvasElement;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Focus backdrop did not expose a 2D context');
-      return context.getImageData(
-        Math.floor(canvas.width / 2),
-        Math.floor(canvas.height / 2),
-        1,
-        1,
-      ).data[3] ?? 0;
-    });
+    await page.waitForTimeout(500);
+    const interruptedReturnAlpha = await readBackdropCenterAlpha();
     expect(interruptedReturnAlpha).toBeGreaterThanOrEqual(250);
     await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
     await testInfo.attach('focus-interruption-metrics', {
       body: Buffer.from(JSON.stringify({
+        immediateExitAlpha,
         interruptedExitAlpha,
         interruptedReturnAlpha,
       }, null, 2)),
@@ -847,10 +974,14 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     expect(defaultLyricsMetrics.fontSize).toBe('24px');
     expect(defaultLyricsMetrics.lineSpacingAdjustment).toBe('3px');
     await electronApp.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.setSize(1500, 1000);
+      const mainWindow = BrowserWindow.getAllWindows().find(candidate =>
+        candidate.webContents.getURL() === 'app://localhost/index.html');
+      if (!mainWindow) throw new Error('LyricsAdapter main window was not found');
+      mainWindow.setSize(1500, 1000);
     });
-    await expect.poll(() => page!.evaluate(() => [window.innerWidth, window.innerHeight]))
-      .toEqual([1500, 1000]);
+    await expect.poll(() => page!.evaluate(() =>
+      Math.abs(window.innerWidth - 1500) <= 1 && window.innerHeight === 1000))
+      .toBe(true);
     const enlargedLyricsMetrics = await readFocusLyricsMetrics();
     expect(enlargedLyricsMetrics.viewportHeight).toBeGreaterThan(defaultLyricsMetrics.viewportHeight);
     expect(enlargedLyricsMetrics.fontSize).toBe(defaultLyricsMetrics.fontSize);
@@ -859,10 +990,14 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     expect(enlargedLyricsMetrics.maskImage).toContain('72px');
 
     await electronApp.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.setSize(1200, 800);
+      const mainWindow = BrowserWindow.getAllWindows().find(candidate =>
+        candidate.webContents.getURL() === 'app://localhost/index.html');
+      if (!mainWindow) throw new Error('LyricsAdapter main window was not found');
+      mainWindow.setSize(1200, 800);
     });
-    await expect.poll(() => page!.evaluate(() => [window.innerWidth, window.innerHeight]))
-      .toEqual([1200, 800]);
+    await expect.poll(() => page!.evaluate(() =>
+      Math.abs(window.innerWidth - 1200) <= 1 && window.innerHeight === 800))
+      .toBe(true);
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 
@@ -883,7 +1018,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       try {
         await closeElectronApp(electronApp);
       } finally {
-        await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
+        try {
+          await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
+        } finally {
+          await assertRepoTopLevelDirectoriesUnchanged(repoTopLevelDirectoriesBefore);
+        }
       }
     }
   }

@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect, memo } from 'react';
-import { toCoverThumb, appendCoverQuery } from '../services/coverUrl';
+import {
+  DEFAULT_COVER_ARTWORK_URL,
+  toCoverThumb,
+  appendCoverQuery,
+} from '../services/coverUrl';
 
 interface TrackCoverProps {
   trackId: string;
@@ -15,7 +19,6 @@ interface TrackCoverProps {
   thumbSize?: number;
 }
 
-const PLACEHOLDER_SVG = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23222"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23666" font-size="14">♪</text></svg>';
 const RETRY_DELAYS = [2000, 4000, 8000];
 
 export const TrackCover: React.FC<TrackCoverProps> = memo(({
@@ -67,7 +70,7 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
   };
 
   if (hasError || !fallbackUrl) {
-    return <img src={PLACEHOLDER_SVG} className={className} style={style} alt="" />;
+    return <img src={DEFAULT_COVER_ARTWORK_URL} className={className} style={style} alt="" />;
   }
 
   // 仅 cover:// 协议支持 ?size= 缩略图降采样；远程/blob URL 原样使用。

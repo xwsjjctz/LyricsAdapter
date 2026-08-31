@@ -3,6 +3,14 @@
 
 const COVER_PROTOCOL = 'cover://';
 
+// Shared fallback for tracks without embedded artwork. The 40x40 viewBox keeps
+// the existing TrackCover proportions while the explicit intrinsic size gives
+// platform Media Session implementations a truthful 256x256 artwork candidate.
+const DEFAULT_COVER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 40 40"><rect width="40" height="40" fill="#222"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#666" font-size="14">♪</text></svg>';
+
+export const DEFAULT_COVER_ARTWORK_URL =
+  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(DEFAULT_COVER_SVG)}`;
+
 export function parseCoverDataUrl(dataUrl: string | undefined | null): { mime: string; base64: string } | null {
   if (!dataUrl) return null;
   const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/);

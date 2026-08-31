@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
  * Library-facing ViewModel (Phase 4 of the refactor roadmap, §6.4).
  *
  * Repackages the library store + the two controllers into the shape UI
- * consumes, so AppWorkspace can hand the application shell a single
+ * consumes, so the composition root can hand the application shell a single
  * `library` object instead of threading slots / activeSlotId / viewSlot / the
  * mutation callbacks separately.
  *

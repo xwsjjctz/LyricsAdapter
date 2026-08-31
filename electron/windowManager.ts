@@ -17,6 +17,14 @@ process.env['VITE_PUBLIC'] = app.isPackaged
 
 let win: BrowserWindow | null = null;
 
+export function shouldThrottleRendererInBackground(
+  platform: NodeJS.Platform,
+): boolean {
+  // Only macOS owns the 50ms status-item lyric sampler. Other platforms keep
+  // Electron's energy-saving default because their native surfaces do not need it.
+  return platform !== 'darwin';
+}
+
 export function getWindow(): BrowserWindow | null {
   return win;
 }
@@ -48,7 +56,15 @@ export async function createWindow(): Promise<BrowserWindow> {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      // Chromium enables spell checking by default and asks Windows to create
+      // its per-user dictionary directories. The player's inputs do not need
+      // OS dictionary-backed checking, and isolated E2E profiles must not leak
+      // Microsoft/Spelling directories into the working tree.
+      spellcheck: false,
       allowRunningInsecureContent: false,
+      // macOS menu-bar lyrics sample the track-owned media clock in the renderer.
+      // Keep that timer accurate while the window is minimized or occluded.
+      backgroundThrottling: shouldThrottleRendererInBackground(process.platform),
       // sandbox disabled: custom app:// protocol (protocol.handle) is
       // incompatible with OS-level renderer sandbox. contextIsolation
       // provides the security boundary instead.
@@ -125,8 +141,9 @@ export async function createWindow(): Promise<BrowserWindow> {
     await win.loadURL(appUrl);
   } else {
     // Dev mode: load from app:// protocol which proxies to Vite dev server.
-    // This keeps the origin as app://localhost in both modes so that
-    // localStorage and IndexedDB are shared between dev and production.
+    // The origin remains stable across development restarts. The Chromium
+    // profile itself is intentionally separate from production so both builds
+    // can run together without sharing a ProcessSingleton lock.
     const appUrl = 'app://localhost/index.html';
     log('Loading URL (dev via app:// proxy):', appUrl);
 

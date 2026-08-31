@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' app: cover: https:; connect-src 'self' ws://127.0.0.1:3000 http://127.0.0.1:3000; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>LyricsAdapter Taskbar Lyrics</title>
+  </head>
+  <body>
+    <main id="taskbar-lyrics-widget" class="taskbar-lyrics-widget" hidden>
+      <div class="artwork" aria-hidden="true">
+        <span id="artwork-placeholder" class="artwork-placeholder">&#9835;</span>
+        <img id="artwork-image" class="artwork-image" alt="" draggable="false" hidden />
+      </div>
+      <div class="lyrics" aria-live="off">
+        <div id="current-lyric" class="current-lyric"></div>
+        <div id="next-lyric" class="next-lyric"></div>
+      </div>
+    </main>
+    <script type="module" src="/src/taskbar-lyrics/index.ts"></script>
+  </body>
+</html>
