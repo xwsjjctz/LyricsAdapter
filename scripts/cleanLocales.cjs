@@ -21,7 +21,67 @@ async function defaultFn(context) {
     cleanMacOS(appOutDir)
   } else {
     cleanWinLinux(appOutDir, electronPlatformName)
+    if (electronPlatformName === 'win32') {
+      cleanWindowsTaskbarNative(context)
+    }
   }
+}
+
+function cleanWindowsTaskbarNative(context) {
+  const nativeRoot = path.join(
+    context.appOutDir,
+    'resources',
+    'app.asar.unpacked',
+    'node_modules',
+    '@lyrics-adapter',
+    'windows-taskbar-native',
+  )
+  if (!fs.existsSync(nativeRoot)) {
+    throw new Error(`[cleanLocales] Missing packaged taskbar native module: ${nativeRoot}`)
+  }
+
+  const archNames = {
+    1: ['win32-x64', 'node.napi.node'],
+    3: ['win32-arm64', 'node.napi.armv8.node'],
+    x64: ['win32-x64', 'node.napi.node'],
+    arm64: ['win32-arm64', 'node.napi.armv8.node'],
+  }
+  const target = archNames[context.arch]
+  const prebuild = target
+    ? path.join(nativeRoot, 'prebuilds', ...target)
+    : ''
+  const sourceBuild = path.join(
+    nativeRoot,
+    'build',
+    'Release',
+    'windows_taskbar_native.node',
+  )
+
+  fs.rmSync(path.join(nativeRoot, 'bin'), { recursive: true, force: true })
+  if (prebuild && fs.existsSync(prebuild)) {
+    fs.rmSync(path.join(nativeRoot, 'build'), { recursive: true, force: true })
+  } else {
+    const buildRoot = path.join(nativeRoot, 'build')
+    if (fs.existsSync(buildRoot)) {
+      for (const entry of fs.readdirSync(buildRoot)) {
+        const entryPath = path.join(buildRoot, entry)
+        if (entry !== 'Release') {
+          fs.rmSync(entryPath, { recursive: true, force: true })
+          continue
+        }
+        for (const releaseEntry of fs.readdirSync(entryPath)) {
+          if (releaseEntry !== 'windows_taskbar_native.node') {
+            fs.rmSync(path.join(entryPath, releaseEntry), { recursive: true, force: true })
+          }
+        }
+      }
+    }
+  }
+
+  if ((!prebuild || !fs.existsSync(prebuild)) && !fs.existsSync(sourceBuild)) {
+    throw new Error('[cleanLocales] Packaged taskbar bridge has no runtime .node binary')
+  }
+  console.log(`[cleanLocales] Taskbar native runtime ready for ${String(context.arch)}`)
 }
 
 function cleanMacOS(appOutDir) {

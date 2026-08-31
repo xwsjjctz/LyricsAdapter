@@ -19,6 +19,10 @@
 
 - [验证 FLAC 文件元数据](./guides/verify-flac-metadata.md)
 
+## 许可与致谢
+
+- [第三方声明](./THIRD_PARTY_NOTICES.md)
+
 ## 模块参考
 
 [`reference/modules/`](./reference/modules/) 保存核心 service、hook 和类型的说明。这些文档中部分内容可能滞后于源码，修改相关模块时应同步核对。

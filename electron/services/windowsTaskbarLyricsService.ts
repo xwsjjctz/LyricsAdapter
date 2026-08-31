@@ -10,6 +10,10 @@ import {
 } from 'electron';
 import type { SystemLyricsAction, SystemLyricsState } from '../../src/types/systemLyrics';
 import { logger } from '../logger';
+import {
+  loadWindowsTaskbarNativeBridge,
+  type WindowsTaskbarNativeBridge,
+} from '../native/windowsTaskbarNative';
 
 export type WindowsTaskbarLyricsActionHandler = (
   action: SystemLyricsAction,
@@ -20,11 +24,6 @@ export interface TaskbarLyricsDisplay {
   workArea: Readonly<Rectangle>;
 }
 
-export interface TaskbarLyricsPlacement extends Rectangle {
-  edge: 'top' | 'bottom';
-  compact: boolean;
-}
-
 type DisposeSubscription = () => void;
 
 export interface WindowsTaskbarLyricsServiceDependencies {
@@ -33,90 +32,29 @@ export interface WindowsTaskbarLyricsServiceDependencies {
   widgetUrl: string;
   createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
   getPrimaryDisplay: () => TaskbarLyricsDisplay;
+  loadNativeBridge: () => WindowsTaskbarNativeBridge | null;
   subscribeDisplayChanges: (listener: () => void) => DisposeSubscription;
   subscribeThemeChanges: (listener: () => void) => DisposeSubscription;
   subscribeSessionChanges: (
     onLock: () => void,
     onUnlock: () => void,
   ) => DisposeSubscription;
+  subscribeTaskbarHealth: (listener: () => void) => DisposeSubscription;
 }
 
 const WINDOW_WIDTH = 420;
 const WINDOW_HEIGHT = 40;
-const COMPACT_HEIGHT_THRESHOLD = 36;
-const MINIMUM_TASKBAR_THICKNESS = 26;
-const MINIMUM_WINDOW_WIDTH = 160;
 const WINDOW_MARGIN = 4;
+const WINDOW_CORNER_RADIUS = 8;
 const COVER_URL_LIMIT = 8192;
 const RESTART_BASE_DELAY_MS = 500;
 const RESTART_MAX_DELAY_MS = 30_000;
+const TASKBAR_HEALTH_INTERVAL_MS = 1_500;
 const TASKBAR_LYRICS_CHANNEL = 'taskbar-lyrics-state';
 
 /** Resolve from Electron's application root so ESM builds never rely on __dirname. */
 export function resolveTaskbarLyricsPreloadPath(appPath: string): string {
   return path.join(appPath, 'dist-electron', 'taskbar-lyrics-preload.cjs');
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function rectangleEnd(rectangle: Readonly<Rectangle>, axis: 'x' | 'y'): number {
-  return rectangle[axis] + rectangle[axis === 'x' ? 'width' : 'height'];
-}
-
-/**
- * Infers a horizontal taskbar from Electron's display work area. This is the
- * strongest placement signal available without reintroducing a Win32 bridge.
- * Auto-hidden, unknown, and vertical taskbars deliberately return null so the
- * overlay never floats over ordinary desktop content.
- */
-export function calculateTaskbarLyricsPlacement(
-  display: TaskbarLyricsDisplay,
-): TaskbarLyricsPlacement | null {
-  const { bounds, workArea } = display;
-  const leftInset = Math.max(0, workArea.x - bounds.x);
-  const topInset = Math.max(0, workArea.y - bounds.y);
-  const rightInset = Math.max(0, rectangleEnd(bounds, 'x') - rectangleEnd(workArea, 'x'));
-  const bottomInset = Math.max(0, rectangleEnd(bounds, 'y') - rectangleEnd(workArea, 'y'));
-  const horizontalThickness = Math.max(topInset, bottomInset);
-  const verticalThickness = Math.max(leftInset, rightInset);
-
-  if (
-    horizontalThickness < MINIMUM_TASKBAR_THICKNESS
-    || verticalThickness > horizontalThickness
-  ) {
-    return null;
-  }
-
-  const edge = topInset > bottomInset ? 'top' : 'bottom';
-  const thickness = edge === 'top' ? topInset : bottomInset;
-  const height = Math.floor(Math.min(WINDOW_HEIGHT, thickness - 2));
-  if (height < 24) return null;
-
-  // Electron cannot expose the notification-area bounds. Reserve a conservative
-  // right-hand section and keep the overlay immediately to its left.
-  const rightReserve = clamp(Math.round(bounds.width * 0.11), 176, 240);
-  const availableWidth = Math.floor(bounds.width - rightReserve - (WINDOW_MARGIN * 2));
-  if (availableWidth < MINIMUM_WINDOW_WIDTH) return null;
-
-  const width = Math.min(WINDOW_WIDTH, availableWidth);
-  const x = Math.round(
-    bounds.x + bounds.width - rightReserve - WINDOW_MARGIN - width,
-  );
-  const taskbarY = edge === 'top'
-    ? bounds.y
-    : bounds.y + bounds.height - thickness;
-  const y = Math.round(taskbarY + ((thickness - height) / 2));
-
-  return {
-    x,
-    y,
-    width,
-    height,
-    edge,
-    compact: height < COMPACT_HEIGHT_THRESHOLD,
-  };
 }
 
 /** Only renderer-safe cached covers and remote HTTPS artwork cross this surface. */
@@ -137,6 +75,7 @@ function defaultDependencies(): WindowsTaskbarLyricsServiceDependencies {
     widgetUrl: 'app://localhost/taskbar-lyrics.html',
     createWindow: options => new BrowserWindow(options),
     getPrimaryDisplay: () => screen.getPrimaryDisplay(),
+    loadNativeBridge: () => loadWindowsTaskbarNativeBridge(),
     subscribeDisplayChanges: listener => {
       screen.on('display-added', listener);
       screen.on('display-removed', listener);
@@ -163,21 +102,29 @@ function defaultDependencies(): WindowsTaskbarLyricsServiceDependencies {
         powerMonitor.removeListener('resume', onUnlock);
       };
     },
+    subscribeTaskbarHealth: listener => {
+      const timer = setInterval(listener, TASKBAR_HEALTH_INTERVAL_MS);
+      timer.unref();
+      return () => clearInterval(timer);
+    },
   };
 }
 
 /**
- * Owns the Windows taskbar lyrics BrowserWindow. It is a click-through Electron
- * overlay, not an Explorer child HWND, so the implementation stays entirely in
- * the existing TypeScript/Electron toolchain.
+ * Owns the Windows taskbar lyrics BrowserWindow and embeds its HWND as a small,
+ * non-activating Explorer taskbar child through the Windows-only Node-API bridge.
  */
 export class WindowsTaskbarLyricsService {
   private readonly dependencies: WindowsTaskbarLyricsServiceDependencies;
+  private bridge: WindowsTaskbarNativeBridge | null = null;
   private window: BrowserWindow | null = null;
+  private nativeHandle: Buffer | null = null;
   private state: SystemLyricsState | null = null;
   private loaded = false;
+  private attached = false;
   private enabled = false;
   private sessionLocked = false;
+  private lastAttachmentError = '';
   private restartAttempt = 0;
   private restartTimer: NodeJS.Timeout | null = null;
   private subscriptions: DisposeSubscription[] = [];
@@ -193,20 +140,39 @@ export class WindowsTaskbarLyricsService {
     if (this.dependencies.platform !== 'win32') return false;
     if (this.enabled) return true;
 
+    try {
+      this.bridge = this.dependencies.loadNativeBridge();
+    } catch (error) {
+      logger.error('[WindowsTaskbarLyrics] Failed to load native taskbar bridge:', error);
+      this.bridge = null;
+      return false;
+    }
+    if (!this.bridge) {
+      logger.error('[WindowsTaskbarLyrics] Native taskbar bridge is unavailable.');
+      return false;
+    }
+
     this.enabled = true;
     this.subscriptions = [
-      this.dependencies.subscribeDisplayChanges(() => this.refreshPlacement()),
+      this.dependencies.subscribeDisplayChanges(() => {
+        if (this.refreshAttachment()) this.renderState();
+      }),
       this.dependencies.subscribeThemeChanges(() => this.renderState()),
       this.dependencies.subscribeSessionChanges(
         () => {
           this.sessionLocked = true;
-          this.liveWindow()?.hide();
+          this.setWindowVisible(false);
         },
         () => {
           this.sessionLocked = false;
+          this.refreshAttachment();
           this.renderState();
         },
       ),
+      this.dependencies.subscribeTaskbarHealth(() => {
+        if (!this.state?.trackId || this.sessionLocked) return;
+        if (this.refreshAttachment()) this.renderState();
+      }),
     ];
     return true;
   }
@@ -217,7 +183,7 @@ export class WindowsTaskbarLyricsService {
     if (!this.enabled || this.dependencies.platform !== 'win32') return;
 
     if (!state.trackId) {
-      this.liveWindow()?.hide();
+      this.setWindowVisible(false);
       return;
     }
 
@@ -228,17 +194,24 @@ export class WindowsTaskbarLyricsService {
   /** Destroys the Chromium surface and unregisters every global listener. */
   stop(): void {
     this.enabled = false;
+    this.setWindowVisible(false);
     this.state = null;
     this.loaded = false;
+    this.attached = false;
     this.sessionLocked = false;
+    this.lastAttachmentError = '';
     this.restartAttempt = 0;
     this.clearRestartTimer();
 
     for (const dispose of this.subscriptions.splice(0)) dispose();
 
     const window = this.window;
+    const nativeHandle = this.nativeHandle;
     this.window = null;
+    this.nativeHandle = null;
+    this.detachHandle(nativeHandle);
     if (window && !window.isDestroyed()) window.destroy();
+    this.bridge = null;
   }
 
   private ensureWindow(): BrowserWindow | null {
@@ -247,11 +220,14 @@ export class WindowsTaskbarLyricsService {
     if (this.restartTimer) return null;
 
     try {
+      const display = this.dependencies.getPrimaryDisplay();
       const window = this.dependencies.createWindow({
         width: WINDOW_WIDTH,
         height: WINDOW_HEIGHT,
-        x: -32_000,
-        y: -32_000,
+        // Create on the target monitor while hidden so Chromium adopts its DPI
+        // before the native HWND becomes an Explorer taskbar child.
+        x: display.bounds.x,
+        y: display.bounds.y,
         title: 'LyricsAdapter Taskbar Lyrics',
         show: false,
         frame: false,
@@ -281,10 +257,13 @@ export class WindowsTaskbarLyricsService {
         },
       });
       this.window = window;
+      this.nativeHandle = window.getNativeWindowHandle();
       this.loaded = false;
+      this.attached = false;
 
-      window.setAlwaysOnTop(true, 'pop-up-menu');
-      window.setIgnoreMouseEvents(true, { forward: true });
+      // The child HWND owns only the visible widget rectangle, so the rest of
+      // the Explorer taskbar remains untouched without click-through tricks.
+      window.setIgnoreMouseEvents(false);
       window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
       window.webContents.on('will-navigate', event => event.preventDefault());
       window.webContents.on('did-finish-load', () => {
@@ -298,17 +277,30 @@ export class WindowsTaskbarLyricsService {
       });
       window.on('closed', () => {
         if (this.window !== window) return;
+        const nativeHandle = this.nativeHandle;
         this.window = null;
+        this.nativeHandle = null;
         this.loaded = false;
+        this.attached = false;
+        this.detachHandle(nativeHandle);
         this.scheduleRestart();
       });
 
+      this.refreshAttachment();
       void window.loadURL(this.dependencies.widgetUrl).catch(error => {
         this.handleWindowFailure(window, 'Failed to load taskbar lyrics page.', error);
       });
       return window;
     } catch (error) {
       logger.error('[WindowsTaskbarLyrics] Failed to create Electron window:', error);
+      const window = this.window;
+      const nativeHandle = this.nativeHandle;
+      this.window = null;
+      this.nativeHandle = null;
+      this.loaded = false;
+      this.attached = false;
+      this.detachHandle(nativeHandle);
+      if (window && !window.isDestroyed()) window.destroy();
       this.scheduleRestart();
       return null;
     }
@@ -317,40 +309,82 @@ export class WindowsTaskbarLyricsService {
   private liveWindow(): BrowserWindow | null {
     if (!this.window) return null;
     if (!this.window.isDestroyed()) return this.window;
+    const nativeHandle = this.nativeHandle;
     this.window = null;
+    this.nativeHandle = null;
     this.loaded = false;
+    this.attached = false;
+    this.detachHandle(nativeHandle);
     return null;
   }
 
-  private refreshPlacement(): boolean {
+  private refreshAttachment(): boolean {
     const window = this.liveWindow();
-    if (!window || this.sessionLocked) return false;
+    const nativeHandle = this.nativeHandle;
+    const bridge = this.bridge;
+    if (!window || !nativeHandle || !bridge || this.sessionLocked) return false;
 
-    const placement = calculateTaskbarLyricsPlacement(
-      this.dependencies.getPrimaryDisplay(),
-    );
-    if (!placement) {
-      window.hide();
+    try {
+      const result = bridge.attachTaskbarWindow(nativeHandle, {
+        widthDip: WINDOW_WIDTH,
+        heightDip: WINDOW_HEIGHT,
+        gapDip: WINDOW_MARGIN,
+        cornerRadiusDip: WINDOW_CORNER_RADIUS,
+      });
+      this.attached = true;
+      this.lastAttachmentError = '';
+      if (result.changed) {
+        logger.info('[WindowsTaskbarLyrics] Embedded into Explorer taskbar:', {
+          reason: result.changeReason,
+          edge: result.edge,
+          dpi: result.dpi,
+          boundsPx: result.boundsPx,
+        });
+      }
+      return true;
+    } catch (error) {
+      this.attached = false;
+      this.setWindowVisible(false);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== this.lastAttachmentError) {
+        logger.warn('[WindowsTaskbarLyrics] Taskbar attachment deferred:', error);
+        this.lastAttachmentError = message;
+      }
       return false;
     }
-
-    const { edge: _edge, compact: _compact, ...bounds } = placement;
-    window.setBounds(bounds, false);
-    return true;
   }
 
   private renderState(): void {
     const state = this.state;
     const window = this.liveWindow();
     if (!state?.trackId || !window || !this.loaded || this.sessionLocked) return;
-    if (!this.refreshPlacement()) return;
+    if (!this.attached) return;
 
     window.webContents.send(TASKBAR_LYRICS_CHANNEL, {
       coverUrl: sanitizeTaskbarCoverUrl(state.coverUrl),
       line: state.line,
       nextLine: state.nextLine,
     });
-    window.showInactive();
+    this.setWindowVisible(true);
+  }
+
+  private setWindowVisible(visible: boolean): boolean {
+    const window = this.liveWindow();
+    const bridge = this.bridge;
+    const nativeHandle = this.nativeHandle;
+    if (!window) return false;
+
+    if (this.attached && bridge && nativeHandle) {
+      try {
+        return bridge.setTaskbarWindowVisible(nativeHandle, visible);
+      } catch (error) {
+        this.attached = false;
+        logger.warn('[WindowsTaskbarLyrics] Failed to change taskbar child visibility:', error);
+      }
+    }
+
+    if (!visible) window.hide();
+    return false;
   }
 
   private handleWindowFailure(
@@ -362,10 +396,23 @@ export class WindowsTaskbarLyricsService {
     if (error === undefined) logger.warn(`[WindowsTaskbarLyrics] ${message}`);
     else logger.error(`[WindowsTaskbarLyrics] ${message}`, error);
 
+    const nativeHandle = this.nativeHandle;
     this.window = null;
+    this.nativeHandle = null;
     this.loaded = false;
+    this.attached = false;
+    this.detachHandle(nativeHandle);
     if (!window.isDestroyed()) window.destroy();
     this.scheduleRestart();
+  }
+
+  private detachHandle(nativeHandle: Buffer | null): void {
+    if (!nativeHandle || !this.bridge) return;
+    try {
+      this.bridge.detachTaskbarWindow(nativeHandle);
+    } catch (error) {
+      logger.warn('[WindowsTaskbarLyrics] Failed to detach taskbar child HWND:', error);
+    }
   }
 
   private scheduleRestart(): void {

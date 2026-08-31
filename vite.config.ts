@@ -56,7 +56,11 @@ export default defineConfig(({ mode }) => {
                 outDir: 'dist-electron',
                 sourcemap: isElectronDebug,
                 rollupOptions: {
-                  external: ['electron', 'music-tag-native']
+                  external: [
+                    'electron',
+                    'music-tag-native',
+                    '@lyrics-adapter/windows-taskbar-native',
+                  ]
                 }
               }
             }

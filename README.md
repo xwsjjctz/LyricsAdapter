@@ -29,7 +29,7 @@
 - **流式本地播放** - 本地文件通过 `audio://` 自定义协议按 Range 请求流式读取，不整载入内存
 - **完整播放控制** - 播放/暂停、上一曲/下一曲、进度调节、音量控制
 - **系统媒体集成** - 向 macOS 控制中心与 Windows 系统媒体控制发布歌曲信息、封面和播放操作
-- **系统歌词** - macOS 菜单栏实时歌词；Windows 使用纯 Electron 实现的 Fluent 透明覆盖层显示在任务栏旁，无需额外原生运行时
+- **系统歌词** - macOS 菜单栏实时歌词；Windows 由 Electron HTML/CSS 渲染 Fluent 风格界面，并通过独立实现的 C++ Node-API/Win32 桥接将歌词窗口嵌入任务栏
 - **多种播放模式** - 顺序播放、单曲循环、随机播放
 
 ### 🎨 用户界面
@@ -82,9 +82,10 @@
 
 ### 前置要求
 
-- **Node.js** 20.19 或更高版本（或 22.12+）
+- **Node.js** 24.19.x
 - **npm** 9.0 或更高版本（或 yarn/pnpm）
 - **操作系统**：Windows 10+、macOS 10.15+、Linux (x64/arm64)
+- **Windows 原生桥接**：x64 日常开发直接使用仓库内的 Node-API v8 预编译文件，无需 Python；仅在修改 C++ 或生成其他架构产物时，需要 Visual Studio 2022 的“使用 C++ 的桌面开发”工作负载与 Python 3，并执行 `npm run native:rebuild:taskbar -- --from-source`
 
 ### 安装与运行
 
@@ -295,6 +296,7 @@ npm run electron:build
 | **TypeScript** | ~5.8.2 | 类型安全的 JavaScript 超集 |
 | **Vite** | ^8.1.0 | 下一代前端构建工具，快速热更新 |
 | **Electron** | ^42.5.0 | 跨平台桌面应用框架 |
+| **C++ Node-API / Win32** | Node-API 8 | Windows 任务栏子窗口桥接；界面仍由 Electron HTML/CSS 渲染 |
 | **Tailwind CSS** | ^4.3.1 | 实用优先的 CSS 框架 |
 | **GSAP** | ^3.15.0 | 页面切换与过渡动画 |
 | **music-tag-native** | ^1.0.0 | 音频元数据解析/写入库（Rust lofty 引擎） |
@@ -308,6 +310,7 @@ npm run electron:build
 
 - **Vite Plugin Electron** - Electron 集成插件
 - **Electron Builder** - 跨平台打包工具
+- **prebuildify / node-gyp / @electron/rebuild** - 分发 Node-API 预编译文件，并为维护者提供显式源码重建
 - **cross-env** - 跨平台环境变量设置
 
 ---
@@ -320,9 +323,12 @@ LyricsAdapter/
 │   ├── main.ts              # 入口：协议注册、IPC 注册、窗口创建、更新器
 │   ├── preload.ts           # contextBridge，暴露受控的 window.electron
 │   ├── windowManager.ts     # frameless 窗口与窗口状态
+│   ├── native/              # Node-API 桥接加载、校验与平台降级
 │   ├── protocols/           # 自定义协议：audio:// cover:// stream:// app://
 │   ├── ipc/                 # typed + legacy IPC handlers（文件、曲库、WebDAV、在线音源、登录…）
 │   └── services/            # SQLite 用户状态仓库、音频元数据读写、设置存储
+├── native/
+│   └── windows-taskbar-native/ # 独立实现的 C++ Node-API/Win32 任务栏子窗口桥接
 ├── src/                     # Renderer（React）
 │   ├── App.tsx              # 根组合点 + ErrorBoundary（wiring/composition only）
 │   ├── components/          # UI 组件（new-ui/、focus-mode/、settings/、legacy/）
@@ -336,6 +342,7 @@ LyricsAdapter/
 │   ├── domain/              # 纯领域规则
 │   ├── repositories/        # 数据访问封装
 │   ├── shared/              # LRC/QRC/YRC 解析、持久化策略、schema
+│   ├── taskbar-lyrics/      # Windows 任务栏歌词的独立 HTML/CSS 渲染界面
 │   └── i18n/                # 6 种语言的 locale 文件
 ├── test/                    # Vitest 单元测试 + Playwright Electron E2E
 ├── docs/                    # 架构与开发文档（overview / playback-flow / …）
@@ -396,6 +403,18 @@ onlineMusicProvider（qq / netease 归一为 OnlineSong）
     ↓
 合并进 local / cloud slot
 ```
+
+#### Windows 任务栏歌词流程
+
+```
+播放器快照 → typed IPC → Electron 专用歌词 BrowserWindow（HTML/CSS）
+    ↓
+BrowserWindow HWND → C++ Node-API/Win32 桥接
+    ↓
+SetParent 嵌入任务栏 + window region / DPI 感知定位
+```
+
+歌词内容、封面和 Fluent 风格均由隔离的 Electron 渲染页负责；Windows-only C++ 桥接只处理 HWND、任务栏父子关系、窗口区域与定位。该桥接在本仓库中独立实现，不需要 C#/.NET 辅助进程。详见 [第三方声明](docs/THIRD_PARTY_NOTICES.md) 中的设计与许可说明。
 
 ### 播放槽系统（Library Slots）
 
@@ -549,7 +568,7 @@ onlineMusicProvider（qq / netease 归一为 OnlineSong）
 
 本项目采用 GPL 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 项目内APP图标使用 CC BY 4.0 授权 - 查看 [app-icon-LICENSE](app-icon-LICENSE) 文件了解详情
-第三方源码与实现致谢 - 查看 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+第三方源码与实现致谢 - 查看 [第三方声明](docs/THIRD_PARTY_NOTICES.md)
 
 ---
 

@@ -1,0 +1,6 @@
+{
+  "arch": "x64",
+  "nodeApi": 8,
+  "electronVersionUsedToBuild": "42.10.0",
+  "sourceHash": "75710f456b4bfec8adab166ba08ec20ec2705e62880aaee77961f0f961cc9078"
+}

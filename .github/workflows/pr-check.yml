@@ -31,3 +31,37 @@ jobs:
 
       - name: Electron smoke test
         run: xvfb-run -a npm run test:e2e:run
+
+  native-build:
+    name: Windows native build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      npm_config_msvs_version: 2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: npm
+
+      - name: Setup Python for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild taskbar bridge from source
+        run: npm run native:rebuild:taskbar -- --from-source
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test

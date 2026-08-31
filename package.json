@@ -14,7 +14,11 @@
     "dev": "cross-env ELECTRON_STARTUP_PREVENT=1 vite --mode development",
     "build": "vite build",
     "preview": "vite preview",
+    "native:rebuild:taskbar": "node scripts/rebuildWindowsTaskbarNative.cjs",
+    "postinstall": "npm run native:rebuild:taskbar -- --allow-missing",
+    "preelectron:dev": "npm run native:rebuild:taskbar",
     "electron:dev": "vite --mode development",
+    "preelectron:debug": "npm run native:rebuild:taskbar",
     "electron:debug": "cross-env REMOTE_DEBUGGING_PORT=9222 ELECTRON_INSPECT=127.0.0.1:9229 vite --mode electron-debug",
     "electron:dev:proxy": "cross-env NODE_OPTIONS=--require=./scripts/proxy-preload.cjs vite --mode development",
     "electron:build": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder",
@@ -48,8 +52,12 @@
     "write-file-atomic": "^7.0.1",
     "zod": "^4.4.3"
   },
+  "optionalDependencies": {
+    "@lyrics-adapter/windows-taskbar-native": "file:./native/windows-taskbar-native"
+  },
   "devDependencies": {
     "@applemusic-like-lyrics/react": "^0.5.2",
+    "@electron/rebuild": "^4.0.6",
     "@playwright/mcp": "^0.0.79",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.1",
@@ -68,6 +76,8 @@
     "electron-builder": "^26.15.3",
     "i18next": "^26.3.5",
     "jsdom": "^25.0.1",
+    "node-gyp": "^12.4.0",
+    "prebuildify": "^6.0.1",
     "qrcode": "^1.5.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -95,6 +105,14 @@
         "to": "app-icon.png"
       },
       {
+        "from": "LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "docs/THIRD_PARTY_NOTICES.md",
+        "to": "docs/THIRD_PARTY_NOTICES.md"
+      },
+      {
         "from": "dist",
         "to": "dist",
         "filter": [
@@ -103,6 +121,12 @@
       }
     ],
     "asar": true,
+    "asarUnpack": [
+      "node_modules/@lyrics-adapter/windows-taskbar-native/prebuilds/**/*.node",
+      "node_modules/@lyrics-adapter/windows-taskbar-native/build/Release/*.node"
+    ],
+    "npmRebuild": true,
+    "nativeRebuilder": "sequential",
     "afterPack": "scripts/cleanLocales.cjs",
     "publish": {
       "provider": "github",

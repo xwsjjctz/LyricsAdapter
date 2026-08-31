@@ -25,6 +25,12 @@ import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater
 import { userStateRepository } from './services/userStateRepository';
 import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
 import { APP } from '../src/constants/config';
+import { configureDevelopmentProfile } from './developmentProfile';
+
+// Electron's single-instance lock and Chromium ProcessSingleton both live in
+// userData. Isolate the development profile before either lock is acquired so
+// an installed build can remain open while Vite launches Electron.
+configureDevelopmentProfile(app);
 
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
@@ -56,6 +62,9 @@ registerAllSchemes();
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
+  logger.warn(
+    '[Main] Another instance already owns this profile; exiting this launch.',
+  );
   app.quit();
 }
 

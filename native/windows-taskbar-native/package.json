@@ -1,0 +1,21 @@
+{
+  "name": "@lyrics-adapter/windows-taskbar-native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Windows taskbar HWND bridge for LyricsAdapter",
+  "main": "index.cjs",
+  "types": "index.d.ts",
+  "gypfile": true,
+  "os": [
+    "win32"
+  ],
+  "scripts": {
+    "install": "node install.cjs",
+    "build": "node-gyp rebuild",
+    "clean": "node-gyp clean"
+  },
+  "devDependencies": {
+    "node-gyp": "^12.4.0",
+    "prebuildify": "^6.0.1"
+  }
+}
