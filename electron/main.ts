@@ -71,12 +71,12 @@ app.whenReady().then(async () => {
   // userData directory. Legacy JSON is imported transactionally on first run.
   userStateRepository.initialize();
   // Register the macOS status item eagerly so the music-note icon is visible
-  // even before the first renderer update. A native lyrics failure must never
+  // even before the first renderer update. A system lyrics failure must never
   // prevent the player itself from starting.
   try {
     systemLyricsCoordinator.initialize();
   } catch (error) {
-    logger.warn('[SystemLyrics] Failed to initialize the native surface:', error);
+    logger.warn('[SystemLyrics] Failed to initialize the system surface:', error);
   }
   // Register protocol handlers (must be after app is ready)
   await registerAppProtocolHandler();

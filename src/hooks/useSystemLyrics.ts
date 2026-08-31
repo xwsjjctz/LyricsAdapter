@@ -123,7 +123,7 @@ export function useSystemLyrics({
       void bridge.update(request.state).then(result => {
         if (!active) return;
         if (!result.ok) {
-          logger.warn('[SystemLyrics] Native surface update failed:', result.error);
+          logger.warn('[SystemLyrics] System surface update failed:', result.error);
           // Cursor samples may replace `desired` while this request is in flight.
           // Back off the transport itself, then retry whichever snapshot is latest.
           scheduleRetry(flush);
@@ -138,7 +138,7 @@ export function useSystemLyrics({
         }
       }).catch(error => {
         if (!active) return;
-        logger.warn('[SystemLyrics] Failed to publish native lyrics state:', error);
+        logger.warn('[SystemLyrics] Failed to publish system lyrics state:', error);
         scheduleRetry(flush);
       }).finally(() => {
         inFlight = false;
@@ -168,7 +168,7 @@ export function useSystemLyrics({
       clearRetry();
       unsubscribe();
       void bridge.update(EMPTY_SYSTEM_LYRICS_STATE).catch(error => {
-        logger.warn('[SystemLyrics] Failed to clear native lyrics surface:', error);
+        logger.warn('[SystemLyrics] Failed to clear the system lyrics surface:', error);
       });
     };
   }, []);

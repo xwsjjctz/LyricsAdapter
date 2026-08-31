@@ -17,7 +17,7 @@ export function registerSystemLyricsHandlers(target: SystemLyricsStateTarget): v
       await target.update(parsed.data);
       return ok(undefined);
     } catch (error) {
-      logger.error('[SystemLyrics] Failed to update native surface:', error);
+      logger.error('[SystemLyrics] Failed to update system surface:', error);
       return fail(error instanceof Error ? error.message : String(error));
     }
   });

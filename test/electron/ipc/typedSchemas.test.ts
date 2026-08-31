@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { persistenceBootstrapSchema, typedIpcSchemas } from '../../../electron/ipc/typedSchemas';
 
 describe('typedIpcSchemas', () => {
-  it('bounds system lyrics payloads passed to native surfaces', () => {
+  it('bounds system lyrics payloads passed to system surfaces', () => {
     expect(typedIpcSchemas.systemLyricsState.safeParse({
       trackId: 'track-1',
+      coverUrl: 'cover://track-1.jpg?v=0123456789abcdef',
       title: 'Title',
       artist: 'Artist',
       line: 'Current line',
@@ -14,6 +15,7 @@ describe('typedIpcSchemas', () => {
     }).success).toBe(true);
     expect(typedIpcSchemas.systemLyricsState.safeParse({
       trackId: null,
+      coverUrl: '',
       title: '',
       artist: '',
       line: 'x'.repeat(4097),
@@ -26,6 +28,7 @@ describe('typedIpcSchemas', () => {
   it('accepts nullable bounded lyric cursors and rejects invalid offsets', () => {
     const state = {
       trackId: 'track-1',
+      coverUrl: 'cover://track-1.jpg',
       title: 'Title',
       artist: 'Artist',
       line: 'Current line',
@@ -45,6 +48,33 @@ describe('typedIpcSchemas', () => {
       .toBe(false);
     expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 1.5 }).success)
       .toBe(false);
+  });
+
+  it('accepts only bounded local-cover and HTTPS artwork URLs', () => {
+    const state = {
+      trackId: 'track-1',
+      title: 'Title',
+      artist: 'Artist',
+      line: 'Current line',
+      lineCursor: 0,
+      nextLine: 'Next line',
+      isPlaying: true,
+    };
+
+    expect(typedIpcSchemas.systemLyricsState.safeParse({
+      ...state,
+      coverUrl: 'https://example.com/cover.jpg',
+    }).success).toBe(true);
+    for (const coverUrl of [
+      'http://example.com/cover.jpg',
+      'file:///C:/music/cover.jpg',
+      'blob:app://localhost/id',
+      'data:image/png;base64,AA==',
+      `https://example.com/${'x'.repeat(8192)}`,
+    ]) {
+      expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, coverUrl }).success)
+        .toBe(false);
+    }
   });
 
   it('accepts valid WebDAV range payloads', () => {

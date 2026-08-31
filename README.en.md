@@ -29,7 +29,7 @@
 - **Streaming local playback** — Local files are streamed via the custom `audio://` protocol with Range requests, never fully loaded into memory
 - **Complete playback controls** — Play/pause, previous/next track, seek, volume control
 - **System media integration** — Publishes metadata, artwork, and playback actions to macOS Control Center and Windows system media controls
-- **Native system lyrics** — Live lyrics in the macOS menu bar and inside the Windows taskbar, with a taskbar-adjacent overlay fallback
+- **System lyrics** — Live lyrics in the macOS menu bar and a Fluent transparent overlay beside the Windows taskbar, implemented entirely with Electron and requiring no additional native runtime
 - **Multiple playback modes** — Sequential, repeat-one, shuffle
 
 ### 🎨 User Interface
@@ -84,7 +84,6 @@ Full-screen experience with a dynamic background following the cover colors and 
 - **Node.js** 20.19 or higher (or 22.12+)
 - **npm** 9.0 or higher (or yarn/pnpm)
 - **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
-- **Windows packaging**: .NET 8 SDK (builds the taskbar helper; the shipped helper is self-contained)
 
 ### Installation & Setup
 
@@ -543,6 +542,7 @@ Some providers require login for full quality and playlists: open "Settings", pi
 
 This project is licensed under GPL — see the [LICENSE](LICENSE) file for details.
 The app icon is licensed under CC BY 4.0 — see [app-icon-LICENSE](app-icon-LICENSE).
+Third-party source and design acknowledgments are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 

@@ -102,6 +102,7 @@ const CONTROL_START_X = (BOUNDS.width - 120) / 2;
 function state(overrides: Partial<SystemLyricsState> = {}): SystemLyricsState {
   return {
     trackId: 'track-1',
+    coverUrl: '',
     title: '测试歌曲',
     artist: '测试歌手',
     line: '今天 天气真好',

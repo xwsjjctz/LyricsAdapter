@@ -22,6 +22,7 @@ describe('systemLyricsHandlers', () => {
     ) => Promise<unknown>;
     const state = {
       trackId: 'track-1',
+      coverUrl: 'cover://track-1.jpg',
       title: 'Title',
       artist: 'Artist',
       line: 'Current line',
@@ -34,7 +35,7 @@ describe('systemLyricsHandlers', () => {
     expect(update).toHaveBeenCalledWith(state);
   });
 
-  it('rejects malformed state before it reaches a native surface', async () => {
+  it('rejects malformed state before it reaches a system surface', async () => {
     const update = vi.fn();
     registerSystemLyricsHandlers({ update });
     const handler = mocks.handle.mock.calls[0]?.[1] as (
@@ -57,6 +58,7 @@ describe('systemLyricsHandlers', () => {
 
     await expect(handler({}, {
       trackId: null,
+      coverUrl: '',
       title: '',
       artist: '',
       line: '',

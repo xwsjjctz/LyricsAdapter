@@ -56,6 +56,11 @@ export async function createWindow(): Promise<BrowserWindow> {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      // Chromium enables spell checking by default and asks Windows to create
+      // its per-user dictionary directories. The player's inputs do not need
+      // OS dictionary-backed checking, and isolated E2E profiles must not leak
+      // Microsoft/Spelling directories into the working tree.
+      spellcheck: false,
       allowRunningInsecureContent: false,
       // macOS menu-bar lyrics sample the track-owned media clock in the renderer.
       // Keep that timer accurate while the window is minimized or occluded.

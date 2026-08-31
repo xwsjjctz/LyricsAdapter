@@ -34,6 +34,7 @@ export type MenuBarLyricsActionHandler = (
 
 const EMPTY_STATE: SystemLyricsState = {
   trackId: null,
+  coverUrl: '',
   title: '',
   artist: '',
   line: '',

@@ -33,6 +33,7 @@ const track: Track = {
   artist: 'Test artist',
   album: 'Test album',
   duration: 30,
+  coverUrl: 'cover://track-1.jpg',
   audioUrl: 'audio://track-1',
   syncedLyrics: [
     { time: 0, text: 'First line' },
@@ -81,6 +82,7 @@ describe('useSystemLyrics', () => {
 
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
     expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      coverUrl: 'cover://track-1.jpg',
       line: 'First line',
       nextLine: 'Second line',
     }));
@@ -324,6 +326,7 @@ describe('useSystemLyrics', () => {
     expect(mocks.unsubscribe).toHaveBeenCalledTimes(1);
     expect(mocks.update).toHaveBeenLastCalledWith({
       trackId: null,
+      coverUrl: '',
       title: '',
       artist: '',
       line: '',

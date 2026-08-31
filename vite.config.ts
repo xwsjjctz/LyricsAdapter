@@ -82,6 +82,23 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
+            entry: 'electron/taskbarLyricsPreload.ts',
+            vite: {
+              build: {
+                outDir: 'dist-electron',
+                sourcemap: isElectronDebug,
+                lib: {
+                  entry: 'electron/taskbarLyricsPreload.ts',
+                  formats: ['cjs'],
+                  fileName: () => 'taskbar-lyrics-preload.cjs'
+                },
+                rollupOptions: {
+                  external: ['electron']
+                }
+              }
+            }
+          },
+          {
             entry: 'electron/cleanup.ts',
             vite: {
               build: {
@@ -111,6 +128,10 @@ export default defineConfig(({ mode }) => {
         // esbuild preserves both declarations.
         cssMinify: 'esbuild',
         rollupOptions: {
+          input: {
+            index: path.resolve(__dirname, 'index.html'),
+            'taskbar-lyrics': path.resolve(__dirname, 'taskbar-lyrics.html'),
+          },
           external: mode === 'production' ? ['electron'] : [],
           output: {
             // Rolldown (Vite 8) requires manualChunks as a function, not an object.

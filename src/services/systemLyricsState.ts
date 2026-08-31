@@ -8,6 +8,7 @@ import { countGraphemes } from '../shared/graphemes';
 import { normalizeSystemLyricsText } from '../shared/systemLyricsText';
 
 const TRACK_ID_LIMIT = 4096;
+const COVER_URL_LIMIT = 8192;
 const METADATA_LIMIT = 512;
 const LYRIC_LINE_LIMIT = 4096;
 const LAST_LINE_FALLBACK_SECONDS = 5;
@@ -28,6 +29,18 @@ function boundedText(
     result += character;
   }
   return result;
+}
+
+function safeCoverUrl(value: string | undefined): string {
+  const trimmed = value?.trim() ?? '';
+  if (!trimmed || trimmed.length > COVER_URL_LIMIT) return '';
+
+  try {
+    const protocol = new URL(trimmed).protocol;
+    return protocol === 'cover:' || protocol === 'https:' ? trimmed : '';
+  } catch {
+    return '';
+  }
 }
 
 /** Return the last line whose timestamp is not after the playback clock. */
@@ -61,7 +74,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 
 /**
  * Translate absolute QRC/YRC word timing to a user-visible character cursor.
- * Returning an integer keeps the 50ms native-surface sampler deduplicable.
+ * Returning an integer keeps the 50ms system-surface sampler deduplicable.
  */
 function findWordTimedCursor(
   line: SyncedLyricLine,
@@ -192,11 +205,12 @@ export function buildSystemLyricsState(
 
   return {
     trackId: boundedText(track.id, TRACK_ID_LIMIT),
+    coverUrl: safeCoverUrl(track.coverUrl),
     title,
     artist: boundedText(track.artist, METADATA_LIMIT, true),
-    // Before the first timestamp (or for line-unsynchronised tracks), keep the
-    // surface useful without pretending an arbitrary lyric is the active line.
-    line: activeLine || title,
+    // Keep lyrics semantic: platform renderers may choose their own empty-line
+    // fallback without receiving track metadata disguised as a lyric.
+    line: activeLine,
     nextLine,
     lineCursor,
     isPlaying,

@@ -1,5 +1,4 @@
-import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { copyFile, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +16,26 @@ if (configuredLyricsRenderer && configuredLyricsRenderer !== 'legacy' && configu
   throw new Error('MEMORY_BENCHMARK_LYRICS_RENDERER must be "legacy" or "amll"');
 }
 const lyricsRenderer: 'legacy' | 'amll' = configuredLyricsRenderer === 'amll' ? 'amll' : 'legacy';
-const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
-const require = createRequire(import.meta.url);
-const electronExecutable = require('electron') as string;
+const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+
+async function readRepoTopLevelDirectories(): Promise<string[]> {
+  const entries = await readdir(repoRoot, { withFileTypes: true });
+  return entries
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function assertRepoTopLevelDirectoriesUnchanged(before: readonly string[]): Promise<void> {
+  const beforeSet = new Set(before);
+  const added = (await readRepoTopLevelDirectories()).filter(name => !beforeSet.has(name));
+  expect(
+    added,
+    'Electron E2E must not create top-level directories in the repository. '
+      + 'Unexpected directories are reported but never deleted because another process may own them.',
+  ).toEqual([]);
+}
+
 const inheritedEnv = Object.fromEntries(
   Object.entries(process.env).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -295,6 +311,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
   test('profiles idle and repeated FocusMode mount/unmount', async ({}, testInfo) => {
     test.setTimeout(180_000);
 
+    const repoTopLevelDirectoriesBefore = await readRepoTopLevelDirectories();
     const cycles = readPositiveInteger('MEMORY_BENCHMARK_CYCLES', 3, 20);
     const settleMs = readPositiveInteger('MEMORY_BENCHMARK_SETTLE_MS', 2_000, 30_000);
     const samplesPerPhase = readPositiveInteger('MEMORY_BENCHMARK_SAMPLES', 3, 20);
@@ -396,8 +413,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
 
     try {
       electronApp = await electron.launch({
-        executablePath: electronExecutable,
-        cwd: repoRoot,
+        cwd: tempRoot,
         args: [
           ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
           `--user-data-dir=${dirs.userData}`,
@@ -492,7 +508,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
         phases,
       };
 
-      const reportDirectory = path.join(repoRoot, 'test-results', 'memory');
+      const reportDirectory = testInfo.outputPath('memory');
       await mkdir(reportDirectory, { recursive: true });
       const safeTimestamp = report.generatedAt.replace(/[:.]/g, '-');
       const reportPath = path.join(
@@ -519,7 +535,11 @@ test.describe('cross-platform Electron memory benchmark', () => {
       try {
         await closeElectronApp(electronApp);
       } finally {
-        await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
+        try {
+          await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
+        } finally {
+          await assertRepoTopLevelDirectoriesUnchanged(repoTopLevelDirectoriesBefore);
+        }
       }
     }
   });

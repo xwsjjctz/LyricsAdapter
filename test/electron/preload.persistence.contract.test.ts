@@ -155,7 +155,7 @@ describe('preload persistence typed IPC contract', () => {
   it('routes system lyrics state and native actions through the typed bridge', async () => {
     const { api, invoke, on, removeListener, response } = executePreload();
     const state = {
-      trackId: 'track-1', title: 'Title', artist: 'Artist',
+      trackId: 'track-1', coverUrl: 'cover://track-1.jpg', title: 'Title', artist: 'Artist',
       line: 'Current line', lineCursor: 3, nextLine: 'Next line', isPlaying: true,
     };
 

@@ -15,6 +15,7 @@ import {
 
 const PLAYING_STATE: SystemLyricsState = {
   trackId: 'track-1',
+  coverUrl: 'cover://track-1.jpg',
   title: 'Title',
   artist: 'Artist',
   line: 'Current line',

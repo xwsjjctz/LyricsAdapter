@@ -1,5 +1,12 @@
 // @vitest-environment node
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const electronDirectory = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../electron',
+);
 
 const electronMocks = vi.hoisted(() => ({
   BrowserWindow: vi.fn(),
@@ -52,13 +59,15 @@ describe('windowManager', () => {
     expect(shouldThrottleRendererInBackground('linux')).toBe(true);
   });
 
-  it('uses the platform-specific background timer policy for the main window', async () => {
+  it('uses the platform timer policy and disables spell checking for the main window', async () => {
     await createWindow();
 
     expect(electronMocks.BrowserWindow).toHaveBeenCalledOnce();
     expect(electronMocks.BrowserWindow).toHaveBeenCalledWith(expect.objectContaining({
       webPreferences: expect.objectContaining({
+        preload: path.join(electronDirectory, 'preload.cjs'),
         backgroundThrottling: shouldThrottleRendererInBackground(process.platform),
+        spellcheck: false,
       }),
     }));
   });

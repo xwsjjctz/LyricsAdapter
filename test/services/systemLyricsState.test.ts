@@ -12,6 +12,7 @@ const track: Track = {
   artist: 'Test artist',
   album: 'Test album',
   duration: 30,
+  coverUrl: 'cover://track-1.jpg?v=0123456789abcdef',
   audioUrl: 'audio://track-1',
   syncedLyrics: [
     { time: 2, text: ' First line ' },
@@ -36,6 +37,7 @@ describe('systemLyricsState', () => {
   it('publishes the current and next line', () => {
     expect(buildSystemLyricsState(track, 6.5, true)).toEqual({
       trackId: 'track-1',
+      coverUrl: 'cover://track-1.jpg?v=0123456789abcdef',
       title: 'Test title',
       artist: 'Test artist',
       line: 'Second line',
@@ -45,14 +47,15 @@ describe('systemLyricsState', () => {
     });
   });
 
-  it('uses the title before timed lyrics begin and clears without a track', () => {
+  it('keeps lyrics empty before timing begins and clears without a track', () => {
     expect(buildSystemLyricsState(track, 0, false)).toMatchObject({
-      line: 'Test title',
+      line: '',
       nextLine: 'First line',
       isPlaying: false,
     });
     expect(buildSystemLyricsState(null, 0, false)).toEqual({
       trackId: null,
+      coverUrl: '',
       title: '',
       artist: '',
       line: '',
@@ -141,7 +144,7 @@ describe('systemLyricsState', () => {
     expect(buildSystemLyricsState(finalLineTrack, 20, true).lineCursor).toBe(12);
   });
 
-  it('does not publish a cursor for a 24-grapheme lyric that fits the native window', () => {
+  it('does not publish a cursor for a 24-grapheme lyric that fits the system surface', () => {
     const shortWordTimedTrack: Track = {
       ...track,
       syncedLyrics: [{
@@ -152,6 +155,20 @@ describe('systemLyricsState', () => {
     };
 
     expect(buildSystemLyricsState(shortWordTimedTrack, 1, true).lineCursor).toBeNull();
+  });
+
+  it('allows only bounded cover and HTTPS artwork URLs', () => {
+    expect(buildSystemLyricsState({ ...track, coverUrl: 'https://example.com/cover.jpg' }, 0, true).coverUrl)
+      .toBe('https://example.com/cover.jpg');
+    for (const coverUrl of [
+      'http://example.com/cover.jpg',
+      'file:///C:/music/cover.jpg',
+      'blob:app://localhost/id',
+      'data:image/png;base64,AA==',
+      `https://example.com/${'x'.repeat(8192)}`,
+    ]) {
+      expect(buildSystemLyricsState({ ...track, coverUrl }, 0, true).coverUrl).toBe('');
+    }
   });
 
   it('bounds supplementary Unicode text by UTF-16 length for the IPC schema', () => {

@@ -39,9 +39,9 @@ export class SystemLyricsCoordinator {
 
   /**
    * Creates the macOS status item as soon as Electron is ready. This makes the
-   * native icon visible before playback and keeps its position stable while the
-   * renderer starts or hot-reloads. Windows remains lazy because it launches a
-   * separate taskbar helper that is only useful once a track exists.
+   * menu-bar icon visible before playback and keeps its position stable while the
+   * renderer starts or hot-reloads. The Windows overlay remains lazy because it
+   * is only useful once a track exists.
    */
   initialize(): boolean {
     if (this.platform !== 'darwin' || !this.service) return false;
@@ -53,7 +53,7 @@ export class SystemLyricsCoordinator {
     if (!this.service) return;
 
     // Windows and any failed macOS eager-start retry remain lazy here: an empty
-    // renderer snapshot must not launch a helper or trigger another start.
+    // renderer snapshot must not create a surface or trigger another start.
     if (!this.started) {
       if (!state.trackId) {
         this.failedStartTrackId = null;

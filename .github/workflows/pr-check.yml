@@ -31,19 +31,3 @@ jobs:
 
       - name: Electron smoke test
         run: xvfb-run -a npm run test:e2e:run
-
-  windows-helper:
-    runs-on: windows-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Build Windows taskbar lyrics helper
-        run: dotnet build native/windows-taskbar-lyrics/LyricsAdapter.TaskbarLyrics.csproj -c Release

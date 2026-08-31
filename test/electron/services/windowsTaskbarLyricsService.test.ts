@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
+import path from 'node:path';
+import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loggerMocks = vi.hoisted(() => ({
@@ -8,314 +9,304 @@ const loggerMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/../electron/logger', () => ({ logger: loggerMocks }));
-vi.mock('electron', () => ({ app: { isPackaged: false } }));
+vi.mock('electron', () => ({
+  app: { getAppPath: vi.fn(() => 'C:\\LyricsAdapter') },
+  BrowserWindow: class {},
+  nativeTheme: { on: vi.fn(), removeListener: vi.fn() },
+  powerMonitor: { on: vi.fn(), removeListener: vi.fn() },
+  screen: { getPrimaryDisplay: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
+}));
 
 import {
   WindowsTaskbarLyricsService,
-  resolveWindowsTaskbarLyricsHelperPath,
+  calculateTaskbarLyricsPlacement,
+  resolveTaskbarLyricsPreloadPath,
+  sanitizeTaskbarCoverUrl,
+  type TaskbarLyricsDisplay,
   type WindowsTaskbarLyricsServiceDependencies,
 } from '@/../electron/services/windowsTaskbarLyricsService';
 
-class FakeHelper extends EventEmitter {
-  readonly stdin = new PassThrough();
-  readonly stdout = new PassThrough();
-  readonly stderr = new PassThrough();
-  killed = false;
-  readonly kill = vi.fn(() => {
-    this.killed = true;
-    return true;
+describe('resolveTaskbarLyricsPreloadPath', () => {
+  it('resolves the dedicated preload from Electron app root in ESM builds', () => {
+    expect(resolveTaskbarLyricsPreloadPath('C:\\LyricsAdapter')).toBe(
+      path.join('C:\\LyricsAdapter', 'dist-electron', 'taskbar-lyrics-preload.cjs'),
+    );
+  });
+});
+
+class FakeWebContents extends EventEmitter {
+  readonly send = vi.fn();
+  readonly setWindowOpenHandler = vi.fn();
+}
+
+class FakeWindow extends EventEmitter {
+  readonly webContents = new FakeWebContents();
+  readonly loadURL = vi.fn(async () => {});
+  readonly setAlwaysOnTop = vi.fn();
+  readonly setIgnoreMouseEvents = vi.fn();
+  readonly setBounds = vi.fn();
+  readonly showInactive = vi.fn();
+  readonly hide = vi.fn();
+  destroyed = false;
+  readonly isDestroyed = vi.fn(() => this.destroyed);
+  readonly destroy = vi.fn(() => {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.emit('closed');
   });
 }
 
-function testDependencies(
-  helper: FakeHelper,
-  overrides: Partial<WindowsTaskbarLyricsServiceDependencies> = {},
-): WindowsTaskbarLyricsServiceDependencies {
-  return {
-    platform: 'win32',
-    arch: 'x64',
-    isPackaged: false,
-    cwd: () => 'C:\\LyricsAdapter',
-    env: {},
-    resourcesPath: 'C:\\Program Files\\LyricsAdapter\\resources',
-    fileExists: () => true,
-    spawnHelper: vi.fn(() => helper),
-    ...overrides,
-  };
-}
-
-function readWrites(stream: PassThrough): string[] {
-  return stream.readableLength > 0
-    ? stream.read().toString('utf8').trim().split('\n') as string[]
-    : [];
-}
+const BOTTOM_TASKBAR_DISPLAY: TaskbarLyricsDisplay = {
+  bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+  workArea: { x: 0, y: 0, width: 1920, height: 1032 },
+};
 
 const PLAYING_STATE = {
   trackId: 'track-1',
   title: '测试歌曲',
   artist: '测试歌手',
+  coverUrl: 'cover://track-1',
   line: '当前歌词',
   lineCursor: 0,
   nextLine: '下一行',
   isPlaying: true,
 };
 
+interface TestSubscriptions {
+  display?: () => void;
+  theme?: () => void;
+  lock?: () => void;
+  unlock?: () => void;
+  disposeDisplay: ReturnType<typeof vi.fn>;
+  disposeTheme: ReturnType<typeof vi.fn>;
+  disposeSession: ReturnType<typeof vi.fn>;
+}
+
+function createHarness(
+  windows: FakeWindow[] = [new FakeWindow()],
+  overrides: Partial<WindowsTaskbarLyricsServiceDependencies> = {},
+) {
+  let windowIndex = 0;
+  const subscriptions: TestSubscriptions = {
+    disposeDisplay: vi.fn(),
+    disposeTheme: vi.fn(),
+    disposeSession: vi.fn(),
+  };
+  const getPrimaryDisplay = vi.fn(() => BOTTOM_TASKBAR_DISPLAY);
+  const createWindow = vi.fn((_options: BrowserWindowConstructorOptions) => (
+    windows[windowIndex++] as unknown as BrowserWindow
+  ));
+  const dependencies: WindowsTaskbarLyricsServiceDependencies = {
+    platform: 'win32',
+    preloadPath: 'C:\\LyricsAdapter\\dist-electron\\taskbar-lyrics-preload.cjs',
+    widgetUrl: 'app://localhost/taskbar-lyrics.html',
+    createWindow,
+    getPrimaryDisplay,
+    subscribeDisplayChanges: listener => {
+      subscriptions.display = listener;
+      return subscriptions.disposeDisplay;
+    },
+    subscribeThemeChanges: listener => {
+      subscriptions.theme = listener;
+      return subscriptions.disposeTheme;
+    },
+    subscribeSessionChanges: (onLock, onUnlock) => {
+      subscriptions.lock = onLock;
+      subscriptions.unlock = onUnlock;
+      return subscriptions.disposeSession;
+    },
+    ...overrides,
+  };
+
+  return {
+    service: new WindowsTaskbarLyricsService(dependencies),
+    dependencies,
+    subscriptions,
+    createWindow,
+    getPrimaryDisplay,
+    windows,
+  };
+}
+
+describe('calculateTaskbarLyricsPlacement', () => {
+  it('places a 420x40 widget immediately left of the reserved bottom tray area', () => {
+    expect(calculateTaskbarLyricsPlacement(BOTTOM_TASKBAR_DISPLAY)).toEqual({
+      x: 1285,
+      y: 1036,
+      width: 420,
+      height: 40,
+      edge: 'bottom',
+      compact: false,
+    });
+  });
+
+  it('supports top taskbars and displays with negative coordinates', () => {
+    expect(calculateTaskbarLyricsPlacement({
+      bounds: { x: -1600, y: -200, width: 1600, height: 900 },
+      workArea: { x: -1600, y: -152, width: 1600, height: 852 },
+    })).toEqual({
+      x: -600,
+      y: -196,
+      width: 420,
+      height: 40,
+      edge: 'top',
+      compact: false,
+    });
+  });
+
+  it('uses compact height for a short horizontal taskbar', () => {
+    expect(calculateTaskbarLyricsPlacement({
+      bounds: { x: 0, y: 0, width: 1280, height: 720 },
+      workArea: { x: 0, y: 0, width: 1280, height: 690 },
+    })).toMatchObject({ height: 28, compact: true });
+  });
+
+  it('hides for auto-hidden, unknown, and vertical taskbars', () => {
+    expect(calculateTaskbarLyricsPlacement({
+      bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+    })).toBeNull();
+    expect(calculateTaskbarLyricsPlacement({
+      bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      workArea: { x: 48, y: 0, width: 1872, height: 1080 },
+    })).toBeNull();
+  });
+});
+
+describe('sanitizeTaskbarCoverUrl', () => {
+  it('keeps only cover and HTTPS URLs', () => {
+    expect(sanitizeTaskbarCoverUrl('cover://track-1')).toBe('cover://track-1');
+    expect(sanitizeTaskbarCoverUrl('https://img.example/cover.jpg')).toBe(
+      'https://img.example/cover.jpg',
+    );
+    expect(sanitizeTaskbarCoverUrl('http://img.example/cover.jpg')).toBe('');
+    expect(sanitizeTaskbarCoverUrl('file:///C:/music/cover.jpg')).toBe('');
+    expect(sanitizeTaskbarCoverUrl('blob:app://localhost/id')).toBe('');
+    expect(sanitizeTaskbarCoverUrl('not a URL')).toBe('');
+  });
+});
+
 describe('WindowsTaskbarLyricsService', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.useRealTimers());
 
-  it('does not spawn outside Windows', () => {
-    const helper = new FakeHelper();
-    const dependencies = testDependencies(helper, { platform: 'darwin' });
-    const service = new WindowsTaskbarLyricsService(dependencies);
+  it('does not subscribe or create a window outside Windows', () => {
+    const harness = createHarness([new FakeWindow()], { platform: 'darwin' });
 
-    expect(service.start(vi.fn())).toBe(false);
-    service.update(PLAYING_STATE);
+    expect(harness.service.start(vi.fn())).toBe(false);
+    harness.service.update(PLAYING_STATE);
 
-    expect(dependencies.spawnHelper).not.toHaveBeenCalled();
+    expect(harness.createWindow).not.toHaveBeenCalled();
+    expect(harness.subscriptions.display).toBeUndefined();
   });
 
-  it('starts once and sends state snapshots as NDJSON', () => {
-    const helper = new FakeHelper();
-    const dependencies = testDependencies(helper);
-    const service = new WindowsTaskbarLyricsService(dependencies);
+  it('creates a secure click-through window lazily for the first track', () => {
+    const harness = createHarness();
+    const window = harness.windows[0]!;
 
-    expect(service.start(vi.fn())).toBe(true);
-    expect(service.start(vi.fn())).toBe(true);
-    service.update(PLAYING_STATE);
+    expect(harness.service.start(vi.fn())).toBe(true);
+    expect(harness.createWindow).not.toHaveBeenCalled();
+    harness.service.update(PLAYING_STATE);
 
-    expect(dependencies.spawnHelper).toHaveBeenCalledOnce();
-    expect(readWrites(helper.stdin)).toEqual([
-      JSON.stringify({ type: 'update', state: PLAYING_STATE }),
-    ]);
-  });
-
-  it('parses fragmented action messages and uses the latest handler', () => {
-    const helper = new FakeHelper();
-    const firstHandler = vi.fn();
-    const replacementHandler = vi.fn();
-    const service = new WindowsTaskbarLyricsService(testDependencies(helper));
-    service.start(firstHandler);
-    service.start(replacementHandler);
-
-    helper.stdout.write('{"type":"action","action":"tog');
-    helper.stdout.write('gle-play"}\n{"type":"action","action":"next"}\n');
-
-    expect(firstHandler).not.toHaveBeenCalled();
-    expect(replacementHandler.mock.calls).toEqual([
-      ['toggle-play'],
-      ['next'],
-    ]);
-  });
-
-  it('ignores unknown and malformed helper messages', () => {
-    const helper = new FakeHelper();
-    const onAction = vi.fn();
-    const service = new WindowsTaskbarLyricsService(testDependencies(helper));
-    service.start(onAction);
-
-    helper.stdout.write('{"type":"action","action":"delete-library"}\n');
-    helper.stdout.write('not json\n');
-
-    expect(onAction).not.toHaveBeenCalled();
-    expect(loggerMocks.warn).toHaveBeenCalledOnce();
-  });
-
-  it('sends stop, closes stdin, and clears callbacks', () => {
-    vi.useFakeTimers();
-    const helper = new FakeHelper();
-    const onAction = vi.fn();
-    const service = new WindowsTaskbarLyricsService(testDependencies(helper));
-    service.start(onAction);
-
-    service.stop();
-    expect(readWrites(helper.stdin)).toEqual([JSON.stringify({ type: 'stop' })]);
-    expect(helper.stdin.writableEnded).toBe(true);
-
-    helper.stdout.write('{"type":"action","action":"next"}\n');
-    expect(onAction).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1_500);
-    expect(helper.kill).toHaveBeenCalledOnce();
-  });
-
-  it('keeps only the latest update while helper stdin is backpressured', () => {
-    const helper = new FakeHelper();
-    const writes: string[] = [];
-    const writeSpy = vi.spyOn(helper.stdin, 'write');
-    writeSpy.mockImplementation(((chunk: string | Uint8Array) => {
-      writes.push(chunk.toString());
-      return writes.length !== 1;
-    }) as typeof helper.stdin.write);
-    const service = new WindowsTaskbarLyricsService(testDependencies(helper));
-    service.start(vi.fn());
-
-    service.update({ ...PLAYING_STATE, line: 'line 1' });
-    service.update({ ...PLAYING_STATE, line: 'line 2' });
-    service.update({ ...PLAYING_STATE, line: 'line 3' });
-
-    expect(writes).toHaveLength(1);
-    expect(JSON.parse(writes[0]!)['state']['line']).toBe('line 1');
-
-    helper.stdin.emit('drain');
-
-    expect(writes).toHaveLength(2);
-    expect(JSON.parse(writes[1]!)['state']['line']).toBe('line 3');
-    service.stop();
-    helper.emit('exit', 0, null);
-  });
-
-  it('sends stop ahead of an unsent update while backpressured', () => {
-    const helper = new FakeHelper();
-    const writes: string[] = [];
-    const writeSpy = vi.spyOn(helper.stdin, 'write');
-    writeSpy.mockImplementation(((chunk: string | Uint8Array) => {
-      writes.push(chunk.toString());
-      return writes.length !== 1;
-    }) as typeof helper.stdin.write);
-    const service = new WindowsTaskbarLyricsService(testDependencies(helper));
-    service.start(vi.fn());
-
-    service.update({ ...PLAYING_STATE, line: 'accepted but buffered' });
-    service.update({ ...PLAYING_STATE, line: 'must be discarded' });
-    service.stop();
-
-    expect(writes.map(line => JSON.parse(line)['type'])).toEqual(['update', 'stop']);
-    helper.stdin.emit('drain');
-    expect(writes).toHaveLength(2);
-    helper.emit('exit', 0, null);
-  });
-
-  it('coalesces updates during exponential restart delays', () => {
-    vi.useFakeTimers();
-    const helpers = [new FakeHelper(), new FakeHelper(), new FakeHelper()];
-    let helperIndex = 0;
-    const spawnHelper = vi.fn(() => helpers[helperIndex++]!);
-    const dependencies = testDependencies(helpers[0]!, { spawnHelper });
-    const service = new WindowsTaskbarLyricsService(dependencies);
-    service.start(vi.fn());
-    service.update({ ...PLAYING_STATE, line: 'initial' });
-
-    helpers[0]!.emit('exit', 1, null);
-    service.update({ ...PLAYING_STATE, line: 'stale retry state' });
-    service.update({ ...PLAYING_STATE, line: 'latest retry state' });
-    vi.advanceTimersByTime(499);
-    expect(spawnHelper).toHaveBeenCalledOnce();
-
-    vi.advanceTimersByTime(1);
-    expect(spawnHelper).toHaveBeenCalledTimes(2);
-    const secondWrites = readWrites(helpers[1]!.stdin);
-    expect(JSON.parse(secondWrites[0]!)['state']['line']).toBe('latest retry state');
-
-    helpers[1]!.emit('exit', 1, null);
-    vi.advanceTimersByTime(999);
-    expect(spawnHelper).toHaveBeenCalledTimes(2);
-    vi.advanceTimersByTime(1);
-    expect(spawnHelper).toHaveBeenCalledTimes(3);
-
-    service.stop();
-    helpers[2]!.emit('exit', 0, null);
-  });
-
-  it('caps repeated helper restart delays at thirty seconds', () => {
-    vi.useFakeTimers();
-    const expectedDelays = [500, 1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000];
-    const helpers = expectedDelays.map(() => new FakeHelper());
-    helpers.push(new FakeHelper());
-    let helperIndex = 0;
-    const spawnHelper = vi.fn(() => helpers[helperIndex++]!);
-    const service = new WindowsTaskbarLyricsService(
-      testDependencies(helpers[0]!, { spawnHelper }),
-    );
-    service.start(vi.fn());
-    service.update(PLAYING_STATE);
-
-    expectedDelays.forEach((delay, index) => {
-      helpers[index]!.emit('exit', 1, null);
-      vi.advanceTimersByTime(delay - 1);
-      expect(spawnHelper).toHaveBeenCalledTimes(index + 1);
-      vi.advanceTimersByTime(1);
-      expect(spawnHelper).toHaveBeenCalledTimes(index + 2);
-    });
-
-    service.stop();
-    helpers.at(-1)!.emit('exit', 0, null);
-  });
-
-  it('returns false without a published helper', () => {
-    const helper = new FakeHelper();
-    const dependencies = testDependencies(helper, { fileExists: () => false });
-    const service = new WindowsTaskbarLyricsService(dependencies);
-
-    expect(service.start(vi.fn())).toBe(false);
-    expect(dependencies.spawnHelper).not.toHaveBeenCalled();
-    expect(loggerMocks.warn).toHaveBeenCalledOnce();
-  });
-});
-
-describe('resolveWindowsTaskbarLyricsHelperPath', () => {
-  it('prefers an explicit helper override', () => {
-    const path = resolveWindowsTaskbarLyricsHelperPath({
-      arch: 'x64',
-      isPackaged: false,
-      cwd: () => 'C:\\repo',
-      env: { LYRICS_ADAPTER_TASKBAR_LYRICS_HELPER: 'C:\\custom\\lyrics.exe' },
-      resourcesPath: 'C:\\resources',
-      fileExists: candidate => candidate.includes('custom'),
-    });
-
-    expect(path).toContain('custom');
-    expect(path).toContain('lyrics.exe');
-  });
-
-  it('finds the helper published by the local Windows build script', () => {
-    const path = resolveWindowsTaskbarLyricsHelperPath({
-      arch: 'x64',
-      isPackaged: false,
-      cwd: () => 'C:\\repo',
-      env: {},
-      resourcesPath: undefined,
-      fileExists: candidate => candidate.includes('dist-native'),
-    });
-
-    expect(path?.replaceAll('\\', '/')).toBe(
-      'C:/repo/dist-native/windows-taskbar-lyrics/LyricsAdapter.TaskbarLyrics.exe',
-    );
-  });
-
-  it('uses only the fixed resources helper in packaged applications', () => {
-    const inspected: string[] = [];
-    const path = resolveWindowsTaskbarLyricsHelperPath({
-      arch: 'x64',
-      isPackaged: true,
-      cwd: () => 'C:\\attacker-controlled-cwd',
-      env: { LYRICS_ADAPTER_TASKBAR_LYRICS_HELPER: 'C:\\override\\lyrics.exe' },
-      resourcesPath: 'C:\\Program Files\\LyricsAdapter\\resources',
-      fileExists: candidate => {
-        inspected.push(candidate);
-        return candidate.includes('attacker-controlled-cwd') || candidate.includes('override');
+    expect(harness.createWindow).toHaveBeenCalledOnce();
+    const options = harness.createWindow.mock.calls[0]![0];
+    expect(options).toMatchObject({
+      show: false,
+      frame: false,
+      transparent: true,
+      focusable: false,
+      skipTaskbar: true,
+      resizable: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
       },
     });
-
-    expect(path).toBeNull();
-    expect(inspected).toHaveLength(1);
-    expect(inspected[0]?.replaceAll('\\', '/')).toBe(
-      'C:/Program Files/LyricsAdapter/resources/native/windows-taskbar-lyrics/LyricsAdapter.TaskbarLyrics.exe',
-    );
+    expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'pop-up-menu');
+    expect(window.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+    expect(window.loadURL).toHaveBeenCalledWith('app://localhost/taskbar-lyrics.html');
   });
 
-  it('resolves the fixed resources helper when packaged', () => {
-    const path = resolveWindowsTaskbarLyricsHelperPath({
-      arch: 'arm64',
-      isPackaged: true,
-      cwd: () => 'C:\\ignored',
-      env: { LYRICS_ADAPTER_TASKBAR_LYRICS_HELPER: 'C:\\ignored\\helper.exe' },
-      resourcesPath: 'D:\\Apps\\LyricsAdapter\\resources',
-      fileExists: () => true,
-    });
+  it('renders only the latest state once the taskbar page finishes loading', () => {
+    const harness = createHarness();
+    const window = harness.windows[0]!;
+    harness.service.start(vi.fn());
+    harness.service.update({ ...PLAYING_STATE, line: 'stale line' });
+    harness.service.update({ ...PLAYING_STATE, line: 'latest line' });
 
-    expect(path?.replaceAll('\\', '/')).toBe(
-      'D:/Apps/LyricsAdapter/resources/native/windows-taskbar-lyrics/LyricsAdapter.TaskbarLyrics.exe',
-    );
+    expect(window.webContents.send).not.toHaveBeenCalled();
+    window.webContents.emit('did-finish-load');
+
+    expect(window.setBounds).toHaveBeenCalledWith({
+      x: 1285,
+      y: 1036,
+      width: 420,
+      height: 40,
+    }, false);
+    expect(window.webContents.send).toHaveBeenCalledWith('taskbar-lyrics-state', {
+      coverUrl: 'cover://track-1',
+      line: 'latest line',
+      nextLine: '下一行',
+    });
+    expect(window.showInactive).toHaveBeenCalledOnce();
+  });
+
+  it('hides on an empty state and while the Windows session is locked', () => {
+    const harness = createHarness();
+    const window = harness.windows[0]!;
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+    window.webContents.emit('did-finish-load');
+
+    harness.subscriptions.lock?.();
+    expect(window.hide).toHaveBeenCalledOnce();
+    harness.subscriptions.unlock?.();
+    expect(window.showInactive).toHaveBeenCalledTimes(2);
+
+    harness.service.update({ ...PLAYING_STATE, trackId: null });
+    expect(window.hide).toHaveBeenCalledTimes(2);
+  });
+
+  it('repositions on display changes and hides when no horizontal taskbar is known', () => {
+    const harness = createHarness();
+    const window = harness.windows[0]!;
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+    window.webContents.emit('did-finish-load');
+
+    harness.getPrimaryDisplay.mockReturnValue({
+      bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+    });
+    harness.subscriptions.display?.();
+
+    expect(window.hide).toHaveBeenCalledOnce();
+  });
+
+  it('recreates a renderer that exits while a track is active', () => {
+    vi.useFakeTimers();
+    const harness = createHarness([new FakeWindow(), new FakeWindow()]);
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+
+    harness.windows[0]!.webContents.emit('render-process-gone');
+    expect(harness.windows[0]!.destroy).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(499);
+    expect(harness.createWindow).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1);
+    expect(harness.createWindow).toHaveBeenCalledTimes(2);
+  });
+
+  it('destroys the window and removes global subscriptions on stop', () => {
+    const harness = createHarness();
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+    harness.service.stop();
+
+    expect(harness.windows[0]!.destroy).toHaveBeenCalledOnce();
+    expect(harness.subscriptions.disposeDisplay).toHaveBeenCalledOnce();
+    expect(harness.subscriptions.disposeTheme).toHaveBeenCalledOnce();
+    expect(harness.subscriptions.disposeSession).toHaveBeenCalledOnce();
   });
 });

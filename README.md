@@ -29,7 +29,7 @@
 - **流式本地播放** - 本地文件通过 `audio://` 自定义协议按 Range 请求流式读取，不整载入内存
 - **完整播放控制** - 播放/暂停、上一曲/下一曲、进度调节、音量控制
 - **系统媒体集成** - 向 macOS 控制中心与 Windows 系统媒体控制发布歌曲信息、封面和播放操作
-- **原生系统歌词** - macOS 菜单栏实时歌词；Windows 任务栏内嵌歌词，无法嵌入时自动降级为任务栏旁悬浮层
+- **系统歌词** - macOS 菜单栏实时歌词；Windows 使用纯 Electron 实现的 Fluent 透明覆盖层显示在任务栏旁，无需额外原生运行时
 - **多种播放模式** - 顺序播放、单曲循环、随机播放
 
 ### 🎨 用户界面
@@ -85,7 +85,6 @@
 - **Node.js** 20.19 或更高版本（或 22.12+）
 - **npm** 9.0 或更高版本（或 yarn/pnpm）
 - **操作系统**：Windows 10+、macOS 10.15+、Linux (x64/arm64)
-- **Windows 打包**：.NET 8 SDK（用于构建任务栏歌词 helper；运行时已自包含）
 
 ### 安装与运行
 
@@ -550,6 +549,7 @@ onlineMusicProvider（qq / netease 归一为 OnlineSong）
 
 本项目采用 GPL 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 项目内APP图标使用 CC BY 4.0 授权 - 查看 [app-icon-LICENSE](app-icon-LICENSE) 文件了解详情
+第三方源码与实现致谢 - 查看 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 ---
 
