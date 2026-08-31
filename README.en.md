@@ -84,7 +84,7 @@ Full-screen experience with a dynamic background following the cover colors and 
 - **Node.js** 24.19.x
 - **npm** 9.0 or higher (or yarn/pnpm)
 - **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
-- **Windows native bridge**: source installs require Visual Studio 2022 with **Desktop development with C++** and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:taskbar -- --force`
+- **Windows native bridge**: source installs require Visual Studio 2022 or newer with **Desktop development with C++** and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:taskbar -- --force`
 - **macOS native bridge**: source installs require Xcode Command Line Tools and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:macos-statusbar -- --force`
 
 ### Installation & Setup

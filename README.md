@@ -85,7 +85,7 @@
 - **Node.js** 24.19.x
 - **npm** 9.0 或更高版本（或 yarn/pnpm）
 - **操作系统**：Windows 10+、macOS 10.15+、Linux (x64/arm64)
-- **Windows 原生桥接**：源码安装需要 Visual Studio 2022 的“使用 C++ 的桌面开发”工作负载与 Python 3；`npm install` 会自动针对当前 Electron/架构编译，也可执行 `npm run native:rebuild:taskbar -- --force`
+- **Windows 原生桥接**：源码安装需要 Visual Studio 2022 或更高版本的“使用 C++ 的桌面开发”工作负载与 Python 3；`npm install` 会自动针对当前 Electron/架构编译，也可执行 `npm run native:rebuild:taskbar -- --force`
 - **macOS 原生桥接**：源码安装需要 Xcode Command Line Tools 与 Python 3；`npm install` 会自动针对当前 Electron/架构编译，也可执行 `npm run native:rebuild:macos-statusbar -- --force`
 
 ### 安装与运行

@@ -36,8 +36,6 @@ jobs:
     name: Windows native build
     runs-on: windows-latest
     timeout-minutes: 20
-    env:
-      npm_config_msvs_version: 2022
 
     steps:
       - name: Checkout
