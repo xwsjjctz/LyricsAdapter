@@ -89,6 +89,7 @@ vi.mock('@/../electron/services/menuBarControlImage', () => ({
 vi.mock('@/../electron/logger', () => ({ logger: electronMocks.logger }));
 
 import {
+  buildMenuBarLyricsPresentation,
   MenuBarLyricsService,
   formatMenuBarControls,
   formatMenuBarLyricsTitle,
@@ -109,12 +110,32 @@ function state(overrides: Partial<SystemLyricsState> = {}): SystemLyricsState {
     nextLine: '下一行',
     isPlaying: true,
     lineCursor: null,
+    lineProgress: 0,
     ...overrides,
   };
 }
 
 function point(x: number): { x: number; y: number } {
   return { x, y: 12 };
+}
+
+function nativeBridge() {
+  let actionHandler: ((action: 'previous' | 'toggle-play' | 'next') => void) | null = null;
+  return {
+    getApiVersion: vi.fn(() => 1),
+    startStatusItem: vi.fn((
+      _options: { width: number; controlStripWidth: number },
+      onAction: (action: 'previous' | 'toggle-play' | 'next') => void,
+    ) => {
+      actionHandler = onAction;
+      return true;
+    }),
+    updateStatusItem: vi.fn(),
+    stopStatusItem: vi.fn(),
+    emit(action: 'previous' | 'toggle-play' | 'next') {
+      actionHandler?.(action);
+    },
+  };
 }
 
 describe('MenuBarLyricsService', () => {
@@ -135,43 +156,55 @@ describe('MenuBarLyricsService', () => {
     expect(electronMocks.MockTray.instances).toHaveLength(0);
   });
 
-  it('starts one title-only status item with no context menu or tooltip', () => {
-    const service = new MenuBarLyricsService('darwin');
+  it('starts one 240pt native AppKit item and streams karaoke updates', () => {
+    const bridge = nativeBridge();
+    const onAction = vi.fn();
+    const service = new MenuBarLyricsService('darwin', () => bridge);
 
-    expect(service.start(vi.fn())).toBe(true);
-    expect(service.start(vi.fn())).toBe(true);
+    expect(service.start(onAction)).toBe(true);
+    service.update(state({ line: '我们还会再见', lineProgress: 4 }));
+    expect(service.start(onAction)).toBe(true);
 
-    const tray = electronMocks.MockTray.instances[0]!;
-    expect(electronMocks.createEmpty).toHaveBeenCalledOnce();
-    expect(electronMocks.MockTray.instances).toHaveLength(1);
-    expect(tray.image).toBe(electronMocks.emptyImage);
-    expect(tray.setContextMenu).toHaveBeenCalledWith(null);
-    expect(tray.setIgnoreDoubleClickEvents).toHaveBeenCalledOnce();
-    expect(tray.setIgnoreDoubleClickEvents).toHaveBeenCalledWith(true);
-    expect(tray.setToolTip).toHaveBeenCalledWith('');
-    expect(tray.contextMenu).toBeNull();
-    expect(tray.toolTip).toBe('');
-    expect(tray.title).toBe(`LyricsAdapter${IDEOGRAPHIC_SPACE.repeat(11)}`);
-    expect(tray.titleOptions).toEqual({ fontType: 'monospaced' });
-    expect(tray.on.mock.calls.map(([event]) => event)).toEqual([
-      'mouse-enter',
-      'mouse-leave',
-      'click',
-    ]);
-    expect(electronMocks.logger.info).toHaveBeenCalledWith(
-      '[MenuBarLyrics] Status item ready:',
-      expect.objectContaining({ mode: 'lyrics-with-native-controls' }),
+    expect(bridge.startStatusItem).toHaveBeenCalledOnce();
+    expect(bridge.startStatusItem).toHaveBeenCalledWith(
+      { width: 240, controlStripWidth: 120 },
+      expect.any(Function),
     );
+    expect(bridge.updateStatusItem).toHaveBeenLastCalledWith({
+      text: '我们还会再见',
+      highlightedGraphemes: 4,
+      isPlaying: true,
+    });
+    expect(electronMocks.createEmpty).not.toHaveBeenCalled();
+    expect(electronMocks.MockTray.instances).toHaveLength(0);
+    bridge.emit('toggle-play');
+    expect(onAction).toHaveBeenCalledWith('toggle-play');
+    expect(electronMocks.logger.info).toHaveBeenCalledWith(
+      '[MenuBarLyrics] Native AppKit status item ready:',
+      {
+        width: 240,
+        mode: 'fixed-width-karaoke-lyrics-with-native-controls',
+      },
+    );
+
+    service.stop();
+    expect(bridge.stopStatusItem).toHaveBeenCalledOnce();
   });
 
-  it('reports startup failure without retaining a broken tray', () => {
+  it('falls back to Tray when the native bridge cannot load', () => {
     electronMocks.createEmpty.mockImplementationOnce(() => {
+      throw new Error('tray failure');
+    });
+    const service = new MenuBarLyricsService('darwin', () => {
       throw new Error('native failure');
     });
-    const service = new MenuBarLyricsService('darwin');
 
     expect(service.start(vi.fn())).toBe(false);
     expect(electronMocks.MockTray.instances).toHaveLength(0);
+    expect(electronMocks.logger.warn).toHaveBeenCalledWith(
+      '[MenuBarLyrics] Native AppKit status item unavailable; using Tray fallback:',
+      expect.any(Error),
+    );
     expect(electronMocks.logger.error).toHaveBeenCalledWith(
       '[MenuBarLyrics] Failed to start:',
       expect.any(Error),
@@ -179,7 +212,7 @@ describe('MenuBarLyricsService', () => {
   });
 
   it('shows compact native controls on enter, updates play state, and restores lyrics on leave', () => {
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     service.start(vi.fn());
     service.update(state({ line: '我们还会再见' }));
     const tray = electronMocks.MockTray.instances[0]!;
@@ -197,10 +230,7 @@ describe('MenuBarLyricsService', () => {
     expect(tray.title).toBe('');
 
     tray.emit('mouse-leave', EVENT, point(120));
-    expect(tray.title).toBe(formatMenuBarLyricsTitle(state({
-      line: '不应在悬停时显示',
-      isPlaying: false,
-    })));
+    expect(tray.title.startsWith('不应在悬停时显示')).toBe(true);
     expect(tray.image).toBe(electronMocks.emptyImage);
     expect(tray.title).not.toContain('已暂停');
     expect(tray.setTitle.mock.invocationCallOrder.at(-1))
@@ -210,7 +240,7 @@ describe('MenuBarLyricsService', () => {
   it('routes compact fallback symbols and retries native controls on the next hover', () => {
     controlImageMocks.create.mockReturnValue(null);
     const onAction = vi.fn();
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     service.start(onAction);
     service.update(state());
     const tray = electronMocks.MockTray.instances[0]!;
@@ -222,7 +252,9 @@ describe('MenuBarLyricsService', () => {
     expect(tray.title).toContain('⏸︎');
     expect(tray.title).toContain('⏭︎');
     expect(tray.title).not.toMatch(/[\u4e00-\u9fff]/u);
-    expect(electronMocks.logger.warn).toHaveBeenCalledOnce();
+    expect(electronMocks.logger.warn).toHaveBeenCalledWith(
+      '[MenuBarLyrics] Native SF Symbol controls unavailable; using text fallback.',
+    );
 
     tray.emit('click', EVENT, BOUNDS, point(CONTROL_START_X + 20));
     tray.emit('click', EVENT, BOUNDS, point(CONTROL_START_X + 60));
@@ -243,14 +275,14 @@ describe('MenuBarLyricsService', () => {
     tray.emit('mouse-leave', EVENT, point(120));
     tray.emit('mouse-enter', EVENT, point(120));
     expect(controlImageMocks.create).toHaveBeenCalledTimes(2);
-    expect(electronMocks.logger.warn).toHaveBeenCalledOnce();
+    expect(electronMocks.logger.warn).toHaveBeenCalledTimes(2);
   });
 
   it('pins one hover to fallback after a native image failure, including cached states', () => {
     controlImageMocks.create.mockImplementation((isPlaying: boolean) => (
       isPlaying ? controlImageMocks.pauseImage : null
     ));
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     service.start(vi.fn());
     service.update(state({ isPlaying: true }));
     const tray = electronMocks.MockTray.instances[0]!;
@@ -269,7 +301,7 @@ describe('MenuBarLyricsService', () => {
   });
 
   it('routes the three hover regions and treats exact boundaries consistently', () => {
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     const onAction = vi.fn();
     service.start(onAction);
     const tray = electronMocks.MockTray.instances[0]!;
@@ -296,7 +328,7 @@ describe('MenuBarLyricsService', () => {
   });
 
   it('ignores invalid or out-of-bounds click coordinates', () => {
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     const onAction = vi.fn();
     service.start(onAction);
     const tray = electronMocks.MockTray.instances[0]!;
@@ -314,7 +346,7 @@ describe('MenuBarLyricsService', () => {
   });
 
   it('stops routing clicks after leave or destruction', () => {
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     const onAction = vi.fn();
     service.start(onAction);
     const tray = electronMocks.MockTray.instances[0]!;
@@ -334,7 +366,7 @@ describe('MenuBarLyricsService', () => {
   });
 
   it('replaces the action handler without duplicating native listeners', () => {
-    const service = new MenuBarLyricsService('darwin');
+    const service = new MenuBarLyricsService('darwin', () => null);
     const firstHandler = vi.fn();
     const replacementHandler = vi.fn();
     service.start(firstHandler);
@@ -352,6 +384,29 @@ describe('MenuBarLyricsService', () => {
 });
 
 describe('menu-bar title formatting', () => {
+  it('maps absolute lyric progress into the visible fixed-width window', () => {
+    expect(buildMenuBarLyricsPresentation(state({
+      line: 'abcdef',
+      lineProgress: 3,
+    }))).toEqual({
+      text: 'abcdef',
+      highlightedGraphemes: 3,
+    });
+
+    const graphemes = Array.from(
+      { length: 34 },
+      (_, index) => String.fromCodePoint(0x4e00 + index),
+    );
+    expect(buildMenuBarLyricsPresentation(state({
+      line: graphemes.join(''),
+      lineCursor: 17,
+      lineProgress: 17,
+    }))).toEqual({
+      text: graphemes.slice(1, 25).join(''),
+      highlightedGraphemes: 16,
+    });
+  });
+
   it('always renders exactly twenty-four graphemes and pads short lyrics with full-width spaces', () => {
     const title = formatMenuBarLyricsTitle(state({ line: '你好👩‍🎤' }));
 

@@ -59,6 +59,7 @@ export default defineConfig(({ mode }) => {
                   external: [
                     'electron',
                     'music-tag-native',
+                    '@lyrics-adapter/macos-statusbar-native',
                     '@lyrics-adapter/windows-taskbar-native',
                   ]
                 }

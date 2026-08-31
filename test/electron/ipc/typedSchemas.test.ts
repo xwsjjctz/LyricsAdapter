@@ -10,6 +10,7 @@ describe('typedIpcSchemas', () => {
       artist: 'Artist',
       line: 'Current line',
       lineCursor: 0,
+      lineProgress: 4,
       nextLine: 'Next line',
       isPlaying: true,
     }).success).toBe(true);
@@ -20,6 +21,7 @@ describe('typedIpcSchemas', () => {
       artist: '',
       line: 'x'.repeat(4097),
       lineCursor: null,
+      lineProgress: null,
       nextLine: '',
       isPlaying: false,
     }).success).toBe(false);
@@ -32,6 +34,7 @@ describe('typedIpcSchemas', () => {
       title: 'Title',
       artist: 'Artist',
       line: 'Current line',
+      lineProgress: 0,
       nextLine: 'Next line',
       isPlaying: true,
     };
@@ -48,6 +51,10 @@ describe('typedIpcSchemas', () => {
       .toBe(false);
     expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 1.5 }).success)
       .toBe(false);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 0, lineProgress: 4096 }).success)
+      .toBe(true);
+    expect(typedIpcSchemas.systemLyricsState.safeParse({ ...state, lineCursor: 0, lineProgress: 4097 }).success)
+      .toBe(false);
   });
 
   it('accepts only bounded local-cover and HTTPS artwork URLs', () => {
@@ -57,6 +64,7 @@ describe('typedIpcSchemas', () => {
       artist: 'Artist',
       line: 'Current line',
       lineCursor: 0,
+      lineProgress: 0,
       nextLine: 'Next line',
       isPlaying: true,
     };

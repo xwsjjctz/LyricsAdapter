@@ -79,6 +79,7 @@ const PLAYING_STATE = {
   coverUrl: 'cover://track-1',
   line: '当前歌词',
   lineCursor: 0,
+  lineProgress: 0,
   nextLine: '下一行',
   isPlaying: true,
 };

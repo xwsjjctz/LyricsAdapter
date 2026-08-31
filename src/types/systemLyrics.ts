@@ -14,6 +14,8 @@ export interface SystemLyricsState {
   nextLine: string;
   /** Zero-based grapheme currently being sung; null when no scrolling is needed. */
   lineCursor: number | null;
+  /** Number of graphemes fully sung in the current line; null without timed lyrics. */
+  lineProgress: number | null;
   isPlaying: boolean;
 }
 
@@ -25,5 +27,6 @@ export const EMPTY_SYSTEM_LYRICS_STATE: SystemLyricsState = {
   line: '',
   nextLine: '',
   lineCursor: null,
+  lineProgress: null,
   isPlaying: false,
 };

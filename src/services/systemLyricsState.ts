@@ -72,15 +72,19 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
-/**
- * Translate absolute QRC/YRC word timing to a user-visible character cursor.
- * Returning an integer keeps the 50ms system-surface sampler deduplicable.
- */
-function findWordTimedCursor(
+interface LineTiming {
+  /** Zero-based grapheme that should anchor a scrolling lyric window. */
+  cursor: number;
+  /** Count of graphemes whose timing has completed. */
+  progress: number;
+}
+
+/** Translate absolute QRC/YRC word timing to scrolling and karaoke positions. */
+function findWordTimedPosition(
   line: SyncedLyricLine,
   currentTime: number,
   lineLength: number,
-): number | null {
+): LineTiming | null {
   const words = line.words;
   if (!words?.length) return null;
 
@@ -103,7 +107,10 @@ function findWordTimedCursor(
       // Before the first word, keep the first grapheme selected. In a gap
       // between words, keep the final grapheme of the completed word selected
       // until the next word actually starts.
-      return clamp(cursor === 0 ? 0 : cursor - 1, 0, lastLineIndex);
+      return {
+        cursor: clamp(cursor === 0 ? 0 : cursor - 1, 0, lastLineIndex),
+        progress: clamp(cursor, 0, lineLength),
+      };
     }
 
     if (word.duration === 0) {
@@ -113,27 +120,33 @@ function findWordTimedCursor(
 
     const progress = clamp((currentTime - word.time) / word.duration, 0, 1);
     if (progress < 1) {
-      return clamp(
+      const completed = clamp(
         Math.floor(wordStart + (wordLength * progress)),
         0,
-        lastLineIndex,
+        lineLength,
       );
+      return {
+        cursor: clamp(completed, 0, lastLineIndex),
+        progress: completed,
+      };
     }
     cursor = wordEnd;
   }
 
   // Parsed QRC/YRC text is assembled from the same words. Finish at the
   // rendered line end so malformed provider data cannot move past it.
-  return hasUsableTiming ? lastLineIndex : null;
+  return hasUsableTiming
+    ? { cursor: lastLineIndex, progress: lineLength }
+    : null;
 }
 
-function findLineTimedCursor(
+function findLineTimedPosition(
   track: Track,
   lines: readonly SyncedLyricLine[],
   activeIndex: number,
   currentTime: number,
   lineLength: number,
-): number {
+): LineTiming {
   const lineStart = lines[activeIndex]?.time ?? currentTime;
   const nextLineTime = lines[activeIndex + 1]?.time;
   let lineEnd = typeof nextLineTime === 'number'
@@ -158,29 +171,37 @@ function findLineTimedCursor(
 
   const duration = Math.max(Number.EPSILON, lineEnd - lineStart);
   const progress = clamp((currentTime - lineStart) / duration, 0, 1);
-  return clamp(
+  const completed = clamp(
     Math.floor(lineLength * progress),
     0,
-    Math.max(0, lineLength - 1),
+    lineLength,
   );
+  return {
+    cursor: clamp(completed, 0, Math.max(0, lineLength - 1)),
+    progress: completed,
+  };
 }
 
-function buildLineCursor(
+function buildLineTiming(
   track: Track,
   lines: readonly SyncedLyricLine[],
   activeIndex: number,
   currentTime: number,
   activeLine: string,
-): number | null {
+): { lineCursor: number | null; lineProgress: number | null } | null {
   if (activeIndex < 0 || !activeLine) return null;
 
   const lineLength = countGraphemes(activeLine);
-  if (lineLength <= SYSTEM_LYRICS_WINDOW_GRAPHEMES) return null;
-
   const activeLyric = lines[activeIndex];
-  if (!activeLyric) return null;
-  return findWordTimedCursor(activeLyric, currentTime, lineLength)
-    ?? findLineTimedCursor(track, lines, activeIndex, currentTime, lineLength);
+  if (!activeLyric) return { lineCursor: null, lineProgress: null };
+  const timing = findWordTimedPosition(activeLyric, currentTime, lineLength)
+    ?? findLineTimedPosition(track, lines, activeIndex, currentTime, lineLength);
+  return {
+    lineCursor: lineLength > SYSTEM_LYRICS_WINDOW_GRAPHEMES
+      ? timing.cursor
+      : null,
+    lineProgress: timing.progress,
+  };
 }
 
 export function buildSystemLyricsState(
@@ -201,7 +222,7 @@ export function buildSystemLyricsState(
     LYRIC_LINE_LIMIT,
     true,
   );
-  const lineCursor = buildLineCursor(track, lines, activeIndex, currentTime, activeLine);
+  const timing = buildLineTiming(track, lines, activeIndex, currentTime, activeLine);
 
   return {
     trackId: boundedText(track.id, TRACK_ID_LIMIT),
@@ -212,7 +233,8 @@ export function buildSystemLyricsState(
     // fallback without receiving track metadata disguised as a lyric.
     line: activeLine,
     nextLine,
-    lineCursor,
+    lineCursor: timing?.lineCursor ?? null,
+    lineProgress: timing?.lineProgress ?? null,
     isPlaying,
   };
 }

@@ -15,10 +15,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "native:rebuild:taskbar": "node scripts/rebuildWindowsTaskbarNative.cjs",
-    "postinstall": "npm run native:rebuild:taskbar -- --allow-missing",
-    "preelectron:dev": "npm run native:rebuild:taskbar",
+    "native:rebuild:macos-statusbar": "node scripts/rebuildMacosStatusbarNative.cjs",
+    "postinstall": "npm run native:rebuild:taskbar -- --allow-missing && npm run native:rebuild:macos-statusbar -- --allow-missing",
+    "preelectron:dev": "npm run native:rebuild:taskbar && npm run native:rebuild:macos-statusbar",
     "electron:dev": "vite --mode development",
-    "preelectron:debug": "npm run native:rebuild:taskbar",
+    "preelectron:debug": "npm run native:rebuild:taskbar && npm run native:rebuild:macos-statusbar",
     "electron:debug": "cross-env REMOTE_DEBUGGING_PORT=9222 ELECTRON_INSPECT=127.0.0.1:9229 vite --mode electron-debug",
     "electron:dev:proxy": "cross-env NODE_OPTIONS=--require=./scripts/proxy-preload.cjs vite --mode development",
     "electron:build": "npm run build && cross-env NODE_OPTIONS=--no-deprecation electron-builder",
@@ -53,6 +54,7 @@
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
+    "@lyrics-adapter/macos-statusbar-native": "file:./native/macos-statusbar-native",
     "@lyrics-adapter/windows-taskbar-native": "file:./native/windows-taskbar-native"
   },
   "devDependencies": {
@@ -122,6 +124,8 @@
     ],
     "asar": true,
     "asarUnpack": [
+      "node_modules/@lyrics-adapter/macos-statusbar-native/prebuilds/**/*.node",
+      "node_modules/@lyrics-adapter/macos-statusbar-native/build/Release/*.node",
       "node_modules/@lyrics-adapter/windows-taskbar-native/prebuilds/**/*.node",
       "node_modules/@lyrics-adapter/windows-taskbar-native/build/Release/*.node"
     ],

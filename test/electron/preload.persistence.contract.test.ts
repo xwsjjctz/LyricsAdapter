@@ -156,7 +156,7 @@ describe('preload persistence typed IPC contract', () => {
     const { api, invoke, on, removeListener, response } = executePreload();
     const state = {
       trackId: 'track-1', coverUrl: 'cover://track-1.jpg', title: 'Title', artist: 'Artist',
-      line: 'Current line', lineCursor: 3, nextLine: 'Next line', isPlaying: true,
+      line: 'Current line', lineCursor: 3, lineProgress: 3, nextLine: 'Next line', isPlaying: true,
     };
 
     await expect(api.ipc.systemLyrics.update(state)).resolves.toBe(response);

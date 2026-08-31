@@ -87,11 +87,18 @@ describe('useSystemLyrics', () => {
       nextLine: 'Second line',
     }));
 
-    rerender({ options: makeOptions({ currentTime: 4.9 }) });
+    rerender({ options: makeOptions({ currentTime: 1.1 }) });
     expect(mocks.update).toHaveBeenCalledTimes(1);
 
-    rerender({ options: makeOptions({ currentTime: 5 }) });
+    rerender({ options: makeOptions({ currentTime: 4.9 }) });
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(2));
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      line: 'First line',
+      lineProgress: 9,
+    }));
+
+    rerender({ options: makeOptions({ currentTime: 5 }) });
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(3));
     expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({
       line: 'Second line',
       nextLine: '',
@@ -332,6 +339,7 @@ describe('useSystemLyrics', () => {
       line: '',
       nextLine: '',
       lineCursor: null,
+      lineProgress: null,
       isPlaying: false,
     });
   });

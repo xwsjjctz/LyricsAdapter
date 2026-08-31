@@ -43,6 +43,7 @@ describe('systemLyricsState', () => {
       line: 'Second line',
       nextLine: 'Third line',
       lineCursor: null,
+      lineProgress: 1,
       isPlaying: true,
     });
   });
@@ -61,6 +62,7 @@ describe('systemLyricsState', () => {
       line: '',
       nextLine: '',
       lineCursor: null,
+      lineProgress: null,
       isPlaying: false,
     });
   });
@@ -85,6 +87,8 @@ describe('systemLyricsState', () => {
 
     expect(buildSystemLyricsState(wordTimedTrack, 5, true).lineCursor).toBe(9);
     expect(buildSystemLyricsState(wordTimedTrack, 10, true).lineCursor).toBe(24);
+    expect(buildSystemLyricsState(wordTimedTrack, 5, true).lineProgress).toBe(9);
+    expect(buildSystemLyricsState(wordTimedTrack, 10, true).lineProgress).toBe(25);
   });
 
   it('holds the completed word during a timing gap and advances at the next word', () => {
@@ -102,6 +106,8 @@ describe('systemLyricsState', () => {
 
     expect(buildSystemLyricsState(wordTimedTrack, 1.5, true).lineCursor).toBe(11);
     expect(buildSystemLyricsState(wordTimedTrack, 2, true).lineCursor).toBe(12);
+    expect(buildSystemLyricsState(wordTimedTrack, 1.5, true).lineProgress).toBe(12);
+    expect(buildSystemLyricsState(wordTimedTrack, 2, true).lineProgress).toBe(12);
   });
 
   it('calculates the cursor against the same whitespace-normalized text that is displayed', () => {
@@ -144,7 +150,7 @@ describe('systemLyricsState', () => {
     expect(buildSystemLyricsState(finalLineTrack, 20, true).lineCursor).toBe(12);
   });
 
-  it('does not publish a cursor for a 24-grapheme lyric that fits the system surface', () => {
+  it('publishes karaoke progress without a scroll cursor for a lyric that fits', () => {
     const shortWordTimedTrack: Track = {
       ...track,
       syncedLyrics: [{
@@ -155,6 +161,7 @@ describe('systemLyricsState', () => {
     };
 
     expect(buildSystemLyricsState(shortWordTimedTrack, 1, true).lineCursor).toBeNull();
+    expect(buildSystemLyricsState(shortWordTimedTrack, 1, true).lineProgress).toBe(12);
   });
 
   it('allows only bounded cover and HTTPS artwork URLs', () => {
@@ -205,5 +212,6 @@ describe('systemLyricsState', () => {
     };
 
     expect(buildSystemLyricsState(boundaryTrack, 2, true).lineCursor).toBe(4_095);
+    expect(buildSystemLyricsState(boundaryTrack, 2, true).lineProgress).toBe(4_096);
   });
 });
