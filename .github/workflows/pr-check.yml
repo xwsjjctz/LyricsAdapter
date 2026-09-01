@@ -52,11 +52,22 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Rebuild taskbar bridge from source
-        run: npm run native:rebuild:taskbar -- --force
+      - name: Build C# taskbar host
+        run: npm run native:build:taskbar-host -- --force
+
+      - name: Smoke test C# taskbar host
+        run: npm run native:test:taskbar-host
+
+      - name: Verify composed taskbar lyrics pixels
+        run: npm run test:e2e -- windows-taskbar-lyrics.visual.spec.ts
 
       - name: Type check
         run: npm run typecheck

@@ -182,10 +182,12 @@ export function useSystemLyrics({
 
   useEffect(() => {
     const desktop = getDesktopAPI();
+    const supportsNativeCursorSampling = desktop?.platform === 'darwin'
+      || desktop?.platform === 'win32';
     if (
       !currentTrack
       || !isPlaying
-      || desktop?.platform !== 'darwin'
+      || !supportsNativeCursorSampling
       || !desktop.ipc?.systemLyrics
     ) return;
 

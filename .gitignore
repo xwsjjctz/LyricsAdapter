@@ -74,9 +74,9 @@ FRONTEND.md
 talk.md
 /release
 /dist-electron
-/native/windows-taskbar-native/bin/
-/native/windows-taskbar-native/build/
-/native/windows-taskbar-native/prebuilds/
+/native/windows-taskbar-host/bin/
+/native/windows-taskbar-host/obj/
+/native/windows-taskbar-host/publish/
 /native/macos-statusbar-native/build/
 /native/macos-statusbar-native/prebuilds/
 /src-tauri/target

@@ -23,26 +23,23 @@ async function defaultFn(context) {
   } else {
     cleanWinLinux(appOutDir, electronPlatformName)
     if (electronPlatformName === 'win32') {
-      cleanWindowsTaskbarNative(context)
+      verifyWindowsTaskbarHost(context)
     }
   }
 }
 
-function cleanWindowsTaskbarNative(context) {
-  const nativeRoot = path.join(
+function verifyWindowsTaskbarHost(context) {
+  const executablePath = path.join(
     context.appOutDir,
     'resources',
-    'app.asar.unpacked',
-    'node_modules',
-    '@lyrics-adapter',
-    'windows-taskbar-native',
+    'windows-taskbar-host',
+    'LyricsAdapter.TaskbarHost.exe',
   )
-  if (!fs.existsSync(nativeRoot)) {
-    throw new Error(`[cleanLocales] Missing packaged taskbar native module: ${nativeRoot}`)
+  if (!fs.existsSync(executablePath)) {
+    throw new Error(`[cleanLocales] Missing packaged C# taskbar host: ${executablePath}`)
   }
 
-  cleanNativeBuildRoot(nativeRoot, 'windows_taskbar_native.node', 'taskbar bridge')
-  console.log(`[cleanLocales] Taskbar native runtime ready for ${String(context.arch)}`)
+  console.log(`[cleanLocales] C# taskbar host ready for ${String(context.arch)}`)
 }
 
 function cleanMacosStatusbarNative(appOutDir) {
