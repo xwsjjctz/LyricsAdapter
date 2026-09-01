@@ -24,6 +24,7 @@ public partial class App : Application
         _window = new TaskbarLyricsWindow();
         _protocol = new HostProtocolServer(_window, Dispatcher, ShutdownHost);
         _window.ActionRequested += action => _protocol.WriteAction(action);
+        _window.PlacementChanged += placement => _protocol.WritePlacement(placement);
         _window.StatusChanged += status => _protocol.WriteStatus(status);
         _window.HostInvalidated += reason =>
         {

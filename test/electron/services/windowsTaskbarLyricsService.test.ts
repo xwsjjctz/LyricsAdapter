@@ -21,6 +21,7 @@ vi.mock('electron', () => ({
 }));
 
 import {
+  parseWindowsTaskbarLyricsPlacement,
   WindowsTaskbarLyricsService,
   type WindowsTaskbarLyricsServiceDependencies,
 } from '@/../electron/services/windowsTaskbarLyricsService';
@@ -65,12 +66,16 @@ function createHarness(
     return hosts[hostIndex++]!;
   });
   const resolveArtworkSource = vi.fn(() => 'file:///C:/UserData/covers/track-1.jpg');
+  const loadPlacement = vi.fn(() => ({ mode: 'auto', position: null } as const));
+  const savePlacement = vi.fn(() => true);
   const dependencies: WindowsTaskbarLyricsServiceDependencies = {
     platform: 'win32',
     hostExecutablePath: 'C:\\LyricsAdapter\\native\\LyricsAdapter.TaskbarHost.exe',
     hostExists,
     launchHost,
     resolveArtworkSource,
+    loadPlacement,
+    savePlacement,
     subscribeSessionChanges: (onLock, onUnlock) => {
       subscriptions.lock = onLock;
       subscriptions.unlock = onUnlock;
@@ -87,12 +92,29 @@ function createHarness(
     hostExists,
     launchHost,
     resolveArtworkSource,
+    loadPlacement,
+    savePlacement,
   };
 }
 
 describe('WindowsTaskbarLyricsService', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.useRealTimers());
+
+  it('parses only valid persisted manual positions', () => {
+    expect(parseWindowsTaskbarLyricsPlacement(undefined)).toEqual({
+      mode: 'auto',
+      position: null,
+    });
+    expect(parseWindowsTaskbarLyricsPlacement('{"mode":"manual","position":0.625}')).toEqual({
+      mode: 'manual',
+      position: 0.625,
+    });
+    expect(parseWindowsTaskbarLyricsPlacement('{"mode":"manual","position":2}')).toEqual({
+      mode: 'auto',
+      position: null,
+    });
+  });
 
   it('does not inspect or launch the Windows host on other platforms', () => {
     const harness = createHarness([new FakeHost()], { platform: 'darwin' });
@@ -136,6 +158,8 @@ describe('WindowsTaskbarLyricsService', () => {
       lineCursor: 7,
       lineProgress: 6,
       isPlaying: true,
+      placementMode: 'auto',
+      manualPosition: null,
     });
     expect(harness.resolveArtworkSource).toHaveBeenCalledOnce();
 
@@ -144,6 +168,36 @@ describe('WindowsTaskbarLyricsService', () => {
     expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
       line: '同封面的下一帧',
       lineProgress: 8,
+    }));
+  });
+
+  it('restores, applies, and persists manual or automatic placement changes', () => {
+    const savePlacement = vi.fn(() => true);
+    const harness = createHarness([new FakeHost()], {
+      loadPlacement: () => ({ mode: 'manual', position: 0.42 }),
+      savePlacement,
+    });
+    const host = harness.hosts[0]!;
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+
+    expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      placementMode: 'manual',
+      manualPosition: 0.42,
+    }));
+
+    harness.callbacks[0]!.onPlacement({ mode: 'auto', position: null });
+    expect(savePlacement).toHaveBeenLastCalledWith({ mode: 'auto', position: null });
+    expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      placementMode: 'auto',
+      manualPosition: null,
+    }));
+
+    harness.callbacks[0]!.onPlacement({ mode: 'manual', position: 0.73 });
+    expect(savePlacement).toHaveBeenLastCalledWith({ mode: 'manual', position: 0.73 });
+    expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      placementMode: 'manual',
+      manualPosition: 0.73,
     }));
   });
 

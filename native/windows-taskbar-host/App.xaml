@@ -20,6 +20,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource WidgetForegroundBrush}" />
       <Setter Property="Focusable" Value="False" />
+      <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">

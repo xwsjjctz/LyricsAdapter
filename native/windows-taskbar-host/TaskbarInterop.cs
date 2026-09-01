@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Automation;
 
 namespace LyricsAdapter.TaskbarHost;
 
@@ -18,12 +19,18 @@ internal sealed class TaskbarLayout
     internal required int CornerRadius { get; init; }
     internal required uint Dpi { get; init; }
     internal required string Edge { get; init; }
+    internal required string PlacementMode { get; init; }
+    internal double? ManualPosition { get; init; }
+    internal required bool PlacementAdjusted { get; init; }
+    internal required int OccupiedRegionCount { get; init; }
 }
 
 internal static class TaskbarInterop
 {
     private const string PrimaryTaskbarClass = "Shell_TrayWnd";
     private const string TrayNotifyClass = "TrayNotifyWnd";
+    private const string RebarClass = "ReBarWindow32";
+    private const int DwmwaCloaked = 14;
 
     private const int GwlStyle = -16;
     private const int GwlExStyle = -20;
@@ -46,6 +53,10 @@ internal static class TaskbarInterop
     private const int SwShowNoActivate = 4;
     private static readonly IntPtr HwndTop = IntPtr.Zero;
     private static readonly IntPtr HwndTopMost = new(-1);
+    private static readonly TimeSpan AutomationCacheDuration = TimeSpan.FromSeconds(3);
+    private static IntPtr _automationCacheTaskbar;
+    private static DateTime _automationCacheExpiresUtc = DateTime.MinValue;
+    private static List<HorizontalInterval> _automationCache = [];
 
     /// <summary>
     /// Establishes the topmost band while the WPF HWND is still top-level.
@@ -72,6 +83,8 @@ internal static class TaskbarInterop
     }
 
     internal static bool TryCalculateLayout(
+        IntPtr hostWindow,
+        double? manualPosition,
         double desiredWidthDip,
         double minimumWidthDip,
         double heightDip,
@@ -125,39 +138,69 @@ internal static class TaskbarInterop
             return false;
         }
 
+        var innerStart = taskbarRect.Left + gap;
+        var innerEnd = taskbarRect.Right - gap;
+        if (innerEnd - innerStart < minimumWidth)
+        {
+            reason = "taskbar-has-no-safe-space";
+            return false;
+        }
+
+        var occupied = CollectOccupiedIntervals(
+            taskbar,
+            hostWindow,
+            taskbarRect);
+        var taskbarCenter = taskbarRect.Left + taskbarWidth / 2;
+        var preferEnd = true;
         var tray = FindDescendantByClass(taskbar, TrayNotifyClass);
-        var width = desiredWidth;
-        var x = 0;
         if (tray != IntPtr.Zero && GetWindowRect(tray, out var trayRect))
         {
-            var taskbarCenter = taskbarRect.Left + taskbarWidth / 2;
+            AddProjectedInterval(occupied, trayRect, taskbarRect);
             var trayCenter = trayRect.Left + (trayRect.Right - trayRect.Left) / 2;
-            if (trayCenter >= taskbarCenter)
-            {
-                var available = trayRect.Left - taskbarRect.Left - gap * 2;
-                width = Math.Min(desiredWidth, available);
-                x = trayRect.Left - gap - width;
-            }
-            else
-            {
-                var available = taskbarRect.Right - trayRect.Right - gap * 2;
-                width = Math.Min(desiredWidth, available);
-                x = trayRect.Right + gap;
-            }
+            preferEnd = trayCenter >= taskbarCenter;
         }
         else
         {
-            // Explorer variants occasionally hide TrayNotifyWnd. Keep a system
-            // tray-sized reserve and recover automatically on the next health tick.
-            var trayReserve = DipToPixels(220, dpi);
-            var available = Math.Max(0, taskbarWidth - trayReserve - gap * 2);
-            width = Math.Min(desiredWidth, available);
-            x = taskbarRect.Right - trayReserve - gap - width;
+            // Explorer variants occasionally hide TrayNotifyWnd. Reserve the
+            // conventional notification area until its HWND becomes available.
+            var trayReserve = Math.Min(
+                DipToPixels(220, dpi),
+                Math.Max(0, taskbarWidth - minimumWidth - gap * 2));
+            occupied.Add(new HorizontalInterval(
+                taskbarRect.Right - trayReserve,
+                taskbarRect.Right));
         }
 
-        if (width < minimumWidth
-            || x < taskbarRect.Left
-            || x + width > taskbarRect.Right)
+        var rebar = FindDescendantByClass(taskbar, RebarClass);
+        if (rebar != IntPtr.Zero && GetWindowRect(rebar, out var rebarRect))
+        {
+            AddProjectedInterval(occupied, rebarRect, taskbarRect);
+        }
+
+        var mergedOccupied = MergeOccupiedIntervals(
+            occupied,
+            innerStart,
+            innerEnd,
+            gap);
+        var freeIntervals = BuildFreeIntervals(
+            mergedOccupied,
+            innerStart,
+            innerEnd);
+        double? normalizedManualPosition = manualPosition is double requestedPosition
+            && double.IsFinite(requestedPosition)
+            ? Math.Clamp(requestedPosition, 0d, 1d)
+            : null;
+        if (!TrySelectPlacement(
+                freeIntervals,
+                desiredWidth,
+                minimumWidth,
+                taskbarRect.Left,
+                taskbarWidth,
+                normalizedManualPosition,
+                preferEnd,
+                out var x,
+                out var width,
+                out var placementAdjusted))
         {
             reason = "taskbar-has-no-safe-space";
             return false;
@@ -194,8 +237,312 @@ internal static class TaskbarInterop
                 Math.Min(width, height) / 2),
             Dpi = dpi,
             Edge = edge,
+            PlacementMode = normalizedManualPosition.HasValue ? "manual" : "auto",
+            ManualPosition = normalizedManualPosition,
+            PlacementAdjusted = placementAdjusted,
+            OccupiedRegionCount = mergedOccupied.Count,
         };
         return true;
+    }
+
+    private static List<HorizontalInterval> CollectOccupiedIntervals(
+        IntPtr taskbar,
+        IntPtr hostWindow,
+        Rect taskbarRect)
+    {
+        var occupied = new List<HorizontalInterval>();
+        occupied.AddRange(GetAutomationOccupiedIntervals(taskbar, taskbarRect));
+
+        GetWindowThreadProcessId(taskbar, out var explorerProcessId);
+        var hostProcessId = (uint)Environment.ProcessId;
+        var inspected = new HashSet<IntPtr>();
+
+        void InspectWindow(IntPtr window)
+        {
+            if (window == IntPtr.Zero
+                || window == taskbar
+                || window == hostWindow
+                || !inspected.Add(window)
+                || !IsWindowVisible(window)
+                || IsWindowCloaked(window))
+            {
+                return;
+            }
+
+            GetWindowThreadProcessId(window, out var processId);
+            if (processId == 0
+                || processId == explorerProcessId
+                || processId == hostProcessId)
+            {
+                return;
+            }
+
+            if (GetWindowRect(window, out var windowRect))
+            {
+                AddProjectedInterval(occupied, windowRect, taskbarRect);
+            }
+        }
+
+        EnumWindows((window, _) =>
+        {
+            InspectWindow(window);
+            return true;
+        }, IntPtr.Zero);
+        EnumChildWindows(taskbar, (window, _) =>
+        {
+            InspectWindow(window);
+            return true;
+        }, IntPtr.Zero);
+
+        return occupied;
+    }
+
+    private static IReadOnlyList<HorizontalInterval> GetAutomationOccupiedIntervals(
+        IntPtr taskbar,
+        Rect taskbarRect)
+    {
+        var now = DateTime.UtcNow;
+        if (_automationCacheTaskbar == taskbar && now < _automationCacheExpiresUtc)
+        {
+            return _automationCache;
+        }
+
+        var occupied = new List<HorizontalInterval>();
+        try
+        {
+            var root = AutomationElement.FromHandle(taskbar);
+            if (root is not null)
+            {
+                var condition = new OrCondition(
+                    new PropertyCondition(
+                        AutomationElement.ControlTypeProperty,
+                        ControlType.Button),
+                    new PropertyCondition(
+                        AutomationElement.ControlTypeProperty,
+                        ControlType.Pane));
+                var elements = root.FindAll(TreeScope.Descendants, condition);
+                var taskbarWidth = taskbarRect.Right - taskbarRect.Left;
+                for (var index = 0; index < elements.Count; index++)
+                {
+                    try
+                    {
+                        var current = elements[index].Current;
+                        var bounds = current.BoundingRectangle;
+                        if (bounds.IsEmpty
+                            || !double.IsFinite(bounds.Left)
+                            || !double.IsFinite(bounds.Top)
+                            || !double.IsFinite(bounds.Right)
+                            || !double.IsFinite(bounds.Bottom))
+                        {
+                            continue;
+                        }
+
+                        var isButton = current.ControlType == ControlType.Button;
+                        var width = bounds.Right - bounds.Left;
+                        var className = current.ClassName;
+                        var isTaskbarContainer = string.Equals(
+                                className,
+                                "Windows.UI.Input.InputSite.WindowClass",
+                                StringComparison.Ordinal)
+                            || string.Equals(
+                                className,
+                                "Taskbar.TaskbarFrameAutomationPeer",
+                                StringComparison.Ordinal);
+                        if (!isButton && (isTaskbarContainer || width >= taskbarWidth * 0.8))
+                        {
+                            // TaskbarFrame and InputSite span the whole bar and
+                            // are containers rather than occupied visual slots.
+                            continue;
+                        }
+
+                        AddProjectedInterval(occupied, new Rect
+                        {
+                            Left = (int)Math.Floor(bounds.Left),
+                            Top = (int)Math.Floor(bounds.Top),
+                            Right = (int)Math.Ceiling(bounds.Right),
+                            Bottom = (int)Math.Ceiling(bounds.Bottom),
+                        }, taskbarRect);
+                    }
+                    catch (ElementNotAvailableException)
+                    {
+                        // Explorer rebuilt this automation element mid-query.
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // A third-party taskbar provider returned stale data.
+                    }
+                    catch (COMException)
+                    {
+                        // An out-of-process automation provider disappeared.
+                    }
+                }
+            }
+
+            _automationCacheTaskbar = taskbar;
+            _automationCache = occupied;
+            _automationCacheExpiresUtc = now + AutomationCacheDuration;
+        }
+        catch (Exception)
+        {
+            // UI Automation is advisory. Native taskbar and third-party HWNDs
+            // still provide a collision-safe fallback on customized shells.
+            if (_automationCacheTaskbar != taskbar)
+            {
+                _automationCacheTaskbar = taskbar;
+                _automationCache = [];
+            }
+            _automationCacheExpiresUtc = now + TimeSpan.FromSeconds(1);
+        }
+
+        return _automationCache;
+    }
+
+    private static void AddProjectedInterval(
+        ICollection<HorizontalInterval> intervals,
+        Rect candidate,
+        Rect taskbar)
+    {
+        var overlapTop = Math.Max(candidate.Top, taskbar.Top);
+        var overlapBottom = Math.Min(candidate.Bottom, taskbar.Bottom);
+        var taskbarHeight = taskbar.Bottom - taskbar.Top;
+        var minimumVerticalOverlap = Math.Max(2, taskbarHeight / 4);
+        if (overlapBottom - overlapTop < minimumVerticalOverlap) return;
+
+        var start = Math.Max(candidate.Left, taskbar.Left);
+        var end = Math.Min(candidate.Right, taskbar.Right);
+        if (end - start < 2) return;
+        intervals.Add(new HorizontalInterval(start, end));
+    }
+
+    private static List<HorizontalInterval> MergeOccupiedIntervals(
+        IEnumerable<HorizontalInterval> occupied,
+        int innerStart,
+        int innerEnd,
+        int gap)
+    {
+        var clipped = occupied
+            .Select(interval => new HorizontalInterval(
+                Math.Max(innerStart, interval.Start - gap),
+                Math.Min(innerEnd, interval.End + gap)))
+            .Where(interval => interval.End > interval.Start)
+            .OrderBy(interval => interval.Start)
+            .ThenBy(interval => interval.End)
+            .ToList();
+        if (clipped.Count == 0) return [];
+
+        var merged = new List<HorizontalInterval>();
+        var current = clipped[0];
+        for (var index = 1; index < clipped.Count; index++)
+        {
+            var next = clipped[index];
+            if (next.Start <= current.End)
+            {
+                current = new HorizontalInterval(
+                    current.Start,
+                    Math.Max(current.End, next.End));
+                continue;
+            }
+            merged.Add(current);
+            current = next;
+        }
+        merged.Add(current);
+        return merged;
+    }
+
+    private static List<HorizontalInterval> BuildFreeIntervals(
+        IReadOnlyList<HorizontalInterval> occupied,
+        int innerStart,
+        int innerEnd)
+    {
+        var free = new List<HorizontalInterval>();
+        var cursor = innerStart;
+        foreach (var interval in occupied)
+        {
+            if (interval.Start > cursor)
+            {
+                free.Add(new HorizontalInterval(cursor, interval.Start));
+            }
+            cursor = Math.Max(cursor, interval.End);
+        }
+        if (cursor < innerEnd)
+        {
+            free.Add(new HorizontalInterval(cursor, innerEnd));
+        }
+        return free;
+    }
+
+    private static bool TrySelectPlacement(
+        IReadOnlyList<HorizontalInterval> free,
+        int desiredWidth,
+        int minimumWidth,
+        int taskbarLeft,
+        int taskbarWidth,
+        double? manualPosition,
+        bool preferEnd,
+        out int x,
+        out int width,
+        out bool adjusted)
+    {
+        x = 0;
+        width = 0;
+        adjusted = false;
+
+        var minimumCandidates = free
+            .Where(interval => interval.Length >= minimumWidth)
+            .ToList();
+        if (minimumCandidates.Count == 0) return false;
+
+        if (manualPosition is double normalizedPosition)
+        {
+            var targetCenter = taskbarLeft
+                + (int)Math.Round(taskbarWidth * normalizedPosition);
+            var bestDistance = long.MaxValue;
+            var bestWidth = -1;
+            foreach (var interval in minimumCandidates)
+            {
+                var candidateWidth = Math.Min(desiredWidth, interval.Length);
+                var candidateX = Math.Clamp(
+                    targetCenter - candidateWidth / 2,
+                    interval.Start,
+                    interval.End - candidateWidth);
+                var distance = Math.Abs((long)candidateX + candidateWidth / 2 - targetCenter);
+                if (distance > bestDistance
+                    || (distance == bestDistance && candidateWidth <= bestWidth))
+                {
+                    continue;
+                }
+                bestDistance = distance;
+                bestWidth = candidateWidth;
+                x = candidateX;
+                width = candidateWidth;
+            }
+            adjusted = bestDistance > 1;
+            return width >= minimumWidth;
+        }
+
+        var fullSize = minimumCandidates
+            .Where(interval => interval.Length >= desiredWidth)
+            .ToList();
+        var candidates = fullSize.Count > 0 ? fullSize : minimumCandidates;
+        var selected = preferEnd
+            ? candidates.OrderByDescending(interval => interval.End)
+                .ThenByDescending(interval => interval.Length)
+                .First()
+            : candidates.OrderBy(interval => interval.Start)
+                .ThenByDescending(interval => interval.Length)
+                .First();
+        width = Math.Min(desiredWidth, selected.Length);
+        x = preferEnd ? selected.End - width : selected.Start;
+        return width >= minimumWidth;
+    }
+
+    private static bool IsWindowCloaked(IntPtr window)
+    {
+        return DwmGetWindowAttribute(
+            window,
+            DwmwaCloaked,
+            out var cloaked,
+            Marshal.SizeOf<int>()) == 0 && cloaked != 0;
     }
 
     internal static void ApplyLayout(
@@ -361,6 +708,11 @@ internal static class TaskbarInterop
         }
     }
 
+    private readonly record struct HorizontalInterval(int Start, int End)
+    {
+        internal int Length => End - Start;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect
     {
@@ -408,6 +760,21 @@ internal static class TaskbarInterop
         IntPtr parent,
         EnumWindowsCallback callback,
         IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(
+        EnumWindowsCallback callback,
+        IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(
+        IntPtr window,
+        out uint processId);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(
@@ -476,6 +843,13 @@ internal static class TaskbarInterop
     private static extern int DwmGetColorizationColor(
         out uint colorizationColor,
         [MarshalAs(UnmanagedType.Bool)] out bool opaqueBlend);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(
+        IntPtr window,
+        int attribute,
+        out int value,
+        int valueSize);
 
     [DllImport("kernel32.dll")]
     private static extern void SetLastError(uint errorCode);

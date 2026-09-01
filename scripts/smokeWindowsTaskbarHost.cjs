@@ -11,7 +11,26 @@ const targetArch = archArgument ? archArgument.slice('--arch='.length) : process
 const testAttachment = process.argv.includes('--attach');
 const executableArgument = process.argv.find(argument => argument.startsWith('--executable='));
 const holdArgument = process.argv.find(argument => argument.startsWith('--hold-ms='));
+const expectedWidthArgument = process.argv.find(argument => argument.startsWith('--expected-width-dip='));
+const manualPositionArgument = process.argv.find(argument => argument.startsWith('--manual-position='));
 const requestedHoldMs = holdArgument ? Number(holdArgument.slice('--hold-ms='.length)) : 0;
+const requestedExpectedWidthDip = expectedWidthArgument
+  ? Number(expectedWidthArgument.slice('--expected-width-dip='.length))
+  : null;
+const expectedWidthDip = requestedExpectedWidthDip !== null
+  && Number.isFinite(requestedExpectedWidthDip)
+  && requestedExpectedWidthDip > 0
+  ? requestedExpectedWidthDip
+  : null;
+const requestedManualPosition = manualPositionArgument
+  ? Number(manualPositionArgument.slice('--manual-position='.length))
+  : null;
+const manualPosition = requestedManualPosition !== null
+  && Number.isFinite(requestedManualPosition)
+  && requestedManualPosition >= 0
+  && requestedManualPosition <= 1
+  ? requestedManualPosition
+  : null;
 const holdMs = Number.isFinite(requestedHoldMs)
   ? Math.min(30_000, Math.max(0, Math.floor(requestedHoldMs)))
   : 0;
@@ -30,7 +49,7 @@ const executablePath = executableArgument
     `win-${targetArch}`,
     'LyricsAdapter.TaskbarHost.exe',
   );
-const child = spawn(executablePath, ['--protocol-version', '1'], {
+const child = spawn(executablePath, ['--protocol-version', '2'], {
   windowsHide: true,
   shell: false,
   stdio: ['pipe', 'pipe', 'pipe'],
@@ -60,7 +79,7 @@ stdout.on('line', line => {
     child.kill();
     return;
   }
-  if (message.type === 'ready' && message.apiVersion === 1 && !ready) {
+  if (message.type === 'ready' && message.apiVersion === 2 && !ready) {
     ready = true;
     if (!testAttachment) {
       child.stdin.end(`${JSON.stringify({ type: 'shutdown' })}\n`);
@@ -77,14 +96,40 @@ stdout.on('line', line => {
         lineCursor: 0,
         lineProgress: 6,
         isPlaying: true,
+        placementMode: manualPosition === null ? 'auto' : 'manual',
+        manualPosition,
       },
     })}\n`);
     return;
   }
   if (testAttachment && message.type === 'status' && !statusSeen) {
     statusSeen = true;
-    attachmentPassed = message.attached === true && message.topmost === true;
-    attachmentSummary = `attached=${Boolean(message.attached)}, topmost=${Boolean(message.topmost)}, reason=${String(message.reason)}`;
+    const dpi = Number(message.dpi);
+    const actualWidth = Number(message.boundsPx?.width);
+    const expectedWidth = expectedWidthDip === null || !Number.isFinite(dpi)
+      ? null
+      : Math.round(expectedWidthDip * dpi / 96);
+    const widthPassed = expectedWidth === null
+      || (Number.isFinite(actualWidth) && Math.abs(actualWidth - expectedWidth) <= 1);
+    const placementPassed = manualPosition === null
+      ? message.placementMode === 'auto'
+      : message.placementMode === 'manual'
+        && Number.isFinite(Number(message.manualPosition))
+        && Math.abs(Number(message.manualPosition) - manualPosition) <= 0.0001;
+    attachmentPassed = message.attached === true
+      && message.topmost === true
+      && widthPassed
+      && placementPassed;
+    attachmentSummary = [
+      `attached=${Boolean(message.attached)}`,
+      `topmost=${Boolean(message.topmost)}`,
+      `x=${Number.isFinite(Number(message.boundsPx?.x)) ? Number(message.boundsPx.x) : 'unknown'}`,
+      `width=${Number.isFinite(actualWidth) ? actualWidth : 'unknown'}`,
+      `expectedWidth=${expectedWidth ?? 'not-checked'}`,
+      `placement=${String(message.placementMode ?? 'unknown')}`,
+      `occupiedRegions=${Number.isFinite(Number(message.occupiedRegionCount)) ? Number(message.occupiedRegionCount) : 'unknown'}`,
+      `reason=${String(message.reason)}`,
+    ].join(', ');
     const shutdown = () => child.stdin.end(`${JSON.stringify({ type: 'shutdown' })}\n`);
     if (holdMs > 0) setTimeout(shutdown, holdMs);
     else shutdown();
@@ -100,7 +145,7 @@ child.on('close', code => {
   stdout.close();
   stderr.close();
   if (!ready || (testAttachment && (!statusSeen || !attachmentPassed)) || code !== 0) {
-    console.error(`[TaskbarHostSmoke] Host failed (ready=${ready}, status=${statusSeen}, attachment=${attachmentPassed}, code=${code}).`);
+    console.error(`[TaskbarHostSmoke] Host failed (ready=${ready}, status=${statusSeen}, attachment=${attachmentPassed}, code=${code}${attachmentSummary ? `, ${attachmentSummary}` : ''}).`);
     if (stderrText) console.error(stderrText.trim());
     process.exitCode = 1;
     return;

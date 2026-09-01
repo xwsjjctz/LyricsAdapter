@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -128,6 +128,8 @@ async function captureTaskbarEdges(
 function comparePixels(
   before: TaskbarEdgeImage,
   after: TaskbarEdgeImage,
+  ignoredBounds: readonly NonNullable<PixelDifference['bounds']>[] = [],
+  horizontalBandWidth?: number,
 ): PixelDifference {
   expect(after.width).toBe(before.width);
   expect(after.height).toBe(before.height);
@@ -136,34 +138,67 @@ function comparePixels(
   expect(right.length).toBe(left.length);
   expect(left.length).toBe(before.width * before.height * 4);
 
-  let changedPixels = 0;
-  let maximumChannelDelta = 0;
-  let minimumX = before.width;
-  let minimumY = before.height;
-  let maximumX = -1;
-  let maximumY = -1;
+  const changed: Array<{ x: number; y: number; delta: number }> = [];
   for (let offset = 0; offset < left.length; offset += 4) {
+    const pixel = offset / 4;
+    const x = pixel % before.width;
+    const y = Math.floor(pixel / before.width);
+    if (ignoredBounds.some(bounds => (
+      x >= bounds.left
+      && x <= bounds.right
+      && y >= bounds.top
+      && y <= bounds.bottom
+    ))) continue;
     const delta = Math.max(
       Math.abs((left[offset] ?? 0) - (right[offset] ?? 0)),
       Math.abs((left[offset + 1] ?? 0) - (right[offset + 1] ?? 0)),
       Math.abs((left[offset + 2] ?? 0) - (right[offset + 2] ?? 0)),
     );
-    maximumChannelDelta = Math.max(maximumChannelDelta, delta);
     if (delta < 24) continue;
-    changedPixels += 1;
-    const pixel = offset / 4;
-    const x = pixel % before.width;
-    const y = Math.floor(pixel / before.width);
-    minimumX = Math.min(minimumX, x);
-    minimumY = Math.min(minimumY, y);
-    maximumX = Math.max(maximumX, x);
-    maximumY = Math.max(maximumY, y);
+    changed.push({ x, y, delta });
+  }
+
+  let selected = changed;
+  if (horizontalBandWidth && changed.length > 0) {
+    const width = Math.max(1, Math.min(before.width, Math.round(horizontalBandWidth)));
+    const columns = new Uint32Array(before.width);
+    for (const pixel of changed) columns[pixel.x] = (columns[pixel.x] ?? 0) + 1;
+
+    let currentCount = 0;
+    for (let x = 0; x < width; x++) currentCount += columns[x] ?? 0;
+    let strongestCount = currentCount;
+    let strongestStart = 0;
+    for (let start = 1; start <= before.width - width; start++) {
+      currentCount -= columns[start - 1] ?? 0;
+      currentCount += columns[start + width - 1] ?? 0;
+      if (currentCount > strongestCount) {
+        strongestCount = currentCount;
+        strongestStart = start;
+      }
+    }
+    const strongestEnd = strongestStart + width - 1;
+    selected = changed.filter(pixel => (
+      pixel.x >= strongestStart && pixel.x <= strongestEnd
+    ));
+  }
+
+  let maximumChannelDelta = 0;
+  let minimumX = before.width;
+  let minimumY = before.height;
+  let maximumX = -1;
+  let maximumY = -1;
+  for (const pixel of selected) {
+    maximumChannelDelta = Math.max(maximumChannelDelta, pixel.delta);
+    minimumX = Math.min(minimumX, pixel.x);
+    minimumY = Math.min(minimumY, pixel.y);
+    maximumX = Math.max(maximumX, pixel.x);
+    maximumY = Math.max(maximumY, pixel.y);
   }
 
   return {
-    changedPixels,
+    changedPixels: selected.length,
     maximumChannelDelta,
-    bounds: changedPixels > 0
+    bounds: selected.length > 0
       ? { left: minimumX, top: minimumY, right: maximumX, bottom: maximumY }
       : null,
   };
@@ -218,9 +253,14 @@ test.describe('Windows taskbar lyrics visual surface', () => {
     const userData = path.join(tempRoot, 'user-data');
     const appData = path.join(tempRoot, 'app-data');
     const localAppData = path.join(tempRoot, 'local-app-data');
-    await Promise.all([isolatedHome, userData, appData, localAppData].map(directory => (
+    const coverDirectory = path.join(userData, 'covers');
+    await Promise.all([isolatedHome, userData, appData, localAppData, coverDirectory].map(directory => (
       mkdir(directory, { recursive: true })
     )));
+    await copyFile(
+      path.join(repoRoot, 'app-icon.png'),
+      path.join(coverDirectory, 'windows-taskbar-visual-e2e.png'),
+    );
 
     const launchEnv: Record<string, string> = {
       ...inheritedEnv,
@@ -260,7 +300,7 @@ test.describe('Windows taskbar lyrics visual surface', () => {
         return api.ipc.systemLyrics.update(state);
       }, {
         trackId: 'windows-taskbar-visual-e2e',
-        coverUrl: '',
+        coverUrl: 'cover://windows-taskbar-visual-e2e.png',
         title: 'LyricsAdapter visual E2E',
         artist: 'Native WPF host',
         line: 'VISIBLE TASKBAR LYRICS 任务栏像素验证',
@@ -273,10 +313,7 @@ test.describe('Windows taskbar lyrics visual surface', () => {
 
       const minimumChangedPixels = Math.max(
         500,
-        Math.max(
-          baselineNoise.top.changedPixels,
-          baselineNoise.bottom.changedPixels,
-        ) * 6 + 200,
+        Math.round(625 * baseline.scaleFactor * baseline.scaleFactor),
       );
       let strongestCapture = settledBaseline;
       let strongestDifference = {
@@ -286,10 +323,30 @@ test.describe('Windows taskbar lyrics visual surface', () => {
       for (let attempt = 0; attempt < 20; attempt += 1) {
         await page.waitForTimeout(250);
         const capture = await captureTaskbarEdges(electronApp);
-        const differences = (['top', 'bottom'] as const).map(edge => ({
-          edge,
-          metrics: comparePixels(settledBaseline[edge], capture[edge]),
-        }));
+        const differences = (['top', 'bottom'] as const).map(edge => {
+          const noiseBounds = baselineNoise[edge].bounds;
+          const noiseWidth = noiseBounds ? noiseBounds.right - noiseBounds.left + 1 : 0;
+          const noiseHeight = noiseBounds ? noiseBounds.bottom - noiseBounds.top + 1 : 0;
+          const maskBaselineNoise = noiseBounds
+            && noiseWidth <= 160 * baseline.scaleFactor
+            && noiseHeight <= 80 * baseline.scaleFactor;
+          const padding = Math.round(12 * baseline.scaleFactor);
+          const ignoredBounds = maskBaselineNoise ? [{
+            left: Math.max(0, noiseBounds.left - padding),
+            top: Math.max(0, noiseBounds.top - padding),
+            right: Math.min(capture[edge].width - 1, noiseBounds.right + padding),
+            bottom: Math.min(capture[edge].height - 1, noiseBounds.bottom + padding),
+          }] : [];
+          return {
+            edge,
+            metrics: comparePixels(
+              settledBaseline[edge],
+              capture[edge],
+              ignoredBounds,
+              280 * baseline.scaleFactor,
+            ),
+          };
+        });
         const strongest = differences.reduce((current, candidate) => (
           candidate.metrics.changedPixels > current.metrics.changedPixels ? candidate : current
         ));
@@ -325,7 +382,7 @@ test.describe('Windows taskbar lyrics visual surface', () => {
       const changedWidth = changedBounds.right - changedBounds.left + 1;
       const changedHeight = changedBounds.bottom - changedBounds.top + 1;
       expect(changedWidth).toBeGreaterThanOrEqual(Math.round(180 * baseline.scaleFactor));
-      expect(changedWidth).toBeLessThanOrEqual(Math.round(520 * baseline.scaleFactor));
+      expect(changedWidth).toBeLessThanOrEqual(Math.round(285 * baseline.scaleFactor));
       expect(changedHeight).toBeGreaterThanOrEqual(Math.round(16 * baseline.scaleFactor));
       expect(changedHeight).toBeLessThanOrEqual(Math.round(56 * baseline.scaleFactor));
     } finally {

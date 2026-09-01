@@ -16,6 +16,14 @@ internal sealed class HostState
     public int? LineCursor { get; set; }
     public int? LineProgress { get; set; }
     public bool IsPlaying { get; set; }
+    public string PlacementMode { get; set; } = "auto";
+    public double? ManualPosition { get; set; }
+}
+
+internal sealed class HostPlacement
+{
+    public string Mode { get; init; } = "auto";
+    public double? Position { get; init; }
 }
 
 internal sealed class HostCommand
@@ -41,11 +49,15 @@ internal sealed class HostStatus
     public string? Edge { get; init; }
     public uint? Dpi { get; init; }
     public HostBounds? BoundsPx { get; init; }
+    public string? PlacementMode { get; init; }
+    public double? ManualPosition { get; init; }
+    public bool? PlacementAdjusted { get; init; }
+    public int? OccupiedRegionCount { get; init; }
 }
 
 internal sealed class HostProtocolServer : IDisposable
 {
-    internal const int ApiVersion = 1;
+    internal const int ApiVersion = 2;
     private const int MaxLineLength = 64 * 1024;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -157,6 +169,16 @@ internal sealed class HostProtocolServer : IDisposable
         Write(new { type = "action", action });
     }
 
+    internal void WritePlacement(HostPlacement placement)
+    {
+        Write(new
+        {
+            type = "placement",
+            mode = placement.Mode,
+            position = placement.Position,
+        });
+    }
+
     internal void WriteStatus(HostStatus status)
     {
         Write(new
@@ -168,6 +190,10 @@ internal sealed class HostProtocolServer : IDisposable
             edge = status.Edge,
             dpi = status.Dpi,
             boundsPx = status.BoundsPx,
+            placementMode = status.PlacementMode,
+            manualPosition = status.ManualPosition,
+            placementAdjusted = status.PlacementAdjusted,
+            occupiedRegionCount = status.OccupiedRegionCount,
         });
     }
 

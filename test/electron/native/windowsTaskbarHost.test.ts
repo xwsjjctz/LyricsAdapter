@@ -24,13 +24,27 @@ afterEach(() => {
 
 describe('Windows taskbar host protocol', () => {
   it('accepts only the narrow ready, action, and status message shapes', () => {
-    expect(parseWindowsTaskbarHostMessage('{"type":"ready","apiVersion":1}')).toEqual({
+    expect(parseWindowsTaskbarHostMessage('{"type":"ready","apiVersion":2}')).toEqual({
       type: 'ready',
-      apiVersion: 1,
+      apiVersion: 2,
     });
     expect(parseWindowsTaskbarHostMessage('{"type":"action","action":"next"}')).toEqual({
       type: 'action',
       action: 'next',
+    });
+    expect(parseWindowsTaskbarHostMessage(
+      '{"type":"placement","mode":"manual","position":0.625}',
+    )).toEqual({
+      type: 'placement',
+      mode: 'manual',
+      position: 0.625,
+    });
+    expect(parseWindowsTaskbarHostMessage(
+      '{"type":"placement","mode":"auto","position":null}',
+    )).toEqual({
+      type: 'placement',
+      mode: 'auto',
+      position: null,
     });
     expect(parseWindowsTaskbarHostMessage(JSON.stringify({
       type: 'status',
@@ -40,6 +54,10 @@ describe('Windows taskbar host protocol', () => {
       edge: 'bottom',
       dpi: 144,
       boundsPx: { x: 100, y: 20, width: 630, height: 60 },
+      placementMode: 'manual',
+      manualPosition: 0.625,
+      placementAdjusted: true,
+      occupiedRegionCount: 3,
     }))).toEqual({
       type: 'status',
       attached: true,
@@ -48,10 +66,17 @@ describe('Windows taskbar host protocol', () => {
       edge: 'bottom',
       dpi: 144,
       boundsPx: { x: 100, y: 20, width: 630, height: 60 },
+      placementMode: 'manual',
+      manualPosition: 0.625,
+      placementAdjusted: true,
+      occupiedRegionCount: 3,
     });
 
     expect(parseWindowsTaskbarHostMessage('not-json')).toBeNull();
     expect(parseWindowsTaskbarHostMessage('{"type":"action","action":"delete-library"}')).toBeNull();
+    expect(parseWindowsTaskbarHostMessage(
+      '{"type":"placement","mode":"manual","position":1.5}',
+    )).toBeNull();
     expect(parseWindowsTaskbarHostMessage('{"type":"status","attached":"yes"}')).toBeNull();
   });
 
@@ -141,6 +166,7 @@ describe('Windows taskbar host protocol', () => {
       callbacks: {
         onReady: vi.fn(),
         onAction: vi.fn(),
+        onPlacement: vi.fn(),
         onStatus: vi.fn(),
         onError,
         onExit,

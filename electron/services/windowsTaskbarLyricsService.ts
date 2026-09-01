@@ -8,9 +8,11 @@ import {
   resolveWindowsTaskbarHostExecutablePath,
   type LaunchWindowsTaskbarHostOptions,
   type WindowsTaskbarHostBridge,
+  type WindowsTaskbarHostPlacement,
   type WindowsTaskbarHostState,
   type WindowsTaskbarHostStatus,
 } from '../native/windowsTaskbarHost';
+import { settingsStore } from './settingsStore';
 
 export type WindowsTaskbarLyricsActionHandler = (
   action: SystemLyricsAction,
@@ -24,6 +26,8 @@ export interface WindowsTaskbarLyricsServiceDependencies {
   hostExists: (executablePath: string) => boolean;
   launchHost: (options: LaunchWindowsTaskbarHostOptions) => WindowsTaskbarHostBridge;
   resolveArtworkSource: (coverUrl: string) => string;
+  loadPlacement: () => WindowsTaskbarHostPlacement;
+  savePlacement: (placement: WindowsTaskbarHostPlacement) => boolean;
   subscribeSessionChanges: (
     onLock: () => void,
     onUnlock: () => void,
@@ -32,7 +36,33 @@ export interface WindowsTaskbarLyricsServiceDependencies {
 
 const RESTART_BASE_DELAY_MS = 500;
 const RESTART_MAX_DELAY_MS = 30_000;
+const TASKBAR_PLACEMENT_SETTING_KEY = 'la_windows_taskbar_lyrics_placement';
 const EMPTY_ACTION_HANDLER: WindowsTaskbarLyricsActionHandler = () => {};
+const AUTO_PLACEMENT: WindowsTaskbarHostPlacement = {
+  mode: 'auto',
+  position: null,
+};
+
+export function parseWindowsTaskbarLyricsPlacement(
+  value: string | undefined,
+): WindowsTaskbarHostPlacement {
+  if (!value) return { ...AUTO_PLACEMENT };
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (
+      parsed['mode'] === 'manual'
+      && typeof parsed['position'] === 'number'
+      && Number.isFinite(parsed['position'])
+      && parsed['position'] >= 0
+      && parsed['position'] <= 1
+    ) {
+      return { mode: 'manual', position: parsed['position'] };
+    }
+  } catch {
+    // Invalid or legacy values deliberately fall back to safe auto placement.
+  }
+  return { ...AUTO_PLACEMENT };
+}
 
 function defaultDependencies(): WindowsTaskbarLyricsServiceDependencies {
   return {
@@ -46,6 +76,13 @@ function defaultDependencies(): WindowsTaskbarLyricsServiceDependencies {
     launchHost: options => launchWindowsTaskbarHost(options),
     resolveArtworkSource: coverUrl => (
       resolveWindowsTaskbarArtworkSource(coverUrl, app.getPath('userData'))
+    ),
+    loadPlacement: () => parseWindowsTaskbarLyricsPlacement(
+      settingsStore.get(TASKBAR_PLACEMENT_SETTING_KEY),
+    ),
+    savePlacement: placement => settingsStore.set(
+      TASKBAR_PLACEMENT_SETTING_KEY,
+      JSON.stringify(placement),
     ),
     subscribeSessionChanges: (onLock, onUnlock) => {
       powerMonitor.on('lock-screen', onLock);
@@ -85,6 +122,7 @@ export class WindowsTaskbarLyricsService {
   private lastCoverUrl = '';
   private lastArtworkSource = '';
   private lastStatusKey = '';
+  private placement: WindowsTaskbarHostPlacement = { ...AUTO_PLACEMENT };
 
   constructor(
     dependencies: Partial<WindowsTaskbarLyricsServiceDependencies> = {},
@@ -104,6 +142,13 @@ export class WindowsTaskbarLyricsService {
         this.dependencies.hostExecutablePath,
       );
       return false;
+    }
+
+    try {
+      this.placement = this.dependencies.loadPlacement();
+    } catch (error) {
+      this.placement = { ...AUTO_PLACEMENT };
+      logger.warn('[WindowsTaskbarLyrics] Failed to load taskbar placement:', error);
     }
 
     this.enabled = true;
@@ -182,6 +227,9 @@ export class WindowsTaskbarLyricsService {
           onAction: action => {
             if (this.host === launchedHost) this.runAction(action);
           },
+          onPlacement: placement => {
+            if (this.host === launchedHost) this.updatePlacement(placement);
+          },
           onStatus: status => {
             if (this.host === launchedHost) this.reportStatus(status);
           },
@@ -237,6 +285,8 @@ export class WindowsTaskbarLyricsService {
       lineCursor: finiteIndex(state.lineCursor),
       lineProgress: finiteIndex(state.lineProgress),
       isPlaying: state.isPlaying,
+      placementMode: this.placement.mode,
+      manualPosition: this.placement.position,
     };
     try {
       host.update(presentation);
@@ -273,6 +323,20 @@ export class WindowsTaskbarLyricsService {
     } catch (error) {
       logger.warn(`[WindowsTaskbarLyrics] ${action} action failed:`, error);
     }
+  }
+
+  private updatePlacement(placement: WindowsTaskbarHostPlacement): void {
+    this.placement = placement.mode === 'manual'
+      ? { mode: 'manual', position: placement.position }
+      : { ...AUTO_PLACEMENT };
+    try {
+      if (!this.dependencies.savePlacement(this.placement)) {
+        logger.warn('[WindowsTaskbarLyrics] Failed to persist taskbar placement.');
+      }
+    } catch (error) {
+      logger.warn('[WindowsTaskbarLyrics] Failed to persist taskbar placement:', error);
+    }
+    this.renderState();
   }
 
   private scheduleRestart(): void {

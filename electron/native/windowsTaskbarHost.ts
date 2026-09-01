@@ -5,7 +5,7 @@ import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import type { SystemLyricsAction } from '../../src/types/systemLyrics';
 
-export const WINDOWS_TASKBAR_HOST_API_VERSION = 1;
+export const WINDOWS_TASKBAR_HOST_API_VERSION = 2;
 export const WINDOWS_TASKBAR_HOST_EXECUTABLE = 'LyricsAdapter.TaskbarHost.exe';
 
 const MAX_PROTOCOL_LINE_LENGTH = 64 * 1024;
@@ -23,7 +23,15 @@ export interface WindowsTaskbarHostState {
   lineCursor: number | null;
   lineProgress: number | null;
   isPlaying: boolean;
+  placementMode: WindowsTaskbarHostPlacementMode;
+  manualPosition: number | null;
 }
+
+export type WindowsTaskbarHostPlacementMode = 'auto' | 'manual';
+
+export type WindowsTaskbarHostPlacement =
+  | { mode: 'auto'; position: null }
+  | { mode: 'manual'; position: number };
 
 export interface WindowsTaskbarHostBounds {
   x: number;
@@ -39,16 +47,22 @@ export interface WindowsTaskbarHostStatus {
   edge?: 'top' | 'bottom';
   dpi?: number;
   boundsPx?: Readonly<WindowsTaskbarHostBounds>;
+  placementMode?: WindowsTaskbarHostPlacementMode;
+  manualPosition?: number;
+  placementAdjusted?: boolean;
+  occupiedRegionCount?: number;
 }
 
 export type WindowsTaskbarHostMessage =
   | { type: 'ready'; apiVersion: number }
   | { type: 'action'; action: SystemLyricsAction }
+  | ({ type: 'placement' } & WindowsTaskbarHostPlacement)
   | ({ type: 'status' } & WindowsTaskbarHostStatus);
 
 export interface WindowsTaskbarHostCallbacks {
   onReady: () => void;
   onAction: (action: SystemLyricsAction) => void;
+  onPlacement: (placement: WindowsTaskbarHostPlacement) => void;
   onStatus: (status: WindowsTaskbarHostStatus) => void;
   onError: (error: Error) => void;
   onExit: (code: number | null, signal: NodeJS.Signals | null) => void;
@@ -94,6 +108,10 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isPlacementMode(value: unknown): value is WindowsTaskbarHostPlacementMode {
+  return value === 'auto' || value === 'manual';
+}
+
 function isBounds(value: unknown): value is WindowsTaskbarHostBounds {
   if (!value || typeof value !== 'object') return false;
   const bounds = value as Record<string, unknown>;
@@ -124,6 +142,24 @@ export function parseWindowsTaskbarHostMessage(
   if (message['type'] === 'action' && isSystemLyricsAction(message['action'])) {
     return { type: 'action', action: message['action'] };
   }
+  if (message['type'] === 'placement' && isPlacementMode(message['mode'])) {
+    if (message['mode'] === 'auto' && message['position'] == null) {
+      return { type: 'placement', mode: 'auto', position: null };
+    }
+    if (
+      message['mode'] === 'manual'
+      && isFiniteNumber(message['position'])
+      && message['position'] >= 0
+      && message['position'] <= 1
+    ) {
+      return {
+        type: 'placement',
+        mode: 'manual',
+        position: message['position'],
+      };
+    }
+    return null;
+  }
   if (
     message['type'] === 'status'
     && typeof message['attached'] === 'boolean'
@@ -140,6 +176,25 @@ export function parseWindowsTaskbarHostMessage(
     }
     if (isFiniteNumber(message['dpi'])) status.dpi = message['dpi'];
     if (isBounds(message['boundsPx'])) status.boundsPx = message['boundsPx'];
+    if (isPlacementMode(message['placementMode'])) {
+      status.placementMode = message['placementMode'];
+    }
+    if (
+      isFiniteNumber(message['manualPosition'])
+      && message['manualPosition'] >= 0
+      && message['manualPosition'] <= 1
+    ) {
+      status.manualPosition = message['manualPosition'];
+    }
+    if (typeof message['placementAdjusted'] === 'boolean') {
+      status.placementAdjusted = message['placementAdjusted'];
+    }
+    if (
+      Number.isInteger(message['occupiedRegionCount'])
+      && (message['occupiedRegionCount'] as number) >= 0
+    ) {
+      status.occupiedRegionCount = message['occupiedRegionCount'] as number;
+    }
     return status;
   }
   return null;
@@ -352,6 +407,11 @@ export class WindowsTaskbarHostClient implements WindowsTaskbarHostBridge {
     if (!this.ready) return;
     if (message.type === 'action') {
       this.options.callbacks.onAction(message.action);
+      return;
+    }
+    if (message.type === 'placement') {
+      const { type: _type, ...placement } = message;
+      this.options.callbacks.onPlacement(placement);
       return;
     }
     const { type: _type, ...status } = message;

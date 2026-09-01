@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -15,8 +16,8 @@ namespace LyricsAdapter.TaskbarHost;
 
 public partial class TaskbarLyricsWindow : Window, IDisposable
 {
-    private const double DesiredWidthDip = 420;
-    private const double MinimumWidthDip = 240;
+    private const double DesiredWidthDip = 280;
+    private const double MinimumWidthDip = 220;
     private const double HeightDip = 40;
     private const double GapDip = 4;
     private const double CornerRadiusDip = 6;
@@ -43,11 +44,19 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
     private CancellationTokenSource? _artworkCancellation;
     private string _artworkSource = string.Empty;
     private string _lastStatusKey = string.Empty;
+    private string _placementMode = "auto";
+    private double? _manualPosition;
+    private Point _dragStartPointer;
+    private int _dragStartWidgetX;
     private bool _requestedVisible;
     private bool _attached;
+    private bool _placementInitialized;
+    private bool _dragArmed;
+    private bool _dragging;
     private bool _disposed;
 
     internal event Action<string>? ActionRequested;
+    internal event Action<HostPlacement>? PlacementChanged;
     internal event Action<HostStatus>? StatusChanged;
     internal event Action<string>? HostInvalidated;
 
@@ -74,6 +83,7 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
 
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         ApplyTheme();
+        UpdatePlacementControls();
         RenderState();
     }
 
@@ -81,6 +91,23 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
     {
         if (_disposed) return;
         _state = state;
+        if (!_placementInitialized)
+        {
+            _placementInitialized = true;
+            if (string.Equals(state.PlacementMode, "manual", StringComparison.Ordinal)
+                && state.ManualPosition is double position
+                && double.IsFinite(position))
+            {
+                _placementMode = "manual";
+                _manualPosition = Math.Clamp(position, 0d, 1d);
+            }
+            else
+            {
+                _placementMode = "auto";
+                _manualPosition = null;
+            }
+            UpdatePlacementControls();
+        }
         RenderState();
         if (!string.Equals(_artworkSource, state.ArtworkSource, StringComparison.Ordinal))
         {
@@ -180,6 +207,8 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         }
 
         if (!TaskbarInterop.TryCalculateLayout(
+                _windowHandle,
+                _placementMode == "manual" ? _manualPosition : null,
                 DesiredWidthDip,
                 MinimumWidthDip,
                 HeightDip,
@@ -231,6 +260,10 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
                         Width = layout.Width,
                         Height = layout.Height,
                     },
+                    PlacementMode = layout.PlacementMode,
+                    ManualPosition = layout.ManualPosition,
+                    PlacementAdjusted = layout.PlacementAdjusted,
+                    OccupiedRegionCount = layout.OccupiedRegionCount,
                 });
             }
             else
@@ -263,6 +296,10 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         if (_layout.Width != next.Width || _layout.Height != next.Height) return "size-changed";
         if (_layout.X != next.X || _layout.Y != next.Y) return "layout-changed";
         if (_layout.Edge != next.Edge) return "edge-changed";
+        if (_layout.PlacementMode != next.PlacementMode) return "placement-mode-changed";
+        if (_layout.ManualPosition != next.ManualPosition) return "placement-preference-changed";
+        if (_layout.PlacementAdjusted != next.PlacementAdjusted) return "placement-adjusted";
+        if (_layout.OccupiedRegionCount != next.OccupiedRegionCount) return "occupied-regions-changed";
         return string.Empty;
     }
 
@@ -285,7 +322,11 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
             status.BoundsPx?.X,
             status.BoundsPx?.Y,
             status.BoundsPx?.Width,
-            status.BoundsPx?.Height);
+            status.BoundsPx?.Height,
+            status.PlacementMode,
+            status.ManualPosition,
+            status.PlacementAdjusted,
+            status.OccupiedRegionCount);
         if (key == _lastStatusKey) return;
         _lastStatusKey = key;
         StatusChanged?.Invoke(status);
@@ -485,11 +526,8 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
 
     private void SetArtwork(BitmapSource? image)
     {
-        ArtworkImage.Source = image;
-        ArtworkImage.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
+        ArtworkBrush.ImageSource = image;
         ArtworkPlaceholder.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
-        BackgroundArtwork.Source = image;
-        BackgroundArtwork.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
@@ -570,7 +608,6 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         TopHighlight.BorderBrush = (Brush)FindResource("WidgetTopHighlightBrush");
         LyricsPanel.Visibility = Visibility.Collapsed;
         ControlsPanel.Visibility = Visibility.Visible;
-        BackgroundArtwork.Opacity = 0.28;
     }
 
     private void OnPointerExited(object sender, System.Windows.Input.MouseEventArgs e)
@@ -579,7 +616,113 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         TopHighlight.BorderBrush = Brushes.Transparent;
         LyricsPanel.Visibility = Visibility.Visible;
         ControlsPanel.Visibility = Visibility.Collapsed;
-        BackgroundArtwork.Opacity = 0.2;
+    }
+
+    private void OnDragPointerPressed(object sender, MouseButtonEventArgs e)
+    {
+        if (_layout is null || IsWithinButton(e.OriginalSource)) return;
+        _dragArmed = true;
+        _dragging = false;
+        _dragStartPointer = e.GetPosition(WidgetCanvas);
+        _dragStartWidgetX = _layout.X;
+        MainBorder.CaptureMouse();
+    }
+
+    private void OnDragPointerMoved(object sender, MouseEventArgs e)
+    {
+        if (!_dragArmed) return;
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            FinishDrag(notify: _dragging);
+            return;
+        }
+
+        var layout = _layout;
+        if (layout is null) return;
+        var pointer = e.GetPosition(WidgetCanvas);
+        var deltaDip = pointer.X - _dragStartPointer.X;
+        if (!_dragging
+            && Math.Abs(deltaDip) < SystemParameters.MinimumHorizontalDragDistance)
+        {
+            return;
+        }
+
+        if (!_dragging)
+        {
+            _dragging = true;
+        }
+
+        var deltaPixels = (int)Math.Round(deltaDip * layout.Dpi / 96d);
+        var desiredLeft = _dragStartWidgetX + deltaPixels;
+        var desiredCenter = desiredLeft + layout.Width / 2d;
+        _placementMode = "manual";
+        _manualPosition = Math.Clamp(
+            (desiredCenter - layout.CanvasX) / layout.CanvasWidth,
+            0d,
+            1d);
+        UpdatePlacementControls();
+        EnsureAttached(true);
+        e.Handled = true;
+    }
+
+    private void OnDragPointerReleased(object sender, MouseButtonEventArgs e)
+    {
+        if (!_dragArmed) return;
+        var notify = _dragging;
+        FinishDrag(notify);
+        if (notify) e.Handled = true;
+    }
+
+    private void OnDragCaptureLost(object sender, MouseEventArgs e)
+    {
+        if (_dragging) FinishDrag(notify: true);
+    }
+
+    private void FinishDrag(bool notify)
+    {
+        var shouldNotify = notify
+            && _dragging
+            && _placementMode == "manual"
+            && _manualPosition.HasValue;
+        _dragArmed = false;
+        _dragging = false;
+        if (Mouse.Captured == MainBorder) MainBorder.ReleaseMouseCapture();
+        if (shouldNotify)
+        {
+            PlacementChanged?.Invoke(new HostPlacement
+            {
+                Mode = "manual",
+                Position = _manualPosition,
+            });
+        }
+    }
+
+    private void OnAutoPlacementClick(object sender, RoutedEventArgs e)
+    {
+        _placementInitialized = true;
+        _placementMode = "auto";
+        _manualPosition = null;
+        UpdatePlacementControls();
+        EnsureAttached(true);
+        PlacementChanged?.Invoke(new HostPlacement { Mode = "auto" });
+    }
+
+    private void UpdatePlacementControls()
+    {
+        AutoPlacementButton.Visibility = _placementMode == "manual"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private static bool IsWithinButton(object originalSource)
+    {
+        var current = originalSource as DependencyObject;
+        while (current is not null)
+        {
+            if (current is Button) return true;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return false;
     }
 
     private void OnPreviousClick(object sender, RoutedEventArgs e)
