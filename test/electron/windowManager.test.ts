@@ -12,6 +12,7 @@ const electronMocks = vi.hoisted(() => ({
   BrowserWindow: vi.fn(),
   app: {
     isPackaged: false,
+    getAppPath: vi.fn().mockReturnValue('/virtual/app'),
     getPath: vi.fn().mockReturnValue('/virtual/user-data'),
     on: vi.fn(),
   },
@@ -26,6 +27,8 @@ vi.mock('@/../electron/logger', () => ({
 
 import {
   createWindow,
+  resolveWindowsAppUserModelId,
+  resolveWindowsWindowIconPath,
   shouldThrottleRendererInBackground,
 } from '@/../electron/windowManager';
 
@@ -43,12 +46,14 @@ function createBrowserWindowStub() {
     },
     loadURL: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
+    setAppDetails: vi.fn(),
   };
 }
 
 describe('windowManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    electronMocks.app.getAppPath.mockReturnValue('/virtual/app');
     electronMocks.app.getPath.mockReturnValue('/virtual/user-data');
     electronMocks.BrowserWindow.mockImplementation(() => createBrowserWindowStub());
   });
@@ -57,6 +62,25 @@ describe('windowManager', () => {
     expect(shouldThrottleRendererInBackground('darwin')).toBe(false);
     expect(shouldThrottleRendererInBackground('win32')).toBe(true);
     expect(shouldThrottleRendererInBackground('linux')).toBe(true);
+  });
+
+  it('resolves the Windows window icon from the packaged resources directory', () => {
+    expect(resolveWindowsWindowIconPath({
+      appPath: '/virtual/app',
+      resourcesPath: '/virtual/resources',
+      isPackaged: true,
+    })).toBe(path.join('/virtual/resources', 'app-icon-win.ico'));
+
+    expect(resolveWindowsWindowIconPath({
+      appPath: '/virtual/app',
+      resourcesPath: '/virtual/resources',
+      isPackaged: false,
+    })).toBe(path.join('/virtual/app', 'app-icon-win.ico'));
+  });
+
+  it('isolates development from the packaged Windows application identity', () => {
+    expect(resolveWindowsAppUserModelId(true)).toBe('com.lyricsadapter.app');
+    expect(resolveWindowsAppUserModelId(false)).toBe('com.lyricsadapter.app.development');
   });
 
   it('uses the platform timer policy and disables spell checking for the main window', async () => {
@@ -70,5 +94,20 @@ describe('windowManager', () => {
         spellcheck: false,
       }),
     }));
+
+    const windowOptions = electronMocks.BrowserWindow.mock.calls[0]?.[0];
+    if (process.platform === 'win32') {
+      expect(windowOptions).toEqual(expect.objectContaining({
+        icon: path.join('/virtual/app', 'app-icon-win.ico'),
+      }));
+      const window = electronMocks.BrowserWindow.mock.results[0]?.value;
+      expect(window.setAppDetails).toHaveBeenCalledWith({
+        appId: 'com.lyricsadapter.app.development',
+        appIconPath: path.join('/virtual/app', 'app-icon-win.ico'),
+        appIconIndex: 0,
+      });
+    } else {
+      expect(windowOptions).not.toHaveProperty('icon');
+    }
   });
 });

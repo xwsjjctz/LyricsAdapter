@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { APP } from '../src/constants/config';
 import { logger } from './logger';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +17,27 @@ process.env['VITE_PUBLIC'] = app.isPackaged
   : path.join(__dirname, '../../public');
 
 let win: BrowserWindow | null = null;
+
+export interface ResolveWindowsWindowIconPathOptions {
+  appPath: string;
+  resourcesPath: string;
+  isPackaged: boolean;
+}
+
+export function resolveWindowsWindowIconPath(
+  options: ResolveWindowsWindowIconPathOptions,
+): string {
+  const iconRoot = options.isPackaged
+    ? options.resourcesPath
+    : options.appPath;
+  return path.join(iconRoot, 'app-icon-win.ico');
+}
+
+export function resolveWindowsAppUserModelId(isPackaged: boolean): string {
+  return isPackaged
+    ? APP.APP_ID
+    : `${APP.APP_ID}.development`;
+}
 
 export function shouldThrottleRendererInBackground(
   platform: NodeJS.Platform,
@@ -38,6 +60,13 @@ export async function createWindow(): Promise<BrowserWindow> {
 
   const isMacOS = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
+  const windowsIconPath = isWindows
+    ? resolveWindowsWindowIconPath({
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      isPackaged: app.isPackaged,
+    })
+    : undefined;
 
   win = new BrowserWindow({
     width: 1200,
@@ -47,6 +76,7 @@ export async function createWindow(): Promise<BrowserWindow> {
     title: 'LyricsAdapter',
     frame: false,
     transparent: isMacOS || process.platform === 'linux',
+    ...(windowsIconPath ? { icon: windowsIconPath } : {}),
     ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
     ...(isWindows ? { backgroundColor: '#00000000' } : {}),
     ...(isMacOS ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
@@ -71,6 +101,17 @@ export async function createWindow(): Promise<BrowserWindow> {
       sandbox: false
     },
   });
+
+  if (isWindows && windowsIconPath) {
+    // Windows can source a taskbar group's icon from its AppUserModelID instead
+    // of the HWND icon. Declare both explicitly so an old shortcut or a prior
+    // development launch cannot make the packaged window fall back to Electron.
+    win.setAppDetails({
+      appId: resolveWindowsAppUserModelId(app.isPackaged),
+      appIconPath: windowsIconPath,
+      appIconIndex: 0,
+    });
+  }
 
   const session = win.webContents.session;
 

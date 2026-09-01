@@ -1,6 +1,11 @@
 import { app, dialog } from 'electron';
 import { logger } from './logger';
-import { createWindow, setupAppLifecycle, getWindow } from './windowManager';
+import {
+  createWindow,
+  setupAppLifecycle,
+  getWindow,
+  resolveWindowsAppUserModelId,
+} from './windowManager';
 import { registerCoverProtocol } from './protocols/coverProtocol';
 import { registerAudioProtocol } from './protocols/audioProtocol';
 import { registerStreamProtocol } from './protocols/streamProtocol';
@@ -24,8 +29,10 @@ import { registerSystemLyricsHandlers } from './ipc/systemLyricsHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 import { userStateRepository } from './services/userStateRepository';
 import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
-import { APP } from '../src/constants/config';
 import { configureDevelopmentProfile } from './developmentProfile';
+import { repairWindowsShellIdentity } from './services/windowsShellIdentity';
+
+const WINDOWS_SHELL_IDENTITY_SETTLE_MS = 1_000;
 
 // Electron's single-instance lock and Chromium ProcessSingleton both live in
 // userData. Isolate the development profile before either lock is acquired so
@@ -36,11 +43,11 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 app.commandLine.appendSwitch('log-level', '3');
 
-// Windows toast delivery is keyed by the AppUserModelID. Keep it identical to
-// electron-builder's appId so packaged and development notifications share the
-// same application identity and icon.
+// Windows taskbar grouping and toast delivery are keyed by the AppUserModelID.
+// Keep production identical to electron-builder's appId, but isolate development
+// so electron.exe can never replace the installed app's icon in the shell cache.
 if (process.platform === 'win32') {
-  app.setAppUserModelId(APP.APP_ID);
+  app.setAppUserModelId(resolveWindowsAppUserModelId(app.isPackaged));
 }
 
 // Force the custom schemes to be treated as secure contexts at the Chromium
@@ -76,6 +83,28 @@ const systemLyricsCoordinator = new SystemLyricsCoordinator(action => {
 
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
+  if (process.platform === 'win32' && app.isPackaged) {
+    try {
+      const shellIdentityRepair = repairWindowsShellIdentity();
+      if (
+        shellIdentityRepair.appShortcutUpdated
+        || shellIdentityRepair.staleDevelopmentShortcutRemoved
+      ) {
+        logger.info('[WindowsIdentity] Start Menu shortcut identity is current.', {
+          removedStaleDevelopmentShortcut:
+            shellIdentityRepair.staleDevelopmentShortcutRemoved,
+        });
+        // Explorer updates AppUserModelID-to-icon associations asynchronously.
+        // Let its Start Menu watcher observe the repair before the first HWND is
+        // created; otherwise the first launch can retain electron.exe's icon.
+        await new Promise<void>(resolve => {
+          setTimeout(resolve, WINDOWS_SHELL_IDENTITY_SETTLE_MS);
+        });
+      }
+    } catch (error) {
+      logger.warn('[WindowsIdentity] Failed to repair Start Menu identity:', error);
+    }
+  }
   // User-owned settings/library membership live outside Chromium's replaceable
   // userData directory. Legacy JSON is imported transactionally on first run.
   userStateRepository.initialize();

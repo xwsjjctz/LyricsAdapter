@@ -16,8 +16,8 @@ namespace LyricsAdapter.TaskbarHost;
 
 public partial class TaskbarLyricsWindow : Window, IDisposable
 {
-    private const double DesiredWidthDip = 280;
-    private const double MinimumWidthDip = 220;
+    private const double DesiredWidthDip = 210;
+    private const double MinimumWidthDip = 200;
     private const double HeightDip = 40;
     private const double GapDip = 4;
     private const double CornerRadiusDip = 6;

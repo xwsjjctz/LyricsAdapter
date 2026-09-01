@@ -12,6 +12,9 @@ import {
 } from '@playwright/test';
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+const packagedExecutablePath = process.env['LYRICS_ADAPTER_E2E_EXECUTABLE_PATH']
+  ? path.resolve(process.env['LYRICS_ADAPTER_E2E_EXECUTABLE_PATH'])
+  : undefined;
 const inheritedEnv = Object.fromEntries(
   Object.entries(process.env).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -277,12 +280,37 @@ test.describe('Windows taskbar lyrics visual surface', () => {
     let page: Page | undefined;
     try {
       electronApp = await electron.launch({
+        ...(packagedExecutablePath ? { executablePath: packagedExecutablePath } : {}),
         cwd: tempRoot,
-        args: [`--user-data-dir=${userData}`, repoRoot],
+        args: packagedExecutablePath
+          ? [`--user-data-dir=${userData}`]
+          : [`--user-data-dir=${userData}`, repoRoot],
         env: launchEnv,
       });
       page = await electronApp.firstWindow();
       await expect(page).toHaveURL('app://localhost/index.html');
+
+      if (packagedExecutablePath) {
+        const runtimeIdentity = await electronApp.evaluate(({ app, nativeImage }) => {
+          const iconPath = `${process.resourcesPath}\\app-icon-win.ico`;
+          const icon = nativeImage.createFromPath(iconPath);
+          return {
+            isPackaged: app.isPackaged,
+            name: app.getName(),
+            iconPath,
+            iconIsEmpty: icon.isEmpty(),
+            iconSize: icon.getSize(),
+          };
+        });
+        expect(runtimeIdentity).toMatchObject({
+          isPackaged: true,
+          name: 'lyrics-adapter',
+          iconIsEmpty: false,
+        });
+        expect(runtimeIdentity.name).not.toBe('Electron');
+        expect(runtimeIdentity.iconSize.width).toBeGreaterThanOrEqual(32);
+        expect(runtimeIdentity.iconSize.height).toBeGreaterThanOrEqual(32);
+      }
 
       const baseline = await captureTaskbarEdges(electronApp);
       await page.waitForTimeout(250);
@@ -343,7 +371,7 @@ test.describe('Windows taskbar lyrics visual surface', () => {
               settledBaseline[edge],
               capture[edge],
               ignoredBounds,
-              280 * baseline.scaleFactor,
+              210 * baseline.scaleFactor,
             ),
           };
         });
@@ -381,8 +409,8 @@ test.describe('Windows taskbar lyrics visual surface', () => {
       const changedBounds = strongestDifference.metrics.bounds!;
       const changedWidth = changedBounds.right - changedBounds.left + 1;
       const changedHeight = changedBounds.bottom - changedBounds.top + 1;
-      expect(changedWidth).toBeGreaterThanOrEqual(Math.round(180 * baseline.scaleFactor));
-      expect(changedWidth).toBeLessThanOrEqual(Math.round(285 * baseline.scaleFactor));
+      expect(changedWidth).toBeGreaterThanOrEqual(Math.round(145 * baseline.scaleFactor));
+      expect(changedWidth).toBeLessThanOrEqual(Math.round(215 * baseline.scaleFactor));
       expect(changedHeight).toBeGreaterThanOrEqual(Math.round(16 * baseline.scaleFactor));
       expect(changedHeight).toBeLessThanOrEqual(Math.round(56 * baseline.scaleFactor));
     } finally {

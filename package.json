@@ -15,7 +15,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "native:build:taskbar-host": "node scripts/buildWindowsTaskbarHost.cjs",
-    "native:test:taskbar-host": "node scripts/smokeWindowsTaskbarHost.cjs --attach --expected-width-dip=280",
+    "native:test:taskbar-host": "node scripts/smokeWindowsTaskbarHost.cjs --attach --expected-width-dip=210",
     "native:rebuild:macos-statusbar": "node scripts/rebuildMacosStatusbarNative.cjs",
     "postinstall": "npm run native:rebuild:macos-statusbar -- --allow-missing",
     "preelectron:dev": "npm run native:build:taskbar-host && npm run native:rebuild:macos-statusbar",
@@ -139,6 +139,10 @@
     "win": {
       "icon": "app-icon-win.ico",
       "extraResources": [
+        {
+          "from": "app-icon-win.ico",
+          "to": "app-icon-win.ico"
+        },
         {
           "from": "native/windows-taskbar-host/publish/win-${arch}",
           "to": "windows-taskbar-host",
