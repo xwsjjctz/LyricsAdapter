@@ -9,6 +9,7 @@ if (process.platform !== 'win32') process.exit(0);
 const archArgument = process.argv.find(argument => argument.startsWith('--arch='));
 const targetArch = archArgument ? archArgument.slice('--arch='.length) : process.arch;
 const testAttachment = process.argv.includes('--attach');
+const verifyLyricEnd = process.argv.includes('--verify-lyric-end');
 const executableArgument = process.argv.find(argument => argument.startsWith('--executable='));
 const holdArgument = process.argv.find(argument => argument.startsWith('--hold-ms='));
 const expectedWidthArgument = process.argv.find(argument => argument.startsWith('--expected-width-dip='));
@@ -38,6 +39,7 @@ if (!['x64', 'arm64'].includes(targetArch)) {
   console.error(`[TaskbarHostSmoke] Unsupported architecture: ${targetArch}`);
   process.exit(1);
 }
+const lyricEndFixture = "the maiden who's blessed";
 
 const executablePath = executableArgument
   ? path.resolve(executableArgument.slice('--executable='.length))
@@ -60,6 +62,9 @@ let ready = false;
 let statusSeen = false;
 let attachmentPassed = false;
 let attachmentSummary = '';
+let lyricDiagnosticsSeen = false;
+let lyricDiagnosticsPassed = !verifyLyricEnd;
+let lyricDiagnosticsSummary = '';
 let stderrText = '';
 
 const timeout = setTimeout(() => {
@@ -81,7 +86,7 @@ stdout.on('line', line => {
   }
   if (message.type === 'ready' && message.apiVersion === 2 && !ready) {
     ready = true;
-    if (!testAttachment) {
+    if (!testAttachment && !verifyLyricEnd) {
       child.stdin.end(`${JSON.stringify({ type: 'shutdown' })}\n`);
       return;
     }
@@ -91,15 +96,20 @@ stdout.on('line', line => {
         artworkSource: '',
         title: 'LyricsAdapter',
         artist: 'Native host smoke test',
-        line: 'Windows 原生任务栏歌词',
+        line: verifyLyricEnd ? lyricEndFixture : 'Windows 原生任务栏歌词',
         nextLine: '验证完成后会自动关闭',
-        lineCursor: 0,
-        lineProgress: 6,
+        lineCursor: verifyLyricEnd ? null : 0,
+        lineProgress: verifyLyricEnd ? Array.from(lyricEndFixture).length : 6,
         isPlaying: true,
         placementMode: manualPosition === null ? 'auto' : 'manual',
         manualPosition,
       },
     })}\n`);
+    if (verifyLyricEnd && !testAttachment) {
+      setTimeout(() => {
+        child.stdin.write(`${JSON.stringify({ type: 'inspect-current-lyric' })}\n`);
+      }, 100);
+    }
     return;
   }
   if (testAttachment && message.type === 'status' && !statusSeen) {
@@ -131,6 +141,43 @@ stdout.on('line', line => {
       `reason=${String(message.reason)}`,
     ].join(', ');
     const shutdown = () => child.stdin.end(`${JSON.stringify({ type: 'shutdown' })}\n`);
+    if (verifyLyricEnd && attachmentPassed) {
+      setTimeout(() => {
+        child.stdin.write(`${JSON.stringify({ type: 'inspect-current-lyric' })}\n`);
+      }, 100);
+      return;
+    }
+    if (holdMs > 0) setTimeout(shutdown, holdMs);
+    else shutdown();
+    return;
+  }
+  if (
+    verifyLyricEnd
+    && message.type === 'current-lyric-diagnostics'
+    && !lyricDiagnosticsSeen
+  ) {
+    lyricDiagnosticsSeen = true;
+    const offset = Number(message.offset);
+    const maximumOffset = Number(message.maximumOffset);
+    const viewportWidth = Number(message.viewportWidth);
+    const extentWidth = Number(message.extentWidth);
+    lyricDiagnosticsPassed = message.text === lyricEndFixture
+      && message.textTrimming === 'None'
+      && Number.isFinite(offset)
+      && Number.isFinite(maximumOffset)
+      && maximumOffset > 1
+      && Math.abs(offset - maximumOffset) <= 0.5
+      && message.atEnd === true;
+    lyricDiagnosticsSummary = [
+      `text=${JSON.stringify(String(message.text ?? ''))}`,
+      `trimming=${String(message.textTrimming ?? 'unknown')}`,
+      `offset=${Number.isFinite(offset) ? offset.toFixed(2) : 'unknown'}`,
+      `maximumOffset=${Number.isFinite(maximumOffset) ? maximumOffset.toFixed(2) : 'unknown'}`,
+      `viewportWidth=${Number.isFinite(viewportWidth) ? viewportWidth.toFixed(2) : 'unknown'}`,
+      `extentWidth=${Number.isFinite(extentWidth) ? extentWidth.toFixed(2) : 'unknown'}`,
+      `atEnd=${Boolean(message.atEnd)}`,
+    ].join(', ');
+    const shutdown = () => child.stdin.end(`${JSON.stringify({ type: 'shutdown' })}\n`);
     if (holdMs > 0) setTimeout(shutdown, holdMs);
     else shutdown();
   }
@@ -144,11 +191,16 @@ child.on('close', code => {
   clearTimeout(timeout);
   stdout.close();
   stderr.close();
-  if (!ready || (testAttachment && (!statusSeen || !attachmentPassed)) || code !== 0) {
-    console.error(`[TaskbarHostSmoke] Host failed (ready=${ready}, status=${statusSeen}, attachment=${attachmentPassed}, code=${code}${attachmentSummary ? `, ${attachmentSummary}` : ''}).`);
+  if (
+    !ready
+    || (testAttachment && (!statusSeen || !attachmentPassed))
+    || (verifyLyricEnd && (!lyricDiagnosticsSeen || !lyricDiagnosticsPassed))
+    || code !== 0
+  ) {
+    console.error(`[TaskbarHostSmoke] Host failed (ready=${ready}, status=${statusSeen}, attachment=${attachmentPassed}, lyricDiagnostics=${lyricDiagnosticsPassed}, code=${code}${attachmentSummary ? `, ${attachmentSummary}` : ''}${lyricDiagnosticsSummary ? `, ${lyricDiagnosticsSummary}` : ''}).`);
     if (stderrText) console.error(stderrText.trim());
     process.exitCode = 1;
     return;
   }
-  console.log(`[TaskbarHostSmoke] Ready/shutdown protocol passed${attachmentSummary ? ` (${attachmentSummary})` : ''}.`);
+  console.log(`[TaskbarHostSmoke] Ready/shutdown protocol passed${attachmentSummary || lyricDiagnosticsSummary ? ` (${[attachmentSummary, lyricDiagnosticsSummary].filter(Boolean).join(', ')})` : ''}.`);
 });

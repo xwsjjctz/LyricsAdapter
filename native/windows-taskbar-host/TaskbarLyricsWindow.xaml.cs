@@ -21,7 +21,7 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
     private const double HeightDip = 40;
     private const double GapDip = 4;
     private const double CornerRadiusDip = 6;
-    private const int LyricsWindowGraphemes = 24;
+    private const double CurrentLyricAnchorRatio = 2d / 3d;
     private const int MaximumArtworkBytes = 8 * 1024 * 1024;
 
     private const int WmGetObject = 0x003D;
@@ -45,9 +45,12 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
     private string _artworkSource = string.Empty;
     private string _lastStatusKey = string.Empty;
     private string _placementMode = "auto";
+    private string _currentLyricText = string.Empty;
     private double? _manualPosition;
+    private DispatcherOperation? _pendingLyricScroll;
     private Point _dragStartPointer;
     private int _dragStartWidgetX;
+    private int _currentLyricAnchorGraphemes;
     private bool _requestedVisible;
     private bool _attached;
     private bool _placementInitialized;
@@ -144,6 +147,11 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         _disposed = true;
         _requestedVisible = false;
         _healthTimer.Stop();
+        if (_pendingLyricScroll?.Status == DispatcherOperationStatus.Pending)
+        {
+            _pendingLyricScroll.Abort();
+        }
+        _pendingLyricScroll = null;
         _artworkCancellation?.Cancel();
         _artworkCancellation?.Dispose();
         _artworkCancellation = null;
@@ -244,6 +252,7 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
                 InvalidateArrange();
                 InvalidateVisual();
                 UpdateLayout();
+                ScheduleCurrentLyricScroll();
                 _layout = layout;
                 _attached = true;
                 ReportStatus(new HostStatus
@@ -342,10 +351,18 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         var nextText = hasLyric
             ? CompactText(_state.NextLine)
             : CompactText(_state.Artist);
-        var presentation = ResolveLyricWindow(
+        var presentation = ResolveLyricPresentation(
             currentText,
             hasLyric ? _state.LineCursor : null,
             hasLyric ? _state.LineProgress : null);
+        _currentLyricText = presentation.Text;
+        _currentLyricAnchorGraphemes = presentation.AnchorGraphemes;
+        CurrentLyric.TextTrimming = hasLyric
+            ? TextTrimming.None
+            : TextTrimming.CharacterEllipsis;
+        CurrentLyricScroller.HorizontalScrollBarVisibility = hasLyric
+            ? ScrollBarVisibility.Hidden
+            : ScrollBarVisibility.Disabled;
 
         CurrentLyric.Inlines.Clear();
         if (presentation.HighlightedGraphemes > 0)
@@ -372,39 +389,116 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         if (nextText.Length == 0)
         {
             NextLyric.Visibility = Visibility.Collapsed;
-            Grid.SetRowSpan(CurrentLyric, 2);
-            CurrentLyric.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetRowSpan(CurrentLyricScroller, 2);
         }
         else
         {
             NextLyric.Visibility = Visibility.Visible;
-            Grid.SetRowSpan(CurrentLyric, 1);
-            CurrentLyric.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetRowSpan(CurrentLyricScroller, 1);
         }
         PlayPauseGlyph.Text = _state.IsPlaying ? "\uE769" : "\uE768";
+        ScheduleCurrentLyricScroll();
     }
 
-    private static LyricWindow ResolveLyricWindow(
+    private static LyricPresentation ResolveLyricPresentation(
         string text,
         int? cursor,
         int? progress)
     {
         var indexes = StringInfo.ParseCombiningCharacters(text);
-        if (indexes.Length <= LyricsWindowGraphemes)
+        if (indexes.Length == 0)
         {
-            return new LyricWindow(
-                text,
-                Math.Clamp(progress ?? 0, 0, indexes.Length));
+            return new LyricPresentation(string.Empty, 0, 0);
         }
 
-        var maximumOffset = indexes.Length - LyricsWindowGraphemes;
-        var cursorAnchor = Math.Min(LyricsWindowGraphemes * 2 / 3, LyricsWindowGraphemes - 1);
-        var offset = Math.Min(
+        var highlighted = Math.Clamp(progress ?? 0, 0, indexes.Length);
+        var anchor = cursor.HasValue
+            ? Math.Clamp(cursor.Value + 1, 1, indexes.Length)
+            : progress.HasValue
+                ? Math.Clamp(progress.Value, 1, indexes.Length)
+                : 0;
+        return new LyricPresentation(text, highlighted, anchor);
+    }
+
+    private void ScheduleCurrentLyricScroll()
+    {
+        if (_disposed) return;
+        if (_pendingLyricScroll?.Status == DispatcherOperationStatus.Pending)
+        {
+            _pendingLyricScroll.Abort();
+        }
+        _pendingLyricScroll = Dispatcher.BeginInvoke(() =>
+        {
+            _pendingLyricScroll = null;
+            ApplyCurrentLyricScroll();
+        }, DispatcherPriority.Render);
+    }
+
+    private void ApplyCurrentLyricScroll()
+    {
+        if (_disposed) return;
+        CurrentLyricScroller.UpdateLayout();
+        var viewportWidth = CurrentLyricScroller.ViewportWidth;
+        var maximumOffset = Math.Max(
+            0d,
+            CurrentLyricScroller.ExtentWidth - viewportWidth);
+        if (
+            _currentLyricAnchorGraphemes <= 0
+            || maximumOffset <= 0d
+            || !double.IsFinite(viewportWidth)
+            || viewportWidth <= 0d
+        )
+        {
+            CurrentLyricScroller.ScrollToHorizontalOffset(0d);
+            return;
+        }
+
+        var anchorText = SliceGraphemes(
+            _currentLyricText,
+            0,
+            _currentLyricAnchorGraphemes);
+        var anchorWidth = MeasureCurrentLyricWidth(anchorText);
+        var requestedOffset = anchorWidth - (viewportWidth * CurrentLyricAnchorRatio);
+        CurrentLyricScroller.ScrollToHorizontalOffset(Math.Clamp(
+            requestedOffset,
+            0d,
+            maximumOffset));
+    }
+
+    internal CurrentLyricDiagnostics InspectCurrentLyric()
+    {
+        ApplyCurrentLyricScroll();
+        var maximumOffset = Math.Max(0d, CurrentLyricScroller.ScrollableWidth);
+        var offset = CurrentLyricScroller.HorizontalOffset;
+        var atEnd = maximumOffset <= 0.5d || Math.Abs(offset - maximumOffset) <= 0.5d;
+        return new CurrentLyricDiagnostics(
+            _currentLyricText,
+            CurrentLyric.TextTrimming.ToString(),
+            offset,
             maximumOffset,
-            Math.Max(0, Math.Max(0, cursor ?? 0) - cursorAnchor));
-        var visible = SliceGraphemes(text, offset, LyricsWindowGraphemes);
-        var highlighted = Math.Clamp((progress ?? 0) - offset, 0, LyricsWindowGraphemes);
-        return new LyricWindow(visible, highlighted);
+            CurrentLyricScroller.ViewportWidth,
+            CurrentLyricScroller.ExtentWidth,
+            atEnd);
+    }
+
+    private double MeasureCurrentLyricWidth(string text)
+    {
+        if (text.Length == 0) return 0d;
+        var typeface = new Typeface(
+            CurrentLyric.FontFamily,
+            CurrentLyric.FontStyle,
+            CurrentLyric.FontWeight,
+            CurrentLyric.FontStretch);
+        var pixelsPerDip = VisualTreeHelper.GetDpi(CurrentLyric).PixelsPerDip;
+        var formatted = new FormattedText(
+            text,
+            CultureInfo.CurrentUICulture,
+            CurrentLyric.FlowDirection,
+            typeface,
+            CurrentLyric.FontSize,
+            Brushes.Transparent,
+            pixelsPerDip);
+        return formatted.WidthIncludingTrailingWhitespace;
     }
 
     private static string SliceGraphemes(string text, int offset, int count)
@@ -740,5 +834,17 @@ public partial class TaskbarLyricsWindow : Window, IDisposable
         ActionRequested?.Invoke("next");
     }
 
-    private readonly record struct LyricWindow(string Text, int HighlightedGraphemes);
+    private readonly record struct LyricPresentation(
+        string Text,
+        int HighlightedGraphemes,
+        int AnchorGraphemes);
 }
+
+internal readonly record struct CurrentLyricDiagnostics(
+    string Text,
+    string TextTrimming,
+    double Offset,
+    double MaximumOffset,
+    double ViewportWidth,
+    double ExtentWidth,
+    bool AtEnd);

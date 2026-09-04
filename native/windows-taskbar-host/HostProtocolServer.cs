@@ -197,6 +197,21 @@ internal sealed class HostProtocolServer : IDisposable
         });
     }
 
+    internal void WriteCurrentLyricDiagnostics(CurrentLyricDiagnostics diagnostics)
+    {
+        Write(new
+        {
+            type = "current-lyric-diagnostics",
+            text = diagnostics.Text,
+            textTrimming = diagnostics.TextTrimming,
+            offset = diagnostics.Offset,
+            maximumOffset = diagnostics.MaximumOffset,
+            viewportWidth = diagnostics.ViewportWidth,
+            extentWidth = diagnostics.ExtentWidth,
+            atEnd = diagnostics.AtEnd,
+        });
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -215,6 +230,9 @@ internal sealed class HostProtocolServer : IDisposable
                 break;
             case "refresh":
                 _window.RefreshAttachment();
+                break;
+            case "inspect-current-lyric":
+                WriteCurrentLyricDiagnostics(_window.InspectCurrentLyric());
                 break;
             case "shutdown":
                 RequestShutdown(0);

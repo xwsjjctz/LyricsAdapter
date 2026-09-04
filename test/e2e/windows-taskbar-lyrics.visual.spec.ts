@@ -331,10 +331,10 @@ test.describe('Windows taskbar lyrics visual surface', () => {
         coverUrl: 'cover://windows-taskbar-visual-e2e.png',
         title: 'LyricsAdapter visual E2E',
         artist: 'Native WPF host',
-        line: 'VISIBLE TASKBAR LYRICS 任务栏像素验证',
+        line: "the maiden who's blessed",
         nextLine: 'This text must reach the composed desktop',
-        lineCursor: 0,
-        lineProgress: 12,
+        lineCursor: null,
+        lineProgress: 24,
         isPlaying: true,
       });
       expect(updateResult).toMatchObject({ ok: true });

@@ -76,16 +76,24 @@
               <RowDefinition Height="19" />
               <RowDefinition Height="19" />
             </Grid.RowDefinitions>
-            <TextBlock x:Name="CurrentLyric"
-                       Grid.Row="0"
-                       FontSize="14"
-                       FontWeight="SemiBold"
-                       LineHeight="19"
-                       Foreground="{DynamicResource WidgetForegroundBrush}"
-                       HorizontalAlignment="Stretch"
-                       TextTrimming="CharacterEllipsis"
-                       TextWrapping="NoWrap"
-                       VerticalAlignment="Center" />
+            <ScrollViewer x:Name="CurrentLyricScroller"
+                          Grid.Row="0"
+                          HorizontalScrollBarVisibility="Hidden"
+                          VerticalScrollBarVisibility="Disabled"
+                          CanContentScroll="False"
+                          Focusable="False"
+                          IsHitTestVisible="False"
+                          VerticalAlignment="Center">
+              <TextBlock x:Name="CurrentLyric"
+                         FontSize="14"
+                         FontWeight="SemiBold"
+                         LineHeight="19"
+                         Foreground="{DynamicResource WidgetForegroundBrush}"
+                         HorizontalAlignment="Left"
+                         TextTrimming="None"
+                         TextWrapping="NoWrap"
+                         VerticalAlignment="Center" />
+            </ScrollViewer>
             <TextBlock x:Name="NextLyric"
                        Grid.Row="1"
                        Margin="0,-1.5,0,0"
