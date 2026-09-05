@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">LyricsAdapter app icon — refined vector</title>
+  <desc id="desc">A white curled musical ribbon and three lyric lines on a pink, violet and blue rounded tile. Editable SVG reconstruction of app-icon.png; gradients and shadows are resolution independent. Adapted from the LyricsAdapter project icon, CC BY 4.0; see app-icon-LICENSE. https://creativecommons.org/licenses/by/4.0/</desc>
+  <defs>
+    <path id="tile-shape" d="M310 100H714C853 100 924 162 924 310V714C924 856 862 924 714 924H310C164 924 100 858 100 714V310C100 165 163 100 310 100Z"/>
+    <clipPath id="tile-clip"><use href="#tile-shape"/></clipPath>
+    <linearGradient id="tile-base" x1="666" y1="100" x2="375" y2="924" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffbbcf"/>
+      <stop offset=".42" stop-color="#ffa2dd"/>
+      <stop offset=".74" stop-color="#c09dfb"/>
+      <stop offset="1" stop-color="#a09efd"/>
+    </linearGradient>
+    <radialGradient id="peach-light" cx="0" cy="0" r="1" gradientTransform="translate(887 126) rotate(130) scale(687 594)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe9d9"/>
+      <stop offset=".48" stop-color="#ffd0cd" stop-opacity=".64"/>
+      <stop offset="1" stop-color="#ffd7cf" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pink-light" cx="0" cy="0" r="1" gradientTransform="translate(837 523) rotate(165) scale(581 410)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffacd2"/>
+      <stop offset=".45" stop-color="#ffacd2" stop-opacity=".87"/>
+      <stop offset="1" stop-color="#ffacd2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blue-light" cx="0" cy="0" r="1" gradientTransform="translate(148 895) rotate(-45) scale(570 463)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#53d0fc"/>
+      <stop offset=".4" stop-color="#76bcff" stop-opacity=".87"/>
+      <stop offset="1" stop-color="#8eacff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="violet-light" cx="0" cy="0" r="1" gradientTransform="translate(303 596) rotate(35) scale(340 258)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b598ff" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#bd94fa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tile-rim" x1="154" y1="133" x2="913" y2="843" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".66"/>
+      <stop offset=".32" stop-color="white" stop-opacity=".06"/>
+      <stop offset=".71" stop-color="white" stop-opacity=".15"/>
+      <stop offset="1" stop-color="white" stop-opacity=".44"/>
+    </linearGradient>
+    <linearGradient id="front-fill" x1="629" y1="290" x2="412" y2="803" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff8f8"/>
+      <stop offset=".46" stop-color="#ffe7f0"/>
+      <stop offset=".78" stop-color="#f1dff8"/>
+      <stop offset="1" stop-color="#dfe0ff"/>
+    </linearGradient>
+    <linearGradient id="ribbon-face-light" x1="493" y1="502" x2="609" y2="550" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".6"/>
+      <stop offset=".23" stop-color="white" stop-opacity=".11"/>
+      <stop offset=".8" stop-color="white" stop-opacity="0"/>
+      <stop offset="1" stop-color="white" stop-opacity=".32"/>
+    </linearGradient>
+    <linearGradient id="curl-fill" x1="303" y1="668" x2="458" y2="719" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f9fbff"/>
+      <stop offset=".35" stop-color="#ece8ff"/>
+      <stop offset="1" stop-color="#c2b1f0"/>
+    </linearGradient>
+    <linearGradient id="tail-fill" x1="588" y1="597" x2="730" y2="626" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#cdb1df"/>
+      <stop offset=".32" stop-color="#f6dbf0"/>
+      <stop offset=".72" stop-color="#ffe7f3"/>
+      <stop offset="1" stop-color="#fff4f8"/>
+    </linearGradient>
+    <linearGradient id="lyric-fill" x1="380" y1="374" x2="380" y2="550" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe0f0" stop-opacity=".88"/>
+      <stop offset="1" stop-color="#e8ecff" stop-opacity=".93"/>
+    </linearGradient>
+    <linearGradient id="white-edge" x1="450" y1="350" x2="650" y2="770" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".98"/>
+      <stop offset=".55" stop-color="white" stop-opacity=".63"/>
+      <stop offset="1" stop-color="white" stop-opacity=".86"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="40" y="50" width="944" height="944" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+    <filter id="rim-softness" x="80" y="80" width="864" height="864" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="2.4"/></filter>
+    <filter id="bevel-softness" x="250" y="240" width="520" height="590" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="2"/></filter>
+    <linearGradient id="shadow-tint" x1="610" y1="340" x2="402" y2="803" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c5437b"/>
+      <stop offset=".54" stop-color="#a944ad"/>
+      <stop offset="1" stop-color="#3e5dce"/>
+    </linearGradient>
+    <filter id="ribbon-shadow" x="200" y="180" width="640" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18"/>
+      <feOffset dx="4" dy="24"/>
+    </filter>
+    <filter id="contact-shadow" x="250" y="240" width="530" height="620" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#73479e" flood-opacity=".13"/>
+    </filter>
+    <filter id="lyric-shadow" x="210" y="348" width="338" height="281" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="3" dy="23" stdDeviation="14" flood-color="#944391" flood-opacity=".3"/>
+    </filter>
+    <path id="front-shape" d="M347 780C384 780 420 746 442 689L578 356C598 308 642 272 694 272C724 270 741 282 728 314L570 686C553 732 527 765 488 783C447 802 390 805 354 794C336 788 322 777 314 763C323 773 335 779 347 780Z"/>
+    <path id="body-shape" d="M465 632C431 613 398 614 372 622C331 635 301 673 300 711C298 748 318 783 354 794C390 805 447 802 488 783C527 765 553 732 570 686L728 314C741 282 724 270 694 272C642 272 598 308 578 356Z"/>
+    <path id="tail-shape" d="M628 537C657 552 690 547 720 539C736 534 748 538 743 556C736 582 723 626 711 648C690 685 637 690 579 662Z"/>
+    <clipPath id="front-clip"><use href="#front-shape"/></clipPath>
+    <clipPath id="body-clip"><use href="#body-shape"/></clipPath>
+    <clipPath id="tail-clip"><use href="#tail-shape"/></clipPath>
+  </defs>
+
+  <g id="background">
+    <use href="#tile-shape" fill="url(#tile-base)" filter="url(#tile-shadow)"/>
+    <g clip-path="url(#tile-clip)">
+      <path d="M100 100H924V924H100Z" fill="url(#pink-light)"/>
+      <path d="M100 100H924V924H100Z" fill="url(#peach-light)"/>
+      <path d="M100 100H924V924H100Z" fill="url(#blue-light)"/>
+      <path d="M100 100H924V924H100Z" fill="url(#violet-light)"/>
+      <use href="#tile-shape" stroke="url(#tile-rim)" stroke-width="11" filter="url(#rim-softness)"/>
+      <use href="#tile-shape" stroke="white" stroke-opacity=".18" stroke-width="2"/>
+    </g>
+  </g>
+
+  <g id="lyric-lines" fill="url(#lyric-fill)" stroke="white" stroke-opacity=".66" stroke-width="1.8" filter="url(#lyric-shadow)">
+    <rect id="lyric-top" x="336" y="374" width="152" height="29" rx="14.5"/>
+    <rect id="lyric-middle" x="293" y="447" width="171" height="29" rx="14.5"/>
+    <rect id="lyric-bottom" x="262" y="519" width="156" height="29" rx="14.5"/>
+  </g>
+
+  <g id="music-ribbon">
+    <g id="music-shadow" fill="url(#shadow-tint)" opacity=".42" filter="url(#ribbon-shadow)">
+      <use href="#body-shape"/><use href="#tail-shape"/>
+    </g>
+    <g id="ribbon-tail" filter="url(#contact-shadow)">
+      <use href="#tail-shape" fill="url(#tail-fill)"/>
+      <g clip-path="url(#tail-clip)"><use href="#tail-shape" stroke="white" stroke-opacity=".65" stroke-width="8" filter="url(#bevel-softness)"/></g>
+      <use href="#tail-shape" stroke="url(#white-edge)" stroke-width="1.6"/>
+    </g>
+    <g id="ribbon-body" filter="url(#contact-shadow)">
+      <g clip-path="url(#body-clip)">
+        <use href="#body-shape" fill="url(#front-fill)"/>
+        <path id="ribbon-curl" d="M465 632C431 613 398 614 372 622C331 635 301 673 300 711C298 740 315 768 347 780C384 780 420 746 442 689Z" fill="url(#curl-fill)"/>
+        <g id="ribbon-front"><use href="#front-shape" fill="url(#front-fill)"/><use href="#front-shape" fill="url(#ribbon-face-light)"/></g>
+        <use href="#body-shape" stroke="white" stroke-opacity=".82" stroke-width="9" filter="url(#bevel-softness)"/>
+        <path id="curl-highlight" d="M347 780C384 780 420 746 442 689" stroke="white" stroke-opacity=".38" stroke-width="3" filter="url(#bevel-softness)"/>
+      </g>
+      <use href="#body-shape" stroke="url(#white-edge)" stroke-width="1.5" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>
