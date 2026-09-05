@@ -93,9 +93,9 @@ describe('menuBarControlImage', () => {
   });
 
   it('composes previous, pause, and next SF Symbols into 1x and 2x template representations', () => {
-    const image = createMenuBarControlImage(true, 355) as InstanceType<
-      typeof imageMocks.MockNativeImage
-    >;
+    const image = createMenuBarControlImage(true, 355);
+    expect(image).toBeInstanceOf(imageMocks.MockNativeImage);
+    if (!(image instanceof imageMocks.MockNativeImage)) throw new Error('Expected the mocked native image');
 
     expect(image).toBeTruthy();
     expect(imageMocks.createFromNamedImage.mock.calls.map(([name]) => name)).toEqual([
@@ -144,9 +144,9 @@ describe('menuBarControlImage', () => {
   });
 
   it('keeps the transparent canvas at least as wide as the compact hit strip', () => {
-    const image = createMenuBarControlImage(true, 1) as InstanceType<
-      typeof imageMocks.MockNativeImage
-    >;
+    const image = createMenuBarControlImage(true, 1);
+    expect(image).toBeInstanceOf(imageMocks.MockNativeImage);
+    if (!(image instanceof imageMocks.MockNativeImage)) throw new Error('Expected the mocked native image');
 
     expect(image.representations[0]).toEqual(expect.objectContaining({
       scaleFactor: 1,

@@ -72,7 +72,7 @@ describe('playlistOverrides persistence', () => {
     expect(mocks.setItem).toHaveBeenCalledWith('playlist-overrides', legacy);
     expect(mocks.deleteSetting).toHaveBeenCalledWith('playlist-overrides');
     expect(mocks.setItem.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteSetting.mock.invocationCallOrder[0],
+      mocks.deleteSetting.mock.invocationCallOrder[0]!,
     );
   });
 
@@ -102,7 +102,7 @@ describe('playlistOverrides persistence', () => {
     expect(mocks.setItem).toHaveBeenCalledWith('playlist-overrides', raw);
     expect(mocks.deleteSetting).toHaveBeenCalledWith('playlist-overrides');
     expect(mocks.setItem.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteSetting.mock.invocationCallOrder[0],
+      mocks.deleteSetting.mock.invocationCallOrder[0]!,
     );
     expect(mocks.setSetting).not.toHaveBeenCalled();
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { themeManager } from '@/services/themeManager';
 import { THEME_IDS } from '@/types/theme';
 import { getDefaultTheme } from '@/services/themes/predefinedThemes';

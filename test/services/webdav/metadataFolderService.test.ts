@@ -76,7 +76,6 @@ describe('assignChunkId', () => {
   });
 
   it('should reuse non-full chunks for new entries', () => {
-    const entry = makeEntry({ chunkId: 'existing' });
     // Create a manifest with an existing chunk that has 30 entries (not full)
     const existingChunkId = '0001';
     const entries: Record<string, ManifestEntry> = {};
