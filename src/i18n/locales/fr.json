@@ -205,6 +205,7 @@
   "settingsDialog.qrLogout": "Déconnexion",
   "settingsDialog.qrReLogin": "Re-scanner",
   "settingsDialog.qrHint": "Un scan réussi remplit le cookie",
+  "controls.seek": "Position de lecture",
   "controls.playlist": "Liste de lecture",
   "controls.focusMode": "Mode concentré",
   "controls.normalMode": "Mode normal",

@@ -205,6 +205,7 @@
   "settingsDialog.qrLogout": "Log out",
   "settingsDialog.qrReLogin": "Re-scan",
   "settingsDialog.qrHint": "A successful scan auto-fills the cookie",
+  "controls.seek": "Playback position",
   "controls.playlist": "Playlist",
   "controls.focusMode": "Focus Mode",
   "controls.normalMode": "Normal Mode",

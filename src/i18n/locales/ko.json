@@ -205,6 +205,7 @@
   "settingsDialog.qrLogout": "로그아웃",
   "settingsDialog.qrReLogin": "다시 스캔",
   "settingsDialog.qrHint": "스캔 성공 시 Cookie 자동 입력",
+  "controls.seek": "재생 위치",
   "controls.playlist": "재생 목록",
   "controls.focusMode": "집중 모드",
   "controls.normalMode": "일반 모드",

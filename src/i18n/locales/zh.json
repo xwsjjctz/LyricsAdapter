@@ -205,6 +205,7 @@
   "settingsDialog.qrLogout": "退出登录",
   "settingsDialog.qrReLogin": "重新扫码",
   "settingsDialog.qrHint": "扫码成功后会自动填入 Cookie",
+  "controls.seek": "播放进度",
   "controls.playlist": "播放列表",
   "controls.focusMode": "专注模式",
   "controls.normalMode": "普通模式",

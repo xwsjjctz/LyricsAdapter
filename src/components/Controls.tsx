@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../services/coverUrl';
 import { useGlassUI } from '../hooks/useGlassUI';
 import OverflowMarquee from './OverflowMarquee';
+import '../styles/playerSliders.css';
 
 interface ControlsProps {
   track: Track | null;
@@ -31,6 +32,14 @@ const formatTime = (seconds: number): string => {
 };
 
 
+// Preserve native range keys without changing application shortcuts elsewhere.
+const preserveSliderKeys = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
+    event.stopPropagation();
+  }
+};
+
 const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
@@ -40,10 +49,9 @@ const Controls: React.FC<ControlsProps> = memo(({
   const { t } = useTranslation();
   const glassUI = useGlassUI();
 
-  const displayCurrentTime = Number.isFinite(currentTime) ? Math.max(0, currentTime) : 0;
-  const progress = track && track.duration > 0
-    ? Math.min(100, (displayCurrentTime / track.duration) * 100)
-    : 0;
+  const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
+  const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
+  const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
 
   return (
     <div
@@ -120,22 +128,21 @@ const Controls: React.FC<ControlsProps> = memo(({
         {/* Progress Bar */}
         <div className="flex items-center gap-3 flex-1">
           <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(displayCurrentTime)}</span>
-          <div className="flex-1 relative h-4 group flex items-center">
+          <div className="player-slider" style={{ '--slider-progress': `${progress}%` } as React.CSSProperties}>
             <input
-              type="range" min="0" max={track?.duration || 100} step="0.1" value={displayCurrentTime}
+              type="range" min="0" max={duration || 100} step="0.1" value={displayCurrentTime}
+              disabled={!track || duration === 0}
+              aria-label={t('controls.seek')}
+              aria-valuetext={`${formatTime(displayCurrentTime)} / ${formatTime(duration)}`}
+              onKeyDown={preserveSliderKeys}
               onChange={(e) => onSeek(Number(e.target.value))}
-              className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full overflow-hidden" style={{ height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)', backgroundColor: 'var(--theme-control-slider-track)' }}>
-              <div
-                className="h-full"
-                style={{ width: `${progress}%`, backgroundColor: 'var(--theme-control-slider-fill)' }}
-                data-progress={progress}
-                data-current-time={currentTime}
-              ></div>
+            <div className="player-slider-track" aria-hidden="true">
+              <div className="player-slider-fill" data-progress={progress} data-current-time={currentTime} />
             </div>
+            <span className="player-slider-thumb" aria-hidden="true" />
           </div>
-          <span className="text-[10px] tabular-nums w-8" style={{ color: 'var(--theme-text-muted)' }}>{track ? formatTime(track.duration) : '0:00'}</span>
+          <span className="text-[10px] tabular-nums w-8" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(duration)}</span>
         </div>
       </div>
 
@@ -166,15 +173,10 @@ const Controls: React.FC<ControlsProps> = memo(({
           >
             {volume === 0 ? 'volume_off' : 'volume_up'}
           </span>
-          <div className="w-16 relative h-4 flex items-center">
-            <input
-              type="range" min="0" max="1" step="0.01" value={volume}
-              onChange={(e) => onVolumeChange(Number(e.target.value))}
-              className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
-            />
-            <div className="w-full overflow-hidden" style={{ height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)', backgroundColor: 'var(--theme-control-slider-track)' }}>
-              <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: 'var(--theme-control-slider-fill-secondary)' }}></div>
-            </div>
+          <div className="player-slider player-volume-slider" style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
+            <input type="range" min="0" max="1" step="0.01" value={volume} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} onKeyDown={preserveSliderKeys} onChange={(e) => onVolumeChange(Number(e.target.value))} />
+            <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
+            <span className="player-slider-thumb" aria-hidden="true" />
           </div>
         </div>
       </div>
