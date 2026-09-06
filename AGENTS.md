@@ -1,89 +1,94 @@
-# AGENTS.md
+# LyricsAdapter agent guidance
 
-Guidance for Codex when working in this repository.
+## Scope and autonomy
 
-## Commands
+- Complete the requested work, including appropriate verification, within the user's
+  authorized scope. Reuse prior authorization; resolve routine implementation choices
+  and recoverable errors without a new approval round.
+- User instructions take precedence over repository and skill guidelines, subject to
+  higher-priority instructions and execution permissions. Ask only when a missing
+  decision materially affects scope, data safety, or an action not already authorized.
+  Continue independent work while that decision is pending.
+- Preserve unrelated working-tree changes. Before changing feature behavior, briefly
+  identify the domain, state read/write scope, and likely files; this is a working
+  hypothesis to refine from evidence, not an approval step for every edit.
+- If a local rule actually blocks progress, link the file and quote the applicable
+  rule; distinguish an explicit requirement from your interpretation.
+- Use skills and OpenSpec when relevant to the request. Read only needed references.
+  See [agent workflow](docs/agent-workflow.md) for OpenSpec operations.
+
+## Navigation and commands
+
+When `.codegraph/` exists, try CodeGraph first for symbol and call-path questions:
+`codegraph explore "<question>"` or `codegraph node <symbol-or-file>` (or matching MCP
+tools). Use `rg` and direct reads for documentation, exact text, or when the index is
+unavailable, stale, or unhelpful. Do not create an index just for this preference.
+
+Use the Node version supported by `package.json`; npm scripts are the command source
+of truth. Common entry points:
 
 ```bash
-npm run dev                   # Browser-only Vite dev server
-npm run electron:dev          # Vite + Electron, normal development
-npm run electron:debug        # Electron + renderer CDP :9222 + main inspector :9229
-npm run build                 # Production renderer build
-npm run typecheck             # Strict TypeScript check
-npm run typecheck:e2e         # Type-check Playwright config and Electron E2E
-npm test                      # Vitest unit suite
-npm run test:e2e              # Built Electron + preload + IPC smoke test
-npm run check                 # Typecheck + unit tests + production build
-npm run electron:build        # Build for the current platform
-npm run electron:build:mac    # Build macOS DMG
-npm run electron:build:win    # Build Windows x64 installer
-npm run electron:build:linux  # Build Linux AppImage
+npm run dev                   # Browser-only Vite
+npm run electron:dev          # Normal desktop development
+npm run electron:debug        # Renderer CDP :9222; main inspector :9229 (loopback)
+npm run typecheck             # Application TypeScript
+npm run typecheck:test        # Unit-test TypeScript
+npm run typecheck:e2e         # Playwright/Electron TypeScript
+npm test -- <test-path>       # Focused Vitest tests; omit path for full suite
+npm run check                # All typechecks, unit tests, production build
+npm run test:e2e -- <spec>    # Build and run selected real-Electron tests
+npm run test:e2e:run -- <spec> # Reuse a current build for selected Electron tests
+npm run electron:build       # Package current platform; :mac/:win/:linux also exist
 ```
 
-Vitest tests live under `test/**/*.test.{ts,tsx}`. The Playwright Electron smoke
-test lives under `test/e2e/**/*.spec.ts`. No linter is currently configured.
+Choose checks for the affected behavior. Documentation-only edits need link, command,
+and consistency checks; UI changes need relevant visual checks; IPC, preload,
+persistence, or native changes need corresponding integration/platform checks.
+Before delivering a code PR, run `npm run check` and affected Electron tests where
+the environment supports them. CI retains its full platform matrix in
+`.github/workflows/pr-check.yml`. Repeat or broaden checks only for new changes,
+failures, or unresolved risks; report checks that could not run.
 
-## Architecture
+## Architecture and ownership
 
-LyricsAdapter is an Electron + React + Vite desktop music player.
+LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`.
 
-- Main process (`electron/`): window creation, IPC, file I/O, `cover://`, QQ Music proxying, and WebDAV proxying. The window is frameless.
-- Renderer (`src/`): React 18 function components, hooks, controllers, viewmodels, services, and hook-based stores.
-- Preload (`electron/preload.ts`): exposes typed `window.electron`; all main/renderer communication goes through this bridge.
-- Desktop adapter (`src/services/desktopAdapter.ts`): renderer code must use `getDesktopAPI()`, `getDesktopAPIAsync()`, and `isDesktop()` instead of touching `window.electron` directly. Browser mode falls back to HTML file inputs where needed.
+- `electron/` owns windows, IPC, file I/O, protocols, native integrations and proxies.
+  `electron/preload.ts` exposes the typed bridge. Renderer application code uses
+  `src/services/desktopAdapter.ts` (`getDesktopAPI`, `getDesktopAPIAsync`, `isDesktop`);
+  direct `window.electron` access belongs to the bridge or tests verifying it.
+- Keep `App.tsx` and extracted composition roots focused on wiring. Put domain behavior
+  in controllers, hooks, or services according to ownership, not file-length limits.
+- UI emits intent through callbacks. The player controller owns playback mutations;
+  the library controller owns imports, removals, metadata changes and slot mutations.
+  UI and online providers do not bypass those owners or call `updateSlot` directly.
+  Providers fetch/normalize data and resolve streams/downloads for the controllers.
+- `useLibrarySlots.ts` maintains `local`, `cloud`, `online`, and play-only `playlist`
+  contexts. Preserve per-slot tracks, selection, time, volume, mode, filters and scroll
+  state; switching contexts restores state paused unless the requested feature changes
+  that contract through the player controller.
+- Preserve path-based local/WebDAV track identity, lazy audio loading, and cached
+  `cover://` covers. Persistence spans repositories and main-process stores; inspect
+  the current storage path before changing serialization or migration behavior.
+- Use the existing `music-tag-native` bridge for metadata, preserving legacy MP3
+  `node-id3` behavior unless the task deliberately migrates it.
+- Use the process-appropriate logger (`src/services/logger.ts` or `electron/logger.ts`)
+  for application diagnostics. Window drag regions are defined in `TitleBar.tsx`.
 
-## Debugging Model
+## Debugging and Git
 
-- Normal `electron:dev` does not expose remote debugging ports.
-- `electron:debug` exposes renderer CDP on `127.0.0.1:9222` and the Electron main-process Node inspector on `127.0.0.1:9229`.
-- `.codex/config.toml` configures Codex, while `.mcp.json` covers Claude and compatible clients; both attach the development-only Playwright MCP server to the running Electron renderer over CDP. Neither is bundled into the application.
-- CDP only covers Chromium renderer targets. Use `.vscode/launch.json` (or another Node inspector client) for main-process breakpoints.
-- `test:e2e` builds the app, launches real Electron against `app://`, verifies preload and IPC, and isolates every data path in a temporary directory.
-- See `DEBUGGING.md` for the complete Agent workflow and troubleshooting steps.
-
-## Playback Model
-
-- `useLibrarySlots.ts` owns four independent slots: `local`, `cloud`, `online`, and the play-only `playlist` context.
-- Each slot stores tracks, current index, time, volume, playback mode, scroll position, and filters.
-- Switching slots restores that slot state and always sets `isPlaying` to `false`.
-
-## Data Flow
-
-- Import: IPC file dialog -> `metadataService` -> `coverArtService` -> `Track` objects -> `libraryStorage` -> `userData/library-index.json`.
-- Playback: `selectTrack` -> lazy IPC file read -> Blob URL -> HTML audio element -> delayed adjacent-track preload.
-- WebDAV: PROPFIND browse -> redirect URL -> proxied HTTP range requests -> streamed `Track` with `source: 'webdav'`.
-- Track identity is path-based: `filePath` for local tracks, `webdavPath` for cloud tracks. `id` is derived from that path.
-- Covers are cached in `userData/covers/` and served as `cover://<track-id>`.
-
-## Ownership Boundaries
-
-- Treat the renderer composition root (`App.tsx` and any extracted composition component) as wiring/composition only. File length is not an architecture boundary; move domain behavior into the appropriate controller, hook, or service.
-- UI components must not call `updateSlot` or mutate slot state directly. They should emit user intent through props/callbacks and let controllers own state changes.
-- Playback behavior must go through the player controller. Do not start, stop, seek, switch tracks, or alter playback state from UI components, providers, or unrelated services.
-- Library mutations must go through the library controller. Imports, removals, metadata updates, slot changes, and persistence-triggering changes belong there.
-- Online music providers must not control the player directly. Providers may fetch/search/normalize/download/stream metadata and return results; playback intent is handled by the player controller.
-- Before implementing a new feature, first state the feature domain, the exact state read/write scope, and the files expected to be affected. Keep the implementation inside those boundaries unless the codebase proves the scope must change.
-
-## Conventions
-
-- `@/` maps to `src/`.
-- Use `src/services/logger.ts` instead of `console.log`.
-- Use the existing `music-tag-native` bridge for audio metadata reads/writes; keep legacy MP3 behavior on `node-id3` unless deliberately migrating it.
-- Window drag regions live in `TitleBar.tsx`.
-- Build outputs: `dist/`, `dist-electron/`, and `release/`.
-- Agent tools may launch `npm run dev`, `npm run electron:dev`, or `npm run electron:debug` when debugging requires a live process. Do not leave unnecessary dev-server or Electron processes running after the task is complete.
-- Generated MCP artifacts in `.playwright-mcp/` and the local CodeGraph index in `.codegraph/` stay untracked.
-
-## Git
-
-- Never commit directly on `master`; create a focused branch first.
-- Branch prefixes: `feature/`, `fix/`, `refactor/`, `docs/`, `perf/`.
-- Commit messages use conventional prefixes: `feat`, `fix`, `refactor`, `docs`, `chore`, `perf`, `ci`. Follow `.claude/COMMIT_CONVENTION.md` for the house style.
-- Push work with `git push -u origin <branch-name>` and merge through a PR.
-
-## Release
-
-- PRs to `master` run typecheck, unit tests, production build, and the Electron smoke test.
-- Pushing a `v*` tag builds macOS and Windows release artifacts.
-- `v0.*` tags are prereleases; `v1.*` and later are stable releases.
-- Only create or push release tags when the user explicitly asks.
+- Start a dev server or Electron when needed for the task. Normal development has no
+  debug ports; CDP covers the renderer only. Read [DEBUGGING.md](DEBUGGING.md) for live
+  debugging and isolated E2E data. Stop only processes this task started and no longer
+  needs. Keep `.playwright-mcp/`, `.codegraph/` and build outputs untracked.
+- Before committing on `master`, create a focused branch. Prefer `feature/`, `fix/`,
+  `refactor/`, `docs/`, or `perf/` unless the user or host requires another prefix.
+  Commit titles use a conventional prefix (`feat`, `fix`, `refactor`, `docs`, `chore`,
+  `perf`, `ci`) and a concise Chinese summary, normally at most 72 characters; an
+  optional body explains material changes. Explicit user format requests take priority.
+- When pushing/PR delivery is requested or already authorized, push the focused branch
+  with upstream tracking and use a PR for `master`. This convention is not itself a
+  request to commit, push, or merge every local edit.
+- Release tags require an explicit user request. Pushing `v*` triggers macOS/Windows
+  release builds; `v0.*` is prerelease and `v1.*` onward is stable. Consult
+  `.github/workflows/release.yml` when release work is requested.
