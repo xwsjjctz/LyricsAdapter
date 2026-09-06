@@ -9,6 +9,7 @@ import '@applemusic-like-lyrics/core/style.css';
 import './FocusAmlLyrics.css';
 import type { Track } from '../../types';
 import { trackToAmlLyricLines } from './amllLyrics';
+import { FocusAmlAnimationBudget } from './focusAmlAnimationBudget';
 
 const SEEK_JUMP_THRESHOLD_MS = 350;
 const SCROLL_RETURN_DELAY_MS = 3_000;
@@ -17,11 +18,17 @@ const AMLL_OPTIMIZE_OPTIONS: OptimizeLyricOptions = {
   resetLineTimestamps: false,
 };
 
-// AMLL 0.5.2 does not disconnect this observer in its base dispose(). Without
-// this adapter, switching the experiment off can retain the disposed player.
 export class FocusDomLyricPlayer extends DomLyricPlayer {
+  private readonly animationBudget = new FocusAmlAnimationBudget();
+
+  override update(delta?: number): void {
+    super.update(delta);
+    this.animationBudget?.update(this.currentLyricGroups, this.getCurrentTime());
+  }
+
   override dispose(): void {
     this.resetScroll();
+    // AMLL 0.5.2 leaves this observer connected, retaining disposed players.
     this.resizeObserver.disconnect();
     super.dispose();
   }

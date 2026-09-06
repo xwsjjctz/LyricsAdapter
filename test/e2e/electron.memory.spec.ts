@@ -16,6 +16,7 @@ if (configuredLyricsRenderer && configuredLyricsRenderer !== 'legacy' && configu
   throw new Error('MEMORY_BENCHMARK_LYRICS_RENDERER must be "legacy" or "amll"');
 }
 const lyricsRenderer: 'legacy' | 'amll' = configuredLyricsRenderer === 'amll' ? 'amll' : 'legacy';
+const amllMemoryEnabled = lyricsRenderer === 'amll';
 const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 async function readRepoTopLevelDirectories(): Promise<string[]> {
@@ -313,6 +314,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
 
     const repoTopLevelDirectoriesBefore = await readRepoTopLevelDirectories();
     const cycles = readPositiveInteger('MEMORY_BENCHMARK_CYCLES', 3, 20);
+    const lyricLineCount = readPositiveInteger('MEMORY_BENCHMARK_LYRIC_LINES', 3, 300);
     const settleMs = readPositiveInteger('MEMORY_BENCHMARK_SETTLE_MS', 2_000, 30_000);
     const samplesPerPhase = readPositiveInteger('MEMORY_BENCHMARK_SAMPLES', 3, 20);
     const sampleIntervalMs = readPositiveInteger('MEMORY_BENCHMARK_SAMPLE_INTERVAL_MS', 350, 5_000);
@@ -348,9 +350,9 @@ test.describe('cross-platform Electron memory benchmark', () => {
           title: 'Memory Benchmark Track',
           artist: 'LyricsAdapter',
           album: 'Cross-platform benchmark',
-          duration: 180,
+          duration: Math.max(180, lyricLineCount * 3),
           lyrics: 'Memory benchmark lyric\nExercises AMLL mount and cleanup\nAcross repeated focus cycles',
-          syncedLyrics: [
+          syncedLyrics: lyricLineCount === 3 ? [
             {
               time: 0,
               text: 'Memory benchmark lyric',
@@ -361,7 +363,13 @@ test.describe('cross-platform Electron memory benchmark', () => {
             },
             { time: 3, text: 'Exercises AMLL mount and cleanup' },
             { time: 6, text: 'Across repeated focus cycles' },
-          ],
+          ] : Array.from({ length: lyricLineCount }, (_, index) => ({
+            time: index * 3,
+            text: `Line ${index + 1} 在夜色中听见远方的声音`,
+            words: [`Line ${index + 1} `, '在', '夜', '色', '中', '听', '见', '远', '方', '的', '声', '音'].map((text, wordIndex) => ({
+              time: index * 3 + wordIndex * 0.25, duration: 0.25, text,
+            })),
+          })),
           coverUrl: `cover://${trackId}.png`,
           source: 'local',
           available: false,
@@ -444,6 +452,9 @@ test.describe('cross-platform Electron memory benchmark', () => {
           : focusOverlay.locator('.amll-lyric-player');
         await expect(activeLyrics).toHaveCount(1, { timeout: 10_000 });
         await expect(inactiveLyrics).toHaveCount(0);
+        if (lyricsRenderer === 'amll' && lyricLineCount > 1) {
+          await expect.poll(() => activeLyrics.locator('[data-focus-amll-static]').count()).toBeGreaterThan(0);
+        }
         await capturePhase(`focus-${cycle}`);
 
         await focusToggle.click();
@@ -489,6 +500,8 @@ test.describe('cross-platform Electron memory benchmark', () => {
           samplesPerPhase,
           sampleIntervalMs,
           lyricsRenderer,
+          amllMemoryEnabled,
+          lyricLineCount,
         },
         measurementNotes: [
           'Electron app.getAppMetrics() values and process.getProcessMemoryInfo() values are reported in KiB.',
@@ -513,7 +526,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
       const safeTimestamp = report.generatedAt.replace(/[:.]/g, '-');
       const reportPath = path.join(
         reportDirectory,
-        `memory-${lyricsRenderer}-${platform.os}-${platform.arch}-${safeTimestamp}.json`,
+        `memory-${lyricsRenderer}${amllMemoryEnabled ? '-optimized' : ''}-${platform.os}-${platform.arch}-${safeTimestamp}.json`,
       );
       const reportBody = `${JSON.stringify(report, null, 2)}\n`;
       await writeFile(reportPath, reportBody);

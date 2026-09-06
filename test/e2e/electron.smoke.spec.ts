@@ -873,7 +873,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
     }).first();
     await settingsButton.click();
-    const amllLyricsSwitch = page.getByRole('switch', { name: /AMLL/i });
+    const amllLyricsSwitch = page.locator('[role="switch"][aria-describedby="focus-amll-lyrics-description"]');
     await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
     await amllLyricsSwitch.click();
     await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');

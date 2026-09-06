@@ -44,3 +44,21 @@
   letter-spacing: -0.015em;
   line-height: 1.2;
 }
+
+/* Only uniform, inactive words lose their per-word effects. Keep the line's
+   layout/blur/spring layers and all glyph/spacing/ruby DOM intact. */
+.focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] {
+  /* An alpha-only filter groups the glyphs without changing the main line's
+     opacity property, whose upstream transition would flash on fold/unfold. */
+  filter: opacity(var(--dark-mask-alpha));
+}
+
+.focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] * {
+  will-change: auto !important;
+  backface-visibility: visible !important;
+}
+
+.focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] [style*="mask-image"] {
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+}
