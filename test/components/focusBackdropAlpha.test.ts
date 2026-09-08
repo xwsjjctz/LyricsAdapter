@@ -3,10 +3,12 @@ import {
   BACKDROP_ALPHA_EDGE_OPACITY,
   BACKDROP_ALPHA_EXIT_DURATION_MS,
   BACKDROP_ALPHA_TRANSITION_DURATION_MS,
+  BACKDROP_TRACK_CHANGE_DIP,
   backdropAlphaExitProgressFromFactor,
   backdropAlphaFactorAtExitProgress,
   backdropAlphaFactorAtPhase,
   backdropAlphaPhaseFromFactor,
+  backdropTrackChangeAlpha,
 } from '@/components/focus-mode/focusBackdropAlpha';
 
 describe('Focus backdrop alpha timeline', () => {
@@ -47,6 +49,28 @@ describe('Focus backdrop alpha timeline', () => {
     for (const progress of [0.1, 0.25, 0.5, 0.85]) {
       const factor = backdropAlphaFactorAtExitProgress(progress);
       expect(backdropAlphaExitProgressFromFactor(factor)).toBeCloseTo(progress, 6);
+    }
+  });
+
+  it('halves the track-change opacity dip so the cover colour cross-fade stays readable', () => {
+    expect(BACKDROP_TRACK_CHANGE_DIP).toBe(0.5);
+
+    // The pulse must start and end at the resting alpha.
+    expect(backdropTrackChangeAlpha(1, 0)).toBe(1);
+    expect(backdropTrackChangeAlpha(1, 1)).toBe(1);
+    // Legacy curve dipped to 0.75 here; the halved dip stays at 0.875.
+    expect(backdropTrackChangeAlpha(1, 0.5)).toBeCloseTo(0.875, 6);
+
+    // The dip scales with the resting alpha (user bgBlurTrans setting).
+    expect(backdropTrackChangeAlpha(0.6, 0.5)).toBeCloseTo(0.555, 6);
+
+    for (const alpha of [0.3, 0.6, 1]) {
+      for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+        const legacy = alpha * (1 - alpha * progress * (1 - progress));
+        const current = backdropTrackChangeAlpha(alpha, progress);
+        expect(current).toBeLessThanOrEqual(alpha);
+        expect(current).toBeGreaterThanOrEqual(legacy);
+      }
     }
   });
 });

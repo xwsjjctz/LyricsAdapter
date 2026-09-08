@@ -19,6 +19,7 @@ import {
   backdropAlphaFactorAtExitProgress,
   backdropAlphaFactorAtPhase,
   backdropAlphaPhaseFromFactor,
+  backdropTrackChangeAlpha,
 } from './focus-mode/focusBackdropAlpha';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
 import FocusLyrics from './focus-mode/FocusLyrics';
@@ -388,14 +389,12 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     ctx.clearRect(0, 0, width, height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    // Restore the original track-change opacity breathing as a deliberate,
-    // uniform final-pass alpha. The legacy two-draw source-over path produced:
-    //   Aout = A * (1 - A * p * (1 - p))
-    // (Aout = 0.75 at p = 0.5 when A = 1). Applying the same curve after the
-    // opaque colour cross-fade preserves that visual rhythm without bringing
-    // back steady-state edge transparency or nonlinear colour blending.
+    // Keep a subtle track-change opacity pulse. The legacy two-draw source-over
+    // path produced Aout = A * (1 - A * p * (1 - p)), which dipped to 0.75 at
+    // p = 0.5 when A = 1 and let the library view wash out the cover colour
+    // cross-fade; backdropTrackChangeAlpha halves that dip.
     const transitionAlpha = preparedIncoming
-      ? alpha * (1 - alpha * transitionProgress * (1 - transitionProgress))
+      ? backdropTrackChangeAlpha(alpha, transitionProgress)
       : alpha;
     ctx.globalAlpha = transitionAlpha;
     ctx.drawImage(frameCanvas, 0, 0);
