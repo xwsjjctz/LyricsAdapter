@@ -742,9 +742,12 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     const endingSample = nearestSample(breathingProbe.transitionStartedAt + 1_100);
 
     expect(breathingProbe.initialRgba[3]).toBeGreaterThanOrEqual(250);
-    expect(midpointSample.rgba[3]).toBeGreaterThanOrEqual(180);
-    expect(midpointSample.rgba[3]).toBeLessThanOrEqual(205);
-    expect(midpointSample.rgba[3]).toBeLessThan((breathingProbe.initialRgba[3] ?? 0) - 40);
+    // The track-change dip was halved so the cover colour cross-fade stays
+    // readable: the minimum is now ~0.875 of the resting alpha (≈223/255)
+    // instead of the legacy ~0.75 (≈191/255).
+    expect(midpointSample.rgba[3]).toBeGreaterThanOrEqual(210);
+    expect(midpointSample.rgba[3]).toBeLessThanOrEqual(240);
+    expect(midpointSample.rgba[3]).toBeLessThan((breathingProbe.initialRgba[3] ?? 0) - 20);
     expect(endingSample.rgba[3]).toBeGreaterThanOrEqual(250);
     expect(Math.abs(
       minimumAlphaSample.elapsed - (breathingProbe.transitionStartedAt + 500),

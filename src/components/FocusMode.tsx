@@ -20,6 +20,7 @@ import {
   backdropAlphaFactorAtPhase,
   backdropAlphaPhaseFromFactor,
   backdropTrackChangeAlpha,
+  backdropTrackChangeBrightness,
 } from './focus-mode/focusBackdropAlpha';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
 import FocusLyrics from './focus-mode/FocusLyrics';
@@ -63,53 +64,69 @@ interface PreparedBackdrop {
   scaledBlurRadius: number;
 }
 
+/** A decoded cover image, or a baked cross-fade canvas used as its replacement. */
+type BackdropSource = HTMLImageElement | HTMLCanvasElement;
+
+function isBackdropSourceReady(source: BackdropSource | null): source is BackdropSource {
+  if (!source) return false;
+  if (source instanceof HTMLCanvasElement) return source.width > 0 && source.height > 0;
+  return source.complete && source.naturalWidth > 0;
+}
+
+function backdropSourceSize(source: BackdropSource): { width: number; height: number } {
+  return source instanceof HTMLCanvasElement
+    ? { width: source.width, height: source.height }
+    : { width: source.naturalWidth, height: source.naturalHeight };
+}
+
 function coverSourceRect(
-  img: HTMLImageElement,
+  source: BackdropSource,
   targetWidth: number,
   targetHeight: number,
 ): { x: number; y: number; width: number; height: number } {
-  const imageRatio = img.naturalWidth / img.naturalHeight;
+  const { width: sourceWidth, height: sourceHeight } = backdropSourceSize(source);
+  const imageRatio = sourceWidth / sourceHeight;
   const targetRatio = targetWidth / targetHeight;
 
   if (imageRatio > targetRatio) {
-    const height = img.naturalHeight;
+    const height = sourceHeight;
     const width = height * targetRatio;
-    return { x: (img.naturalWidth - width) / 2, y: 0, width, height };
+    return { x: (sourceWidth - width) / 2, y: 0, width, height };
   }
 
-  const width = img.naturalWidth;
+  const width = sourceWidth;
   const height = width / targetRatio;
-  return { x: 0, y: (img.naturalHeight - height) / 2, width, height };
+  return { x: 0, y: (sourceHeight - height) / 2, width, height };
 }
 
 function drawEdgeExtendedCover(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  source: BackdropSource,
   width: number,
   height: number,
   padding: number,
 ): void {
-  const source = coverSourceRect(img, width, height);
-  const edgeWidth = Math.min(1, source.width);
-  const edgeHeight = Math.min(1, source.height);
-  const rightX = source.x + source.width - edgeWidth;
-  const bottomY = source.y + source.height - edgeHeight;
+  const rect = coverSourceRect(source, width, height);
+  const edgeWidth = Math.min(1, rect.width);
+  const edgeHeight = Math.min(1, rect.height);
+  const rightX = rect.x + rect.width - edgeWidth;
+  const bottomY = rect.y + rect.height - edgeHeight;
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, source.x, source.y, source.width, source.height, padding, padding, width, height);
+  ctx.drawImage(source, rect.x, rect.y, rect.width, rect.height, padding, padding, width, height);
 
   // Extend the source's outermost pixels through the filter padding. This is
   // equivalent to an edge-clamped blur and avoids mixing transparent black into
   // the visible viewport without zooming or changing the cover crop.
-  ctx.drawImage(img, source.x, source.y, source.width, edgeHeight, padding, 0, width, padding);
-  ctx.drawImage(img, source.x, bottomY, source.width, edgeHeight, padding, padding + height, width, padding);
-  ctx.drawImage(img, source.x, source.y, edgeWidth, source.height, 0, padding, padding, height);
-  ctx.drawImage(img, rightX, source.y, edgeWidth, source.height, padding + width, padding, padding, height);
-  ctx.drawImage(img, source.x, source.y, edgeWidth, edgeHeight, 0, 0, padding, padding);
-  ctx.drawImage(img, rightX, source.y, edgeWidth, edgeHeight, padding + width, 0, padding, padding);
-  ctx.drawImage(img, source.x, bottomY, edgeWidth, edgeHeight, 0, padding + height, padding, padding);
-  ctx.drawImage(img, rightX, bottomY, edgeWidth, edgeHeight, padding + width, padding + height, padding, padding);
+  ctx.drawImage(source, rect.x, rect.y, rect.width, edgeHeight, padding, 0, width, padding);
+  ctx.drawImage(source, rect.x, bottomY, rect.width, edgeHeight, padding, padding + height, width, padding);
+  ctx.drawImage(source, rect.x, rect.y, edgeWidth, rect.height, 0, padding, padding, height);
+  ctx.drawImage(source, rightX, rect.y, edgeWidth, rect.height, padding + width, padding, padding, height);
+  ctx.drawImage(source, rect.x, rect.y, edgeWidth, edgeHeight, 0, 0, padding, padding);
+  ctx.drawImage(source, rightX, rect.y, edgeWidth, edgeHeight, padding + width, 0, padding, padding);
+  ctx.drawImage(source, rect.x, bottomY, edgeWidth, edgeHeight, 0, padding + height, padding, padding);
+  ctx.drawImage(source, rightX, bottomY, edgeWidth, edgeHeight, padding + width, padding + height, padding, padding);
 }
 
 interface FocusModeProps {
@@ -154,19 +171,22 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const [hasBackground, setHasBackground] = useState(false);
   const [blurUnderlyingView, setBlurUnderlyingView] = useState(true);
   const [blurUnderlyingViewForTrackChange, setBlurUnderlyingViewForTrackChange] = useState(false);
-  const currentBackgroundRef = useRef<HTMLImageElement | null>(null);
-  const incomingBackgroundRef = useRef<HTMLImageElement | null>(null);
+  const currentBackgroundRef = useRef<BackdropSource | null>(null);
+  const incomingBackgroundRef = useRef<BackdropSource | null>(null);
   const currentBackgroundTrackIdRef = useRef<string | null>(null);
   const incomingBackgroundTrackIdRef = useRef<string | null>(null);
   const transitionProgressRef = useRef(1);
   const backdropBrightnessRef = useRef(BACKDROP_RESTING_BRIGHTNESS);
   const animationFrameRef = useRef<number | null>(null);
   const backgroundLoadGenerationRef = useRef(0);
+  // Backing size of the visible canvas, so an interrupted cross-fade can be
+  // baked at exactly the resolution the compositor is showing.
+  const backdropSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const backdropSourceScratchRef = useRef<HTMLCanvasElement | null>(null);
   const backdropFilteredScratchRef = useRef<HTMLCanvasElement | null>(null);
   const backdropFrameScratchRef = useRef<HTMLCanvasElement | null>(null);
   const scratchReleaseTimerRef = useRef<number | null>(null);
-  const preparedBackdropCacheRef = useRef<WeakMap<HTMLImageElement, PreparedBackdrop>>(new WeakMap());
+  const preparedBackdropCacheRef = useRef<WeakMap<BackdropSource, PreparedBackdrop>>(new WeakMap());
 
   // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
   const canvasOpacityRef = useRef(0);
@@ -247,12 +267,12 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   }, []);
 
   const prepareBackdrop = useCallback((
-    img: HTMLImageElement,
+    source: BackdropSource,
     width: number,
     height: number,
   ): HTMLCanvasElement | null => {
     const scaledBlurRadius = bgBlurRadiusRef.current * BACKDROP_RENDER_SCALE;
-    const cached = preparedBackdropCacheRef.current.get(img);
+    const cached = preparedBackdropCacheRef.current.get(source);
     if (
       cached
       && cached.width === width
@@ -283,7 +303,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     if (!sourceCtx || !filteredCtx) return null;
 
     sourceCtx.clearRect(0, 0, paddedWidth, paddedHeight);
-    drawEdgeExtendedCover(sourceCtx, img, width, height, padding);
+    drawEdgeExtendedCover(sourceCtx, source, width, height, padding);
 
     filteredCtx.filter = 'none';
     filteredCtx.globalAlpha = 1;
@@ -313,7 +333,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       height,
     );
 
-    preparedBackdropCacheRef.current.set(img, {
+    preparedBackdropCacheRef.current.set(source, {
       canvas: preparedCanvas,
       width,
       height,
@@ -323,6 +343,49 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     return preparedCanvas;
   }, [scheduleScratchRelease]);
 
+  /**
+   * Interruption-safe track change: when a cross-fade is already running, bake
+   * the currently visible blend of the two prepared covers into a new backdrop
+   * source. The next cover then fades in from exactly what is on screen instead
+   * of jumping to the incoming cover as if its fade had completed.
+   */
+  const bakeInterruptedTransition = useCallback((
+    width: number,
+    height: number,
+  ): HTMLCanvasElement | null => {
+    const current = currentBackgroundRef.current;
+    const incoming = incomingBackgroundRef.current;
+    const progress = transitionProgressRef.current;
+    if (!current || !incoming || progress <= 0 || progress >= 1 || width <= 0 || height <= 0) {
+      return null;
+    }
+
+    const preparedCurrent = prepareBackdrop(current, width, height);
+    const preparedIncoming = prepareBackdrop(incoming, width, height);
+    if (!preparedCurrent || !preparedIncoming) return null;
+
+    const baked = document.createElement('canvas');
+    baked.width = width;
+    baked.height = height;
+    const bakedCtx = baked.getContext('2d');
+    if (!bakedCtx) return null;
+    bakedCtx.globalAlpha = 1;
+    bakedCtx.drawImage(preparedCurrent, 0, 0);
+    bakedCtx.globalAlpha = progress;
+    bakedCtx.drawImage(preparedIncoming, 0, 0);
+    bakedCtx.globalAlpha = 1;
+
+    // The baked pixels are already blurred, so register them as a prepared
+    // backdrop: prepareBackdrop will return them untouched (no double blur).
+    preparedBackdropCacheRef.current.set(baked, {
+      canvas: baked,
+      width,
+      height,
+      scaledBlurRadius: bgBlurRadiusRef.current * BACKDROP_RENDER_SCALE,
+    });
+    return baked;
+  }, [prepareBackdrop]);
+
   // Render the complete backdrop frame directly. Transition progress and the
   // brightness "breathing" value live in refs so a cover cross-fade does not
   // cause a React commit on every animation frame.
@@ -330,12 +393,13 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     const currentBackground = currentBackgroundRef.current;
-    if (!canvas || !ctx || !currentBackground || !currentBackground.complete || currentBackground.naturalWidth === 0) return;
+    if (!canvas || !ctx || !isBackdropSourceReady(currentBackground)) return;
 
     const cssWidth = Math.max(1, window.innerWidth + BACKDROP_OVERSCAN_PX * 2);
     const cssHeight = Math.max(1, window.innerHeight + BACKDROP_OVERSCAN_PX * 2);
     const width = Math.max(1, Math.ceil(cssWidth * BACKDROP_RENDER_SCALE));
     const height = Math.max(1, Math.ceil(cssHeight * BACKDROP_RENDER_SCALE));
+    backdropSizeRef.current = { width, height };
     // Assigning width/height clears and reallocates the backing store. During a
     // transition this function runs every frame, so only resize when necessary.
     if (canvas.width !== width) canvas.width = width;
@@ -349,10 +413,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     const alpha = BACKDROP_ALPHA_EDGE_OPACITY
       + (bgBlurTransRef.current - BACKDROP_ALPHA_EDGE_OPACITY) * canvasOpacityRef.current;
     const incomingBackground = incomingBackgroundRef.current;
-    const transitionProgress = transitionProgressRef.current;
-    const preparedIncoming = incomingBackground
-      && incomingBackground.complete
-      && incomingBackground.naturalWidth > 0
+    // Clamp defensively: a negative progress would make the globalAlpha
+    // assignment below a no-op and flash the incoming cover at full opacity.
+    const transitionProgress = Math.max(0, Math.min(1, transitionProgressRef.current));
+    const preparedIncoming = isBackdropSourceReady(incomingBackground)
       ? prepareBackdrop(incomingBackground, width, height)
       : null;
     if (incomingBackground && !preparedIncoming) return;
@@ -401,6 +465,58 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
     ctx.globalAlpha = 1.0;
   }, [prepareBackdrop]);
+
+  /**
+   * Drive `transitionProgressRef` from wherever the cross-fade currently is to
+   * `targetProgress` (0 = the base cover, 1 = the incoming cover). Used both for
+   * a fresh fade and for reversing/continuing an interrupted one, so the pixels
+   * never jump. Brightness continues from its live value and settles on resting.
+   */
+  const animateTransitionTo = useCallback((
+    targetProgress: number,
+    onComplete: () => void,
+  ) => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    const fromProgress = transitionProgressRef.current;
+    const distance = Math.abs(targetProgress - fromProgress);
+    if (distance < 1e-4) {
+      transitionProgressRef.current = targetProgress;
+      onComplete();
+      return;
+    }
+
+    const startBrightness = backdropBrightnessRef.current;
+    const duration = Math.max(1, BACKDROP_TRANSITION_DURATION_MS * distance);
+    // Anchor the timeline on the first painted frame. Capturing
+    // performance.now() here would count any scheduling delay (a busy main
+    // thread can push the first rAF out by hundreds of ms) as elapsed time, so
+    // the first visible frame would already be part-way through the fade.
+    let startTime: number | null = null;
+    const animate = (now: number) => {
+      if (startTime === null) startTime = now;
+      const elapsed = Math.max(0, Math.min((now - startTime) / duration, 1));
+      transitionProgressRef.current = fromProgress + (targetProgress - fromProgress) * elapsed;
+      backdropBrightnessRef.current = backdropTrackChangeBrightness(
+        startBrightness,
+        BACKDROP_RESTING_BRIGHTNESS,
+        BACKDROP_DIM_BRIGHTNESS,
+        elapsed,
+      );
+      renderCanvas();
+      if (elapsed < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        animationFrameRef.current = null;
+        transitionProgressRef.current = targetProgress;
+        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+        onComplete();
+      }
+    };
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, [renderCanvas]);
 
   // Keep the small live backdrop blur below the prepared cover only while the
   // Library View can show through its entrance/exit alpha. Once the cover is
@@ -574,13 +690,30 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       return;
     }
     const trackId = track.id;
+    const inFlightIncoming = incomingBackgroundRef.current;
+    const inFlightIncomingTrackId = incomingBackgroundTrackIdRef.current;
 
-    // A quick exit/re-entry keeps this component mounted. Reuse the prepared
-    // cover for the same track instead of mistaking visibility reversal for a
-    // new track and replaying the 1000ms cover breathing transition.
+    // Returning to the cover that is still the fade base: reverse the in-flight
+    // cross-fade instead of snapping straight back to it.
     if (currentBackgroundRef.current && currentBackgroundTrackIdRef.current === trackId) {
-      incomingBackgroundRef.current = null;
-      incomingBackgroundTrackIdRef.current = null;
+      if (inFlightIncoming) {
+        setBlurUnderlyingViewForTrackChange(true);
+        animateTransitionTo(0, () => {
+          incomingBackgroundRef.current = null;
+          incomingBackgroundTrackIdRef.current = null;
+          currentBackgroundTrackIdRef.current = trackId;
+          transitionProgressRef.current = 1;
+          backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+          setHasBackground(true);
+          setBlurUnderlyingViewForTrackChange(false);
+          renderCanvas();
+        });
+        return;
+      }
+
+      // A quick exit/re-entry keeps this component mounted. Reuse the prepared
+      // cover for the same track instead of mistaking visibility reversal for a
+      // new track and replaying the 1000ms cover breathing transition.
       transitionProgressRef.current = 1;
       backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       setBlurUnderlyingViewForTrackChange(false);
@@ -588,16 +721,21 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       renderCanvas();
       return;
     }
-    if (incomingBackgroundRef.current && incomingBackgroundTrackIdRef.current === trackId) {
-      currentBackgroundRef.current = incomingBackgroundRef.current;
-      currentBackgroundTrackIdRef.current = trackId;
-      incomingBackgroundRef.current = null;
-      incomingBackgroundTrackIdRef.current = null;
-      transitionProgressRef.current = 1;
-      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
-      setBlurUnderlyingViewForTrackChange(false);
-      setHasBackground(true);
-      renderCanvas();
+    // The requested track is the one already fading in: continue that fade
+    // instead of restarting it over the other cover.
+    if (inFlightIncoming && inFlightIncomingTrackId === trackId) {
+      setBlurUnderlyingViewForTrackChange(true);
+      animateTransitionTo(1, () => {
+        currentBackgroundRef.current = inFlightIncoming;
+        currentBackgroundTrackIdRef.current = trackId;
+        incomingBackgroundRef.current = null;
+        incomingBackgroundTrackIdRef.current = null;
+        transitionProgressRef.current = 1;
+        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
+        setHasBackground(true);
+        setBlurUnderlyingViewForTrackChange(false);
+        renderCanvas();
+      });
       return;
     }
 
@@ -654,53 +792,35 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         return;
       }
 
-      const previousTrackId = incomingBackgroundRef.current
-        ? incomingBackgroundTrackIdRef.current
-        : currentBackgroundTrackIdRef.current;
-      currentBackgroundRef.current = previousBackground;
+      // If the previous cover is still fading in, bake that on-screen blend so
+      // the new fade starts from the current pixels instead of snapping to the
+      // incoming cover. Without this, rapid next/previous jumps each restart the
+      // 1000ms fade from a hard cut.
+      const bakedBlend = bakeInterruptedTransition(
+        backdropSizeRef.current.width,
+        backdropSizeRef.current.height,
+      );
+      const previousTrackId = bakedBlend
+        ? null
+        : (incomingBackgroundRef.current
+          ? incomingBackgroundTrackIdRef.current
+          : currentBackgroundTrackIdRef.current);
+      currentBackgroundRef.current = bakedBlend ?? previousBackground;
       currentBackgroundTrackIdRef.current = previousTrackId;
       incomingBackgroundRef.current = img;
       incomingBackgroundTrackIdRef.current = trackId;
       transitionProgressRef.current = 0;
-      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       setHasBackground(true);
       renderCanvas();
-      const startTime = performance.now();
 
-      const animate = (currentTime: number) => {
-        if (!isCurrentLoad()) return;
-        const progress = Math.min(
-          (currentTime - startTime) / BACKDROP_TRANSITION_DURATION_MS,
-          1,
-        );
-        transitionProgressRef.current = progress;
-
-        // Brightness breathing effect: goes from 0.55 -> 0.3 -> 0.55
-        // using the same sine curve and timing as the previous CSS-filter path.
-        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS
-          - (BACKDROP_RESTING_BRIGHTNESS - BACKDROP_DIM_BRIGHTNESS)
-            * Math.sin(progress * Math.PI);
+      animateTransitionTo(1, () => {
+        currentBackgroundRef.current = img;
+        currentBackgroundTrackIdRef.current = trackId;
+        incomingBackgroundRef.current = null;
+        incomingBackgroundTrackIdRef.current = null;
         renderCanvas();
-
-        if (progress < 1) {
-          animationFrameRef.current = requestAnimationFrame(animate);
-        } else {
-          currentBackgroundRef.current = img;
-          currentBackgroundTrackIdRef.current = trackId;
-          incomingBackgroundRef.current = null;
-          incomingBackgroundTrackIdRef.current = null;
-          transitionProgressRef.current = 1;
-          backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
-          animationFrameRef.current = null;
-          renderCanvas();
-          setBlurUnderlyingViewForTrackChange(false);
-        }
-      };
-
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      animationFrameRef.current = requestAnimationFrame(animate);
+        setBlurUnderlyingViewForTrackChange(false);
+      });
     };
 
     img.onerror = () => {

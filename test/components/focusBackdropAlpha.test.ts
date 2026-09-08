@@ -9,6 +9,7 @@ import {
   backdropAlphaFactorAtPhase,
   backdropAlphaPhaseFromFactor,
   backdropTrackChangeAlpha,
+  backdropTrackChangeBrightness,
 } from '@/components/focus-mode/focusBackdropAlpha';
 
 describe('Focus backdrop alpha timeline', () => {
@@ -71,6 +72,31 @@ describe('Focus backdrop alpha timeline', () => {
         expect(current).toBeLessThanOrEqual(alpha);
         expect(current).toBeGreaterThanOrEqual(legacy);
       }
+    }
+  });
+
+  it('continues brightness from the interrupted value and settles on the resting value', () => {
+    const RESTING = 0.55;
+    const DIM = 0.3;
+
+    // A fresh (uninterrupted) fade keeps the original 0.55 -> 0.3 -> 0.55 curve.
+    expect(backdropTrackChangeBrightness(RESTING, RESTING, DIM, 0)).toBeCloseTo(RESTING, 6);
+    expect(backdropTrackChangeBrightness(RESTING, RESTING, DIM, 0.5)).toBeCloseTo(DIM, 6);
+    expect(backdropTrackChangeBrightness(RESTING, RESTING, DIM, 1)).toBeCloseTo(RESTING, 6);
+
+    // Interrupting mid-dip must not jump: the curve starts at the live value.
+    const interrupted = 0.42;
+    expect(backdropTrackChangeBrightness(interrupted, RESTING, DIM, 0)).toBeCloseTo(interrupted, 6);
+    expect(backdropTrackChangeBrightness(interrupted, RESTING, DIM, 1)).toBeCloseTo(RESTING, 6);
+    // The dip is always reached, and the curve stays within [DIM, max(start, resting)].
+    expect(backdropTrackChangeBrightness(interrupted, RESTING, DIM, 0.5)).toBeCloseTo(
+      (interrupted + RESTING) / 2 - ((interrupted + RESTING) / 2 - DIM),
+      6,
+    );
+    for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
+      const value = backdropTrackChangeBrightness(interrupted, RESTING, DIM, progress);
+      expect(value).toBeGreaterThanOrEqual(DIM - 1e-9);
+      expect(value).toBeLessThanOrEqual(Math.max(interrupted, RESTING) + 1e-9);
     }
   });
 });

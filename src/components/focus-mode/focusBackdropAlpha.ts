@@ -55,3 +55,20 @@ export function backdropTrackChangeAlpha(alpha: number, progress: number): numbe
   const p = clampUnit(progress);
   return alpha * (1 - BACKDROP_TRACK_CHANGE_DIP * alpha * p * (1 - p));
 }
+
+/**
+ * Brightness breathing during a cover cross-fade. Starts from
+ * `startBrightness` so an interrupted fade continues from what is on screen
+ * instead of jumping back to the resting value, dips at the midpoint, and
+ * settles on `restingBrightness`.
+ */
+export function backdropTrackChangeBrightness(
+  startBrightness: number,
+  restingBrightness: number,
+  dimBrightness: number,
+  progress: number,
+): number {
+  const p = clampUnit(progress);
+  const base = startBrightness + (restingBrightness - startBrightness) * p;
+  return base - (base - dimBrightness) * Math.sin(p * Math.PI);
+}
