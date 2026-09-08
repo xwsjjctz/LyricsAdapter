@@ -14,6 +14,7 @@
 - [重构计划](./development/refactor-plan.md)
 - [重构待办](./development/refactor-backlog.md)
 - [性能优化待办](./development/performance-optimization-todo.md)
+- [页面渲染内存优化分析（Windows 优先）](./development/render-memory-optimization-analysis.md)
 
 ## 使用指南
 
