@@ -405,7 +405,10 @@ const SidebarWrapper: React.FC<SidebarProps> = (props) => {
 
   return (
     <aside
-      className="relative flex flex-col backdrop-blur-md z-20 pt-8"
+      // No backdrop-filter here: every predefined theme paints an opaque
+      // --theme-background-sidebar over it, so the blur is never visible while
+      // still costing a full-height compositor layer (worst on Windows/ANGLE).
+      className="relative flex flex-col z-20 pt-8"
       style={{
         width: collapsed ? 0 : width,
         overflow: collapsed ? 'hidden' : 'visible',

@@ -461,6 +461,15 @@ textarea.no-scrollbar::-webkit-scrollbar {
   grid-template-columns: 48px minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
 }
 
+/* Album/artist rail rows: skip painting (and lazy-cover decoding) for rows
+   scrolled out of the 64px-wide rail. contain-intrinsic-size keeps the scroll
+   height stable and lets Chromium remember the real row height after first
+   paint. */
+.library-category-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+
 .library-toolbar {
   gap: 1rem;
 }

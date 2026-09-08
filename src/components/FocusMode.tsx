@@ -51,6 +51,9 @@ const BACKDROP_TRANSITION_DURATION_MS = 1000;
 // an edge-extended source with enough filter padding, then crop the centre, so
 // an opaque cover remains opaque at every visible window edge.
 const BACKDROP_FILTER_PADDING_MULTIPLIER = 4;
+// Long enough to clear the 1000ms entrance/cross-fade before the scratch
+// buffers are deallocated, short enough that they are not session-lifetime.
+const BACKDROP_SCRATCH_RELEASE_DELAY_MS = 1200;
 
 interface PreparedBackdrop {
   canvas: HTMLCanvasElement;
@@ -161,6 +164,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const backdropSourceScratchRef = useRef<HTMLCanvasElement | null>(null);
   const backdropFilteredScratchRef = useRef<HTMLCanvasElement | null>(null);
   const backdropFrameScratchRef = useRef<HTMLCanvasElement | null>(null);
+  const scratchReleaseTimerRef = useRef<number | null>(null);
   const preparedBackdropCacheRef = useRef<WeakMap<HTMLImageElement, PreparedBackdrop>>(new WeakMap());
 
   // 0..1 enter/exit factor for the backdrop alpha (0 → alpha 0.3, 1 → bgBlurTrans).
@@ -216,6 +220,30 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   });
 
   const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
+
+  // The padded scratch buffers used by prepareBackdrop are only needed while a
+  // cover is being prepared. Release their backing stores once the entrance /
+  // cross-fade animation has settled instead of holding them for the whole
+  // FocusMode session (6.4 MiB @1200x800, 14.8 MiB @2560x1440). Deferring the
+  // deallocation keeps the release off the animation frames.
+  const scheduleScratchRelease = useCallback(() => {
+    if (scratchReleaseTimerRef.current !== null) {
+      window.clearTimeout(scratchReleaseTimerRef.current);
+    }
+    scratchReleaseTimerRef.current = window.setTimeout(() => {
+      scratchReleaseTimerRef.current = null;
+      const sourceScratch = backdropSourceScratchRef.current;
+      if (sourceScratch) {
+        sourceScratch.width = 0;
+        sourceScratch.height = 0;
+      }
+      const filteredScratch = backdropFilteredScratchRef.current;
+      if (filteredScratch) {
+        filteredScratch.width = 0;
+        filteredScratch.height = 0;
+      }
+    }, BACKDROP_SCRATCH_RELEASE_DELAY_MS);
+  }, []);
 
   const prepareBackdrop = useCallback((
     img: HTMLImageElement,
@@ -290,8 +318,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       height,
       scaledBlurRadius,
     });
+    scheduleScratchRelease();
     return preparedCanvas;
-  }, []);
+  }, [scheduleScratchRelease]);
 
   // Render the complete backdrop frame directly. Transition progress and the
   // brightness "breathing" value live in refs so a cover cross-fade does not
@@ -708,6 +737,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   }, [isVisible, track?.id, track?.coverUrl, renderCanvas]);
 
   useLayoutEffect(() => () => {
+    if (scratchReleaseTimerRef.current !== null) {
+      window.clearTimeout(scratchReleaseTimerRef.current);
+      scratchReleaseTimerRef.current = null;
+    }
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.width = 0;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { i18n } from '../../services/i18n';
+import { toCoverThumb } from '../../services/coverUrl';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
 import type { Track } from '../../types';
 import type { ThemeConfig } from '../../types/theme';
@@ -136,9 +137,16 @@ export const OnlineSearchCard: React.FC<{
     >
       <div className="search-result-card__cover-wrap">
         <img
-          src={song.coverUrl || `https://picsum.photos/seed/${song.songmid}/180/180`}
+          src={toCoverThumb(
+            song.coverUrl || `https://picsum.photos/seed/${song.songmid}/180/180`,
+            256,
+          )}
           className="search-result-card__cover"
           alt=""
+          loading="lazy"
+          decoding="async"
+          width={256}
+          height={256}
         />
         <span className="search-result-card__source" style={{ backgroundColor: colors.backgroundDark, color: colors.warning }}>
           {badgeLabel}

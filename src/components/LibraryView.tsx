@@ -1113,7 +1113,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={artist.name}
                     onClick={() => onCategoryChange(artist.name)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
                     style={{
                       backgroundColor: selectedArtist === artist.name ? colors.backgroundCard : 'transparent',
                       color: selectedArtist === artist.name ? colors.textPrimary : colors.textSecondary,
@@ -1126,6 +1126,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         src={toCoverThumb(artist.coverUrl, 128)}
                         alt=""
                         className="w-10 h-10 rounded-lg object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width={40}
+                        height={40}
                       />
                     )}
                     <span className="text-sm truncate">{artist.name}</span>
@@ -1136,7 +1140,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={album.name}
                     onClick={() => onCategoryChange(album.name)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
                     style={{
                       backgroundColor: selectedAlbum === album.name ? colors.backgroundCard : 'transparent',
                       color: selectedAlbum === album.name ? colors.textPrimary : colors.textSecondary,
@@ -1149,6 +1153,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         src={toCoverThumb(album.coverUrl, 128)}
                         alt=""
                         className="w-10 h-10 rounded-lg object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width={40}
+                        height={40}
                       />
                     )}
                     <div className="min-w-0 flex-1">

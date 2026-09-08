@@ -77,7 +77,10 @@ class SettingsManager {
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
       this.onlineSource = storedSource === 'netease' ? storedSource : 'qq';
 
-      this.glassUI = appStorage.getItem(GLASS_UI_KEY) === 'true';
+      // Frosted Glass UI was retired (see useGlassUI); the persisted flag is
+      // ignored so a previously enabled profile cannot keep paying for two
+      // full-width backdrop-filter layers that no UI can turn off anymore.
+      this.glassUI = false;
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
 

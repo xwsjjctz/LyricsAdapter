@@ -91,6 +91,7 @@ const AppContent: React.FC = () => {
     handleSlotContentReady,
     handleSlotLocatePrepared,
     handleLibraryScrollPositionChange,
+    getLiveScrollPosition,
     handleCategoryChange,
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
@@ -139,6 +140,10 @@ const AppContent: React.FC = () => {
     const snapshot = slotsRef.current;
     const activeId = activeSlotIdRef.current;
     const activePlaybackTime = getCurrentPlaybackTime();
+    // The viewed slot's scroll position lives in a ref until scrolling pauses,
+    // so read it live here instead of persisting a value up to one debounce
+    // window old.
+    const liveScroll = getLiveScrollPosition();
     const extractSlotData = (slot: LibrarySlot) => ({
       currentTrackIndex: slot.currentTrackIndex,
       // Inactive slots are committed explicitly when playback crosses slot
@@ -146,7 +151,7 @@ const AppContent: React.FC = () => {
       currentTime: slot.id === activeId ? activePlaybackTime : slot.currentTime,
       volume: slot.volume,
       playbackMode: slot.playbackMode,
-      scrollPosition: slot.scrollPosition,
+      scrollPosition: slot.id === liveScroll.slot ? liveScroll.position : slot.scrollPosition,
       filterType: slot.filterType,
       categorySelection: slot.categorySelection,
     });
@@ -158,7 +163,7 @@ const AppContent: React.FC = () => {
       playlistSlot: extractSlotData(snapshot.playlist),
       activeSlotId: activeId,
     };
-  }, [getCurrentPlaybackTime, slotsRef]);
+  }, [getCurrentPlaybackTime, getLiveScrollPosition, slotsRef]);
   const player = usePlayerViewModel({
     currentTrack,
     isPlaying,

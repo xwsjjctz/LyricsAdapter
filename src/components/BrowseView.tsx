@@ -6,6 +6,7 @@ import {
 } from '../services/onlineMusicProvider';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
+import { toCoverThumb } from '../services/coverUrl';
 import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
@@ -377,9 +378,13 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                     </div>
                     <div className="flex items-center gap-3 min-w-0">
                       <img
-                        src={song.coverUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23222"/></svg>'}
+                        src={toCoverThumb(song.coverUrl, 128) || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23222"/></svg>'}
                         className="size-10 rounded-lg object-cover"
                         alt={song.songname}
+                        loading="lazy"
+                        decoding="async"
+                        width={40}
+                        height={40}
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold truncate" style={{ color: colors.textPrimary }}>{song.songname}</p>

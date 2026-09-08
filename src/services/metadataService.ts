@@ -42,7 +42,11 @@ let metadataWorkerSeq = 0;
 const metadataWorkerPending = new Map<number, { resolve: (value: WorkerMetadataResult | null) => void; reject: (reason: unknown) => void }>();
 const metadataWorkerCache = new Map<string, WorkerMetadataResult>();
 const metadataWorkerInFlight = new Map<string, Promise<WorkerMetadataResult | null>>();
-const METADATA_CACHE_LIMIT = 50;
+// Each cached result retains its embedded cover ArrayBuffer, which can be
+// several MB per track. Keep only the most recent handful: the cache exists to
+// avoid re-parsing a file that is parsed twice in quick succession, not as a
+// long-lived metadata store (IndexedDB owns that role).
+const METADATA_CACHE_LIMIT = 8;
 
 function getWorkerCacheKey(file: File): string {
   return `${file.name}|${file.size}|${file.lastModified}`;
