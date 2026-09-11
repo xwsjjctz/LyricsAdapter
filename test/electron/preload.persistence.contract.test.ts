@@ -76,6 +76,7 @@ function executePreload(): {
     exports: module.exports,
     require: (specifier: string) => {
       if (specifier === 'electron') return electron;
+      if (specifier === 'node:os') return { release: () => '25.0.0' };
       throw new Error(`Unexpected preload dependency: ${specifier}`);
     },
     process: { platform: 'test' },

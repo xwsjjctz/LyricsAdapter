@@ -283,6 +283,31 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       }
     })).toBe(true);
 
+    if (process.platform === 'darwin') {
+      const focusButton = page.getByRole('button', { name: /Enter Focus Mode|进入专注模式/ });
+      const sidebarButton = page.getByRole('button', { name: /Collapse Sidebar|收起侧边栏/ });
+      await expect(focusButton).toBeVisible();
+      await expect(sidebarButton).toBeVisible();
+      const dot = await focusButton.locator(':scope > div').boundingBox();
+      const toggle = await sidebarButton.boundingBox();
+      expect(dot).not.toBeNull();
+      expect(toggle).not.toBeNull();
+      if (!dot || !toggle) throw new Error('Missing macOS title bar controls');
+      // Native hiddenInset geometry measured on macOS 26; the older baseline
+      // is preserved by resource/LibraryView_1.png. Do not import layout constants
+      // here: this checks that the real preload and renderer agree with the OS.
+      const isTahoe = Number.parseInt(os.release(), 10) >= 25;
+      expect(dot.x + dot.width / 2).toBeCloseTo(isTahoe ? 88 : 79.2, 1);
+      expect(dot.y + dot.height / 2).toBeCloseTo(isTahoe ? 18 : 19, 1);
+      expect(toggle.y + toggle.height / 2).toBeCloseTo(dot.y + dot.height / 2, 1);
+      expect(toggle.x).toBeGreaterThan(dot.x + dot.width);
+      await sidebarButton.click();
+      const expandButton = page.getByRole('button', { name: /Expand Sidebar|展开侧边栏/ });
+      await expect(expandButton).toBeVisible();
+      await expandButton.click();
+      await expect(sidebarButton).toBeVisible();
+    }
+
     if (process.platform === 'win32') {
       // Windows taskbar lyrics now live in a separate C# WPF process. Ensure
       // Electron no longer creates the Chromium overlay that previously owned
