@@ -30,6 +30,18 @@ function fixture() {
 afterEach(() => { document.body.replaceChildren(); });
 
 describe('AMLL inactive animation budget', () => {
+  it('never applies the word fade to ordinary lyrics as wrapping comes and goes', () => {
+    const f = fixture();
+    const main = f.element.firstElementChild!;
+    const budget = new FocusAmlAnimationBudget();
+    for (const html of ['Ordinary lyrics', 'Ordinary<br>wrapped lyrics', 'Ordinary lyrics']) {
+      main.innerHTML = html;
+      budget.update([f.group], 0, 200);
+      expect(f.element).not.toHaveAttribute('data-focus-amll-static');
+    }
+    expect(f.getAnimations).not.toHaveBeenCalled();
+  });
+
   it('cancels inactive word effects without changing glyph DOM or inline transforms', () => {
     const f = fixture();
     const word = f.element.querySelector('span')!;

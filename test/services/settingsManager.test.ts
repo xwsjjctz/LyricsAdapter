@@ -11,7 +11,7 @@ beforeEach(() => {
   (settingsManager as any).glassUI = false;
   (settingsManager as any).gsapButtonBounce = true;
   (settingsManager as any).focusBgBlurRadius = 80;
-  (settingsManager as any).focusLyricsFontSize = 24;
+  (settingsManager as any).focusLyricsFontSize = 32;
   (settingsManager as any).focusLyricLineSpacing = 30;
   (settingsManager as any).focusInactiveLyricBlur = 2;
   (settingsManager as any).focusAmlLyricsEnabled = true;
@@ -135,8 +135,9 @@ describe('focusBgBlurRadius', () => {
 });
 
 describe('focus lyrics appearance', () => {
-  it('should default to a 24px font size and 30px line spacing', () => {
-    expect(settingsManager.getFocusLyricsFontSize()).toBe(24);
+  it('should default to a 32px font size and 30px line spacing', () => {
+    settingsManager.reload();
+    expect(settingsManager.getFocusLyricsFontSize()).toBe(32);
     expect(settingsManager.getFocusLyricLineSpacing()).toBe(30);
   });
 

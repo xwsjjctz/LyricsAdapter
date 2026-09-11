@@ -34,7 +34,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const [bgBlurTrans, setBgBlurTrans] = useState(1.0);
   const [qqMusicEnabled, setQqMusicEnabled] = useState(false);
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
-  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(24);
+  const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(30);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
   const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(true);

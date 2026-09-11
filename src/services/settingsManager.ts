@@ -30,7 +30,7 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
-  private focusLyricsFontSize: number = 24;
+  private focusLyricsFontSize: number = 32;
   private focusLyricLineSpacing: number = 30;
   private focusInactiveLyricBlur: number = 2;
   private focusAmlLyricsEnabled: boolean = true;
@@ -54,7 +54,7 @@ class SettingsManager {
       this.glassUI = false;
       this.gsapButtonBounce = true;
       this.focusBgBlurRadius = 80;
-      this.focusLyricsFontSize = 24;
+      this.focusLyricsFontSize = 32;
       this.focusLyricLineSpacing = 30;
       this.focusInactiveLyricBlur = 2;
       this.focusAmlLyricsEnabled = true;
