@@ -34,8 +34,9 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
   await Promise.all([isolatedHome, covers].map(dir => mkdir(dir, { recursive: true })));
   const audioPath = path.join(tempRoot, 'fixture.wav');
   const secondAudioPath = path.join(tempRoot, 'fixture-next.wav');
-  await Promise.all([audioPath, secondAudioPath].map(file => writeFile(file, silentWav(120))));
-  const songs = [audioPath, secondAudioPath].map((filePath, trackIndex) => ({
+  const lineTimedAudioPath = path.join(tempRoot, 'fixture-line-timed.wav');
+  await Promise.all([audioPath, secondAudioPath, lineTimedAudioPath].map(file => writeFile(file, silentWav(120))));
+  const songs = [audioPath, secondAudioPath, lineTimedAudioPath].map((filePath, trackIndex) => ({
     id: `focus-memory-${trackIndex}`,
     filePath,
     title: `AMLL Memory Fixture ${trackIndex}`,
@@ -45,9 +46,9 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     syncedLyrics: Array.from({ length: 40 }, (_, index) => ({
       time: index * 3,
       text: `Line ${index + 1} 沿着夜色听见远方的声音`,
-      words: [`Line ${index + 1} `, '沿', '着', '夜', '色', '听', '见', '远', '方', '的', '声', '音'].map((text, word) => ({
+      ...(trackIndex === 2 ? {} : { words: [`Line ${index + 1} `, '沿', '着', '夜', '色', '听', '见', '远', '方', '的', '声', '音'].map((text, word) => ({
         time: index * 3 + word * 0.25, duration: 0.25, text,
-      })),
+      })) }),
     })),
   }));
   await Promise.all(songs.map(song => copyFile(path.join(repoRoot, 'app-icon.png'), path.join(covers, `${song.id}.png`))));
@@ -57,6 +58,11 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
       currentTrackIndex: 0, currentTime: 0, volume: 0, playbackMode: 'order',
       scrollPosition: 0, filterType: 'default', categorySelection: null,
     } },
+  }));
+  await writeFile(path.join(userData, 'settings.json'), JSON.stringify({
+    la_focus_lyrics_font_size: '36',
+    la_focus_lyric_line_spacing: '30',
+    la_focus_inactive_lyric_blur: '2',
   }));
   const env: Record<string, string> = Object.fromEntries(Object.entries(process.env)
     .filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
@@ -112,7 +118,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await expect(memorySwitch).toHaveCount(0);
     await page.getByRole('button', { name: 'Close settings panel' }).click();
 
-    // No opt-in or seeded setting is needed on a fresh installation.
+    // No animation-budget opt-in is needed on a fresh installation.
     await focusToggle.click();
     await expect(lyrics).toHaveCount(1);
     await expect.poll(() => staticLines.count()).toBeGreaterThan(0);
@@ -144,6 +150,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await testInfo.attach('lyrics-normal-blend', { body: optimizedPixels, contentType: 'image/png' });
     await testInfo.attach('lyrics-reference-blend', { body: referencePixels, contentType: 'image/png' });
     expect(meanPixelDifference, 'Masked lyric appearance changed after removing group blending').toBeLessThan(0.1);
+    await focus.screenshot({ path: testInfo.outputPath('word-timed-lyrics.png') });
     expect(await staticLines.first().evaluate(el => el.getAnimations({ subtree: true })
       .filter(a => a.id === 'float-word' || a.id.startsWith('fade-word-')).length)).toBe(0);
 
@@ -187,6 +194,32 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await expect.poll(() => staticLines.count()).toBeGreaterThan(0);
     await expect.poll(() => activeLines.count()).toBeGreaterThan(0);
     await sample('optimized-remounted');
+
+    // Ordinary LRC balancing inserts <br>s. Resize during playback and sample
+    // many frames: those breaks must never acquire the extra word-mask fade.
+    await focus.locator('button').filter({ has: page.getByText('skip_next', { exact: true }) }).click({ force: true });
+    await expect(focus.getByText(songs[2]!.title, { exact: true })).toBeVisible();
+    for (const width of [1080, 1200]) {
+      await app.evaluate(({ BrowserWindow }, nextWidth) => {
+        BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 800);
+      }, width);
+      await expect.poll(() => lyrics.locator('[class*="_lyricMainLine"] br').count()).toBeGreaterThan(0);
+      const staysUnfiltered = await lyrics.evaluate(async el => {
+        for (let frame = 0; frame < 40; frame++) {
+          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+          if (el.querySelector('[data-focus-amll-static]')) return false;
+          for (const main of el.querySelectorAll<HTMLElement>('[class*="_lyricMainLine"]')) {
+            if (getComputedStyle(main).filter !== 'none') return false;
+          }
+        }
+        return true;
+      });
+      expect(staysUnfiltered).toBe(true);
+    }
+    await focus.screenshot({ path: testInfo.outputPath('line-timed-lyrics.png') });
+    await focus.locator('button').filter({ has: page.getByText('skip_previous', { exact: true }) }).click({ force: true });
+    await expect(focus.getByText(songs[1]!.title, { exact: true })).toBeVisible();
+    await expect.poll(() => staticLines.count()).toBeGreaterThan(0);
 
     // Simulate an existing installation whose old experiment was disabled.
     // Persist through the real bridge so this covers the SQLite reload path.

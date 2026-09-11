@@ -42,6 +42,14 @@ export class FocusAmlAnimationBudget {
     if (!main || typeof main.getAnimations !== 'function') return;
 
     const content = main.firstElementChild;
+    // Ordinary LRC lines contain text nodes and optional balancing <br>s, not
+    // masked words. Treating a <br> as word content adds a second alpha fade
+    // (on top of the group's opacity) whenever wrapping changes the DOM.
+    if (!content || content.tagName === 'BR') {
+      this.states.delete(element);
+      element.removeAttribute(STATIC_ATTRIBUTE);
+      return;
+    }
     let state = this.states.get(element);
     if (!state || state.content !== content) {
       // AMLL tears down and rebuilds word DOM when it leaves/re-enters overscan.

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
+import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 interface SidebarToggleButtonProps {
   onToggle: () => void;
@@ -39,13 +40,12 @@ const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = memo(({ onToggle
   const isMacOS = platform === 'darwin';
 
   const colors = currentTheme.colors;
-  // Position relative to where the button used to live inside the TitleBar's
-  // macOS row: 55px traffic-lights spacer + 32.4px blue-dot button
-  // (pl-[18px] + 12.4px circle + pr-0.5 = 2px) ≈ 87.4px → round to 88px so
-  // the wrapper's left edge butts up against the blue button like before.
+  // Share native-control geometry with TitleBar while keeping this button in
+  // its own stacking context for FocusMode's covering animation.
+  const macLayout = getMacTitleBarLayout(desktopAPI?.osRelease);
   const topOffset = 0;
-  const leftOffset = isMacOS ? 88 : 8;
-  const height = isMacOS ? 38 : 36;
+  const leftOffset = isMacOS ? macLayout.sidebarLeft : 8;
+  const height = isMacOS ? macLayout.height : 36;
 
   return (
     <div

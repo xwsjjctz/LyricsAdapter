@@ -1,6 +1,6 @@
 .focus-amll-lyrics {
   --amll-lp-color: rgba(255, 255, 255, 0.96);
-  --amll-lp-font-size: 24px;
+  --amll-lp-font-size: 32px;
   --focus-amll-line-spacing-adjustment: 0px;
   --amll-lp-hover-bg-color: rgba(255, 255, 255, 0.08);
 
@@ -11,7 +11,9 @@
   color: var(--amll-lp-color);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
   font-size: var(--amll-lp-font-size);
-  font-synthesis: none;
+  /* Allow the system CJK fallback to synthesize a bold face when its heaviest
+     installed face stops short of the requested weight. */
+  font-synthesis: weight;
   font-kerning: normal;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   letter-spacing: -0.025em;
@@ -38,7 +40,11 @@
 }
 
 .focus-amll-lyrics .amll-lyric-player [class*="_lyricMainLine"] {
-  font-weight: 700;
+  font-weight: 800;
+  /* A small em-relative stroke gives CJK glyphs the heavier appearance of the
+     Music reference without changing their advance widths or layout. */
+  -webkit-text-stroke: 0.012em currentColor;
+  paint-order: stroke fill;
   letter-spacing: inherit;
   line-height: inherit;
 }
