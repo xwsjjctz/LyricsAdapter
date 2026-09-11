@@ -12,7 +12,9 @@
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- Keep assemblies file-backed instead of decompressing them into private
+         memory at startup. The installer still compresses the shipped executable. -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>

@@ -26,7 +26,11 @@
 }
 
 .focus-amll-lyrics > .amll-lyric-player {
-  mix-blend-mode: plus-lighter;
+  /* The edge-fade mask on .focus-lyrics-viewport already isolates this player
+     against transparency. Blending the whole player adds a render surface
+     without blending with the cover behind that mask. Keep word effects inside
+     the player intact while avoiding this redundant group blend. */
+  mix-blend-mode: normal;
 }
 
 .focus-amll-lyrics .amll-lyric-player [class*="_lyricLineWrapper"] {

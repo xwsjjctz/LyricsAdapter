@@ -97,15 +97,26 @@ npx cross-env MEMORY_BENCHMARK_LYRICS_RENDERER=amll MEMORY_BENCHMARK_LYRIC_LINES
 
 `MEMORY_BENCHMARK_LYRIC_LINES` 默认 3，最多 300。报告记录歌词长度与默认内存优化状态，AMLL 报告文件名带 `optimized`。此基准覆盖暂停/进出页面场景；默认启用、旧设置兼容、连续播放、跳播、切歌与滚动由 `electron.focus-memory.spec.ts` 验证。不能仅凭暂停场景的层数推断正常播放的内存收益。
 
-测试使用固定的 1200×800 Electron 窗口和隔离数据目录，先采集空闲基线，再重复三轮进入、退出 FocusMode。每个阶段默认等待 2 秒并取三次采样的中位数。终端会打印阶段汇总，完整 JSON 写入 `test-results/memory/`，文件名包含 `legacy` 或 `amll`，其中包括：
+测试使用固定的 1200×800 Electron 窗口和隔离数据目录，先采集空闲基线，再重复三轮进入、退出 FocusMode。每个阶段默认等待 2 秒并取三次采样的中位数。终端会打印阶段汇总，完整 JSON 写入 `test-results/electron/<测试目录>/memory/`，文件名包含 `legacy` 或 `amll`，其中包括：
 
 - Electron 的 Browser、Tab、GPU、Utility 等逐进程工作集；
-- Windows 可用的逐进程 `privateBytes`；
+- Windows 可用的逐进程 `privateBytes`，以及单独采集的 TaskbarHost 私有提交量、私有工作集和包含辅助进程的总提交量；
 - 主进程私有内存、Renderer JS Heap、DOM/图片/Canvas 数量；
 - FocusMode 相对空闲基线的增量，以及退出后的保留量；
+- 最后一轮退出后额外等待 30 秒的回收阶段，避免把图形缓存延迟释放当作泄漏；
 - OS、架构、Electron/Chromium/Node 版本、CPU 和总物理内存。
 
 这是趋势基准，不设置固定 MB 通过线。Windows 优先观察 `privateBytes`，其他平台观察工作集；由于 macOS 内存压缩和平台进程统计口径不同，不应把任务管理器与活动监视器的总数直接作为回归结论。判断泄漏时重点查看多轮 `post-focus-*` 是否持续阶梯式增长。
+
+Electron 的进程总量不包含通过 stdio 启动的 WPF TaskbarHost。报告 schema 2
+另外输出 `taskbarPrivateMb`、`taskbarPrivateWorkingSetMb` 和
+`totalWithTaskbarPrivateMb`；辅助进程按当前测试主进程 PID 筛选，不计入其他安装版。
+Windows CIM 查询被权限限制时，报告明确标为 `unavailable`，汇总为 `null`，不会伪装成零占用。
+私有工作集是驻留物理内存，不能和私有提交量直接相加。
+`MEMORY_BENCHMARK_RECOVERY_MS` 可调整末尾回收等待（默认 30000，最大 60000）。
+
+Windows TaskbarHost 保持未压缩的单文件程序集，避免启动时将压缩程序集解压到私有内存；
+安装包仍使用原有压缩。独立 EXE 会增大，下载体积应以最终安装包测量为准。
 
 可以通过环境变量增加稳定时间或轮数，例如：
 

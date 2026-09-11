@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test';
 
-const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 function silentWav(seconds: number): Buffer {
   const sampleRate = 8_000;
@@ -119,6 +119,31 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await expect.poll(() => activeLines.count()).toBeGreaterThan(0);
     await page.waitForTimeout(2_000);
     await sample('default-paused');
+    // The masked viewport already isolates the player. Removing its redundant
+    // blend must retain the rendered lyric appearance, including edge fades.
+    const optimizedPixels = await lyrics.screenshot();
+    const referenceStyle = await page.addStyleTag({ content:
+      '.focus-amll-lyrics > .amll-lyric-player { mix-blend-mode: plus-lighter !important; }',
+    });
+    let referencePixels: Buffer;
+    try {
+      referencePixels = await lyrics.screenshot();
+    } finally {
+      await referenceStyle.evaluate(element => element.parentNode?.removeChild(element));
+    }
+    const meanPixelDifference = await app.evaluate(({ nativeImage }, images) => {
+      const current = nativeImage.createFromBuffer(Buffer.from(images.current, 'base64')).toBitmap();
+      const reference = nativeImage.createFromBuffer(Buffer.from(images.reference, 'base64')).toBitmap();
+      if (current.length !== reference.length || current.length === 0) return Infinity;
+      let difference = 0;
+      for (let index = 0; index < current.length; index++) {
+        difference += Math.abs(current[index]! - reference[index]!);
+      }
+      return difference / current.length;
+    }, { current: optimizedPixels.toString('base64'), reference: referencePixels.toString('base64') });
+    await testInfo.attach('lyrics-normal-blend', { body: optimizedPixels, contentType: 'image/png' });
+    await testInfo.attach('lyrics-reference-blend', { body: referencePixels, contentType: 'image/png' });
+    expect(meanPixelDifference, 'Masked lyric appearance changed after removing group blending').toBeLessThan(0.1);
     expect(await staticLines.first().evaluate(el => el.getAnimations({ subtree: true })
       .filter(a => a.id === 'float-word' || a.id.startsWith('fade-word-')).length)).toBe(0);
 
