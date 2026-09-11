@@ -287,6 +287,8 @@
   "settings.focusInactiveLyricBlur": "Focus Mode の非アクティブ歌詞ぼかし",
   "settings.focusAmlLyricsEnabled": "AMLL スクロール歌詞",
   "settings.focusAmlLyricsEnabledDesc": "AMLL の単語単位アニメーションとスクロールを使用します。メモリ使用量が増える場合があります。",
+  "settings.focusEnhancedFontEnabled": "新しい FocusMode フォント",
+  "settings.focusEnhancedFontEnabledDesc": "AMLL のスクロール歌詞を太く表示します。オフにすると従来のスタイルに戻ります。",
   "settings.clearCache": "キャッシュをクリア",
   "settings.clearCacheDesc": "削除した曲の残留メタデータとカバーキャッシュをクリア",
   "settings.clearCacheConfirmTitle": "キャッシュをクリアしますか？",

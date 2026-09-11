@@ -11,9 +11,7 @@
   color: var(--amll-lp-color);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
   font-size: var(--amll-lp-font-size);
-  /* Allow the system CJK fallback to synthesize a bold face when its heaviest
-     installed face stops short of the requested weight. */
-  font-synthesis: weight;
+  font-synthesis: none;
   font-kerning: normal;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   letter-spacing: -0.025em;
@@ -40,13 +38,24 @@
 }
 
 .focus-amll-lyrics .amll-lyric-player [class*="_lyricMainLine"] {
+  font-weight: 700;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+/* macOS uses the heavier glyphs by default; Windows explicitly opts in. */
+.focus-amll-lyrics--enhanced-font {
+  /* Allow the system CJK fallback to synthesize a bold face when its heaviest
+     installed face stops short of the requested weight. */
+  font-synthesis: weight;
+}
+
+.focus-amll-lyrics--enhanced-font .amll-lyric-player [class*="_lyricMainLine"] {
   font-weight: 800;
   /* A small em-relative stroke gives CJK glyphs the heavier appearance of the
      Music reference without changing their advance widths or layout. */
   -webkit-text-stroke: 0.012em currentColor;
   paint-order: stroke fill;
-  letter-spacing: inherit;
-  line-height: inherit;
 }
 
 .focus-amll-lyrics .amll-lyric-player [class*="_lyricSubLine"] {

@@ -287,6 +287,8 @@
   "settings.focusInactiveLyricBlur": "Focus Mode Inactive Lyric Blur",
   "settings.focusAmlLyricsEnabled": "AMLL Scrolling Lyrics",
   "settings.focusAmlLyricsEnabledDesc": "Use AMLL for word-by-word animation and scrolling; this may increase memory usage.",
+  "settings.focusEnhancedFontEnabled": "New FocusMode Font",
+  "settings.focusEnhancedFontEnabledDesc": "Use heavier text for AMLL scrolling lyrics. Turn off to restore the original style.",
   "settings.clearCache": "Clear Cache",
   "settings.clearCacheDesc": "Clean up orphaned metadata and cover cache for removed tracks",
   "settings.clearCacheConfirmTitle": "Clear cache?",

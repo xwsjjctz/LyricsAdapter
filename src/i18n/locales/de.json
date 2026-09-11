@@ -287,6 +287,8 @@
   "settings.focusInactiveLyricBlur": "Unschärfe inaktiver Focus-Mode-Texte",
   "settings.focusAmlLyricsEnabled": "AMLL-Liedtextanzeige",
   "settings.focusAmlLyricsEnabledDesc": "AMLL für wortweise Animationen und Bildlauf verwenden; dies kann den Speicherverbrauch erhöhen.",
+  "settings.focusEnhancedFontEnabled": "Neue FocusMode-Schrift",
+  "settings.focusEnhancedFontEnabledDesc": "AMLL-Liedtexte kräftiger darstellen. Ausschalten stellt den bisherigen Stil wieder her.",
   "settings.clearCache": "Cache leeren",
   "settings.clearCacheDesc": "Lösche verwaiste Metadaten und Cover-Cache entfernter Titel",
   "settings.clearCacheConfirmTitle": "Cache leeren?",

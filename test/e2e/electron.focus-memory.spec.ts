@@ -93,6 +93,8 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     const activeLines = lyrics.locator('[class*="_lyricLine"][class*="_active"]');
     const settingsButton = page.getByRole('button', { name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i }).first();
     const memorySwitch = page.locator('[role="switch"][aria-describedby="focus-amll-memory-description"]');
+    const fontSwitch = page.locator('[role="switch"][aria-describedby="focus-enhanced-font-description"]');
+    const mainLyric = lyrics.locator('[class*="_lyricMainLine"]').first();
     const cdp = await page.context().newCDPSession(page);
     let layerCount = 0;
     cdp.on('LayerTree.layerTreeDidChange', event => { layerCount = event.layers?.length ?? 0; });
@@ -116,6 +118,11 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await settingsButton.click();
     await expect(page.getByRole('button', { name: 'Close settings panel' })).toBeVisible();
     await expect(memorySwitch).toHaveCount(0);
+    if (process.platform === 'win32') {
+      await expect(fontSwitch).toHaveAttribute('aria-checked', 'false');
+    } else {
+      await expect(fontSwitch).toHaveCount(0);
+    }
     await page.getByRole('button', { name: 'Close settings panel' }).click();
 
     // No animation-budget opt-in is needed on a fresh installation.
@@ -123,6 +130,11 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await expect(lyrics).toHaveCount(1);
     await expect.poll(() => staticLines.count()).toBeGreaterThan(0);
     await expect.poll(() => activeLines.count()).toBeGreaterThan(0);
+    await expect(mainLyric).toHaveCSS('font-weight', process.platform === 'darwin' ? '800' : '700');
+    if (process.platform !== 'darwin') {
+      await expect(mainLyric).toHaveCSS('-webkit-text-stroke-width', '0px');
+      await expect(mainLyric).toHaveCSS('font-synthesis', 'none');
+    }
     await page.waitForTimeout(2_000);
     await sample('default-paused');
     // The masked viewport already isolates the player. Removing its redundant
@@ -242,6 +254,35 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await expect.poll(() => staticLines.count()).toBeGreaterThan(0);
     await expect.poll(() => activeLines.count()).toBeGreaterThan(0);
     await sample('retired-setting-ignored');
+    if (process.platform === 'win32') {
+      await focusToggle.click();
+      await settingsButton.click();
+      await fontSwitch.click();
+      await expect(fontSwitch).toHaveAttribute('aria-checked', 'true');
+      await expect.poll(() => app!.evaluate(async ({ BrowserWindow }) => {
+        return BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(
+          'window.electron.settingsGetAll().then(settings => settings.la_focus_enhanced_font_enabled)',
+        );
+      })).toBe('true');
+      await page.getByRole('button', { name: 'Close settings panel' }).click();
+      await focusToggle.click();
+      await expect(mainLyric).toHaveCSS('font-weight', '800');
+      await expect(mainLyric).toHaveCSS('font-synthesis', 'weight');
+      await focus.screenshot({ path: testInfo.outputPath('windows-enhanced-font.png') });
+
+      await page.reload();
+      await expect(page.getByText(songs[0]!.title).first()).toBeVisible();
+      await settingsButton.click();
+      await expect(fontSwitch).toHaveAttribute('aria-checked', 'true');
+      await fontSwitch.click();
+      await expect(fontSwitch).toHaveAttribute('aria-checked', 'false');
+      await page.getByRole('button', { name: 'Close settings panel' }).click();
+      await focusToggle.click();
+      await expect(mainLyric).toHaveCSS('font-weight', '700');
+      await expect(mainLyric).toHaveCSS('-webkit-text-stroke-width', '0px');
+      await expect(mainLyric).toHaveCSS('font-synthesis', 'none');
+      await focus.screenshot({ path: testInfo.outputPath('windows-original-font.png') });
+    }
     expect(errors).toEqual([]);
     const samplePath = testInfo.outputPath('animation-budget-samples.json');
     await writeFile(samplePath, JSON.stringify({ samples }, null, 2));

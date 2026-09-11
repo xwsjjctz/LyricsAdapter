@@ -38,6 +38,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(30);
   const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
   const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(true);
+  const [focusEnhancedFontEnabled, setFocusEnhancedFontEnabled] = useState(() => settingsManager.getFocusEnhancedFontEnabled());
+  const isWindows = getDesktopAPI()?.platform === 'win32';
 
   // Clear-cache confirmation
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -60,6 +62,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
       setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
+      setFocusEnhancedFontEnabled(settingsManager.getFocusEnhancedFontEnabled());
     })();
   }, []);
 
@@ -72,6 +75,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
       setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
       setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
+      setFocusEnhancedFontEnabled(settingsManager.getFocusEnhancedFontEnabled());
     });
     return unsubscribe;
   }, []);
@@ -265,6 +269,39 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                   </button>
                 )}
               </div>
+
+              {isWindows && (
+                <div className="mt-3 pt-3 border-t flex items-center justify-between gap-4" style={{ borderColor: colors.borderLight }}>
+                  <div className="min-w-0">
+                    <div className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusEnhancedFontEnabled')}</div>
+                    <div id="focus-enhanced-font-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>{t('settings.focusEnhancedFontEnabledDesc')}</div>
+                  </div>
+                  {isBrutalistTheme ? (
+                    <RetroSwitch
+                      checked={focusEnhancedFontEnabled}
+                      ariaLabel={t('settings.focusEnhancedFontEnabled')}
+                      ariaDescribedBy="focus-enhanced-font-description"
+                      onChange={(enabled) => { void settingsManager.setFocusEnhancedFontEnabled(enabled); }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={focusEnhancedFontEnabled}
+                      aria-label={t('settings.focusEnhancedFontEnabled')}
+                      aria-describedby="focus-enhanced-font-description"
+                      onClick={() => { void settingsManager.setFocusEnhancedFontEnabled(!focusEnhancedFontEnabled); }}
+                      className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      style={{ backgroundColor: focusEnhancedFontEnabled ? colors.primary : colors.borderLight }}
+                    >
+                      <span
+                        className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
+                        style={{ transform: focusEnhancedFontEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
+                      />
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* 背景模糊透明度滑块 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>

@@ -287,6 +287,8 @@
   "settings.focusInactiveLyricBlur": "Flou des paroles inactives en mode Focus",
   "settings.focusAmlLyricsEnabled": "Paroles défilantes AMLL",
   "settings.focusAmlLyricsEnabledDesc": "Utilise AMLL pour l’animation mot à mot et le défilement ; peut augmenter l’utilisation de la mémoire.",
+  "settings.focusEnhancedFontEnabled": "Nouvelle police FocusMode",
+  "settings.focusEnhancedFontEnabledDesc": "Affiche les paroles défilantes AMLL avec une police plus épaisse. Désactivez pour retrouver le style initial.",
   "settings.clearCache": "Vider le cache",
   "settings.clearCacheDesc": "Nettoyer les métadonnées et caches de pochettes des pistes supprimées",
   "settings.clearCacheConfirmTitle": "Vider le cache ?",
