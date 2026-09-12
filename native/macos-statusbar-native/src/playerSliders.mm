@@ -34,12 +34,38 @@ void Emit(const char* type, double value) {
 
 @interface LAPlayerSlider : NSSlider
 @property(nonatomic) BOOL dragging;
+@property(nonatomic) BOOL reportsPresence;
+@property(nonatomic) BOOL reportedInside;
+@property(nonatomic) BOOL keyboardFocused;
+@property(nonatomic, strong) NSTrackingArea* tracking;
+- (void)reportPresence;
 @end
 @implementation LAPlayerSlider
 - (void)mouseDown:(NSEvent*)event {
   self.dragging = YES;
-  @try { [super mouseDown:event]; } @finally { self.dragging = NO; }
+  [self reportPresence];
+  @try { [super mouseDown:event]; } @finally { self.dragging = NO; [self reportPresence]; }
 }
+- (void)updateTrackingAreas {
+  [super updateTrackingAreas];
+  if (!self.reportsPresence || self.tracking) return;
+  self.tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect owner:self userInfo:nil];
+  [self addTrackingArea:self.tracking];
+}
+- (void)reportPresence {
+  if (!self.reportsPresence) return;
+  NSPoint point = [self convertPoint:self.window.mouseLocationOutsideOfEventStream fromView:nil];
+  BOOL inside = !self.hidden && (self.dragging || self.keyboardFocused || NSPointInRect(point, self.visibleRect));
+  if (inside != self.reportedInside) { self.reportedInside = inside; PlayerSliders::Emit("volume-presence", inside ? 1 : 0); }
+}
+- (void)mouseEntered:(NSEvent*)event { (void)event; [self reportPresence]; }
+- (void)mouseExited:(NSEvent*)event { (void)event; [self reportPresence]; }
+- (BOOL)becomeFirstResponder {
+  BOOL result = [super becomeFirstResponder];
+  if (result) { self.keyboardFocused = !self.dragging && NSApp.currentEvent.type != NSEventTypeLeftMouseDown; [self reportPresence]; }
+  return result;
+}
+- (BOOL)resignFirstResponder { BOOL result = [super resignFirstResponder]; if (result) { self.keyboardFocused = NO; [self reportPresence]; } return result; }
 @end
 
 @interface LAPlayerSlidersHost : NSView
@@ -63,6 +89,7 @@ void Emit(const char* type, double value) {
   }
   _seek.continuous = NO; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-native-seek";
   _volume.continuous = YES; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-native-volume";
+  _volume.reportsPresence = YES;
   return self;
 }
 - (void)position:(LAPlayerSlider*)slider presentation:(napi_value)p {
@@ -72,6 +99,7 @@ void Emit(const char* type, double value) {
   slider.alphaValue = Number(p, "opacity", 0, 1);
   slider.hidden = slider.alphaValue <= 0.001 || w == 0 || h == 0;
   if (slider.hidden && self.window.firstResponder == slider) [self.window makeFirstResponder:nil];
+  if (slider.hidden) [slider reportPresence];
 }
 - (void)apply:(napi_value)state {
   using namespace PlayerSliders;

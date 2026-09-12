@@ -11,6 +11,8 @@ interface Options {
   state: Omit<PlayerSlidersState, 'seek' | 'volume'>;
   onSeek: (value: number) => void;
   onVolumeChange: (value: number) => void;
+  onVolumePresence?: (inside: boolean) => void;
+  volumeExpanded?: boolean;
 }
 
 /** Native views sit above Chromium, so suppress them wherever web UI covers them. */
@@ -38,6 +40,7 @@ export function usePlayerSliders(options: Options): boolean {
       if (cancelled || !latest.current.visible) return;
       if (action.type === 'seek') latest.current.onSeek(Math.max(0, Math.min(latest.current.state.duration, action.value)));
       else if (action.type === 'volume') latest.current.onVolumeChange(Math.max(0, Math.min(1, action.value)));
+      else if (action.type === 'volume-presence') latest.current.onVolumePresence?.(action.value !== 0);
     });
     void api.start().then(result => { if (!cancelled) setActive(result.ok && result.data); })
       .catch(error => logger.warn('[PlayerSliders] Using web sliders:', error));
@@ -85,7 +88,7 @@ export function usePlayerSliders(options: Options): boolean {
     mutations.observe(document.body, { childList: true, subtree: true });
     const transition = (event: Event) => {
       const target = event.target;
-      if (target instanceof Element && target.contains(latest.current.seekRef.current)) follow();
+      if (target instanceof Element && (target.contains(latest.current.seekRef.current) || target.contains(latest.current.volumeRef.current))) follow();
     };
     document.addEventListener('transitionrun', transition);
     window.addEventListener('resize', follow);
@@ -101,6 +104,6 @@ export function usePlayerSliders(options: Options): boolean {
   }, [active, api]);
   const { currentTime, duration, level, enabled, labels } = options.state;
   useEffect(() => { sync.current?.(); }, [active, options.visible, currentTime, duration, level, enabled, labels.seek, labels.volume]);
-  useEffect(() => { animate.current?.(); }, [active, options.visible]);
+  useEffect(() => { animate.current?.(); }, [active, options.visible, options.volumeExpanded]);
   return active && options.visible;
 }

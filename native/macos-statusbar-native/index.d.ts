@@ -39,7 +39,7 @@ export function updateFocusGlass(state: {
 export function stopFocusGlass(): void;
 /** PNG alpha masks rendered from the installed SF Symbols. */
 export function getPlaybackSymbols(): Record<string, string>;
-export function startPlayerSliders(handle: Buffer, onAction: (action: { type: 'seek' | 'volume'; value: number }) => void): boolean;
+export function startPlayerSliders(handle: Buffer, onAction: (action: { type: 'seek' | 'volume' | 'volume-presence'; value: number }) => void): boolean;
 export function updatePlayerSliders(state: {
   seek: { x: number; y: number; width: number; height: number; opacity: number };
   volume: { x: number; y: number; width: number; height: number; opacity: number };

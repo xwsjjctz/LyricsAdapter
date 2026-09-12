@@ -9,4 +9,4 @@ export interface PlayerSlidersState {
   enabled: boolean;
   labels: { seek: string; volume: string };
 }
-export interface PlayerSliderAction { type: 'seek' | 'volume'; value: number }
+export interface PlayerSliderAction { type: 'seek' | 'volume' | 'volume-presence'; value: number }

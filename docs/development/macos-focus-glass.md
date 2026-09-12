@@ -48,8 +48,13 @@ CSS `currentColor` preserves existing theme colors. Windows/Linux/browser previe
 and unavailable symbols keep the original Material Symbols and layout. This changes
 icons and removes the macOS play button's circular background. The macOS main bar
 floats 16 px above the content bottom at 80 px tall, with a maximum width of 760 px
-and a 44 px volume slider. Its progress area flexes into the remaining compact
-width. Windows retains its existing in-flow bar and slider dimensions.
+and a secondary 100 px volume slider. Hovering/focusing the speaker fades the mode
+icon out and slides the volume control into its place over 180 ms. The shared
+speaker/slider region uses a 160 ms exit grace period, and AppKit reports pointer,
+drag and keyboard presence so crossing into the native slider keeps it open.
+The bar uses 58% theme background opacity with a 24 px backdrop blur; reduced
+transparency restores an opaque surface. Its progress area flexes into the remaining
+compact width. Windows retains its existing in-flow bar and inline slider dimensions.
 
 The library scrolls behind the macOS floating bar. A shared 112 px bottom inset
 (panel height + bottom gap + clearance) is included in real/virtual list padding,

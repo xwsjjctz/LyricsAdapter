@@ -6,6 +6,7 @@ import { useGlassUI } from '../hooks/useGlassUI';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
+import { useVolumeDisclosure } from '../hooks/useVolumeDisclosure';
 import { usePlayerSliders } from '../hooks/usePlayerSliders';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { MACOS_PLAYER_BOTTOM, MACOS_PLAYER_HEIGHT } from './playerLayout';
@@ -61,12 +62,29 @@ const Controls: React.FC<ControlsProps> = memo(({
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
+  const disclosure = useVolumeDisclosure(isMac && !isFocusMode && !nativeSlidersSuppressed);
   const nativeSliders = usePlayerSliders({ seekRef, volumeRef,
     visible: !isFocusMode && !nativeSlidersSuppressed,
     state: { currentTime: displayCurrentTime, duration, level: volume, enabled: !!track,
       labels: { seek: t('controls.seek'), volume: t('controls.volume') } },
-    onSeek, onVolumeChange,
+    onSeek, onVolumeChange, onVolumePresence: disclosure.onNativePresence, volumeExpanded: disclosure.expanded,
   });
+
+  const modeControl = (
+    <button
+      aria-label={t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence')}
+      disabled={isMac && disclosure.expanded}
+      onClick={onTogglePlaybackMode}
+      className="size-8 flex items-center justify-center transition-colors relative"
+      style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+    >
+      <PlaybackIcon symbols={symbols}
+        name={playbackMode === 'shuffle' ? 'shuffle' : playbackMode === 'repeat-one' ? 'repeat_one' : 'repeat'}
+        className="material-symbols-outlined text-lg" />
+    </button>
+  );
 
   return (
     <div
@@ -78,7 +96,9 @@ const Controls: React.FC<ControlsProps> = memo(({
       }
       style={isMac ? {
         height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM,
-        backgroundColor: 'var(--theme-control-panel-bg-floating)',
+        backgroundColor: 'color-mix(in srgb, var(--theme-control-panel-bg-floating) 58%, transparent)',
+        backdropFilter: 'blur(24px) saturate(135%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(135%)',
         border: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
         borderRadius: 20,
         boxShadow: '0 12px 32px -12px rgba(0, 0, 0, 0.45)',
@@ -172,20 +192,40 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
       </div>
 
-      {/* Volume & Playback Mode */}
-      <div className={`flex items-center justify-center gap-2 ${isMac ? 'shrink-0 w-[108px]' : 'w-36'}`}>
-        <button
-          aria-label={t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence')}
-          onClick={onTogglePlaybackMode}
-          className="size-8 flex items-center justify-center transition-colors relative"
-          style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
-        >
-          <PlaybackIcon symbols={symbols}
-            name={playbackMode === 'shuffle' ? 'shuffle' : playbackMode === 'repeat-one' ? 'repeat_one' : 'repeat'}
-            className="material-symbols-outlined text-lg" />
-        </button>
+      {/* macOS replaces the mode icon with a secondary volume strip in-place. */}
+      {isMac ? (
+        <div className="macos-volume-disclosure" data-open={disclosure.expanded} data-testid="main-volume-disclosure"
+          onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}>
+          <div className="macos-volume-mode" aria-hidden={disclosure.expanded || undefined}>{modeControl}</div>
+          <div className="macos-volume-slider-shell">
+            <div ref={volumeRef} className="player-slider macos-volume-slider" data-native-slider={nativeSliders || undefined}
+              data-testid="main-volume-anchor" aria-hidden={nativeSliders || !disclosure.expanded || undefined}
+              onMouseEnter={disclosure.open} onFocusCapture={disclosure.open} onBlurCapture={disclosure.closeSoon}
+              style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
+              <input type="range" min="0" max="1" step="0.01" value={volume}
+                tabIndex={nativeSliders || !disclosure.expanded ? -1 : undefined}
+                aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`}
+                onKeyDown={preserveSliderKeys} onChange={e => onVolumeChange(Number(e.target.value))} />
+              <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
+              <span className="player-slider-thumb" aria-hidden="true" />
+            </div>
+          </div>
+          <button type="button" className="macos-volume-button" data-testid="main-volume-button"
+            aria-label={t('controls.volume')} aria-expanded={disclosure.expanded}
+            onMouseEnter={disclosure.open} onFocus={disclosure.open} onBlur={disclosure.closeSoon}
+            onClick={() => { disclosure.open(); onToggleMute(); }}
+            onKeyDown={event => {
+              if (event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+                event.preventDefault(); event.stopPropagation(); disclosure.open();
+                onVolumeChange(Math.max(0, Math.min(1, volume + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.05 : 0.05))));
+              }
+            }}>
+            <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-outlined text-xl" />
+          </button>
+        </div>
+      ) : (
+      <div className="flex items-center justify-center gap-2 w-36">
+        {modeControl}
         <div className="flex items-center gap-2 group">
           <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'}
             className="material-symbols-outlined transition-colors text-base cursor-pointer"
@@ -202,6 +242,7 @@ const Controls: React.FC<ControlsProps> = memo(({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {

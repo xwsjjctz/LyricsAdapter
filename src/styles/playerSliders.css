@@ -17,8 +17,68 @@
   width: 24%;
 }
 
-.macos-floating-player .player-volume-slider {
-  flex-basis: 44px;
+.macos-volume-disclosure {
+  position: relative;
+  flex: 0 0 148px;
+  height: 40px;
+  border-radius: 20px;
+  transition: background-color 180ms ease;
+}
+.macos-volume-disclosure[data-open="true"] {
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating) 35%, transparent);
+}
+.macos-volume-mode {
+  position: absolute;
+  right: 44px;
+  top: 4px;
+  transition: opacity 140ms ease, transform 180ms ease;
+}
+.macos-volume-disclosure[data-open="true"] .macos-volume-mode {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+.macos-volume-slider-shell {
+  position: absolute;
+  left: 8px;
+  right: 40px;
+  top: 8px;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s 180ms;
+}
+.macos-volume-disclosure[data-open="true"] .macos-volume-slider-shell {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0s;
+}
+.macos-volume-button {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--theme-control-icon-fg);
+  border-radius: 50%;
+}
+.macos-volume-button:hover,
+.macos-volume-button:focus-visible { color: var(--theme-control-icon-fg-hover); }
+.macos-volume-button:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .macos-volume-disclosure, .macos-volume-mode, .macos-volume-slider-shell { transition: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .macos-floating-player {
+    background-color: var(--theme-control-panel-bg-floating) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 .player-slider[data-native-slider="true"] > * {

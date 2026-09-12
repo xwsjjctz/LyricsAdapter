@@ -100,9 +100,33 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect(page.getByTestId('main-play-button')).toHaveCSS('box-shadow', 'none');
     await probe('player-native-seek', 8);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime)).toBeCloseTo(8, 0);
+    const disclosure = page.getByTestId('main-volume-disclosure');
+    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(true);
+    await page.getByTestId('main-volume-button').hover();
+    await expect(disclosure).toHaveAttribute('data-open', 'true');
+    await expect(page.locator('.macos-volume-mode')).toHaveCSS('opacity', '0');
+    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(false);
+    expect((await page.getByTestId('main-volume-anchor').boundingBox())!.width).toBeGreaterThanOrEqual(96);
+    const nativePresence = (action: string) => app!.evaluate(({}, args) => {
+      const { createRequire } = process.getBuiltinModule('module');
+      return createRequire(args.file)(args.file).volumePresence(args.action) as boolean;
+    }, { file: probePath, action });
+    expect(await nativePresence('enter')).toBe(true);
+    await page.mouse.move(20, 100); // Chromium exit must not close an AppKit hover.
+    expect(await nativePresence('false-exit')).toBe(true);
+    expect(await nativePresence('drag')).toBe(true); // Drag may leave the slider's bounds.
+    await page.waitForTimeout(250);
+    await expect(disclosure).toHaveAttribute('data-open', 'true');
+    await screenshot('main-volume-expanded.png');
     await probe('player-native-volume', 0.4);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
     await probe('player-native-volume', 0);
+    expect(await nativePresence('exit')).toBe(false);
+    await nativePresence('dispose');
+    await page.mouse.move(20, 100);
+    await expect(disclosure).toHaveAttribute('data-open', 'false');
+    await expect(page.locator('.macos-volume-mode')).toHaveCSS('opacity', '1');
+    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(true);
     await probe('player-native-seek', 0);
     // A web modal must not have an AppKit slider drawn/clickable above it.
     await page.evaluate(() => {
@@ -118,7 +142,9 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect(panel).toHaveCSS('position', 'absolute');
     const panelRect = (await panel.boundingBox())!;
     expect(panelRect.width).toBeLessThanOrEqual(760);
-    expect((await page.getByTestId('main-volume-anchor').boundingBox())!.width).toBeLessThanOrEqual(44);
+    const material = await panel.evaluate(el => ({ background: getComputedStyle(el).backgroundColor, filter: getComputedStyle(el).backdropFilter }));
+    expect(material.background).toMatch(/(?:0\.58|58%)/);
+    expect(material.filter).toContain('blur(24px)');
     expect((await page.getByTestId('main-seek-anchor').boundingBox())!.width).toBeLessThan(240);
     const scroll = page.locator('.library-track-scroll').first();
     const scrollRect = (await scroll.boundingBox())!;
@@ -217,7 +243,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
       for (const animation of element.getAnimations({ subtree: true })) animation.play();
     });
     await expect.poll(async () => (await probe()).items.filter(item => item.id.startsWith('focus-glass')).length).toBe(0);
-    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(false);
+    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(true);
     await toggle.click();
     await expect(page.getByTestId('focus-native-controls')).toBeAttached();
     expect((await probe()).items.filter(item => item.id === 'focus-glass-host')).toHaveLength(1);

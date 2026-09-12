@@ -62,9 +62,31 @@ napi_value StatusHover(napi_env env, napi_callback_info info) {
  NSData* data=[NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
  napi_value value;napi_create_string_utf8(env,(const char*)data.bytes,data.length,&value);return value;
 }
+// Exercise the production native slider with deterministic pointer coordinates.
+// CDP moves Chromium's pointer only, so it cannot represent an AppKit hover.
+napi_value VolumePresence(napi_env env, napi_callback_info info) {
+ static LAHoverTestWindow* window;
+ static NSView* slider;
+ size_t argc=1; napi_value arg; napi_get_cb_info(env,info,&argc,&arg,nullptr,nullptr);
+ char action[32]; napi_get_value_string_utf8(env,arg,action,sizeof(action),nullptr);
+ if (!window) {
+   window = [[LAHoverTestWindow alloc] initWithContentRect:NSMakeRect(0,0,120,40) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+   slider = [[NSClassFromString(@"LAPlayerSlider") alloc] initWithFrame:NSMakeRect(10,8,100,24)];
+   [slider setValue:@YES forKey:@"reportsPresence"];
+   [window.contentView addSubview:slider]; [slider updateTrackingAreas];
+ }
+ BOOL inside = strcmp(action,"enter") == 0 || strcmp(action,"false-exit") == 0;
+ window.testPointer = inside ? NSMakePoint(60,20) : NSMakePoint(140,20);
+ [slider setValue:@(strcmp(action,"drag") == 0) forKey:@"dragging"];
+ if (inside && strcmp(action,"enter") == 0) [slider mouseEntered:nil]; else [slider mouseExited:nil];
+ BOOL reported = [[slider valueForKey:@"reportedInside"] boolValue];
+ if (strcmp(action,"dispose") == 0) { [slider removeFromSuperview]; slider=nil; window=nil; }
+ napi_value value; napi_get_boolean(env,reported,&value); return value;
+}
 napi_value Init(napi_env env,napi_value exports){
  napi_value f;napi_create_function(env,"probe",NAPI_AUTO_LENGTH,Probe,nullptr,&f);napi_set_named_property(env,exports,"probe",f);
  napi_create_function(env,"statusHover",NAPI_AUTO_LENGTH,StatusHover,nullptr,&f);napi_set_named_property(env,exports,"statusHover",f);
+ napi_create_function(env,"volumePresence",NAPI_AUTO_LENGTH,VolumePresence,nullptr,&f);napi_set_named_property(env,exports,"volumePresence",f);
  return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME,Init)
