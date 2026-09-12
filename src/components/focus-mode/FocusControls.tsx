@@ -87,7 +87,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
       aria-hidden="true"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      style={{ position: 'fixed', bottom: 24 * scale, left: '50%', transform: 'translateX(-50%)', width: `min(${420 * scale}px, calc(100vw - 48px))`, aspectRatio: '420 / 96', opacity: isPlayerVisible ? 1 : 0 }}
+      style={{ position: 'fixed', bottom: 24 * scale, left: '50%', transform: 'translateX(-50%)', width: `min(${350 * scale}px, calc(100vw - 48px))`, aspectRatio: '350 / 96', opacity: isPlayerVisible ? 1 : 0 }}
     />;
   }
   const panelStyle: React.CSSProperties = glassMaterial

@@ -22,7 +22,7 @@ older macOS and missing/outdated native bridges retain the existing web controls
   release; incoming position updates do not overwrite a slider during a drag.
 - Native geometry/opacity follows the actual DOM transition, including entry,
   exit, auto-hide and reversals. There is no independent native fade. The compact
-  420 × 96 pt bar contains seek, playback mode, transport, mute and volume slider;
+  350 × 96 pt bar contains seek, playback mode, transport, mute and volume slider;
   volume does not open a second surface. Theme-transition overrides preserve
   Tailwind’s separate `translate` animation; Reduced Motion disables the page and
   controls transitions together. AppKit adapts glass to contrast and

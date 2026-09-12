@@ -164,21 +164,21 @@ API_AVAILABLE(macos(26.0))
   NSRect normalized = self.presentationFrame;
   CGFloat w = normalized.size.width * self.bounds.size.width;
   CGFloat h = normalized.size.height * self.bounds.size.height;
-  CGFloat s = w / 420;
+  CGFloat s = w / 350;
   self.bar.frame = NSMakeRect(normalized.origin.x * self.bounds.size.width,
     (1 - NSMaxY(normalized)) * self.bounds.size.height, w, h);
   self.bar.cornerRadius = 24 * s;
   self.bar.contentView.frame = self.bar.bounds;
-  self.bar.contentView.bounds = NSMakeRect(0, 0, 420, 96);
+  self.bar.contentView.bounds = NSMakeRect(0, 0, 350, 96);
   self.elapsed.frame = NSMakeRect(12, 67, 40, 14);
-  self.total.frame = NSMakeRect(368, 67, 40, 14);
-  self.seek.frame = NSMakeRect(56, 65, 308, 18);
+  self.total.frame = NSMakeRect(298, 67, 40, 14);
+  self.seek.frame = NSMakeRect(56, 65, 238, 18);
   self.mode.frame = NSMakeRect(16, 14, 32, 36);
   self.previous.frame = NSMakeRect(72, 14, 36, 36);
   self.play.frame = NSMakeRect(116, 10, 44, 44);
   self.next.frame = NSMakeRect(168, 14, 36, 36);
   self.mute.frame = NSMakeRect(224, 14, 32, 36);
-  self.volume.frame = NSMakeRect(266, 22, 138, 20);
+  self.volume.frame = NSMakeRect(266, 22, 68, 20);
   [self updateTrackingAreas];
 }
 - (void)updateTrackingAreas {

@@ -111,7 +111,8 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     const surface = (await bar())!;
     expect(slider.y).toBeGreaterThan(surface.y);
     expect(slider.y + slider.height).toBeLessThan(surface.y + surface.height);
-    expect(surface.width).toBeLessThanOrEqual(420);
+    expect(surface.width).toBeLessThanOrEqual(350);
+    expect(slider.width).toBeLessThanOrEqual(68);
     await probe('focus-glass-volume-slider', 0.37);
     // The player deliberately maps the UI's linear volume to perceptual gain.
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.37 ** 2, 5);
