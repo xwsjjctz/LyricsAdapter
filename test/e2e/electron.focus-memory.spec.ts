@@ -69,6 +69,9 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
   delete env['ELECTRON_RUN_AS_NODE'];
   Object.assign(env, {
     NODE_ENV: 'test', LYRICS_ADAPTER_E2E_STATIC: '1',
+    // Exercise the cross-platform web fallback; native controls have their own
+    // real-AppKit interaction and lifetime test in electron.focus-glass.spec.ts.
+    LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
     HOME: isolatedHome, USERPROFILE: isolatedHome,
     APPDATA: path.join(tempRoot, 'app-data'), LOCALAPPDATA: path.join(tempRoot, 'local-app-data'),
     XDG_CONFIG_HOME: path.join(tempRoot, 'config'), XDG_DATA_HOME: path.join(tempRoot, 'data'),

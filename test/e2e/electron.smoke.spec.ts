@@ -223,6 +223,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     ...inheritedEnv,
     NODE_ENV: 'test',
     LYRICS_ADAPTER_E2E_STATIC: '1',
+    LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
     HOME: isolatedHome,
     USERPROFILE: isolatedHome,
     APPDATA: dirs.appData,

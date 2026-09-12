@@ -26,6 +26,7 @@ import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { registerUserDataHandlers } from './ipc/userDataHandlers';
 import { registerPersistenceHandlers } from './ipc/persistenceHandlers';
 import { registerSystemLyricsHandlers } from './ipc/systemLyricsHandlers';
+import { registerFocusGlassHandlers } from './ipc/focusGlassHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 import { userStateRepository } from './services/userStateRepository';
 import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
@@ -143,6 +144,7 @@ app.whenReady().then(async () => {
   registerPersistenceHandlers();
   registerNotificationHandlers();
   registerSystemLyricsHandlers(systemLyricsCoordinator);
+  registerFocusGlassHandlers();
 
   await createWindow();
 

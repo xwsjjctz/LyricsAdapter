@@ -64,7 +64,7 @@ html.electron[data-window-effect] #root {
    manager's 420ms window drops the slide transform and shortens both layers
    from 600ms to 360ms. */
 :root.theme-is-transitioning body .focus-mode-overlay {
-  transition-property: transform;
+  transition-property: transform, translate;
   transition-duration: 600ms;
   transition-timing-function: ease-in-out;
 }
@@ -884,6 +884,12 @@ textarea.no-scrollbar::-webkit-scrollbar {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .focus-mode-overlay,
+  .focus-mode-content,
+  .focus-native-controls {
+    transition: none !important;
+  }
+
   .global-search-surface,
   .global-search-results,
   .search-result-card,

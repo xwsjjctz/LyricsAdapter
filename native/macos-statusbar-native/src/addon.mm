@@ -191,7 +191,7 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
   _lyricText = @"";
   _controlStripWidth = 120.0;
   _previousImageView = [self createSymbolImageView:@"backward.end.fill"];
-  _toggleImageView = [self createSymbolImageView:@"pause.fill"];
+  _toggleImageView = [self createSymbolImageView:@"play.fill"];
   _nextImageView = [self createSymbolImageView:@"forward.end.fill"];
   [self addSubview:_previousImageView];
   [self addSubview:_toggleImageView];
@@ -226,9 +226,9 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 }
 
 - (void)setPlaying:(BOOL)playing {
+  if (_playing == playing && self.toggleImageView.image != nil) return;
   _playing = playing;
   self.toggleImageView.image = [self symbolImage:(playing ? @"pause.fill" : @"play.fill")];
-  [self setNeedsLayout:YES];
 }
 
 - (void)layout {
@@ -257,36 +257,47 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
   }];
 }
 
+- (BOOL)containsCurrentPointer {
+  if (!self.window || self.hiddenOrHasHiddenAncestor) return NO;
+  NSPoint point = [self convertPoint:self.window.mouseLocationOutsideOfEventStream fromView:nil];
+  return NSMouseInRect(point, self.visibleRect, self.isFlipped);
+}
+
+- (void)refreshPointerInside {
+  BOOL inside = [self containsCurrentPointer];
+  if (self.pointerInside == inside) return;
+  self.pointerInside = inside;
+  [self setControlsHidden:!inside];
+  [self setNeedsDisplay:YES];
+}
+
 - (void)updateTrackingAreas {
-  if (self.pointerTrackingArea != nil) {
-    [self removeTrackingArea:self.pointerTrackingArea];
-  }
-  self.pointerTrackingArea = [[NSTrackingArea alloc]
-      initWithRect:NSZeroRect
-           options:(NSTrackingMouseEnteredAndExited |
-                    NSTrackingActiveAlways |
-                    NSTrackingInVisibleRect)
-             owner:self
-          userInfo:nil];
-  [self addTrackingArea:self.pointerTrackingArea];
   [super updateTrackingAreas];
+  // InVisibleRect tracks resizing itself. Recreating it during playback/layout
+  // produces spurious exits on macOS 26 even though the pointer never moved.
+  if (!self.pointerTrackingArea) {
+    self.pointerTrackingArea = [[NSTrackingArea alloc]
+        initWithRect:NSZeroRect
+             options:(NSTrackingMouseEnteredAndExited |
+                      NSTrackingActiveAlways | NSTrackingInVisibleRect)
+               owner:self userInfo:nil];
+    [self addTrackingArea:self.pointerTrackingArea];
+  }
+  [self refreshPointerInside];
 }
 
 - (void)mouseEntered:(NSEvent*)event {
   (void)event;
-  self.pointerInside = YES;
-  [self setControlsHidden:NO];
-  [self setNeedsDisplay:YES];
+  [self refreshPointerInside];
 }
 
 - (void)mouseExited:(NSEvent*)event {
   (void)event;
-  self.pointerInside = NO;
-  [self setControlsHidden:YES];
-  [self setNeedsDisplay:YES];
+  [self refreshPointerInside];
 }
 
 - (void)mouseDown:(NSEvent*)event {
+  [self refreshPointerInside];
   if (!self.pointerInside) return;
   NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
   CGFloat stripWidth = std::min(self.bounds.size.width, self.controlStripWidth);
@@ -508,7 +519,7 @@ napi_value UpdateStatusItem(napi_env env, napi_callback_info info) {
       gLyricsView.highlightedGraphemes =
           static_cast<NSUInteger>(std::floor(highlighted));
       gLyricsView.playing = isPlaying;
-      [gLyricsView setNeedsLayout:YES];
+      [gLyricsView refreshPointerInside];
       [gLyricsView setNeedsDisplay:YES];
     }
 
@@ -528,7 +539,10 @@ napi_value StopStatusItem(napi_env env, napi_callback_info info) {
   });
 }
 
+void InitializeFocusGlass(napi_env env, napi_value exports);
+
 napi_value Initialize(napi_env env, napi_value exports) {
+  InitializeFocusGlass(env, exports);
   gEnv = env;
   napi_add_env_cleanup_hook(env, Cleanup, nullptr);
 

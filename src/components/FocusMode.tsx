@@ -604,6 +604,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
   // Handle player mouse leave
   const handlePlayerMouseLeave = () => {
+    if (playerHideTimeoutRef.current) clearTimeout(playerHideTimeoutRef.current);
     // Set timeout to hide player after 1 second
     playerHideTimeoutRef.current = setTimeout(() => {
       setIsPlayerVisible(false);
@@ -903,7 +904,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   }, [isPlaying, onSeek, onTogglePlay]);
 
   return (
-    <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+    <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out motion-reduce:transition-none overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={hasBackground}
         isLinux={isLinux}
@@ -911,7 +912,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         canvasRef={canvasRef}
       />
 
-      <div className={`focus-mode-content relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`focus-mode-content relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out motion-reduce:transition-none ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
         <div className="shrink-0 pt-12" style={hasScaledLayout ? { paddingTop: `${48 * focusScale}px` } : undefined} />
 
@@ -965,6 +966,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             colors={colors}
             isPlaying={isPlaying}
             isPlayerVisible={isPlayerVisible}
+            isFocusVisible={isVisible}
             activeCurrentTime={activeCurrentTime}
             progress={progress}
             volume={volume}

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
+import { useFocusGlassControls } from './useFocusGlassControls';
 
 type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
 
@@ -9,6 +10,7 @@ interface FocusControlsProps {
   colors: ThemeColors;
   isPlaying: boolean;
   isPlayerVisible: boolean;
+  isFocusVisible: boolean;
   activeCurrentTime: number;
   progress: number;
   volume: number;
@@ -45,6 +47,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   colors,
   isPlaying,
   isPlayerVisible,
+  isFocusVisible,
   activeCurrentTime,
   progress,
   volume,
@@ -62,6 +65,31 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   glassMaterial = false,
   scale = 1,
 }) => {
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const setPlayerRef = useCallback((element: HTMLDivElement | null) => {
+    anchorRef.current = element;
+    if (typeof playerRef === 'function') playerRef(element);
+    else if (playerRef) (playerRef as React.MutableRefObject<HTMLDivElement | null>).current = element;
+  }, [playerRef]);
+  const nativeGlass = useFocusGlassControls({
+    anchorRef, focusVisible: isFocusVisible, visible: isPlayerVisible, enabled: !!track, isPlaying,
+    currentTime: activeCurrentTime, duration: track?.duration ?? 0, volume, playbackMode, scale,
+    onSeek, onTogglePlay, onSkipNext, onSkipPrev, onVolumeChange, onToggleMute,
+    onTogglePlaybackMode, onMouseEnter, onMouseLeave,
+  });
+  if (nativeGlass) {
+    // Keep a hover target when the native controls fade out; it owns no playback
+    // controls or accessibility nodes and creates no duplicate tab stops.
+    return <div
+      ref={setPlayerRef}
+      className="focus-native-controls transition-opacity duration-500 motion-reduce:transition-none"
+      data-testid="focus-native-controls"
+      aria-hidden="true"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{ position: 'fixed', bottom: 24 * scale, left: '50%', transform: 'translateX(-50%)', width: `min(${420 * scale}px, calc(100vw - 48px))`, aspectRatio: '420 / 96', opacity: isPlayerVisible ? 1 : 0 }}
+    />;
+  }
   const panelStyle: React.CSSProperties = glassMaterial
     ? {
         opacity: isPlayerVisible ? 1 : 0,

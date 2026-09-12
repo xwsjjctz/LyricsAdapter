@@ -39,6 +39,7 @@ const metadataPath = path.join(
 const sourcePaths = [
   path.join(sourceRoot, 'binding.gyp'),
   path.join(sourceRoot, 'src', 'addon.mm'),
+  path.join(sourceRoot, 'src', 'focusGlass.mm'),
 ];
 const electronVersion = require('electron/package.json').version;
 
