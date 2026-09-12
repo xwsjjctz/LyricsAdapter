@@ -297,6 +297,38 @@ napi_value Update(napi_env e, napi_callback_info info) {
   });
 }
 napi_value Destroy(napi_env e, napi_callback_info) { return Guard(e, [] { Stop(); }); }
+
+// Render a fixed palette from the installed SF Symbols, once per main process.
+// The renderer uses alpha masks so theme colors never require another IPC call.
+napi_value PlaybackSymbols(napi_env e, napi_callback_info) {
+  napi_value symbols;
+  napi_value result = Guard(e, [&] {
+    Check(napi_create_object(e, &symbols));
+    NSArray<NSString*>* keys = @[@"skip_previous", @"play_arrow", @"pause", @"skip_next", @"repeat", @"shuffle", @"repeat_one", @"volume_off", @"volume_up", @"open_in_full"];
+    NSArray<NSString*>* names = @[@"backward.end.fill", @"play.fill", @"pause.fill", @"forward.end.fill", @"repeat", @"shuffle", @"repeat.1", @"speaker.slash.fill", @"speaker.wave.2.fill", @"arrow.up.left.and.arrow.down.right"];
+    for (NSUInteger i = 0; i < keys.count; i++) {
+      NSImage* image = Symbol(names[i], 20);
+      if (!image || image.size.width <= 0 || image.size.height <= 0) continue;
+      // 4x raster with optical padding: crisp on Retina and enlarged UI scales.
+      NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr pixelsWide:96 pixelsHigh:96 bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+      NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithBitmapImageRep:bitmap];
+      if (!context) continue;
+      std::memset(bitmap.bitmapData, 0, bitmap.bytesPerRow * bitmap.pixelsHigh);
+      [NSGraphicsContext saveGraphicsState];
+      [NSGraphicsContext setCurrentContext:context];
+      CGFloat scale = 80 / std::max(image.size.width, image.size.height);
+      NSSize size = NSMakeSize(image.size.width * scale, image.size.height * scale);
+      [image drawInRect:NSMakeRect((96-size.width)/2, (96-size.height)/2, size.width, size.height) fromRect:NSZeroRect operation:NSCompositingOperationCopy fraction:1];
+      [NSGraphicsContext restoreGraphicsState];
+      NSData* png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+      if (!png) continue;
+      NSString* url = [@"data:image/png;base64," stringByAppendingString:[png base64EncodedStringWithOptions:0]];
+      napi_value value; Check(napi_create_string_utf8(e, url.UTF8String, NAPI_AUTO_LENGTH, &value));
+      Check(napi_set_named_property(e, symbols, keys[i].UTF8String, value));
+    }
+  });
+  return result ? symbols : nullptr;
+}
 }
 
 void InitializeFocusGlass(napi_env env, napi_value exports) {
@@ -305,6 +337,7 @@ void InitializeFocusGlass(napi_env env, napi_value exports) {
     {"startFocusGlass", nullptr, FocusGlass::Start, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"updateFocusGlass", nullptr, FocusGlass::Update, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"stopFocusGlass", nullptr, FocusGlass::Destroy, nullptr, nullptr, nullptr, napi_default, nullptr},
+    {"getPlaybackSymbols", nullptr, FocusGlass::PlaybackSymbols, nullptr, nullptr, nullptr, napi_default, nullptr},
   };
-  napi_define_properties(env, exports, 3, descriptors);
+  napi_define_properties(env, exports, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
 }

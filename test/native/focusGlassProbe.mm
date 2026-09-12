@@ -20,7 +20,7 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  else if(view) [view mouseExited:nil];
  }
  NSMutableArray* items=[NSMutableArray array];
- NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider"];
+ NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-sliders-host",@"player-native-seek",@"player-native-volume"];
  for(NSString* name in names){NSView* v=Find(content,name);if(!v)continue;
  NSRect frame=[v convertRect:v.bounds toView:content];
  [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":v.accessibilityLabel?:@""}];}

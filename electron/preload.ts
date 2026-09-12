@@ -3,6 +3,7 @@ import type { TypedElectronIPC } from '../src/types/typedIpc';
 import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
+import type { PlayerSlidersState, PlayerSliderAction } from '../src/types/playerSliders';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -13,7 +14,18 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
+  playerSliders: {
+    start: async () => ipcRenderer.invoke('ipc:playerSliders:start'),
+    update: async (state: PlayerSlidersState) => ipcRenderer.invoke('ipc:playerSliders:update', state),
+    stop: async () => ipcRenderer.invoke('ipc:playerSliders:stop'),
+    onAction: (callback: (action: PlayerSliderAction) => void) => {
+      const handler = (_event: unknown, action: PlayerSliderAction) => callback(action);
+      ipcRenderer.on('player-slider-action', handler);
+      return () => ipcRenderer.removeListener('player-slider-action', handler);
+    },
+  },
   focusGlass: {
+    getPlaybackSymbols: async () => ipcRenderer.invoke('ipc:focusGlass:playbackSymbols'),
     start: async () => ipcRenderer.invoke('ipc:focusGlass:start'),
     update: async (state: FocusGlassState) => ipcRenderer.invoke('ipc:focusGlass:update', state),
     stop: async () => ipcRenderer.invoke('ipc:focusGlass:stop'),

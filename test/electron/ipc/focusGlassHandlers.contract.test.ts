@@ -13,7 +13,7 @@ const state: FocusGlassState = {
 };
 function sender() { return Object.assign(new EventEmitter(), { mainFrame: {}, send: vi.fn(), isDestroyed: () => false }); }
 function setup(platform: NodeJS.Platform = 'darwin') {
-  const bridge = { startFocusGlass: vi.fn().mockReturnValue(true), updateFocusGlass: vi.fn(), stopFocusGlass: vi.fn() };
+  const bridge = { startFocusGlass: vi.fn().mockReturnValue(true), updateFocusGlass: vi.fn(), stopFocusGlass: vi.fn(), getPlaybackSymbols: vi.fn(() => ({ play_arrow: 'data:image/png;base64,fixture' })) };
   const load = vi.fn(() => bridge);
   registerFocusGlassHandlers(load, platform);
   const owner = sender();
@@ -29,7 +29,24 @@ describe('native focus glass lifecycle', () => {
   it('keeps non-macOS on the web controls without loading a native module', () => {
     const { load, invoke } = setup('win32');
     expect(invoke('start')).toEqual({ ok: true, data: false });
+    expect(invoke('playbackSymbols')).toEqual({ ok: true, data: {} });
     expect(load).not.toHaveBeenCalled();
+  });
+  it('caches the system palette without starting a surface and rejects subframes', () => {
+    const { bridge, invoke, event } = setup();
+    expect(invoke('playbackSymbols', undefined, { ...event, senderFrame: {} }).ok).toBe(false);
+    expect(bridge.getPlaybackSymbols).not.toHaveBeenCalled();
+    expect(invoke('playbackSymbols')).toEqual({ ok: true, data: { play_arrow: 'data:image/png;base64,fixture' } });
+    invoke('playbackSymbols');
+    expect(bridge.getPlaybackSymbols).toHaveBeenCalledOnce();
+    expect(bridge.startFocusGlass).not.toHaveBeenCalled();
+  });
+  it('returns existing icons when native symbol rendering fails', () => {
+    const { bridge, invoke } = setup();
+    bridge.getPlaybackSymbols.mockImplementation(() => { throw new Error('unavailable'); });
+    expect(invoke('playbackSymbols')).toEqual({ ok: true, data: {} });
+    invoke('playbackSymbols');
+    expect(bridge.getPlaybackSymbols).toHaveBeenCalledOnce();
   });
   it('routes native intents only to the owner and disposes on navigation', () => {
     const { bridge, invoke, owner } = setup();

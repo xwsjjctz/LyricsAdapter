@@ -540,9 +540,11 @@ napi_value StopStatusItem(napi_env env, napi_callback_info info) {
 }
 
 void InitializeFocusGlass(napi_env env, napi_value exports);
+void InitializePlayerSliders(napi_env env, napi_value exports);
 
 napi_value Initialize(napi_env env, napi_value exports) {
   InitializeFocusGlass(env, exports);
+  InitializePlayerSliders(env, exports);
   gEnv = env;
   napi_add_env_cleanup_hook(env, Cleanup, nullptr);
 

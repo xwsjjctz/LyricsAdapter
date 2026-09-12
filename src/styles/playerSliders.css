@@ -1,4 +1,30 @@
 /* Progress and volume sliders in the normal player only. */
+.macos-floating-player {
+  position: absolute;
+  inset-inline: 16px;
+  width: calc(100% - 32px);
+  max-width: 760px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-inline: 16px;
+  z-index: 40;
+}
+
+.macos-floating-player .player-track-info {
+  flex: 0 1 180px;
+  width: 24%;
+}
+
+.macos-floating-player .player-volume-slider {
+  flex-basis: 44px;
+}
+
+.player-slider[data-native-slider="true"] > * {
+  visibility: hidden;
+}
+
 .player-slider {
   position: relative;
   display: flex;

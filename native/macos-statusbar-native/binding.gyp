@@ -4,7 +4,8 @@
       "target_name": "macos_statusbar_native",
       "sources": [
         "src/addon.mm",
-        "src/focusGlass.mm"
+        "src/focusGlass.mm",
+        "src/playerSliders.mm"
       ],
       "defines": [
         "NAPI_VERSION=8"

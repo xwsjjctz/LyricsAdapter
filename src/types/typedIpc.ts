@@ -1,5 +1,6 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
-import type { FocusGlassState, FocusGlassAction } from './focusGlass';
+import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
+import type { PlayerSlidersState, PlayerSliderAction } from './playerSliders';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -50,7 +51,14 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
+  playerSliders?: {
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: PlayerSlidersState) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: PlayerSliderAction) => void) => () => void;
+  };
   focusGlass?: {
+    getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;
     start: () => Promise<IpcResult<boolean>>;
     update: (state: FocusGlassState) => Promise<IpcResult<void>>;
     stop: () => Promise<IpcResult<void>>;

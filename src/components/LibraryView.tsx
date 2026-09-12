@@ -17,6 +17,7 @@ import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { useGlassUI } from '../hooks/useGlassUI';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
+import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -289,7 +290,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // The header no longer overlays the track list, so no top inset is needed.
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
-  const bottomInset = glassUI ? 96 : 0; // ControlBar height (h-24)
+  const bottomInset = getDesktopAPI()?.platform === 'darwin'
+    ? MACOS_PLAYER_BOTTOM_INSET : glassUI ? 96 : 0;
 
   const {
     baseRowHeight,
@@ -1102,7 +1104,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           {/* 左侧分类列表 */}
           <div
             className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar"
-            style={glassUI ? { paddingBottom: bottomInset } : undefined}
+            style={bottomInset ? { paddingBottom: bottomInset } : undefined}
           >
             <div className="text-xs font-bold uppercase tracking-widest mb-2 px-2" style={{ color: colors.textMuted }}>
               {t(filterType === 'artist' ? 'library.artistList' : 'library.albumList')}
@@ -1367,7 +1369,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             border: inlineFab ? 'var(--theme-control-border-width) solid var(--theme-list-item-border)' : undefined,
             borderRadius: inlineFab ? 'var(--theme-button-radius)' : undefined,
             boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
-            bottom: glassUI ? bottomInset + 24 : 24,
+            bottom: bottomInset + 24,
           }}
           title={t('library.locateToCurrent')}
           onMouseEnter={e => {
@@ -1493,7 +1495,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div
           className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-1.5 rounded-lg px-3 py-2 text-xs shadow-lg"
           style={{
-            bottom: glassUI ? bottomInset + 12 : 12,
+            bottom: bottomInset + 12,
             backgroundColor: colors.backgroundCard,
             border: `1px solid ${colors.borderLight}`,
             color: colors.error,

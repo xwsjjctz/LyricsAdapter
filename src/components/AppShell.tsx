@@ -1,6 +1,8 @@
 import React, { type ReactElement, useCallback, useMemo } from 'react';
 import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
 import { logger } from '../services/logger';
+import { getDesktopAPI } from '../services/desktopAdapter';
+import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
 import type { OnlineSource } from '../services/onlineMusicProvider';
 import TitleBar from './TitleBar';
 import SidebarToggleButton from './SidebarToggleButton';
@@ -210,7 +212,9 @@ const AppShell: React.FC<AppShellProps> = ({
             className="hidden"
             onChange={importVm.onFileInputChange}
           />
-          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
+          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}
+            style={getDesktopAPI()?.platform === 'darwin' && (viewMode === ViewMode.BROWSE || viewMode === ViewMode.METADATA)
+              ? { paddingBottom: MACOS_PLAYER_BOTTOM_INSET } : undefined}>
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 online={online}
@@ -320,6 +324,7 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             floating={floatingPanel}
+            nativeSlidersSuppressed={viewMode === ViewMode.SETTINGS || viewMode === ViewMode.THEME || pendingNavigation !== null}
           />
         </main>
         <FocusMode

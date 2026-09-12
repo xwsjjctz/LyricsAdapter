@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { loadMacosFocusGlassBridge, type MacosFocusGlassBridge } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { fail, ok, parsePayload } from './typedResult';
+import type { PlaybackSymbols } from '../../src/types/focusGlass';
 
 const label = z.string().min(1).max(128);
 export const focusGlassStateSchema = z.object({
@@ -24,6 +25,22 @@ export const focusGlassStateSchema = z.object({
 export function registerFocusGlassHandlers(load = loadMacosFocusGlassBridge, platform = process.platform): void {
   let bridge: MacosFocusGlassBridge | null = null;
   let owner: WebContents | null = null;
+  let symbols: PlaybackSymbols | undefined;
+  ipcMain.handle('ipc:focusGlass:playbackSymbols', event => {
+    if (platform !== 'darwin') return ok({});
+    if (!BrowserWindow.fromWebContents(event.sender) || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
+    try {
+      if (!symbols) {
+        bridge ??= load();
+        symbols = bridge?.getPlaybackSymbols?.() ?? {};
+      }
+      return ok(symbols);
+    } catch (error) {
+      logger.warn('[FocusGlass] System symbols unavailable; using existing icons:', error);
+      symbols = {};
+      return ok(symbols);
+    }
+  });
   const stop = () => {
     owner?.removeListener('did-start-loading', stop);
     owner?.removeListener('destroyed', stop);

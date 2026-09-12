@@ -37,3 +37,13 @@ export function updateFocusGlass(state: {
   labels: { playPause: string; previous: string; next: string; seek: string; volume: string; mute: string; mode: string };
 }): void;
 export function stopFocusGlass(): void;
+/** PNG alpha masks rendered from the installed SF Symbols. */
+export function getPlaybackSymbols(): Record<string, string>;
+export function startPlayerSliders(handle: Buffer, onAction: (action: { type: 'seek' | 'volume'; value: number }) => void): boolean;
+export function updatePlayerSliders(state: {
+  seek: { x: number; y: number; width: number; height: number; opacity: number };
+  volume: { x: number; y: number; width: number; height: number; opacity: number };
+  currentTime: number; duration: number; level: number; enabled: boolean;
+  labels: { seek: string; volume: string };
+}): void;
+export function stopPlayerSliders(): void;
