@@ -60,7 +60,6 @@ export default defineConfig(({ mode }) => {
                     'electron',
                     'music-tag-native',
                     '@lyrics-adapter/macos-statusbar-native',
-                    '@lyrics-adapter/windows-taskbar-native',
                   ]
                 }
               }
@@ -79,23 +78,6 @@ export default defineConfig(({ mode }) => {
                   entry: 'electron/preload.ts',
                   formats: ['cjs'],
                   fileName: () => 'preload.cjs'
-                },
-                rollupOptions: {
-                  external: ['electron']
-                }
-              }
-            }
-          },
-          {
-            entry: 'electron/taskbarLyricsPreload.ts',
-            vite: {
-              build: {
-                outDir: 'dist-electron',
-                sourcemap: isElectronDebug,
-                lib: {
-                  entry: 'electron/taskbarLyricsPreload.ts',
-                  formats: ['cjs'],
-                  fileName: () => 'taskbar-lyrics-preload.cjs'
                 },
                 rollupOptions: {
                   external: ['electron']
@@ -135,7 +117,6 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           input: {
             index: path.resolve(__dirname, 'index.html'),
-            'taskbar-lyrics': path.resolve(__dirname, 'taskbar-lyrics.html'),
           },
           external: mode === 'production' ? ['electron'] : [],
           output: {

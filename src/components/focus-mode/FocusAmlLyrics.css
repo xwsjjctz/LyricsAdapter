@@ -1,6 +1,6 @@
 .focus-amll-lyrics {
   --amll-lp-color: rgba(255, 255, 255, 0.96);
-  --amll-lp-font-size: 24px;
+  --amll-lp-font-size: 32px;
   --focus-amll-line-spacing-adjustment: 0px;
   --amll-lp-hover-bg-color: rgba(255, 255, 255, 0.08);
 
@@ -26,7 +26,11 @@
 }
 
 .focus-amll-lyrics > .amll-lyric-player {
-  mix-blend-mode: plus-lighter;
+  /* The edge-fade mask on .focus-lyrics-viewport already isolates this player
+     against transparency. Blending the whole player adds a render surface
+     without blending with the cover behind that mask. Keep word effects inside
+     the player intact while avoiding this redundant group blend. */
+  mix-blend-mode: normal;
 }
 
 .focus-amll-lyrics .amll-lyric-player [class*="_lyricLineWrapper"] {
@@ -39,8 +43,41 @@
   line-height: inherit;
 }
 
+/* macOS uses the heavier glyphs by default; Windows explicitly opts in. */
+.focus-amll-lyrics--enhanced-font {
+  /* Allow the system CJK fallback to synthesize a bold face when its heaviest
+     installed face stops short of the requested weight. */
+  font-synthesis: weight;
+}
+
+.focus-amll-lyrics--enhanced-font .amll-lyric-player [class*="_lyricMainLine"] {
+  font-weight: 800;
+  /* A small em-relative stroke gives CJK glyphs the heavier appearance of the
+     Music reference without changing their advance widths or layout. */
+  -webkit-text-stroke: 0.012em currentColor;
+  paint-order: stroke fill;
+}
+
 .focus-amll-lyrics .amll-lyric-player [class*="_lyricSubLine"] {
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.2;
+}
+
+/* Only uniform, inactive words lose their per-word effects. Keep the line's
+   layout/blur/spring layers and all glyph/spacing/ruby DOM intact. */
+.focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] {
+  /* An alpha-only filter groups the glyphs without changing the main line's
+     opacity property, whose upstream transition would flash on fold/unfold. */
+  filter: opacity(var(--dark-mask-alpha));
+}
+
+.focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] * {
+  will-change: auto !important;
+  backface-visibility: visible !important;
+}
+
+.focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] [style*="mask-image"] {
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
 }

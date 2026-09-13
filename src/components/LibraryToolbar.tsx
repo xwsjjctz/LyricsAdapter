@@ -16,7 +16,6 @@ interface LibraryToolbarProps {
   onBatchDelete: () => void;
   onImportClick?: () => void;
   importDisabled?: boolean;
-  importDisabledReason?: string | undefined;
   onRefreshCloud?: () => void;
   isRefreshing?: boolean;
   trackCount: number;
@@ -47,7 +46,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   onBatchDelete,
   onImportClick,
   importDisabled = false,
-  importDisabledReason,
   onRefreshCloud,
   isRefreshing = false,
   trackCount,
@@ -80,7 +78,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           cursor: importDisabled ? 'not-allowed' : 'pointer',
           opacity: importDisabled ? 0.55 : 1,
         }}
-        title={importDisabled ? importDisabledReason : t('sidebar.importFiles')}
         aria-label={t('sidebar.importFiles')}
       >
         <span className="material-symbols-outlined text-[22px]">{icon}</span>
@@ -141,7 +138,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               }}
               onMouseEnter={isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-              title={t('library.refresh')}
               aria-label={t('library.refresh')}
             >
               <span
@@ -208,7 +204,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 opacity: showEditDropdown ? 1 : 0,
                 transition: 'transform 0.25s ease, opacity 0.2s ease',
                 background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
-                backdropFilter: 'blur(20px)',
                 borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
                 border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
                 borderTop: 'none',

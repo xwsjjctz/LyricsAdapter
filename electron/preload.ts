@@ -2,6 +2,8 @@
 import type { TypedElectronIPC } from '../src/types/typedIpc';
 import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
+import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
+import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -12,6 +14,28 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
+  playerControlbar: {
+    start: async () => ipcRenderer.invoke('ipc:playerControlbar:start'),
+    update: async (state: PlayerControlbarState) => ipcRenderer.invoke('ipc:playerControlbar:update', state),
+    updateArtwork: async (url: string | null) => ipcRenderer.invoke('ipc:playerControlbar:artwork', url),
+    stop: async () => ipcRenderer.invoke('ipc:playerControlbar:stop'),
+    onAction: (callback: (action: PlayerControlbarAction) => void) => {
+      const handler = (_event: unknown, action: PlayerControlbarAction) => callback(action);
+      ipcRenderer.on('player-controlbar-action', handler);
+      return () => ipcRenderer.removeListener('player-controlbar-action', handler);
+    },
+  },
+  focusGlass: {
+    getPlaybackSymbols: async () => ipcRenderer.invoke('ipc:focusGlass:playbackSymbols'),
+    start: async () => ipcRenderer.invoke('ipc:focusGlass:start'),
+    update: async (state: FocusGlassState) => ipcRenderer.invoke('ipc:focusGlass:update', state),
+    stop: async () => ipcRenderer.invoke('ipc:focusGlass:stop'),
+    onAction: (callback: (action: FocusGlassAction) => void) => {
+      const handler = (_event: unknown, action: FocusGlassAction) => callback(action);
+      ipcRenderer.on('focus-glass-action', handler);
+      return () => ipcRenderer.removeListener('focus-glass-action', handler);
+    },
+  },
   file: {
     selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
     readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
@@ -88,6 +112,7 @@ contextBridge.exposeInMainWorld('electron', {
     }
   },
   platform: process.platform,
+  osRelease: require('node:os').release(),
 
   ipc: typedIpc,
 

@@ -14,6 +14,7 @@ const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
 const FOCUS_AMLL_LYRICS_ENABLED_KEY = 'la_focus_amll_lyrics_enabled';
+const FOCUS_ENHANCED_FONT_ENABLED_KEY = 'la_focus_enhanced_font_enabled';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
 export type OnlineSource = OnlineMusicSource;
@@ -30,10 +31,11 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
-  private focusLyricsFontSize: number = 24;
+  private focusLyricsFontSize: number = 32;
   private focusLyricLineSpacing: number = 30;
   private focusInactiveLyricBlur: number = 2;
   private focusAmlLyricsEnabled: boolean = true;
+  private focusEnhancedFontEnabled = false;
   private focusAmlLyricsDurableValue: boolean = true;
   private focusAmlLyricsPersistenceQueue: Promise<void> = Promise.resolve();
   private listeners: Set<Listener> = new Set();
@@ -54,10 +56,11 @@ class SettingsManager {
       this.glassUI = false;
       this.gsapButtonBounce = true;
       this.focusBgBlurRadius = 80;
-      this.focusLyricsFontSize = 24;
+      this.focusLyricsFontSize = 32;
       this.focusLyricLineSpacing = 30;
       this.focusInactiveLyricBlur = 2;
       this.focusAmlLyricsEnabled = true;
+      this.focusEnhancedFontEnabled = false;
       this.focusAmlLyricsDurableValue = true;
 
       this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';
@@ -77,7 +80,10 @@ class SettingsManager {
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
       this.onlineSource = storedSource === 'netease' ? storedSource : 'qq';
 
-      this.glassUI = appStorage.getItem(GLASS_UI_KEY) === 'true';
+      // Frosted Glass UI was retired (see useGlassUI); the persisted flag is
+      // ignored so a previously enabled profile cannot keep paying for two
+      // full-width backdrop-filter layers that no UI can turn off anymore.
+      this.glassUI = false;
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
 
@@ -118,6 +124,7 @@ class SettingsManager {
         this.focusAmlLyricsEnabled = storedAmlLyricsEnabled === 'true';
       }
       this.focusAmlLyricsDurableValue = this.focusAmlLyricsEnabled;
+      this.focusEnhancedFontEnabled = appStorage.getItem(FOCUS_ENHANCED_FONT_ENABLED_KEY) === 'true';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from settings store:', error);
     }
@@ -296,6 +303,22 @@ class SettingsManager {
     const persisted = this.persistSetting(FOCUS_LYRICS_FONT_SIZE_KEY, String(this.focusLyricsFontSize), () => { this.focusLyricsFontSize = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Focus Mode lyric font size set to: ${this.focusLyricsFontSize}`);
+    return persisted;
+  }
+
+  // --- Windows Focus Mode Enhanced Font ---
+
+  getFocusEnhancedFontEnabled(): boolean {
+    return this.focusEnhancedFontEnabled;
+  }
+
+  setFocusEnhancedFontEnabled(enabled: boolean): Promise<boolean> {
+    const previous = this.focusEnhancedFontEnabled;
+    this.focusEnhancedFontEnabled = enabled;
+    const persisted = this.persistSetting(FOCUS_ENHANCED_FONT_ENABLED_KEY, String(enabled), () => {
+      this.focusEnhancedFontEnabled = previous;
+    });
+    this.notify();
     return persisted;
   }
 

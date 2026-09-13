@@ -2,6 +2,7 @@ import { copyFile, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectTaskbarMemory, type TaskbarMemorySnapshot } from './windowsTaskbarMemory';
 import {
   expect,
   test,
@@ -16,6 +17,7 @@ if (configuredLyricsRenderer && configuredLyricsRenderer !== 'legacy' && configu
   throw new Error('MEMORY_BENCHMARK_LYRICS_RENDERER must be "legacy" or "amll"');
 }
 const lyricsRenderer: 'legacy' | 'amll' = configuredLyricsRenderer === 'amll' ? 'amll' : 'legacy';
+const amllMemoryEnabled = lyricsRenderer === 'amll';
 const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 async function readRepoTopLevelDirectories(): Promise<string[]> {
@@ -86,6 +88,7 @@ interface BrowserProcessMemoryMetrics {
 }
 
 interface MemorySample {
+  taskbar: TaskbarMemorySnapshot;
   capturedAt: string;
   elapsedMs: number;
   systemMemoryKb: SystemMemoryMetrics;
@@ -105,6 +108,9 @@ interface PhaseResult {
   phase: string;
   samples: MemorySample[];
   median: {
+    taskbarPrivateMb: number | null;
+    taskbarPrivateWorkingSetMb: number | null;
+    totalWithTaskbarPrivateMb: number | null;
     workingSetMb: number;
     privateBytesMb: number | null;
     browserPrivateMb: number | null;
@@ -188,6 +194,15 @@ function summarizePhase(phase: string, samples: MemorySample[]): PhaseResult {
     phase,
     samples,
     median: {
+      taskbarPrivateMb: nullableMedian(samples.map(sample => sample.taskbar.status === 'available'
+        ? bytesToMb(sample.taskbar.processes.reduce((total, metric) => total + metric.privateBytes, 0)) : null)),
+      taskbarPrivateWorkingSetMb: nullableMedian(samples.map(sample => sample.taskbar.status === 'available'
+        && sample.taskbar.processes.every(metric => metric.privateWorkingSetBytes !== null)
+        ? bytesToMb(sample.taskbar.processes.reduce((total, metric) => total + (metric.privateWorkingSetBytes ?? 0), 0)) : null)),
+      totalWithTaskbarPrivateMb: nullableMedian(samples.map(sample => sample.taskbar.status === 'available'
+        && sample.totals.privateBytesKb !== null
+        ? bytesToMb(sample.totals.privateBytesKb * 1024
+          + sample.taskbar.processes.reduce((total, metric) => total + metric.privateBytes, 0)) : null)),
       workingSetMb: kbToMb(median(samples.map(sample => sample.totals.workingSetKb))),
       privateBytesMb: privateBytesKb === null ? null : kbToMb(privateBytesKb),
       browserPrivateMb: browserPrivateKb === null ? null : kbToMb(browserPrivateKb),
@@ -228,6 +243,7 @@ async function collectMemorySample(
     electronApp.evaluate(async ({ app }) => {
       const browserProcessMemory = await process.getProcessMemoryInfo();
       return {
+        browserPid: process.pid,
         systemMemory: process.getSystemMemoryInfo(),
         browserProcessMemory,
         processes: app.getAppMetrics().map(metric => ({
@@ -275,12 +291,15 @@ async function collectMemorySample(
       };
     }),
   ]);
+  // Read the OS PID inside Electron: launch wrappers can have a different PID.
+  const taskbar = await collectTaskbarMemory(mainMetrics.browserPid);
 
   const privateValues = mainMetrics.processes
     .map(metric => metric.privateBytesKb)
     .filter((value): value is number => value !== null);
 
   return {
+    taskbar,
     capturedAt: new Date().toISOString(),
     elapsedMs: Date.now() - startedAt,
     systemMemoryKb: mainMetrics.systemMemory,
@@ -309,11 +328,13 @@ test.describe('cross-platform Electron memory benchmark', () => {
   test.skip(!benchmarkEnabled, 'Run explicitly with npm run test:memory');
 
   test('profiles idle and repeated FocusMode mount/unmount', async ({}, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
 
     const repoTopLevelDirectoriesBefore = await readRepoTopLevelDirectories();
     const cycles = readPositiveInteger('MEMORY_BENCHMARK_CYCLES', 3, 20);
+    const lyricLineCount = readPositiveInteger('MEMORY_BENCHMARK_LYRIC_LINES', 3, 300);
     const settleMs = readPositiveInteger('MEMORY_BENCHMARK_SETTLE_MS', 2_000, 30_000);
+    const recoveryMs = readPositiveInteger('MEMORY_BENCHMARK_RECOVERY_MS', 30_000, 60_000);
     const samplesPerPhase = readPositiveInteger('MEMORY_BENCHMARK_SAMPLES', 3, 20);
     const sampleIntervalMs = readPositiveInteger('MEMORY_BENCHMARK_SAMPLE_INTERVAL_MS', 350, 5_000);
     const tempRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'lyrics-adapter-memory-')));
@@ -348,9 +369,9 @@ test.describe('cross-platform Electron memory benchmark', () => {
           title: 'Memory Benchmark Track',
           artist: 'LyricsAdapter',
           album: 'Cross-platform benchmark',
-          duration: 180,
+          duration: Math.max(180, lyricLineCount * 3),
           lyrics: 'Memory benchmark lyric\nExercises AMLL mount and cleanup\nAcross repeated focus cycles',
-          syncedLyrics: [
+          syncedLyrics: lyricLineCount === 3 ? [
             {
               time: 0,
               text: 'Memory benchmark lyric',
@@ -361,7 +382,13 @@ test.describe('cross-platform Electron memory benchmark', () => {
             },
             { time: 3, text: 'Exercises AMLL mount and cleanup' },
             { time: 6, text: 'Across repeated focus cycles' },
-          ],
+          ] : Array.from({ length: lyricLineCount }, (_, index) => ({
+            time: index * 3,
+            text: `Line ${index + 1} 在夜色中听见远方的声音`,
+            words: [`Line ${index + 1} `, '在', '夜', '色', '中', '听', '见', '远', '方', '的', '声', '音'].map((text, wordIndex) => ({
+              time: index * 3 + wordIndex * 0.25, duration: 0.25, text,
+            })),
+          })),
           coverUrl: `cover://${trackId}.png`,
           source: 'local',
           available: false,
@@ -444,12 +471,18 @@ test.describe('cross-platform Electron memory benchmark', () => {
           : focusOverlay.locator('.amll-lyric-player');
         await expect(activeLyrics).toHaveCount(1, { timeout: 10_000 });
         await expect(inactiveLyrics).toHaveCount(0);
+        if (lyricsRenderer === 'amll' && lyricLineCount > 1) {
+          await expect.poll(() => activeLyrics.locator('[data-focus-amll-static]').count()).toBeGreaterThan(0);
+        }
         await capturePhase(`focus-${cycle}`);
 
         await focusToggle.click();
         await expect(focusOverlay).toHaveCount(0, { timeout: 5_000 });
         await capturePhase(`post-focus-${cycle}`);
       }
+
+      await page.waitForTimeout(recoveryMs);
+      await capturePhase('post-focus-recovery');
 
       const runtime = await electronApp.evaluate(({ app }) => ({
         appVersion: app.getVersion(),
@@ -469,7 +502,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
       const primaryMetric = platform.os === 'win32' ? 'privateBytesMb' : 'workingSetMb';
       const baseline = phases[0]!.median;
       const focusPhases = phases.filter(phase => phase.phase.startsWith('focus-'));
-      const postFocusPhases = phases.filter(phase => phase.phase.startsWith('post-focus-'));
+      const postFocusPhases = phases.filter(phase => /^post-focus-\d+$/.test(phase.phase));
       const readPrimary = (phase: PhaseResult): number => (
         primaryMetric === 'privateBytesMb'
           ? phase.median.privateBytesMb ?? phase.median.workingSetMb
@@ -479,18 +512,23 @@ test.describe('cross-platform Electron memory benchmark', () => {
         ? baseline.privateBytesMb ?? baseline.workingSetMb
         : baseline.workingSetMb;
       const report = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt: new Date().toISOString(),
         platform,
         runtime,
         configuration: {
           cycles,
           settleMs,
+          recoveryMs,
           samplesPerPhase,
           sampleIntervalMs,
           lyricsRenderer,
+          amllMemoryEnabled,
+          lyricLineCount,
         },
         measurementNotes: [
+          'Electron totals exclude TaskbarHost; taskbar and totalWithTaskbar metrics report its Windows cost separately. Unavailable native measurements are null, never zero.',
+          'Taskbar private working set and private commit are different metrics; only private commit is added to Electron privateBytes.',
           'Electron app.getAppMetrics() values and process.getProcessMemoryInfo() values are reported in KiB.',
           'privateBytes is available for every process only on Windows; workingSet is retained for cross-platform inspection.',
           'macOS memory compression and platform-specific process accounting make raw Task Manager and Activity Monitor totals non-equivalent.',
@@ -500,6 +538,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
         analysis: {
           primaryMetric,
           baselineMb: baselinePrimary,
+          recoveryRetentionMb: Math.round((readPrimary(phases[phases.length - 1]!) - baselinePrimary) * 100) / 100,
           focusDeltaMbByCycle: focusPhases.map(phase =>
             Math.round((readPrimary(phase) - baselinePrimary) * 100) / 100),
           postFocusRetentionMbByCycle: postFocusPhases.map(phase =>
@@ -513,7 +552,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
       const safeTimestamp = report.generatedAt.replace(/[:.]/g, '-');
       const reportPath = path.join(
         reportDirectory,
-        `memory-${lyricsRenderer}-${platform.os}-${platform.arch}-${safeTimestamp}.json`,
+        `memory-${lyricsRenderer}${amllMemoryEnabled ? '-optimized' : ''}-${platform.os}-${platform.arch}-${safeTimestamp}.json`,
       );
       const reportBody = `${JSON.stringify(report, null, 2)}\n`;
       await writeFile(reportPath, reportBody);
@@ -526,6 +565,8 @@ test.describe('cross-platform Electron memory benchmark', () => {
         phase: phase.phase,
         workingSetMb: phase.median.workingSetMb,
         privateBytesMb: phase.median.privateBytesMb ?? 'n/a',
+        taskbarPrivateMb: phase.median.taskbarPrivateMb ?? 'n/a',
+        totalWithTaskbarPrivateMb: phase.median.totalWithTaskbarPrivateMb ?? 'n/a',
         rendererJsHeapMb: phase.median.rendererJsHeapMb ?? 'n/a',
         canvasEstimateMb: phase.median.canvasBackingMbEstimate,
         processCount: phase.median.processCount,

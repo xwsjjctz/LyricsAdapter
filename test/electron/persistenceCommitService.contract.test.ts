@@ -50,10 +50,9 @@ describe('PersistenceCommitService close commit', () => {
   it('commits authoritative user state once, then writes the cache last', async () => {
     const order: string[] = [];
     const savePlayback = vi.fn(() => true);
-    const saveUserLibraryState = vi.fn((_tracks, playback, settings) => {
+    const saveUserLibraryState = vi.fn<PersistenceCommitDependencies['saveUserLibraryState']>((_tracks, playback) => {
       order.push('users');
       expect(playback).toEqual({ _json: '{"activeSlotId":"local","volume":0.4}' });
-      expect(settings).toBeUndefined();
       return true;
     });
     const saveLibraryIndex = vi.fn(async () => {
@@ -73,6 +72,7 @@ describe('PersistenceCommitService close commit', () => {
       libraryIndex: { status: 'saved' },
     });
     expect(order).toEqual(['users', 'cache']);
+    expect(saveUserLibraryState.mock.calls[0]).toHaveLength(2);
     expect(savePlayback).not.toHaveBeenCalled();
   });
 

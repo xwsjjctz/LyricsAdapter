@@ -17,6 +17,7 @@ import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { useGlassUI } from '../hooks/useGlassUI';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
+import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -27,7 +28,6 @@ interface LibraryViewProps {
   onRemoveMultipleTracks?: (trackIds: string[], deleteFile?: boolean) => void;
   onImportClick?: () => void;
   importDisabled?: boolean;
-  importDisabledReason?: string | undefined;
   onOpenSettings?: () => void;
   onDropFiles?: (files: File[]) => void;
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
@@ -81,7 +81,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onRemoveMultipleTracks,
   onImportClick,
   importDisabled = false,
-  importDisabledReason,
   onOpenSettings,
   onDropFiles,
   onDropFilePaths,
@@ -289,7 +288,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // The header no longer overlays the track list, so no top inset is needed.
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
-  const bottomInset = glassUI ? 96 : 0; // ControlBar height (h-24)
+  const bottomInset = getDesktopAPI()?.platform === 'darwin'
+    ? MACOS_PLAYER_BOTTOM_INSET : glassUI ? 96 : 0;
 
   const {
     baseRowHeight,
@@ -914,7 +914,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           }
         }}
         onBatchDelete={confirmBatchDelete}
-        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled, importDisabledReason } : {})}
+        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         trackCount={filteredTracks.length}
         {...(playlistTitle ? { playlistTitle } : {})}
@@ -1066,7 +1066,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         cursor: dataSource === 'local' && importDisabled ? 'not-allowed' : 'pointer',
                         opacity: dataSource === 'local' && importDisabled ? 0.55 : 1,
                       }}
-                      title={dataSource === 'local' && importDisabled ? importDisabledReason : undefined}
                     >
                       <span className="material-symbols-outlined text-lg">{emptyState.primaryIcon}</span>
                       <span>{emptyState.primaryLabel}</span>
@@ -1102,7 +1101,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           {/* 左侧分类列表 */}
           <div
             className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar"
-            style={glassUI ? { paddingBottom: bottomInset } : undefined}
+            style={bottomInset ? { paddingBottom: bottomInset } : undefined}
           >
             <div className="text-xs font-bold uppercase tracking-widest mb-2 px-2" style={{ color: colors.textMuted }}>
               {t(filterType === 'artist' ? 'library.artistList' : 'library.albumList')}
@@ -1113,7 +1112,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={artist.name}
                     onClick={() => onCategoryChange(artist.name)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
                     style={{
                       backgroundColor: selectedArtist === artist.name ? colors.backgroundCard : 'transparent',
                       color: selectedArtist === artist.name ? colors.textPrimary : colors.textSecondary,
@@ -1126,6 +1125,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         src={toCoverThumb(artist.coverUrl, 128)}
                         alt=""
                         className="w-10 h-10 rounded-lg object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width={40}
+                        height={40}
                       />
                     )}
                     <span className="text-sm truncate">{artist.name}</span>
@@ -1136,7 +1139,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={album.name}
                     onClick={() => onCategoryChange(album.name)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
                     style={{
                       backgroundColor: selectedAlbum === album.name ? colors.backgroundCard : 'transparent',
                       color: selectedAlbum === album.name ? colors.textPrimary : colors.textSecondary,
@@ -1149,6 +1152,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         src={toCoverThumb(album.coverUrl, 128)}
                         alt=""
                         className="w-10 h-10 rounded-lg object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width={40}
+                        height={40}
                       />
                     )}
                     <div className="min-w-0 flex-1">
@@ -1304,7 +1311,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                  }}
                                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                                  style={{ color: colors.textMuted }}
-                                 title={t('sidebar.metadata')}
+                                 aria-label={t('sidebar.metadata')}
                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
                                >
@@ -1359,9 +1366,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             border: inlineFab ? 'var(--theme-control-border-width) solid var(--theme-list-item-border)' : undefined,
             borderRadius: inlineFab ? 'var(--theme-button-radius)' : undefined,
             boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
-            bottom: glassUI ? bottomInset + 24 : 24,
+            bottom: bottomInset + 24,
           }}
-          title={t('library.locateToCurrent')}
+          aria-label={t('library.locateToCurrent')}
           onMouseEnter={e => {
             if (inlineFab) return; // 粗粝风按钮 hover 不变阴影/底色，保持稳定外观
             e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
@@ -1485,7 +1492,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div
           className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-1.5 rounded-lg px-3 py-2 text-xs shadow-lg"
           style={{
-            bottom: glassUI ? bottomInset + 12 : 12,
+            bottom: bottomInset + 12,
             backgroundColor: colors.backgroundCard,
             border: `1px solid ${colors.borderLight}`,
             color: colors.error,

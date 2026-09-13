@@ -18,3 +18,36 @@ export function startStatusItem(
 ): boolean;
 export function updateStatusItem(update: StatusItemUpdate): void;
 export function stopStatusItem(): void;
+
+/** Main-thread-only FocusMode surface. Returns false before macOS 26. */
+export function startFocusGlass(
+  windowHandle: Buffer,
+  onAction: (action: { type: 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume' | 'hover'; value: number }) => void,
+): boolean;
+export function updateFocusGlass(state: {
+  visible: boolean;
+  presentation: { x: number; y: number; width: number; height: number; opacity: number };
+  enabled: boolean;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  scale: number;
+  labels: { playPause: string; previous: string; next: string; seek: string; volume: string; mute: string; mode: string };
+}): void;
+export function stopFocusGlass(): void;
+/** PNG alpha masks rendered from the installed SF Symbols. */
+export function getPlaybackSymbols(): Record<string, string>;
+/** Main-thread-only macOS 26 control bar surface. */
+export function startPlayerControlbar(handle: Buffer, onAction: (action: {
+  type: 'focus' | 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume'; value: number;
+}) => void): boolean;
+export function updatePlayerControlbar(state: {
+  presentation: { x: number; y: number; width: number; height: number; opacity: number };
+  currentTime: number; duration: number; volume: number; enabled: boolean; isPlaying: boolean;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one'; title: string; artist: string;
+  labels: { focus: string; playPause: string; previous: string; next: string; seek: string; volume: string; mute: string; mode: string };
+}): void;
+export function updatePlayerControlbarArtwork(data: Buffer | null): void;
+export function stopPlayerControlbar(): void;

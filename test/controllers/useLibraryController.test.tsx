@@ -8,8 +8,9 @@ function track(id: string, filePath?: string): Track {
   return { id, title: id, artist: 'A', album: 'B', duration: 10, audioUrl: '', filePath };
 }
 
-function slot(tracks: Track[], currentTrackIndex = 0): LibrarySlot {
+function slot(tracks: Track[], currentTrackIndex = 0, id: SlotId = 'local'): LibrarySlot {
   return {
+    id,
     tracks,
     currentTrackIndex,
     currentTime: 0,
@@ -24,9 +25,9 @@ function slot(tracks: Track[], currentTrackIndex = 0): LibrarySlot {
 function makeEmptySlots(): Record<SlotId, LibrarySlot> {
   return {
     local: slot([]),
-    cloud: slot([]),
-    online: slot([]),
-    playlist: slot([]),
+    cloud: slot([], 0, 'cloud'),
+    online: slot([], 0, 'online'),
+    playlist: slot([], 0, 'playlist'),
   };
 }
 
@@ -72,8 +73,9 @@ describe('useLibraryController', () => {
       await controller.removeTrack('a');
 
       const call = mocks.updateSlot.mock.calls[0];
-      expect(call[0]).toBe('local');
-      const updater = call[1] as (s: LibrarySlot) => LibrarySlot;
+      expect(call).toBeDefined();
+      expect(call![0]).toBe('local');
+      const updater = call![1] as (s: LibrarySlot) => LibrarySlot;
       const result = updater(slot(tracks, 1));
       expect(result.tracks.map(t => t.id)).toEqual(['b', 'c']);
     });
@@ -83,7 +85,7 @@ describe('useLibraryController', () => {
       const { controller, mocks } = makeController(tracks, 1);
       await controller.removeTrack('a');
 
-      const updater = mocks.updateSlot.mock.calls[0][1] as (s: LibrarySlot) => LibrarySlot;
+      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
       const result = updater(slot(tracks, 1));
       expect(result.currentTrackIndex).toBe(0);
     });
@@ -93,7 +95,7 @@ describe('useLibraryController', () => {
       const { controller, mocks } = makeController(tracks, 1);
       await controller.removeTrack('b');
 
-      const updater = mocks.updateSlot.mock.calls[0][1] as (s: LibrarySlot) => LibrarySlot;
+      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
       const result = updater(slot(tracks, 1));
       // current was at 1, was removed, should stay within new length
       expect(result.currentTrackIndex).toBe(Math.min(1, result.tracks.length - 1));
@@ -104,7 +106,7 @@ describe('useLibraryController', () => {
       const { controller, mocks } = makeController(tracks, 0);
       await controller.removeTrack('a');
 
-      const updater = mocks.updateSlot.mock.calls[0][1] as (s: LibrarySlot) => LibrarySlot;
+      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
       const result = updater(slot(tracks, 0));
       expect(result.tracks).toHaveLength(0);
       expect(result.currentTrackIndex).toBe(-1);
@@ -119,7 +121,7 @@ describe('useLibraryController', () => {
       const { controller, mocks } = makeController(tracks, 2);
       await controller.removeTracks(['a', 'c']);
 
-      const updater = mocks.updateSlot.mock.calls[0][1] as (s: LibrarySlot) => LibrarySlot;
+      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
       const result = updater(slot(tracks, 2));
       // removed 'a' (before current=2) and 'c' (is current=2) — after removal, new index should be
       // current(2) - removedBefore(1) = 1 (since 'a' was before index 2, 'c' was at index 2)

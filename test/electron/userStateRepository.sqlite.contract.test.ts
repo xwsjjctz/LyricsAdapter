@@ -30,9 +30,8 @@ import { PersistenceCommitService } from '../../electron/services/persistenceCom
 import { PersistenceRepository } from '../../electron/services/persistenceRepository';
 import {
   UserStateRepository,
-  type UserStateCrypto,
 } from '../../electron/services/userStateRepository';
-import { SafeStorageUserStateCrypto } from '../../electron/services/userStateCrypto';
+import { SafeStorageUserStateCrypto, type UserStateCrypto } from '../../electron/services/userStateCrypto';
 
 const sensitiveSettings = {
   'webdav-config': '{"password":"webdav-secret"}',
@@ -138,11 +137,11 @@ describe('UserStateRepository SQLite migration and transaction contract', () => 
       'SELECT key, value FROM settings ORDER BY key',
     );
     for (const [key, plaintext] of Object.entries(sensitiveSettings)) {
-      const row = storedSettings.find(candidate => candidate.key === key);
-      expect(row?.value).toMatch(/^enc:[0-9a-f]+$/);
-      expect(row?.value).not.toContain(plaintext);
+      const row = storedSettings.find(candidate => candidate['key'] === key);
+      expect(row?.['value']).toMatch(/^enc:[0-9a-f]+$/);
+      expect(row?.['value']).not.toContain(plaintext);
     }
-    expect(storedSettings.some(row => row.key === 'webdav-cdn-cache')).toBe(false);
+    expect(storedSettings.some(row => row['key'] === 'webdav-cdn-cache')).toBe(false);
     expect(electronMocks.encryptString).toHaveBeenCalledTimes(3);
   });
 
@@ -356,7 +355,7 @@ describe('UserStateRepository SQLite migration and transaction contract', () => 
     const revisionBefore = readSqliteRows(
       repository.databasePath,
       'SELECT revision FROM workspace_state WHERE singleton = 1',
-    )[0]?.revision;
+    )[0]?.['revision'];
 
     // Unknown fields are intentionally passthrough-compatible. BigInt survives
     // schema validation but JSON serialization fails after DELETE, exercising
@@ -376,7 +375,7 @@ describe('UserStateRepository SQLite migration and transaction contract', () => 
     expect(readSqliteRows(
       repository.databasePath,
       'SELECT revision FROM workspace_state WHERE singleton = 1',
-    )[0]?.revision).toBe(revisionBefore);
+    )[0]?.['revision']).toBe(revisionBefore);
   });
 
   it('removes the temporary database and leaves legacy sources retryable after migration rollback', () => {

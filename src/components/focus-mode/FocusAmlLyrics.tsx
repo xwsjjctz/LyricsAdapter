@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/react';
 import {
   DomLyricPlayer,
@@ -9,6 +9,16 @@ import '@applemusic-like-lyrics/core/style.css';
 import './FocusAmlLyrics.css';
 import type { Track } from '../../types';
 import { trackToAmlLyricLines } from './amllLyrics';
+import { FocusAmlAnimationBudget } from './focusAmlAnimationBudget';
+import { getDesktopAPI } from '../../services/desktopAdapter';
+import { settingsManager } from '../../services/settingsManager';
+
+const subscribeToSettings = (listener: () => void) => settingsManager.subscribe(listener);
+const getEnhancedFont = () => {
+  const platform = getDesktopAPI()?.platform;
+  return platform === 'darwin'
+    || (platform === 'win32' && settingsManager.getFocusEnhancedFontEnabled());
+};
 
 const SEEK_JUMP_THRESHOLD_MS = 350;
 const SCROLL_RETURN_DELAY_MS = 3_000;
@@ -17,11 +27,17 @@ const AMLL_OPTIMIZE_OPTIONS: OptimizeLyricOptions = {
   resetLineTimestamps: false,
 };
 
-// AMLL 0.5.2 does not disconnect this observer in its base dispose(). Without
-// this adapter, switching the experiment off can retain the disposed player.
 export class FocusDomLyricPlayer extends DomLyricPlayer {
+  private readonly animationBudget = new FocusAmlAnimationBudget();
+
+  override update(delta?: number): void {
+    super.update(delta);
+    this.animationBudget?.update(this.currentLyricGroups, this.getCurrentTime());
+  }
+
   override dispose(): void {
     this.resetScroll();
+    // AMLL 0.5.2 leaves this observer connected, retaining disposed players.
     this.resizeObserver.disconnect();
     super.dispose();
   }
@@ -53,6 +69,7 @@ export default function FocusAmlLyrics({
   inactiveBlur,
   onSeek,
 }: FocusAmlLyricsProps) {
+  const enhancedFont = useSyncExternalStore(subscribeToSettings, getEnhancedFont);
   const playerRef = useRef<LyricPlayerRef>(null);
   const scrollReturnTimerRef = useRef<number | null>(null);
   const previousTimeRef = useRef(Math.round(currentTime * 1000));
@@ -72,7 +89,7 @@ export default function FocusAmlLyrics({
 
   useLayoutEffect(() => {
     void playerRef.current?.lyricPlayer?.calcLayout(true, true);
-  }, [fontSize, lineSpacing]);
+  }, [fontSize, lineSpacing, enhancedFont]);
 
   useEffect(() => {
     const wrapper = playerRef.current?.wrapperEl;
@@ -120,7 +137,7 @@ export default function FocusAmlLyrics({
     <LyricPlayer
       ref={playerRef}
       lyricPlayer={FocusDomLyricPlayer}
-      className="focus-amll-lyrics"
+      className={`focus-amll-lyrics${enhancedFont ? ' focus-amll-lyrics--enhanced-font' : ''}`}
       style={style}
       lyricLines={lyricLines}
       currentTime={currentTimeMs}

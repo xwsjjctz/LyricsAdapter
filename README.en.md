@@ -29,7 +29,7 @@
 - **Streaming local playback** — Local files are streamed via the custom `audio://` protocol with Range requests, never fully loaded into memory
 - **Complete playback controls** — Play/pause, previous/next track, seek, volume control
 - **System media integration** — Publishes metadata, artwork, and playback actions to macOS Control Center and Windows system media controls
-- **System lyrics** — Live lyrics in the macOS menu bar; on Windows, Electron HTML/CSS renders the Fluent-style UI while an independently implemented C++ Node-API/Win32 bridge embeds the lyrics window into the taskbar
+- **System lyrics** — Live lyrics in the macOS menu bar; on Windows, a self-contained C# WPF host renders the Fluent-style surface directly inside the taskbar through Win32, with karaoke highlighting and hover playback controls
 - **Multiple playback modes** — Sequential, repeat-one, shuffle
 
 ### 🎨 User Interface
@@ -84,7 +84,7 @@ Full-screen experience with a dynamic background following the cover colors and 
 - **Node.js** 24.19.x
 - **npm** 9.0 or higher (or yarn/pnpm)
 - **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
-- **Windows native bridge**: source installs require Visual Studio 2022 or newer with **Desktop development with C++** and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:taskbar -- --force`
+- **Windows native taskbar host**: source runs require the .NET 8 SDK; `npm run electron:dev` publishes the self-contained C# WPF host for the current architecture automatically, or run `npm run native:build:taskbar-host -- --force`
 - **macOS native bridge**: source installs require Xcode Command Line Tools and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:macos-statusbar -- --force`
 
 ### Installation & Setup
@@ -296,7 +296,7 @@ Full keyboard shortcut support, all customizable.
 | **TypeScript** | ~5.8.2 | Type-safe JavaScript superset |
 | **Vite** | ^8.1.0 | Next-generation build tool with fast HMR |
 | **Electron** | ^42.5.0 | Cross-platform desktop framework |
-| **C++ Node-API / Win32** | Node-API 8 | Windows taskbar child-window bridge; the UI remains Electron HTML/CSS |
+| **C# WPF / Win32** | .NET 8 | Self-contained Windows taskbar lyrics host, Fluent-style rendering, and native window integration |
 | **Tailwind CSS** | ^4.3.1 | Utility-first CSS framework |
 | **GSAP** | ^3.15.0 | Page transitions and animations |
 | **music-tag-native** | ^1.0.0 | Audio metadata read/write (Rust lofty engine) |
@@ -323,12 +323,13 @@ LyricsAdapter/
 │   ├── main.ts              # Entry: protocols, IPC, window, updater
 │   ├── preload.ts           # contextBridge exposing a controlled window.electron
 │   ├── windowManager.ts     # Frameless window and window state
-│   ├── native/              # Node-API bridge loading, validation, and platform fallback
+│   ├── native/              # Native host/Node-API bridges, protocol validation, and platform fallback
 │   ├── protocols/           # Custom protocols: audio:// cover:// stream:// app://
 │   ├── ipc/                 # typed + legacy IPC handlers (files, library, WebDAV, providers, login…)
 │   └── services/            # SQLite user-state repository, audio metadata, settings store
 ├── native/
-│   └── windows-taskbar-native/ # Independently implemented C++ Node-API/Win32 taskbar child bridge
+│   ├── macos-statusbar-native/ # Objective-C++ Node-API/AppKit menu-bar lyrics
+│   └── windows-taskbar-host/   # Independently implemented C# WPF/Win32 taskbar lyrics host
 ├── src/                     # Renderer (React)
 │   ├── App.tsx              # Root composition + ErrorBoundary (wiring only)
 │   ├── components/          # UI components (new-ui/, focus-mode/, settings/, legacy/)
@@ -342,7 +343,6 @@ LyricsAdapter/
 │   ├── domain/              # Pure domain rules
 │   ├── repositories/        # Data access wrappers
 │   ├── shared/              # LRC/QRC/YRC parsing, persistence policy, schemas
-│   ├── taskbar-lyrics/      # Dedicated HTML/CSS renderer for Windows taskbar lyrics
 │   └── i18n/                # Locale files for 6 languages
 ├── test/                    # Vitest unit tests + Playwright Electron E2E
 ├── docs/                    # Architecture & development docs (overview / playback-flow / …)
@@ -407,14 +407,15 @@ Merged into the local / cloud slot
 #### Windows Taskbar Lyrics
 
 ```
-Playback snapshot → typed IPC → dedicated Electron BrowserWindow (HTML/CSS)
+Playback snapshot → typed IPC → Electron main process
+    ↓ UTF-8 NDJSON / private stdio pipe
+Self-contained C# WPF host → native Fluent-style rendering
     ↓
-BrowserWindow HWND → C++ Node-API/Win32 bridge
-    ↓
-SetParent taskbar embedding + window-region / DPI-aware placement
+Win32 SetParent taskbar embedding + window-region / DPI-aware placement
+    ↑ stdout action → existing player controller (previous / play-pause / next)
 ```
 
-The isolated Electron page owns the lyrics, artwork, and Fluent-style presentation. The Windows-only C++ bridge is limited to HWND handling, the taskbar parent/child relationship, window regions, and placement. It is independently implemented in this repository and does not require a C#/.NET helper process. See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for design and licensing details.
+Windows no longer creates an extra Chromium lyrics window. The separate WPF host owns lyrics, artwork, karaoke highlighting, hover controls, system light/dark theming, HWND parenting, window regions, DPI handling, and recovery after Explorer restarts. Releases ship it as a self-contained single file, so users do not need a preinstalled .NET runtime; Electron only sends presentation state and receives a narrow set of playback intents. See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for design and licensing details.
 
 ### Library Slots
 

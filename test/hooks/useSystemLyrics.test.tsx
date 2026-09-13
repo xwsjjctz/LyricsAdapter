@@ -253,9 +253,41 @@ describe('useSystemLyrics', () => {
     unmount();
   });
 
-  it('does not start high-frequency cursor sampling outside macOS', async () => {
+  it('also samples the exact playback clock for the Windows native host', async () => {
     vi.useFakeTimers();
     mocks.platform = 'win32';
+    let playbackTime = 0;
+    const wordTimedTrack: Track = {
+      ...track,
+      syncedLyrics: [{
+        time: 0,
+        text: longLine,
+        words: [{ time: 0, duration: 2, text: longLine }],
+      }],
+    };
+    const { unmount } = renderHook(() => useSystemLyrics(makeOptions({
+      currentTrack: wordTimedTrack,
+      currentTime: 0,
+      getCurrentPlaybackTime: () => playbackTime,
+    })));
+    await act(async () => Promise.resolve());
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    playbackTime = 1;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(mocks.update).toHaveBeenCalledTimes(2);
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      lineCursor: 12,
+    }));
+
+    unmount();
+  });
+
+  it('does not start high-frequency cursor sampling outside macOS and Windows', async () => {
+    vi.useFakeTimers();
+    mocks.platform = 'linux';
     let playbackTime = 0;
     const wordTimedTrack: Track = {
       ...track,

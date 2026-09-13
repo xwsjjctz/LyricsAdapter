@@ -21,9 +21,7 @@ export function useUIStore() {
   const glassUI = useGlassUI();
   const shouldAnimateViewTransition = useCallback((fromView: ViewMode, toView: ViewMode) => {
     const overlayViews = fromView === ViewMode.SETTINGS
-      || fromView === ViewMode.THEME
-      || toView === ViewMode.SETTINGS
-      || toView === ViewMode.THEME;
+      || toView === ViewMode.SETTINGS;
     return !overlayViews;
   }, []);
   const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(

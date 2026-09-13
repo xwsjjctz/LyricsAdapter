@@ -1,4 +1,6 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
+import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
+import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -49,6 +51,20 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
+  playerControlbar?: {
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: PlayerControlbarState) => Promise<IpcResult<void>>;
+    updateArtwork: (url: string | null) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: PlayerControlbarAction) => void) => () => void;
+  };
+  focusGlass?: {
+    getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: FocusGlassState) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: FocusGlassAction) => void) => () => void;
+  };
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
     readAudio: (filePath: string) => Promise<IpcResult<{ data: ArrayBuffer }>>;

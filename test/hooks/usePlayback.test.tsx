@@ -568,7 +568,7 @@ describe('usePlayback', () => {
         setCurrentTrackIndex: vi.fn(),
         revokeBlobUrl: vi.fn(),
       }),
-      { initialProps: { tracks: [], index: -1 } },
+      { initialProps: { tracks: [] as Track[], index: -1 } },
     );
 
     act(() => result.current.setAudioRef(audio));
@@ -602,7 +602,7 @@ describe('usePlayback', () => {
         setCurrentTrackIndex: vi.fn(),
         revokeBlobUrl: vi.fn(),
       }),
-      { initialProps: { tracks: [], index: -1 } },
+      { initialProps: { tracks: [] as Track[], index: -1 } },
     );
 
     act(() => result.current.setAudioRef(audio));

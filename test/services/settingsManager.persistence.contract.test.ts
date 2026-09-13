@@ -84,6 +84,34 @@ describe('SettingsManager persistence contract', () => {
     expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
   });
 
+  it('defaults the Windows font preference off and restores valid saved values', async () => {
+    settingsManager.reload();
+    expect(settingsManager.getFocusEnhancedFontEnabled()).toBe(false);
+    for (const value of ['true', 'false', 'invalid']) {
+      storageMocks.getItem.mockImplementation(key => key === 'la_focus_enhanced_font_enabled' ? value : null);
+      settingsManager.reload();
+      expect(settingsManager.getFocusEnhancedFontEnabled()).toBe(value === 'true');
+    }
+    await expect(settingsManager.setFocusEnhancedFontEnabled(true)).resolves.toBe(true);
+    expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_enhanced_font_enabled', 'true');
+    await expect(settingsManager.setFocusEnhancedFontEnabled(false)).resolves.toBe(true);
+    expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_enhanced_font_enabled', 'false');
+  });
+
+  it('restores the displayed font preference when saving fails', async () => {
+    settingsManager.reload();
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+    const listener = vi.fn();
+    const unsubscribe = settingsManager.subscribe(listener);
+    try {
+      await expect(settingsManager.setFocusEnhancedFontEnabled(true)).resolves.toBe(false);
+      expect(settingsManager.getFocusEnhancedFontEnabled()).toBe(false);
+      expect(listener).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('returns to the last durable AMLL value when two rapid writes both fail', async () => {
     const older = deferred();
     const newer = deferred();

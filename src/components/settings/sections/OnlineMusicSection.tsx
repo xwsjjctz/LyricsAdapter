@@ -145,7 +145,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               <button
                 type="button"
                 onClick={() => startQr(onlineSource)}
-                title={t('settingsDialog.qrRefresh')}
+                aria-label={t('settingsDialog.qrRefresh')}
                 className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
                 style={{ color: colors.textSecondary }}
               >

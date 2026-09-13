@@ -37,6 +37,12 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Setup .NET for Windows taskbar host
+        if: runner.os == 'Windows'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Install dependencies
         run: npm ci
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { i18n } from '../../services/i18n';
+import { toCoverThumb } from '../../services/coverUrl';
 import type { OnlineSong } from '../../services/onlineMusicProvider';
 import type { Track } from '../../types';
 import type { ThemeConfig } from '../../types/theme';
@@ -136,9 +137,16 @@ export const OnlineSearchCard: React.FC<{
     >
       <div className="search-result-card__cover-wrap">
         <img
-          src={song.coverUrl || `https://picsum.photos/seed/${song.songmid}/180/180`}
+          src={toCoverThumb(
+            song.coverUrl || `https://picsum.photos/seed/${song.songmid}/180/180`,
+            256,
+          )}
           className="search-result-card__cover"
           alt=""
+          loading="lazy"
+          decoding="async"
+          width={256}
+          height={256}
         />
         <span className="search-result-card__source" style={{ backgroundColor: colors.backgroundDark, color: colors.warning }}>
           {badgeLabel}
@@ -159,7 +167,7 @@ export const OnlineSearchCard: React.FC<{
               <button
                 type="button"
                 onClick={event => { event.stopPropagation(); onToggleDownloadMenu(); }}
-                title={i18n.t('browse.download')}
+                aria-label={i18n.t('browse.download')}
                 style={{ color: colors.textPrimary, backgroundColor: colors.backgroundDark }}
               >
                 <span className="material-symbols-outlined">download</span>
@@ -170,7 +178,7 @@ export const OnlineSearchCard: React.FC<{
               <button
                 type="button"
                 onClick={event => { event.stopPropagation(); onToggleUploadMenu(); }}
-                title={i18n.t('browse.uploadToCloud')}
+                aria-label={i18n.t('browse.uploadToCloud')}
                 style={{ color: colors.textPrimary, backgroundColor: colors.backgroundDark }}
               >
                 <span className="material-symbols-outlined">cloud_upload</span>

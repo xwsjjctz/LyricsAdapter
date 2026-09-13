@@ -1,6 +1,8 @@
 import React, { type ReactElement, useCallback, useMemo } from 'react';
 import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
 import { logger } from '../services/logger';
+import { getDesktopAPI } from '../services/desktopAdapter';
+import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
 import type { OnlineSource } from '../services/onlineMusicProvider';
 import TitleBar from './TitleBar';
 import SidebarToggleButton from './SidebarToggleButton';
@@ -13,7 +15,6 @@ import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import SettingsPanel from './settings/SettingsPanel';
-import ThemePanel from './settings/ThemePanel';
 import GsapModal from './GsapModal';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
@@ -51,7 +52,6 @@ interface AppShellProps {
   handleCategoryChange: (selection: string | null) => void;
   libraryContentRef: React.RefObject<HTMLDivElement>;
   setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
-  onClearOrphanCache: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   onOpenPlaylist: (
     source: OnlineSource,
     playlistId: string,
@@ -89,7 +89,6 @@ const AppShell: React.FC<AppShellProps> = ({
   handleCategoryChange,
   libraryContentRef,
   setActiveTracks,
-  onClearOrphanCache,
   onOpenPlaylist,
   audioElement,
   isLinux,
@@ -195,8 +194,8 @@ const AppShell: React.FC<AppShellProps> = ({
         >
           {/* Frosted header band — clipped to each view's measured header bottom.
               For LibraryView this ends at the song-list column divider; for
-              Settings/Theme it ends at their header container bottom. */}
-          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS || viewMode === ViewMode.THEME) && headerHeight > 0 && (
+              Settings it ends at the panel header container bottom. */}
+          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS) && headerHeight > 0 && (
             <div
               className="frosted-header absolute top-0 left-0 right-0 z-20"
               style={{ height: 40 + headerHeight }}
@@ -210,7 +209,9 @@ const AppShell: React.FC<AppShellProps> = ({
             className="hidden"
             onChange={importVm.onFileInputChange}
           />
-          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}>
+          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}
+            style={getDesktopAPI()?.platform === 'darwin' && (viewMode === ViewMode.BROWSE || viewMode === ViewMode.METADATA)
+              ? { paddingBottom: MACOS_PLAYER_BOTTOM_INSET } : undefined}>
             {viewMode === ViewMode.BROWSE ? (
               <BrowseView
                 online={online}
@@ -244,9 +245,6 @@ const AppShell: React.FC<AppShellProps> = ({
                 onRemoveMultipleTracks={library.removeTracks}
                 onImportClick={importVm.importClick}
                 importDisabled={importVm.importDisabled}
-                importDisabledReason={
-                  library.viewSlot === 'cloud' ? library.cloudImportDisabledReason : undefined
-                }
                 onOpenSettings={openSettings}
                 onDropFiles={importVm.dropFiles}
                 onDropFilePaths={importVm.dropFilePaths}
@@ -290,18 +288,7 @@ const AppShell: React.FC<AppShellProps> = ({
               onClose={closeOverlayView}
               className="floating-panel-shell--settings"
             >
-              <SettingsPanel
-                onClose={closeOverlayView}
-                onClearOrphanCache={onClearOrphanCache}
-              />
-            </FloatingPanel>
-          )}
-          {viewMode === ViewMode.THEME && (
-            <FloatingPanel
-              onClose={closeOverlayView}
-              className="floating-panel-shell--theme"
-            >
-              <ThemePanel onClose={closeOverlayView} />
+              <SettingsPanel onClose={closeOverlayView} />
             </FloatingPanel>
           )}
           <Controls
@@ -320,6 +307,7 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             floating={floatingPanel}
+            nativeSlidersSuppressed={pendingNavigation !== null}
           />
         </main>
         <FocusMode

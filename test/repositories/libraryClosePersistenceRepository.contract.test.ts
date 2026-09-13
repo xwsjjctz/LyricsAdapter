@@ -37,7 +37,7 @@ const libraryIndex = {
   cloudSongs: [{ id: 'cloud-1', title: 'Cloud', artist: 'Artist', album: 'Album', duration: 1 }],
   onlineSongs: [{ id: 'online-1', title: 'Online', artist: 'Artist', album: 'Album', duration: 1 }],
   playlistSongs: [{ id: 'playlist-1', title: 'Playlist', artist: 'Artist', album: 'Album', duration: 1 }],
-  settings: { activeSlotId: 'online' as const, onlineSlot: { currentTime: 17 } },
+  settings: { activeSlotId: 'online' as const, onlineSlot: { currentTime: 17, currentTrackIndex: 0, volume: 0.5, playbackMode: 'order' as const, scrollPosition: 0, filterType: 'default' as const, categorySelection: null } },
 };
 
 const userTracks = [

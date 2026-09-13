@@ -4,6 +4,7 @@ import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
+import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -85,46 +86,49 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   }
 
   if (isMacOS) {
+    const layout = getMacTitleBarLayout(desktopAPI?.osRelease);
     return (
       <div
-        className="fixed top-0 left-0 right-0 h-9.5 bg-transparent select-none z-[160] flex items-start"
+        className="fixed top-0 left-0 right-0 bg-transparent select-none z-[160] flex items-start"
         style={{
+          height: layout.height,
           WebkitAppRegion: 'drag',
           WebkitUserSelect: 'none',
           userSelect: 'none'
         } as React.CSSProperties}
       >
-        <div className="w-[55px] h-full" />
+        <div className="h-full shrink-0" style={{ width: layout.dotLeft - 5 }} />
         <div className="h-full flex items-center" style={{ WebkitAppRegion: 'no-drag', visibility: isFullScreen ? 'hidden' : 'visible' } as React.CSSProperties}>
           <button
             onClick={onToggleFocusMode}
             data-no-gsap-bounce
-            className="h-12 flex items-center justify-center pl-[18px] pr-0.5"
+            className="h-full flex items-center justify-center pl-[5px] pr-0.5"
             aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
             onMouseEnter={() => setIsButtonHovered(true)}
             onMouseLeave={() => setIsButtonHovered(false)}
           >
             <div
-              className="w-[12.4px] h-[12.4px] rounded-full flex items-center justify-center transition-all"
+              className="rounded-full flex items-center justify-center transition-all"
               style={{
+                width: layout.dotSize,
+                height: layout.dotSize,
                 backgroundColor: isWindowFocused ? '#3b82f6' : 'rgba(255, 255, 255, 0.15)',
                 transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)',
                 transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.00s ease-in-out'
               }}
             >
               {isWindowFocused && isButtonHovered && (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="black"
+                <span
+                  className="material-symbols-outlined"
                   style={{
+                    color: 'black',
+                    fontSize: 12,
                     transition: 'opacity 0.15s ease-in-out',
                     opacity: 1
                   }}
                 >
-                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
-                </svg>
+                  expand_more
+                </span>
               )}
             </div>
           </button>

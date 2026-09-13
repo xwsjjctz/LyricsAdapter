@@ -111,6 +111,5 @@ export enum ViewMode {
   LYRICS = 'lyrics',
   BROWSE = 'browse',
   METADATA = 'metadata',
-  SETTINGS = 'settings',
-  THEME = 'theme'
+  SETTINGS = 'settings'
 }

@@ -40,3 +40,35 @@ export function backdropAlphaFactorAtExitProgress(progress: number): number {
 export function backdropAlphaExitProgressFromFactor(factor: number): number {
   return 1 - Math.pow(clampUnit(factor), 1 / BACKDROP_ALPHA_EXIT_POWER);
 }
+
+// Track changes keep a subtle opacity pulse, but the original legacy curve
+// (Aout = A * (1 - A * p * (1 - p))) dropped to 0.75 at the midpoint, letting
+// the library view show through enough to wash out the cover colour cross-fade.
+// Half the dip keeps the pulse while leaving the colours readable.
+export const BACKDROP_TRACK_CHANGE_DIP = 0.5;
+
+/**
+ * Uniform final-pass alpha for the cover cross-fade. `alpha` is the resting
+ * backdrop alpha and `progress` is the 0..1 cross-fade position.
+ */
+export function backdropTrackChangeAlpha(alpha: number, progress: number): number {
+  const p = clampUnit(progress);
+  return alpha * (1 - BACKDROP_TRACK_CHANGE_DIP * alpha * p * (1 - p));
+}
+
+/**
+ * Brightness breathing during a cover cross-fade. Starts from
+ * `startBrightness` so an interrupted fade continues from what is on screen
+ * instead of jumping back to the resting value, dips at the midpoint, and
+ * settles on `restingBrightness`.
+ */
+export function backdropTrackChangeBrightness(
+  startBrightness: number,
+  restingBrightness: number,
+  dimBrightness: number,
+  progress: number,
+): number {
+  const p = clampUnit(progress);
+  const base = startBrightness + (restingBrightness - startBrightness) * p;
+  return base - (base - dimBrightness) * Math.sin(p * Math.PI);
+}

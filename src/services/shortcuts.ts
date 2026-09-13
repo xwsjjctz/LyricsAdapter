@@ -28,7 +28,6 @@ export type ShortcutAction =
   | 'focusSearch'
   | 'gotoBrowse'
   | 'gotoSettings'
-  | 'gotoTheme'
   | 'gotoMetadata';
 
 const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
@@ -166,14 +165,6 @@ const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     description: 'shortcut.gotoSettingsDesc',
     defaultKey: 'CmdOrCtrl+,',
     currentKey: 'CmdOrCtrl+,',
-    scope: 'navigation'
-  },
-  gotoTheme: {
-    id: 'gotoTheme',
-    name: 'shortcut.gotoTheme',
-    description: 'shortcut.gotoThemeDesc',
-    defaultKey: 'CmdOrCtrl+T',
-    currentKey: 'CmdOrCtrl+T',
     scope: 'navigation'
   },
   gotoMetadata: {

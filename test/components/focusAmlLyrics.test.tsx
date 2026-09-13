@@ -2,6 +2,13 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Track } from '@/types';
 import FocusAmlLyrics, { FocusDomLyricPlayer } from '@/components/focus-mode/FocusAmlLyrics';
+import { settingsManager } from '@/services/settingsManager';
+
+const desktopMocks = vi.hoisted(() => ({ platform: 'win32' as string | undefined }));
+vi.mock('@/services/desktopAdapter', () => ({
+  getDesktopAPI: () => desktopMocks.platform ? { platform: desktopMocks.platform } : null,
+  isDesktop: () => false,
+}));
 
 const playerMocks = vi.hoisted(() => ({
   resetScroll: vi.fn(),
@@ -64,6 +71,7 @@ const track: Track = {
 
 describe('FocusAmlLyrics', () => {
   beforeEach(() => {
+    desktopMocks.platform = 'win32';
     vi.useFakeTimers();
     playerMocks.resetScroll.mockClear();
     playerMocks.calcLayout.mockClear();
@@ -143,5 +151,34 @@ describe('FocusAmlLyrics', () => {
       .toBeLessThan(coreCleanupMocks.disconnect.mock.invocationCallOrder[0]!);
     expect(coreCleanupMocks.disconnect.mock.invocationCallOrder[0])
       .toBeLessThan(coreCleanupMocks.dispose.mock.invocationCallOrder[0]!);
+  });
+
+  it('switches Windows typography live without replacing the lyric player', async () => {
+    await settingsManager.setFocusEnhancedFontEnabled(false);
+    const { getByTestId } = render(
+      <FocusAmlLyrics track={track} currentTime={2} isPlaying isVisible fontSize={32} lineSpacing={30} inactiveBlur={2} onSeek={vi.fn()} />,
+    );
+    const player = getByTestId('lyric-player');
+    expect(player).not.toHaveClass('focus-amll-lyrics--enhanced-font');
+    playerMocks.calcLayout.mockClear();
+    await act(async () => { await settingsManager.setFocusEnhancedFontEnabled(true); });
+    expect(player).toHaveClass('focus-amll-lyrics--enhanced-font');
+    expect(playerMocks.calcLayout).toHaveBeenCalledWith(true, true);
+    expect(getByTestId('lyric-player')).toBe(player);
+    await act(async () => { await settingsManager.setFocusEnhancedFontEnabled(false); });
+    expect(player).not.toHaveClass('focus-amll-lyrics--enhanced-font');
+    expect(player.style.getPropertyValue('--amll-lp-font-size')).toBe('32px');
+  });
+
+  it.each(['darwin', 'linux', undefined])('keeps %s typography independent of the Windows preference', async platform => {
+    desktopMocks.platform = platform;
+    await settingsManager.setFocusEnhancedFontEnabled(false);
+    const { getByTestId } = render(
+      <FocusAmlLyrics track={track} currentTime={2} isPlaying isVisible fontSize={32} lineSpacing={30} inactiveBlur={2} onSeek={vi.fn()} />,
+    );
+    const player = getByTestId('lyric-player');
+    expect(player.classList.contains('focus-amll-lyrics--enhanced-font')).toBe(platform === 'darwin');
+    await act(async () => { await settingsManager.setFocusEnhancedFontEnabled(true); });
+    expect(player.classList.contains('focus-amll-lyrics--enhanced-font')).toBe(platform === 'darwin');
   });
 });

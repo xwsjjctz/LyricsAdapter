@@ -81,6 +81,8 @@ export type UpdaterState =
 
 export interface DesktopAPI {
   platform: string;
+  /** Kernel release from preload; optional for older desktop bridges. */
+  osRelease?: string | undefined;
   ipc?: TypedElectronIPC;
   readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
@@ -167,6 +169,10 @@ class ElectronAdapter implements FullDesktopAPI {
   // Return actual OS platform from underlying API
   get platform(): string {
     return this.api.platform;
+  }
+
+  get osRelease(): string | undefined {
+    return this.api.osRelease;
   }
 
   // Forward the typed IPC surface (window.electron.ipc) so callers that hold

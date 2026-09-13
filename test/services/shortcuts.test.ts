@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { shortcutManager } from '@/services/shortcuts';
 
 beforeEach(() => {
@@ -41,8 +41,7 @@ describe('findConflict', () => {
 
   it('should return the conflicting action', () => {
     // playPause uses 'Space' by default
-    // importFiles uses 'CmdOrCtrl+I' by default
-    const conflict = shortcutManager.findConflict('importFiles', 'Space');
+    const conflict = shortcutManager.findConflict('focusSearch', 'Space');
     expect(conflict).toBe('playPause');
   });
 
@@ -134,8 +133,8 @@ describe('updateShortcut', () => {
   });
 
   it('should return false when there is a conflict', () => {
-    // importFiles uses 'CmdOrCtrl+I'; set playPause to conflict with it
-    shortcutManager.updateShortcut('importFiles', 'Ctrl+I');
+    // Assign focusSearch a key, then try assigning the same key to playPause
+    shortcutManager.updateShortcut('focusSearch', 'Ctrl+I');
     const result = shortcutManager.updateShortcut('playPause', 'Ctrl+I');
     expect(result).toBe(false);
   });

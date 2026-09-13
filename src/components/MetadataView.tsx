@@ -569,7 +569,7 @@ const MetadataView = forwardRef<MetadataViewHandle, MetadataViewProps>(({
                       style={{ backgroundColor: colors.backgroundCard, color: colors.textMuted }}
                       onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
                       onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textMuted; }}
-                      title={t('common.cancel')}
+                      aria-label={t('common.cancel')}
                     >
                       <span className="material-symbols-outlined text-[10px]">close</span>
                     </button>

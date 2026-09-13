@@ -72,7 +72,7 @@ describe('useSidebarLayout persistence', () => {
     await waitFor(() => expect(mocks.deleteSetting).toHaveBeenCalledWith('sidebar-layout'));
     expect(mocks.setItem).toHaveBeenCalledWith('sidebar-layout', legacy);
     expect(mocks.setItem.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteSetting.mock.invocationCallOrder[0],
+      mocks.deleteSetting.mock.invocationCallOrder[0]!,
     );
   });
 
@@ -105,7 +105,7 @@ describe('useSidebarLayout persistence', () => {
     await waitFor(() => expect(mocks.deleteSetting).toHaveBeenCalledWith('sidebar-layout'));
     expect(mocks.setItem).toHaveBeenCalledWith('sidebar-layout', legacy);
     expect(mocks.setItem.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteSetting.mock.invocationCallOrder[0],
+      mocks.deleteSetting.mock.invocationCallOrder[0]!,
     );
     expect(mocks.setSetting).not.toHaveBeenCalled();
   });

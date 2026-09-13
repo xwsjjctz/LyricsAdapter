@@ -223,6 +223,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     ...inheritedEnv,
     NODE_ENV: 'test',
     LYRICS_ADAPTER_E2E_STATIC: '1',
+    LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
     HOME: isolatedHome,
     USERPROFILE: isolatedHome,
     APPDATA: dirs.appData,
@@ -283,63 +284,40 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       }
     })).toBe(true);
 
+    if (process.platform === 'darwin') {
+      const focusButton = page.getByRole('button', { name: /Enter Focus Mode|进入专注模式/ });
+      const sidebarButton = page.getByRole('button', { name: /Collapse Sidebar|收起侧边栏/ });
+      await expect(focusButton).toBeVisible();
+      await expect(sidebarButton).toBeVisible();
+      const dot = await focusButton.locator(':scope > div').boundingBox();
+      const toggle = await sidebarButton.boundingBox();
+      expect(dot).not.toBeNull();
+      expect(toggle).not.toBeNull();
+      if (!dot || !toggle) throw new Error('Missing macOS title bar controls');
+      // Native hiddenInset geometry measured on macOS 26; the older baseline
+      // is preserved by resource/LibraryView_1.png. Do not import layout constants
+      // here: this checks that the real preload and renderer agree with the OS.
+      const isTahoe = Number.parseInt(os.release(), 10) >= 25;
+      expect(dot.x + dot.width / 2).toBeCloseTo(isTahoe ? 88 : 79.2, 1);
+      expect(dot.y + dot.height / 2).toBeCloseTo(isTahoe ? 18 : 19, 1);
+      expect(toggle.y + toggle.height / 2).toBeCloseTo(dot.y + dot.height / 2, 1);
+      expect(toggle.x).toBeGreaterThan(dot.x + dot.width);
+      await sidebarButton.click();
+      const expandButton = page.getByRole('button', { name: /Expand Sidebar|展开侧边栏/ });
+      await expect(expandButton).toBeVisible();
+      await expandButton.click();
+      await expect(sidebarButton).toBeVisible();
+    }
+
     if (process.platform === 'win32') {
-      const getTaskbarPage = () => electronApp!.windows().find(candidate =>
-        candidate.url() === 'app://localhost/taskbar-lyrics.html');
-      await expect.poll(() => Boolean(getTaskbarPage()), { timeout: 10_000 }).toBe(true);
-      const taskbarPage = getTaskbarPage();
-      if (!taskbarPage) throw new Error('Taskbar lyrics renderer was not created');
-
-      await expect.poll(() => taskbarPage.evaluate(() => {
-        const taskbarWindow = window as typeof window & {
-          taskbarLyrics?: { onState?: unknown };
-        };
-        return typeof taskbarWindow.taskbarLyrics?.onState;
-      })).toBe('function');
-      await expect(taskbarPage.locator('button')).toHaveCount(0);
-
-      const readTaskbarWindowState = () => electronApp!.evaluate(({ BrowserWindow }) => {
-        const window = BrowserWindow.getAllWindows().find(candidate =>
-          candidate.getTitle() === 'LyricsAdapter Taskbar Lyrics');
-        return window ? {
-          bounds: window.getBounds(),
-          alwaysOnTop: window.isAlwaysOnTop(),
-          visible: window.isVisible(),
-        } : null;
-      });
-      const widget = taskbarPage.locator('#taskbar-lyrics-widget');
-      const nativeTaskbarAvailable = await widget.waitFor({
-        state: 'visible',
-        timeout: 3_000,
-      }).then(() => true, () => false);
-
-      // Playwright can run Electron in an isolated Windows environment where
-      // Explorer's Shell_TrayWnd is intentionally unavailable. The production
-      // service fails closed there instead of falling back to a top-level
-      // always-on-top overlay. A normal interactive desktop exercises the full
-      // renderer assertions below.
-      if (nativeTaskbarAvailable) {
-        await expect(taskbarPage.locator('#current-lyric')).toHaveText('Focus legacy renderer');
-        await expect(taskbarPage.locator('#next-lyric')).toHaveText('Focus AMLL renderer');
-        await expect(taskbarPage.locator('#artwork-image')).toHaveAttribute(
-          'src',
-          /cover:\/\/e2e-focus-track\.png\/?\?size=128/,
-        );
-        const taskbarText = await taskbarPage.locator('body').innerText();
-        expect(taskbarText).not.toContain('Focus E2E Fixture');
-        expect(taskbarText).not.toContain('LyricsAdapter');
-      } else {
-        await expect(widget).toBeHidden();
-      }
-
-      const taskbarWindowState = await readTaskbarWindowState();
-      expect(taskbarWindowState).not.toBeNull();
-      expect(taskbarWindowState?.visible).toBe(nativeTaskbarAvailable);
-      expect(taskbarWindowState?.alwaysOnTop).toBe(false);
-      expect(taskbarWindowState?.bounds.height).toBeGreaterThanOrEqual(24);
-      expect(taskbarWindowState?.bounds.height).toBeLessThanOrEqual(40);
-      expect(taskbarWindowState?.bounds.width).toBeGreaterThanOrEqual(160);
-      expect(taskbarWindowState?.bounds.width).toBeLessThanOrEqual(420);
+      // Windows taskbar lyrics now live in a separate C# WPF process. Ensure
+      // Electron no longer creates the Chromium overlay that previously owned
+      // this title; native host behavior is covered by the Windows build job.
+      const chromiumTaskbarWindows = await electronApp.evaluate(({ BrowserWindow }) => (
+        BrowserWindow.getAllWindows().filter(candidate =>
+          candidate.getTitle() === 'LyricsAdapter Taskbar Lyrics').length
+      ));
+      expect(chromiumTaskbarWindows).toBe(0);
     }
 
     // Custom-protocol resources do not consistently appear in the Performance
@@ -790,9 +768,12 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     const endingSample = nearestSample(breathingProbe.transitionStartedAt + 1_100);
 
     expect(breathingProbe.initialRgba[3]).toBeGreaterThanOrEqual(250);
-    expect(midpointSample.rgba[3]).toBeGreaterThanOrEqual(180);
-    expect(midpointSample.rgba[3]).toBeLessThanOrEqual(205);
-    expect(midpointSample.rgba[3]).toBeLessThan((breathingProbe.initialRgba[3] ?? 0) - 40);
+    // The track-change dip was halved so the cover colour cross-fade stays
+    // readable: the minimum is now ~0.875 of the resting alpha (≈223/255)
+    // instead of the legacy ~0.75 (≈191/255).
+    expect(midpointSample.rgba[3]).toBeGreaterThanOrEqual(210);
+    expect(midpointSample.rgba[3]).toBeLessThanOrEqual(240);
+    expect(midpointSample.rgba[3]).toBeLessThan((breathingProbe.initialRgba[3] ?? 0) - 20);
     expect(endingSample.rgba[3]).toBeGreaterThanOrEqual(250);
     expect(Math.abs(
       minimumAlphaSample.elapsed - (breathingProbe.transitionStartedAt + 500),
@@ -915,39 +896,15 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 
-    // The experimental setting is on by default, persists through the main
-    // settings store, and swaps the renderer without keeping both trees mounted.
+    // AMLL is now the default renderer and its experimental switch is hidden
+    // from Settings. Persistence semantics are covered by SettingsManager unit
+    // tests; this smoke test only verifies the shipped UI and active renderer.
     const settingsButton = page.getByRole('button', {
       name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
     }).first();
     await settingsButton.click();
-    const amllLyricsSwitch = page.getByRole('switch', { name: /AMLL/i });
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
-    await amllLyricsSwitch.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
-    await expect.poll(() => page!.evaluate(async () => {
-      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      const settings = await api?.settingsGetAll?.();
-      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
-    })).toBe('false');
-    await page.getByRole('button', { name: 'Close settings panel' }).click();
-
-    await focusToggle.click();
-    await expect(focusOverlay).toBeVisible();
-    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
-    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
-    await focusToggle.click();
-    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
-
-    await settingsButton.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
-    await amllLyricsSwitch.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
-    await expect.poll(() => page!.evaluate(async () => {
-      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      const settings = await api?.settingsGetAll?.();
-      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
-    })).toBe('true');
+    const amllLyricsSwitch = page.locator('[role="switch"][aria-describedby="focus-amll-lyrics-description"]');
+    await expect(amllLyricsSwitch).toHaveCount(0);
     await page.getByRole('button', { name: 'Close settings panel' }).click();
 
     await focusToggle.click();
@@ -971,7 +928,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     });
 
     const defaultLyricsMetrics = await readFocusLyricsMetrics();
-    expect(defaultLyricsMetrics.fontSize).toBe('24px');
+    expect(defaultLyricsMetrics.fontSize).toBe('32px');
     expect(defaultLyricsMetrics.lineSpacingAdjustment).toBe('3px');
     await electronApp.evaluate(({ BrowserWindow }) => {
       const mainWindow = BrowserWindow.getAllWindows().find(candidate =>
