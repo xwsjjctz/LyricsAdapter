@@ -12,6 +12,12 @@
   z-index: 40;
 }
 
+/* FocusMode remains mounted until its exit animation finishes. Keep the
+   external player above that page for the complete enter and exit sequence. */
+body:has(.focus-mode-overlay) .macos-floating-player {
+  z-index: 140;
+}
+
 .macos-floating-player .player-track-info {
   flex: 0 1 180px;
   width: 24%;

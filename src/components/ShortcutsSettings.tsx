@@ -196,7 +196,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
             style={{ color: colors.textMuted }}
             onMouseEnter={e => e.currentTarget.style.color = colors.textSecondary}
             onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
-            title={config.currentKey ? t('settings.shortcuts.reset') : t('settings.shortcuts.clear')}
+            aria-label={config.currentKey ? t('settings.shortcuts.reset') : t('settings.shortcuts.clear')}
           >
             <span className="material-symbols-outlined text-sm">
               {config.currentKey ? 'restart_alt' : 'backspace'}

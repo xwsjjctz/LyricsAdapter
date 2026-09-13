@@ -228,7 +228,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         color: 'var(--theme-control-icon-fg)',
         backgroundColor: 'transparent',
       }}
-      title={label}
       aria-label={label}
     >
       <span className="material-symbols-outlined text-[20px]">{icon}</span>
@@ -338,7 +337,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               borderWidth: 'var(--theme-control-border-width)',
               color: 'var(--theme-warning)',
             }}
-            title="Reload unavailable tracks"
           >
             <span className="material-symbols-outlined text-[20px]">refresh</span>
             <span>{t('sidebar.reloadFiles')}</span>
@@ -353,7 +351,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClick={toggleNightMode}
           className="relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
           style={{ color: 'var(--theme-control-icon-fg)', backgroundColor: 'transparent' }}
-          title={t('settings.nightMode')}
           aria-label={t('settings.nightMode')}
           aria-pressed={currentTheme.isDark}
         >

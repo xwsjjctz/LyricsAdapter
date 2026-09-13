@@ -167,7 +167,7 @@ export const OnlineSearchCard: React.FC<{
               <button
                 type="button"
                 onClick={event => { event.stopPropagation(); onToggleDownloadMenu(); }}
-                title={i18n.t('browse.download')}
+                aria-label={i18n.t('browse.download')}
                 style={{ color: colors.textPrimary, backgroundColor: colors.backgroundDark }}
               >
                 <span className="material-symbols-outlined">download</span>
@@ -178,7 +178,7 @@ export const OnlineSearchCard: React.FC<{
               <button
                 type="button"
                 onClick={event => { event.stopPropagation(); onToggleUploadMenu(); }}
-                title={i18n.t('browse.uploadToCloud')}
+                aria-label={i18n.t('browse.uploadToCloud')}
                 style={{ color: colors.textPrimary, backgroundColor: colors.backgroundDark }}
               >
                 <span className="material-symbols-outlined">cloud_upload</span>

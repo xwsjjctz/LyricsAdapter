@@ -140,7 +140,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
             }}
             className="w-8 h-8 flex items-center justify-center transition-all"
             style={{ color: colors.textMuted, borderRadius: 'var(--theme-button-radius)' }}
-            title={t('sidebar.metadata')}
+            aria-label={t('sidebar.metadata')}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
           >

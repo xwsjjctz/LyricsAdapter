@@ -247,9 +247,6 @@ const AppShell: React.FC<AppShellProps> = ({
                 onRemoveMultipleTracks={library.removeTracks}
                 onImportClick={importVm.importClick}
                 importDisabled={importVm.importDisabled}
-                importDisabledReason={
-                  library.viewSlot === 'cloud' ? library.cloudImportDisabledReason : undefined
-                }
                 onOpenSettings={openSettings}
                 onDropFiles={importVm.dropFiles}
                 onDropFilePaths={importVm.dropFilePaths}
@@ -315,7 +312,7 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             floating={floatingPanel}
-            nativeSlidersSuppressed={viewMode === ViewMode.SETTINGS || pendingNavigation !== null}
+            nativeSlidersSuppressed={pendingNavigation !== null}
           />
         </main>
         <FocusMode

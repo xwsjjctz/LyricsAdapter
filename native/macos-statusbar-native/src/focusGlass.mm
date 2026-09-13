@@ -257,7 +257,7 @@ API_AVAILABLE(macos(26.0))
   NSArray<NSView*>* controls = @[self.play, self.previous, self.next, self.seek, self.volume, self.mute, self.mode];
   const char* keys[] = {"playPause", "previous", "next", "seek", "volume", "mute", "mode"};
   for (NSUInteger i = 0; i < controls.count; i++) {
-    NSString* label = String(labels, keys[i]); controls[i].accessibilityLabel = label; controls[i].toolTip = label;
+    NSString* label = String(labels, keys[i]); controls[i].accessibilityLabel = label;
   }
   [self layoutSubtreeIfNeeded];
   // No second AppKit animation: position and opacity already include the page

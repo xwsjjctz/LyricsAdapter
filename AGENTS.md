@@ -74,6 +74,9 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
   `node-id3` behavior unless the task deliberately migrates it.
 - Use the process-appropriate logger (`src/services/logger.ts` or `electron/logger.ts`)
   for application diagnostics. Window drag regions are defined in `TitleBar.tsx`.
+- Icon controls must not use HTML `title` attributes or native tooltips. Provide
+  accessible names with `aria-label` in the renderer and `accessibilityLabel` in
+  native code; show essential explanations in visible UI instead of hover text.
 
 ## Debugging and Git
 

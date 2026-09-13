@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { usePlayerControlbar } from '@/hooks/usePlayerControlbar';
+import { controlbarPresentation, usePlayerControlbar } from '@/hooks/usePlayerControlbar';
 import type { PlayerControlbarAction } from '@/types/playerControlbar';
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +30,28 @@ beforeEach(() => {
 });
 
 describe('usePlayerControlbar', () => {
+  it('keeps the native bar above the FocusMode transition while hiding it behind other overlays', () => {
+    const anchor = document.createElement('div');
+    anchor.style.opacity = '1';
+    document.body.appendChild(anchor);
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+      x: 20, y: 80, left: 20, top: 80, right: 420, bottom: 144,
+      width: 400, height: 64, toJSON: () => ({}),
+    });
+    const focusOverlay = document.createElement('div');
+    focusOverlay.className = 'focus-mode-overlay';
+    const focusChild = document.createElement('div');
+    focusOverlay.appendChild(focusChild);
+    const regularOverlay = document.createElement('div');
+    const elementFromPoint = vi.fn<() => Element | null>().mockReturnValue(focusChild);
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: elementFromPoint });
+
+    expect(controlbarPresentation(anchor, true).opacity).toBe(1);
+    elementFromPoint.mockReturnValue(regularOverlay);
+    expect(controlbarPresentation(anchor, true).opacity).toBe(0);
+    anchor.remove();
+  });
+
   it('routes native actions to the latest player intents and releases the surface', async () => {
     const first = options();
     const { result, rerender, unmount } = renderHook(props => usePlayerControlbar(props), { initialProps: first });

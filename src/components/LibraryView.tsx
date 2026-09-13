@@ -28,7 +28,6 @@ interface LibraryViewProps {
   onRemoveMultipleTracks?: (trackIds: string[], deleteFile?: boolean) => void;
   onImportClick?: () => void;
   importDisabled?: boolean;
-  importDisabledReason?: string | undefined;
   onOpenSettings?: () => void;
   onDropFiles?: (files: File[]) => void;
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
@@ -82,7 +81,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onRemoveMultipleTracks,
   onImportClick,
   importDisabled = false,
-  importDisabledReason,
   onOpenSettings,
   onDropFiles,
   onDropFilePaths,
@@ -916,7 +914,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           }
         }}
         onBatchDelete={confirmBatchDelete}
-        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled, importDisabledReason } : {})}
+        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         trackCount={filteredTracks.length}
         {...(playlistTitle ? { playlistTitle } : {})}
@@ -1068,7 +1066,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         cursor: dataSource === 'local' && importDisabled ? 'not-allowed' : 'pointer',
                         opacity: dataSource === 'local' && importDisabled ? 0.55 : 1,
                       }}
-                      title={dataSource === 'local' && importDisabled ? importDisabledReason : undefined}
                     >
                       <span className="material-symbols-outlined text-lg">{emptyState.primaryIcon}</span>
                       <span>{emptyState.primaryLabel}</span>
@@ -1314,7 +1311,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                                  }}
                                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                                  style={{ color: colors.textMuted }}
-                                 title={t('sidebar.metadata')}
+                                 aria-label={t('sidebar.metadata')}
                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
                                >
@@ -1371,7 +1368,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
             bottom: bottomInset + 24,
           }}
-          title={t('library.locateToCurrent')}
+          aria-label={t('library.locateToCurrent')}
           onMouseEnter={e => {
             if (inlineFab) return; // 粗粝风按钮 hover 不变阴影/底色，保持稳定外观
             e.currentTarget.style.backgroundColor = colors.backgroundCardHover;

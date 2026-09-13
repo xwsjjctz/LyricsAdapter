@@ -27,7 +27,11 @@ export function controlbarPresentation(element: HTMLElement | null, visible: boo
   const rect = element.getBoundingClientRect();
   for (const fraction of [0.05, 0.5, 0.95]) {
     const top = document.elementFromPoint(rect.left + rect.width * fraction, rect.top + rect.height / 2);
-    if (!top || !element.contains(top)) return { ...result, opacity: 0 };
+    // FocusMode is itself transitioning while the bar slides out. The native
+    // controlbar intentionally stays above that page for both directions, so
+    // its temporary overlap must not be treated as an obscuring modal.
+    const focusTransitionLayer = top instanceof Element && top.closest('.focus-mode-overlay');
+    if (!top || (!element.contains(top) && !focusTransitionLayer)) return { ...result, opacity: 0 };
   }
   return result;
 }

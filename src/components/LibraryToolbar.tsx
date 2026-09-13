@@ -17,7 +17,6 @@ interface LibraryToolbarProps {
   onBatchDelete: () => void;
   onImportClick?: () => void;
   importDisabled?: boolean;
-  importDisabledReason?: string | undefined;
   onRefreshCloud?: () => void;
   isRefreshing?: boolean;
   trackCount: number;
@@ -48,7 +47,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   onBatchDelete,
   onImportClick,
   importDisabled = false,
-  importDisabledReason,
   onRefreshCloud,
   isRefreshing = false,
   trackCount,
@@ -125,7 +123,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           cursor: importDisabled ? 'not-allowed' : 'pointer',
           opacity: importDisabled ? 0.55 : 1,
         }}
-        title={importDisabled ? importDisabledReason : t('sidebar.importFiles')}
         aria-label={t('sidebar.importFiles')}
       >
         <span className="material-symbols-outlined text-[22px]">{icon}</span>
@@ -187,7 +184,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               }}
               onMouseEnter={isRefreshing ? undefined : (e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; })}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-              title={t('library.refresh')}
               aria-label={t('library.refresh')}
             >
               <span

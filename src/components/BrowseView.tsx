@@ -416,7 +416,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                         <div className="relative">
                           <button
                             onClick={() => toggleDropdown(song.songmid)}
-                            title={t('browse.download')}
+                            aria-label={t('browse.download')}
                             className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                             style={{ color: colors.textMuted }}
                             onMouseEnter={e => { e.currentTarget.style.color = colors.primary; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}
@@ -462,7 +462,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                         <div className="relative">
                           <button
                             onClick={() => toggleUploadDropdown(song.songmid)}
-                            title={t('browse.uploadToCloud')}
+                            aria-label={t('browse.uploadToCloud')}
                             className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                             style={{ color: colors.textMuted }}
                             onMouseEnter={e => { e.currentTarget.style.color = colors.accent; e.currentTarget.style.backgroundColor = 'rgba(128,128,128,0.1)'; }}

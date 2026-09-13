@@ -68,13 +68,30 @@ NSColor* Color(NSString* hex) {
 @end
 
 API_AVAILABLE(macos(26.0))
-@interface LALibraryToolbarGlassButton : NSButton
+@interface LALibraryToolbarGlassButton : NSGlassEffectView
+@property(nonatomic, strong) NSButton* actionButton;
 @property(nonatomic) BOOL reportsPrimaryHover;
 @property(nonatomic, weak) id<LALibraryToolbarGlassHoverDelegate> hoverDelegate;
 @property(nonatomic, strong) NSTrackingArea* hoverTrackingArea;
 @end
 
 @implementation LALibraryToolbarGlassButton
+- (instancetype)initWithFrame:(NSRect)frame {
+  self = [super initWithFrame:frame]; if (!self) return nil;
+  self.style = NSGlassEffectViewStyleRegular;
+  self.cornerRadius = 12;
+  self.contentView = [[NSView alloc] initWithFrame:NSZeroRect];
+  _actionButton = [NSButton buttonWithImage:LibraryToolbarGlass::Symbol(@"edit") target:nil action:nil];
+  _actionButton.bordered = NO; _actionButton.imagePosition = NSImageOnly;
+  _actionButton.imageScaling = NSImageScaleProportionallyDown;
+  [self.contentView addSubview:_actionButton];
+  return self;
+}
+- (void)layout {
+  [super layout];
+  self.contentView.frame = self.bounds;
+  self.actionButton.frame = self.contentView.bounds;
+}
 - (void)updateTrackingAreas {
   [super updateTrackingAreas];
   if (self.hoverTrackingArea) [self removeTrackingArea:self.hoverTrackingArea];
@@ -110,9 +127,7 @@ API_AVAILABLE(macos(26.0))
 }
 - (LALibraryToolbarGlassButton*)button:(SEL)action primary:(BOOL)primary {
   LALibraryToolbarGlassButton* button = [[LALibraryToolbarGlassButton alloc] initWithFrame:NSZeroRect];
-  button.target = self; button.action = action; button.bordered = YES;
-  button.bezelStyle = NSBezelStyleGlass; button.imagePosition = NSImageOnly;
-  button.imageScaling = NSImageScaleProportionallyDown; button.controlSize = NSControlSizeLarge;
+  button.actionButton.target = self; button.actionButton.action = action;
   button.reportsPrimaryHover = primary; button.hoverDelegate = self;
   [self addSubview:button]; return button;
 }
@@ -134,13 +149,17 @@ API_AVAILABLE(macos(26.0))
   CGFloat width = Number(presentation, "width", 0, 4) * self.bounds.size.width;
   CGFloat height = Number(presentation, "height", 0, 4) * self.bounds.size.height;
   button.frame = NSMakeRect(x, (1 - y) * self.bounds.size.height - height, width, height);
+  button.cornerRadius = std::min<CGFloat>(12, std::min(width, height) / 2);
+  [button setNeedsLayout:YES];
   button.alphaValue = Number(presentation, "opacity", 0, 1);
   button.hidden = width <= 0 || height <= 0 || button.alphaValue <= 0.001;
-  button.image = Symbol(String(value, "symbol"));
-  button.enabled = Bool(value, "enabled");
-  button.tintProminence = Bool(value, "emphasized") ? NSTintProminencePrimary : NSTintProminenceSecondary;
-  button.bezelColor = Color(String(value, "tintColor"));
-  NSString* label = String(value, "label"); button.accessibilityLabel = label; button.toolTip = label;
+  button.actionButton.image = Symbol(String(value, "symbol"));
+  button.actionButton.enabled = Bool(value, "enabled");
+  NSColor* tint = Color(String(value, "tintColor"));
+  button.tintColor = Bool(value, "emphasized") ? tint : nil;
+  button.actionButton.contentTintColor = button.actionButton.enabled ? NSColor.labelColor : NSColor.disabledControlTextColor;
+  NSString* label = String(value, "label");
+  button.actionButton.accessibilityLabel = label;
 }
 - (void)apply:(napi_value)state {
   using namespace LibraryToolbarGlass;

@@ -296,7 +296,7 @@ API_AVAILABLE(macos(26.0))
   napi_value labels = Get(state, "labels");
   NSArray<NSView*>* controls = @[self.artwork, self.play, self.previous, self.next, self.seek, self.volume, self.mute, self.mode];
   const char* keys[] = {"focus", "playPause", "previous", "next", "seek", "volume", "mute", "mode"};
-  for (NSUInteger i = 0; i < controls.count; i++) { NSString* text = String(labels, keys[i]); controls[i].accessibilityLabel = text; controls[i].toolTip = text; }
+  for (NSUInteger i = 0; i < controls.count; i++) { NSString* text = String(labels, keys[i]); controls[i].accessibilityLabel = text; }
   [self layoutSubtreeIfNeeded]; double opacity = Number(p, "opacity", 0, 1); self.bar.alphaValue = opacity; self.volumeDisclosure.alphaValue = opacity;
   BOOL hidden = opacity <= 0.001 || frame.size.width <= 0 || frame.size.height <= 0;
   self.bar.hidden = hidden; self.volumeDisclosure.hidden = hidden;
