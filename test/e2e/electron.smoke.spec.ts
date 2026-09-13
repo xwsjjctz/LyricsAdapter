@@ -896,39 +896,15 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 
-    // The experimental setting is on by default, persists through the main
-    // settings store, and swaps the renderer without keeping both trees mounted.
+    // AMLL is now the default renderer and its experimental switch is hidden
+    // from Settings. Persistence semantics are covered by SettingsManager unit
+    // tests; this smoke test only verifies the shipped UI and active renderer.
     const settingsButton = page.getByRole('button', {
       name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
     }).first();
     await settingsButton.click();
     const amllLyricsSwitch = page.locator('[role="switch"][aria-describedby="focus-amll-lyrics-description"]');
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
-    await amllLyricsSwitch.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
-    await expect.poll(() => page!.evaluate(async () => {
-      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      const settings = await api?.settingsGetAll?.();
-      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
-    })).toBe('false');
-    await page.getByRole('button', { name: 'Close settings panel' }).click();
-
-    await focusToggle.click();
-    await expect(focusOverlay).toBeVisible();
-    await expect(focusOverlay.getByTestId('focus-legacy-lyrics')).toHaveCount(1);
-    await expect(focusOverlay.locator('.amll-lyric-player')).toHaveCount(0);
-    await focusToggle.click();
-    await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
-
-    await settingsButton.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'false');
-    await amllLyricsSwitch.click();
-    await expect(amllLyricsSwitch).toHaveAttribute('aria-checked', 'true');
-    await expect.poll(() => page!.evaluate(async () => {
-      const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      const settings = await api?.settingsGetAll?.();
-      return (settings as Record<string, string> | undefined)?.['la_focus_amll_lyrics_enabled'];
-    })).toBe('true');
+    await expect(amllLyricsSwitch).toHaveCount(0);
     await page.getByRole('button', { name: 'Close settings panel' }).click();
 
     await focusToggle.click();

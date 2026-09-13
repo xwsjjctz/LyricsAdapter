@@ -263,7 +263,13 @@ test('interrupting a Focus Mode track change keeps the backdrop pixels continuou
      */
     const findUnexplainedJump = (
       samples: { t: number; rgba: number[] }[],
-    ): { delta: number; index: number; gapMs: number; previousGapMs: number } | null => {
+    ): {
+      delta: number;
+      allowedDelta: number;
+      index: number;
+      gapMs: number;
+      previousGapMs: number;
+    } | null => {
       for (let index = 1; index < samples.length; index++) {
         const previous = samples[index - 1]!;
         const current = samples[index]!;
@@ -271,11 +277,15 @@ test('interrupting a Focus Mode track change keeps the backdrop pixels continuou
           ...previous.rgba.slice(0, 3).map((channel, channelIndex) =>
             channel - (current.rgba[channelIndex] ?? 0)),
         );
-        if (delta <= 25) continue;
         const gapMs = current.t - previous.t;
         const previousGapMs = index >= 2 ? previous.t - samples[index - 2]!.t : 0;
-        if (Math.max(gapMs, previousGapMs) <= 50) {
-          return { delta, index, gapMs, previousGapMs };
+        const effectiveGapMs = Math.max(1000 / 60, gapMs, previousGapMs);
+        // Xvfb can render at roughly 20–25fps. A continuous 400ms reverse then
+        // covers more colour distance per sampled frame than it does at 60fps,
+        // so judge the delta as a rate while retaining a floor for quantization.
+        const allowedDelta = Math.max(25, effectiveGapMs * 0.8);
+        if (effectiveGapMs <= 100 && delta > allowedDelta) {
+          return { delta, allowedDelta, index, gapMs, previousGapMs };
         }
       }
       return null;

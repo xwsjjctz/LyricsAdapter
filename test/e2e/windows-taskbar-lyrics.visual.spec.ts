@@ -133,6 +133,7 @@ function comparePixels(
   after: TaskbarEdgeImage,
   ignoredBounds: readonly NonNullable<PixelDifference['bounds']>[] = [],
   horizontalBandWidth?: number,
+  verticalBandHeight?: number,
 ): PixelDifference {
   expect(after.width).toBe(before.width);
   expect(after.height).toBe(before.height);
@@ -182,6 +183,32 @@ function comparePixels(
     const strongestEnd = strongestStart + width - 1;
     selected = changed.filter(pixel => (
       pixel.x >= strongestStart && pixel.x <= strongestEnd
+    ));
+  }
+
+  // The CI taskbar contains independently animated system-tray pixels. Limit
+  // the selected horizontal region to its densest widget-height band so a clock
+  // tick or notification cannot stretch the lyrics widget's bounding box.
+  if (verticalBandHeight && selected.length > 0) {
+    const height = Math.max(1, Math.min(before.height, Math.round(verticalBandHeight)));
+    const rows = new Uint32Array(before.height);
+    for (const pixel of selected) rows[pixel.y] = (rows[pixel.y] ?? 0) + 1;
+
+    let currentCount = 0;
+    for (let y = 0; y < height; y++) currentCount += rows[y] ?? 0;
+    let strongestCount = currentCount;
+    let strongestStart = 0;
+    for (let start = 1; start <= before.height - height; start++) {
+      currentCount -= rows[start - 1] ?? 0;
+      currentCount += rows[start + height - 1] ?? 0;
+      if (currentCount > strongestCount) {
+        strongestCount = currentCount;
+        strongestStart = start;
+      }
+    }
+    const strongestEnd = strongestStart + height - 1;
+    selected = selected.filter(pixel => (
+      pixel.y >= strongestStart && pixel.y <= strongestEnd
     ));
   }
 
@@ -372,6 +399,7 @@ test.describe('Windows taskbar lyrics visual surface', () => {
               capture[edge],
               ignoredBounds,
               210 * baseline.scaleFactor,
+              56 * baseline.scaleFactor,
             ),
           };
         });
