@@ -1,7 +1,6 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
 import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
-import type { LibraryToolbarGlassAction, LibraryToolbarGlassState } from './libraryToolbarGlass';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -52,12 +51,6 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
-  libraryToolbarGlass?: {
-    start: () => Promise<IpcResult<boolean>>;
-    update: (state: LibraryToolbarGlassState) => Promise<IpcResult<void>>;
-    stop: () => Promise<IpcResult<void>>;
-    onAction: (callback: (action: LibraryToolbarGlassAction) => void) => () => void;
-  };
   playerControlbar?: {
     start: () => Promise<IpcResult<boolean>>;
     update: (state: PlayerControlbarState) => Promise<IpcResult<void>>;

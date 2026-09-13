@@ -52,7 +52,6 @@ interface AppShellProps {
   handleCategoryChange: (selection: string | null) => void;
   libraryContentRef: React.RefObject<HTMLDivElement>;
   setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
-  onClearOrphanCache: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
   onOpenPlaylist: (
     source: OnlineSource,
     playlistId: string,
@@ -90,7 +89,6 @@ const AppShell: React.FC<AppShellProps> = ({
   handleCategoryChange,
   libraryContentRef,
   setActiveTracks,
-  onClearOrphanCache,
   onOpenPlaylist,
   audioElement,
   isLinux,
@@ -290,10 +288,7 @@ const AppShell: React.FC<AppShellProps> = ({
               onClose={closeOverlayView}
               className="floating-panel-shell--settings"
             >
-              <SettingsPanel
-                onClose={closeOverlayView}
-                onClearOrphanCache={onClearOrphanCache}
-              />
+              <SettingsPanel onClose={closeOverlayView} />
             </FloatingPanel>
           )}
           <Controls

@@ -151,7 +151,8 @@ API_AVAILABLE(macos(26.0))
 - (NSView*)hitTest:(NSPoint)point { NSView* result = [super hitTest:point]; return result == self ? nil : result; }
 - (NSButton*)button:(NSString*)symbol name:(NSString*)name size:(CGFloat)size action:(SEL)action parent:(NSView*)parent {
   NSButton* button = [NSButton buttonWithImage:PlayerControlbar::Symbol(symbol, size) target:self action:action];
-  button.bordered = NO; button.imagePosition = NSImageOnly; button.contentTintColor = NSColor.labelColor;
+  button.bordered = NO; button.imagePosition = NSImageOnly; button.imageScaling = NSImageScaleProportionallyDown;
+  button.alignment = NSTextAlignmentCenter; button.contentTintColor = NSColor.labelColor;
   button.accessibilityIdentifier = name; [parent addSubview:button]; return button;
 }
 - (NSTextField*)label:(CGFloat)size weight:(NSFontWeight)weight color:(NSColor*)color parent:(NSView*)parent {
@@ -232,7 +233,9 @@ API_AVAILABLE(macos(26.0))
   self.bar.frame = NSMakeRect(normalized.origin.x * self.bounds.size.width, (1 - NSMaxY(normalized)) * self.bounds.size.height, width, height);
   CGFloat panelRadius = std::min<CGFloat>(22, height / 2); self.bar.cornerRadius = panelRadius; self.bar.contentView.frame = self.bar.bounds;
   self.highlight.frame = self.bar.bounds; self.highlight.cornerRadius = panelRadius; [self.highlight setNeedsDisplay:YES];
-  CGFloat centerY = self.bar.bounds.size.height / 2;
+  // Snap every control to one shared half-point centre. AppKit otherwise lands
+  // odd and even control frames on different backing pixels at Retina scale.
+  CGFloat centerY = floor(self.bar.bounds.size.height / 2.0) + 0.5;
   self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
   CGFloat localVolumeX = width - 76;
@@ -248,7 +251,7 @@ API_AVAILABLE(macos(26.0))
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
   if (_volumeRevealed == revealed && self.volume.hidden == !revealed) return;
   _volumeRevealed = revealed; [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil];
-  CGFloat centerY = self.bar.bounds.size.height / 2;
+  CGFloat centerY = floor(self.bar.bounds.size.height / 2.0) + 0.5;
   CGFloat volumeX = NSMinX(self.bar.frame) + self.bar.bounds.size.width - 76;
   CGFloat volumeY = NSMinY(self.bar.frame) + centerY - 16;
   NSRect targetFrame = revealed ? NSMakeRect(volumeX, volumeY, 32, 104) : NSMakeRect(volumeX, volumeY, 32, 32);

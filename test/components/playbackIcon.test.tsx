@@ -1,16 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { PlaybackIcon, useMacSystemIcons, usePlaybackSymbols } from '@/components/PlaybackIcon';
+import { PlaybackIcon, usePlaybackSymbols } from '@/components/PlaybackIcon';
 
 const mocks = vi.hoisted(() => ({ desktop: vi.fn() }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: mocks.desktop }));
 function Icon({ name = 'play_arrow' }: { name?: 'play_arrow' | 'pause' }) {
   const symbols = usePlaybackSymbols();
   return <PlaybackIcon name={name} symbols={symbols} className="material-symbols-outlined text-2xl fill-icon" data-testid="icon" />;
-}
-function AppIcon() {
-  useMacSystemIcons();
-  return <span className="material-symbols-outlined" data-testid="app-icon">settings</span>;
 }
 describe('platform playback symbols', () => {
   it('preserves the Windows glyph and classes without requesting symbols', () => {
@@ -39,14 +35,5 @@ describe('platform playback symbols', () => {
     render(<Icon />);
     await waitFor(() => expect(read).toHaveBeenCalledOnce());
     expect(screen.getByTestId('icon')).toHaveTextContent('play_arrow');
-  });
-
-  it('decorates regular Material icons with SF Symbol masks on macOS', async () => {
-    const read = vi.fn().mockResolvedValue({ ok: true, data: { settings: 'data:image/png;base64,gear' } });
-    mocks.desktop.mockReturnValue({ platform: 'darwin', ipc: { focusGlass: { getPlaybackSymbols: read } } });
-    render(<AppIcon />);
-    await waitFor(() => expect(screen.getByTestId('app-icon')).toHaveAttribute('data-macos-system-icon', 'settings'));
-    expect(screen.getByTestId('app-icon').style.getPropertyValue('--macos-system-icon-image')).toContain('data:image/png;base64,gear');
-    expect(read).toHaveBeenCalledOnce();
   });
 });

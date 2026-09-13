@@ -4,7 +4,6 @@ import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
-import type { LibraryToolbarGlassAction, LibraryToolbarGlassState } from '../src/types/libraryToolbarGlass';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -15,16 +14,6 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
-  libraryToolbarGlass: {
-    start: async () => ipcRenderer.invoke('ipc:libraryToolbarGlass:start'),
-    update: async (state: LibraryToolbarGlassState) => ipcRenderer.invoke('ipc:libraryToolbarGlass:update', state),
-    stop: async () => ipcRenderer.invoke('ipc:libraryToolbarGlass:stop'),
-    onAction: (callback: (action: LibraryToolbarGlassAction) => void) => {
-      const handler = (_event: unknown, action: LibraryToolbarGlassAction) => callback(action);
-      ipcRenderer.on('library-toolbar-glass-action', handler);
-      return () => ipcRenderer.removeListener('library-toolbar-glass-action', handler);
-    },
-  },
   playerControlbar: {
     start: async () => ipcRenderer.invoke('ipc:playerControlbar:start'),
     update: async (state: PlayerControlbarState) => ipcRenderer.invoke('ipc:playerControlbar:update', state),

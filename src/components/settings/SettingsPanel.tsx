@@ -5,7 +5,6 @@ import { settingsManager } from '../../services/settingsManager';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import { logger } from '../../services/logger';
 import ShortcutsSettings from '../ShortcutsSettings';
-import GsapModal from '../GsapModal';
 import RetroSwitch from '../RetroSwitch';
 import { useCurrentTheme, useSettingsTheme, LANGUAGE_OPTIONS } from './shared';
 import { useWebdavSettings } from './hooks/useWebdavSettings';
@@ -15,10 +14,9 @@ import OnlineMusicSection from './sections/OnlineMusicSection';
 
 interface SettingsPanelProps {
   onClose: () => void;
-  onClearOrphanCache?: () => Promise<{ metadataDeleted: number; coversDeleted: number; errors: string[] }>;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCache }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const theme = useCurrentTheme();
   const themeUtils = useSettingsTheme(theme);
   const { colors, isBrutalistTheme, rangeClassName, rangeStyle } = themeUtils;
@@ -36,16 +34,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
   const [focusBgBlurRadius, setFocusBgBlurRadius] = useState(80);
   const [focusLyricsFontSize, setFocusLyricsFontSize] = useState(() => settingsManager.getFocusLyricsFontSize());
   const [focusLyricLineSpacing, setFocusLyricLineSpacing] = useState(30);
-  const [focusInactiveLyricBlur, setFocusInactiveLyricBlur] = useState(2);
-  const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(true);
   const [focusEnhancedFontEnabled, setFocusEnhancedFontEnabled] = useState(() => settingsManager.getFocusEnhancedFontEnabled());
   const isWindows = getDesktopAPI()?.platform === 'win32';
-
-  // Clear-cache confirmation
-  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
-  const [isClearingCache, setIsClearingCache] = useState(false);
-  const [cacheClearMessage, setCacheClearMessage] = useState<string | null>(null);
-  const [cacheClearMessageType, setCacheClearMessageType] = useState<'success' | 'error' | null>(null);
 
   // Extracted sections own their own state.
   const webdav = useWebdavSettings();
@@ -60,8 +50,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
-      setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
-      setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
       setFocusEnhancedFontEnabled(settingsManager.getFocusEnhancedFontEnabled());
     })();
   }, []);
@@ -73,8 +61,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
       setFocusBgBlurRadius(settingsManager.getFocusBgBlurRadius());
       setFocusLyricsFontSize(settingsManager.getFocusLyricsFontSize());
       setFocusLyricLineSpacing(settingsManager.getFocusLyricLineSpacing());
-      setFocusInactiveLyricBlur(settingsManager.getFocusInactiveLyricBlur());
-      setFocusAmlLyricsEnabled(settingsManager.getFocusAmlLyricsEnabled());
       setFocusEnhancedFontEnabled(settingsManager.getFocusEnhancedFontEnabled());
     });
     return unsubscribe;
@@ -228,49 +214,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                 {t('settings.experimental')}
               </h3>
 
-              {/* AMLL 滚动歌词实验开关 */}
-              <div className="mt-3 pt-3 border-t flex items-center justify-between gap-4" style={{ borderColor: colors.borderLight }}>
-                <div className="min-w-0">
-                  <div className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusAmlLyricsEnabled')}</div>
-                  <div id="focus-amll-lyrics-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>{t('settings.focusAmlLyricsEnabledDesc')}</div>
-                </div>
-                {isBrutalistTheme ? (
-                  <RetroSwitch
-                    checked={focusAmlLyricsEnabled}
-                    ariaLabel={t('settings.focusAmlLyricsEnabled')}
-                    ariaDescribedBy="focus-amll-lyrics-description"
-                    onChange={(enabled) => {
-                      setFocusAmlLyricsEnabled(enabled);
-                      settingsManager.setFocusAmlLyricsEnabled(enabled);
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={focusAmlLyricsEnabled}
-                    aria-label={t('settings.focusAmlLyricsEnabled')}
-                    aria-describedby="focus-amll-lyrics-description"
-                    onClick={() => {
-                      const enabled = !focusAmlLyricsEnabled;
-                      setFocusAmlLyricsEnabled(enabled);
-                      settingsManager.setFocusAmlLyricsEnabled(enabled);
-                    }}
-                    className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                    style={{
-                      backgroundColor: focusAmlLyricsEnabled ? colors.primary : colors.borderLight,
-                    }}
-                  >
-                    <span
-                      className="inline-block size-5 rounded-full bg-white shadow-sm transform transition-transform duration-200"
-                      style={{
-                        transform: focusAmlLyricsEnabled ? 'translateX(22px)' : 'translateX(2px)',
-                      }}
-                    />
-                  </button>
-                )}
-              </div>
-
               {isWindows && (
                 <div className="mt-3 pt-3 border-t flex items-center justify-between gap-4" style={{ borderColor: colors.borderLight }}>
                   <div className="min-w-0">
@@ -394,28 +337,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                 </div>
               </div>
 
-              {/* Focus Mode 非当前歌词模糊 */}
-              <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.focusInactiveLyricBlur')}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs tabular-nums w-10 text-right" style={{ color: colors.textMuted }}>{focusInactiveLyricBlur}px</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="12"
-                    step="1"
-                    value={focusInactiveLyricBlur}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      setFocusInactiveLyricBlur(value);
-                      settingsManager.setFocusInactiveLyricBlur(value);
-                    }}
-                    className={rangeClassName}
-                    style={rangeStyle((focusInactiveLyricBlur / 12) * 100)}
-                  />
-                </div>
-              </div>
-
               {/* 第三方音源开关 */}
               <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
                 <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.qqMusicEnabled')}</span>
@@ -450,40 +371,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                 )}
               </div>
 
-              {/* 清理孤儿缓存按钮 */}
-              <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                <div>
-                  <span className="text-sm" style={{ color: colors.textSecondary }}>{t('settings.clearCache')}</span>
-                  <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{t('settings.clearCacheDesc')}</p>
-                </div>
-                <button
-                  onClick={() => setShowClearCacheConfirm(true)}
-                  disabled={isClearingCache}
-                  className="px-3 py-1.5 r-card text-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
-                  style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.25)'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
-                >
-                  <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                  {t('settings.clearCache')}
-                </button>
-              </div>
-
-              {/* 清理结果提示 */}
-              {cacheClearMessage && (
-                <div className={`mt-2 p-2 r-card text-xs ${
-                  cacheClearMessageType === 'success'
-                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
-                }`}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-xs">
-                      {cacheClearMessageType === 'success' ? 'check' : 'error'}
-                    </span>
-                    {cacheClearMessage}
-                  </div>
-                </div>
-              )}
             </section>
 
             {/* Shortcuts */}
@@ -523,64 +410,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
         </div>
       </aside>
 
-      {/* 清理缓存二次确认弹窗 */}
-      <GsapModal
-        isOpen={showClearCacheConfirm}
-        overlayClassName="z-50"
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        panelClassName="r-control p-6 max-w-md w-full mx-4 shadow-2xl"
-        panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
-      >
-          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('settings.clearCacheConfirmTitle')}</h3>
-          <p className="mb-4" style={{ color: colors.textSecondary }}>{t('settings.clearCacheConfirmBody')}</p>
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => setShowClearCacheConfirm(false)}
-              disabled={isClearingCache}
-              className="px-4 py-2 r-card transition-all"
-              style={{ color: colors.textSecondary }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              onClick={async () => {
-                if (!onClearOrphanCache) return;
-                setIsClearingCache(true);
-                setCacheClearMessage(null);
-                try {
-                  const result = await onClearOrphanCache();
-                  if (result.errors.length > 0) {
-                    setCacheClearMessage(`${t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers (${result.errors.length} errors)`);
-                    setCacheClearMessageType('error');
-                  } else {
-                    setCacheClearMessage(`${t('settings.clearCacheDone')} ${result.metadataDeleted} metadata, ${result.coversDeleted} covers`);
-                    setCacheClearMessageType('success');
-                  }
-                } catch (error) {
-                  setCacheClearMessage(t('settings.clearCacheFailed'));
-                  setCacheClearMessageType('error');
-                } finally {
-                  setIsClearingCache(false);
-                  setShowClearCacheConfirm(false);
-                }
-              }}
-              disabled={isClearingCache || !onClearOrphanCache}
-              className="px-4 py-2 r-card transition-all flex items-center gap-1.5"
-              style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
-            >
-              {isClearingCache ? (
-                <>
-                  <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                  {t('settings.clearing')}
-                </>
-              ) : (
-                t('settings.confirmClearCache')
-              )}
-            </button>
-          </div>
-      </GsapModal>
     </>
   );
 };

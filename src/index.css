@@ -516,8 +516,6 @@ textarea.no-scrollbar::-webkit-scrollbar {
   border-radius: var(--theme-control-radius);
   background: var(--search-background);
   box-shadow: var(--search-shadow);
-  backdrop-filter: blur(16px) saturate(135%);
-  -webkit-backdrop-filter: blur(16px) saturate(135%);
   transition: border-radius 220ms ease, border-color 220ms ease;
 }
 
@@ -586,8 +584,6 @@ textarea.no-scrollbar::-webkit-scrollbar {
   transform: scaleY(0.94) translateY(-0.35rem);
   transform-origin: top center;
   pointer-events: none;
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
   transition:
     transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1),
     opacity 180ms ease,
@@ -1005,38 +1001,4 @@ input:focus-visible,
 textarea:focus-visible {
   outline: none !important;
   outline-offset: 0 !important;
-}
-.material-symbols-outlined[data-macos-system-icon] {
-  display: inline-flex;
-  width: 1em;
-  height: 1em;
-  flex-shrink: 0;
-  overflow: hidden;
-  align-items: center;
-  -webkit-text-fill-color: transparent;
-}
-
-.material-symbols-outlined[data-macos-system-icon]::before {
-  content: '';
-  display: block;
-  width: 1em;
-  height: 1em;
-  flex: 0 0 1em;
-  background-color: currentColor;
-  -webkit-mask: var(--macos-system-icon-image) center / contain no-repeat;
-  mask: var(--macos-system-icon-image) center / contain no-repeat;
-}
-
-/* The AppKit glass controls occupy these exact rectangles on macOS 26. Keep
-   the DOM buttons as layout anchors and interaction fallbacks, not a second
-   visual layer beneath the native bezel. */
-.library-toolbar-native-placeholder {
-  color: transparent !important;
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-.library-toolbar-native-placeholder .material-symbols-outlined {
-  visibility: hidden;
 }

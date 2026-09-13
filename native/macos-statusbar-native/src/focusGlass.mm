@@ -343,29 +343,10 @@ napi_value PlaybackSymbols(napi_env e, napi_callback_info) {
   napi_value symbols;
   napi_value result = Guard(e, [&] {
     Check(napi_create_object(e, &symbols));
-    NSDictionary<NSString*, NSString*>* palette = @{
-      @"add": @"plus", @"add_photo_alternate": @"photo.badge.plus", @"arrow_forward": @"arrow.right",
-      @"backspace": @"delete.left", @"check": @"checkmark", @"check_circle": @"checkmark.circle.fill",
-      @"checkroom": @"tshirt", @"close": @"xmark", @"cloud": @"icloud", @"cloud_done": @"checkmark.icloud",
-      @"cloud_off": @"icloud.slash", @"cloud_upload": @"icloud.and.arrow.up", @"dark_mode": @"moon.fill",
-      @"delete": @"trash", @"delete_sweep": @"trash.slash", @"description": @"doc.text", @"done": @"checkmark",
-      @"download": @"arrow.down.circle", @"edit": @"pencil", @"error": @"exclamationmark.triangle.fill",
-      @"expand_more": @"chevron.down", @"folder_open": @"folder", @"hard_drive": @"internaldrive",
-      @"history": @"clock.arrow.circlepath", @"info": @"info.circle", @"keyboard": @"keyboard", @"language": @"globe",
-      @"left_panel_close": @"sidebar.left", @"left_panel_open": @"sidebar.left", @"library_music": @"music.note.list",
-      @"light_mode": @"sun.max.fill", @"lightbulb": @"lightbulb", @"music_note": @"music.note",
-      @"music_off": @"speaker.slash", @"my_location": @"location.fill", @"open_in_full": @"arrow.up.left.and.arrow.down.right",
-      @"pause": @"pause.fill", @"play_arrow": @"play.fill", @"progress_activity": @"arrow.triangle.2.circlepath",
-      @"qr_code_scanner": @"qrcode.viewfinder", @"queue_music": @"music.note.list", @"refresh": @"arrow.clockwise",
-      @"repeat": @"repeat", @"repeat_one": @"repeat.1", @"restart_alt": @"arrow.counterclockwise",
-      @"science": @"testtube.2", @"search": @"magnifyingglass", @"search_off": @"magnifyingglass",
-      @"settings": @"gearshape", @"shuffle": @"shuffle", @"skip_next": @"forward.end.fill",
-      @"skip_previous": @"backward.end.fill", @"sync": @"arrow.triangle.2.circlepath",
-      @"upload_file": @"square.and.arrow.up", @"visibility": @"eye", @"visibility_off": @"eye.slash",
-      @"volume_off": @"speaker.slash.fill", @"volume_up": @"speaker.wave.2.fill",
-    };
-    for (NSString* key in palette) {
-      NSImage* image = Symbol(palette[key], 20);
+    NSArray<NSString*>* keys = @[@"skip_previous", @"play_arrow", @"pause", @"skip_next", @"repeat", @"shuffle", @"repeat_one", @"volume_off", @"volume_up", @"open_in_full"];
+    NSArray<NSString*>* names = @[@"backward.end.fill", @"play.fill", @"pause.fill", @"forward.end.fill", @"repeat", @"shuffle", @"repeat.1", @"speaker.slash.fill", @"speaker.wave.2.fill", @"arrow.up.left.and.arrow.down.right"];
+    for (NSUInteger i = 0; i < keys.count; i++) {
+      NSImage* image = Symbol(names[i], 20);
       if (!image || image.size.width <= 0 || image.size.height <= 0) continue;
       // 4x raster with optical padding: crisp on Retina and enlarged UI scales.
       NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr pixelsWide:96 pixelsHigh:96 bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
@@ -382,7 +363,7 @@ napi_value PlaybackSymbols(napi_env e, napi_callback_info) {
       if (!png) continue;
       NSString* url = [@"data:image/png;base64," stringByAppendingString:[png base64EncodedStringWithOptions:0]];
       napi_value value; Check(napi_create_string_utf8(e, url.UTF8String, NAPI_AUTO_LENGTH, &value));
-      Check(napi_set_named_property(e, symbols, key.UTF8String, value));
+      Check(napi_set_named_property(e, symbols, keys[i].UTF8String, value));
     }
   });
   return result ? symbols : nullptr;

@@ -51,21 +51,3 @@ export function updatePlayerControlbar(state: {
 }): void;
 export function updatePlayerControlbarArtwork(data: Buffer | null): void;
 export function stopPlayerControlbar(): void;
-/** Main-thread-only macOS 26 glass buttons beside the library search field. */
-export function startLibraryToolbarGlass(handle: Buffer, onAction: (action: {
-  type: 'primary' | 'secondary' | 'primary-hover'; value: number;
-}) => void): boolean;
-export function updateLibraryToolbarGlass(state: {
-  darkMode: boolean;
-  primary: {
-    presentation: { x: number; y: number; width: number; height: number; opacity: number };
-    symbol: 'edit' | 'check' | 'refresh' | 'upload-file' | 'cloud-upload';
-    enabled: boolean; emphasized: boolean; tintColor: string; label: string;
-  };
-  secondary: {
-    presentation: { x: number; y: number; width: number; height: number; opacity: number };
-    symbol: 'edit' | 'check' | 'refresh' | 'upload-file' | 'cloud-upload';
-    enabled: boolean; emphasized: boolean; tintColor: string; label: string;
-  };
-}): void;
-export function stopLibraryToolbarGlass(): void;
