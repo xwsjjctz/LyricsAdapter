@@ -263,12 +263,15 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
   return NSMouseInRect(point, self.visibleRect, self.isFlipped);
 }
 
-- (void)refreshPointerInside {
-  BOOL inside = [self containsCurrentPointer];
+- (void)setPointerInsideAndRefresh:(BOOL)inside {
   if (self.pointerInside == inside) return;
   self.pointerInside = inside;
   [self setControlsHidden:!inside];
   [self setNeedsDisplay:YES];
+}
+
+- (void)refreshPointerInside {
+  [self setPointerInsideAndRefresh:[self containsCurrentPointer]];
 }
 
 - (void)updateTrackingAreas {
@@ -288,12 +291,12 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 
 - (void)mouseEntered:(NSEvent*)event {
   (void)event;
-  [self refreshPointerInside];
+  [self setPointerInsideAndRefresh:YES];
 }
 
 - (void)mouseExited:(NSEvent*)event {
   (void)event;
-  [self refreshPointerInside];
+  [self setPointerInsideAndRefresh:NO];
 }
 
 - (void)mouseDown:(NSEvent*)event {
