@@ -20,9 +20,9 @@ and missing/outdated native bridges retain the existing web controls.
   native startup. `playerControlbarHandlers.ts` validates its state and resolves
   cover artwork separately, so the frequent playback clock payload stays small.
 - `native/macos-statusbar-native/src/playerControlbar.mm` owns the main bar's
-  `NSGlassEffectView`, artwork, labels, SF Symbol buttons and a nested glass seek
-  capsule. Hovering the volume button grows an Apple Music-style volume disclosure
-  toward the right, temporarily covering the timeline and playback-mode controls;
+  `NSGlassEffectView`, artwork, labels, SF Symbol buttons and a native seek slider.
+  Hovering the volume button grows an Apple Music-style volume disclosure toward
+  the right, temporarily covering the playback-mode control;
   native actions remain intents handled by the existing React player controller.
 - The view is centered relative to the native content bounds, follows window
   resizing and scales with FocusMode. Its transparent host passes hits outside
@@ -42,8 +42,9 @@ and missing/outdated native bridges retain the existing web controls.
 
 ## Color decisions
 
-FocusMode retains the original, untinted `NSGlassEffectViewStyleRegular` material
-and plain content view. No additional HUD frost, tint or custom bevel is applied.
+FocusMode and the main bar share `NSGlassEffectViewStyleClear`, a minimal neutral
+tint and the same restrained directional highlight. This keeps both controls on a
+consistent high-transparency material while preserving the system lensing behavior.
 Its compact 350 × 96 pt geometry and 68 pt volume slider are unchanged. Labels and
 ordinary controls use semantic monochrome colors; the active playback mode uses the system
 accent. Avoid independently tinting every control or matching colored labels to
@@ -52,7 +53,7 @@ similar colors in the artwork.
 The main playback bar is a single native `NSGlassEffectView` on macOS 26+. Its
 supported `contentView` contains the cover/focus button, truncated title and artist,
 transport and playback-mode buttons, time labels, seek slider, volume slider and
-mute button. A restrained directional highlight rim reinforces the native glass edge without
+mute button. The seek slider has no secondary glass backing. A restrained directional highlight rim reinforces the native glass edge without
 replacing the system material. The 720 × 72 pt DOM anchor controls placement and transition geometry;
 the web control tree is not left underneath the refractive material. Artwork is
 fetched and resized in the main process only when its URL changes. Reduced

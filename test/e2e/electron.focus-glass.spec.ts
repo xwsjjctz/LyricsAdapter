@@ -95,19 +95,20 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect(panel).toHaveAttribute('data-native-controlbar', 'true');
     const mainGlass = async () => (await probe()).items.find(item => item.id === 'player-controlbar-glass');
     await expect.poll(async () => (await mainGlass())?.class).toBe('NSGlassEffectView');
-    await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.class).toBe('NSGlassEffectView');
+    await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.class).toBe('NSView');
     await expect.poll(async () => (await mainSlider('player-controlbar-seek'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.label).toBe('Glass Fixture 0');
     expect((await mainSlider('player-controlbar-next'))!.x).toBeLessThan((await mainSlider('player-controlbar-mute'))!.x);
-    expect((await mainSlider('player-controlbar-mute'))!.x).toBeLessThan((await mainSlider('player-controlbar-seek'))!.x);
+    expect((await mainSlider('player-controlbar-seek'))!.x).toBeLessThan((await mainSlider('player-controlbar-mute'))!.x);
+    expect((await mainSlider('player-controlbar-mute'))!.x).toBeLessThan((await mainSlider('player-controlbar-mode'))!.x);
     await probe('player-controlbar-seek', 8);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime)).toBeCloseTo(8, 0);
     await probe('player-controlbar-mute:hover');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
-    await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.hidden).toBe(true);
+    await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-mode'))?.hidden).toBe(true);
-    await expect.poll(async () => (await mainSlider('player-controlbar-volume-disclosure'))?.width ?? 0).toBeGreaterThan(300);
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-disclosure'))?.width ?? 0).toBeGreaterThan(120);
     await probe('player-controlbar-volume', 0.4);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
     await page.waitForTimeout(500);
@@ -159,6 +160,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     const mainGlassY = (await mainGlass())!.y;
     await toggle.click();
     await expect(page.getByTestId('focus-native-controls')).toBeAttached();
+    await expect.poll(async () => (await mainSlider('focus-glass-highlight'))?.hidden).toBe(false);
     // The page is deliberately frozen halfway in; keep the independent auto-hide
     // timer from expiring while native geometry is being inspected offscreen.
     await page.getByTestId('focus-native-controls').dispatchEvent('mouseover');

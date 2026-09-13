@@ -69,9 +69,35 @@ NSString* Time(double seconds) {
 @end
 
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
+@interface LAFocusGlassHighlightView : NSView
+@property(nonatomic) CGFloat cornerRadius;
+@end
+@implementation LAFocusGlassHighlightView
+- (BOOL)isOpaque { return NO; }
+- (NSView*)hitTest:(NSPoint)point { (void)point; return nil; }
+- (void)drawRect:(NSRect)dirtyRect {
+  (void)dirtyRect;
+  NSRect outerRect = NSInsetRect(self.bounds, 0.5, 0.5);
+  NSRect innerRect = NSInsetRect(self.bounds, 1.1, 1.1);
+  CGFloat innerRadius = std::max<CGFloat>(0, self.cornerRadius - 0.6);
+  NSBezierPath* outer = [NSBezierPath bezierPathWithRoundedRect:outerRect xRadius:self.cornerRadius yRadius:self.cornerRadius];
+  NSBezierPath* inner = [NSBezierPath bezierPathWithRoundedRect:innerRect xRadius:innerRadius yRadius:innerRadius];
+  NSBezierPath* rim = [NSBezierPath bezierPath];
+  [rim appendBezierPath:outer]; [rim appendBezierPath:[inner bezierPathByReversingPath]]; rim.windingRule = NSEvenOddWindingRule;
+  [NSGraphicsContext saveGraphicsState]; [rim addClip];
+  NSGradient* highlight = [[NSGradient alloc] initWithColorsAndLocations:
+    [NSColor colorWithWhite:1 alpha:0.24], 0.0,
+    [NSColor colorWithWhite:1 alpha:0.08], 0.34,
+    [NSColor colorWithWhite:1 alpha:0.015], 0.63,
+    [NSColor colorWithWhite:0 alpha:0.06], 1.0, nil];
+  [highlight drawInRect:self.bounds angle:-90]; [NSGraphicsContext restoreGraphicsState];
+}
+@end
+
 API_AVAILABLE(macos(26.0))
 @interface LAFocusGlassHost : NSView
 @property(nonatomic, strong) NSGlassEffectView* bar;
+@property(nonatomic, strong) LAFocusGlassHighlightView* highlight;
 @property(nonatomic, strong) NSButton* play;
 @property(nonatomic, strong) NSButton* previous;
 @property(nonatomic, strong) NSButton* next;
@@ -112,7 +138,8 @@ API_AVAILABLE(macos(26.0))
 }
 - (NSGlassEffectView*)glass {
   NSGlassEffectView* view = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect];
-  view.style = NSGlassEffectViewStyleRegular;
+  view.style = NSGlassEffectViewStyleClear;
+  view.tintColor = [NSColor colorWithWhite:0 alpha:0.035];
   view.contentView = [[NSView alloc] initWithFrame:NSZeroRect];
   view.hidden = YES; view.alphaValue = 0;
   [self addSubview:view]; return view;
@@ -123,6 +150,8 @@ API_AVAILABLE(macos(26.0))
   self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
   _bar = [self glass]; _bar.accessibilityIdentifier = @"focus-glass-bar";
   NSView* content = _bar.contentView;
+  _highlight = [[LAFocusGlassHighlightView alloc] initWithFrame:NSZeroRect];
+  _highlight.accessibilityIdentifier = @"focus-glass-highlight"; [content addSubview:_highlight];
   _previous = [self button:@"backward.end.fill" name:@"focus-glass-previous" action:@selector(previous:) parent:content];
   _play = [self button:@"play.fill" name:@"focus-glass-play" action:@selector(play:) parent:content];
   _next = [self button:@"forward.end.fill" name:@"focus-glass-next" action:@selector(next:) parent:content];
@@ -153,6 +182,7 @@ API_AVAILABLE(macos(26.0))
     glass.wantsLayer = YES;
     glass.layer.backgroundColor = opaque ? NSColor.windowBackgroundColor.CGColor : NSColor.clearColor.CGColor;
   }
+  self.highlight.alphaValue = opaque ? 0.35 : 1;
 }
 - (void)viewDidChangeEffectiveAppearance {
   [super viewDidChangeEffectiveAppearance];
@@ -170,6 +200,7 @@ API_AVAILABLE(macos(26.0))
   self.bar.cornerRadius = 24 * s;
   self.bar.contentView.frame = self.bar.bounds;
   self.bar.contentView.bounds = NSMakeRect(0, 0, 350, 96);
+  self.highlight.frame = self.bar.contentView.bounds; self.highlight.cornerRadius = 24; [self.highlight setNeedsDisplay:YES];
   self.elapsed.frame = NSMakeRect(12, 67, 40, 14);
   self.total.frame = NSMakeRect(298, 67, 40, 14);
   self.seek.frame = NSMakeRect(56, 65, 238, 18);

@@ -119,7 +119,7 @@ API_AVAILABLE(macos(26.0))
 API_AVAILABLE(macos(26.0))
 @interface LAPlayerControlbarHost : NSView <LAVolumeHoverDelegate>
 @property(nonatomic, strong) NSGlassEffectView* bar;
-@property(nonatomic, strong) NSGlassEffectView* sliderGlass;
+@property(nonatomic, strong) NSView* sliderGlass;
 @property(nonatomic, strong) LAVolumeDisclosureView* volumeDisclosure;
 @property(nonatomic, strong) LAGlassHighlightView* highlight;
 @property(nonatomic, strong) NSButton* artwork;
@@ -162,7 +162,8 @@ API_AVAILABLE(macos(26.0))
 - (instancetype)initWithFrame:(NSRect)frame {
   self = [super initWithFrame:frame]; if (!self) return nil;
   self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; self.accessibilityIdentifier = @"player-controlbar-host";
-  _bar = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _bar.style = NSGlassEffectViewStyleRegular;
+  _bar = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _bar.style = NSGlassEffectViewStyleClear;
+  _bar.tintColor = [NSColor colorWithWhite:0 alpha:0.035];
   _bar.contentView = [[NSView alloc] initWithFrame:NSZeroRect]; _bar.hidden = YES; _bar.alphaValue = 0;
   _bar.accessibilityIdentifier = @"player-controlbar-glass"; [self addSubview:_bar]; NSView* content = _bar.contentView;
   _highlight = [[LAGlassHighlightView alloc] initWithFrame:NSZeroRect];
@@ -184,11 +185,10 @@ API_AVAILABLE(macos(26.0))
   mute.image = PlayerControlbar::Symbol(@"speaker.wave.2.fill", 15); mute.target = self; mute.action = @selector(mute:);
   mute.bordered = NO; mute.imagePosition = NSImageOnly; mute.contentTintColor = NSColor.labelColor;
   mute.accessibilityIdentifier = @"player-controlbar-mute"; mute.hoverDelegate = self; [_volumeDisclosure addSubview:mute]; _mute = mute;
-  _sliderGlass = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _sliderGlass.style = NSGlassEffectViewStyleRegular;
-  _sliderGlass.cornerRadius = 12; _sliderGlass.contentView = [[NSView alloc] initWithFrame:NSZeroRect];
+  _sliderGlass = [[NSView alloc] initWithFrame:NSZeroRect];
   _sliderGlass.accessibilityIdentifier = @"player-controlbar-slider-glass"; [content addSubview:_sliderGlass];
   _seek = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
-  _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [_sliderGlass.contentView addSubview:_seek];
+  _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [_sliderGlass addSubview:_seek];
   _volume = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
   _volume.controlSize = NSControlSizeSmall; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume";
   _volume.hidden = YES; _volume.alphaValue = 0; [_volumeDisclosure addSubview:_volume];
@@ -201,7 +201,6 @@ API_AVAILABLE(macos(26.0))
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification; BOOL opaque = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
   self.bar.wantsLayer = YES; self.bar.layer.backgroundColor = opaque ? NSColor.windowBackgroundColor.CGColor : NSColor.clearColor.CGColor;
-  self.sliderGlass.wantsLayer = YES; self.sliderGlass.layer.backgroundColor = opaque ? [NSColor separatorColor].CGColor : NSColor.clearColor.CGColor;
   if (self.volumeRevealed) self.volumeDisclosure.layer.backgroundColor = (opaque ? NSColor.controlBackgroundColor : [NSColor colorWithWhite:0 alpha:0.22]).CGColor;
   self.highlight.alphaValue = opaque ? 0.35 : 1;
 }
@@ -215,23 +214,22 @@ API_AVAILABLE(macos(26.0))
   CGFloat centerY = self.bar.bounds.size.height / 2;
   self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
-  CGFloat volumeX = 300; CGFloat disclosureWidth = std::max<CGFloat>(140, width - volumeX - 12);
+  CGFloat volumeX = width - 148; CGFloat disclosureWidth = 136;
   self.volumeDisclosure.frame = self.volumeRevealed ? NSMakeRect(volumeX, centerY - 16, disclosureWidth, 32) : NSMakeRect(volumeX, centerY - 16, 32, 32);
   self.mute.frame = NSMakeRect(0, 0, 32, 32); self.volume.frame = NSMakeRect(42, 6, std::max<CGFloat>(48, disclosureWidth - 54), 20);
-  self.elapsed.frame = NSMakeRect(338, centerY - 7, 36, 14); CGFloat sliderX = 376;
-  CGFloat modeX = width - 44; CGFloat totalX = width - 86;
+  self.elapsed.frame = NSMakeRect(300, centerY - 7, 36, 14); CGFloat sliderX = 338;
+  CGFloat modeX = width - 44; CGFloat totalX = volumeX - 42;
   CGFloat sliderWidth = std::max<CGFloat>(90, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
-  self.sliderGlass.contentView.frame = self.sliderGlass.bounds; NSRect sliderFrame = NSInsetRect(self.sliderGlass.bounds, 8, 0);
-  self.seek.frame = sliderFrame; self.total.frame = NSMakeRect(totalX, centerY - 7, 38, 14);
+  self.seek.frame = self.sliderGlass.bounds; self.total.frame = NSMakeRect(totalX, centerY - 7, 38, 14);
   self.mode.frame = NSMakeRect(modeX, centerY - 16, 32, 32);
 }
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
   if (_volumeRevealed == revealed && self.volume.hidden == !revealed) return;
   _volumeRevealed = revealed; [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil];
-  CGFloat centerY = self.bar.bounds.size.height / 2; CGFloat volumeX = 300;
-  CGFloat disclosureWidth = std::max<CGFloat>(140, self.bar.bounds.size.width - volumeX - 12);
+  CGFloat centerY = self.bar.bounds.size.height / 2; CGFloat volumeX = self.bar.bounds.size.width - 148;
+  CGFloat disclosureWidth = 136;
   NSRect targetFrame = revealed ? NSMakeRect(volumeX, centerY - 16, disclosureWidth, 32) : NSMakeRect(volumeX, centerY - 16, 32, 32);
-  NSArray<NSView*>* timeline = @[self.elapsed, self.sliderGlass, self.total, self.mode];
+  NSArray<NSView*>* timeline = @[self.mode];
   if (revealed) {
     self.volume.hidden = NO; self.volume.alphaValue = 0;
     self.volumeDisclosure.layer.backgroundColor = (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency ? NSColor.controlBackgroundColor : [NSColor colorWithWhite:0 alpha:0.22]).CGColor;
