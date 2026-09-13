@@ -14,6 +14,7 @@ export interface FocusGlassPresentation {
 export interface FocusGlassState {
   visible: boolean;
   presentation: FocusGlassPresentation;
+  darkMode: boolean;
   enabled: boolean;
   isPlaying: boolean;
   currentTime: number;

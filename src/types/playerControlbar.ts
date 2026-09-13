@@ -2,6 +2,7 @@ import type { FocusGlassPresentation } from './focusGlass';
 
 export interface PlayerControlbarState {
   presentation: FocusGlassPresentation;
+  darkMode: boolean;
   enabled: boolean;
   isPlaying: boolean;
   currentTime: number;

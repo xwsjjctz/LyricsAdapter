@@ -7,7 +7,7 @@ import type { PlaybackSymbols } from '../../src/types/focusGlass';
 
 const label = z.string().min(1).max(128);
 export const focusGlassStateSchema = z.object({
-  visible: z.boolean(), enabled: z.boolean(), isPlaying: z.boolean(),
+  visible: z.boolean(), darkMode: z.boolean(), enabled: z.boolean(), isPlaying: z.boolean(),
   currentTime: z.number().finite().min(0).max(604800),
   duration: z.number().finite().min(0).max(604800),
   volume: z.number().finite().min(0).max(1),

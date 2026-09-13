@@ -27,7 +27,8 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  for(NSString* name in names){NSView* v=Find(content,name);if(!v)continue;
  NSRect frame=[v convertRect:v.bounds toView:content];
  NSString* label=[v isKindOfClass:NSTextField.class]?((NSTextField*)v).stringValue:v.accessibilityLabel;
- [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@""}];}
+ NSString* appearance=[v.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]];
+ [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@""}];}
  NSDictionary* result=@{@"windowNumber":@(content.window.windowNumber),@"items":items};
  NSData* data=[NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
  napi_value value;napi_create_string_utf8(env,(const char*)data.bytes,data.length,&value);return value;

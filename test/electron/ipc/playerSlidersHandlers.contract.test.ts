@@ -12,7 +12,7 @@ vi.mock('electron', () => ({
 }));
 const rect = { x: 0.3, y: 0.9, width: 0.2, height: 0.03, opacity: 1 };
 const state = {
-  presentation: rect, currentTime: 10, duration: 60, volume: 0.4, enabled: true,
+  presentation: rect, darkMode: true, currentTime: 10, duration: 60, volume: 0.4, enabled: true,
   isPlaying: false, playbackMode: 'order', title: 'Track', artist: 'Artist',
   labels: { focus: 'Focus', playPause: 'Play', previous: 'Previous', next: 'Next', seek: 'Seek', volume: 'Volume', mute: 'Mute', mode: 'Mode' },
 };

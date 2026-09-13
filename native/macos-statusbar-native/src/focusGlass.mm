@@ -111,6 +111,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic) NSRect presentationFrame;
 @property(nonatomic) BOOL shown;
 - (void)apply:(napi_value)state;
+- (void)applyDarkMode:(BOOL)darkMode;
 - (void)refreshAccessibility:(NSNotification*)notification;
 @end
 
@@ -172,6 +173,12 @@ API_AVAILABLE(macos(26.0))
 }
 - (void)dealloc {
   [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self];
+}
+- (void)applyDarkMode:(BOOL)darkMode {
+  NSAppearanceName name = darkMode ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua;
+  if (![self.bar.appearance.name isEqualToString:name]) self.bar.appearance = [NSAppearance appearanceNamed:name];
+  for (NSButton* button in @[self.play, self.previous, self.next, self.mute]) button.contentTintColor = NSColor.labelColor;
+  for (NSTextField* label in @[self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
 }
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification;
@@ -235,6 +242,7 @@ API_AVAILABLE(macos(26.0))
     [self setNeedsLayout:YES];
   }
   BOOL enabled = ReadBool(state, "enabled");
+  [self applyDarkMode:ReadBool(state, "darkMode")];
   self.play.image = Symbol(ReadBool(state, "isPlaying") ? @"pause.fill" : @"play.fill", 23);
   NSString* mode = String(state, "playbackMode");
   self.mode.image = Symbol([mode isEqualToString:@"shuffle"] ? @"shuffle" : [mode isEqualToString:@"repeat-one"] ? @"repeat.1" : @"repeat", 17);

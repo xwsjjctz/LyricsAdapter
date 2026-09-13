@@ -82,6 +82,7 @@ export function useFocusGlassControls(options: Options): boolean {
   const state = useRef<FocusGlassState | null>(null);
   state.current = {
     visible, enabled, isPlaying, currentTime, duration: Math.max(0, duration), volume, playbackMode,
+    darkMode: document.documentElement.classList.contains('theme-dark'),
     scale: Math.max(1, Math.min(3, scale)),
     presentation: { x: 0, y: 1, width: 0, height: 0, opacity: 0 },
     labels: {
@@ -106,7 +107,11 @@ export function useFocusGlassControls(options: Options): boolean {
     };
     const send = () => {
       if (cancelled || !state.current) return;
-      const payload = { ...state.current, presentation: readFocusGlassPresentation(callbacks.current.anchorRef.current) };
+      const payload = {
+        ...state.current,
+        darkMode: document.documentElement.classList.contains('theme-dark'),
+        presentation: readFocusGlassPresentation(callbacks.current.anchorRef.current),
+      };
       const serialized = JSON.stringify(payload);
       if (last === serialized) return;
       last = serialized;
@@ -136,11 +141,14 @@ export function useFocusGlassControls(options: Options): boolean {
     window.addEventListener('resize', followTransition);
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(followTransition);
     if (anchor) observer?.observe(anchor);
+    const theme = new MutationObserver(followTransition);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     followTransition();
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);
       observer?.disconnect();
+      theme.disconnect();
       overlay?.removeEventListener('transitionrun', onTransition);
       window.removeEventListener('resize', followTransition);
       sync.current = null;

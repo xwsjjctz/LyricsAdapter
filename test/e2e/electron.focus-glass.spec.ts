@@ -10,7 +10,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from '@
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const require = createRequire(import.meta.url);
 const run = promisify(execFile);
-interface NativeItem { id: string; class: string; hidden: boolean; alpha: number; x: number; y: number; width: number; height: number; label: string }
+interface NativeItem { id: string; class: string; hidden: boolean; alpha: number; x: number; y: number; width: number; height: number; label: string; appearance: string }
 interface NativeSnapshot { windowNumber: number; items: NativeItem[] }
 
 test('macOS Liquid Glass controls route intents, resize and release their native views', async ({}, testInfo) => {
@@ -99,16 +99,26 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect.poll(async () => (await mainSlider('player-controlbar-seek'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.label).toBe('Glass Fixture 0');
-    expect((await mainSlider('player-controlbar-next'))!.x).toBeLessThan((await mainSlider('player-controlbar-mute'))!.x);
-    expect((await mainSlider('player-controlbar-seek'))!.x).toBeLessThan((await mainSlider('player-controlbar-mute'))!.x);
-    expect((await mainSlider('player-controlbar-mute'))!.x).toBeLessThan((await mainSlider('player-controlbar-mode'))!.x);
+    await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameAqua');
+    await page.waitForTimeout(250);
+    await screenshot('main-native-controlbar-light.png');
+    await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameDarkAqua');
+    const mute = (await mainSlider('player-controlbar-mute'))!;
+    const mode = (await mainSlider('player-controlbar-mode'))!;
+    expect((await mainSlider('player-controlbar-next'))!.x).toBeLessThan(mute.x);
+    expect((await mainSlider('player-controlbar-seek'))!.x).toBeLessThan(mute.x);
+    expect(mute.x).toBeLessThan(mode.x);
+    expect(mode.x - (mute.x + mute.width)).toBeLessThanOrEqual(26);
     await probe('player-controlbar-seek', 8);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime)).toBeCloseTo(8, 0);
     await probe('player-controlbar-mute:hover');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-mode'))?.hidden).toBe(true);
-    await expect.poll(async () => (await mainSlider('player-controlbar-volume-disclosure'))?.width ?? 0).toBeGreaterThan(120);
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-disclosure'))?.width ?? 0).toBeGreaterThan(84);
+    expect((await mainSlider('player-controlbar-volume'))!.width).toBeLessThanOrEqual(46);
     await probe('player-controlbar-volume', 0.4);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
     await page.waitForTimeout(500);
@@ -184,6 +194,10 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await page.getByTestId('focus-native-controls').hover();
     await expect.poll(async () => (await bar())?.alpha).toBe(1);
     expect((await bar())?.class).toBe('NSGlassEffectView');
+    await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
+    await expect.poll(async () => (await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameAqua');
+    await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
+    await expect.poll(async () => (await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameDarkAqua');
     expect((await probe()).items.some(item => item.id === 'focus-glass-frost')).toBe(false);
     await page.getByTestId('focus-native-controls').hover();
     await expect.poll(async () => (await bar())?.alpha).toBe(1);

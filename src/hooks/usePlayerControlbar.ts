@@ -9,7 +9,7 @@ interface Options {
   anchorRef: RefObject<HTMLDivElement | null>;
   visible: boolean;
   artworkUrl?: string | undefined;
-  state: Omit<PlayerControlbarState, 'presentation'>;
+  state: Omit<PlayerControlbarState, 'presentation' | 'darkMode'>;
   onFocus: () => void;
   onSeek: (value: number) => void;
   onTogglePlay: () => void;
@@ -93,6 +93,7 @@ export function usePlayerControlbar(options: Options): boolean {
       const current = latest.current;
       const payload: PlayerControlbarState = {
         ...current.state,
+        darkMode: document.documentElement.classList.contains('theme-dark'),
         presentation: controlbarPresentation(current.anchorRef.current, current.visible),
       };
       const serialized = JSON.stringify(payload);
@@ -119,6 +120,8 @@ export function usePlayerControlbar(options: Options): boolean {
       if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element))) follow();
     });
     mutations.observe(document.body, { childList: true, subtree: true });
+    const theme = new MutationObserver(follow);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     const transition = (event: Event) => {
       const target = event.target;
       if (target instanceof Element && (target === anchor || target.contains(anchor))) follow();
@@ -131,6 +134,7 @@ export function usePlayerControlbar(options: Options): boolean {
       cancelAnimationFrame(frame);
       resize?.disconnect();
       mutations.disconnect();
+      theme.disconnect();
       document.removeEventListener('transitionrun', transition);
       window.removeEventListener('resize', follow);
       sync.current = null;

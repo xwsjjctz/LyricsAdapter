@@ -17,6 +17,7 @@ const presentation = z.object({
 const label = z.string().min(1).max(128);
 export const playerControlbarStateSchema = z.object({
   presentation,
+  darkMode: z.boolean(),
   enabled: z.boolean(),
   isPlaying: z.boolean(),
   currentTime: z.number().finite().min(0).max(604800),

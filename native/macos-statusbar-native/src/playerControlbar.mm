@@ -138,6 +138,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic) BOOL volumeRevealed;
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
+- (void)applyDarkMode:(BOOL)darkMode;
 - (void)refreshAccessibility:(NSNotification*)notification;
 @end
 
@@ -198,6 +199,13 @@ API_AVAILABLE(macos(26.0))
   [self refreshAccessibility:nil]; return self;
 }
 - (void)dealloc { [NSObject cancelPreviousPerformRequestsWithTarget:self]; [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self]; }
+- (void)applyDarkMode:(BOOL)darkMode {
+  NSAppearanceName name = darkMode ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua;
+  if (![self.bar.appearance.name isEqualToString:name]) self.bar.appearance = [NSAppearance appearanceNamed:name];
+  self.title.textColor = NSColor.labelColor;
+  for (NSButton* button in @[self.artwork, self.previous, self.play, self.next, self.mute]) button.contentTintColor = NSColor.labelColor;
+  for (NSTextField* label in @[self.artist, self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
+}
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification; BOOL opaque = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
   self.bar.wantsLayer = YES; self.bar.layer.backgroundColor = opaque ? NSColor.windowBackgroundColor.CGColor : NSColor.clearColor.CGColor;
@@ -214,9 +222,9 @@ API_AVAILABLE(macos(26.0))
   CGFloat centerY = self.bar.bounds.size.height / 2;
   self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
-  CGFloat volumeX = width - 148; CGFloat disclosureWidth = 136;
+  CGFloat volumeX = width - 100; CGFloat disclosureWidth = 88;
   self.volumeDisclosure.frame = self.volumeRevealed ? NSMakeRect(volumeX, centerY - 16, disclosureWidth, 32) : NSMakeRect(volumeX, centerY - 16, 32, 32);
-  self.mute.frame = NSMakeRect(0, 0, 32, 32); self.volume.frame = NSMakeRect(42, 6, std::max<CGFloat>(48, disclosureWidth - 54), 20);
+  self.mute.frame = NSMakeRect(0, 0, 32, 32); self.volume.frame = NSMakeRect(42, 6, std::max<CGFloat>(44, disclosureWidth - 54), 20);
   self.elapsed.frame = NSMakeRect(300, centerY - 7, 36, 14); CGFloat sliderX = 338;
   CGFloat modeX = width - 44; CGFloat totalX = volumeX - 42;
   CGFloat sliderWidth = std::max<CGFloat>(90, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
@@ -226,8 +234,8 @@ API_AVAILABLE(macos(26.0))
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
   if (_volumeRevealed == revealed && self.volume.hidden == !revealed) return;
   _volumeRevealed = revealed; [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil];
-  CGFloat centerY = self.bar.bounds.size.height / 2; CGFloat volumeX = self.bar.bounds.size.width - 148;
-  CGFloat disclosureWidth = 136;
+  CGFloat centerY = self.bar.bounds.size.height / 2; CGFloat volumeX = self.bar.bounds.size.width - 100;
+  CGFloat disclosureWidth = 88;
   NSRect targetFrame = revealed ? NSMakeRect(volumeX, centerY - 16, disclosureWidth, 32) : NSMakeRect(volumeX, centerY - 16, 32, 32);
   NSArray<NSView*>* timeline = @[self.mode];
   if (revealed) {
@@ -265,6 +273,7 @@ API_AVAILABLE(macos(26.0))
   if (!NSEqualRects(self.presentationFrame, frame)) { self.presentationFrame = frame; [self setNeedsLayout:YES]; }
   BOOL enabled = Bool(state, "enabled"); double duration = Number(state, "duration", 0, 604800);
   double current = std::min(duration, Number(state, "currentTime", 0, 604800)); double volume = Number(state, "volume", 0, 1);
+  [self applyDarkMode:Bool(state, "darkMode")];
   self.title.stringValue = String(state, "title"); self.artist.stringValue = String(state, "artist");
   self.play.image = Symbol(Bool(state, "isPlaying") ? @"pause.fill" : @"play.fill", 20); NSString* mode = String(state, "playbackMode");
   self.mode.image = Symbol([mode isEqualToString:@"shuffle"] ? @"shuffle" : [mode isEqualToString:@"repeat-one"] ? @"repeat.1" : @"repeat", 15);
