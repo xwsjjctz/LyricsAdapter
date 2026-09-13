@@ -114,7 +114,6 @@ const Controls: React.FC<ControlsProps> = memo(({
   const modeControl = (
     <button
       aria-label={t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence')}
-      disabled={isMac && disclosure.expanded}
       onClick={onTogglePlaybackMode}
       className="size-8 flex items-center justify-center transition-colors relative"
       style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }}
@@ -137,7 +136,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       }
       style={isMac ? {
         height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM,
-        backgroundColor: 'color-mix(in srgb, var(--theme-control-panel-bg-floating) 58%, transparent)',
+        backgroundColor: 'color-mix(in srgb, var(--theme-control-panel-bg-floating) 30%, transparent)',
         backdropFilter: 'blur(24px) saturate(135%)',
         WebkitBackdropFilter: 'blur(24px) saturate(135%)',
         border: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
@@ -232,11 +231,11 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
       </div>
 
-      {/* macOS replaces the mode icon with a secondary volume strip in-place. */}
+      {/* macOS reveals a vertical volume strip above its speaker button. */}
       {isMac ? (
         <div className="macos-volume-disclosure" data-open={disclosure.expanded} data-testid="main-volume-disclosure"
           onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}>
-          <div className="macos-volume-mode" aria-hidden={disclosure.expanded || undefined}>{modeControl}</div>
+          <div className="macos-volume-mode">{modeControl}</div>
           <div className="macos-volume-slider-shell">
             <div ref={volumeRef} className="player-slider macos-volume-slider"
               data-testid="main-volume-anchor" aria-hidden={!disclosure.expanded || undefined}

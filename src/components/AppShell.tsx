@@ -15,7 +15,6 @@ import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import SettingsPanel from './settings/SettingsPanel';
-import ThemePanel from './settings/ThemePanel';
 import GsapModal from './GsapModal';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
@@ -197,8 +196,8 @@ const AppShell: React.FC<AppShellProps> = ({
         >
           {/* Frosted header band — clipped to each view's measured header bottom.
               For LibraryView this ends at the song-list column divider; for
-              Settings/Theme it ends at their header container bottom. */}
-          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS || viewMode === ViewMode.THEME) && headerHeight > 0 && (
+              Settings it ends at the panel header container bottom. */}
+          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS) && headerHeight > 0 && (
             <div
               className="frosted-header absolute top-0 left-0 right-0 z-20"
               style={{ height: 40 + headerHeight }}
@@ -300,14 +299,6 @@ const AppShell: React.FC<AppShellProps> = ({
               />
             </FloatingPanel>
           )}
-          {viewMode === ViewMode.THEME && (
-            <FloatingPanel
-              onClose={closeOverlayView}
-              className="floating-panel-shell--theme"
-            >
-              <ThemePanel onClose={closeOverlayView} />
-            </FloatingPanel>
-          )}
           <Controls
             track={player.currentTrack}
             isPlaying={player.isPlaying}
@@ -324,7 +315,7 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             floating={floatingPanel}
-            nativeSlidersSuppressed={viewMode === ViewMode.SETTINGS || viewMode === ViewMode.THEME || pendingNavigation !== null}
+            nativeSlidersSuppressed={viewMode === ViewMode.SETTINGS || pendingNavigation !== null}
           />
         </main>
         <FocusMode

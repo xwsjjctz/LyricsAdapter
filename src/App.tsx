@@ -28,6 +28,7 @@ import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
 import { useImportViewModel } from './viewmodels/useImportViewModel';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useSystemLyrics } from './hooks/useSystemLyrics';
+import { useMacSystemIcons } from './components/PlaybackIcon';
 
 declare global {
   interface Window {
@@ -497,10 +498,13 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => (
-  <ErrorBoundary>
-    <AppContent />
-  </ErrorBoundary>
-);
+const App: React.FC = () => {
+  useMacSystemIcons();
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  );
+};
 
 export default App;

@@ -91,6 +91,7 @@
   "settings.title": "设置",
   "settings.description": "自定义您的应用偏好设置",
   "settings.language": "语言",
+  "settings.nightMode": "夜间模式",
   "settings.language.zh": "中文",
   "settings.language.en": "English",
   "settings.language.ja": "日语",

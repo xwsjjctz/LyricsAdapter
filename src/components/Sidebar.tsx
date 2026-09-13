@@ -12,6 +12,9 @@ import {
   setOverride,
   type PlaylistOverride,
 } from '../services/playlistOverrides';
+import { themeManager } from '../services/themeManager';
+import { THEME_IDS } from '../types/theme';
+import { useCurrentTheme } from './settings/shared';
 
 interface LibraryTrackCounts {
   local: number;
@@ -50,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenPlaylist,
 }) => {
   const { t, i18n } = useTranslation();
+  const currentTheme = useCurrentTheme();
   const { playlists: onlinePlaylists, loading: playlistsLoading } = useOnlinePlaylists();
   const [isPlaylistEditMode, setIsPlaylistEditMode] = useState(false);
   const [playlistOverrides, setPlaylistOverrides] = useState<Record<string, PlaylistOverride>>({});
@@ -67,8 +71,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
   const isSettingsView = currentView === ViewMode.SETTINGS;
-  const isThemeView = currentView === ViewMode.THEME;
-  const isLibrarySelectionActive = isLibraryView || isSettingsView || isThemeView;
+  const isLibrarySelectionActive = isLibraryView || isSettingsView;
+  const toggleNightMode = useCallback(() => {
+    themeManager.setTheme(currentTheme.isDark ? THEME_IDS.DEFAULT_LIGHT : THEME_IDS.DEFAULT_DARK);
+  }, [currentTheme.isDark]);
   const handleSlotClick = useCallback((slotId: SlotId) => {
     if (slotId === 'cloud' && !webdavClient.hasConfig()) {
       notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
@@ -342,7 +348,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="mt-5 flex shrink-0 items-center justify-start gap-2 pt-3">
         {renderUtilityButton(ViewMode.SETTINGS, 'settings', t('settings.title'))}
-        {renderUtilityButton(ViewMode.THEME, 'checkroom', t('sidebar.theme'))}
+        <button
+          type="button"
+          onClick={toggleNightMode}
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
+          style={{ color: 'var(--theme-control-icon-fg)', backgroundColor: 'transparent' }}
+          title={t('settings.nightMode')}
+          aria-label={t('settings.nightMode')}
+          aria-pressed={currentTheme.isDark}
+        >
+          <span className="material-symbols-outlined text-[20px]">
+            {currentTheme.isDark ? 'dark_mode' : 'light_mode'}
+          </span>
+        </button>
       </div>
     </div>
   );

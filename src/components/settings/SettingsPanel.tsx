@@ -198,6 +198,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, onClearOrphanCac
                     </div>
                   </div>
                 </div>
+
               </div>
             </section>
 

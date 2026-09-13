@@ -91,6 +91,7 @@
   "settings.title": "Settings",
   "settings.description": "Customize your application preferences",
   "settings.language": "Language",
+  "settings.nightMode": "Night Mode",
   "settings.language.zh": "Chinese",
   "settings.language.en": "English",
   "settings.language.ja": "Japanese",

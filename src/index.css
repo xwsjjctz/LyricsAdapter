@@ -1006,3 +1006,37 @@ textarea:focus-visible {
   outline: none !important;
   outline-offset: 0 !important;
 }
+.material-symbols-outlined[data-macos-system-icon] {
+  display: inline-flex;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  overflow: hidden;
+  align-items: center;
+  -webkit-text-fill-color: transparent;
+}
+
+.material-symbols-outlined[data-macos-system-icon]::before {
+  content: '';
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 1em;
+  background-color: currentColor;
+  -webkit-mask: var(--macos-system-icon-image) center / contain no-repeat;
+  mask: var(--macos-system-icon-image) center / contain no-repeat;
+}
+
+/* The AppKit glass controls occupy these exact rectangles on macOS 26. Keep
+   the DOM buttons as layout anchors and interaction fallbacks, not a second
+   visual layer beneath the native bezel. */
+.library-toolbar-native-placeholder {
+  color: transparent !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.library-toolbar-native-placeholder .material-symbols-outlined {
+  visibility: hidden;
+}

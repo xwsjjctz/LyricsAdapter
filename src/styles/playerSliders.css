@@ -19,44 +19,50 @@
 
 .macos-volume-disclosure {
   position: relative;
-  flex: 0 0 148px;
+  flex: 0 0 72px;
   height: 40px;
-  border-radius: 20px;
-  transition: background-color 180ms ease;
-}
-.macos-volume-disclosure[data-open="true"] {
-  background: color-mix(in srgb, var(--theme-control-panel-bg-floating) 35%, transparent);
+  overflow: visible;
 }
 .macos-volume-mode {
   position: absolute;
-  right: 44px;
+  right: 0;
   top: 4px;
-  transition: opacity 140ms ease, transform 180ms ease;
-}
-.macos-volume-disclosure[data-open="true"] .macos-volume-mode {
-  opacity: 0;
-  transform: translateX(-8px);
-  pointer-events: none;
 }
 .macos-volume-slider-shell {
   position: absolute;
-  left: 8px;
-  right: 40px;
-  top: 8px;
+  z-index: 1;
+  left: 0;
+  bottom: 0;
+  width: 40px;
+  height: 104px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating) 58%, transparent);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
   visibility: hidden;
   opacity: 0;
-  transform: translateX(8px);
+  transform: translateY(8px);
   transition: opacity 180ms ease, transform 180ms ease, visibility 0s 180ms;
 }
 .macos-volume-disclosure[data-open="true"] .macos-volume-slider-shell {
   visibility: visible;
   opacity: 1;
-  transform: translateX(0);
+  transform: translateY(0);
   transition-delay: 0s;
+}
+.macos-volume-slider-shell .macos-volume-slider {
+  position: absolute;
+  left: -12px;
+  top: 20px;
+  width: 64px;
+  height: 24px;
+  transform: rotate(-90deg);
 }
 .macos-volume-button {
   position: absolute;
-  right: 0;
+  z-index: 2;
+  left: 0;
   top: 0;
   width: 40px;
   height: 40px;

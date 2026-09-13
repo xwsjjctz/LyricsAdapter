@@ -118,18 +118,17 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
               }}
             >
               {isWindowFocused && isButtonHovered && (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="black"
+                <span
+                  className="material-symbols-outlined"
                   style={{
+                    color: 'black',
+                    fontSize: 12,
                     transition: 'opacity 0.15s ease-in-out',
                     opacity: 1
                   }}
                 >
-                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
-                </svg>
+                  expand_more
+                </span>
               )}
             </div>
           </button>

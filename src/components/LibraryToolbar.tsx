@@ -1,9 +1,10 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { i18n } from '../services/i18n';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
 import { readableForeground } from '../services/colorUtils';
+import { useLibraryToolbarGlass } from '../hooks/useLibraryToolbarGlass';
 
 interface LibraryToolbarProps {
   dataSource: SlotId;
@@ -59,14 +60,58 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
 }) => {
   const { t } = useTranslation();
   const localImportForeground = readableForeground(colors.primary);
+  const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  const secondaryButtonRef = useRef<HTMLButtonElement>(null);
+  const nativeHoverHideTimer = useRef<number | null>(null);
+  const cancelNativeHoverHide = useCallback(() => {
+    if (nativeHoverHideTimer.current !== null) window.clearTimeout(nativeHoverHideTimer.current);
+    nativeHoverHideTimer.current = null;
+  }, []);
+  const handleEditRegionEnter = useCallback(() => {
+    cancelNativeHoverHide();
+    if (isEditMode) setShowEditDropdown(true);
+  }, [cancelNativeHoverHide, isEditMode, setShowEditDropdown]);
+  const handleEditRegionExit = useCallback(() => {
+    cancelNativeHoverHide();
+    nativeHoverHideTimer.current = window.setTimeout(() => setShowEditDropdown(false), 180);
+  }, [cancelNativeHoverHide, setShowEditDropdown]);
+  useEffect(() => () => cancelNativeHoverHide(), [cancelNativeHoverHide]);
+
+  const primaryLabel = dataSource === 'cloud' ? t('library.refresh') : t('library.editMode');
+  const importLabel = t('sidebar.importFiles');
+  const nativeGlass = useLibraryToolbarGlass({
+    primary: {
+      ref: primaryButtonRef,
+      symbol: dataSource === 'cloud' ? 'refresh' : isEditMode ? 'check' : 'edit',
+      enabled: dataSource === 'cloud' ? !isRefreshing : true,
+      emphasized: dataSource !== 'cloud' && isEditMode,
+      tintColor: dataSource !== 'cloud' && isEditMode ? colors.success : '',
+      label: primaryLabel,
+    },
+    secondary: {
+      ref: secondaryButtonRef,
+      symbol: dataSource === 'cloud' ? 'cloud-upload' : 'upload-file',
+      enabled: Boolean(onImportClick) && !importDisabled,
+      emphasized: true,
+      tintColor: colors.primary,
+      label: importLabel,
+    },
+    onPrimary: dataSource === 'cloud' ? () => onRefreshCloud?.() : onToggleEditMode,
+    onSecondary: () => onImportClick?.(),
+    onPrimaryHoverChange: dataSource === 'cloud'
+      ? () => {}
+      : hovered => hovered ? handleEditRegionEnter() : handleEditRegionExit(),
+  });
+  const nativeButtonClass = nativeGlass ? ' library-toolbar-native-placeholder' : '';
   const renderImportButton = (icon: 'upload_file' | 'cloud_upload') => {
     if (!onImportClick) return null;
 
     return (
       <button
+        ref={secondaryButtonRef}
         onClick={onImportClick}
         disabled={importDisabled}
-        className="w-10 h-10 shrink-0 flex items-center justify-center transition-colors"
+        className={`w-10 h-10 shrink-0 flex items-center justify-center transition-colors${nativeButtonClass}`}
         style={{
           borderRadius: 'var(--theme-control-radius)',
           color: importDisabled
@@ -126,9 +171,10 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           <>
             {/* Cloud：刷新 + 上传到 WebDAV */}
             <button
+              ref={primaryButtonRef}
               onClick={onRefreshCloud}
               disabled={isRefreshing}
-              className="w-10 h-10 shrink-0 flex items-center justify-center"
+              className={`w-10 h-10 shrink-0 flex items-center justify-center${nativeButtonClass}`}
               style={{
                 borderRadius: 'var(--theme-control-radius)',
                 color: colors.textSecondary,
@@ -157,12 +203,13 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
           /* Local：编辑按钮 + 下拉删除菜单 */
           <div
             className="relative shrink-0"
-            onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
-            onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
+            onMouseEnter={handleEditRegionEnter}
+            onMouseLeave={handleEditRegionExit}
           >
             <button
+              ref={primaryButtonRef}
               onClick={onToggleEditMode}
-              className="w-10 h-10 flex items-center justify-center relative"
+              className={`w-10 h-10 flex items-center justify-center relative${nativeButtonClass}`}
               style={{
                 borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
                 color: isEditMode ? '#fff' : colors.textSecondary,
