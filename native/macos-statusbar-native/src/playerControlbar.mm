@@ -43,6 +43,12 @@ NSString* Time(double seconds) {
 }
 }
 
+@protocol LAVolumeHoverDelegate <NSObject>
+- (void)volumeButtonEntered;
+- (void)volumeRegionEntered;
+- (void)volumeRegionExited;
+@end
+
 @interface LAControlbarSlider : NSSlider
 @property(nonatomic) BOOL dragging;
 @end
@@ -50,10 +56,71 @@ NSString* Time(double seconds) {
 - (void)mouseDown:(NSEvent*)event { self.dragging = YES; @try { [super mouseDown:event]; } @finally { self.dragging = NO; } }
 @end
 
+@interface LAGlassHighlightView : NSView
+@property(nonatomic) CGFloat cornerRadius;
+@end
+@implementation LAGlassHighlightView
+- (BOOL)isOpaque { return NO; }
+- (NSView*)hitTest:(NSPoint)point { (void)point; return nil; }
+- (void)drawRect:(NSRect)dirtyRect {
+  (void)dirtyRect;
+  NSRect outerRect = NSInsetRect(self.bounds, 0.5, 0.5);
+  NSRect innerRect = NSInsetRect(self.bounds, 1.65, 1.65);
+  CGFloat innerRadius = std::max<CGFloat>(0, self.cornerRadius - 1.15);
+  NSBezierPath* outer = [NSBezierPath bezierPathWithRoundedRect:outerRect xRadius:self.cornerRadius yRadius:self.cornerRadius];
+  NSBezierPath* inner = [NSBezierPath bezierPathWithRoundedRect:innerRect xRadius:innerRadius yRadius:innerRadius];
+  NSBezierPath* rim = [NSBezierPath bezierPath];
+  [rim appendBezierPath:outer]; [rim appendBezierPath:[inner bezierPathByReversingPath]];
+  rim.windingRule = NSEvenOddWindingRule;
+  [NSGraphicsContext saveGraphicsState]; [rim addClip];
+  NSGradient* highlight = [[NSGradient alloc] initWithColorsAndLocations:
+    [NSColor colorWithWhite:1 alpha:0.58], 0.0,
+    [NSColor colorWithWhite:1 alpha:0.18], 0.34,
+    [NSColor colorWithWhite:1 alpha:0.04], 0.63,
+    [NSColor colorWithWhite:0 alpha:0.14], 1.0, nil];
+  [highlight drawInRect:self.bounds angle:-90];
+  [NSGraphicsContext restoreGraphicsState];
+}
+@end
+
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
 API_AVAILABLE(macos(26.0))
-@interface LAPlayerControlbarHost : NSView
+@interface LAVolumeHoverButton : NSButton
+@property(nonatomic, weak) id<LAVolumeHoverDelegate> hoverDelegate;
+@property(nonatomic, strong) NSTrackingArea* hoverTrackingArea;
+@end
+@implementation LAVolumeHoverButton
+- (void)updateTrackingAreas {
+  [super updateTrackingAreas];
+  if (self.hoverTrackingArea) [self removeTrackingArea:self.hoverTrackingArea];
+  self.hoverTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect owner:self userInfo:nil];
+  [self addTrackingArea:self.hoverTrackingArea];
+}
+- (void)mouseEntered:(NSEvent*)event { (void)event; [self.hoverDelegate volumeButtonEntered]; }
+- (void)mouseExited:(NSEvent*)event { (void)event; [self.hoverDelegate volumeRegionExited]; }
+@end
+
+API_AVAILABLE(macos(26.0))
+@interface LAHoverGlassEffectView : NSGlassEffectView
+@property(nonatomic, weak) id<LAVolumeHoverDelegate> hoverDelegate;
+@property(nonatomic, strong) NSTrackingArea* hoverTrackingArea;
+@end
+@implementation LAHoverGlassEffectView
+- (void)updateTrackingAreas {
+  [super updateTrackingAreas];
+  if (self.hoverTrackingArea) [self removeTrackingArea:self.hoverTrackingArea];
+  self.hoverTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect owner:self userInfo:nil];
+  [self addTrackingArea:self.hoverTrackingArea];
+}
+- (void)mouseEntered:(NSEvent*)event { (void)event; [self.hoverDelegate volumeRegionEntered]; }
+- (void)mouseExited:(NSEvent*)event { (void)event; [self.hoverDelegate volumeRegionExited]; }
+@end
+
+API_AVAILABLE(macos(26.0))
+@interface LAPlayerControlbarHost : NSView <LAVolumeHoverDelegate>
 @property(nonatomic, strong) NSGlassEffectView* bar;
+@property(nonatomic, strong) LAHoverGlassEffectView* sliderGlass;
+@property(nonatomic, strong) LAGlassHighlightView* highlight;
 @property(nonatomic, strong) NSButton* artwork;
 @property(nonatomic, strong) NSTextField* title;
 @property(nonatomic, strong) NSTextField* artist;
@@ -67,6 +134,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) NSTextField* elapsed;
 @property(nonatomic, strong) NSTextField* total;
 @property(nonatomic) NSRect presentationFrame;
+@property(nonatomic) BOOL volumeRevealed;
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
 - (void)refreshAccessibility:(NSNotification*)notification;
@@ -96,45 +164,72 @@ API_AVAILABLE(macos(26.0))
   _bar = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _bar.style = NSGlassEffectViewStyleRegular;
   _bar.contentView = [[NSView alloc] initWithFrame:NSZeroRect]; _bar.hidden = YES; _bar.alphaValue = 0;
   _bar.accessibilityIdentifier = @"player-controlbar-glass"; [self addSubview:_bar]; NSView* content = _bar.contentView;
+  _highlight = [[LAGlassHighlightView alloc] initWithFrame:NSZeroRect];
+  _highlight.accessibilityIdentifier = @"player-controlbar-highlight"; [content addSubview:_highlight];
   _artwork = [self button:@"music.note" name:@"player-controlbar-focus" size:22 action:@selector(focus:) parent:content];
-  _artwork.imageScaling = NSImageScaleProportionallyUpOrDown; _artwork.wantsLayer = YES; _artwork.layer.cornerRadius = 8; _artwork.layer.masksToBounds = YES;
-  _title = [self label:13 weight:NSFontWeightSemibold color:NSColor.labelColor parent:content];
-  _artist = [self label:11 weight:NSFontWeightRegular color:NSColor.secondaryLabelColor parent:content];
+  _artwork.imageScaling = NSImageScaleProportionallyUpOrDown; _artwork.wantsLayer = YES; _artwork.layer.cornerRadius = 12; _artwork.layer.masksToBounds = YES;
+  _title = [self label:12.5 weight:NSFontWeightSemibold color:NSColor.labelColor parent:content];
+  _artist = [self label:10.5 weight:NSFontWeightRegular color:NSColor.secondaryLabelColor parent:content];
   _title.accessibilityIdentifier = @"player-controlbar-title";
   _artist.accessibilityIdentifier = @"player-controlbar-artist";
   _previous = [self button:@"backward.end.fill" name:@"player-controlbar-previous" size:16 action:@selector(previous:) parent:content];
-  _play = [self button:@"play.fill" name:@"player-controlbar-play" size:21 action:@selector(play:) parent:content];
+  _play = [self button:@"play.fill" name:@"player-controlbar-play" size:20 action:@selector(play:) parent:content];
   _next = [self button:@"forward.end.fill" name:@"player-controlbar-next" size:16 action:@selector(next:) parent:content];
   _mode = [self button:@"repeat" name:@"player-controlbar-mode" size:15 action:@selector(mode:) parent:content];
-  _mute = [self button:@"speaker.wave.2.fill" name:@"player-controlbar-mute" size:15 action:@selector(mute:) parent:content];
+  LAVolumeHoverButton* mute = [[LAVolumeHoverButton alloc] initWithFrame:NSZeroRect];
+  mute.image = PlayerControlbar::Symbol(@"speaker.wave.2.fill", 15); mute.target = self; mute.action = @selector(mute:);
+  mute.bordered = NO; mute.imagePosition = NSImageOnly; mute.contentTintColor = NSColor.labelColor;
+  mute.accessibilityIdentifier = @"player-controlbar-mute"; mute.hoverDelegate = self; [content addSubview:mute]; _mute = mute;
+  _sliderGlass = [[LAHoverGlassEffectView alloc] initWithFrame:NSZeroRect]; _sliderGlass.style = NSGlassEffectViewStyleRegular;
+  _sliderGlass.cornerRadius = 12; _sliderGlass.contentView = [[NSView alloc] initWithFrame:NSZeroRect];
+  _sliderGlass.accessibilityIdentifier = @"player-controlbar-slider-glass"; _sliderGlass.hoverDelegate = self; [content addSubview:_sliderGlass];
   _seek = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
-  _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [content addSubview:_seek];
+  _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [_sliderGlass.contentView addSubview:_seek];
   _volume = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
-  _volume.controlSize = NSControlSizeSmall; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume"; [content addSubview:_volume];
+  _volume.controlSize = NSControlSizeSmall; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume";
+  _volume.hidden = YES; _volume.alphaValue = 0; [_sliderGlass.contentView addSubview:_volume];
   _elapsed = [self timeLabel:content]; _total = [self timeLabel:content];
   [NSWorkspace.sharedWorkspace.notificationCenter addObserver:self selector:@selector(refreshAccessibility:) name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
   [self refreshAccessibility:nil]; return self;
 }
-- (void)dealloc { [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self]; }
+- (void)dealloc { [NSObject cancelPreviousPerformRequestsWithTarget:self]; [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self]; }
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification; BOOL opaque = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
   self.bar.wantsLayer = YES; self.bar.layer.backgroundColor = opaque ? NSColor.windowBackgroundColor.CGColor : NSColor.clearColor.CGColor;
+  self.sliderGlass.wantsLayer = YES; self.sliderGlass.layer.backgroundColor = opaque ? [NSColor separatorColor].CGColor : NSColor.clearColor.CGColor;
+  self.highlight.alphaValue = opaque ? 0.35 : 1;
 }
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self refreshAccessibility:nil]; }
 - (void)layout {
   [super layout]; NSRect normalized = self.presentationFrame;
   CGFloat width = normalized.size.width * self.bounds.size.width; CGFloat height = normalized.size.height * self.bounds.size.height;
   self.bar.frame = NSMakeRect(normalized.origin.x * self.bounds.size.width, (1 - NSMaxY(normalized)) * self.bounds.size.height, width, height);
-  self.bar.cornerRadius = std::min<CGFloat>(20, height / 2); self.bar.contentView.frame = self.bar.bounds;
-  CGFloat y = std::max<CGFloat>(0, (self.bar.bounds.size.height - 80) / 2);
-  self.artwork.frame = NSMakeRect(16, y + 16, 48, 48); self.title.frame = NSMakeRect(76, y + 42, 122, 18); self.artist.frame = NSMakeRect(76, y + 20, 122, 16);
-  self.previous.frame = NSMakeRect(204, y + 22, 34, 36); self.play.frame = NSMakeRect(240, y + 18, 42, 44); self.next.frame = NSMakeRect(284, y + 22, 34, 36);
-  self.elapsed.frame = NSMakeRect(322, y + 33, 38, 14); CGFloat trailingWidth = 174; CGFloat seekX = 362;
-  CGFloat seekWidth = std::max<CGFloat>(90, width - seekX - trailingWidth); self.seek.frame = NSMakeRect(seekX, y + 28, seekWidth, 24);
-  CGFloat totalX = seekX + seekWidth + 2; self.total.frame = NSMakeRect(totalX, y + 33, 38, 14); CGFloat modeX = totalX + 42;
-  self.mode.frame = NSMakeRect(modeX, y + 22, 32, 36); CGFloat muteX = width - 44; self.mute.frame = NSMakeRect(muteX, y + 22, 32, 36);
-  self.volume.frame = NSMakeRect(modeX + 38, y + 28, std::max<CGFloat>(48, muteX - modeX - 44), 24);
+  CGFloat panelRadius = std::min<CGFloat>(22, height / 2); self.bar.cornerRadius = panelRadius; self.bar.contentView.frame = self.bar.bounds;
+  self.highlight.frame = self.bar.bounds; self.highlight.cornerRadius = panelRadius; [self.highlight setNeedsDisplay:YES];
+  CGFloat centerY = self.bar.bounds.size.height / 2;
+  self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
+  self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.mute.frame = NSMakeRect(264, centerY - 16, 32, 32);
+  self.elapsed.frame = NSMakeRect(300, centerY - 7, 36, 14); CGFloat sliderX = 338;
+  CGFloat nextX = width - 44; CGFloat modeX = width - 80; CGFloat totalX = width - 122;
+  CGFloat sliderWidth = std::max<CGFloat>(90, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
+  self.sliderGlass.contentView.frame = self.sliderGlass.bounds; NSRect sliderFrame = NSInsetRect(self.sliderGlass.bounds, 8, 0);
+  self.seek.frame = sliderFrame; self.volume.frame = sliderFrame; self.total.frame = NSMakeRect(totalX, centerY - 7, 38, 14);
+  self.mode.frame = NSMakeRect(modeX, centerY - 16, 32, 32); self.next.frame = NSMakeRect(nextX, centerY - 16, 32, 32);
 }
+- (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
+  if (_volumeRevealed == revealed && self.volume.hidden == !revealed) return;
+  _volumeRevealed = revealed; [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil];
+  NSView* incoming = revealed ? self.volume : self.seek; NSView* outgoing = revealed ? self.seek : self.volume;
+  incoming.hidden = NO; incoming.alphaValue = 0;
+  void (^changes)(void) = ^{ incoming.alphaValue = 1; outgoing.alphaValue = 0; };
+  void (^completion)(void) = ^{ outgoing.hidden = YES; };
+  if (!animated || NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) { changes(); completion(); return; }
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) { context.duration = 0.16; context.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut]; changes(); } completionHandler:completion];
+}
+- (void)hideVolumeSlider { [self setVolumeRevealed:NO animated:YES]; }
+- (void)volumeButtonEntered { [self setVolumeRevealed:YES animated:YES]; }
+- (void)volumeRegionEntered { [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil]; }
+- (void)volumeRegionExited { [self performSelector:@selector(hideVolumeSlider) withObject:nil afterDelay:0.35]; }
 - (void)setArtworkData:(NSData*)data {
   NSImage* image = data.length ? [[NSImage alloc] initWithData:data] : nil; self.artwork.image = image ?: PlayerControlbar::Symbol(@"music.note", 22);
 }
@@ -145,7 +240,7 @@ API_AVAILABLE(macos(26.0))
   BOOL enabled = Bool(state, "enabled"); double duration = Number(state, "duration", 0, 604800);
   double current = std::min(duration, Number(state, "currentTime", 0, 604800)); double volume = Number(state, "volume", 0, 1);
   self.title.stringValue = String(state, "title"); self.artist.stringValue = String(state, "artist");
-  self.play.image = Symbol(Bool(state, "isPlaying") ? @"pause.fill" : @"play.fill", 21); NSString* mode = String(state, "playbackMode");
+  self.play.image = Symbol(Bool(state, "isPlaying") ? @"pause.fill" : @"play.fill", 20); NSString* mode = String(state, "playbackMode");
   self.mode.image = Symbol([mode isEqualToString:@"shuffle"] ? @"shuffle" : [mode isEqualToString:@"repeat-one"] ? @"repeat.1" : @"repeat", 15);
   self.mode.contentTintColor = [mode isEqualToString:@"order"] ? NSColor.secondaryLabelColor : NSColor.controlAccentColor;
   self.mute.image = Symbol(volume == 0 ? @"speaker.slash.fill" : @"speaker.wave.2.fill", 15);

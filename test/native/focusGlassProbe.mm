@@ -14,13 +14,16 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  NSView* content=((__bridge NSView*)ptr).window.contentView;
  if(argc>1){
  char name[128];napi_get_value_string_utf8(env,args[1],name,128,nullptr);
- NSView* view=Find(content,[NSString stringWithUTF8String:name]);
+ NSString* actionName=[NSString stringWithUTF8String:name];BOOL hover=[actionName hasSuffix:@":hover"];
+ if(hover)actionName=[actionName substringToIndex:actionName.length-6];
+ NSView* view=Find(content,actionName);
  if(argc>2 && [view isKindOfClass:NSSlider.class]) {double value=0;napi_get_value_double(env,args[2],&value);((NSSlider*)view).doubleValue=value;}
- if([view isKindOfClass:NSControl.class]) {NSControl* control=(NSControl*)view;[control sendAction:control.action to:control.target];}
+ if(hover&&view)[view mouseEntered:nil];
+ else if([view isKindOfClass:NSControl.class]) {NSControl* control=(NSControl*)view;[control sendAction:control.action to:control.target];}
  else if(view) [view mouseExited:nil];
  }
  NSMutableArray* items=[NSMutableArray array];
- NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-controlbar-host",@"player-controlbar-glass",@"player-controlbar-title",@"player-controlbar-artist",@"player-controlbar-focus",@"player-controlbar-previous",@"player-controlbar-play",@"player-controlbar-next",@"player-controlbar-seek",@"player-controlbar-mode",@"player-controlbar-volume",@"player-controlbar-mute"];
+ NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-controlbar-host",@"player-controlbar-glass",@"player-controlbar-highlight",@"player-controlbar-slider-glass",@"player-controlbar-title",@"player-controlbar-artist",@"player-controlbar-focus",@"player-controlbar-previous",@"player-controlbar-play",@"player-controlbar-next",@"player-controlbar-seek",@"player-controlbar-mode",@"player-controlbar-volume",@"player-controlbar-mute"];
  for(NSString* name in names){NSView* v=Find(content,name);if(!v)continue;
  NSRect frame=[v convertRect:v.bounds toView:content];
  NSString* label=[v isKindOfClass:NSTextField.class]?((NSTextField*)v).stringValue:v.accessibilityLabel;

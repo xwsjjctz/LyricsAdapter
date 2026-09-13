@@ -1,14 +1,14 @@
 /* Progress and volume sliders in the normal player only. */
 .macos-floating-player {
   position: absolute;
-  inset-inline: 16px;
-  width: calc(100% - 32px);
-  max-width: 760px;
+  inset-inline: 20px;
+  width: calc(100% - 40px);
+  max-width: 720px;
   margin-inline: auto;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-inline: 16px;
+  padding-inline: 14px;
   z-index: 40;
 }
 

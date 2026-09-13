@@ -20,8 +20,9 @@ and missing/outdated native bridges retain the existing web controls.
   native startup. `playerControlbarHandlers.ts` validates its state and resolves
   cover artwork separately, so the frequent playback clock payload stays small.
 - `native/macos-statusbar-native/src/playerControlbar.mm` owns the main bar's
-  `NSGlassEffectView`, artwork, labels, SF Symbol buttons and sliders. Native actions
-  remain intents handled by the existing React player controller.
+  `NSGlassEffectView`, artwork, labels, SF Symbol buttons and a nested glass slider
+  capsule. Hovering the volume button crossfades that capsule from seek to volume;
+  native actions remain intents handled by the existing React player controller.
 - The view is centered relative to the native content bounds, follows window
   resizing and scales with FocusMode. Its transparent host passes hits outside
   the controls through to Chromium. Playback position is committed on slider
@@ -50,13 +51,14 @@ similar colors in the artwork.
 The main playback bar is a single native `NSGlassEffectView` on macOS 26+. Its
 supported `contentView` contains the cover/focus button, truncated title and artist,
 transport and playback-mode buttons, time labels, seek slider, volume slider and
-mute button. The 760 × 80 pt DOM anchor controls placement and transition geometry;
+mute button. A directional highlight rim reinforces the native glass edge without
+replacing the system material. The 720 × 72 pt DOM anchor controls placement and transition geometry;
 the web control tree is not left underneath the refractive material. Artwork is
 fetched and resized in the main process only when its URL changes. Reduced
 transparency receives an opaque semantic backing from AppKit. Other platforms and
 native startup/update failures retain the existing themed Web layout.
 
-The library scrolls behind the macOS floating bar. A shared 112 px bottom inset
+The library scrolls behind the macOS floating bar. A shared 102 px bottom inset
 (panel height + bottom gap + clearance) is included in real/virtual list padding,
 scroll bounds, automatic location and floating list actions. This lets the last
 row scroll fully above the panel and remain selectable. Album/artist categories
