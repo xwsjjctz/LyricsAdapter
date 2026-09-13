@@ -91,61 +91,38 @@ test('macOS Liquid Glass controls route intents, resize and release their native
       };
       document.addEventListener('transitionrun', pause);
     });
-    await expect(page.locator('[data-system-symbol]')).toHaveCount(6);
-    const masks = await page.locator('[data-system-symbol]').evaluateAll(elements => elements.map(el => getComputedStyle(el).maskImage));
-    expect(masks.every(mask => mask.includes('data:image/png;base64,'))).toBe(true);
-    await expect(page.getByTestId('main-seek-anchor')).toHaveAttribute('data-native-slider', 'true');
-    await expect.poll(async () => (await mainSlider('player-native-seek'))?.hidden).toBe(false);
-    await expect(page.getByTestId('main-play-button')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-    await expect(page.getByTestId('main-play-button')).toHaveCSS('box-shadow', 'none');
-    await probe('player-native-seek', 8);
+    const panel = page.getByTestId('main-controlbar');
+    await expect(panel).toHaveAttribute('data-native-controlbar', 'true');
+    const mainGlass = async () => (await probe()).items.find(item => item.id === 'player-controlbar-glass');
+    await expect.poll(async () => (await mainGlass())?.class).toBe('NSGlassEffectView');
+    await expect.poll(async () => (await mainSlider('player-controlbar-seek'))?.hidden).toBe(false);
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.label).toBe('Glass Fixture 0');
+    await probe('player-controlbar-seek', 8);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime)).toBeCloseTo(8, 0);
-    const disclosure = page.getByTestId('main-volume-disclosure');
-    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(true);
-    await page.getByTestId('main-volume-button').hover();
-    await expect(disclosure).toHaveAttribute('data-open', 'true');
-    await expect(page.locator('.macos-volume-mode')).toHaveCSS('opacity', '0');
-    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(false);
-    expect((await page.getByTestId('main-volume-anchor').boundingBox())!.width).toBeGreaterThanOrEqual(96);
-    const nativePresence = (action: string) => app!.evaluate(({}, args) => {
-      const { createRequire } = process.getBuiltinModule('module');
-      return createRequire(args.file)(args.file).volumePresence(args.action) as boolean;
-    }, { file: probePath, action });
-    expect(await nativePresence('enter')).toBe(true);
-    await page.mouse.move(20, 100); // Chromium exit must not close an AppKit hover.
-    expect(await nativePresence('false-exit')).toBe(true);
-    expect(await nativePresence('drag')).toBe(true); // Drag may leave the slider's bounds.
-    await page.waitForTimeout(250);
-    await expect(disclosure).toHaveAttribute('data-open', 'true');
-    await screenshot('main-volume-expanded.png');
-    await probe('player-native-volume', 0.4);
+    await probe('player-controlbar-volume', 0.4);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
-    await probe('player-native-volume', 0);
-    expect(await nativePresence('exit')).toBe(false);
-    await nativePresence('dispose');
-    await page.mouse.move(20, 100);
-    await expect(disclosure).toHaveAttribute('data-open', 'false');
-    await expect(page.locator('.macos-volume-mode')).toHaveCSS('opacity', '1');
-    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(true);
-    await probe('player-native-seek', 0);
-    // A web modal must not have an AppKit slider drawn/clickable above it.
+    await probe('player-controlbar-mode');
+    await probe('player-controlbar-mode');
+    await probe('player-controlbar-mode');
+    await probe('player-controlbar-play');
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(false);
+    await probe('player-controlbar-play');
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(true);
+    await probe('player-controlbar-seek', 0);
+    // A web modal must suppress the whole AppKit surface, not only its sliders.
     await page.evaluate(() => {
       const overlay = document.createElement('div'); overlay.id = 'test-slider-occluder';
       Object.assign(overlay.style, { position: 'fixed', inset: '0', zIndex: '99999', background: 'black' });
       document.body.append(overlay);
     });
-    await expect.poll(async () => (await mainSlider('player-native-seek'))?.hidden).toBe(true);
+    await expect.poll(async () => (await mainGlass())?.hidden).toBe(true);
     await page.evaluate(() => document.getElementById('test-slider-occluder')?.remove());
-    await expect.poll(async () => (await mainSlider('player-native-seek'))?.hidden).toBe(false);
-    await screenshot('main-native-sliders.png');
-    const panel = page.getByTestId('main-controlbar');
+    await expect.poll(async () => (await mainGlass())?.hidden).toBe(false);
+    await screenshot('main-native-controlbar.png');
     await expect(panel).toHaveCSS('position', 'absolute');
     const panelRect = (await panel.boundingBox())!;
     expect(panelRect.width).toBeLessThanOrEqual(760);
-    const material = await panel.evaluate(el => ({ background: getComputedStyle(el).backgroundColor, filter: getComputedStyle(el).backdropFilter }));
-    expect(material.background).toMatch(/(?:0\.58|58%)/);
-    expect(material.filter).toContain('blur(24px)');
-    expect((await page.getByTestId('main-seek-anchor').boundingBox())!.width).toBeLessThan(240);
+    expect((await mainGlass())?.width).toBeCloseTo(panelRect.width, 0);
     const scroll = page.locator('.library-track-scroll').first();
     const scrollRect = (await scroll.boundingBox())!;
     expect(scrollRect.y + scrollRect.height).toBeGreaterThan(panelRect.y + panelRect.height);
@@ -155,20 +132,21 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     const lastRowRect = (await scroll.locator('[data-track-index="59"]').boundingBox())!;
     expect(lastRowRect.y + lastRowRect.height).toBeLessThan(panelRect.y - 8);
     await lastRow.click();
-    await expect(panel.getByText('Glass Fixture 59', { exact: true })).toBeVisible();
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.label).toBe('Glass Fixture 59');
     await screenshot('floating-player-list-tail.png');
     await scroll.evaluate(el => { el.scrollTop = 0; });
     await scroll.getByText('Glass Fixture 0', { exact: true }).click();
-    await expect(panel.getByText('Glass Fixture 0', { exact: true })).toBeVisible();
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.label).toBe('Glass Fixture 0');
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.readyState)).toBeGreaterThanOrEqual(2);
-    if (!(await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))) await page.getByTestId('main-play-button').click();
-    await probe('player-native-seek', 0);
+    if (!(await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))) await probe('player-controlbar-play');
+    await probe('player-controlbar-seek', 0);
+    const mainGlassY = (await mainGlass())!.y;
     await toggle.click();
     await expect(page.getByTestId('focus-native-controls')).toBeAttached();
     // The page is deliberately frozen halfway in; keep the independent auto-hide
     // timer from expiring while native geometry is being inspected offscreen.
     await page.getByTestId('focus-native-controls').dispatchEvent('mouseover');
-    await expect.poll(async () => (await mainSlider('player-native-seek'))?.hidden).toBe(true);
+    await expect.poll(async () => (await mainGlass())?.y ?? 0).toBeLessThan(mainGlassY);
     await expect(page.locator('html')).toHaveAttribute('data-paused-focus-transitions', '2');
     const pageOpacity = await page.locator('.focus-mode-content').evaluate(el => Number(getComputedStyle(el).opacity));
     expect(pageOpacity).toBeGreaterThan(0);
@@ -243,7 +221,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
       for (const animation of element.getAnimations({ subtree: true })) animation.play();
     });
     await expect.poll(async () => (await probe()).items.filter(item => item.id.startsWith('focus-glass')).length).toBe(0);
-    await expect.poll(async () => (await mainSlider('player-native-volume'))?.hidden).toBe(true);
+    await expect.poll(async () => (await mainGlass())?.hidden).toBe(false);
     await toggle.click();
     await expect(page.getByTestId('focus-native-controls')).toBeAttached();
     expect((await probe()).items.filter(item => item.id === 'focus-glass-host')).toHaveLength(1);
@@ -264,7 +242,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await page.reload();
     await expect(page.getByText('Glass Fixture 0').first()).toBeVisible();
     await expect.poll(async () => (await probe()).items.filter(item => item.id.startsWith('focus-glass')).length).toBe(0);
-    await expect.poll(async () => (await probe()).items.filter(item => item.id === 'player-sliders-host').length).toBe(1);
+    await expect.poll(async () => (await probe()).items.filter(item => item.id === 'player-controlbar-host').length).toBe(1);
     expect(errors).toEqual([]);
   } finally {
     if (app) { const child = app.process(); const timeout = setTimeout(() => child.kill('SIGKILL'), 5000); try { await app.close(); } finally { clearTimeout(timeout); } }

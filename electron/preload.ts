@@ -3,7 +3,7 @@ import type { TypedElectronIPC } from '../src/types/typedIpc';
 import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
-import type { PlayerSlidersState, PlayerSliderAction } from '../src/types/playerSliders';
+import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -14,14 +14,15 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
-  playerSliders: {
-    start: async () => ipcRenderer.invoke('ipc:playerSliders:start'),
-    update: async (state: PlayerSlidersState) => ipcRenderer.invoke('ipc:playerSliders:update', state),
-    stop: async () => ipcRenderer.invoke('ipc:playerSliders:stop'),
-    onAction: (callback: (action: PlayerSliderAction) => void) => {
-      const handler = (_event: unknown, action: PlayerSliderAction) => callback(action);
-      ipcRenderer.on('player-slider-action', handler);
-      return () => ipcRenderer.removeListener('player-slider-action', handler);
+  playerControlbar: {
+    start: async () => ipcRenderer.invoke('ipc:playerControlbar:start'),
+    update: async (state: PlayerControlbarState) => ipcRenderer.invoke('ipc:playerControlbar:update', state),
+    updateArtwork: async (url: string | null) => ipcRenderer.invoke('ipc:playerControlbar:artwork', url),
+    stop: async () => ipcRenderer.invoke('ipc:playerControlbar:stop'),
+    onAction: (callback: (action: PlayerControlbarAction) => void) => {
+      const handler = (_event: unknown, action: PlayerControlbarAction) => callback(action);
+      ipcRenderer.on('player-controlbar-action', handler);
+      return () => ipcRenderer.removeListener('player-controlbar-action', handler);
     },
   },
   focusGlass: {

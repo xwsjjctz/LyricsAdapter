@@ -39,11 +39,15 @@ export function updateFocusGlass(state: {
 export function stopFocusGlass(): void;
 /** PNG alpha masks rendered from the installed SF Symbols. */
 export function getPlaybackSymbols(): Record<string, string>;
-export function startPlayerSliders(handle: Buffer, onAction: (action: { type: 'seek' | 'volume' | 'volume-presence'; value: number }) => void): boolean;
-export function updatePlayerSliders(state: {
-  seek: { x: number; y: number; width: number; height: number; opacity: number };
-  volume: { x: number; y: number; width: number; height: number; opacity: number };
-  currentTime: number; duration: number; level: number; enabled: boolean;
-  labels: { seek: string; volume: string };
+/** Main-thread-only macOS 26 control bar surface. */
+export function startPlayerControlbar(handle: Buffer, onAction: (action: {
+  type: 'focus' | 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume'; value: number;
+}) => void): boolean;
+export function updatePlayerControlbar(state: {
+  presentation: { x: number; y: number; width: number; height: number; opacity: number };
+  currentTime: number; duration: number; volume: number; enabled: boolean; isPlaying: boolean;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one'; title: string; artist: string;
+  labels: { focus: string; playPause: string; previous: string; next: string; seek: string; volume: string; mute: string; mode: string };
 }): void;
-export function stopPlayerSliders(): void;
+export function updatePlayerControlbarArtwork(data: Buffer | null): void;
+export function stopPlayerControlbar(): void;

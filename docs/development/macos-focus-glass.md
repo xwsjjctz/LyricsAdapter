@@ -1,8 +1,8 @@
-# macOS FocusMode Liquid Glass
+# macOS Native Liquid Glass Surfaces
 
-FocusMode uses a compact native floating playback bar with inline volume controls when
-running on macOS 26+ with a bridge built against the macOS 26 SDK. Windows, Linux,
-older macOS and missing/outdated native bridges retain the existing web controls.
+The main player and FocusMode use region-scoped native playback bars when running on
+macOS 26+ with a bridge built against the macOS 26 SDK. Windows, Linux, older macOS
+and missing/outdated native bridges retain the existing web controls.
 
 ## Ownership
 
@@ -16,6 +16,12 @@ older macOS and missing/outdated native bridges retain the existing web controls
   `NSGlassEffectView` siblings above Chromium's content, placing buttons, sliders
   and labels in the glass's supported `contentView` slot. No private APIs, second
   renderer, screenshot-based backgrounds or playback timers are used.
+- `usePlayerControlbar.ts` replaces the main bar with one geometry anchor after
+  native startup. `playerControlbarHandlers.ts` validates its state and resolves
+  cover artwork separately, so the frequent playback clock payload stays small.
+- `native/macos-statusbar-native/src/playerControlbar.mm` owns the main bar's
+  `NSGlassEffectView`, artwork, labels, SF Symbol buttons and sliders. Native actions
+  remain intents handled by the existing React player controller.
 - The view is centered relative to the native content bounds, follows window
   resizing and scales with FocusMode. Its transparent host passes hits outside
   the controls through to Chromium. Playback position is committed on slider
@@ -41,20 +47,14 @@ ordinary controls use semantic monochrome colors; the active playback mode uses 
 accent. Avoid independently tinting every control or matching colored labels to
 similar colors in the artwork.
 
-The main playback bar on macOS uses the same semibold SF Symbols as the native
-FocusMode buttons. A fixed set of ten symbols is rendered locally into 96 px PNG
-alpha masks, cached in the main process and requested once per renderer bridge.
-CSS `currentColor` preserves existing theme colors. Windows/Linux/browser previews
-and unavailable symbols keep the original Material Symbols and layout. This changes
-icons and removes the macOS play button's circular background. The macOS main bar
-floats 16 px above the content bottom at 80 px tall, with a maximum width of 760 px
-and a secondary 100 px volume slider. Hovering/focusing the speaker fades the mode
-icon out and slides the volume control into its place over 180 ms. The shared
-speaker/slider region uses a 160 ms exit grace period, and AppKit reports pointer,
-drag and keyboard presence so crossing into the native slider keeps it open.
-The bar uses 58% theme background opacity with a 24 px backdrop blur; reduced
-transparency restores an opaque surface. Its progress area flexes into the remaining
-compact width. Windows retains its existing in-flow bar and inline slider dimensions.
+The main playback bar is a single native `NSGlassEffectView` on macOS 26+. Its
+supported `contentView` contains the cover/focus button, truncated title and artist,
+transport and playback-mode buttons, time labels, seek slider, volume slider and
+mute button. The 760 × 80 pt DOM anchor controls placement and transition geometry;
+the web control tree is not left underneath the refractive material. Artwork is
+fetched and resized in the main process only when its URL changes. Reduced
+transparency receives an opaque semantic backing from AppKit. Other platforms and
+native startup/update failures retain the existing themed Web layout.
 
 The library scrolls behind the macOS floating bar. A shared 112 px bottom inset
 (panel height + bottom gap + clearance) is included in real/virtual list padding,
@@ -62,18 +62,11 @@ scroll bounds, automatic location and floating list actions. This lets the last
 row scroll fully above the panel and remain selectable. Album/artist categories
 also reserve this clearance. Browse/metadata content keeps a bottom safe area.
 
-The main bar's seek and volume controls use real `NSSlider` views on macOS. Their
-independent native host shares no lifecycle or action callback with FocusMode.
-`usePlayerSliders` supplies measured DOM rectangles and routes seek/volume intents
-to the existing player callbacks. Incoming playback updates never overwrite a drag.
-Hidden web inputs leave layout anchors, but no duplicate tab stops or accessibility
-controls. Failed native startup/update restores the original web sliders.
-
-Native sliders follow resize/layout transitions and hide when their anchors leave
-the viewport or are occluded by web overlays. Settings/theme panels and FocusMode
-also explicitly suspend them. Reload/unmount disposes the native host. A bounded
-animation sampler handles geometry changes; ordinary playback state updates do not
-start a permanent animation loop. Windows keeps its existing sliders and button.
+The main native bar follows resize/layout transitions and hides as one unit when its
+anchor is occluded by web overlays. Settings/theme panels explicitly suspend it;
+FocusMode moves it with the existing page transition. Reload/unmount disposes the
+native host. A bounded animation sampler handles geometry changes; ordinary playback
+updates do not start a permanent animation loop.
 
 The public glass API exposes style, tint and corner radius, not a Dock preset or
 arbitrary blur radius. The already-blurred FocusMode backdrop also supplies less
@@ -95,8 +88,8 @@ npm run test:e2e:run -- electron.focus-glass.spec.ts electron.focus-memory.spec.
 The native E2E requires macOS 26 and the native build's Electron headers. It compiles
 an AppKit test probe into a temporary directory, activates real controls and checks
 playback, seeking, inline volume, animation alignment, resizing, visibility and teardown.
-It also checks main-bar native sliders, perceptual volume routing, web-overlay
-occlusion, the borderless macOS play button and coexistence with FocusMode.
+It also checks the main `NSGlassEffectView`, artwork/title state, every playback
+intent, web-overlay occlusion and coexistence with FocusMode.
 An isolated AppKit window also checks 100 menu-bar playback/layout/exit cycles
 with the pointer held inside, then verifies a genuine exit with isolated user data.
 The probe is never shipped. `FOCUS_GLASS_SCREENSHOTS=1` additionally captures only

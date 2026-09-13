@@ -7,7 +7,7 @@ import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
 import { useVolumeDisclosure } from '../hooks/useVolumeDisclosure';
-import { usePlayerSliders } from '../hooks/usePlayerSliders';
+import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { MACOS_PLAYER_BOTTOM, MACOS_PLAYER_HEIGHT } from './playerLayout';
 
@@ -56,6 +56,7 @@ const Controls: React.FC<ControlsProps> = memo(({
   const glassUI = useGlassUI();
   const symbols = usePlaybackSymbols();
   const isMac = getDesktopAPI()?.platform === 'darwin';
+  const panelRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
 
@@ -63,12 +64,52 @@ const Controls: React.FC<ControlsProps> = memo(({
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
   const disclosure = useVolumeDisclosure(isMac && !isFocusMode && !nativeSlidersSuppressed);
-  const nativeSliders = usePlayerSliders({ seekRef, volumeRef,
-    visible: !isFocusMode && !nativeSlidersSuppressed,
-    state: { currentTime: displayCurrentTime, duration, level: volume, enabled: !!track,
-      labels: { seek: t('controls.seek'), volume: t('controls.volume') } },
-    onSeek, onVolumeChange, onVolumePresence: disclosure.onNativePresence, volumeExpanded: disclosure.expanded,
+  const nativeControlbar = usePlayerControlbar({
+    anchorRef: panelRef,
+    visible: !nativeSlidersSuppressed,
+    artworkUrl: track?.coverUrl,
+    state: {
+      enabled: !!track,
+      isPlaying,
+      currentTime: displayCurrentTime,
+      duration,
+      volume,
+      playbackMode,
+      title: track?.title ?? t('controls.noTrackSelected'),
+      artist: track?.artist ?? '',
+      labels: {
+        focus: t('controls.focusMode'),
+        playPause: t('shortcut.playPause'),
+        previous: t('shortcut.prevTrack'),
+        next: t('shortcut.nextTrack'),
+        seek: t('controls.seek'),
+        volume: t('controls.volume'),
+        mute: t('controls.mute'),
+        mode: t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence'),
+      },
+    },
+    onFocus: onToggleFocus,
+    onSeek,
+    onTogglePlay,
+    onSkipNext,
+    onSkipPrev,
+    onVolumeChange,
+    onToggleMute,
+    onTogglePlaybackMode,
   });
+
+  if (nativeControlbar) {
+    return (
+      <div
+        ref={panelRef}
+        data-testid="main-controlbar"
+        data-native-controlbar="true"
+        aria-hidden="true"
+        className={`macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
+        style={{ height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM, background: 'transparent' }}
+      />
+    );
+  }
 
   const modeControl = (
     <button
@@ -173,11 +214,10 @@ const Controls: React.FC<ControlsProps> = memo(({
         {/* Progress Bar */}
         <div className={`flex items-center flex-1 ${isMac ? 'gap-2 min-w-0' : 'gap-3'}`}>
           <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(displayCurrentTime)}</span>
-          <div ref={seekRef} className="player-slider" data-native-slider={nativeSliders || undefined} data-testid="main-seek-anchor" aria-hidden={nativeSliders || undefined} style={{ '--slider-progress': `${progress}%` } as React.CSSProperties}>
+          <div ref={seekRef} className="player-slider" data-testid="main-seek-anchor" style={{ '--slider-progress': `${progress}%` } as React.CSSProperties}>
             <input
               type="range" min="0" max={duration || 100} step="0.1" value={displayCurrentTime}
               disabled={!track || duration === 0}
-              tabIndex={nativeSliders ? -1 : undefined}
               aria-label={t('controls.seek')}
               aria-valuetext={`${formatTime(displayCurrentTime)} / ${formatTime(duration)}`}
               onKeyDown={preserveSliderKeys}
@@ -198,12 +238,12 @@ const Controls: React.FC<ControlsProps> = memo(({
           onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}>
           <div className="macos-volume-mode" aria-hidden={disclosure.expanded || undefined}>{modeControl}</div>
           <div className="macos-volume-slider-shell">
-            <div ref={volumeRef} className="player-slider macos-volume-slider" data-native-slider={nativeSliders || undefined}
-              data-testid="main-volume-anchor" aria-hidden={nativeSliders || !disclosure.expanded || undefined}
+            <div ref={volumeRef} className="player-slider macos-volume-slider"
+              data-testid="main-volume-anchor" aria-hidden={!disclosure.expanded || undefined}
               onMouseEnter={disclosure.open} onFocusCapture={disclosure.open} onBlurCapture={disclosure.closeSoon}
               style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
               <input type="range" min="0" max="1" step="0.01" value={volume}
-                tabIndex={nativeSliders || !disclosure.expanded ? -1 : undefined}
+                tabIndex={!disclosure.expanded ? -1 : undefined}
                 aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`}
                 onKeyDown={preserveSliderKeys} onChange={e => onVolumeChange(Number(e.target.value))} />
               <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
@@ -235,8 +275,8 @@ const Controls: React.FC<ControlsProps> = memo(({
             onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}
           />
-          <div ref={volumeRef} className="player-slider player-volume-slider" data-native-slider={nativeSliders || undefined} data-testid="main-volume-anchor" aria-hidden={nativeSliders || undefined} style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
-            <input type="range" tabIndex={nativeSliders ? -1 : undefined} min="0" max="1" step="0.01" value={volume} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} onKeyDown={preserveSliderKeys} onChange={(e) => onVolumeChange(Number(e.target.value))} />
+          <div ref={volumeRef} className="player-slider player-volume-slider" data-testid="main-volume-anchor" style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
+            <input type="range" min="0" max="1" step="0.01" value={volume} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} onKeyDown={preserveSliderKeys} onChange={(e) => onVolumeChange(Number(e.target.value))} />
             <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
             <span className="player-slider-thumb" aria-hidden="true" />
           </div>

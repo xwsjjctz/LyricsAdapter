@@ -1,19 +1,23 @@
 import { createRequire } from 'node:module';
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../../src/types/focusGlass';
-import type { PlayerSlidersState, PlayerSliderAction } from '../../src/types/playerSliders';
+import type { PlayerControlbarState, PlayerControlbarAction } from '../../src/types/playerControlbar';
 
 const require = createRequire(import.meta.url);
 
-export interface MacosPlayerSlidersBridge {
-  startPlayerSliders(handle: Buffer, onAction: (action: PlayerSliderAction) => void): boolean;
-  updatePlayerSliders(state: PlayerSlidersState): void;
-  stopPlayerSliders(): void;
+export interface MacosPlayerControlbarBridge {
+  startPlayerControlbar(handle: Buffer, onAction: (action: PlayerControlbarAction) => void): boolean;
+  updatePlayerControlbar(state: PlayerControlbarState): void;
+  updatePlayerControlbarArtwork(data: Buffer | null): void;
+  stopPlayerControlbar(): void;
 }
-export function loadMacosPlayerSlidersBridge(): MacosPlayerSlidersBridge | null {
+export function loadMacosPlayerControlbarBridge(): MacosPlayerControlbarBridge | null {
   if (process.platform !== 'darwin') return null;
-  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosPlayerSlidersBridge>;
-  return typeof native.startPlayerSliders === 'function' && typeof native.updatePlayerSliders === 'function'
-    && typeof native.stopPlayerSliders === 'function' ? native as MacosPlayerSlidersBridge : null;
+  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosPlayerControlbarBridge>;
+  return typeof native.startPlayerControlbar === 'function'
+    && typeof native.updatePlayerControlbar === 'function'
+    && typeof native.updatePlayerControlbarArtwork === 'function'
+    && typeof native.stopPlayerControlbar === 'function'
+    ? native as MacosPlayerControlbarBridge : null;
 }
 
 export interface MacosFocusGlassBridge {

@@ -40,7 +40,7 @@ const sourcePaths = [
   path.join(sourceRoot, 'binding.gyp'),
   path.join(sourceRoot, 'src', 'addon.mm'),
   path.join(sourceRoot, 'src', 'focusGlass.mm'),
-  path.join(sourceRoot, 'src', 'playerSliders.mm'),
+  path.join(sourceRoot, 'src', 'playerControlbar.mm'),
 ];
 const electronVersion = require('electron/package.json').version;
 

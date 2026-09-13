@@ -81,10 +81,6 @@
   }
 }
 
-.player-slider[data-native-slider="true"] > * {
-  visibility: hidden;
-}
-
 .player-slider {
   position: relative;
   display: flex;
