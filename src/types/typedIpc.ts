@@ -62,8 +62,10 @@ export interface TypedElectronIPC {
     getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;
     start: () => Promise<IpcResult<boolean>>;
     update: (state: FocusGlassState) => Promise<IpcResult<void>>;
+    setBackdrop: (source: string | null) => Promise<IpcResult<void>>;
     stop: () => Promise<IpcResult<void>>;
     onAction: (callback: (action: FocusGlassAction) => void) => () => void;
+    onBackdropLuminance: (callback: (luminance: number | null) => void) => () => void;
   };
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;

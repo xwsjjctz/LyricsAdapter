@@ -278,8 +278,6 @@
   "settings.experimental": "Experimental Features",
   "settings.floatingPanel": "Floating Panel",
   "settings.qqMusicEnabled": "Add Third-Party Music Source",
-  "settings.glassUI": "Frosted Glass",
-  "settings.glassUIDesc": "Frosted translucent header & control bar; the list shows through behind them",
   "settings.buttonBounce": "Button Bounce Animation",
   "settings.buttonBounceDesc": "GSAP press-and-release feedback for buttons",
   "settings.focusBgBlurRadius": "Focus Mode Background Blur",

@@ -278,8 +278,6 @@
   "settings.experimental": "Experimentelle Funktionen",
   "settings.floatingPanel": "Schwebende Leiste",
   "settings.qqMusicEnabled": "Drittanbieter-Musikquelle hinzufügen",
-  "settings.glassUI": "Mattglas-Effekt",
-  "settings.glassUIDesc": "Header und Steuerleiste werden zu mattem Glas; die Liste schimmert hindurch",
   "settings.buttonBounce": "Button-Rückfederung",
   "settings.buttonBounceDesc": "GSAP-Feedback beim Drücken und Loslassen von Buttons",
   "settings.focusBgBlurRadius": "Focus-Mode-Hintergrundunschärfe",

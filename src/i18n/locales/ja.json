@@ -278,8 +278,6 @@
   "settings.experimental": "実験的機能",
   "settings.floatingPanel": "フローティング効果",
   "settings.qqMusicEnabled": "サードパーティ音源を追加",
-  "settings.glassUI": "すりガラス質感",
-  "settings.glassUIDesc": "ライブラリのヘッダーと下部コントロールバーがすりガラスになり、リストが透けて見えます",
   "settings.buttonBounce": "ボタンのバウンスアニメーション",
   "settings.buttonBounceDesc": "ボタン操作時の GSAP による押下・反発フィードバック",
   "settings.focusBgBlurRadius": "Focus Mode の背景ぼかし",

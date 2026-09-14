@@ -14,7 +14,6 @@ import MetadataEditorPopup from './MetadataEditorPopup';
 import GsapModal from './GsapModal';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
-import { useGlassUI } from '../hooks/useGlassUI';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
 import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
@@ -44,7 +43,6 @@ interface LibraryViewProps {
   filterType: 'default' | 'album' | 'artist';
   categorySelection: string | null;
   onCategoryChange: (selection: string | null) => void;
-  onHeaderHeightChange?: (height: number) => void;
   onLoadCloudTracks: (tracks: Track[]) => void;
   onMergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
   onLoadMorePlaylist?: () => void | Promise<void>;
@@ -97,7 +95,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   filterType,
   categorySelection,
   onCategoryChange,
-  onHeaderHeightChange,
   onLoadCloudTracks,
   onMergeCloudTracks,
   onLoadMorePlaylist,
@@ -127,7 +124,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   });
   const [isHighlightTransitionSuppressed, setIsHighlightTransitionSuppressed] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
-  const glassUI = useGlassUI();
   const { loadProgress, refreshCloudTracks } = useLibraryCloudSync({
     dataSource,
     onLoadCloudTracks,
@@ -174,12 +170,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     });
     return unsubscribe;
   }, []);
-
-  // The library header stays in normal document flow. Clear any frosted-header
-  // height left by another view so list rows never pass behind this header.
-  useLayoutEffect(() => {
-    onHeaderHeightChange?.(0);
-  }, [onHeaderHeightChange]);
 
   const filteredTracks = displayTracks;
 
@@ -289,7 +279,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
   const bottomInset = getDesktopAPI()?.platform === 'darwin'
-    ? MACOS_PLAYER_BOTTOM_INSET : glassUI ? 96 : 0;
+    ? MACOS_PLAYER_BOTTOM_INSET : 0;
 
   const {
     baseRowHeight,

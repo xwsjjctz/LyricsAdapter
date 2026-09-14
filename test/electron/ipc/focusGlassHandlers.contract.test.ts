@@ -4,14 +4,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FocusGlassAction, FocusGlassState } from '../../../src/types/focusGlass';
 import { registerFocusGlassHandlers, focusGlassStateSchema } from '../../../electron/ipc/focusGlassHandlers';
 
-const mocks = vi.hoisted(() => ({ handle: vi.fn(), fromWebContents: vi.fn() }));
-vi.mock('electron', () => ({ ipcMain: { handle: mocks.handle }, BrowserWindow: { fromWebContents: mocks.fromWebContents } }));
+const mocks = vi.hoisted(() => ({ handle: vi.fn(), fromWebContents: vi.fn(), netFetch: vi.fn(), createFromBuffer: vi.fn() }));
+vi.mock('electron', () => ({
+  ipcMain: { handle: mocks.handle },
+  BrowserWindow: { fromWebContents: mocks.fromWebContents },
+  net: { fetch: mocks.netFetch },
+  nativeImage: { createFromBuffer: mocks.createFromBuffer },
+}));
 const state: FocusGlassState = {
   visible: true, darkMode: true, enabled: true, isPlaying: false, currentTime: 0, duration: 60, volume: 0.5, playbackMode: 'order', scale: 1,
+  backdropLuminance: -1,
   presentation: { x: 0.25, y: 0.8, width: 0.5, height: 0.15, opacity: 1 },
   labels: { playPause: 'Play', previous: 'Previous', next: 'Next', seek: 'Seek', volume: 'Volume', mute: 'Mute', mode: 'Repeat' },
 };
 function sender() { return Object.assign(new EventEmitter(), { mainFrame: {}, send: vi.fn(), isDestroyed: () => false }); }
+function whiteCoverImage() {
+  const pixels = Buffer.alloc(8 * 8 * 4, 255);
+  return {
+    isEmpty: () => false,
+    resize: () => ({ toBitmap: () => pixels, toPNG: () => pixels }),
+  };
+}
 function setup(platform: NodeJS.Platform = 'darwin') {
   const bridge = { startFocusGlass: vi.fn().mockReturnValue(true), updateFocusGlass: vi.fn(), stopFocusGlass: vi.fn(), getPlaybackSymbols: vi.fn(() => ({ play_arrow: 'data:image/png;base64,fixture' })) };
   const load = vi.fn(() => bridge);
@@ -88,6 +101,50 @@ describe('native focus glass lifecycle', () => {
   it('validates labels and finite playback values before crossing the native boundary', () => {
     expect(focusGlassStateSchema.safeParse(state).success).toBe(true);
     expect(focusGlassStateSchema.safeParse({ ...state, currentTime: NaN }).success).toBe(false);
+    expect(focusGlassStateSchema.safeParse({ ...state, backdropLuminance: 2 }).success).toBe(false);
     expect(focusGlassStateSchema.safeParse({ ...state, labels: { ...state.labels, mute: 'x'.repeat(129) } }).success).toBe(false);
+  });
+  it('overrides the placeholder luminance with the analyzed cover and clears it on stop', async () => {
+    const { invoke, bridge, owner } = setup();
+    invoke('start');
+    mocks.netFetch.mockResolvedValue({ ok: true, headers: new Map(), arrayBuffer: async () => new ArrayBuffer(8) });
+    mocks.createFromBuffer.mockImplementation(whiteCoverImage);
+    await invoke('backdrop', { source: 'cover://x/1?size=256' });
+    expect(owner.send).toHaveBeenCalledTimes(1);
+    const [channel, payload] = owner.send.mock.calls[0] as unknown as [string, { luminance: number }];
+    expect(channel).toBe('focus-glass-backdrop');
+    expect(payload.luminance).toBeCloseTo(1);
+    invoke('update', state);
+    const forwarded = bridge.updateFocusGlass.mock.calls[0]![0] as FocusGlassState;
+    expect(forwarded.backdropLuminance).toBeCloseTo(1);
+    invoke('stop');
+    invoke('start');
+    invoke('update', state);
+    const afterReset = bridge.updateFocusGlass.mock.calls[1]![0] as FocusGlassState;
+    expect(afterReset.backdropLuminance).toBe(-1);
+  });
+  it('reports an unknown luminance without a cover and caches repeat analyses', async () => {
+    const { invoke, owner } = setup();
+    await invoke('backdrop', { source: null });
+    expect(owner.send).toHaveBeenCalledWith('focus-glass-backdrop', { luminance: null });
+    mocks.netFetch.mockResolvedValue({ ok: true, headers: new Map(), arrayBuffer: async () => new ArrayBuffer(8) });
+    mocks.createFromBuffer.mockImplementation(whiteCoverImage);
+    await invoke('backdrop', { source: 'cover://x/2?size=256' });
+    await invoke('backdrop', { source: 'cover://x/2?size=256' });
+    expect(mocks.netFetch).toHaveBeenCalledOnce();
+  });
+  it('degrades to the theme fallback when a cover cannot be fetched or decoded', async () => {
+    const { invoke, bridge } = setup();
+    mocks.netFetch.mockRejectedValue(new Error('offline'));
+    await invoke('backdrop', { source: 'https://cdn.example/cover.jpg' });
+    expect(bridge.updateFocusGlass).not.toHaveBeenCalled();
+    invoke('start');
+    invoke('update', state);
+    expect(bridge.updateFocusGlass).toHaveBeenCalledWith(state);
+    mocks.netFetch.mockResolvedValue({ ok: true, headers: new Map(), arrayBuffer: async () => new ArrayBuffer(8) });
+    mocks.createFromBuffer.mockReturnValue({ isEmpty: () => true });
+    await invoke('backdrop', { source: 'cover://x/broken' });
+    expect(invoke('update', state).ok).toBe(true);
+    expect(bridge.updateFocusGlass).toHaveBeenLastCalledWith(state);
   });
 });

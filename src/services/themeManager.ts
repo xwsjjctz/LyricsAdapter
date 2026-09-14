@@ -70,7 +70,6 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 
   el.style.setProperty('--theme-control-panel-bg', controls.panelBackground);
   el.style.setProperty('--theme-control-panel-bg-glass', controls.panelBackgroundGlass);
-  el.style.setProperty('--theme-control-panel-bg-glass-strong', controls.panelBackgroundGlassStrong);
   el.style.setProperty('--theme-control-panel-bg-floating', controls.panelFloatingBackground);
   el.style.setProperty('--theme-control-panel-border', controls.panelBorder);
   el.style.setProperty('--theme-control-panel-shadow', controls.panelShadow);

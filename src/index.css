@@ -46,9 +46,22 @@ body,
   height: 100%;
 }
 
-html.electron[data-window-effect],
-html.electron[data-window-effect] body,
-html.electron[data-window-effect] #root {
+html.electron[data-window-effect='acrylic'],
+html.electron[data-window-effect='acrylic'] body,
+html.electron[data-window-effect='acrylic'] #root {
+  background-color: transparent;
+}
+
+/* macOS replaces the retired native vibrancy with a uniform white wash drawn
+   by the renderer: the desktop stays faintly visible through the transparent
+   window while every glass surface sits on a light base. Kept on the root
+   element only — the themed <main> gradient paints over it as before. */
+html.electron[data-window-effect='translucent'] {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+html.electron[data-window-effect='translucent'] body,
+html.electron[data-window-effect='translucent'] #root {
   background-color: transparent;
 }
 
@@ -973,27 +986,6 @@ textarea.cookie-textarea::-webkit-scrollbar {
 textarea.cookie-textarea::-webkit-scrollbar-thumb {
   display: none !important;
   background: transparent !important;
-}
-
-/* Frosted-glass bars for the experimental "Glass UI" feature.
-   Used by the library header band and the global ControlBar.
-   Translucent background is applied inline per component (theme-aware);
-   this class only owns the backdrop blur so it can be toggled cleanly
-   without colliding with the legacy no-op `glass`/`glass-soft` classes. */
-.frosted-bar {
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-}
-
-/* Frosted header band rendered at App's <main> level so it spans full width
-   without being clipped by inner padding (px-10, pt-2 etc.). Its element height
-   is the hard blur boundary: LibraryView stops at the song-list divider, while
-   Settings/Theme stop at their measured header container bottom. */
-.frosted-header {
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  background-color: color-mix(in srgb, var(--theme-background-sidebar, #0d1520) 55%, transparent);
-  pointer-events: none;
 }
 
 /* Remove default focus styles for input and textarea */

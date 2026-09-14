@@ -42,7 +42,8 @@ const artworkSchema = z.string().max(8192).nullable();
 const ALLOWED_ARTWORK_PROTOCOLS = new Set(['cover:', 'https:', 'http:', 'data:']);
 const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
 
-async function loadArtwork(source: string): Promise<Buffer | null> {
+/** Fetches and decodes an artwork URL into a compact PNG; null when unavailable. */
+export async function loadArtwork(source: string): Promise<Buffer | null> {
   const url = new URL(source);
   if (!ALLOWED_ARTWORK_PROTOCOLS.has(url.protocol)) throw new Error('Unsupported artwork protocol');
   const response = await net.fetch(source);

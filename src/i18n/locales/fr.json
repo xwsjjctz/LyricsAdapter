@@ -278,8 +278,6 @@
   "settings.experimental": "Fonctionnalités expérimentales",
   "settings.floatingPanel": "Panneau flottant",
   "settings.qqMusicEnabled": "Ajouter une source musicale tierce",
-  "settings.glassUI": "Verre dépoli",
-  "settings.glassUIDesc": "En-tête et barre de contrôle en verre dépoli ; la liste transparaît",
   "settings.buttonBounce": "Animation rebond des boutons",
   "settings.buttonBounceDesc": "Retour GSAP à la pression et au relâchement des boutons",
   "settings.focusBgBlurRadius": "Flou d’arrière-plan du mode Focus",

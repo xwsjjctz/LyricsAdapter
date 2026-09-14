@@ -3,13 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig, ThemeId, THEME_IDS } from '../types/theme';
 import { predefinedThemes } from '../services/themes/predefinedThemes';
-import { useFrostedHeader } from '../hooks/useFrostedHeader';
 import { resolveThemeControls } from '../services/themeControls';
 import { resolveThemeAppearance } from '../services/themeAppearance';
-
-interface ThemeViewProps {
-  onHeaderHeightChange?: (height: number) => void;
-}
 
 const DEFAULT_THEME_IDS: ThemeId[] = [
   THEME_IDS.DEFAULT_DARK,
@@ -54,8 +49,7 @@ const ThemeModeSwitch: React.FC<ThemeModeSwitchProps> = ({ checked, ariaLabel, o
   </label>
 );
 
-const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
-  const { ref: headerBandRef, headerHeight: headerBandHeight, glassUI } = useFrostedHeader(onHeaderHeightChange);
+const ThemeView: React.FC = () => {
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(themeManager.getCurrentThemeId());
   const [defaultCardMode, setDefaultCardMode] = useState<'dark' | 'light'>(
     themeManager.getCurrentThemeId() === THEME_IDS.DEFAULT_LIGHT ? 'light' : 'dark'
@@ -185,10 +179,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
 
   return (
     <div className="w-full flex flex-col h-full relative">
-      {/* Header band: in glass mode it overlays the top (z-30) while the grid
-          scrolls under the App-level frosted band; measured height pads the
-          grid down so it starts below the band. */}
-      <div ref={headerBandRef} className={glassUI ? 'relative z-30 flex-shrink-0' : 'flex-shrink-0'}>
+      <div className="flex-shrink-0">
       {/* Header */}
       <div className="mb-6 flex-shrink-0 flex items-center justify-between">
         <div>
@@ -204,10 +195,7 @@ const ThemeView: React.FC<ThemeViewProps> = ({ onHeaderHeightChange }) => {
       </div>
 
       {/* Theme Grid - Each card shows its own theme colors (not CSS variables) */}
-      <div
-        className={glassUI ? 'absolute inset-0 overflow-y-auto no-scrollbar' : 'flex-1 overflow-y-auto no-scrollbar'}
-        style={glassUI ? { paddingTop: headerBandHeight } : undefined}
-      >
+      <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleThemes.map((theme) => {
             const isDefaultCard = theme.id === THEME_IDS.DEFAULT_DARK || theme.id === THEME_IDS.DEFAULT_LIGHT;

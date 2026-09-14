@@ -2,7 +2,6 @@ import React, { memo, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../services/coverUrl';
-import { useGlassUI } from '../hooks/useGlassUI';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
@@ -53,7 +52,6 @@ const Controls: React.FC<ControlsProps> = memo(({
   floating = false, nativeSlidersSuppressed = false
 }) => {
   const { t } = useTranslation();
-  const glassUI = useGlassUI();
   const symbols = usePlaybackSymbols();
   const isMac = getDesktopAPI()?.platform === 'darwin';
   const panelRef = useRef<HTMLDivElement>(null);
@@ -132,7 +130,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       data-macos-floating={isMac || undefined}
       className={isMac ? `macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
         ? `mx-2 mb-2 h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
-        : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${glassUI ? 'frosted-bar absolute bottom-0 left-0 right-0' : ''} ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
+        : `h-24 border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       }
       style={isMac ? {
         height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM,
@@ -152,7 +150,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       } : {
         borderColor: 'var(--theme-control-panel-border)',
         borderTopWidth: 'var(--theme-panel-border-width)',
-        backgroundColor: glassUI ? 'var(--theme-control-panel-bg-glass-strong)' : 'var(--theme-control-panel-bg-glass)',
+        backgroundColor: 'var(--theme-control-panel-bg-glass)',
         boxShadow: 'var(--theme-control-panel-shadow)',
       }}
     >

@@ -45,7 +45,6 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
   'la_bg_blur_trans',
   'la_qq_music_enabled',
   'la_online_source',
-  'la_glass_ui',
   'la_gsap_button_bounce',
   'la_focus_bg_blur_radius',
   'la_focus_lyrics_font_size',

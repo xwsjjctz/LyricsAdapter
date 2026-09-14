@@ -5,7 +5,6 @@ import Controls from '@/components/Controls';
 import type { Track } from '@/types';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('@/hooks/useGlassUI', () => ({ useGlassUI: () => false }));
 vi.mock('@/components/OverflowMarquee', () => ({ default: ({ text }: { text: string }) => <span>{text}</span> }));
 
 const track: Track = { id: 'preview', title: 'Test track', artist: 'Artist', album: 'Album', duration: 180, audioUrl: '' };

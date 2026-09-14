@@ -105,11 +105,9 @@ const AppShell: React.FC<AppShellProps> = ({
     autoLocateToken,
     pendingNavigation,
     setPendingNavigation,
-    headerHeight,
     metadataViewRef,
     isWindowFocused,
     floatingPanel,
-    glassUI,
     handleNavigate,
   } = ui;
 
@@ -192,15 +190,6 @@ const AppShell: React.FC<AppShellProps> = ({
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}
         >
-          {/* Frosted header band — clipped to each view's measured header bottom.
-              For LibraryView this ends at the song-list column divider; for
-              Settings it ends at the panel header container bottom. */}
-          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS) && headerHeight > 0 && (
-            <div
-              className="frosted-header absolute top-0 left-0 right-0 z-20"
-              style={{ height: 40 + headerHeight }}
-            />
-          )}
           <input
             type="file"
             ref={importVm.fileInputRef}
@@ -265,7 +254,6 @@ const AppShell: React.FC<AppShellProps> = ({
                 filterType={slots[viewSlot].filterType}
                 categorySelection={slots[viewSlot].categorySelection}
                 onCategoryChange={handleCategoryChange}
-                onHeaderHeightChange={ui.setHeaderHeight}
                 onLoadCloudTracks={loadCloudTracks}
                 onMergeCloudTracks={mergeCloudTracks}
                 {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playerController.loadMorePlaylistInLibrary } : {})}

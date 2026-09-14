@@ -8,7 +8,6 @@ beforeEach(() => {
   (settingsManager as any).floatingPanel = false;
   (settingsManager as any).bgBlurTrans = 1.0;
   (settingsManager as any).qqMusicEnabled = false;
-  (settingsManager as any).glassUI = false;
   (settingsManager as any).gsapButtonBounce = true;
   (settingsManager as any).focusBgBlurRadius = 80;
   (settingsManager as any).focusLyricsFontSize = 32;

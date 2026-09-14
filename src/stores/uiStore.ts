@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { ViewMode } from '../types';
 import { useFloatingPanel } from '../hooks/useFloatingPanel';
-import { useGlassUI } from '../hooks/useGlassUI';
 import { useGsapButtonBounce } from '../hooks/useGsapButtonBounce';
 import { useGsapPageTransition } from '../hooks/useGsapPageTransition';
 import { useWindowFocus } from '../hooks/useWindowFocus';
@@ -14,11 +13,9 @@ export function useUIStore() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isWindowFocused = useWindowFocus();
   const floatingPanel = useFloatingPanel();
-  const glassUI = useGlassUI();
   const shouldAnimateViewTransition = useCallback((fromView: ViewMode, toView: ViewMode) => {
     const overlayViews = fromView === ViewMode.SETTINGS
       || toView === ViewMode.SETTINGS;
@@ -54,12 +51,9 @@ export function useUIStore() {
     markTrackSwitch,
     pendingNavigation,
     setPendingNavigation,
-    headerHeight,
-    setHeaderHeight,
     metadataViewRef,
     isWindowFocused,
     floatingPanel,
-    glassUI,
     handleNavigate,
   };
 }

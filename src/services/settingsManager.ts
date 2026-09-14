@@ -7,7 +7,6 @@ const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const ONLINE_SOURCE_KEY = 'la_online_source';
-const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
@@ -27,7 +26,6 @@ class SettingsManager {
   private bgBlurTrans: number = 1.0;
   private qqMusicEnabled: boolean = false;
   private onlineSource: OnlineSource = 'qq';
-  private glassUI: boolean = false;
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private focusBgBlurRadius: number = 80;
@@ -53,7 +51,6 @@ class SettingsManager {
       this.bgBlurTrans = 1.0;
       this.qqMusicEnabled = false;
       this.onlineSource = 'qq';
-      this.glassUI = false;
       this.gsapButtonBounce = true;
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 32;
@@ -80,10 +77,6 @@ class SettingsManager {
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
       this.onlineSource = storedSource === 'netease' ? storedSource : 'qq';
 
-      // Frosted Glass UI was retired (see useGlassUI); the persisted flag is
-      // ignored so a previously enabled profile cannot keep paying for two
-      // full-width backdrop-filter layers that no UI can turn off anymore.
-      this.glassUI = false;
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
 
@@ -240,24 +233,6 @@ class SettingsManager {
     const persisted = this.persistSetting(ONLINE_SOURCE_KEY, source, () => { this.onlineSource = previous; });
     this.notify();
     logger.debug(`[SettingsManager] Online source set to: ${source}`);
-    return persisted;
-  }
-
-  // --- Glass UI (frosted header & control bar) ---
-  // @deprecated Frosted Glass UI 已从实验性功能移除，暂时停用。后续迭代或移除。
-
-  /** @deprecated Frosted Glass UI 已停用，恒为 false，后续迭代或移除 */
-  getGlassUI(): boolean {
-    return this.glassUI;
-  }
-
-  /** @deprecated Frosted Glass UI 已停用，后续迭代或移除 */
-  setGlassUI(enabled: boolean): Promise<boolean> {
-    const previous = this.glassUI;
-    this.glassUI = enabled;
-    const persisted = this.persistSetting(GLASS_UI_KEY, enabled ? 'true' : 'false', () => { this.glassUI = previous; });
-    this.notify();
-    logger.debug(`[SettingsManager] Glass UI set to: ${enabled}`);
     return persisted;
   }
 

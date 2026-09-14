@@ -11,7 +11,9 @@ if (platform) {
   if (platform === 'win32') {
     document.documentElement.dataset['windowEffect'] = 'acrylic';
   } else if (platform === 'darwin') {
-    document.documentElement.dataset['windowEffect'] = 'vibrancy';
+    // Native vibrancy is gone; the translucent white wash on the root keeps
+    // the desktop faintly visible and biases glass surfaces light.
+    document.documentElement.dataset['windowEffect'] = 'translucent';
   }
 }
 

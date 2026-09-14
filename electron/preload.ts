@@ -29,11 +29,17 @@ const typedIpc = {
     getPlaybackSymbols: async () => ipcRenderer.invoke('ipc:focusGlass:playbackSymbols'),
     start: async () => ipcRenderer.invoke('ipc:focusGlass:start'),
     update: async (state: FocusGlassState) => ipcRenderer.invoke('ipc:focusGlass:update', state),
+    setBackdrop: async (source: string | null) => ipcRenderer.invoke('ipc:focusGlass:backdrop', { source }),
     stop: async () => ipcRenderer.invoke('ipc:focusGlass:stop'),
     onAction: (callback: (action: FocusGlassAction) => void) => {
       const handler = (_event: unknown, action: FocusGlassAction) => callback(action);
       ipcRenderer.on('focus-glass-action', handler);
       return () => ipcRenderer.removeListener('focus-glass-action', handler);
+    },
+    onBackdropLuminance: (callback: (luminance: number | null) => void) => {
+      const handler = (_event: unknown, payload: { luminance: number | null }) => callback(payload.luminance);
+      ipcRenderer.on('focus-glass-backdrop', handler);
+      return () => ipcRenderer.removeListener('focus-glass-backdrop', handler);
     },
   },
   file: {

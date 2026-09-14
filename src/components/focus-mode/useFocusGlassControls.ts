@@ -83,6 +83,8 @@ export function useFocusGlassControls(options: Options): boolean {
   state.current = {
     visible, enabled, isPlaying, currentTime, duration: Math.max(0, duration), volume, playbackMode,
     darkMode: document.documentElement.classList.contains('theme-dark'),
+    // Placeholder; the main process replaces it with the analyzed cover luminance.
+    backdropLuminance: -1,
     scale: Math.max(1, Math.min(3, scale)),
     presentation: { x: 0, y: 1, width: 0, height: 0, opacity: 0 },
     labels: {

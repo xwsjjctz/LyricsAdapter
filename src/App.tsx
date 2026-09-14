@@ -51,12 +51,9 @@ const AppContent: React.FC = () => {
     markTrackSwitch,
     pendingNavigation,
     setPendingNavigation,
-    headerHeight,
-    setHeaderHeight,
     metadataViewRef,
     isWindowFocused,
     floatingPanel,
-    glassUI,
     handleNavigate,
   } = useUIStore();
   const sidebar = useSidebarLayout();
@@ -392,8 +389,8 @@ const AppContent: React.FC = () => {
       ui={{
         viewMode, setViewMode, transitionToView, pageContentRef,
         isFocusMode, setIsFocusMode, autoLocateToken, markTrackSwitch,
-        pendingNavigation, setPendingNavigation, headerHeight, setHeaderHeight,
-        metadataViewRef, isWindowFocused, floatingPanel, glassUI, handleNavigate,
+        pendingNavigation, setPendingNavigation,
+        metadataViewRef, isWindowFocused, floatingPanel, handleNavigate,
       }}
       sidebar={sidebar}
       library={library}

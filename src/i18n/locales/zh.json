@@ -278,8 +278,6 @@
   "settings.experimental": "实验性功能",
   "settings.floatingPanel": "悬浮效果",
   "settings.qqMusicEnabled": "添加第三方音源",
-  "settings.glassUI": "玻璃质感",
-  "settings.glassUIDesc": "歌曲库表头与底部控制栏变为半透明毛玻璃，列表可从其后透出",
   "settings.buttonBounce": "按钮回弹动画",
   "settings.buttonBounceDesc": "点击按钮时的 GSAP 回弹反馈",
   "settings.focusBgBlurRadius": "Focus Mode 背景模糊",
