@@ -4,582 +4,134 @@
 
 # LyricsAdapter
 
-**A feature-rich Electron desktop music player with synchronized lyrics display and immersive playback experience**
+**A desktop player built around local music and synchronized lyrics.**
 
-[![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react&logoColor=white)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8.2-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-8.1.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Electron](https://img.shields.io/badge/Electron-42.5.0-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.3.1-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
+Listen to your own collection, connect a WebDAV library, or add QQ Music and NetEase Cloud Music.
 
-[Features](#-features) • [Preview](#-preview) • [Quick Start](#-quick-start) • [Usage Guide](#-usage-guide) • [Project Structure](#-project-structure) • [Architecture](#️-architecture)
+[Download](https://github.com/xwsjjctz/LyricsAdapter/releases) · [简体中文](README.md)
 
 </div>
 
----
+## Get started
 
-## ✨ Features
+Download the installer for your device from [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases). The current release configuration provides a `.dmg` for Apple Silicon Macs and an `.exe` installer for Windows x64.
 
-### 🎵 Core Playback
+1. Open the app and select **Local** in the sidebar.
+2. Use the import button at the top right of the library to select **MP3 or FLAC** files, or drag multiple audio files into the library area.
+3. Click a track to play it, then use **Focus Mode** in the bottom controls to view synchronized lyrics.
 
-- **Multi-format audio support** — Full support for FLAC, MP3 and other common audio formats
-- **Smart metadata parsing** — Automatically extract embedded title, artist, album, cover art, and lyrics from audio files (Rust lofty engine)
-- **Synced lyrics** — LRC lyrics with millisecond precision; word-by-word QRC/YRC karaoke lyrics from online providers, persisted back into custom audio tags
-- **Streaming local playback** — Local files are streamed via the custom `audio://` protocol with Range requests, never fully loaded into memory
-- **Complete playback controls** — Play/pause, previous/next track, seek, volume control
-- **System media integration** — Publishes metadata, artwork, and playback actions to macOS Control Center and Windows system media controls
-- **System lyrics** — Live lyrics in the macOS menu bar; on Windows, a self-contained C# WPF host renders the Fluent-style surface directly inside the taskbar through Win32, with karaoke highlighting and hover playback controls
-- **Multiple playback modes** — Sequential, repeat-one, shuffle
+Local playback requires no login. Importing reads the title, artist, album, artwork, and embedded lyrics from your files.
 
-### 🎨 User Interface
+## Library and playback
 
-- **Elegant UI design** — Glassmorphism effects with GSAP-driven page and transition animations
-- **Immersive mode** — Full-screen display with dynamic album-art-derived background, real-time synchronized lyrics scrolling
-- **Virtualized list** — Smooth scrolling for large libraries with drag-and-drop sorting
-- **Pinyin search** — Search Chinese tracks by pinyin initials or full pinyin
-- **5 built-in themes** — Default Dark, Default Light, Classic Blue, Warm Rice, Brutalist Yellow
-- **6 language support** — Chinese, English, Japanese, Korean, German, French (i18next)
+### Playback controls
 
-### 🌐 Online & Cloud
+The bottom bar provides play/pause, previous/next track, seeking, volume, and mute controls. Sequential playback, shuffle, and repeat-one modes are available.
 
-- **Multiple online providers** — QQ Music and NetEase Cloud Music, switchable in settings
-- **QR login** — Scan-to-login for QQ Music and NetEase Cloud Music to unlock high quality and playlists
-- **Search, stream & download** — Search, preview via streaming, download at 128kbps / 320kbps / FLAC with tags and lyrics written automatically
-- **Playlists** — Browse and play third-party playlists with a dedicated play context
-- **WebDAV cloud library** — Browse and stream music from WebDAV servers; upload from local files or online providers
-- **Auto update** — Built-in electron-updater checks for new releases in-app
+The app remembers your library, current track, playback position, volume, and other state, and restores playback paused when reopened. You can browse another library or open a playlist while the current song continues playing.
 
-### 💾 Data Management
+### Find music
 
-- **SQLite persistence** — Library and settings live in `~/.la/state.sqlite3`, independent of Chromium's clearable cache
-- **Four play slots** — Local / Cloud / Online / Playlist each save their own progress, volume, and browsing state
-- **Cover cache** — Embedded covers extracted to `userData/covers/`, served through the `cover://` protocol with on-demand downscaling
+The search box at the top of the library searches both local tracks and loaded cloud tracks. It matches titles, artists, albums, and filenames, including Chinese pinyin. With third-party sources enabled, it also shows online songs.
 
----
+Click a local or cloud result to locate and play it. Use the arrow keys to select a result, `Enter` to confirm, and `Esc` to dismiss search. The locate-current-track button takes you back to the song playing in the list.
 
-## 🎬 Preview
+### Organize your local library
 
-### Main Interface
-A clean library view with independent local/cloud play contexts, batch import, pinyin search, editing, and drag-and-drop sorting
+Turn on **Edit Mode** at the top of the library to:
 
-![Library view](resource/LibraryView_1.png)
+- Drag tracks to change their order.
+- Select several tracks, or select all, for bulk removal.
+- Remove an individual track using its delete button.
+- Open a track's metadata editor to change its title, artist, album, or lyrics, or import new artwork.
 
-The category view groups your library by album or artist for one-click browsing
+Saving metadata for a local track writes the changes back to its audio file. Removal only removes the library entry by default; the original file is deleted only if you select the option to delete the local audio file as well.
 
-![Category view](resource/LibraryView_2.png)
+## Lyrics and Focus Mode
 
-### Immersive Lyrics Mode
-Full-screen experience with a dynamic background following the cover colors and real-time synced lyrics
+Focus Mode displays album artwork, an artwork-based background, and scrolling lyrics alongside playback controls. Click a timed lyric to jump to that point and play.
 
-![Immersive mode 1](resource/FocusMode_1.png)
-![Immersive mode 2](resource/FocusMode_2.png)
+- **Line-synchronized lyrics:** Embedded LRC lyrics scroll with playback.
+- **Word-synchronized lyrics:** Songs with word timing, such as QRC or YRC lyrics, support karaoke highlighting.
+- **Display settings:** Adjust background opacity, background blur, lyric font size, and line spacing in Settings.
 
----
+When lyrics are unavailable, the app shows a corresponding message. You can add lyrics through a local track's metadata editor; synchronized scrolling requires timestamps in the lyrics.
 
-## 🚀 Quick Start
+### System lyrics and media controls
 
-### Prerequisites
+| Platform | System lyrics |
+| --- | --- |
+| macOS | Current lyrics in the menu bar, with previous, play/pause, and next controls. |
+| Windows | Taskbar lyrics with karaoke highlighting and playback controls on hover. |
 
-- **Node.js** 24.19.x
-- **npm** 9.0 or higher (or yarn/pnpm)
-- **OS**: Windows 10+, macOS 10.15+, Linux (x64/arm64)
-- **Windows native taskbar host**: source runs require the .NET 8 SDK; `npm run electron:dev` publishes the self-contained C# WPF host for the current architecture automatically, or run `npm run native:build:taskbar-host -- --force`
-- **macOS native bridge**: source installs require Xcode Command Line Tools and Python 3; `npm install` compiles for the current Electron/architecture automatically, or run `npm run native:rebuild:macos-statusbar -- --force`
+Playback information is also shared with system media controls so you can view the current song and control playback.
 
-### Installation & Setup
+## WebDAV library
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/xwsjjctz/LyricsAdapter.git
-   cd LyricsAdapter
-   ```
+Open **Settings** at the bottom of the sidebar. Enter your server URL, account, and app password in the WebDAV section, test the connection, and save. Then select **Cloud** in the sidebar.
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+- Load music from your server into a track list and stream it.
+- Refresh the cloud library using its refresh button.
+- Upload local audio using the cloud library's upload button or by dropping files into its library area, when the server allows writing.
+- Find loaded cloud tracks through the search box at the top.
 
-3. **Start the dev server**
-   ```bash
-   npm run electron:dev
-   ```
+Cloud playback requires a working network connection. Read-only servers support playback but not uploads.
 
-4. **Start using it**
-   - The app window opens automatically
-   - Click "Import Files" in the sidebar
-   - Select audio files (batch selection and multiple formats supported)
-   - Enjoy your music!
+## Online music and playlists
 
-### Other Commands
+### Enable sources and sign in
 
-```bash
-# Browser-only renderer dev server
-npm run dev
+1. Open **Settings** and enable the option to add third-party sources under **Experimental Features**.
+2. Select QQ Music or NetEase Cloud Music in the third-party source section that appears below.
+3. Scan the QR code with the provider's mobile app and confirm login, or enter a Cookie manually and save.
 
-# Electron with CDP / main-process debug ports
-npm run electron:debug
+QQ Music requires valid login credentials to appear in online search. NetEase supports anonymous search and preview playback. Personal playlists require login to the corresponding provider. Playback, downloads, and available quality depend on the resources returned by the provider and your account permissions.
 
-# Type-check, unit tests, and production build
-npm run check
+### Search, listen, and download
 
-# Real Electron smoke test
-npm run test:e2e
+Return to the library and enter keywords in the top search box. Online results identify their QQ or NetEase source. Click a song to listen; preview history is available in the sidebar's **Online Queue**.
 
-# Build for Windows (x64)
-npm run electron:build:win
+The download and upload buttons on result cards offer three quality choices:
 
-# Build for Windows (ARM64)
-npm run electron:build:win:arm64
+| Quality | Option |
+| --- | --- |
+| Standard | 128 kbps |
+| High quality | 320 kbps |
+| Lossless | FLAC |
 
-# Build for macOS
-npm run electron:build:mac
+Before downloading, choose a destination folder in the third-party source settings, or enter a path such as `~/Music`. Completed downloads are added to the local library with available song information, artwork, and lyrics written to the file.
 
-# Build for Linux
-npm run electron:build:linux
+With a writable WebDAV connection configured, you can also upload songs directly from online search results to your cloud library.
 
-# Build for the current platform
-npm run electron:build
-```
+### Browse playlists
 
-Build artifacts are output to `release/`.
+After login, the sidebar's playlist section loads playlists from the corresponding providers. Open a playlist to view its tracks, then click a song to play it. Longer playlists load more tracks as you scroll down.
 
----
+Use the playlist section's edit button to hide or show playlists. This only changes their visibility in the app's sidebar; it does not delete playlists from the provider.
 
-## 📘 Usage Guide
+## Appearance and shortcuts
 
-### Library Management
+Use the light/dark button at the bottom of the sidebar to switch appearance. The button at the top left collapses or expands the sidebar, and dragging its right edge adjusts its width.
 
-#### Importing Music
+Settings offers Chinese, English, Japanese, Korean, German, and French interfaces. Windows also includes a toggle for the updated Focus Mode font.
 
-- **Option 1**: Click "Import Files" in the sidebar and select audio files
-- **Option 2**: Drag and drop audio files onto the app window
-- **Supported formats**: `.flac`, `.mp3`
+Common default shortcuts use `⌘` on macOS and `Ctrl` on Windows:
 
-#### Managing Tracks
+| Action | Shortcut |
+| --- | --- |
+| Play/pause | `Space` |
+| Previous/next track | `⌘ / Ctrl` + `← / →` |
+| Seek backward/forward 5 seconds | `← / →` |
+| Seek backward/forward 30 seconds | `Alt` + `← / →` |
+| Decrease/increase volume | `↓ / ↑` |
+| Mute/unmute | `M` |
+| Cycle playback mode | `Tab` |
+| Enter/exit Focus Mode | `⌘ / Ctrl` + `Enter` |
+| Focus search | `⌘ / Ctrl` + `F` |
+| Open Settings | `⌘ / Ctrl` + `,` |
 
-- **Search**: Use the sidebar search box (pinyin supported for Chinese titles)
-- **Delete**: Click the delete button on a track, or use edit mode for batch deletion
-- **Sort**: Drag tracks to reorder them
-- **Locate**: Click "Jump to current track" to scroll to the playing track
+In **Settings → Shortcuts**, click a key combination to change it. Press `Esc` to cancel, or `Backspace` or `Delete` to clear the binding. You can also restore the defaults.
 
-#### Editing Metadata
+## License and credits
 
-1. Switch to the "Metadata" view
-2. Select a track from the library
-3. Edit title, artist, album, lyrics, etc.
-4. Save changes (written back to file tags)
-
-### Online Music
-
-#### Configuring Providers
-
-1. Open the "Settings" view and pick QQ Music / NetEase Cloud Music under "Online Source"
-2. For high quality or playlists, scan the QR code in settings to log in
-
-#### Search & Download
-
-1. Switch to the "Browse" view
-2. Type a song, artist, or album name in the search box
-3. Click a result to preview it (streaming)
-4. Click download or upload and pick a quality:
-   - **128kbps** — standard quality, smaller files
-   - **320kbps** — high quality, recommended
-   - **FLAC** — lossless, larger files
-
-Downloaded files get full metadata, cover art, and lyrics (including word-by-word lyrics) written automatically and are added to the local library; you can also upload them straight to WebDAV.
-
-#### Playlists
-
-Open the playlist tab in the "Browse" view to browse and play third-party playlists. Playlists use a dedicated play context and never disturb your library state.
-
-#### Download Location
-
-Configure the download folder in settings:
-- `~` stands for the user home directory
-- e.g. `~/Music` → `/Users/your-name/Music`
-
-### WebDAV Cloud Playback
-
-#### Configuring a WebDAV Server
-
-1. Open the "Settings" view
-2. Find the "WebDAV Settings" section
-3. Fill in:
-   - **Server URL**: WebDAV server URL (e.g. `https://example.com/dav`)
-   - **Username**: auth username
-   - **Password**: auth password
-   - **Root directory**: optional root path
-
-#### Browsing Cloud Music
-
-1. Switch to the "Cloud" library
-2. Browse the server directory tree
-3. Click an audio file to play it instantly (no download)
-
-#### Cloud Playback Notes
-
-- **Streaming**: audio is loaded on demand through proxied Range requests, no local storage used
-- **Metadata cache**: remote metadata and file-list snapshots are cached in IndexedDB for instant re-entry
-- **Independent state**: cloud playback state is saved separately from the local library
-
-### Immersive Playback
-
-Enter immersive mode:
-- **Option 1**: Click the "Focus Mode" button in the bottom control bar
-- **Option 2**: Press `Ctrl/Cmd + Enter`
-
-Immersive mode features:
-- Full-screen lyrics
-- Dynamic background color extracted from the cover
-- Lyrics auto-scroll to the current line
-- Click a lyric line to seek to that timestamp
-- Mouse and keyboard playback control
-
-### Theme Switching
-
-The app ships with 5 themes: Default Dark, Default Light, Classic Blue, Warm Rice, Brutalist Yellow.
-
-To switch:
-1. Click the "Theme" button in the sidebar
-2. Preview and pick a theme
-3. Click "Apply"
-
-### Keyboard Shortcuts
-
-Full keyboard shortcut support, all customizable.
-
-#### Playback
-
-| Shortcut | Action | Notes |
-|----------|--------|-------|
-| `Space` | Play/Pause | Toggle playback |
-| `Ctrl/Cmd + ←` | Previous track | |
-| `Ctrl/Cmd + →` | Next track | |
-| `←` | Seek back 5s | |
-| `→` | Seek forward 5s | |
-| `Alt + ←` | Seek back 30s | |
-| `Alt + →` | Seek forward 30s | |
-| `↑` | Volume up | +1% |
-| `↓` | Volume down | −1% |
-| `Alt + ↑` | Volume up 10% | +10% |
-| `Alt + ↓` | Volume down 10% | −10% |
-| `M` | Mute/Unmute | |
-| `Tab` | Cycle playback mode | |
-
-#### Navigation
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl/Cmd + Enter` | Toggle immersive mode |
-| `Ctrl/Cmd + F` | Focus search box |
-| `Ctrl/Cmd + B` | Go to Browse |
-| `Ctrl/Cmd + Shift + M` | Go to Metadata view |
-| `Ctrl/Cmd + ,` | Open Settings |
-| `Ctrl/Cmd + T` | Open Themes |
-
-#### Customizing Shortcuts
-
-1. Open the "Settings" view
-2. Go to the "Shortcuts" section
-3. Click the shortcut you want to change
-4. Press the new key combination
-5. `Esc` cancels, `Backspace` clears
-
----
-
-## 🛠️ Tech Stack
-
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **React** | 18.2.0 | UI framework with Hooks and function components |
-| **TypeScript** | ~5.8.2 | Type-safe JavaScript superset |
-| **Vite** | ^8.1.0 | Next-generation build tool with fast HMR |
-| **Electron** | ^42.5.0 | Cross-platform desktop framework |
-| **C# WPF / Win32** | .NET 8 | Self-contained Windows taskbar lyrics host, Fluent-style rendering, and native window integration |
-| **Tailwind CSS** | ^4.3.1 | Utility-first CSS framework |
-| **GSAP** | ^3.15.0 | Page transitions and animations |
-| **music-tag-native** | ^1.0.0 | Audio metadata read/write (Rust lofty engine) |
-| **@applemusic-like-lyrics/lyric** | ^1.0.2 | Word-by-word QRC/YRC lyric parsing |
-| **i18next / react-i18next** | ^26 / ^17 | Internationalization (6 languages) |
-| **zod** | ^4.4.3 | Typed IPC payload validation |
-| **electron-updater** | ^6.3.9 | In-app auto updates |
-| **node:sqlite** | built-in | User state persistence (`~/.la/state.sqlite3`) |
-
-### Build Tools
-
-- **Vite Plugin Electron** — Electron integration
-- **Electron Builder** — Cross-platform packaging
-- **node-gyp / @electron/rebuild** — Source builds of Node-API modules for the current Electron version and system architecture
-- **cross-env** — Cross-platform environment variables
-
----
-
-## 📁 Project Structure
-
-```
-LyricsAdapter/
-├── electron/                # Electron main process
-│   ├── main.ts              # Entry: protocols, IPC, window, updater
-│   ├── preload.ts           # contextBridge exposing a controlled window.electron
-│   ├── windowManager.ts     # Frameless window and window state
-│   ├── native/              # Native host/Node-API bridges, protocol validation, and platform fallback
-│   ├── protocols/           # Custom protocols: audio:// cover:// stream:// app://
-│   ├── ipc/                 # typed + legacy IPC handlers (files, library, WebDAV, providers, login…)
-│   └── services/            # SQLite user-state repository, audio metadata, settings store
-├── native/
-│   ├── macos-statusbar-native/ # Objective-C++ Node-API/AppKit menu-bar lyrics
-│   └── windows-taskbar-host/   # Independently implemented C# WPF/Win32 taskbar lyrics host
-├── src/                     # Renderer (React)
-│   ├── App.tsx              # Root composition + ErrorBoundary (wiring only)
-│   ├── components/          # UI components (new-ui/, focus-mode/, settings/, legacy/)
-│   ├── controllers/         # Player/library controllers (the only state mutators)
-│   ├── viewmodels/          # View-facing data models
-│   ├── stores/              # Hook aggregation (library / player / import / ui)
-│   ├── hooks/               # Business hooks (playback, import, WebDAV, shortcuts…)
-│   ├── services/            # desktopAdapter, libraryStorage, metadataService,
-│   │                        # qqMusicApi / neteaseMusicApi,
-│   │                        # onlineMusicProvider, webdavClient, themes, i18n…
-│   ├── domain/              # Pure domain rules
-│   ├── repositories/        # Data access wrappers
-│   ├── shared/              # LRC/QRC/YRC parsing, persistence policy, schemas
-│   └── i18n/                # Locale files for 6 languages
-├── test/                    # Vitest unit tests + Playwright Electron E2E
-├── docs/                    # Architecture & development docs (overview / playback-flow / …)
-└── resource/                # Screenshots and doc assets
-```
-
-> UI components never mutate state directly; user intent flows up through callbacks into controllers. Playback always goes through the player controller and library changes through the library controller. See the ownership boundaries in [AGENTS.md](AGENTS.md).
-
----
-
-## 🏗️ Architecture
-
-### Data Flow
-
-#### File Import
-
-```
-User selects files (dialog / drag & drop)
-    ↓
-Paths enter the main-process allowlist (typed IPC)
-    ↓
-Metadata parsing (music-tag-native / metadataService)
-    ↓
-Cover extraction & caching (userData/covers → cover://)
-    ↓
-Track objects created
-    ↓
-Library persisted (librarySerializer → SQLite)
-    ↓
-UI updated
-```
-
-#### Playback
-
-```
-User plays a track (player controller)
-    ↓
-URL picked by Track.source:
-  - local   → audio://<path> (streamed Range responses from the main process)
-  - webdav  → proxied HTTP Range requests
-  - qq/netease → stream:// (cookie injection, CDN resolution, Range forwarding)
-    ↓
-HTML <audio> plays; progress/volume/mode sync back to the slot
-    ↓
-Adjacent tracks preloaded
-```
-
-#### Online Music
-
-```
-User searches / opens a playlist (BrowseView)
-    ↓
-onlineMusicProvider (qq / netease normalized to OnlineSong)
-    ↓
-Play → streaming preview via stream://
-Download → downloadAndSave + writeAudioMetadata (tags/cover/QRC lyrics)
-Upload → read bytes and PUT to WebDAV
-    ↓
-Merged into the local / cloud slot
-```
-
-#### Windows Taskbar Lyrics
-
-```
-Playback snapshot → typed IPC → Electron main process
-    ↓ UTF-8 NDJSON / private stdio pipe
-Self-contained C# WPF host → native Fluent-style rendering
-    ↓
-Win32 SetParent taskbar embedding + window-region / DPI-aware placement
-    ↑ stdout action → existing player controller (previous / play-pause / next)
-```
-
-Windows no longer creates an extra Chromium lyrics window. The separate WPF host owns lyrics, artwork, karaoke highlighting, hover controls, system light/dark theming, HWND parenting, window regions, DPI handling, and recovery after Explorer restarts. Releases ship it as a self-contained single file, so users do not need a preinstalled .NET runtime; Electron only sends presentation state and receives a narrow set of playback intents. See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for design and licensing details.
-
-### Library Slots
-
-The app maintains four independent slots, each storing `tracks`, current index, progress, volume, playback mode, scroll position, and filter state:
-
-| Slot | Purpose | Sidebar entry |
-|------|---------|---------------|
-| `local` | Imported local library | Yes |
-| `cloud` | WebDAV cloud library | Yes |
-| `online` | Online preview history (LRU) | Yes |
-| `playlist` | Playlist play context | No (backs the Playlists view) |
-
-The active play context is `activeSlotId` while the library panel browses `viewSlot` — the two can differ, e.g. playing a playlist while browsing the local library. Switching slots restores that slot's state and always resets `isPlaying` to `false`.
-
-### Persistence
-
-| Data | Location |
-|------|----------|
-| Library membership, settings, user state | `~/.la/state.sqlite3` (auto-imported from legacy JSON on first run) |
-| Cover cache | `userData/covers/` (downscaled on demand via `cover://`) |
-| Metadata cache, WebDAV snapshots | IndexedDB (renderer side, LRU) |
-| Browser-mode library | IndexedDB + localStorage |
-
-> User data lives in `~/.la` instead of Chromium's userData directory, so "clear browser data" never wipes your library.
-
----
-
-## 📚 Development Docs
-
-### Dev Environment Setup
-
-1. **Clone and install**
-   ```bash
-   git clone https://github.com/xwsjjctz/LyricsAdapter.git
-   cd LyricsAdapter
-   npm install
-   ```
-
-2. **Start the dev server**
-   ```bash
-   npm run electron:dev
-   ```
-
-3. **Tooling**
-   - Chromium DevTools / CDP — renderer, DOM, network, and console debugging
-   - Node Inspector — main-process breakpoint debugging
-   - Playwright MCP — AI agents inspecting and driving Electron over CDP
-
-   See [DEBUGGING.md](DEBUGGING.md) for the full workflow and
-   [docs/architecture/overview.md](docs/architecture/overview.md) for architecture details.
-
-### Code Conventions
-
-- **Components**: function components and Hooks
-- **Types**: TypeScript types for all Props and State
-- **Naming**: PascalCase for components, camelCase otherwise
-- **Styling**: Tailwind CSS classes
-- **Logging**: use the `logger` service, never `console.*`
-- **Boundaries**: UI never mutates state; playback goes through the player controller, library changes through the library controller
-
-### Adding Features
-
-1. **New component**
-   - Create a `.tsx` file under the matching `src/components/` subdirectory
-   - Define a Props interface and emit user intent through callbacks
-   - Style with Tailwind CSS
-
-2. **New service**
-   - Create a `.ts` file under `src/services/`
-   - Desktop capabilities go through `services/desktopAdapter.ts` only
-   - New online providers plug in by implementing the `OnlineMusicProvider` interface
-
-3. **New types**
-   - Add them in `src/types.ts` or `src/types/`
-   - Strict mode is enforced
-
-4. **New theme**
-   - Add the theme config in `src/services/themes/predefinedThemes.ts`
-   - Add name/description translations under `src/i18n/locales/`
-
-### Debugging Tips
-
-For cross-process debugging (renderer / preload / main), run `npm run electron:debug` first, then follow [DEBUGGING.md](DEBUGGING.md) to attach CDP, MCP, or VS Code.
-
-1. **Logs**
-   - Dev: `logger.debug()` / `logger.info()` in the console
-   - Production: only `logger.warn()` / `logger.error()` are shown
-
-2. **IPC**
-   ```typescript
-   logger.debug('[App] IPC call:', result);
-   ```
-
-3. **State**
-   ```typescript
-   useEffect(() => {
-     logger.debug('[Component] State changed:', state);
-   }, [state]);
-   ```
-
----
-
-## ❓ FAQ
-
-### 1. How do I batch import music?
-
-- Multi-select files with `Ctrl` (Windows/Linux) or `Cmd` (macOS) in the file dialog
-- Or drag & drop files onto the app window
-
-### 2. Where is app data stored?
-
-- **Library & settings**: `~/.la/state.sqlite3` (same on every platform, separate from app caches)
-- **Cover cache**:
-  - **macOS**: `~/Library/Application Support/lyrics-adapter/covers/`
-  - **Windows**: `%APPDATA%/lyrics-adapter/covers/`
-  - **Linux**: `~/.config/lyrics-adapter/covers/`
-
-### 3. How do I migrate my library?
-
-1. Back up `~/.la/state.sqlite3` and your audio files
-2. Install the app on the new device
-3. Restore the database file to the same location; keep audio file paths unchanged (or re-import)
-4. Restart the app
-
-### 4. What audio formats are supported?
-
-- **FLAC** — lossless (recommended)
-- **MP3** — ubiquitous lossy
-
-### 5. Online provider won't play or quality is limited?
-
-Some providers require login for full quality and playlists: open "Settings", pick the provider, and scan the QR code. Login state is stored locally as encrypted cookies.
-
-### 6. How do I customize keyboard shortcuts?
-
-1. Open the "Settings" view
-2. Go to the "Shortcuts" section
-3. Click the shortcut you want to change
-4. Press the new key combination
-5. `Esc` cancels, `Backspace` clears
-
----
-
-## 📄 License
-
-This project is licensed under GPL — see the [LICENSE](LICENSE) file for details.
-The app icon is licensed under CC BY 4.0 — see [app-icon-LICENSE](app-icon-LICENSE).
-Third-party source and design acknowledgments are listed in the [third-party notices](docs/THIRD_PARTY_NOTICES.md).
-
----
-
-## 🙏 Acknowledgments
-
-### Core Dependencies
-
-- [React](https://reactjs.org/) — UI framework
-- [TypeScript](https://www.typescriptlang.org/) — Type safety
-- [Vite](https://vitejs.dev/) — Build tooling
-- [Electron](https://www.electronjs.org/) — Desktop framework
-- [Tailwind CSS](https://tailwindcss.com/) — CSS framework
-- [GSAP](https://gsap.com/) — Animation engine
-- [music-tag-native](https://github.com/subframe7536/music-tag-native) — Audio metadata read/write
-- [@applemusic-like-lyrics/lyric](https://github.com/Steve-xmh/applemusic-like-lyrics) — Word-by-word lyric parsing
-
-### Icons & Design
-
-- [Material Symbols](https://fonts.google.com/symbols) — Icon library
+The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](app-icon-LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits.
