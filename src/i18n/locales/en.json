@@ -388,5 +388,17 @@
   "notifications.fieldSaveFailed": "Failed to save {field}",
   "notifications.coverSaveFailed": "Failed to save cover image",
   "notifications.saveSuccess": "Save Successful",
-  "notifications.metadataSaved": "Metadata saved to file"
+  "notifications.metadataSaved": "Metadata saved to file",
+  "library.songActions": "Song actions",
+  "library.editInfo": "Edit song information",
+  "library.selectMultiple": "Select multiple songs",
+  "library.moreActions": "More actions for {{title}}",
+  "library.selectTrack": "Select {{title}}",
+  "library.clearSelection": "Deselect all",
+  "library.remove": "Remove from library",
+  "library.removeSelected": "Remove selected",
+  "library.removeConfirmTitle": "Remove from library?",
+  "library.removeConfirmMessage": "This song will be removed from your library. The original audio file will be kept.",
+  "library.removeSelectedConfirmMessage": "Remove {count} selected songs from your library. The original audio files will be kept.",
+  "library.removalFailed": "Could not save the removal. Please try again."
 }

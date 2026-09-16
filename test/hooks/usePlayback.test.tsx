@@ -184,6 +184,21 @@ describe('usePlayback', () => {
     vi.useRealTimers();
   });
 
+  it('cancels delayed autoplay when library removal pauses playback', async () => {
+    vi.useFakeTimers();
+    const audio = makeAudioElement();
+    const { result, unmount } = renderPlayback([makeTrack({ id: 'removing', audioUrl: 'audio://localhost/removing.flac' })]);
+    act(() => result.current.setAudioRef(audio));
+    act(() => result.current.skipForward());
+    act(() => result.current.pausePlayback());
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(result.current.shouldAutoPlayRef.current).toBe(false);
+    expect(result.current.isPlaying).toBe(false);
+    expect(audio.play).not.toHaveBeenCalled();
+    unmount();
+    vi.useRealTimers();
+  });
+
   it('cancels a pending skip and ignores ended playback after shutdown starts', async () => {
     vi.useFakeTimers();
     const tracks = [

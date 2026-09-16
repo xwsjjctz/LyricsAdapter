@@ -102,6 +102,7 @@ const AppContent: React.FC = () => {
     playbackMode,
     setPlaybackMode,
     togglePlay,
+    pausePlayback,
     skipForward,
     skipBackward,
     handleSeek,
@@ -264,6 +265,7 @@ const AppContent: React.FC = () => {
     getAppPersistenceData,
     audioRef,
     setIsPlaying,
+    pausePlayback,
     revokeBlobUrl,
   });
   const library = useLibraryViewModel({

@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
+import { isDesktop } from '../services/desktopAdapter';
+import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import type { MutableRefObject } from 'react';
 import type { LibrarySlot, SlotId, Track } from '../types';
-import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { coverArtService } from '../services/coverArtService';
-import { indexedDBStorage } from '../services/indexedDBStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { reorderTracks } from '../services/libraryReorder';
@@ -20,11 +20,7 @@ import type { LibrarySettings } from '../services/libraryStorage';
  * updates. UI components must not call `updateSlot` directly for these
  * operations — they go through this controller.
  *
- * Migration policy (roadmap Rule 1): logic is moved here verbatim from
- * the former composition root, not redesigned. The delete API keeps its existing
- * `(trackId, deleteFile = false)` boolean signature; the roadmap §4.3
- * recommendation to split into removeFromLibrary / deleteManagedTrack /
- * deleteCloudTrack is recorded in docs/refactor-backlog.md (RF-006).
+ * Removal only changes library records and unreferenced application caches.
  */
 
 export interface LibraryControllerOptions {
@@ -45,6 +41,7 @@ export interface LibraryControllerOptions {
   /** Player store (from usePlayback) */
   audioRef: MutableRefObject<HTMLAudioElement | null>;
   setIsPlaying: (playing: boolean) => void;
+  pausePlayback?: () => void;
   revokeBlobUrl: (blobUrl: string) => void;
 }
 
@@ -59,151 +56,84 @@ export function useLibraryController(options: LibraryControllerOptions) {
     getAppPersistenceData,
     audioRef,
     setIsPlaying,
+    pausePlayback,
     revokeBlobUrl,
   } = options;
 
-  // View-slot-aware track removal — operates on slots[viewSlot] instead of
-  // slots[activeSlotId]. This ensures deletion works correctly when browsing a
-  // different slot than the one playing.
-  const removeTrack = useCallback(async (trackId: string, deleteFile = false) => {
-    const slotTracks = slotsRef.current[viewSlot].tracks;
-    const trackToRemove = slotTracks.find(t => t.id === trackId);
+  const removeTracks = useCallback(async (trackIds: string[]) => {
+    const ids = new Set(trackIds);
+    const snapshot = slotsRef.current;
+    const source = snapshot[viewSlot];
+    const removed = source.tracks.filter(track => ids.has(track.id));
+    if (removed.length === 0) return;
 
-    // Delete physical audio file if requested
-    if (deleteFile && trackToRemove?.filePath) {
-      const desktopAPI = await getDesktopAPIAsync();
-      if (desktopAPI?.deleteAudioFile) {
-        try {
-          const result = await desktopAPI.deleteAudioFile(trackToRemove.filePath);
-          if (result.success && result.deleted) {
-            logger.debug(`[App] ✓ Deleted audio file: ${trackToRemove.filePath}`);
-          } else if (!result.success) {
-            logger.warn(`[App] Failed to delete audio file: ${trackToRemove.filePath}`, result.error);
-          }
-        } catch (error) {
-          logger.warn('[App] deleteAudioFile error:', error);
-        }
-      }
+    const removeFromSlot = (slot: LibrarySlot): LibrarySlot => {
+      const remaining = slot.tracks.filter(track => !ids.has(track.id));
+      const current = slot.tracks[slot.currentTrackIndex];
+      const currentRemoved = current != null && ids.has(current.id);
+      const removedBefore = slot.tracks.slice(0, Math.max(0, slot.currentTrackIndex))
+        .filter(track => ids.has(track.id)).length;
+      const currentTrackIndex = remaining.length === 0 || !current ? -1
+        : currentRemoved ? Math.min(slot.currentTrackIndex - removedBefore, remaining.length - 1)
+        : remaining.findIndex(track => track.id === current.id);
+      return { ...slot, tracks: remaining, currentTrackIndex,
+        currentTime: currentRemoved || !remaining.length ? 0 : slot.currentTime };
+    };
+    const next = removeFromSlot(source);
+    const persistData = { ...getAppPersistenceData(),
+      [`${viewSlot}Slot`]: { ...next, tracks: undefined, id: undefined } };
+    const libraryData = buildLibraryIndexDataForSlots(
+      viewSlot === 'local' ? next.tracks : snapshot.local.tracks,
+      viewSlot === 'cloud' ? next.tracks : snapshot.cloud.tracks,
+      persistData,
+      viewSlot === 'online' ? next.tracks : snapshot.online.tracks,
+      viewSlot === 'playlist' ? next.tracks : snapshot.playlist.tracks,
+    );
+    // Use the serialized writer and replace any pending pre-removal snapshot.
+    // A failed write leaves both the visible library and caches intact.
+    if (isDesktop() && !await libraryStorage.flushPendingSave(libraryData)) {
+      throw new Error('Could not save library removal');
     }
 
-    // Update the view slot's tracks and currentTrackIndex atomically
-    updateSlot(viewSlot, (slot: LibrarySlot) => {
-      const newTracks = slot.tracks.filter(t => t.id !== trackId);
-      const removedIndex = slot.tracks.findIndex(t => t.id === trackId);
-      const removedTrack = slot.tracks[removedIndex];
-      let newIndex = slot.currentTrackIndex;
-
-      if (newTracks.length === 0) {
-        newIndex = -1;
-        if (viewSlot === activeSlotId) {
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
-          }
-          setIsPlaying(false);
-        }
-      } else if (removedIndex >= 0) {
-        if (removedIndex < slot.currentTrackIndex) {
-          newIndex = Math.max(0, slot.currentTrackIndex - 1);
-        } else if (removedIndex === slot.currentTrackIndex) {
-          newIndex = Math.min(slot.currentTrackIndex, newTracks.length - 1);
-        }
-      }
-
-      if (removedTrack) {
-        if (removedTrack.audioUrl?.startsWith('blob:')) revokeBlobUrl(removedTrack.audioUrl);
-        if (removedTrack.coverUrl?.startsWith('blob:')) revokeBlobUrl(removedTrack.coverUrl);
-      }
-
-      return { ...slot, tracks: newTracks, currentTrackIndex: newIndex };
-    });
-
-    // Clean up cover and metadata (trackId-based, independent of slot)
-    try {
-      await coverArtService.deleteCover(trackId);
-      await indexedDBStorage.deleteMetadata(trackId);
-      logger.debug(`[App] ✅ Resources cleaned up for track: ${trackToRemove?.title || trackId}`);
-    } catch (error) {
-      logger.warn('[App] Failed to cleanup resources for track:', error);
+    const live = slotsRef.current[viewSlot];
+    const current = live.tracks[live.currentTrackIndex];
+    if (viewSlot === activeSlotId && current && ids.has(current.id)) {
+      if (pausePlayback) pausePlayback();
+      else audioRef.current?.pause();
+      if (audioRef.current) audioRef.current.src = '';
+      setIsPlaying(false);
     }
-  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying, slotsRef]);
+    updateSlot(viewSlot, removeFromSlot);
+    // Keep sequential removals correct before the next React render.
+    slotsRef.current = { ...slotsRef.current, [viewSlot]: removeFromSlot(live) };
 
-  const removeTracks = useCallback(async (trackIds: string[], deleteFile = false) => {
-    const slotTracks = slotsRef.current[viewSlot].tracks;
-    const tracksToRemove = slotTracks.filter(t => trackIds.includes(t.id));
-
-    const desktopAPI = await getDesktopAPIAsync();
-
-    // Delete physical audio files
-    if (deleteFile && desktopAPI?.deleteAudioFile) {
-      for (const track of tracksToRemove) {
-        if (!track.filePath) continue;
-        try {
-          const result = await desktopAPI.deleteAudioFile(track.filePath);
-          if (result.success && result.deleted) {
-            logger.debug(`[App] ✓ Deleted audio file: ${track.filePath}`);
-          } else if (!result.success) {
-            logger.warn(`[App] Failed to delete audio file: ${track.filePath}`, result.error);
-          }
-        } catch (error) {
-          logger.warn('[App] deleteAudioFile error:', error);
-        }
+    // The existing persistence owner also updates durable user records in SQLite.
+    // Keep caches if that flush fails; runtime/close persistence can retry safely.
+    if (isDesktop() && !await requestLibraryFlush()) {
+      logger.warn('[Library] User-state flush failed after removal; retaining caches for retry');
+      return;
+    }
+    const remaining = Object.values(slotsRef.current).flatMap(slot => slot.tracks);
+    const referencedIds = new Set(remaining.map(track => track.id));
+    const referencedUrls = new Set(remaining.flatMap(track => [track.audioUrl, track.coverUrl]));
+    const referencedCovers = new Set(remaining.map(track => track.coverUrl?.split('?')[0]));
+    for (const track of removed) {
+      for (const url of [track.audioUrl, track.coverUrl]) {
+        if (url?.startsWith('blob:') && !referencedUrls.has(url) && audioRef.current?.src !== url) revokeBlobUrl(url);
       }
-    }
-
-    // Revoke blob URLs and clean up cover thumbnails & metadata
-    for (const track of tracksToRemove) {
-      if (track.audioUrl?.startsWith('blob:')) revokeBlobUrl(track.audioUrl);
-      if (track.coverUrl?.startsWith('blob:')) revokeBlobUrl(track.coverUrl);
-    }
-
-    if (desktopAPI?.deleteCoverThumbnail) {
-      for (const track of tracksToRemove) {
-        try {
-          await desktopAPI.deleteCoverThumbnail(track.id);
-        } catch (error) {
-          logger.warn(`[App] Failed to delete cover thumbnail for ${track.title}:`, error);
-        }
-      }
-    }
-
-    for (const trackId of trackIds) {
+      if (referencedIds.has(track.id)) continue;
       try {
-        await indexedDBStorage.deleteMetadata(trackId);
+        if (!track.coverUrl || !referencedCovers.has(track.coverUrl.split('?')[0])) {
+          await coverArtService.deleteCover(track.id);
+        }
+        await metadataCacheService.delete(track.id);
       } catch (error) {
-        logger.warn(`[App] Failed to delete metadata for ${trackId}:`, error);
+        logger.warn('[Library] Failed to clean unused track cache:', error);
       }
     }
+  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying, slotsRef, getAppPersistenceData, pausePlayback]);
 
-    // Update the view slot's tracks and currentTrackIndex atomically
-    updateSlot(viewSlot, (slot: LibrarySlot) => {
-      const newTracks = slot.tracks.filter(t => !trackIds.includes(t.id));
-
-      let newIndex = slot.currentTrackIndex;
-      if (newTracks.length === 0) {
-        newIndex = -1;
-        if (viewSlot === activeSlotId) {
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
-          }
-          setIsPlaying(false);
-        }
-      } else {
-        const removedBeforeCurrent = trackIds.filter(id => {
-          const idx = slot.tracks.findIndex(t => t.id === id);
-          return idx >= 0 && idx < slot.currentTrackIndex;
-        }).length;
-        newIndex = slot.currentTrackIndex - removedBeforeCurrent;
-        if (newIndex >= newTracks.length) newIndex = Math.max(0, newTracks.length - 1);
-        if (newIndex < 0) newIndex = 0;
-      }
-
-      return { ...slot, tracks: newTracks, currentTrackIndex: newIndex };
-    });
-
-    logger.debug(`[App] ✓ Batch removal complete: ${trackIds.length} tracks removed from ${viewSlot}`);
-  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying, slotsRef]);
+  const removeTrack = useCallback((trackId: string) => removeTracks([trackId]), [removeTracks]);
 
   const reorderTracksHandler = useCallback(async (fromIndex: number, toIndex: number) => {
     logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);

@@ -72,10 +72,9 @@ Open **Settings** at the bottom of the sidebar. Enter your server URL, account, 
 
 - Load music from your server into a track list and stream it.
 - Refresh the cloud library using its refresh button.
-- Upload local audio using the cloud library's upload button or by dropping files into its library area, when the server allows writing.
 - Find loaded cloud tracks through the search box at the top.
 
-Cloud playback requires a working network connection. Read-only servers support playback but not uploads.
+Cloud playback requires a working network connection. Uploading local files or online songs to WebDAV is currently disabled. Cloud library loading, playback, refresh, and existing metadata caching remain unchanged.
 
 ## Online music and playlists
 
@@ -91,7 +90,7 @@ QQ Music requires valid login credentials to appear in online search. NetEase su
 
 Return to the library and enter keywords in the top search box. Online results identify their QQ or NetEase source. Click a song to listen; preview history is available in the sidebar's **Online Queue**.
 
-The download and upload buttons on result cards offer three quality choices:
+The download button on result cards offers three quality choices:
 
 | Quality | Option |
 | --- | --- |
@@ -100,8 +99,6 @@ The download and upload buttons on result cards offer three quality choices:
 | Lossless | FLAC |
 
 Before downloading, choose a destination folder in the third-party source settings, or enter a path such as `~/Music`. Completed downloads are added to the local library with available song information, artwork, and lyrics written to the file.
-
-With a writable WebDAV connection configured, you can also upload songs directly from online search results to your cloud library.
 
 ### Browse playlists
 

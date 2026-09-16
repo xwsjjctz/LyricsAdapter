@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track, type SyncedLyricLine } from '../types';
 import { parseAudioFile, parseLRCLyrics, libraryStorage } from '../services/metadataService';
 import { webdavClient, webdavCoverId } from '../services/webdavClient';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface ParsedAudioMetadata {
   title?: string;
@@ -783,6 +784,7 @@ export function useImport({
   }, [createTracksMap, processWebFileBatch, setTracks, tracks, cloudTracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef, notifyTrackResult]);
 
   const handleCloudDropFilePaths = useCallback(async (filePaths: { path: string; name: string }[]) => {
+    if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
     logger.debug('[Import] Cloud path import (upload to WebDAV) triggered');
     if (!mergeCloudTracks) {
       logger.warn('[Import] mergeCloudTracks not provided, cannot import to cloud');
@@ -908,6 +910,7 @@ export function useImport({
    * 仅桌面端可用。同名文件 PUT 覆盖、mergeCloudTracks 按 id 去重（与 QQ 上传一致）。
    */
   const handleCloudImport = useCallback(async () => {
+    if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
     logger.debug('[Import] Cloud import (upload to WebDAV) triggered');
     const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI) {

@@ -4,16 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
 import { readableForeground } from '../services/colorUtils';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface LibraryToolbarProps {
   dataSource: SlotId;
   colors: ThemeColors;
-  isEditMode: boolean;
-  selectedCount: number;
-  showEditDropdown: boolean;
-  setShowEditDropdown: (v: boolean) => void;
-  onToggleEditMode: () => void;
-  onBatchDelete: () => void;
   onImportClick?: () => void;
   importDisabled?: boolean;
   onRefreshCloud?: () => void;
@@ -33,17 +28,11 @@ function getDataSourceTitle(dataSource: SlotId): string {
 
 /**
  * Library header: title, progress/import status, search box slot,
- * edit-mode toggle with batch-delete dropdown, and filter-type switch.
+ * search and source-specific import/refresh controls.
  */
 const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   dataSource,
   colors,
-  isEditMode,
-  selectedCount,
-  showEditDropdown,
-  setShowEditDropdown,
-  onToggleEditMode,
-  onBatchDelete,
   onImportClick,
   importDisabled = false,
   onRefreshCloud,
@@ -96,8 +85,6 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             `${t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
           ) : dataSource === 'cloud' && loadProgress ? (
             `${t('library.loadingMetadata')}${loadProgress.loaded}/${loadProgress.total}`
-          ) : isEditMode ? (
-            `${selectedCount} ${t('library.selectedCount')}`
           ) : (
             <>
               {playlistTrackCount ?? trackCount} {t('library.trackCount')}
@@ -119,9 +106,9 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
       </div>
       <div className="library-toolbar-actions flex items-center gap-2">
         {searchBox}
-        {dataSource === 'cloud' ? (
+        {dataSource === 'cloud' && (
           <>
-            {/* Cloud：刷新 + 上传到 WebDAV */}
+            {/* Keep the upload control dormant while audio uploads are paused. */}
             <button
               onClick={onRefreshCloud}
               disabled={isRefreshing}
@@ -147,96 +134,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 refresh
               </span>
             </button>
-            {renderImportButton('cloud_upload')}
+            {WEBDAV_AUDIO_UPLOAD_ENABLED && renderImportButton('cloud_upload')}
           </>
-        ) : (
-          /* Local：编辑按钮 + 下拉删除菜单 */
-          <div
-            className="relative shrink-0"
-            onMouseEnter={() => isEditMode && setShowEditDropdown(true)}
-            onMouseLeave={() => isEditMode && setShowEditDropdown(false)}
-          >
-            <button
-              onClick={onToggleEditMode}
-              className="w-10 h-10 flex items-center justify-center relative"
-              style={{
-                borderRadius: showEditDropdown ? 'var(--theme-control-radius) var(--theme-control-radius) 0 0' : 'var(--theme-control-radius)',
-                color: isEditMode ? '#fff' : colors.textSecondary,
-                backgroundColor: isEditMode ? colors.success : colors.backgroundCard,
-                boxShadow: isEditMode ? `0 0 20px ${colors.success}80` : 'var(--theme-elevated-shadow)',
-                border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-                transition: 'border-radius 0.25s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
-              }}
-            >
-              <span
-                className="material-symbols-outlined absolute"
-                style={{
-                  opacity: isEditMode ? 1 : 0,
-                  transform: isEditMode ? 'scale(1)' : 'scale(0.4)',
-                  transition: 'opacity 0.2s ease, transform 0.25s ease',
-                }}
-              >
-                check
-              </span>
-              <span
-                className="material-symbols-outlined absolute"
-                style={{
-                  opacity: isEditMode ? 0 : 1,
-                  transform: isEditMode ? 'scale(0.4)' : 'scale(1)',
-                  transition: 'opacity 0.2s ease, transform 0.25s ease',
-                }}
-              >
-                edit
-              </span>
-            </button>
-
-            {/* 下拉菜单：删除选中 */}
-            <div
-              className="overflow-hidden"
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: 'calc(100% - 2px)',
-                zIndex: 50,
-                width: 40,
-                transform: showEditDropdown ? 'scaleY(1)' : 'scaleY(0)',
-                transformOrigin: 'top center',
-                opacity: showEditDropdown ? 1 : 0,
-                transition: 'transform 0.25s ease, opacity 0.2s ease',
-                background: `linear-gradient(180deg, ${colors.backgroundSidebar}f8 0%, ${colors.backgroundDark}f2 100%)`,
-                borderRadius: '0 0 var(--theme-control-radius) var(--theme-control-radius)',
-                border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
-                borderTop: 'none',
-                boxShadow: showEditDropdown ? `0 8px 24px rgba(0,0,0,0.18)` : 'none',
-                pointerEvents: showEditDropdown ? 'auto' : 'none',
-              }}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowEditDropdown(false);
-                  onBatchDelete();
-                }}
-                disabled={selectedCount === 0}
-                className="w-10 h-10 flex items-center justify-center transition-all"
-                style={{
-                  backgroundColor: selectedCount > 0 ? colors.error : colors.backgroundCard,
-                  color: selectedCount > 0 ? '#fff' : colors.textMuted,
-                  opacity: selectedCount > 0 ? 1 : 0.4,
-                  cursor: selectedCount > 0 ? 'pointer' : 'not-allowed',
-                  boxShadow: selectedCount > 0 ? `0 0 16px ${colors.error}60` : 'none',
-                }}
-                onMouseEnter={e => {
-                  if (selectedCount > 0) e.currentTarget.style.backgroundColor = `${colors.error}dd`;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.backgroundColor = selectedCount > 0 ? colors.error : colors.backgroundCard;
-                }}
-              >
-                <span className="material-symbols-outlined text-lg">delete</span>
-              </button>
-            </div>
-          </div>
         )}
         {dataSource === 'local' && renderImportButton('upload_file')}
       </div>

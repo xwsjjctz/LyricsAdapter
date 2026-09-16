@@ -17,6 +17,7 @@ import { logger } from '../services/logger';
 import { useTranslation } from 'react-i18next';
 import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
 import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface UseOnlineMusicIntegrationParams {
   setViewMode: (mode: ViewMode) => void;
@@ -222,6 +223,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
   }, [setViewMode, onDownloadComplete, buildDownloadedTrack]);
 
   const handleOnlineUpload = useCallback(async (song: OnlineSong, quality: OnlineQuality) => {
+    if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
     if (!webdavClient.hasConfig()) { setViewMode(ViewMode.SETTINGS); return; }
     const downloadPath = settingsManager.getDownloadPath();
     if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }

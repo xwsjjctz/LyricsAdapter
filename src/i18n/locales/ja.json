@@ -388,5 +388,17 @@
   "notifications.fieldSaveFailed": "{field} の保存に失敗しました",
   "notifications.coverSaveFailed": "カバー画像の保存に失敗しました",
   "notifications.saveSuccess": "保存成功",
-  "notifications.metadataSaved": "メタデータがファイルに保存されました"
+  "notifications.metadataSaved": "メタデータがファイルに保存されました",
+  "library.songActions": "曲の操作",
+  "library.editInfo": "曲の情報を編集",
+  "library.selectMultiple": "複数の曲を選択",
+  "library.moreActions": "{{title}} のその他の操作",
+  "library.selectTrack": "{{title}} を選択",
+  "library.clearSelection": "選択をすべて解除",
+  "library.remove": "ライブラリから削除",
+  "library.removeSelected": "選択した曲を削除",
+  "library.removeConfirmTitle": "ライブラリから削除しますか？",
+  "library.removeConfirmMessage": "この曲をライブラリから削除します。元の音声ファイルは保持されます。",
+  "library.removeSelectedConfirmMessage": "選択した {count} 曲をライブラリから削除します。元の音声ファイルは保持されます。",
+  "library.removalFailed": "削除結果を保存できませんでした。もう一度お試しください。"
 }

@@ -388,5 +388,17 @@
   "notifications.fieldSaveFailed": "Échec de la sauvegarde de {field}",
   "notifications.coverSaveFailed": "Échec de la sauvegarde de la pochette",
   "notifications.saveSuccess": "Sauvegarde réussie",
-  "notifications.metadataSaved": "Métadonnées enregistrées dans le fichier"
+  "notifications.metadataSaved": "Métadonnées enregistrées dans le fichier",
+  "library.songActions": "Actions du morceau",
+  "library.editInfo": "Modifier les informations",
+  "library.selectMultiple": "Sélectionner plusieurs morceaux",
+  "library.moreActions": "Plus d’actions pour {{title}}",
+  "library.selectTrack": "Sélectionner {{title}}",
+  "library.clearSelection": "Tout désélectionner",
+  "library.remove": "Retirer de la bibliothèque",
+  "library.removeSelected": "Retirer la sélection",
+  "library.removeConfirmTitle": "Retirer de la bibliothèque ?",
+  "library.removeConfirmMessage": "Ce morceau sera retiré de la bibliothèque. Le fichier audio original sera conservé.",
+  "library.removeSelectedConfirmMessage": "Retirer les {count} morceaux sélectionnés de la bibliothèque. Les fichiers audio originaux seront conservés.",
+  "library.removalFailed": "Impossible d’enregistrer le retrait. Veuillez réessayer."
 }

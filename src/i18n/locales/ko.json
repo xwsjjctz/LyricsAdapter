@@ -388,5 +388,17 @@
   "notifications.fieldSaveFailed": "{field} 저장 실패",
   "notifications.coverSaveFailed": "표지 이미지 저장 실패",
   "notifications.saveSuccess": "저장 성공",
-  "notifications.metadataSaved": "메타데이터가 파일에 저장되었습니다"
+  "notifications.metadataSaved": "메타데이터가 파일에 저장되었습니다",
+  "library.songActions": "곡 작업",
+  "library.editInfo": "곡 정보 편집",
+  "library.selectMultiple": "여러 곡 선택",
+  "library.moreActions": "{{title}} 추가 작업",
+  "library.selectTrack": "{{title}} 선택",
+  "library.clearSelection": "모두 선택 해제",
+  "library.remove": "라이브러리에서 제거",
+  "library.removeSelected": "선택한 곡 제거",
+  "library.removeConfirmTitle": "라이브러리에서 제거할까요?",
+  "library.removeConfirmMessage": "라이브러리에서 이 곡을 제거합니다. 원본 오디오 파일은 유지됩니다.",
+  "library.removeSelectedConfirmMessage": "선택한 {count}곡을 라이브러리에서 제거합니다. 원본 오디오 파일은 유지됩니다.",
+  "library.removalFailed": "제거 결과를 저장하지 못했습니다. 다시 시도해 주세요."
 }

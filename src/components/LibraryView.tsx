@@ -7,9 +7,10 @@ import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
-import TrackCover from './TrackCover';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
+import LibraryTrackMenu, { type TrackMenuPosition } from './LibraryTrackMenu';
+import LibrarySelectionBar from './LibrarySelectionBar';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import GsapModal from './GsapModal';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
@@ -23,8 +24,8 @@ interface LibraryViewProps {
   currentTrackIndex: number;
   currentTrackId?: string;
   onTrackSelect: (index: number) => void;
-  onRemoveTrack: (trackId: string, deleteFile?: boolean) => void;
-  onRemoveMultipleTracks?: (trackIds: string[], deleteFile?: boolean) => void;
+  onRemoveTrack: (trackId: string) => void | Promise<void>;
+  onRemoveMultipleTracks?: (trackIds: string[]) => void | Promise<void>;
   onImportClick?: () => void;
   importDisabled?: boolean;
   onOpenSettings?: () => void;
@@ -110,13 +111,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   searchBox,
 }) => {
   const { t } = useTranslation();
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false); // New: Drag state for file drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null); // Track being reordered
-  const [_dragOverIndex, setDragOverIndex] = useState<number | null>(null); // Drop target
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
-  const [originalIndex, setOriginalIndex] = useState<number | null>(null); // Remember where the item started
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
     top: 0,
     height: 0,
@@ -154,7 +153,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
-  const [deleteFileOption, setDeleteFileOption] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
 
@@ -162,7 +160,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
 
   // Subscribe to theme changes
-  const [showEditDropdown, setShowEditDropdown] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -295,7 +292,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     scrollTop,
     scrollContainerRef,
     listRef,
-    isEditMode,
+    isEditMode: isSelecting,
     topInset,
   });
 
@@ -485,7 +482,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // 依赖不含 scrollTop，滚回该行后无法恢复，表现为"滑块消失"。）
   // category（专辑/艺术家）模式列表不按全局索引布局，保留 DOM 查找 + 重试。
   useEffect(() => {
-    if (isEditMode || !currentTrackId || displayTracks.length === 0) {
+    if (isSelecting || !currentTrackId || displayTracks.length === 0) {
       setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
       return;
     }
@@ -548,7 +545,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isEditMode, filterType, categoryFilteredTracks, rowStride, baseRowHeight, topInset]);
+  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isSelecting, filterType, categoryFilteredTracks, rowStride, baseRowHeight, topInset]);
 
   // 切到非 default 视图时立即隐藏高亮（category 列表布局不同，避免错位闪烁）
   useEffect(() => {
@@ -634,6 +631,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (importDisabled) {
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
     
     // Check if this is an external file drop (not internal track reordering)
     const hasFiles = e.dataTransfer.files.length > 0;
@@ -646,7 +647,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       logger.debug('[LibraryView] Drag over - enabling dragging state');
       setIsDragging(true);
     }
-  }, [isDragging]);
+  }, [isDragging, importDisabled]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -670,6 +671,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     e.stopPropagation();
     logger.debug('[LibraryView] Drop event triggered');
     setIsDragging(false);
+    if (importDisabled) return;
 
     // Get dropped files
     const droppedFiles = Array.from(e.dataTransfer.files);
@@ -717,134 +719,133 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       logger.warn('[LibraryView] No drop handler available');
     }
-  }, [onDropFiles, onDropFilePaths]);
+  }, [onDropFiles, onDropFilePaths, importDisabled]);
 
-  const toggleSelectAll = useCallback(() => {
-    // Use filtered tracks for selection when searching
-    if (selectedIds.size === tracks.length) {
-      // Deselect all
-      setSelectedIds(new Set());
-    } else {
-      // Select all
-      setSelectedIds(new Set(tracks.map(t => t.id)));
-    }
-  }, [selectedIds.size, tracks]);
-
-  const toggleSelectOne = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(id)) {
-        newSelected.delete(id);
-      } else {
-        newSelected.add(id);
+  const canManage = dataSource === 'local' || dataSource === 'online';
+  const canReorder = canManage && filterType === 'default' && !!onReorderTracks && !isSelecting;
+  const [trackMenu, setTrackMenu] = useState<TrackMenuPosition | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removalError, setRemovalError] = useState(false);
+  const closeTrackMenu = useCallback(() => setTrackMenu(null), []);
+  const menuTrack = trackMenu ? displayTracks.find(track => track.id === trackMenu.trackId) : undefined;
+  const finishSelection = useCallback(() => {
+    setIsSelecting(false);
+    setSelectedIds(new Set());
+  }, []);
+  useEffect(() => {
+    finishSelection();
+    closeTrackMenu();
+    setShowDeleteConfirm(false);
+    setShowBatchDeleteConfirm(false);
+  }, [dataSource, filterType, categorySelection, finishSelection, closeTrackMenu]);
+  useEffect(() => {
+    const available = new Set(activeTracks.map(track => track.id));
+    setSelectedIds(previous => {
+      const next = new Set([...previous].filter(id => available.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [activeTracks]);
+  useEffect(() => {
+    if (!isSelecting) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented && !showDeleteConfirm && !showBatchDeleteConfirm && !isMetadataEditorOpen) {
+        finishSelection();
       }
-      return newSelected;
+    };
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [isSelecting, showDeleteConfirm, showBatchDeleteConfirm, isMetadataEditorOpen, finishSelection]);
+
+  const openTrackMenu = useCallback((track: Track, x: number, y: number, trigger: HTMLElement) => {
+    setTrackMenu({ trackId: track.id, x, y, trigger });
+  }, []);
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(previous => previous.size === activeTracks.length ? new Set() : new Set(activeTracks.map(track => track.id)));
+  }, [activeTracks]);
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds(previous => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
     });
   }, []);
-
   const confirmDelete = useCallback((trackId: string) => {
     setTrackToDelete(trackId);
-    setDeleteFileOption(false);
+    setRemovalError(false);
     setShowDeleteConfirm(true);
   }, []);
-
   const openMetadataEditor = useCallback((track: Track) => {
     setEditingTrack(track);
     setIsMetadataEditorOpen(true);
   }, []);
-
   const handleConfirmDelete = useCallback(async () => {
-    if (trackToDelete) {
-      await onRemoveTrack(trackToDelete, dataSource === 'local' && deleteFileOption);
+    if (!trackToDelete || isRemoving) return;
+    setIsRemoving(true);
+    setRemovalError(false);
+    try {
+      await onRemoveTrack(trackToDelete);
       setShowDeleteConfirm(false);
       setTrackToDelete(null);
-    }
-  }, [trackToDelete, onRemoveTrack, dataSource, deleteFileOption]);
-
+    } catch (error) {
+      logger.error('[LibraryView] Removal failed:', error);
+      setRemovalError(true);
+    } finally { setIsRemoving(false); }
+  }, [trackToDelete, onRemoveTrack, isRemoving]);
   const confirmBatchDelete = useCallback(() => {
-    setDeleteFileOption(false);
+    setRemovalError(false);
     setShowBatchDeleteConfirm(true);
   }, []);
-
   const handleConfirmBatchDelete = useCallback(async () => {
-    const idsToRemove = Array.from(selectedIds);
+    if (isRemoving || !selectedIds.size) return;
+    setIsRemoving(true);
+    setRemovalError(false);
+    try {
+      const ids = Array.from(selectedIds);
+      if (onRemoveMultipleTracks) await onRemoveMultipleTracks(ids);
+      else for (const id of ids) await onRemoveTrack(id);
+      finishSelection();
+      setShowBatchDeleteConfirm(false);
+    } catch (error) {
+      logger.error('[LibraryView] Batch removal failed:', error);
+      setRemovalError(true);
+    } finally { setIsRemoving(false); }
+  }, [selectedIds, onRemoveMultipleTracks, onRemoveTrack, isRemoving, finishSelection]);
 
-    logger.debug(`[LibraryView] Removing ${idsToRemove.length} tracks...`);
-
-    const shouldDeleteFile = dataSource === 'local' && deleteFileOption;
-
-    if (onRemoveMultipleTracks) {
-      await onRemoveMultipleTracks(idsToRemove, shouldDeleteFile);
-      logger.debug('[LibraryView] ✓ Batch removal complete');
-    } else {
-      logger.debug('[LibraryView] Using sequential removal (fallback)...');
-      for (let i = 0; i < idsToRemove.length; i++) {
-        const id = idsToRemove[i]!;
-        logger.debug(`[LibraryView] Removing track ${i + 1}/${idsToRemove.length}`);
-        await onRemoveTrack(id, shouldDeleteFile);
-      }
-      logger.debug('[LibraryView] Sequential removal complete');
-    }
-
-    setSelectedIds(new Set());
-    setIsEditMode(false);
-    setShowBatchDeleteConfirm(false);
-  }, [selectedIds, onRemoveMultipleTracks, onRemoveTrack]);
-
-  // Handle drag start for track reordering
+  const reorderSource = useRef<number | null>(null);
   const handleTrackDragStart = useCallback((e: React.DragEvent, index: number) => {
+    if (!canReorder) { e.preventDefault(); return; }
+    closeTrackMenu();
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', displayTracks[index]?.id ?? '');
+    reorderSource.current = index;
     setDraggedIndex(index);
-    setOriginalIndex(index);
-    logger.debug(`[LibraryView] Drag started at index ${index}`);
-  }, []);
-
-  // Handle drag over for track reordering
+  }, [canReorder, closeTrackMenu, displayTracks]);
   const handleTrackDragOver = useCallback((e: React.DragEvent, index: number) => {
+    if (reorderSource.current === null) return;
     e.preventDefault();
     e.stopPropagation();
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-
-      // Calculate whether to insert before or after the target row
-      const targetElement = e.currentTarget as HTMLElement;
-      const rect = targetElement.getBoundingClientRect();
-      const relativeY = e.clientY - rect.top;
-      const insertBefore = relativeY < rect.height / 2;
-
-      setInsertPosition({
-        index,
-        position: insertBefore ? 'before' : 'after'
-      });
-    } else if (draggedIndex !== null && draggedIndex === index) {
-      // Clear insert position when hovering over the dragged item itself
-      setInsertPosition(null);
-    }
-  }, [draggedIndex]);
-
-  // Handle drag end for track reordering
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    setInsertPosition(reorderSource.current === index ? null : {
+      index, position: e.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+    });
+  }, []);
   const handleTrackDragEnd = useCallback(() => {
-    if (draggedIndex !== null && originalIndex !== null && insertPosition !== null) {
-      let targetIndex = insertPosition.index;
-
-      // Adjust target index based on insert position
-      if (insertPosition.position === 'after') {
-        targetIndex = targetIndex + 1;
-      }
-
-      // Only reorder if the position actually changed
-      if (targetIndex !== originalIndex) {
-        logger.debug(`[LibraryView] Dropping track from ${originalIndex} to ${targetIndex}`);
-        onReorderTracks?.(originalIndex, targetIndex);
-      } else {
-        logger.debug(`[LibraryView] Track returned to original position ${originalIndex}, no reorder needed`);
-      }
-    }
+    reorderSource.current = null;
     setDraggedIndex(null);
-    setDragOverIndex(null);
     setInsertPosition(null);
-    setOriginalIndex(null);
-  }, [draggedIndex, originalIndex, insertPosition, onReorderTracks]);
+  }, []);
+  const handleTrackDrop = useCallback((e: React.DragEvent, index: number) => {
+    const from = reorderSource.current;
+    if (from === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const target = index + (e.clientY >= rect.top + rect.height / 2 ? 1 : 0);
+    handleTrackDragEnd();
+    if (canReorder && from !== index) onReorderTracks?.(from, target);
+  }, [canReorder, onReorderTracks, handleTrackDragEnd]);
+  useEffect(() => { handleTrackDragEnd(); }, [dataSource, filterType, categorySelection, isSelecting, handleTrackDragEnd]);
 
   // Handle locate to current playing track
   const handleLocateToCurrentTrack = useCallback(async () => {
@@ -890,20 +891,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       <LibraryToolbar
         dataSource={dataSource}
         colors={colors}
-        isEditMode={isEditMode}
-        selectedCount={selectedIds.size}
-        showEditDropdown={showEditDropdown}
-        setShowEditDropdown={setShowEditDropdown}
-        onToggleEditMode={() => {
-          if (isEditMode) {
-            setIsEditMode(false);
-            setSelectedIds(new Set());
-            setShowEditDropdown(false);
-          } else {
-            setIsEditMode(true);
-          }
-        }}
-        onBatchDelete={confirmBatchDelete}
         {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled } : {})}
         {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
         trackCount={filteredTracks.length}
@@ -914,6 +901,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         searchBox={searchBox}
       />
 
+      {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
+        onToggleAll={toggleSelectAll} onRemove={confirmBatchDelete} onDone={finishSelection} />}
+
       {filterType === 'default' && (
         <div className="flex-shrink-0">
           <div
@@ -921,24 +911,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             style={{ color: colors.textMuted, borderColor: colors.borderLight }}
             onDoubleClick={handleScrollToTop}
           >
-            {isEditMode ? (
-              <input
-                type="checkbox"
-                checked={selectedIds.size === tracks.length && tracks.length > 0}
-                onChange={toggleSelectAll}
-                onClick={(e) => e.stopPropagation()}
-                className="w-4 h-4 rounded cursor-pointer"
-                style={{ accentColor: colors.primary }}
-              />
-            ) : (
-              <span>#</span>
-            )}
             <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
-            {isEditMode ? (
-              <span className="text-right">{t('library.actionCol')}</span>
-            ) : (
-              <span className="text-right">{t('library.timeCol')}</span>
-            )}
+            <span className="text-right">{t('library.timeCol')}</span>
           </div>
         </div>
       )}
@@ -995,7 +969,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <div
                     className="absolute left-0 right-0 h-0.5 rounded-full shadow-lg z-20 transition-all duration-150"
                     style={{
-                      top: (insertPosition.position === 'before'
+                      top: paddingTop + (insertPosition.position === 'before'
                         ? (insertPosition.index - startIndex)
                         : (insertPosition.index - startIndex + 1)) * rowStride,
                       opacity: insertPosition.index >= startIndex - 1 && insertPosition.index < endIndex ? 1 : 0,
@@ -1014,7 +988,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       track={track}
                       filteredIndex={filteredIndex}
                       isCurrentTrack={isCurrentTrack}
-                      isEditMode={isEditMode}
+                      isSelecting={isSelecting}
                       isSelected={selectedIds.has(track.id)}
                       isDragged={isDragged}
                       shouldShowAnimation={shouldShowAnimation}
@@ -1024,8 +998,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
                       onToggleSelect={toggleSelectOne}
-                      onEditMetadata={openMetadataEditor}
-                      onDelete={confirmDelete}
+                      canManage={canManage}
+                      canReorder={canReorder}
+                      onOpenMenu={openTrackMenu}
+                      onDrop={handleTrackDrop}
                       onDragStart={handleTrackDragStart}
                       onDragOver={handleTrackDragOver}
                       onDragEnd={handleTrackDragEnd}
@@ -1176,24 +1152,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                  style={{ color: colors.textMuted, borderColor: colors.borderLight }}
                  onDoubleClick={handleScrollToTop}
                >
-                {isEditMode ? (
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.size === tracks.length && tracks.length > 0}
-                    onChange={toggleSelectAll}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-4 h-4 rounded cursor-pointer"
-                    style={{ accentColor: colors.primary }}
-                  />
-                ) : (
-                  <span>#</span>
-                )}
                  <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
-                {isEditMode ? (
-                  <span className="text-right">{t('library.actionCol')}</span>
-                ) : (
-                  <span className="text-right">{t('library.timeCol')}</span>
-                )}
+                <span className="text-right">{t('library.timeCol')}</span>
                </div>
              </div>
              <div className="library-track-scroll-shell flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
@@ -1228,103 +1188,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                      className="grid relative"
                      style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)', paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
                    >
-                      {visibleTracks.map((track, idx) => {
-                        const filteredIndex = idx;
-                         const isUnavailable = track.available === false;
-                         const isSelected = selectedIds.has(track.id);
-                         const isCurrentTrack = track.id === currentTrackId;
-                         const animationStyle = shouldShowAnimation
-                           ? { animation: `fadeInUp 0.3s ease-out ${filteredIndex * 0.03}s both` }
-                           : undefined;
-
-                         return (
-                           <div
-                             key={track.id}
-                             ref={idx === 0 ? rowMeasureRef : undefined}
-                             data-track-index={filteredIndex}
-  onClick={() => {
-                             if (isEditMode || isUnavailable) return;
-                             const realIndex = displayIndexMap.get(track.id) ?? -1;
-                             if (realIndex >= 0) onTrackSelect(realIndex);
-                           }}
-                             className="library-track-grid grid gap-4 px-4 py-3 rounded-xl transition-all items-center relative z-10"
-                            style={{
-                              ...animationStyle,
-                              opacity: isUnavailable ? 0.4 : 1,
-                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.1)' : (playingIndicator === 'inline' && isCurrentTrack ? colors.primary : 'transparent'),
-                              border: isSelected ? `1px solid ${colors.error}30` : '1px solid transparent',
-                              color: isCurrentTrack ? (playingIndicator === 'inline' ? 'var(--theme-control-current-track-fg)' : colors.primary) : colors.textPrimary,
-                              cursor: (isEditMode || isUnavailable) ? 'default' : 'pointer',
-                              // inline 模式当前播放行：叠加粗粝风硬阴影并提升层级，使阴影不被相邻行遮挡。
-                              boxShadow: playingIndicator === 'inline' && isCurrentTrack ? 'var(--theme-elevated-shadow)' : undefined,
-                              zIndex: playingIndicator === 'inline' && isCurrentTrack ? 20 : undefined,
-                            }}
-                            onMouseEnter={e => { if (!isUnavailable && !isSelected && !isEditMode && !isCurrentTrack) e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                            onMouseLeave={e => { if (!isUnavailable && !isSelected && !isCurrentTrack) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                          >
-                           <div className="text-sm font-medium opacity-50">
-                             {isEditMode && !isUnavailable ? (
-                               <input
-                                 type="checkbox"
-                                 checked={isSelected}
-                                 onChange={() => toggleSelectOne(track.id)}
-                                 onClick={(e) => e.stopPropagation()}
-                                 className="w-4 h-4 rounded cursor-pointer"
-                                 style={{ accentColor: colors.primary }}
-                               />
-                             ) : (
-                               filteredIndex + 1
-                             )}
-                           </div>
-                           <div className="flex items-center gap-3 min-w-0">
-                             <TrackCover
-                               trackId={track.id}
-                               filePath={track.filePath}
-                               fallbackUrl={track.coverUrl}
-                               className="size-10 rounded-lg object-cover"
-                             />
-                             <div className="min-w-0 flex-1">
-                               <p className="text-sm font-semibold truncate">
-                                 {track.title}
-                                 {isUnavailable && <span className="text-xs text-yellow-400 ml-2">{t('library.needReimport')}</span>}
-                               </p>
-                               <p className="text-xs opacity-50 truncate">{track.artist}</p>
-                             </div>
-                           </div>
-                           <div className="library-track-album text-sm opacity-50 truncate pl-8">{track.album}</div>
-                           {isEditMode ? (
-                             <div className="flex items-center justify-end gap-2">
-                               <button
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   openMetadataEditor(track);
-                                 }}
-                                 className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-                                 style={{ color: colors.textMuted }}
-                                 aria-label={t('sidebar.metadata')}
-                                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.primary; }}
-                                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = colors.textMuted; }}
-                               >
-                                 <span className="material-symbols-outlined text-lg">description</span>
-                               </button>
-                               <button
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   confirmDelete(track.id);
-                                 }}
-                                 className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
-                               >
-                                 <span className="material-symbols-outlined text-lg">delete</span>
-                               </button>
-                             </div>
-                           ) : (
-                             <div className="text-sm opacity-50 text-right tabular-nums">
-                               {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
-                             </div>
-                           )}
-                         </div>
-                       );
-                     })}
+                      {visibleTracks.map((track, idx) => (
+                        <LibraryTrackRow key={track.id} track={track} filteredIndex={startIndex + idx}
+                          realTrackIndex={displayIndexMap.get(track.id) ?? -1}
+                          isCurrentTrack={track.id === currentTrackId} isSelecting={isSelecting}
+                          isSelected={selectedIds.has(track.id)} isDragged={false} canManage={canManage} canReorder={false}
+                          shouldShowAnimation={shouldShowAnimation} colors={colors} playingIndicator={playingIndicator}
+                          measureRef={idx === 0 ? rowMeasureRef : undefined} onTrackSelect={onTrackSelect}
+                          onToggleSelect={toggleSelectOne} onOpenMenu={openTrackMenu}
+                          onDragStart={handleTrackDragStart} onDragOver={handleTrackDragOver}
+                          onDrop={handleTrackDrop} onDragEnd={handleTrackDragEnd} />
+                      ))}
                   </div>
                 ) : (
                   <div className="py-20 text-center opacity-40">
@@ -1374,6 +1248,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </button>
       )}
 
+      {trackMenu && menuTrack && !isSelecting && <LibraryTrackMenu position={trackMenu} colors={colors}
+        canEdit={!!onUpdateTrack}
+        onClose={closeTrackMenu} onEdit={() => openMetadataEditor(menuTrack)}
+        onSelect={() => { setSelectedIds(new Set([menuTrack.id])); setIsSelecting(true); }}
+        onRemove={() => confirmDelete(menuTrack.id)} />}
+
       {/* Delete confirmation dialog */}
       <GsapModal
         isOpen={showDeleteConfirm}
@@ -1382,24 +1262,13 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
         panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
       >
-            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.deleteConfirmTitle')}</h3>
-            <p className="mb-4" style={{ color: colors.textSecondary }}>{t('library.deleteConfirmMessage')}</p>
-            {dataSource === 'local' && (
-              <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" style={{ color: colors.textSecondary }}>
-                <input
-                  type="checkbox"
-                  checked={deleteFileOption}
-                  onChange={(e) => setDeleteFileOption(e.target.checked)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-4 h-4 rounded cursor-pointer"
-                  style={{ accentColor: colors.error }}
-                />
-                <span className="text-sm">{t('library.deleteFileOption')}</span>
-              </label>
-            )}
+            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.removeConfirmTitle')}</h3>
+            <p className="mb-4" style={{ color: colors.textSecondary }}>{t('library.removeConfirmMessage')}</p>
+            {removalError && <p role="alert" className="mb-4" style={{ color: colors.error }}>{t('library.removalFailed')}</p>}
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
+                  if (isRemoving) return;
                   setShowDeleteConfirm(false);
                   setTrackToDelete(null);
                 }}
@@ -1411,11 +1280,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 {t('common.cancel')}
               </button>
               <button
+                disabled={isRemoving}
                 onClick={handleConfirmDelete}
                 className="px-4 py-2 rounded-lg transition-all"
                 style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
               >
-                {t('common.delete')}
+                {t('library.remove')}
               </button>
             </div>
       </GsapModal>
@@ -1428,26 +1298,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
         panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
       >
-            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.deleteConfirmTitle')}</h3>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.removeConfirmTitle')}</h3>
             <p className="mb-4" style={{ color: colors.textSecondary }}>
-              {t('library.deleteSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
+              {t('library.removeSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
             </p>
-            {dataSource === 'local' && (
-              <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" style={{ color: colors.textSecondary }}>
-                <input
-                  type="checkbox"
-                  checked={deleteFileOption}
-                  onChange={(e) => setDeleteFileOption(e.target.checked)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-4 h-4 rounded cursor-pointer"
-                  style={{ accentColor: colors.error }}
-                />
-                <span className="text-sm">{t('library.deleteFileOption')}</span>
-              </label>
-            )}
+            {removalError && <p role="alert" className="mb-4" style={{ color: colors.error }}>{t('library.removalFailed')}</p>}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setShowBatchDeleteConfirm(false)}
+                onClick={() => { if (!isRemoving) setShowBatchDeleteConfirm(false); }}
                 className="px-4 py-2 rounded-lg transition-all"
                 style={{ color: colors.textSecondary }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
@@ -1456,11 +1314,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 {t('common.cancel')}
               </button>
               <button
+                disabled={isRemoving}
                 onClick={handleConfirmBatchDelete}
                 className="px-4 py-2 rounded-lg transition-all"
                 style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
               >
-                {t('common.delete')}
+                {t('library.remove')}
               </button>
             </div>
       </GsapModal>

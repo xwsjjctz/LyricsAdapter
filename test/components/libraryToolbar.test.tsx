@@ -11,12 +11,6 @@ function renderToolbar(dataSource: SlotId) {
     <LibraryToolbar
       dataSource={dataSource}
       colors={colors}
-      isEditMode={false}
-      selectedCount={0}
-      showEditDropdown={false}
-      setShowEditDropdown={vi.fn()}
-      onToggleEditMode={vi.fn()}
-      onBatchDelete={vi.fn()}
       onImportClick={vi.fn()}
       onRefreshCloud={vi.fn()}
       trackCount={0}
@@ -26,21 +20,22 @@ function renderToolbar(dataSource: SlotId) {
 }
 
 describe('LibraryToolbar fixed-size actions', () => {
-  it('prevents the local upload and edit controls from shrinking', () => {
+  it('keeps only the fixed-size import control beside local search', () => {
     const { container } = renderToolbar('local');
     const actions = container.querySelector('.library-toolbar-actions');
     const uploadButton = actions?.querySelector('button[aria-label]');
-    const editWrapper = actions?.querySelector('.relative');
+    const buttons = actions?.querySelectorAll('button');
 
     expect(uploadButton).toHaveClass('w-10', 'h-10', 'shrink-0');
-    expect(editWrapper).toHaveClass('shrink-0');
+    expect(buttons).toHaveLength(1);
   });
 
-  it('prevents both cloud action buttons from shrinking', () => {
+  it('keeps cloud refresh fixed-size while audio upload is unavailable', () => {
     const { container } = renderToolbar('cloud');
     const actionButtons = container.querySelectorAll('.library-toolbar-actions > button');
 
-    expect(actionButtons).toHaveLength(2);
+    expect(actionButtons).toHaveLength(1);
+    expect(actionButtons[0]).toHaveTextContent('refresh');
     actionButtons.forEach(button => expect(button).toHaveClass('w-10', 'h-10', 'shrink-0'));
   });
 });

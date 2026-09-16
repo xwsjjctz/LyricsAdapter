@@ -201,6 +201,17 @@ export function usePlayback({
     setCurrentTrackIndex(nextIndex);
   }, [currentTrackIndex, onTrackSwitch, setCurrentTrackIndex]);
 
+  // Library removal can interrupt a pending skip before the replacement row loads.
+  const pausePlayback = useCallback(() => {
+    shouldAutoPlayRef.current = false;
+    if (skipTimerRef.current !== null) {
+      clearTimeout(skipTimerRef.current);
+      skipTimerRef.current = null;
+    }
+    audioRef.current?.pause();
+    setIsPlaying(false);
+  }, []);
+
   const togglePlay = useCallback(() => {
     if (shutdownRequestedRef.current || !audioRef.current || !currentTrack) return;
 
@@ -909,6 +920,7 @@ export function usePlayback({
     playbackMode,
     setPlaybackMode,
     togglePlay,
+    pausePlayback,
     skipForward,
     skipBackward,
     handleSeek,

@@ -471,7 +471,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
 }
 
 .library-track-grid {
-  grid-template-columns: 48px minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
 }
 
 /* Album/artist rail rows: skip painting (and lazy-cover decoding) for rows
@@ -884,7 +884,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
   }
 
   .library-track-grid {
-    grid-template-columns: 40px minmax(0, 1fr) 72px;
+    grid-template-columns: minmax(0, 1fr) 72px;
   }
 
   .library-track-album {
@@ -993,4 +993,23 @@ input:focus-visible,
 textarea:focus-visible {
   outline: none !important;
   outline-offset: 0 !important;
+}
+
+/* Song actions use the same visible menu for mouse and keyboard. */
+.library-track-row:hover { background-color: var(--theme-background-card-hover); }
+.library-menu-item:hover, .library-menu-item:focus-visible {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.library-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 13px;
+  border-radius: var(--theme-button-radius);
+}
+.library-track-row:focus-visible,
+.library-menu-item:focus-visible, .library-selection-bar button:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: -2px;
 }

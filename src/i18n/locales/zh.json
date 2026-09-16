@@ -388,5 +388,17 @@
   "notifications.fieldSaveFailed": "{field} 保存失败",
   "notifications.coverSaveFailed": "封面图片保存失败",
   "notifications.saveSuccess": "保存成功",
-  "notifications.metadataSaved": "元数据已保存到文件"
+  "notifications.metadataSaved": "元数据已保存到文件",
+  "library.songActions": "歌曲操作",
+  "library.editInfo": "编辑歌曲信息",
+  "library.selectMultiple": "选择多首歌曲",
+  "library.moreActions": "{{title}} 的更多操作",
+  "library.selectTrack": "选择 {{title}}",
+  "library.clearSelection": "取消全选",
+  "library.remove": "从曲库移除",
+  "library.removeSelected": "移除所选",
+  "library.removeConfirmTitle": "从曲库移除？",
+  "library.removeConfirmMessage": "歌曲将从曲库中移除，原音频文件会保留。",
+  "library.removeSelectedConfirmMessage": "将 {count} 首所选歌曲从曲库中移除，原音频文件会保留。",
+  "library.removalFailed": "未能保存移除结果，请重试。"
 }

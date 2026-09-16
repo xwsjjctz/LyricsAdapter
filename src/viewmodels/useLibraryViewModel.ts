@@ -34,8 +34,8 @@ export interface LibraryViewModel {
   switchViewSlot(slotId: SlotId, options?: { locateCurrentTrack?: boolean }): Promise<void>;
   /** Play a track, optionally overriding the source slot for cross-context playback. */
   selectTrack(index: number, slotId?: SlotId): void;
-  removeTrack(trackId: string, deleteFile?: boolean): Promise<void>;
-  removeTracks(trackIds: string[], deleteFile?: boolean): Promise<void>;
+  removeTrack(trackId: string): Promise<void>;
+  removeTracks(trackIds: string[]): Promise<void>;
   reorder(fromIndex: number, toIndex: number): Promise<void>;
   updateTrack(track: Track): void;
 }
@@ -51,8 +51,8 @@ export interface LibraryViewModelOptions {
   /** Player controller's track-select (handles same-slot + cross-slot play). */
   selectTrack: (index: number, slotId?: SlotId) => void;
   /** Library controller mutations. */
-  removeTrack: (trackId: string, deleteFile?: boolean) => Promise<void>;
-  removeTracks: (trackIds: string[], deleteFile?: boolean) => Promise<void>;
+  removeTrack: (trackId: string) => Promise<void>;
+  removeTracks: (trackIds: string[]) => Promise<void>;
   reorder: (fromIndex: number, toIndex: number) => Promise<void>;
   updateTrack: (track: Track) => void;
 }

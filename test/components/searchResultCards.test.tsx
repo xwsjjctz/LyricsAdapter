@@ -34,7 +34,9 @@ function renderOnlineCard(overrides: Partial<ComponentProps<typeof OnlineSearchC
 
 describe('OnlineSearchCard', () => {
   it('keeps playback on the card while action buttons stop propagation', () => {
-    const { container, props } = renderOnlineCard();
+    const { container, props } = renderOnlineCard({ isUploadMenuOpen: true });
+    expect(container).not.toHaveTextContent('cloud_upload');
+    expect(container.querySelector('.search-quality-menu')).toBeNull();
     fireEvent.click(screen.getByText(song.songname));
     expect(props.onStreamPlay).toHaveBeenCalledTimes(1);
 

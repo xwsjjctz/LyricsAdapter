@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
 import type { OnlineProgressEntry } from '../hooks/useOnlineMusicIntegration';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface BrowseViewProps {
   /** Online-music download/upload progress + action callbacks. */
@@ -447,7 +448,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                       )}
 
                       {/* Upload to WebDAV button + progress */}
-                      {isUploading ? (
+                      {WEBDAV_AUDIO_UPLOAD_ENABLED && (isUploading ? (
                         <div className="flex items-center gap-1">
                           <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.backgroundCard }}>
                             <div className="h-full rounded-full transition-all" style={{ width: `${prog.percent}%`, backgroundColor: colors.accent }} />
@@ -490,7 +491,7 @@ const BrowseView: React.FC<BrowseViewProps> = ({ online, onNavigateToSettings })
                             </div>
                           )}
                         </div>
-                      )}
+                      ))}
                     </div>
                   </div>
                 );

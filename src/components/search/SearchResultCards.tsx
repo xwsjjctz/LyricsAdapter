@@ -5,6 +5,7 @@ import type { OnlineSong } from '../../services/onlineMusicProvider';
 import type { Track } from '../../types';
 import type { ThemeConfig } from '../../types/theme';
 import TrackCover from '../TrackCover';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../../constants/features';
 
 type SearchQuality = '128' | '320' | 'flac';
 
@@ -174,17 +175,19 @@ export const OnlineSearchCard: React.FC<{
               </button>
               {isDownloadMenuOpen && <QualityMenu colors={colors} accent={colors.primary} onSelect={onDownload} />}
             </div>
-            <div className="search-result-card__action-wrap">
-              <button
-                type="button"
-                onClick={event => { event.stopPropagation(); onToggleUploadMenu(); }}
-                aria-label={i18n.t('browse.uploadToCloud')}
-                style={{ color: colors.textPrimary, backgroundColor: colors.backgroundDark }}
-              >
-                <span className="material-symbols-outlined">cloud_upload</span>
-              </button>
-              {isUploadMenuOpen && <QualityMenu colors={colors} accent={colors.accent} onSelect={onUpload} />}
-            </div>
+            {WEBDAV_AUDIO_UPLOAD_ENABLED && (
+              <div className="search-result-card__action-wrap">
+                <button
+                  type="button"
+                  onClick={event => { event.stopPropagation(); onToggleUploadMenu(); }}
+                  aria-label={i18n.t('browse.uploadToCloud')}
+                  style={{ color: colors.textPrimary, backgroundColor: colors.backgroundDark }}
+                >
+                  <span className="material-symbols-outlined">cloud_upload</span>
+                </button>
+                {isUploadMenuOpen && <QualityMenu colors={colors} accent={colors.accent} onSelect={onUpload} />}
+              </div>
+            )}
           </div>
         )}
       </div>

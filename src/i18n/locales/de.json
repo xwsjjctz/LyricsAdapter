@@ -388,5 +388,17 @@
   "notifications.fieldSaveFailed": "{field} konnte nicht gespeichert werden",
   "notifications.coverSaveFailed": "Cover-Bild konnte nicht gespeichert werden",
   "notifications.saveSuccess": "Speichern erfolgreich",
-  "notifications.metadataSaved": "Metadaten in Datei gespeichert"
+  "notifications.metadataSaved": "Metadaten in Datei gespeichert",
+  "library.songActions": "Titelaktionen",
+  "library.editInfo": "Titelinformationen bearbeiten",
+  "library.selectMultiple": "Mehrere Titel auswählen",
+  "library.moreActions": "Weitere Aktionen für {{title}}",
+  "library.selectTrack": "{{title}} auswählen",
+  "library.clearSelection": "Auswahl aufheben",
+  "library.remove": "Aus Mediathek entfernen",
+  "library.removeSelected": "Auswahl entfernen",
+  "library.removeConfirmTitle": "Aus Mediathek entfernen?",
+  "library.removeConfirmMessage": "Dieser Titel wird aus der Mediathek entfernt. Die ursprüngliche Audiodatei bleibt erhalten.",
+  "library.removeSelectedConfirmMessage": "{count} ausgewählte Titel aus der Mediathek entfernen. Die ursprünglichen Audiodateien bleiben erhalten.",
+  "library.removalFailed": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen."
 }
