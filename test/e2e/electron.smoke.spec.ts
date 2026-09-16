@@ -915,10 +915,14 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     const readFocusLyricsMetrics = () => page!.evaluate(() => {
       const viewport = document.querySelector<HTMLElement>('.focus-lyrics-viewport');
       const player = document.querySelector<HTMLElement>('.focus-amll-lyrics');
-      if (!viewport || !player) throw new Error('Focus lyrics layout is incomplete');
+      const main = document.querySelector<HTMLElement>('.focus-mode-content main');
+      if (!viewport || !player || !main) throw new Error('Focus lyrics layout is incomplete');
       const viewportStyle = getComputedStyle(viewport);
       const playerStyle = getComputedStyle(player);
+      const mainRect = main.getBoundingClientRect();
       return {
+        mainOffsetX: mainRect.x + mainRect.width / 2 - window.innerWidth / 2,
+        mainOffsetY: mainRect.y + mainRect.height / 2 - window.innerHeight / 2,
         viewportHeight: viewport.getBoundingClientRect().height,
         fontSize: playerStyle.fontSize,
         viewportPaddingLeft: viewportStyle.paddingLeft,
@@ -927,7 +931,10 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       };
     });
 
+    await expect.poll(async () => (await readFocusLyricsMetrics()).mainOffsetY).toBeCloseTo(-24, 1);
     const defaultLyricsMetrics = await readFocusLyricsMetrics();
+    expect(defaultLyricsMetrics.mainOffsetX).toBeCloseTo(24, 1);
+    expect(defaultLyricsMetrics.mainOffsetY).toBeCloseTo(-24, 1);
     expect(defaultLyricsMetrics.fontSize).toBe('32px');
     expect(defaultLyricsMetrics.lineSpacingAdjustment).toBe('3px');
     await electronApp.evaluate(({ BrowserWindow }) => {
@@ -939,7 +946,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await expect.poll(() => page!.evaluate(() =>
       Math.abs(window.innerWidth - 1500) <= 1 && window.innerHeight === 1000))
       .toBe(true);
+    // Measure the rendered rectangle so independent translate + transform
+    // cannot silently compound into a 54px offset again after resizing.
+    await expect.poll(async () => (await readFocusLyricsMetrics()).mainOffsetX).toBeCloseTo(30, 1);
     const enlargedLyricsMetrics = await readFocusLyricsMetrics();
+    expect(enlargedLyricsMetrics.mainOffsetY).toBeCloseTo(-30, 1);
     expect(enlargedLyricsMetrics.viewportHeight).toBeGreaterThan(defaultLyricsMetrics.viewportHeight);
     expect(enlargedLyricsMetrics.fontSize).toBe(defaultLyricsMetrics.fontSize);
     expect(enlargedLyricsMetrics.viewportPaddingLeft).toBe(defaultLyricsMetrics.viewportPaddingLeft);
@@ -955,6 +966,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     await expect.poll(() => page!.evaluate(() =>
       Math.abs(window.innerWidth - 1200) <= 1 && window.innerHeight === 800))
       .toBe(true);
+    await expect.poll(async () => (await readFocusLyricsMetrics()).mainOffsetX).toBeCloseTo(24, 1);
     await focusToggle.click();
     await expect(focusOverlay).toHaveCount(0, { timeout: 2_000 });
 

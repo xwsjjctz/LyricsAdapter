@@ -128,6 +128,8 @@ PROPFIND 属于 WebDAV，不属于 SMB。WebDAV 的普通目录属性（路径�
 
 ## 7. Focus Mode 与整体布局
 
+位置参数、修复前实测值和首轮横向位移修复记录见 [Focus Mode 位置实现记录](focus-mode-layout.md)。
+
 保留现有 Focus Mode 进出动画、macOS 红绿灯旁蓝色按钮及 Windows 对应入口的价值。蓝色按钮可保留探索感，但应评估首次可见提示及快捷键，避免只依赖用户猜测。
 
 候选演进：精简曲库界面 + Focus Mode + Focus Mode 内可临时展开的轻量歌曲栏。控制栏的歌曲列表按钮负责临时换歌，蓝色按钮仍负责切换专注状态。
