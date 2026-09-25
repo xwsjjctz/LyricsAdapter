@@ -5,6 +5,7 @@ import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
 import { readableForeground } from '../services/colorUtils';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
+import { Button } from './ui';
 
 interface LibraryToolbarProps {
   dataSource: SlotId;
@@ -19,6 +20,9 @@ interface LibraryToolbarProps {
   importProgress?: { loaded: number; total: number } | null | undefined;
   loadProgress?: { loaded: number; total: number } | null | undefined;
   searchBox?: React.ReactNode | undefined;
+  /** Playlist header actions; shown only for platform playlists. */
+  onPlayAll?: (() => void) | undefined;
+  onShuffleAll?: (() => void) | undefined;
 }
 
 function getDataSourceTitle(dataSource: SlotId): string {
@@ -43,6 +47,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   importProgress,
   loadProgress,
   searchBox,
+  onPlayAll,
+  onShuffleAll,
 }) => {
   const { t } = useTranslation();
   const localImportForeground = readableForeground(colors.primary);
@@ -85,12 +91,28 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             `${t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
           ) : dataSource === 'cloud' && loadProgress ? (
             `${t('library.loadingMetadata')}${loadProgress.loaded}/${loadProgress.total}`
+          ) : dataSource === 'playlist' ? (
+            t('library.playlistSongCount', { count: playlistTrackCount ?? trackCount })
           ) : (
             <>
-              {playlistTrackCount ?? trackCount} {t('library.trackCount')}
+              {trackCount} {t('library.trackCount')}
             </>
           )}
         </p>
+        {dataSource === 'playlist' && (onPlayAll || onShuffleAll) && (
+          <div className="mt-3 flex items-center gap-2">
+            {onPlayAll && (
+              <Button variant="primary" size="sm" icon="play_arrow" disabled={trackCount === 0} onClick={onPlayAll}>
+                {t('library.playAll')}
+              </Button>
+            )}
+            {onShuffleAll && (
+              <Button variant="secondary" size="sm" icon="shuffle" disabled={trackCount === 0} onClick={onShuffleAll}>
+                {t('library.shuffleAll')}
+              </Button>
+            )}
+          </div>
+        )}
         {(importProgress || (dataSource === 'cloud' && loadProgress)) && (
           <div className="mt-2 w-48 overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)', height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)' }}>
             <div

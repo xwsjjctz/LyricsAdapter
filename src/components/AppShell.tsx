@@ -119,6 +119,17 @@ const AppShell: React.FC<AppShellProps> = ({
     handleNavigate(ViewMode.SEARCH);
   }, [handleNavigate]);
   const isSearchView = viewMode === ViewMode.SEARCH;
+  // A browsed playlist always shows its own (possibly still loading) tracks,
+  // never the previously played playlist held in the 'playlist' play slot.
+  const isBrowsingPlaylist = viewSlot === 'playlist' && !!playerController.libraryPlaylistLoadState.playlistId;
+  const playPlaylistFromStart = useCallback(() => {
+    if (libraryBrowsingTracks.length > 0) onPlayLibraryPlaylistTrack(0);
+  }, [libraryBrowsingTracks.length, onPlayLibraryPlaylistTrack]);
+  const shufflePlaylist = useCallback(() => {
+    if (libraryBrowsingTracks.length === 0) return;
+    player.setPlaybackMode('shuffle');
+    onPlayLibraryPlaylistTrack(Math.floor(Math.random() * libraryBrowsingTracks.length));
+  }, [libraryBrowsingTracks.length, onPlayLibraryPlaylistTrack, player]);
   const [isUpNextOpen, setIsUpNextOpen] = useState(false);
   const toggleUpNext = useCallback(() => setIsUpNextOpen(open => !open), []);
   const closeUpNext = useCallback(() => setIsUpNextOpen(false), []);
@@ -249,9 +260,7 @@ const AppShell: React.FC<AppShellProps> = ({
             ) : (
               <div ref={libraryContentRef} className="h-full">
               <LibraryView
-                tracks={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
-                  ? libraryBrowsingTracks
-                  : library.slots[library.viewSlot].tracks}
+                tracks={isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks}
                 currentTrackIndex={library.slots[library.viewSlot].currentTrackIndex}
                 {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
                 onTrackSelect={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
@@ -295,6 +304,7 @@ const AppShell: React.FC<AppShellProps> = ({
                   ? { playlistTrackCount: playerController.libraryPlaylistLoadState.totalTrackCount }
                   : {})}
                 searchBox={searchBox}
+                {...(isBrowsingPlaylist ? { onPlayAll: playPlaylistFromStart, onShuffleAll: shufflePlaylist } : {})}
               />
               </div>
             )}

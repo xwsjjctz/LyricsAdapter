@@ -317,3 +317,42 @@
     animation: none;
   }
 }
+
+/* Library placeholder rows (playlist first-page load). */
+.library-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: var(--theme-list-item-padding-y, 0.75rem);
+  padding-bottom: var(--theme-list-item-padding-y, 0.75rem);
+  animation: library-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.library-skeleton-row__cover {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: var(--theme-media-radius-sm);
+}
+
+.library-skeleton-row__lines {
+  display: grid;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.library-skeleton-row__lines > span {
+  display: block;
+  height: 0.6rem;
+  border-radius: 999px;
+}
+
+@keyframes library-skeleton-pulse {
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-skeleton-row {
+    animation: none;
+  }
+}

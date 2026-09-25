@@ -1,6 +1,7 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import LibraryToolbar from '@/components/LibraryToolbar';
+import i18n from '@/services/i18n';
 import { themeManager } from '@/services/themeManager';
 import type { SlotId } from '@/types';
 
@@ -37,5 +38,37 @@ describe('LibraryToolbar fixed-size actions', () => {
     expect(actionButtons).toHaveLength(1);
     expect(actionButtons[0]).toHaveTextContent('refresh');
     actionButtons.forEach(button => expect(button).toHaveClass('w-10', 'h-10', 'shrink-0'));
+  });
+});
+
+describe('LibraryToolbar playlist header', () => {
+  it('offers play all and shuffle for a loaded playlist', () => {
+    const onPlayAll = vi.fn();
+    const onShuffleAll = vi.fn();
+    const { getByRole } = render(
+      <LibraryToolbar dataSource="playlist" colors={colors} trackCount={3} playlistTitle="Mix"
+        playlistTrackCount={651} onPlayAll={onPlayAll} onShuffleAll={onShuffleAll} />,
+    );
+
+    fireEvent.click(getByRole('button', { name: new RegExp(i18n.t('library.playAll')) }));
+    fireEvent.click(getByRole('button', { name: new RegExp(i18n.t('library.shuffleAll')) }));
+
+    expect(onPlayAll).toHaveBeenCalledOnce();
+    expect(onShuffleAll).toHaveBeenCalledOnce();
+  });
+
+  it('disables playlist actions until songs are loaded', () => {
+    const { getByRole } = render(
+      <LibraryToolbar dataSource="playlist" colors={colors} trackCount={0} playlistTitle="Mix"
+        onPlayAll={vi.fn()} onShuffleAll={vi.fn()} />,
+    );
+    expect(getByRole('button', { name: new RegExp(i18n.t('library.playAll')) })).toBeDisabled();
+  });
+
+  it('describes a playlist by song count rather than as the collection', () => {
+    const { getByText } = render(
+      <LibraryToolbar dataSource="playlist" colors={colors} trackCount={3} playlistTitle="Mix" playlistTrackCount={651} />,
+    );
+    expect(getByText(i18n.t('library.playlistSongCount', { count: 651 }))).toBeInTheDocument();
   });
 });

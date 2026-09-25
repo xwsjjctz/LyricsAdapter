@@ -61,7 +61,12 @@ interface LibraryViewProps {
   onPendingLocatePrepared?: (token: number) => void;
   onSlotContentReady?: (slot: SlotId) => void;
   searchBox?: React.ReactNode;
+  onPlayAll?: () => void;
+  onShuffleAll?: () => void;
 }
+
+/** Placeholder rows while a playlist's first page loads. */
+const PLAYLIST_SKELETON_ROWS = 8;
 
 interface LibraryEmptyState {
   icon: string;
@@ -114,6 +119,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onPendingLocatePrepared,
   onSlotContentReady,
   searchBox,
+  onPlayAll,
+  onShuffleAll,
 }) => {
   const { t } = useTranslation();
   const [isSelecting, setIsSelecting] = useState(false);
@@ -918,6 +925,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         importProgress={importProgress}
         loadProgress={dataSource === 'cloud' ? loadProgress : undefined}
         searchBox={searchBox}
+        onPlayAll={onPlayAll}
+        onShuffleAll={onShuffleAll}
       />
 
       {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
@@ -1027,6 +1036,19 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                     />
                   );
                 })}
+              </div>
+            ) : dataSource === 'playlist' && playlistLoading ? (
+              <div className="grid" aria-busy="true" aria-label={t('common.loading')}
+                style={{ gap: 'var(--theme-list-item-gap)', paddingBottom: bottomInset }}>
+                {Array.from({ length: PLAYLIST_SKELETON_ROWS }, (_, index) => (
+                  <div key={index} className="library-skeleton-row px-4" aria-hidden="true">
+                    <span className="library-skeleton-row__cover" style={{ backgroundColor: colors.backgroundCard }} />
+                    <span className="library-skeleton-row__lines">
+                      <span style={{ backgroundColor: colors.backgroundCard, width: `${40 + (index * 17) % 35}%` }} />
+                      <span style={{ backgroundColor: colors.backgroundCard, width: `${20 + (index * 11) % 20}%` }} />
+                    </span>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="py-16 text-center rounded-2xl" style={{ color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>

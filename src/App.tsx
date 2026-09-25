@@ -166,6 +166,7 @@ const AppContent: React.FC = () => {
     handleVolumeChange,
     handleToggleMute,
     handleTogglePlaybackMode,
+    setPlaybackMode,
   });
   useMediaSession({
     currentTrack: player.currentTrack,
@@ -336,9 +337,13 @@ const AppContent: React.FC = () => {
     playlistTitle: string,
     totalTrackCount: number,
   ) => {
-    await playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
+    // Show the playlist (and its loading state) right away instead of waiting
+    // for the first page; openOnlinePlaylistInLibrary resets its state synchronously.
+    const loading = playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
+    loading.catch(() => undefined); // still rethrown by `await loading` below
     await handleSwitchSlot('playlist');
     transitionToView(ViewMode.PLAYER);
+    await loading;
   }, [handleSwitchSlot, playerController, transitionToView]);
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
