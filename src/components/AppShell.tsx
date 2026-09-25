@@ -16,6 +16,7 @@ import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import SettingsPanel from './settings/SettingsPanel';
 import GsapModal from './GsapModal';
+import { Button } from './ui';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
 import type { useSidebarLayout } from '../hooks/useSidebarLayout';
@@ -333,43 +334,33 @@ const AppShell: React.FC<AppShellProps> = ({
               {t('metadataView.unsavedMessage')}
             </p>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setPendingNavigation(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setPendingNavigation(null)}>
                 {t('common.cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   metadataViewRef.current?.stashAll();
                   transitionToView(pendingNavigation);
                   setIsFocusMode(false);
                   setPendingNavigation(null);
                 }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ backgroundColor: 'var(--theme-background-card-hover, rgba(255,255,255,0.1))', color: 'var(--theme-text-primary, #fff)' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-border-light, rgba(255,255,255,0.2))'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
               >
                 {t('metadataView.stash')}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={async () => {
                   await metadataViewRef.current?.saveAll();
                   transitionToView(pendingNavigation);
                   setIsFocusMode(false);
                   setPendingNavigation(null);
                 }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ backgroundColor: 'var(--theme-primary, #2b8cee)', color: '#fff' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary-hover, #1a7de0)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary, #2b8cee)'; }}
               >
                 {t('metadataView.saveChanges')}
-              </button>
+              </Button>
             </div>
           </>
         )}

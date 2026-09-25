@@ -15,6 +15,7 @@ import {
 import { themeManager } from '../services/themeManager';
 import { THEME_IDS } from '../types/theme';
 import { useCurrentTheme } from './settings/shared';
+import { IconButton } from './ui';
 
 interface LibraryTrackCounts {
   local: number;
@@ -220,18 +221,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 
   const renderUtilityButton = (mode: ViewMode, icon: string, label: string) => (
-    <button
-      type="button"
-      onClick={() => onNavigate(mode)}
-      className="relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
-      style={{
-        color: 'var(--theme-control-icon-fg)',
-        backgroundColor: 'transparent',
-      }}
-      aria-label={label}
-    >
-      <span className="material-symbols-outlined text-[20px]">{icon}</span>
-    </button>
+    <IconButton icon={icon} label={label} size="md" onClick={() => onNavigate(mode)} />
   );
 
   const playlistItems = playlistsForDisplay.map((playlist) => {
@@ -346,18 +336,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="mt-5 flex shrink-0 items-center justify-start gap-2 pt-3">
         {renderUtilityButton(ViewMode.SETTINGS, 'settings', t('settings.title'))}
-        <button
-          type="button"
+        <IconButton
+          icon={currentTheme.isDark ? 'dark_mode' : 'light_mode'}
+          label={t('settings.nightMode')}
+          size="md"
           onClick={toggleNightMode}
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
-          style={{ color: 'var(--theme-control-icon-fg)', backgroundColor: 'transparent' }}
-          aria-label={t('settings.nightMode')}
           aria-pressed={currentTheme.isDark}
-        >
-          <span className="material-symbols-outlined text-[20px]">
-            {currentTheme.isDark ? 'dark_mode' : 'light_mode'}
-          </span>
-        </button>
+        />
       </div>
     </div>
   );

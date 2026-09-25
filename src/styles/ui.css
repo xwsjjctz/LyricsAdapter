@@ -1,0 +1,194 @@
+/*
+ * UI primitive layer (Phase 0 + 1).
+ *
+ * Single style source for interactive elements. Every visual state —
+ * hover / active / disabled / focus-visible — is expressed here in CSS and
+ * driven purely by the `--theme-*` custom properties that themeManager writes
+ * to :root. Components must NOT re-implement hover with inline
+ * onMouseEnter/onMouseLeave handlers, and must NOT subscribe to themeManager
+ * just to read colors: consume these classes instead.
+ */
+
+/* Shared reset for every primitive. */
+.ui-btn,
+.ui-icon-btn {
+  --ui-focus-ring: color-mix(in srgb, var(--theme-primary, #2b8cee) 55%, transparent);
+  appearance: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color 160ms ease, color 160ms ease,
+    border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.ui-btn:disabled,
+.ui-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Keyboard focus is visible everywhere; pointer focus stays quiet. */
+.ui-btn:focus-visible,
+.ui-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--theme-background-dark, #0d1520),
+    0 0 0 4px var(--ui-focus-ring);
+}
+
+/* ------------------------------------------------------------------ */
+/* Button — labelled action                                            */
+/* ------------------------------------------------------------------ */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  border-radius: var(--theme-button-radius, 10px);
+  letter-spacing: var(--theme-button-letter-spacing, normal);
+  text-transform: var(--theme-control-text-transform, none);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ui-btn--md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.ui-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.ui-btn__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ui-btn--sm .ui-btn__icon {
+  font-size: 18px;
+}
+
+/* Primary — the one emphasised action in a group. */
+.ui-btn--primary {
+  background: var(--theme-primary, #2b8cee);
+  color: #fff;
+  box-shadow: var(--theme-elevated-shadow, none);
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--theme-primary-hover, #1a7de0);
+}
+.ui-btn--primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Secondary — a bounded, non-emphasised action. */
+.ui-btn--secondary {
+  background: var(--theme-background-card, rgba(255, 255, 255, 0.06));
+  color: var(--theme-text-primary, #fff);
+  border: var(--theme-control-border-width, 1px) solid
+    var(--theme-border-light, rgba(255, 255, 255, 0.14));
+}
+.ui-btn--secondary:hover:not(:disabled) {
+  background: var(--theme-background-card-hover, rgba(255, 255, 255, 0.12));
+  border-color: var(--theme-border-hover, rgba(255, 255, 255, 0.24));
+}
+
+/* Ghost — inline, chromeless until hovered. */
+.ui-btn--ghost {
+  background: transparent;
+  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+}
+.ui-btn--ghost:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--theme-control-item-bg-hover, rgba(255, 255, 255, 0.1)) 80%,
+    transparent
+  );
+  color: var(--theme-text-primary, #fff);
+}
+
+/* Danger — destructive confirm. */
+.ui-btn--danger {
+  background: transparent;
+  color: var(--theme-error, #ef4444);
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-error, #ef4444) 14%, transparent);
+}
+
+.ui-btn--block {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* IconButton — square/circular icon-only control                      */
+/* ------------------------------------------------------------------ */
+
+.ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--theme-button-radius, 10px);
+  color: var(--theme-control-icon-fg, rgba(255, 255, 255, 0.78));
+}
+
+.ui-icon-btn--round {
+  border-radius: 999px;
+}
+
+.ui-icon-btn--sm {
+  width: 32px;
+  height: 32px;
+}
+.ui-icon-btn--sm .ui-icon-btn__glyph {
+  font-size: 18px;
+}
+
+.ui-icon-btn--md {
+  width: 36px;
+  height: 36px;
+}
+.ui-icon-btn--md .ui-icon-btn__glyph {
+  font-size: 20px;
+}
+
+.ui-icon-btn--lg {
+  width: 40px;
+  height: 40px;
+}
+.ui-icon-btn--lg .ui-icon-btn__glyph {
+  font-size: 22px;
+}
+
+.ui-icon-btn__glyph {
+  line-height: 1;
+}
+
+/* Ghost icon (default) — chromeless, tints + fills a subtle pad on hover. */
+.ui-icon-btn--ghost:hover:not(:disabled) {
+  background: var(--theme-control-icon-bg, rgba(255, 255, 255, 0.1));
+  color: var(--theme-control-icon-fg-hover, #fff);
+}
+
+/* Active/selected icon — persistent emphasis (e.g. an engaged toggle). */
+.ui-icon-btn--active {
+  background: var(--theme-control-icon-bg-active, rgba(255, 255, 255, 0.14));
+  color: var(--theme-control-icon-fg-active, #fff);
+}
+.ui-icon-btn--active:hover:not(:disabled) {
+  color: var(--theme-control-icon-fg-active, #fff);
+}
