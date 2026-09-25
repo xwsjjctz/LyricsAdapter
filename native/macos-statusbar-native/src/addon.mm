@@ -300,9 +300,14 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 }
 
 - (void)mouseDown:(NSEvent*)event {
+  (void)event;
   [self refreshPointerInside];
   if (!self.pointerInside) return;
-  NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+  // Status-bar mouse events report locationInWindow as the window centre on
+  // recent macOS releases, which made every click hit the middle control.
+  // The global pointer location stays accurate, so hit-test from it instead.
+  NSPoint windowPoint = [self.window convertPointFromScreen:NSEvent.mouseLocation];
+  NSPoint point = [self convertPoint:windowPoint fromView:nil];
   CGFloat stripWidth = std::min(self.bounds.size.width, self.controlStripWidth);
   CGFloat originX = NSMidX(self.bounds) - stripWidth / 2.0;
   if (point.x < originX || point.x >= originX + stripWidth) return;
