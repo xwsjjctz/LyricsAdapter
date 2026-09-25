@@ -30,13 +30,6 @@ declare global {
   interface Window {
     __DEV__?: boolean;
   }
-  interface ImportMeta {
-    env?: {
-      DEV?: boolean;
-      MODE?: string;
-      PROD?: boolean;
-    };
-  }
 }
 
 const AppContent: React.FC = () => {
