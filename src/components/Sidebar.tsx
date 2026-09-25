@@ -274,7 +274,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => void handleTogglePlaylistVisibility(playlist)}
             className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
             style={{ color: isHidden ? 'var(--theme-text-muted)' : 'var(--theme-control-icon-fg)' }}
-            aria-label={isHidden ? '显示歌单' : '隐藏歌单'}
+            aria-label={isHidden ? t('playlists.show') : t('playlists.hide')}
           >
             <span className="material-symbols-outlined text-[17px]">
               {isHidden ? 'visibility_off' : 'visibility'}
@@ -301,7 +301,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setIsPlaylistEditMode((editing) => !editing)}
                 className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
                 style={{ color: isPlaylistEditMode ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)' }}
-                aria-label={isPlaylistEditMode ? '完成编辑' : '编辑歌单'}
+                aria-label={isPlaylistEditMode ? t('playlists.doneEditing') : t('playlists.edit')}
               >
                 <span className="material-symbols-outlined leading-none" style={{ fontSize: 18 }}>
                   {isPlaylistEditMode ? 'done' : 'edit'}

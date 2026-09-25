@@ -1,3 +1,4 @@
+import { readableForeground } from '@/services/colorUtils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { themeManager } from '@/services/themeManager';
 import { THEME_IDS } from '@/types/theme';
@@ -78,6 +79,13 @@ describe('applyTheme', () => {
     expect(root.style.getPropertyValue('--theme-primary')).toBe(theme.colors.primary);
     expect(root.style.getPropertyValue('--theme-background-dark')).toBe(theme.colors.backgroundDark);
     expect(root.style.getPropertyValue('--theme-text-primary')).toBe(theme.colors.textPrimary);
+  });
+
+  it('exposes a readable foreground for text on the primary color', () => {
+    const theme = getDefaultTheme();
+    themeManager.applyTheme(theme);
+    expect(document.documentElement.style.getPropertyValue('--theme-on-primary'))
+      .toBe(readableForeground(theme.colors.primary));
   });
 
   it('should expose theme-driven control custom properties', () => {

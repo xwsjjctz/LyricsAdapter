@@ -21,14 +21,12 @@ function renderToolbar(dataSource: SlotId) {
 }
 
 describe('LibraryToolbar fixed-size actions', () => {
-  it('keeps only the fixed-size import control beside local search', () => {
-    const { container } = renderToolbar('local');
-    const actions = container.querySelector('.library-toolbar-actions');
-    const uploadButton = actions?.querySelector('button[aria-label]');
-    const buttons = actions?.querySelectorAll('button');
+  it('offers a single labelled add-music action beside local search', () => {
+    const { container, getByRole } = renderToolbar('local');
+    const buttons = container.querySelectorAll('.library-toolbar-actions button');
 
-    expect(uploadButton).toHaveClass('w-10', 'h-10', 'shrink-0');
     expect(buttons).toHaveLength(1);
+    expect(getByRole('button', { name: new RegExp(i18n.t('library.addMusic')) })).toBeEnabled();
   });
 
   it('keeps cloud refresh fixed-size while audio upload is unavailable', () => {

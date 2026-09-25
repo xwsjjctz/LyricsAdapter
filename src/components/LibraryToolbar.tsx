@@ -3,7 +3,6 @@ import { i18n } from '../services/i18n';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import type { SlotId } from '../types';
-import { readableForeground } from '../services/colorUtils';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 import { Button } from './ui';
 
@@ -51,8 +50,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   onShuffleAll,
 }) => {
   const { t } = useTranslation();
-  const localImportForeground = readableForeground(colors.primary);
-  const renderImportButton = (icon: 'upload_file' | 'cloud_upload') => {
+  const renderCloudUploadButton = () => {
     if (!onImportClick) return null;
 
     return (
@@ -62,11 +60,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         className="w-10 h-10 shrink-0 flex items-center justify-center transition-colors"
         style={{
           borderRadius: 'var(--theme-control-radius)',
-          color: importDisabled
-            ? colors.textMuted
-            : dataSource === 'local'
-              ? localImportForeground
-              : '#fff',
+          color: importDisabled ? colors.textMuted : 'var(--theme-on-primary, #fff)',
           backgroundColor: importDisabled ? colors.backgroundCard : colors.primary,
           border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
           boxShadow: importDisabled ? 'none' : 'var(--theme-elevated-shadow)',
@@ -75,7 +69,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         }}
         aria-label={t('sidebar.importFiles')}
       >
-        <span className="material-symbols-outlined text-[22px]">{icon}</span>
+        <span className="material-symbols-outlined text-[22px]">cloud_upload</span>
       </button>
     );
   };
@@ -156,10 +150,14 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
                 refresh
               </span>
             </button>
-            {WEBDAV_AUDIO_UPLOAD_ENABLED && renderImportButton('cloud_upload')}
+            {WEBDAV_AUDIO_UPLOAD_ENABLED && renderCloudUploadButton()}
           </>
         )}
-        {dataSource === 'local' && renderImportButton('upload_file')}
+        {dataSource === 'local' && onImportClick && (
+          <Button variant="primary" icon="add" className="shrink-0" disabled={importDisabled} onClick={onImportClick}>
+            {t('library.addMusic')}
+          </Button>
+        )}
       </div>
     </div>
   );

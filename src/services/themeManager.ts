@@ -7,7 +7,7 @@ import { logger } from './logger';
 import { appStorage } from './appStorage';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
-import { hexToRgba } from './colorUtils';
+import { hexToRgba, readableForeground } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
 
@@ -23,6 +23,7 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 
   el.style.setProperty('--theme-primary', colors.primary);
   el.style.setProperty('--theme-primary-hover', colors.primaryHover);
+  el.style.setProperty('--theme-on-primary', readableForeground(colors.primary));
   el.style.setProperty('--theme-primary-light', colors.primaryLight);
 
   el.style.setProperty('--theme-primary-08', hexToRgba(colors.primary, 0.08));

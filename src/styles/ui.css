@@ -84,7 +84,7 @@
 /* Primary — the one emphasised action in a group. */
 .ui-btn--primary {
   background: var(--theme-primary, #2b8cee);
-  color: #fff;
+  color: var(--theme-on-primary, #fff);
   box-shadow: var(--theme-elevated-shadow, none);
 }
 .ui-btn--primary:hover:not(:disabled) {
