@@ -40,6 +40,8 @@ interface SidebarProps {
   /** True while a drag-resize is active — suppresses the width transition. */
   isResizing?: boolean;
   onResizeStart?: (event: React.PointerEvent) => void;
+  upNextOpen?: boolean;
+  onToggleUpNext?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -52,6 +54,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSlotChange,
   libraryTrackCounts,
   onOpenPlaylist,
+  upNextOpen = false,
+  onToggleUpNext,
 }) => {
   const { t, i18n } = useTranslation();
   const currentTheme = useCurrentTheme();
@@ -106,7 +110,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     {
       key: 'online',
       icon: 'history',
-      label: t('sidebar.onlineQueue'),
+      label: t('sidebar.online'),
       meta: String(libraryTrackCounts.online),
       active: isLibrarySelectionActive && activeSlotId === 'online',
       onClick: () => handleSlotClick('online'),
@@ -343,6 +347,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClick={toggleNightMode}
           aria-pressed={currentTheme.isDark}
         />
+        {onToggleUpNext && (
+          <IconButton
+            icon="queue_music"
+            label={t('upNext.toggle')}
+            size="md"
+            variant={upNextOpen ? 'active' : 'ghost'}
+            onClick={onToggleUpNext}
+            aria-pressed={upNextOpen}
+          />
+        )}
       </div>
     </div>
   );

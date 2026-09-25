@@ -9,6 +9,7 @@ import SidebarToggleButton from './SidebarToggleButton';
 import Sidebar from './Sidebar';
 import LibraryView from './LibraryView';
 import SearchView from './search/SearchView';
+import UpNextPanel from './UpNextPanel';
 import MetadataView from './MetadataView';
 import FloatingPanel from './FloatingPanel';
 import Controls from './Controls';
@@ -118,6 +119,12 @@ const AppShell: React.FC<AppShellProps> = ({
     handleNavigate(ViewMode.SEARCH);
   }, [handleNavigate]);
   const isSearchView = viewMode === ViewMode.SEARCH;
+  const [isUpNextOpen, setIsUpNextOpen] = useState(false);
+  const toggleUpNext = useCallback(() => setIsUpNextOpen(open => !open), []);
+  const closeUpNext = useCallback(() => setIsUpNextOpen(false), []);
+  const playUpNextIndex = useCallback((index: number) => {
+    playerController.handleTrackSelect(index, library.activeSlotId);
+  }, [library.activeSlotId, playerController]);
 
   const toggleFocusMode = useCallback(() => {
     setIsFocusMode(current => !current);
@@ -195,6 +202,8 @@ const AppShell: React.FC<AppShellProps> = ({
           collapsed={sidebar.collapsed}
           isResizing={sidebar.isResizing}
           onResizeStart={sidebar.startResize}
+          upNextOpen={isUpNextOpen}
+          onToggleUpNext={toggleUpNext}
         />
         <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
           style={floatingPanel ? {} : {
@@ -297,6 +306,17 @@ const AppShell: React.FC<AppShellProps> = ({
             >
               <SettingsPanel onClose={closeOverlayView} />
             </FloatingPanel>
+          )}
+          {isUpNextOpen && !isFocusMode && (
+            <UpNextPanel
+              tracks={activeTracks}
+              currentIndex={library.slots[library.activeSlotId].currentTrackIndex}
+              mode={player.playbackMode}
+              sourceLabel={t(library.activeSlotId === 'playlist' ? 'sidebar.playlists' : `sidebar.${library.activeSlotId}`)}
+              bottomInset={MACOS_PLAYER_BOTTOM_INSET}
+              onPlayIndex={playUpNextIndex}
+              onClose={closeUpNext}
+            />
           )}
           <Controls
             track={player.currentTrack}
