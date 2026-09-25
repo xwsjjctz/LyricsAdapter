@@ -240,6 +240,7 @@ const AppShell: React.FC<AppShellProps> = ({
                 onDropFilePaths={importVm.dropFilePaths}
                 onReorderTracks={library.reorder}
                 onUpdateTrack={library.updateTrack}
+                onDownloadTrack={online.downloadTrack}
                 isFocusMode={isFocusMode}
                 savedScrollPosition={library.slots[library.viewSlot].scrollPosition}
                 onScrollPositionChange={handleLibraryScrollPositionChange}

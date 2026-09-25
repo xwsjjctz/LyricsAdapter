@@ -12,7 +12,8 @@ interface LibraryTrackRowProps {
   isSelecting: boolean;
   isSelected: boolean;
   isDragged: boolean;
-  canManage: boolean;
+  /** A context menu has at least one action for this row. */
+  hasMenu: boolean;
   canReorder: boolean;
   shouldShowAnimation: boolean;
   colors: ThemeColors;
@@ -30,7 +31,7 @@ interface LibraryTrackRowProps {
 /** Shared by the default list and artist/album lists. Selection never plays audio. */
 const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   track, filteredIndex, realTrackIndex, isCurrentTrack, isSelecting, isSelected,
-  isDragged, canManage, canReorder, shouldShowAnimation, colors,
+  isDragged, hasMenu, canReorder, shouldShowAnimation, colors,
   playingIndicator = 'floating', measureRef, onTrackSelect, onToggleSelect,
   onOpenMenu, onDragStart, onDragOver, onDrop, onDragEnd,
 }) => {
@@ -55,14 +56,14 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       onDragEnd={onDragEnd}
       onClick={activate}
       onContextMenu={e => {
-        if (!canManage || isSelecting) return;
+        if (!hasMenu || isSelecting) return;
         e.preventDefault();
         onOpenMenu(track, e.clientX, e.clientY, e.currentTarget);
       }}
       onKeyDown={e => {
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
-        if (canManage && !isSelecting && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
+        if (hasMenu && !isSelecting && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
           e.preventDefault();
           const rect = e.currentTarget.getBoundingClientRect();
           onOpenMenu(track, rect.right - 220, rect.bottom, e.currentTarget);

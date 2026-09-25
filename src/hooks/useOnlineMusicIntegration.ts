@@ -6,6 +6,7 @@ import {
   type OnlineLyricsResult,
   type OnlineQuality,
   type OnlineSong,
+  type OnlineSource,
 } from '../services/onlineMusicProvider';
 import { settingsManager } from '../services/settingsManager';
 import { webdavClient } from '../services/webdavClient';
@@ -166,10 +167,15 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     }
   }, []);
 
-  const handleOnlineDownload = useCallback(async (song: OnlineSong, quality: OnlineQuality) => {
+  const handleOnlineDownload = useCallback(async (
+    song: OnlineSong,
+    quality: OnlineQuality,
+    source?: OnlineSource,
+  ) => {
     const downloadPath = settingsManager.getDownloadPath();
     if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
-    const provider = getOnlineProvider();
+    // Playlist and queue tracks carry their own source; search results use the active one.
+    const provider = getOnlineProvider(source);
     const songId = song.songmid;
     activeSongRef.current = songId;
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));

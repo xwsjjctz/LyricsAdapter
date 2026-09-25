@@ -1,6 +1,8 @@
+import { useCallback } from 'react';
 import type { Track } from '../types';
 import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import type { OnlineQuality } from '../services/onlineMusicProvider';
+import { trackToOnlineSong } from '../domain/trackFactory';
 
 /**
  * Online-music-facing ViewModel (Phase 4 follow-up, roadmap §6.2).
@@ -26,7 +28,9 @@ export interface OnlineViewModel {
   /** Stream-play an OnlineSong immediately (no download). */
   playSong(song: OnlineSong, source?: OnlineSource): void;
   /** Download a song to the local download folder. */
-  download(song: OnlineSong, quality: OnlineQuality): Promise<void>;
+  download(song: OnlineSong, quality: OnlineQuality, source?: OnlineSource): Promise<void>;
+  /** Download a list track from its own provider; non-online tracks are ignored. */
+  downloadTrack(track: Track, quality: OnlineQuality): void;
   /** Upload a song to WebDAV. */
   upload(song: OnlineSong, quality: OnlineQuality): Promise<void>;
   /** Navigate to + play a local/cloud track found via global search. */
@@ -36,7 +40,7 @@ export interface OnlineViewModel {
 export interface OnlineViewModelOptions {
   progress: Record<string, OnlineProgressEntry>;
   playSong: (song: OnlineSong, source?: OnlineSource) => void;
-  download: (song: OnlineSong, quality: OnlineQuality) => Promise<void>;
+  download: (song: OnlineSong, quality: OnlineQuality, source?: OnlineSource) => Promise<void>;
   upload: (song: OnlineSong, quality: OnlineQuality) => Promise<void>;
   navigateToTrack: (track: Track) => void;
 }
@@ -50,10 +54,16 @@ export function useOnlineViewModel(opts: OnlineViewModelOptions): OnlineViewMode
     navigateToTrack,
   } = opts;
 
+  const downloadTrack = useCallback((track: Track, quality: OnlineQuality) => {
+    const resolved = trackToOnlineSong(track);
+    if (resolved) void download(resolved.song, quality, resolved.source);
+  }, [download]);
+
   return {
     progress,
     playSong,
     download,
+    downloadTrack,
     upload,
     navigateToTrack,
   };

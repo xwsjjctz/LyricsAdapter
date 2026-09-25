@@ -9,7 +9,9 @@ import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
-import LibraryTrackMenu, { type TrackMenuPosition } from './LibraryTrackMenu';
+import TrackMenu, { type TrackMenuPosition } from './TrackMenu';
+import { buildTrackMenuItems, type TrackDownloadQuality, type TrackMenuActionId } from './trackMenuItems';
+import { trackToOnlineSong } from '../domain/trackFactory';
 import LibrarySelectionBar from './LibrarySelectionBar';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import GsapModal from './GsapModal';
@@ -33,6 +35,8 @@ interface LibraryViewProps {
   onDropFilePaths?: (filePaths: { path: string; name: string }[]) => void;
   onReorderTracks?: (fromIndex: number, toIndex: number) => void;
   onUpdateTrack?: (track: Track) => void;
+  /** Download an online-provider track to the local library. */
+  onDownloadTrack?: (track: Track, quality: TrackDownloadQuality) => void;
   isFocusMode?: boolean;
   savedScrollPosition?: number;
   onScrollPositionChange?: (position: number) => void;
@@ -85,6 +89,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onDropFilePaths,
   onReorderTracks,
   onUpdateTrack,
+  onDownloadTrack,
   isFocusMode = false,
   savedScrollPosition = 0,
   onScrollPositionChange,
@@ -728,6 +733,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const [removalError, setRemovalError] = useState(false);
   const closeTrackMenu = useCallback(() => setTrackMenu(null), []);
   const menuTrack = trackMenu ? displayTracks.find(track => track.id === trackMenu.trackId) : undefined;
+  const menuItemsFor = useCallback((track: Track) => buildTrackMenuItems({
+    dataSource,
+    canEdit: !!onUpdateTrack,
+    canDownload: !!onDownloadTrack && trackToOnlineSong(track) !== null,
+  }), [dataSource, onUpdateTrack, onDownloadTrack]);
   const finishSelection = useCallback(() => {
     setIsSelecting(false);
     setSelectedIds(new Set());
@@ -778,6 +788,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     setEditingTrack(track);
     setIsMetadataEditorOpen(true);
   }, []);
+  const handleTrackMenuAction = useCallback((track: Track, id: TrackMenuActionId) => {
+    if (id === 'edit') openMetadataEditor(track);
+    else if (id === 'select') { setSelectedIds(new Set([track.id])); setIsSelecting(true); }
+    else if (id === 'remove') confirmDelete(track.id);
+    else onDownloadTrack?.(track, id.slice('download:'.length) as TrackDownloadQuality);
+  }, [openMetadataEditor, confirmDelete, onDownloadTrack]);
   const handleConfirmDelete = useCallback(async () => {
     if (!trackToDelete || isRemoving) return;
     setIsRemoving(true);
@@ -998,7 +1014,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
                       onToggleSelect={toggleSelectOne}
-                      canManage={canManage}
+                      hasMenu={menuItemsFor(track).length > 0}
                       canReorder={canReorder}
                       onOpenMenu={openTrackMenu}
                       onDrop={handleTrackDrop}
@@ -1192,7 +1208,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         <LibraryTrackRow key={track.id} track={track} filteredIndex={startIndex + idx}
                           realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                           isCurrentTrack={track.id === currentTrackId} isSelecting={isSelecting}
-                          isSelected={selectedIds.has(track.id)} isDragged={false} canManage={canManage} canReorder={false}
+                          isSelected={selectedIds.has(track.id)} isDragged={false} hasMenu={menuItemsFor(track).length > 0} canReorder={false}
                           shouldShowAnimation={shouldShowAnimation} colors={colors} playingIndicator={playingIndicator}
                           measureRef={idx === 0 ? rowMeasureRef : undefined} onTrackSelect={onTrackSelect}
                           onToggleSelect={toggleSelectOne} onOpenMenu={openTrackMenu}
@@ -1248,11 +1264,9 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </button>
       )}
 
-      {trackMenu && menuTrack && !isSelecting && <LibraryTrackMenu position={trackMenu} colors={colors}
-        canEdit={!!onUpdateTrack}
-        onClose={closeTrackMenu} onEdit={() => openMetadataEditor(menuTrack)}
-        onSelect={() => { setSelectedIds(new Set([menuTrack.id])); setIsSelecting(true); }}
-        onRemove={() => confirmDelete(menuTrack.id)} />}
+      {trackMenu && menuTrack && !isSelecting && <TrackMenu position={trackMenu} colors={colors}
+        items={menuItemsFor(menuTrack)} onClose={closeTrackMenu}
+        onAction={id => handleTrackMenuAction(menuTrack, id)} />}
 
       {/* Delete confirmation dialog */}
       <GsapModal

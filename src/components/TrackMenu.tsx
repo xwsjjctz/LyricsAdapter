@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { ThemeColors } from '../types/theme';
+import type { TrackMenuActionId, TrackMenuItem } from './trackMenuItems';
 
 export interface TrackMenuPosition {
   trackId: string;
@@ -12,14 +13,13 @@ export interface TrackMenuPosition {
 interface Props {
   position: TrackMenuPosition;
   colors: ThemeColors;
-  canEdit: boolean;
+  items: TrackMenuItem[];
   onClose: () => void;
-  onEdit: () => void;
-  onSelect: () => void;
-  onRemove: () => void;
+  onAction: (id: TrackMenuActionId) => void;
 }
 
-export default function LibraryTrackMenu({ position, colors, canEdit, onClose, onEdit, onSelect, onRemove }: Props) {
+/** Song context menu shared by every track list; items come from buildTrackMenuItems. */
+export default function TrackMenu({ position, colors, items, onClose, onAction }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState({ x: position.x, y: position.y });
@@ -40,7 +40,7 @@ export default function LibraryTrackMenu({ position, colors, canEdit, onClose, o
       window.removeEventListener('resize', onClose);
     };
   }, [position, onClose]);
-  const choose = (action: () => void) => { onClose(); action(); };
+  const choose = (id: TrackMenuActionId) => { onClose(); onAction(id); };
   return createPortal(
     <div ref={ref} role="menu" aria-label={t('library.songActions')}
       className="library-track-menu fixed z-[100] p-1.5 shadow-2xl"
@@ -60,10 +60,22 @@ export default function LibraryTrackMenu({ position, colors, canEdit, onClose, o
           buttons[next]?.focus();
         }
       }}>
-      {canEdit && <button role="menuitem" className="library-menu-item" onClick={() => choose(onEdit)}>{t('library.editInfo')}</button>}
-      <button role="menuitem" className="library-menu-item" onClick={() => choose(onSelect)}>{t('library.selectMultiple')}</button>
-      <div className="my-1 border-t" style={{ borderColor: colors.borderLight }} />
-      <button role="menuitem" className="library-menu-item" style={{ color: colors.error }} onClick={() => choose(onRemove)}>{t('library.remove')}</button>
+      {items.map((item, index) => {
+        if (item.kind === 'separator') {
+          return <div key={`separator-${index}`} className="my-1 border-t" style={{ borderColor: colors.borderLight }} />;
+        }
+        if (item.kind === 'label') {
+          return <div key={`label-${index}`} className="library-menu-label" style={{ color: colors.textMuted }}>{t(item.labelKey)}</div>;
+        }
+        const label = item.labelKey ? t(item.labelKey) : item.label;
+        return (
+          <button key={item.id} role="menuitem" className="library-menu-item"
+            aria-label={item.groupLabelKey ? `${t(item.groupLabelKey)} ${label}` : undefined}
+            style={item.danger ? { color: colors.error } : undefined} onClick={() => choose(item.id)}>
+            {label}
+          </button>
+        );
+      })}
     </div>, document.body,
   );
 }

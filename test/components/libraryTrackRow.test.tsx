@@ -11,7 +11,7 @@ function setup(selecting = false, available = true) {
   const rendered = render(<LibraryTrackRow
     track={{ id: 'track', title: 'A Song', artist: 'Artist', album: 'Album', duration: 60, audioUrl: '', available }}
     filteredIndex={8} realTrackIndex={12} isCurrentTrack={false} isSelecting={selecting}
-    isSelected={false} isDragged={false} canManage canReorder={!selecting} shouldShowAnimation={false}
+    isSelected={false} isDragged={false} hasMenu canReorder={!selecting} shouldShowAnimation={false}
     colors={themeManager.getCurrentTheme().colors} onTrackSelect={onTrackSelect}
     onToggleSelect={onToggleSelect} onOpenMenu={onOpenMenu} onDragStart={vi.fn()}
     onDragOver={vi.fn()} onDrop={vi.fn()} onDragEnd={vi.fn()} />);
