@@ -215,11 +215,6 @@ export const useShortcuts = ({
         }
         break;
 
-      // case 'gotoBrowse':
-      //   setViewMode(ViewMode.BROWSE);
-      //   setIsFocusMode(false);
-      //   break;
-
       case 'gotoSettings':
         setViewMode(ViewMode.SETTINGS);
         setIsFocusMode(false);

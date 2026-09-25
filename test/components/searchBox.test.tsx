@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SearchBox from '@/components/SearchBox';
@@ -23,18 +24,18 @@ function song(songmid: string, songname: string): OnlineSong {
   };
 }
 
-function renderSearchBox() {
-  return render(
-    <SearchBox
-      localTracks={[]}
-      cloudTracks={[]}
-      onNavigateToTrack={vi.fn()}
-      onOnlineDownload={vi.fn()}
-      onOnlineUpload={vi.fn()}
-      onOnlineStreamPlay={vi.fn()}
-      onlineProgress={{}}
-    />,
-  );
+function renderSearchBox(overrides: Partial<ComponentProps<typeof SearchBox>> = {}) {
+  const props: ComponentProps<typeof SearchBox> = {
+    localTracks: [],
+    cloudTracks: [],
+    onNavigateToTrack: vi.fn(),
+    onOnlineStreamPlay: vi.fn(),
+    onDownloadTrack: vi.fn(),
+    onlineProgress: {},
+    onOpenResults: vi.fn(),
+    ...overrides,
+  };
+  return { ...render(<SearchBox {...props} />), props };
 }
 
 describe('SearchBox online result freshness', () => {
@@ -57,7 +58,7 @@ describe('SearchBox online result freshness', () => {
     ));
 
     renderSearchBox();
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('combobox');
 
     fireEvent.change(input, { target: { value: 'first' } });
     await act(async () => vi.advanceTimersByTime(500));
@@ -82,7 +83,7 @@ describe('SearchBox online result freshness', () => {
     ));
 
     renderSearchBox();
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('combobox');
 
     fireEvent.change(input, { target: { value: 'first' } });
     await act(async () => vi.advanceTimersByTime(500));
@@ -90,5 +91,52 @@ describe('SearchBox online result freshness', () => {
 
     fireEvent.change(input, { target: { value: 'second' } });
     expect(screen.queryByText('First result')).not.toBeInTheDocument();
+  });
+});
+
+describe('SearchBox results page entry', () => {
+  beforeEach(() => {
+    vi.spyOn(settingsManager, 'getQqMusicEnabled').mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens the results page on Enter when no row is highlighted', () => {
+    const { props } = renderSearchBox();
+    const input = screen.getByRole('combobox');
+
+    fireEvent.change(input, { target: { value: '  hello  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(props.onOpenResults).toHaveBeenCalledWith('hello');
+  });
+
+  it('reaches "see all results" by keyboard after the last row', () => {
+    const track = { id: 't1', title: 'Hello', artist: 'A', album: 'B', duration: 1, audioUrl: '' };
+    const { props } = renderSearchBox({ localTracks: [track] });
+    const input = screen.getByRole('combobox');
+
+    fireEvent.change(input, { target: { value: 'hello' } });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(props.onNavigateToTrack).not.toHaveBeenCalled();
+    expect(props.onOpenResults).toHaveBeenCalledWith('hello');
+  });
+
+  it('navigates to a highlighted library row on Enter', () => {
+    const track = { id: 't1', title: 'Hello', artist: 'A', album: 'B', duration: 1, audioUrl: '' };
+    const { props } = renderSearchBox({ localTracks: [track] });
+    const input = screen.getByRole('combobox');
+
+    fireEvent.change(input, { target: { value: 'hello' } });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(props.onNavigateToTrack).toHaveBeenCalledWith(track);
+    expect(props.onOpenResults).not.toHaveBeenCalled();
   });
 });

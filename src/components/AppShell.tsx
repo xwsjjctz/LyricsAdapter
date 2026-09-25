@@ -1,4 +1,4 @@
-import React, { type ReactElement, useCallback, useMemo } from 'react';
+import React, { type ReactElement, useCallback, useMemo, useState } from 'react';
 import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -8,7 +8,7 @@ import TitleBar from './TitleBar';
 import SidebarToggleButton from './SidebarToggleButton';
 import Sidebar from './Sidebar';
 import LibraryView from './LibraryView';
-import BrowseView from './BrowseView';
+import SearchView from './search/SearchView';
 import MetadataView from './MetadataView';
 import FloatingPanel from './FloatingPanel';
 import Controls from './Controls';
@@ -112,6 +112,13 @@ const AppShell: React.FC<AppShellProps> = ({
     handleNavigate,
   } = ui;
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const openSearchResults = useCallback((query: string) => {
+    setSearchQuery(query);
+    handleNavigate(ViewMode.SEARCH);
+  }, [handleNavigate]);
+  const isSearchView = viewMode === ViewMode.SEARCH;
+
   const toggleFocusMode = useCallback(() => {
     setIsFocusMode(current => !current);
   }, [setIsFocusMode]);
@@ -135,19 +142,22 @@ const AppShell: React.FC<AppShellProps> = ({
       isWindowFocused={isWindowFocused}
       localTracks={slots.local.tracks}
       cloudTracks={slots.cloud.tracks}
+      initialQuery={isSearchView ? searchQuery : ''}
       onNavigateToTrack={online.navigateToTrack}
-      onOnlineDownload={online.download}
       onOnlineStreamPlay={online.playSong}
-      onOnlineUpload={online.upload}
+      onDownloadTrack={online.downloadTrack}
       onlineProgress={online.progress}
+      onOpenResults={openSearchResults}
     />
   ), [
+    isSearchView,
     isWindowFocused,
-    online.download,
+    online.downloadTrack,
     online.navigateToTrack,
     online.playSong,
     online.progress,
-    online.upload,
+    openSearchResults,
+    searchQuery,
     slots.cloud.tracks,
     slots.local.tracks,
   ]);
@@ -200,12 +210,19 @@ const AppShell: React.FC<AppShellProps> = ({
             onChange={importVm.onFileInputChange}
           />
           <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}
-            style={getDesktopAPI()?.platform === 'darwin' && (viewMode === ViewMode.BROWSE || viewMode === ViewMode.METADATA)
+            style={getDesktopAPI()?.platform === 'darwin' && viewMode === ViewMode.METADATA
               ? { paddingBottom: MACOS_PLAYER_BOTTOM_INSET } : undefined}>
-            {viewMode === ViewMode.BROWSE ? (
-              <BrowseView
-                online={online}
-                onNavigateToSettings={openSettings}
+            {isSearchView ? (
+              <SearchView
+                query={searchQuery}
+                localTracks={slots.local.tracks}
+                cloudTracks={slots.cloud.tracks}
+                currentTrackId={player.currentTrack?.id}
+                searchBox={searchBox}
+                onNavigateToTrack={online.navigateToTrack}
+                onOnlineStreamPlay={online.playSong}
+                onDownloadTrack={online.downloadTrack}
+                onlineProgress={online.progress}
               />
             ) : viewMode === ViewMode.METADATA ? (
               <MetadataView

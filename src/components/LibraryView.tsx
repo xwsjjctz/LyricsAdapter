@@ -10,7 +10,7 @@ import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
 import TrackMenu, { type TrackMenuPosition } from './TrackMenu';
-import { buildTrackMenuItems, type TrackDownloadQuality, type TrackMenuActionId } from './trackMenuItems';
+import { buildTrackMenuItems, downloadQualityOf, type TrackDownloadQuality, type TrackMenuActionId } from './trackMenuItems';
 import { trackToOnlineSong } from '../domain/trackFactory';
 import LibrarySelectionBar from './LibrarySelectionBar';
 import MetadataEditorPopup from './MetadataEditorPopup';
@@ -792,7 +792,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     if (id === 'edit') openMetadataEditor(track);
     else if (id === 'select') { setSelectedIds(new Set([track.id])); setIsSelecting(true); }
     else if (id === 'remove') confirmDelete(track.id);
-    else onDownloadTrack?.(track, id.slice('download:'.length) as TrackDownloadQuality);
+    else {
+      const quality = downloadQualityOf(id);
+      if (quality) onDownloadTrack?.(track, quality);
+    }
   }, [openMetadataEditor, confirmDelete, onDownloadTrack]);
   const handleConfirmDelete = useCallback(async () => {
     if (!trackToDelete || isRemoving) return;

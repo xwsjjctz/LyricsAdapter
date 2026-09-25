@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import TrackCover from './TrackCover';
+import { formatDuration } from '../shared/formatDuration';
 
 interface LibraryTrackRowProps {
   track: Track;
@@ -22,10 +23,12 @@ interface LibraryTrackRowProps {
   onTrackSelect: (index: number) => void;
   onToggleSelect: (id: string) => void;
   onOpenMenu: (track: Track, x: number, y: number, trigger: HTMLElement) => void;
-  onDragStart: (e: React.DragEvent, index: number) => void;
-  onDragOver: (e: React.DragEvent, index: number) => void;
-  onDrop: (e: React.DragEvent, index: number) => void;
-  onDragEnd: () => void;
+  onDragStart?: ((e: React.DragEvent, index: number) => void) | undefined;
+  onDragOver?: ((e: React.DragEvent, index: number) => void) | undefined;
+  onDrop?: ((e: React.DragEvent, index: number) => void) | undefined;
+  onDragEnd?: (() => void) | undefined;
+  /** Download progress 0–100; replaces the duration while set. */
+  progress?: number | undefined;
 }
 
 /** Shared by the default list and artist/album lists. Selection never plays audio. */
@@ -33,7 +36,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   track, filteredIndex, realTrackIndex, isCurrentTrack, isSelecting, isSelected,
   isDragged, hasMenu, canReorder, shouldShowAnimation, colors,
   playingIndicator = 'floating', measureRef, onTrackSelect, onToggleSelect,
-  onOpenMenu, onDragStart, onDragOver, onDrop, onDragEnd,
+  onOpenMenu, onDragStart, onDragOver, onDrop, onDragEnd, progress,
 }) => {
   const { t } = useTranslation();
   const isUnavailable = track.available === false;
@@ -50,9 +53,9 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       data-track-id={track.id}
       tabIndex={0}
       draggable={canDrag}
-      onDragStart={e => { if (canDrag) onDragStart(e, filteredIndex); else e.preventDefault(); }}
-      onDragOver={e => onDragOver(e, filteredIndex)}
-      onDrop={e => onDrop(e, filteredIndex)}
+      onDragStart={e => { if (canDrag && onDragStart) onDragStart(e, filteredIndex); else e.preventDefault(); }}
+      onDragOver={e => onDragOver?.(e, filteredIndex)}
+      onDrop={e => onDrop?.(e, filteredIndex)}
       onDragEnd={onDragEnd}
       onClick={activate}
       onContextMenu={e => {
@@ -101,8 +104,8 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         </div>
       </div>
       <div className="library-track-album text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
-      <div className="text-sm text-right tabular-nums" style={{ color: colors.textMuted }}>
-        {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
+      <div className="text-sm text-right tabular-nums" style={{ color: progress != null ? colors.primary : colors.textMuted }}>
+        {progress != null ? `${Math.round(progress)}%` : formatDuration(track.duration)}
       </div>
     </div>
   );

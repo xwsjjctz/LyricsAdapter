@@ -23,8 +23,11 @@ export type TrackMenuItem =
   | { kind: 'label'; labelKey: string }
   | { kind: 'separator' };
 
+/** Where the list lives: a library slot, or the global search results. */
+export type TrackMenuSource = SlotId | 'search';
+
 interface TrackMenuContext {
-  dataSource: SlotId;
+  dataSource: TrackMenuSource;
   /** Metadata editing is wired for this list. */
   canEdit: boolean;
   /** The track resolves to an online provider song. */
@@ -39,12 +42,12 @@ const QUALITY_LABELS: Record<TrackDownloadQuality, string> = {
 
 /**
  * Decides which song actions a list offers. Local and online-queue lists are
- * managed by the library; platform playlists are play-only, so they only get
- * download. Cloud lists are managed by their remote source and have no menu.
+ * managed by the library; platform playlists and search results are play-only,
+ * so they only get download. Cloud lists are managed by their remote source.
  */
 export function buildTrackMenuItems({ dataSource, canEdit, canDownload }: TrackMenuContext): TrackMenuItem[] {
   const groups: TrackMenuItem[][] = [];
-  if (canDownload && (dataSource === 'online' || dataSource === 'playlist')) {
+  if (canDownload && dataSource !== 'local' && dataSource !== 'cloud') {
     groups.push([
       { kind: 'label', labelKey: 'browse.download' },
       ...TRACK_DOWNLOAD_QUALITIES.map(quality => ({
@@ -63,4 +66,9 @@ export function buildTrackMenuItems({ dataSource, canEdit, canDownload }: TrackM
     groups.push([{ kind: 'action', id: 'remove', labelKey: 'library.remove', danger: true }]);
   }
   return groups.flatMap((group, index) => (index === 0 ? group : [{ kind: 'separator' as const }, ...group]));
+}
+
+/** The quality a download action requests, or null for non-download actions. */
+export function downloadQualityOf(id: TrackMenuActionId): TrackDownloadQuality | null {
+  return id.startsWith('download:') ? id.slice('download:'.length) as TrackDownloadQuality : null;
 }

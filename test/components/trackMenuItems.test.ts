@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTrackMenuItems, type TrackMenuItem } from '@/components/trackMenuItems';
+import { buildTrackMenuItems, downloadQualityOf, type TrackMenuItem } from '@/components/trackMenuItems';
 
 const actionIds = (items: TrackMenuItem[]) =>
   items.flatMap(item => (item.kind === 'action' ? [item.id] : []));
@@ -33,6 +33,15 @@ describe('buildTrackMenuItems', () => {
     expect(buildTrackMenuItems({ dataSource: 'playlist', canEdit: true, canDownload: false })).toEqual([]);
   });
 
+  it('gives online search results download actions only', () => {
+    const items = buildTrackMenuItems({ dataSource: 'search', canEdit: true, canDownload: true });
+    expect(actionIds(items)).toEqual(['download:128', 'download:320', 'download:flac']);
+  });
+
+  it('gives local search results no menu', () => {
+    expect(buildTrackMenuItems({ dataSource: 'search', canEdit: true, canDownload: false })).toEqual([]);
+  });
+
   it('keeps cloud tracks without a menu', () => {
     expect(buildTrackMenuItems({ dataSource: 'cloud', canEdit: true, canDownload: true })).toEqual([]);
   });
@@ -49,5 +58,12 @@ describe('buildTrackMenuItems', () => {
         });
       }
     }
+  });
+});
+
+describe('downloadQualityOf', () => {
+  it('extracts the quality from download actions only', () => {
+    expect(downloadQualityOf('download:flac')).toBe('flac');
+    expect(downloadQualityOf('remove')).toBeNull();
   });
 });
