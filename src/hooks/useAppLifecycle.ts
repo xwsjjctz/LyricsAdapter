@@ -57,9 +57,7 @@ export function useAppLifecycle({ activeBlobUrlsRef }: UseAppLifecycleParams): v
 
   useEffect(() => {
     // Theme CSS variables are injected via the single canonical path in
-    // themeManager — keeping this in sync with ThemeView.applyThemeStyles
-    // and themeManager.applyTheme used to require three duplicated copies;
-    // now everyone delegates to one implementation.
+    // themeManager.
     themeManager.applyCurrentTheme();
     logger.debug('[App] Theme initialized:', themeManager.getCurrentThemeId());
   }, []);

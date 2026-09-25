@@ -47,11 +47,6 @@ export interface OnlineLyricsResult {
 
 export type OnlineSource = 'qq' | 'netease';
 
-/** Runtime guard for persisted tracks and UI callbacks that carry a source. */
-export function isOnlineSource(source: unknown): source is OnlineSource {
-  return source === 'qq' || source === 'netease';
-}
-
 export interface PlaylistInfo {
   id: string;
   name: string;

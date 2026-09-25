@@ -63,7 +63,6 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function
       type={type ?? 'button'}
       className={classes}
       aria-label={label}
-      title={label}
       {...rest}
     >
       <span className={glyphClasses}>{icon}</span>
