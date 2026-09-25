@@ -16,15 +16,9 @@ export function useUIStore() {
   const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isWindowFocused = useWindowFocus();
   const floatingPanel = useFloatingPanel();
-  const shouldAnimateViewTransition = useCallback((fromView: ViewMode, toView: ViewMode) => {
-    const overlayViews = fromView === ViewMode.SETTINGS
-      || toView === ViewMode.SETTINGS;
-    return !overlayViews;
-  }, []);
   const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(
     viewMode,
     setViewMode,
-    shouldAnimateViewTransition,
   );
 
   const markTrackSwitch = useCallback(() => {

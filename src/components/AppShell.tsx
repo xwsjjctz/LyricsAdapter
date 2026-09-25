@@ -11,11 +11,10 @@ import LibraryView from './LibraryView';
 import SearchView from './search/SearchView';
 import UpNextPanel from './UpNextPanel';
 import MetadataView from './MetadataView';
-import FloatingPanel from './FloatingPanel';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
-import SettingsPanel from './settings/SettingsPanel';
+import SettingsView from './settings/SettingsView';
 import GsapModal from './GsapModal';
 import { Button } from './ui';
 import { useTranslation } from 'react-i18next';
@@ -143,9 +142,6 @@ const AppShell: React.FC<AppShellProps> = ({
   const openSettings = useCallback(() => {
     transitionToView(ViewMode.SETTINGS);
   }, [transitionToView]);
-  const closeOverlayView = useCallback(() => {
-    transitionToView(ViewMode.PLAYER);
-  }, [transitionToView]);
   const hasUnavailableTracks = useMemo(
     () => activeTracks.some(track => track.available === false),
     [activeTracks],
@@ -232,7 +228,9 @@ const AppShell: React.FC<AppShellProps> = ({
           <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}
             style={getDesktopAPI()?.platform === 'darwin' && viewMode === ViewMode.METADATA
               ? { paddingBottom: MACOS_PLAYER_BOTTOM_INSET } : undefined}>
-            {isSearchView ? (
+            {viewMode === ViewMode.SETTINGS ? (
+              <SettingsView bottomInset={MACOS_PLAYER_BOTTOM_INSET} />
+            ) : isSearchView ? (
               <SearchView
                 query={searchQuery}
                 localTracks={slots.local.tracks}
@@ -309,14 +307,6 @@ const AppShell: React.FC<AppShellProps> = ({
               </div>
             )}
           </div>
-          {viewMode === ViewMode.SETTINGS && (
-            <FloatingPanel
-              onClose={closeOverlayView}
-              className="floating-panel-shell--settings"
-            >
-              <SettingsPanel onClose={closeOverlayView} />
-            </FloatingPanel>
-          )}
           {isUpNextOpen && !isFocusMode && (
             <UpNextPanel
               tracks={activeTracks}

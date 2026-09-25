@@ -75,8 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
-  const isSettingsView = currentView === ViewMode.SETTINGS;
-  const isLibrarySelectionActive = isLibraryView || isSettingsView;
+  const isLibrarySelectionActive = isLibraryView;
   const toggleNightMode = useCallback(() => {
     themeManager.setTheme(currentTheme.isDark ? THEME_IDS.DEFAULT_LIGHT : THEME_IDS.DEFAULT_DARK);
   }, [currentTheme.isDark]);
@@ -225,7 +224,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 
   const renderUtilityButton = (mode: ViewMode, icon: string, label: string) => (
-    <IconButton icon={icon} label={label} size="md" onClick={() => onNavigate(mode)} />
+    <IconButton icon={icon} label={label} size="md" variant={currentView === mode ? 'active' : 'ghost'}
+      aria-current={currentView === mode ? 'page' : undefined} onClick={() => onNavigate(mode)} />
   );
 
   const playlistItems = playlistsForDisplay.map((playlist) => {
