@@ -481,6 +481,17 @@ textarea.no-scrollbar::-webkit-scrollbar {
 .library-category-row {
   content-visibility: auto;
   contain-intrinsic-size: auto 56px;
+  color: var(--theme-text-secondary);
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.library-category-row:hover,
+.library-category-row[data-selected] {
+  background-color: var(--theme-background-card);
+}
+
+.library-category-row[data-selected] {
+  color: var(--theme-text-primary);
 }
 
 .library-toolbar {

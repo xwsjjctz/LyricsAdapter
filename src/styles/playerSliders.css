@@ -19,8 +19,8 @@ body:has(.focus-mode-overlay) .macos-floating-player {
 }
 
 .macos-floating-player .player-track-info {
-  flex: 0 1 180px;
-  width: 24%;
+  flex: 0 1 220px;
+  width: 30%;
 }
 
 .macos-volume-disclosure {

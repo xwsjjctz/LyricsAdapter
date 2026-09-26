@@ -162,8 +162,6 @@ export function useLibraryController(options: LibraryControllerOptions) {
   // Update a single track's metadata in the view slot. Equivalent to the
   // inline `(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(...) }))`
   // that previously appeared at multiple LibraryView call sites.
-  // NOTE: the MetadataView call site updates the *active* slot (setActiveTracks),
-  // not viewSlot, so it deliberately stays out of this controller — see backlog.
   const updateTrack = useCallback((track: Track) => {
     updateSlot(viewSlot, (s: LibrarySlot) => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }));
   }, [viewSlot, updateSlot]);

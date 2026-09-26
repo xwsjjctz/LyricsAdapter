@@ -118,6 +118,18 @@ describe('gsapButtonBounce', () => {
   });
 });
 
+describe('listDensity', () => {
+  it('should default to comfortable rows', () => {
+    expect(settingsManager.getListDensity()).toBe('comfortable');
+  });
+
+  it('should set and persist compact rows', () => {
+    settingsManager.setListDensity('compact');
+    expect(settingsManager.getListDensity()).toBe('compact');
+    expect(localStorage.getItem('la_list_density')).toBe('compact');
+  });
+});
+
 describe('focusBgBlurRadius', () => {
   it('should default to 80px', () => {
     expect(settingsManager.getFocusBgBlurRadius()).toBe(80);

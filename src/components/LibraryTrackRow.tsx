@@ -85,7 +85,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
     >
       <div className="flex items-center gap-3 min-w-0">
         {isSelecting ? (
-          <div className="size-10 shrink-0 flex items-center justify-center">
+          <div className="library-track-row__cover size-10 shrink-0 flex items-center justify-center">
             <input type="checkbox" checked={isSelected}
               aria-label={t('library.selectTrack', { title: track.title })}
               onChange={() => onToggleSelect(track.id)} onClick={e => e.stopPropagation()}
@@ -93,7 +93,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           </div>
         ) : (
           <TrackCover trackId={track.id} filePath={track.filePath} fallbackUrl={track.coverUrl}
-            className="size-10 shrink-0 object-cover" style={{ borderRadius: 'var(--theme-media-radius-sm)' }} />
+            className="library-track-row__cover size-10 shrink-0 object-cover" style={{ borderRadius: 'var(--theme-media-radius-sm)' }} />
         )}
         <div className="min-w-0 flex-1">
           <p className="text-sm truncate" style={{ color: inlineCurrent ? 'var(--theme-control-current-track-fg)' : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>

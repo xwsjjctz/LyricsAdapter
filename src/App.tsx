@@ -42,9 +42,6 @@ const AppContent: React.FC = () => {
     setIsFocusMode,
     autoLocateToken,
     markTrackSwitch,
-    pendingNavigation,
-    setPendingNavigation,
-    metadataViewRef,
     isWindowFocused,
     floatingPanel,
     handleNavigate,
@@ -389,8 +386,7 @@ const AppContent: React.FC = () => {
       ui={{
         viewMode, setViewMode, transitionToView, pageContentRef,
         isFocusMode, setIsFocusMode, autoLocateToken, markTrackSwitch,
-        pendingNavigation, setPendingNavigation,
-        metadataViewRef, isWindowFocused, floatingPanel, handleNavigate,
+        isWindowFocused, floatingPanel, handleNavigate,
       }}
       sidebar={sidebar}
       library={library}
@@ -410,7 +406,6 @@ const AppContent: React.FC = () => {
       handleSlotLocatePrepared={handleSlotLocatePrepared}
       handleCategoryChange={handleCategoryChange}
       libraryContentRef={libraryContentRef}
-      setActiveTracks={setActiveTracks}
       onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}
       isLinux={isLinux}

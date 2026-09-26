@@ -108,8 +108,6 @@ export interface MetaJson {
 
 export enum ViewMode {
   PLAYER = 'player',
-  LYRICS = 'lyrics',
   SEARCH = 'search',
-  METADATA = 'metadata',
   SETTINGS = 'settings'
 }

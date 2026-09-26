@@ -219,11 +219,6 @@ export const useShortcuts = ({
         setViewMode(ViewMode.SETTINGS);
         setIsFocusMode(false);
         break;
-
-      // case 'gotoMetadata':
-      //   setViewMode(ViewMode.METADATA);
-      //   setIsFocusMode(false);
-      //   break;
     }
   }, []);
 

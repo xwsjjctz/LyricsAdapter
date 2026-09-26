@@ -74,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     };
   }, []);
 
-  const isLibraryView = currentView === ViewMode.PLAYER || currentView === ViewMode.LYRICS;
+  const isLibraryView = currentView === ViewMode.PLAYER;
   const isLibrarySelectionActive = isLibraryView;
   const toggleNightMode = useCallback(() => {
     themeManager.setTheme(currentTheme.isDark ? THEME_IDS.DEFAULT_LIGHT : THEME_IDS.DEFAULT_DARK);

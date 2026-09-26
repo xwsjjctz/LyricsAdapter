@@ -2,8 +2,6 @@ import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 // 窗口控制按钮图标组件
@@ -47,7 +45,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
   const { t } = useTranslation();
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   // Window focus state (for focus button styling)
   const [isWindowFocused, setIsWindowFocused] = useState(true);
@@ -64,15 +61,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
 
   // Mouse hover state for the button
   const [isButtonHovered, setIsButtonHovered] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
-
-  const colors = currentTheme.colors;
 
   // 检测平台
   const desktopAPI = getDesktopAPI();
@@ -159,10 +147,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={onToggleFocusMode}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn"
             aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
           >
             <span className="transition-transform duration-250 ease-out" style={{ transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
@@ -172,10 +157,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={minimize}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn"
             aria-label={t('titleBar.minimize')}
           >
             <MinimizeIcon />
@@ -183,10 +165,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={maximize}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn"
             aria-label={isMaximized ? t('titleBar.restore') : t('titleBar.maximize')}
           >
             {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
@@ -194,10 +173,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={close}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.backgroundColor = '#c42b1c'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn titlebar-btn--close"
             aria-label={t('titleBar.close')}
           >
             <CloseIcon />

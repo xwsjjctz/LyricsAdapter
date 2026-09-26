@@ -1,7 +1,5 @@
 import React, { type ReactElement, useCallback, useMemo, useState } from 'react';
 import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
-import { logger } from '../services/logger';
-import { getDesktopAPI } from '../services/desktopAdapter';
 import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
 import type { OnlineSource } from '../services/onlineMusicProvider';
 import TitleBar from './TitleBar';
@@ -10,13 +8,10 @@ import Sidebar from './Sidebar';
 import LibraryView from './LibraryView';
 import SearchView from './search/SearchView';
 import UpNextPanel from './UpNextPanel';
-import MetadataView from './MetadataView';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import SettingsView from './settings/SettingsView';
-import GsapModal from './GsapModal';
-import { Button } from './ui';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
 import type { useSidebarLayout } from '../hooks/useSidebarLayout';
@@ -52,7 +47,6 @@ interface AppShellProps {
   handleSlotLocatePrepared: (token: number) => void;
   handleCategoryChange: (selection: string | null) => void;
   libraryContentRef: React.RefObject<HTMLDivElement>;
-  setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   onOpenPlaylist: (
     source: OnlineSource,
     playlistId: string,
@@ -89,7 +83,6 @@ const AppShell: React.FC<AppShellProps> = ({
   handleSlotLocatePrepared,
   handleCategoryChange,
   libraryContentRef,
-  setActiveTracks,
   onOpenPlaylist,
   audioElement,
   isLinux,
@@ -104,9 +97,6 @@ const AppShell: React.FC<AppShellProps> = ({
     isFocusMode,
     setIsFocusMode,
     autoLocateToken,
-    pendingNavigation,
-    setPendingNavigation,
-    metadataViewRef,
     isWindowFocused,
     floatingPanel,
     handleNavigate,
@@ -225,9 +215,7 @@ const AppShell: React.FC<AppShellProps> = ({
             className="hidden"
             onChange={importVm.onFileInputChange}
           />
-          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}
-            style={getDesktopAPI()?.platform === 'darwin' && viewMode === ViewMode.METADATA
-              ? { paddingBottom: MACOS_PLAYER_BOTTOM_INSET } : undefined}>
+          <div ref={pageContentRef} className="flex-1 overflow-hidden px-10 pt-2 pb-2">
             {viewMode === ViewMode.SETTINGS ? (
               <SettingsView bottomInset={MACOS_PLAYER_BOTTOM_INSET} />
             ) : isSearchView ? (
@@ -241,19 +229,6 @@ const AppShell: React.FC<AppShellProps> = ({
                 onOnlineStreamPlay={online.playSong}
                 onDownloadTrack={online.downloadTrack}
                 onlineProgress={online.progress}
-              />
-            ) : viewMode === ViewMode.METADATA ? (
-              <MetadataView
-                ref={metadataViewRef}
-                libraryTracks={activeTracks}
-                onImportFromLibrary={(trackIds) => {
-                  logger.debug('[App] Imported tracks to metadata view:', trackIds);
-                }}
-                onUpdateTrack={(updatedTrack) => {
-                  setActiveTracks(prev => prev.map(track =>
-                    track.id === updatedTrack.id ? updatedTrack : track
-                  ));
-                }}
               />
             ) : (
               <div ref={libraryContentRef} className="h-full">
@@ -334,7 +309,6 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             floating={floatingPanel}
-            nativeSlidersSuppressed={pendingNavigation !== null}
           />
         </main>
         <FocusMode
@@ -356,53 +330,6 @@ const AppShell: React.FC<AppShellProps> = ({
         />
         </div>
       </div>
-      <GsapModal
-        isOpen={pendingNavigation !== null}
-        overlayClassName="z-50"
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
-        panelClassName="rounded-2xl p-6 w-96 shadow-2xl"
-        panelStyle={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}
-      >
-        {pendingNavigation && (
-          <>
-            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-              {t('metadataView.unsavedTitle')}
-            </h3>
-            <p className="mb-6 text-sm" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>
-              {t('metadataView.unsavedMessage')}
-            </p>
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setPendingNavigation(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  metadataViewRef.current?.stashAll();
-                  transitionToView(pendingNavigation);
-                  setIsFocusMode(false);
-                  setPendingNavigation(null);
-                }}
-              >
-                {t('metadataView.stash')}
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={async () => {
-                  await metadataViewRef.current?.saveAll();
-                  transitionToView(pendingNavigation);
-                  setIsFocusMode(false);
-                  setPendingNavigation(null);
-                }}
-              >
-                {t('metadataView.saveChanges')}
-              </Button>
-            </div>
-          </>
-        )}
-      </GsapModal>
     </>
   );
 };

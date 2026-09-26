@@ -88,27 +88,26 @@ export function useImport({
         : 'notifications.uploadComplete');
     let body: string;
     if (!firstTrack) {
-      body = t('notifications.importPartialCount')
-        .replace('{success}', '0')
-        .replace('{failed}', String(failedCount));
+      body = t('notifications.importPartialCount', { success: 0, failed: failedCount });
     } else if (failedCount > 0) {
       body = t(kind === 'import'
         ? 'notifications.importBatchPartial'
-        : 'notifications.uploadBatchPartial')
-        .replace('{title}', firstTrack.title)
-        .replace('{success}', String(successfulTracks.length))
-        .replace('{failed}', String(failedCount));
+        : 'notifications.uploadBatchPartial', {
+        title: firstTrack.title,
+        success: successfulTracks.length,
+        failed: failedCount,
+      });
     } else if (successfulTracks.length === 1) {
       body = t(kind === 'import'
         ? 'notifications.importTrackSuccess'
-        : 'notifications.uploadTrackSuccess')
-        .replace('{title}', firstTrack.title);
+        : 'notifications.uploadTrackSuccess', { title: firstTrack.title });
     } else {
       body = t(kind === 'import'
         ? 'notifications.importBatchSuccess'
-        : 'notifications.uploadBatchSuccess')
-        .replace('{title}', firstTrack.title)
-        .replace('{count}', String(successfulTracks.length));
+        : 'notifications.uploadBatchSuccess', {
+        title: firstTrack.title,
+        count: successfulTracks.length,
+      });
     }
     notify(title, body, {
       silent: true,

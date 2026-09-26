@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SettingsTheme } from '../shared';
+import Button from '../../ui/Button';
 
 // Presentational WebDAV settings section used by the application settings panel.
 
@@ -84,14 +85,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          onClick={onTest}
-          disabled={isTesting || isSaving}
-          className="flex items-center justify-center gap-2 px-3 py-2 text-sm transition-all disabled:opacity-50"
-          style={{ backgroundColor: colors.backgroundDark, color: colors.textSecondary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundDark}
-        >
+        <Button variant="secondary" size="sm" onClick={onTest} disabled={isTesting || isSaving}>
           {isTesting ? (
             <>
               <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
@@ -100,15 +94,8 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           ) : (
             t('settingsDialog.webdavTestConnection')
           )}
-        </button>
-        <button
-          onClick={onSave}
-          disabled={isTesting || isSaving}
-          className="flex items-center justify-center gap-2 px-3 py-2 text-sm transition-all disabled:opacity-50"
-          style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-        >
+        </Button>
+        <Button variant="primary" size="sm" onClick={onSave} disabled={isTesting || isSaving}>
           {isSaving ? (
             <>
               <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
@@ -117,7 +104,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
           ) : (
             t('settingsDialog.save')
           )}
-        </button>
+        </Button>
       </div>
 
       {message && (

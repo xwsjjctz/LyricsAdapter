@@ -9,12 +9,15 @@ import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryToolbar from './LibraryToolbar';
-import TrackMenu, { type TrackMenuPosition } from './TrackMenu';
-import { buildTrackMenuItems, downloadQualityOf, type TrackDownloadQuality, type TrackMenuActionId } from './trackMenuItems';
-import { trackToOnlineSong } from '../domain/trackFactory';
+import TrackMenu from './TrackMenu';
+import type { TrackDownloadQuality } from './trackMenuItems';
 import LibrarySelectionBar from './LibrarySelectionBar';
 import MetadataEditorPopup from './MetadataEditorPopup';
-import GsapModal from './GsapModal';
+import ConfirmDialog from './ConfirmDialog';
+import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
+import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
+import { useSettingValue } from './settings/hooks/useSettingValue';
+import { settingsManager } from '../services/settingsManager';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { readableForeground } from '../services/colorUtils';
@@ -64,6 +67,8 @@ interface LibraryViewProps {
   onPlayAll?: () => void;
   onShuffleAll?: () => void;
 }
+
+const readListDensity = () => settingsManager.getListDensity();
 
 /** Placeholder rows while a playlist's first page loads. */
 const PLAYLIST_SKELETON_ROWS = 8;
@@ -123,9 +128,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onShuffleAll,
 }) => {
   const { t } = useTranslation();
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isDragging, setIsDragging] = useState(false); // New: Drag state for file drop
+  const listDensity = useSettingValue(readListDensity);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null); // Track being reordered
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
@@ -162,11 +165,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return map;
   }, [displayTracks]);
   const [showLocateButton, setShowLocateButton] = useState(false);
-  const [trackToDelete, setTrackToDelete] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
-  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
-  const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
 
   const selectedArtist = filterType === 'artist' ? categorySelection : null;
   const selectedAlbum = filterType === 'album' ? categorySelection : null;
@@ -250,6 +248,22 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Determine which tracks to use for calculations
   const activeTracks = filterType === 'default' ? filteredTracks : categoryFilteredTracks;
+
+  const trackActions = useLibraryTrackActions({
+    tracks: displayTracks,
+    listedTracks: activeTracks,
+    dataSource,
+    filterType,
+    categorySelection,
+    onRemoveTrack,
+    onRemoveMultipleTracks,
+    onUpdateTrack,
+    onDownloadTrack,
+  });
+  const {
+    isSelecting, selectedIds, toggleSelectAll, toggleSelectOne, finishSelection,
+    trackMenu, menuTrack, menuItemsFor, openTrackMenu, closeTrackMenu, handleTrackMenuAction,
+  } = trackActions;
 
   const emptyState = useMemo<LibraryEmptyState>(() => {
     if (dataSource === 'cloud') {
@@ -639,203 +653,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }
   }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
 
-  // Handle drag events
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (importDisabled) {
-      e.dataTransfer.dropEffect = 'none';
-      return;
-    }
-    
-    // Check if this is an external file drop (not internal track reordering)
-    const hasFiles = e.dataTransfer.files.length > 0;
-    const hasFileTypes = e.dataTransfer.types.some(type =>
-      type === 'Files' || type === 'text/uri-list'
-    );
-    
-    // Only show import overlay for external file drops
-    if ((hasFiles || hasFileTypes) && !isDragging) {
-      logger.debug('[LibraryView] Drag over - enabling dragging state');
-      setIsDragging(true);
-    }
-  }, [isDragging, importDisabled]);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Only set dragging to false if we're actually leaving the container
-    // (not just hovering over child elements)
-    const currentTarget = e.currentTarget as HTMLElement;
-    const relatedTarget = e.relatedTarget as HTMLElement;
-
-    // Check if the related target is outside the current target
-    // relatedTarget is null when dragging leaves the window (e.g., to desktop)
-    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
-      logger.debug('[LibraryView] Drag leave - disabling dragging state');
-      setIsDragging(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    logger.debug('[LibraryView] Drop event triggered');
-    setIsDragging(false);
-    if (importDisabled) return;
-
-    // Get dropped files
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    logger.debug(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
-
-    // Filter for supported audio files only (MP3, FLAC)
-    const audioExtensions = ['.mp3', '.flac'];
-    const audioFiles = droppedFiles.filter(file => {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      return audioExtensions.includes(ext);
-    });
-
-    logger.debug(`[LibraryView] Audio files after filtering: ${audioFiles.length}`);
-
-    if (audioFiles.length === 0) {
-      logger.warn('[LibraryView] No audio files dropped');
-      return;
-    }
-
-    // Check if we're in Electron mode and can get file paths
-    const desktopAPI = getDesktopAPI();
-    logger.debug('[LibraryView] Drop check - desktopAPI:', !!desktopAPI, 'getPathForFile:', !!desktopAPI?.getPathForFile, 'onDropFilePaths:', !!onDropFilePaths);
-    
-    if (desktopAPI?.getPathForFile && onDropFilePaths) {
-      // Electron mode: get real file paths
-      logger.debug('[LibraryView] Electron mode: getting file paths from dropped files');
-      try {
-        const filePaths = audioFiles.map(file => ({
-          path: desktopAPI.getPathForFile!(file),
-          name: file.name
-        }));
-        logger.debug(`[LibraryView] Got ${filePaths.length} file paths`);
-        onDropFilePaths(filePaths);
-        return;
-      } catch (error) {
-        logger.error('[LibraryView] Failed to get file paths:', error);
-        // Fall through to File mode
-      }
-    }
-
-    // Web mode or fallback: use File objects
-    if (onDropFiles) {
-      logger.debug(`[LibraryView] Web mode: passing ${audioFiles.length} File objects`);
-      onDropFiles(audioFiles);
-    } else {
-      logger.warn('[LibraryView] No drop handler available');
-    }
-  }, [onDropFiles, onDropFilePaths, importDisabled]);
+  const { isDragging, handleDragOver, handleDragLeave, handleDrop } = useLibraryFileDrop({
+    importDisabled,
+    onDropFiles,
+    onDropFilePaths,
+  });
 
   const canManage = dataSource === 'local' || dataSource === 'online';
   const canReorder = canManage && filterType === 'default' && !!onReorderTracks && !isSelecting;
-  const [trackMenu, setTrackMenu] = useState<TrackMenuPosition | null>(null);
-  const [isRemoving, setIsRemoving] = useState(false);
-  const [removalError, setRemovalError] = useState(false);
-  const closeTrackMenu = useCallback(() => setTrackMenu(null), []);
-  const menuTrack = trackMenu ? displayTracks.find(track => track.id === trackMenu.trackId) : undefined;
-  const menuItemsFor = useCallback((track: Track) => buildTrackMenuItems({
-    dataSource,
-    canEdit: !!onUpdateTrack,
-    canDownload: !!onDownloadTrack && trackToOnlineSong(track) !== null,
-  }), [dataSource, onUpdateTrack, onDownloadTrack]);
-  const finishSelection = useCallback(() => {
-    setIsSelecting(false);
-    setSelectedIds(new Set());
-  }, []);
-  useEffect(() => {
-    finishSelection();
-    closeTrackMenu();
-    setShowDeleteConfirm(false);
-    setShowBatchDeleteConfirm(false);
-  }, [dataSource, filterType, categorySelection, finishSelection, closeTrackMenu]);
-  useEffect(() => {
-    const available = new Set(activeTracks.map(track => track.id));
-    setSelectedIds(previous => {
-      const next = new Set([...previous].filter(id => available.has(id)));
-      return next.size === previous.size ? previous : next;
-    });
-  }, [activeTracks]);
-  useEffect(() => {
-    if (!isSelecting) return;
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented && !showDeleteConfirm && !showBatchDeleteConfirm && !isMetadataEditorOpen) {
-        finishSelection();
-      }
-    };
-    document.addEventListener('keydown', escape);
-    return () => document.removeEventListener('keydown', escape);
-  }, [isSelecting, showDeleteConfirm, showBatchDeleteConfirm, isMetadataEditorOpen, finishSelection]);
-
-  const openTrackMenu = useCallback((track: Track, x: number, y: number, trigger: HTMLElement) => {
-    setTrackMenu({ trackId: track.id, x, y, trigger });
-  }, []);
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds(previous => previous.size === activeTracks.length ? new Set() : new Set(activeTracks.map(track => track.id)));
-  }, [activeTracks]);
-  const toggleSelectOne = useCallback((id: string) => {
-    setSelectedIds(previous => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-  const confirmDelete = useCallback((trackId: string) => {
-    setTrackToDelete(trackId);
-    setRemovalError(false);
-    setShowDeleteConfirm(true);
-  }, []);
-  const openMetadataEditor = useCallback((track: Track) => {
-    setEditingTrack(track);
-    setIsMetadataEditorOpen(true);
-  }, []);
-  const handleTrackMenuAction = useCallback((track: Track, id: TrackMenuActionId) => {
-    if (id === 'edit') openMetadataEditor(track);
-    else if (id === 'select') { setSelectedIds(new Set([track.id])); setIsSelecting(true); }
-    else if (id === 'remove') confirmDelete(track.id);
-    else {
-      const quality = downloadQualityOf(id);
-      if (quality) onDownloadTrack?.(track, quality);
-    }
-  }, [openMetadataEditor, confirmDelete, onDownloadTrack]);
-  const handleConfirmDelete = useCallback(async () => {
-    if (!trackToDelete || isRemoving) return;
-    setIsRemoving(true);
-    setRemovalError(false);
-    try {
-      await onRemoveTrack(trackToDelete);
-      setShowDeleteConfirm(false);
-      setTrackToDelete(null);
-    } catch (error) {
-      logger.error('[LibraryView] Removal failed:', error);
-      setRemovalError(true);
-    } finally { setIsRemoving(false); }
-  }, [trackToDelete, onRemoveTrack, isRemoving]);
-  const confirmBatchDelete = useCallback(() => {
-    setRemovalError(false);
-    setShowBatchDeleteConfirm(true);
-  }, []);
-  const handleConfirmBatchDelete = useCallback(async () => {
-    if (isRemoving || !selectedIds.size) return;
-    setIsRemoving(true);
-    setRemovalError(false);
-    try {
-      const ids = Array.from(selectedIds);
-      if (onRemoveMultipleTracks) await onRemoveMultipleTracks(ids);
-      else for (const id of ids) await onRemoveTrack(id);
-      finishSelection();
-      setShowBatchDeleteConfirm(false);
-    } catch (error) {
-      logger.error('[LibraryView] Batch removal failed:', error);
-      setRemovalError(true);
-    } finally { setIsRemoving(false); }
-  }, [selectedIds, onRemoveMultipleTracks, onRemoveTrack, isRemoving, finishSelection]);
 
   const reorderSource = useRef<number | null>(null);
   const handleTrackDragStart = useCallback((e: React.DragEvent, index: number) => {
@@ -908,6 +733,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   return (
     <div
       className="library-view w-full flex flex-col h-full relative transition-all duration-300"
+      data-density={listDensity}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -930,7 +756,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       />
 
       {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
-        onToggleAll={toggleSelectAll} onRemove={confirmBatchDelete} onDone={finishSelection} />}
+        onToggleAll={toggleSelectAll} onRemove={trackActions.requestBatchDelete} onDone={finishSelection} />}
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
@@ -1119,13 +945,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={artist.name}
                     onClick={() => onCategoryChange(artist.name)}
-                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
-                    style={{
-                      backgroundColor: selectedArtist === artist.name ? colors.backgroundCard : 'transparent',
-                      color: selectedArtist === artist.name ? colors.textPrimary : colors.textSecondary,
-                    }}
-                    onMouseEnter={e => { if (selectedArtist !== artist.name) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                    onMouseLeave={e => { if (selectedArtist !== artist.name) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg"
+                    data-selected={selectedArtist === artist.name || undefined}
                   >
                     {artist.coverUrl && (
                       <img
@@ -1146,13 +967,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={album.name}
                     onClick={() => onCategoryChange(album.name)}
-                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
-                    style={{
-                      backgroundColor: selectedAlbum === album.name ? colors.backgroundCard : 'transparent',
-                      color: selectedAlbum === album.name ? colors.textPrimary : colors.textSecondary,
-                    }}
-                    onMouseEnter={e => { if (selectedAlbum !== album.name) e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                    onMouseLeave={e => { if (selectedAlbum !== album.name) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg"
+                    data-selected={selectedAlbum === album.name || undefined}
                   >
                     {album.coverUrl && (
                       <img
@@ -1293,86 +1109,29 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         items={menuItemsFor(menuTrack)} onClose={closeTrackMenu}
         onAction={id => handleTrackMenuAction(menuTrack, id)} />}
 
-      {/* Delete confirmation dialog */}
-      <GsapModal
-        isOpen={showDeleteConfirm}
-        overlayClassName="z-50"
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
-        panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
-      >
-            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.removeConfirmTitle')}</h3>
-            <p className="mb-4" style={{ color: colors.textSecondary }}>{t('library.removeConfirmMessage')}</p>
-            {removalError && <p role="alert" className="mb-4" style={{ color: colors.error }}>{t('library.removalFailed')}</p>}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  if (isRemoving) return;
-                  setShowDeleteConfirm(false);
-                  setTrackToDelete(null);
-                }}
-                className="px-4 py-2 rounded-lg transition-all"
-                style={{ color: colors.textSecondary }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                disabled={isRemoving}
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-lg transition-all"
-                style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
-              >
-                {t('library.remove')}
-              </button>
-            </div>
-      </GsapModal>
-
-      {/* Batch delete confirmation dialog */}
-      <GsapModal
-        isOpen={showBatchDeleteConfirm}
-        overlayClassName="z-50"
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
-        panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
-      >
-            <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>{t('library.removeConfirmTitle')}</h3>
-            <p className="mb-4" style={{ color: colors.textSecondary }}>
-              {t('library.removeSelectedConfirmMessage').replace('{count}', String(selectedIds.size))}
-            </p>
-            {removalError && <p role="alert" className="mb-4" style={{ color: colors.error }}>{t('library.removalFailed')}</p>}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => { if (!isRemoving) setShowBatchDeleteConfirm(false); }}
-                className="px-4 py-2 rounded-lg transition-all"
-                style={{ color: colors.textSecondary }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                disabled={isRemoving}
-                onClick={handleConfirmBatchDelete}
-                className="px-4 py-2 rounded-lg transition-all"
-                style={{ backgroundColor: `${colors.error}20`, color: colors.error }}
-              >
-                {t('library.remove')}
-              </button>
-            </div>
-      </GsapModal>
+      <ConfirmDialog
+        isOpen={trackActions.deleteConfirm !== null}
+        title={t('library.removeConfirmTitle')}
+        message={trackActions.deleteConfirm === 'batch'
+          ? t('library.removeSelectedConfirmMessage', { count: selectedIds.size })
+          : t('library.removeConfirmMessage')}
+        confirmLabel={t('library.remove')}
+        busy={trackActions.isRemoving}
+        error={trackActions.removalError ? t('library.removalFailed') : null}
+        onConfirm={trackActions.confirmDelete}
+        onCancel={trackActions.cancelDelete}
+      />
 
       {/* Metadata editor popup */}
-      {editingTrack && (
+      {trackActions.editingTrack && (
         <MetadataEditorPopup
-          track={editingTrack}
-          isOpen={isMetadataEditorOpen}
+          track={trackActions.editingTrack}
+          isOpen={trackActions.isMetadataEditorOpen}
           onUpdateTrack={(updatedTrack) => {
             onUpdateTrack?.(updatedTrack);
           }}
-          onClose={() => setIsMetadataEditorOpen(false)}
-          onExited={() => setEditingTrack(null)}
+          onClose={trackActions.closeMetadataEditor}
+          onExited={trackActions.clearEditingTrack}
         />
       )}
 

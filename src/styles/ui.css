@@ -193,6 +193,29 @@
   color: var(--theme-control-icon-fg-active, #fff);
 }
 
+/* Windows/Linux title bar buttons (min/max/close and focus mode). */
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.titlebar-btn:hover {
+  color: var(--theme-text-primary, #fff);
+  background: var(--theme-background-card, rgba(255, 255, 255, 0.06));
+}
+.titlebar-btn--close:hover {
+  color: #fff;
+  background: #c42b1c;
+}
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--theme-primary, #2b8cee);
+  outline-offset: -2px;
+}
+
 /* Up next drawer: overlays the right edge of <main>, above the list. */
 .up-next-panel {
   position: absolute;
@@ -316,6 +339,16 @@
   .up-next-panel {
     animation: none;
   }
+}
+
+/* Compact list density (Settings → General). Rows are measured by the
+   virtual scroller, so only the padding and cover size change here. */
+.library-view[data-density='compact'] {
+  --theme-list-item-padding-y: 6px;
+}
+.library-view[data-density='compact'] .library-track-row__cover {
+  width: 2rem;
+  height: 2rem;
 }
 
 /* Library placeholder rows (playlist first-page load). */

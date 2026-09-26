@@ -2,9 +2,15 @@ import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { settingsManager } from '../services/settingsManager';
 
+// CSS transitions on `transform` would re-interpolate every GSAP frame, so
+// while a bounce runs only non-transform properties keep transitioning.
+const BOUNCE_TRANSITION_PROPERTY = 'color, background-color, border-color, box-shadow, opacity';
+
 /**
  * Gives ordinary buttons a brief press-and-release bounce without coupling
  * animation state to individual components. Add data-no-gsap-bounce to opt out.
+ * The inline transform is cleared once the bounce settles so CSS hover/active
+ * transforms (e.g. `hover:scale-105`, `.ui-btn--primary:active`) keep working.
  */
 export function useGsapButtonBounce(): void {
   const pressedButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -12,6 +18,22 @@ export function useGsapButtonBounce(): void {
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    // Original inline transition-property of each button a bounce owns.
+    const suspendedTransitions = new Map<HTMLButtonElement, string>();
+
+    const suspendTransition = (button: HTMLButtonElement) => {
+      if (suspendedTransitions.has(button)) return;
+      suspendedTransitions.set(button, button.style.transitionProperty);
+      button.style.transitionProperty = BOUNCE_TRANSITION_PROPERTY;
+    };
+
+    const settle = (button: HTMLButtonElement) => {
+      gsap.set(button, { clearProps: 'transform' });
+      const original = suspendedTransitions.get(button);
+      if (original === undefined) return;
+      suspendedTransitions.delete(button);
+      button.style.transitionProperty = original;
+    };
 
     const release = () => {
       const button = pressedButtonRef.current;
@@ -20,7 +42,7 @@ export function useGsapButtonBounce(): void {
       pressedButtonRef.current = null;
       gsap.killTweensOf(button);
       if (!enabledRef.current) {
-        gsap.set(button, { scale: 1 });
+        settle(button);
         return;
       }
       gsap.to(button, {
@@ -28,6 +50,7 @@ export function useGsapButtonBounce(): void {
         duration: 0.42,
         ease: 'elastic.out(1.15, 0.42)',
         overwrite: 'auto',
+        onComplete: () => settle(button),
       });
     };
 
@@ -42,6 +65,7 @@ export function useGsapButtonBounce(): void {
       release();
       pressedButtonRef.current = button;
       gsap.killTweensOf(button);
+      suspendTransition(button);
       gsap.to(button, {
         scale: 0.93,
         duration: 0.1,
@@ -67,6 +91,10 @@ export function useGsapButtonBounce(): void {
       window.removeEventListener('pointercancel', release);
       window.removeEventListener('blur', release);
       release();
+      suspendedTransitions.forEach((_, button) => {
+        gsap.killTweensOf(button);
+        settle(button);
+      });
     };
   }, []);
 }
