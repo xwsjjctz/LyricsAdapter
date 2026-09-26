@@ -130,6 +130,18 @@ describe('listDensity', () => {
   });
 });
 
+describe('libraryMode', () => {
+  it('should default to the list', () => {
+    expect(settingsManager.getLibraryMode()).toBe('list');
+  });
+
+  it('should set and persist the poster wall', () => {
+    settingsManager.setLibraryMode('wall');
+    expect(settingsManager.getLibraryMode()).toBe('wall');
+    expect(localStorage.getItem('la_library_mode')).toBe('wall');
+  });
+});
+
 describe('focusBgBlurRadius', () => {
   it('should default to 80px', () => {
     expect(settingsManager.getFocusBgBlurRadius()).toBe(80);

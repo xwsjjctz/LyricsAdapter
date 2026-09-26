@@ -9,6 +9,7 @@ const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const ONLINE_SOURCE_KEY = 'la_online_source';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const LIST_DENSITY_KEY = 'la_list_density';
+const LIBRARY_MODE_KEY = 'la_library_mode';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
@@ -22,6 +23,8 @@ export type OnlineSource = OnlineMusicSource;
 type Listener = () => void;
 
 export type ListDensity = 'comfortable' | 'compact';
+/** Which library presentation the app reopens in: the track list or the poster wall. */
+export type LibraryMode = 'list' | 'wall';
 
 class SettingsManager {
   private downloadPath: string = '';
@@ -32,6 +35,7 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private listDensity: ListDensity = 'comfortable';
+  private libraryMode: LibraryMode = 'list';
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 32;
   private focusLyricLineSpacing: number = 30;
@@ -57,6 +61,7 @@ class SettingsManager {
       this.onlineSource = 'qq';
       this.gsapButtonBounce = true;
       this.listDensity = 'comfortable';
+      this.libraryMode = 'list';
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 32;
       this.focusLyricLineSpacing = 30;
@@ -85,6 +90,7 @@ class SettingsManager {
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
       this.listDensity = appStorage.getItem(LIST_DENSITY_KEY) === 'compact' ? 'compact' : 'comfortable';
+      this.libraryMode = appStorage.getItem(LIBRARY_MODE_KEY) === 'wall' ? 'wall' : 'list';
 
       const blurRadius = appStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
       if (blurRadius) {
@@ -269,6 +275,22 @@ class SettingsManager {
     const persisted = this.persistSetting(LIST_DENSITY_KEY, density, () => { this.listDensity = previous; });
     this.notify();
     logger.debug(`[SettingsManager] List density set to: ${density}`);
+    return persisted;
+  }
+
+  // --- Library Mode (restored on launch) ---
+
+  getLibraryMode(): LibraryMode {
+    return this.libraryMode;
+  }
+
+  setLibraryMode(mode: LibraryMode): Promise<boolean> {
+    if (mode === this.libraryMode) return Promise.resolve(true);
+    const previous = this.libraryMode;
+    this.libraryMode = mode;
+    const persisted = this.persistSetting(LIBRARY_MODE_KEY, mode, () => { this.libraryMode = previous; });
+    this.notify();
+    logger.debug(`[SettingsManager] Library mode set to: ${mode}`);
     return persisted;
   }
 

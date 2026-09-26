@@ -37,13 +37,17 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
   delete env['ELECTRON_RUN_AS_NODE'];
   let app: ElectronApplication | undefined;
   try {
-    app = await electron.launch({ cwd: root, args: [
-      ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
-    ], env });
-    const page = await app.firstWindow();
     const errors: string[] = [];
-    page.on('pageerror', error => errors.push(error.message));
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+    const launch = async () => {
+      app = await electron.launch({ cwd: root, args: [
+        ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
+      ], env });
+      const window = await app.firstWindow();
+      window.on('pageerror', error => errors.push(error.message));
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+      return window;
+    };
+    let page = await launch();
 
     // The classic library stays the default; the sidebar button enters the wall.
     await expect(page.locator('.library-track-row')).toHaveCount(3);
@@ -87,10 +91,20 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
     await expect(tiles).toHaveCount(3);
     await settled();
 
-    // Back returns to the classic library with its sidebar.
+    // The wall is remembered across restarts.
+    await app!.close(); app = undefined;
+    page = await launch();
+    await expect(page.locator('.wall-tile')).toHaveCount(3);
+    await expect(page.locator('aside')).toHaveCount(0);
+
+    // Back returns to the classic library with its sidebar, and that is remembered too.
     await page.getByRole('button', { name: 'Back to library' }).click();
     await expect(page.locator('.library-track-row')).toHaveCount(3);
     await expect(page.locator('aside')).toHaveCount(1);
+    await app!.close(); app = undefined;
+    page = await launch();
+    await expect(page.locator('.library-track-row')).toHaveCount(3);
+    await expect(page.locator('.wall-tile')).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     if (app) await app.close();

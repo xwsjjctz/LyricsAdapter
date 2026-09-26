@@ -79,13 +79,7 @@ const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, isCurrent, ha
           thumbSize={thumbSizeFor(tile.width)}
         />
         <div className="wall-tile__scrim" aria-hidden="true" />
-        {isCurrent ? (
-          <span className="wall-tile__badge">{t('library.nowPlaying')}</span>
-        ) : (
-          <span className="wall-tile__index" aria-hidden="true">
-            {String(tile.index + 1).padStart(2, '0')}
-          </span>
-        )}
+        {isCurrent && <span className="wall-tile__badge">{t('library.nowPlaying')}</span>}
         <div className="wall-tile__text">
           <p className="wall-tile__title">{track.title}</p>
           <p className="wall-tile__artist">
