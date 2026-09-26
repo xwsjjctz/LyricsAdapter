@@ -7,15 +7,11 @@ import SidebarToggleButton from './SidebarToggleButton';
 import Sidebar from './Sidebar';
 import LibraryView from './LibraryView';
 import SearchView from './search/SearchView';
-import UpNextPanel from './UpNextPanel';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import LibraryWallView from './LibraryWallView';
 import LibrarySourceMenu, { type LibrarySource } from './LibrarySourceMenu';
-import IconButton from './ui/IconButton';
-import { useSettingValue } from './settings/hooks/useSettingValue';
-import { settingsManager } from '../services/settingsManager';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import SettingsView from './settings/SettingsView';
 import { useTranslation } from 'react-i18next';
@@ -26,8 +22,6 @@ import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
 import type { useImportViewModel } from '../viewmodels/useImportViewModel';
 import type { useOnlineViewModel } from '../viewmodels/useOnlineViewModel';
 import type { usePlayerController } from '../controllers/usePlayerController';
-
-const readLibraryLayout = () => settingsManager.getLibraryLayout();
 
 // The single application shell. AppContent owns wiring while this component
 // remains presentational; all state and user intents arrive via props.
@@ -119,7 +113,7 @@ const AppShell: React.FC<AppShellProps> = ({
   // A browsed playlist always shows its own (possibly still loading) tracks,
   // never the previously played playlist held in the 'playlist' play slot.
   const isBrowsingPlaylist = viewSlot === 'playlist' && !!playerController.libraryPlaylistLoadState.playlistId;
-  const libraryLayout = useSettingValue(readLibraryLayout);
+  const isWall = viewMode === ViewMode.WALL;
   const playlistState = playerController.libraryPlaylistLoadState;
   const librarySource = useMemo<LibrarySource | null>(() => {
     if (viewSlot === 'local' || viewSlot === 'online') return { kind: 'slot', slot: viewSlot };
@@ -140,6 +134,7 @@ const AppShell: React.FC<AppShellProps> = ({
   const openLibraryPlaylist = useCallback((playlist: PlaylistInfo) => {
     void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount);
   }, [onOpenPlaylist]);
+  const leaveWall = useCallback(() => handleNavigate(ViewMode.PLAYER), [handleNavigate]);
   const sourceMenu = (
     <LibrarySourceMenu
       current={librarySource}
@@ -147,14 +142,6 @@ const AppShell: React.FC<AppShellProps> = ({
       counts={{ local: slots.local.tracks.length, online: slots.online.tracks.length }}
       onSelectSlot={selectLibrarySlot}
       onOpenPlaylist={openLibraryPlaylist}
-    />
-  );
-  const layoutToggle = (
-    <IconButton
-      icon={libraryLayout === 'wall' ? 'view_list' : 'grid_view'}
-      label={t(libraryLayout === 'wall' ? 'library.showAsList' : 'library.showAsWall')}
-      size="lg"
-      onClick={() => { void settingsManager.setLibraryLayout(libraryLayout === 'wall' ? 'list' : 'wall'); }}
     />
   );
   const playPlaylistFromStart = useCallback(() => {
@@ -165,12 +152,6 @@ const AppShell: React.FC<AppShellProps> = ({
     player.setPlaybackMode('shuffle');
     onPlayLibraryPlaylistTrack(Math.floor(Math.random() * libraryBrowsingTracks.length));
   }, [libraryBrowsingTracks.length, onPlayLibraryPlaylistTrack, player]);
-  const [isUpNextOpen, setIsUpNextOpen] = useState(false);
-  const toggleUpNext = useCallback(() => setIsUpNextOpen(open => !open), []);
-  const closeUpNext = useCallback(() => setIsUpNextOpen(false), []);
-  const playUpNextIndex = useCallback((index: number) => {
-    playerController.handleTrackSelect(index, library.activeSlotId);
-  }, [library.activeSlotId, playerController]);
 
   const toggleFocusMode = useCallback(() => {
     setIsFocusMode(current => !current);
@@ -224,12 +205,15 @@ const AppShell: React.FC<AppShellProps> = ({
           isFocusMode={isFocusMode}
           onToggleFocusMode={toggleFocusMode}
         />
+        {!isWall && (
         <SidebarToggleButton
           onToggle={sidebar.toggleCollapsed}
           collapsed={sidebar.collapsed}
           isFocusMode={isFocusMode}
         />
+        )}
         <div className="flex flex-1">
+          {!isWall && (
           <Sidebar
           onNavigate={handleNavigate}
           onReloadFiles={importVm.reloadFiles}
@@ -245,10 +229,9 @@ const AppShell: React.FC<AppShellProps> = ({
           collapsed={sidebar.collapsed}
           isResizing={sidebar.isResizing}
           onResizeStart={sidebar.startResize}
-          upNextOpen={isUpNextOpen}
-          onToggleUpNext={toggleUpNext}
         />
-        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
+          )}
+        <main className={`flex-1 min-w-0 flex flex-col relative overflow-hidden ${isWall ? '' : 'pt-8'}`}
           style={floatingPanel ? {} : {
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}
@@ -261,7 +244,7 @@ const AppShell: React.FC<AppShellProps> = ({
             className="hidden"
             onChange={importVm.onFileInputChange}
           />
-          <div ref={pageContentRef} className="flex-1 overflow-hidden px-10 pt-2 pb-2">
+          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${isWall ? '' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.SETTINGS ? (
               <SettingsView bottomInset={MACOS_PLAYER_BOTTOM_INSET} />
             ) : isSearchView ? (
@@ -278,7 +261,7 @@ const AppShell: React.FC<AppShellProps> = ({
               />
             ) : (
               <div ref={libraryContentRef} className="h-full">
-              {libraryLayout === 'wall' && slots[viewSlot].filterType === 'default' ? (
+              {isWall ? (
                 <LibraryWallView
                   tracks={isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks}
                   sourceKey={librarySourceKey}
@@ -291,30 +274,18 @@ const AppShell: React.FC<AppShellProps> = ({
                   onRemoveMultipleTracks={library.removeTracks}
                   onUpdateTrack={library.updateTrack}
                   onDownloadTrack={online.downloadTrack}
-                  onImportClick={importVm.importClick}
-                  importDisabled={importVm.importDisabled}
-                  importProgress={importVm.importProgress}
-                  onDropFiles={importVm.dropFiles}
-                  onDropFilePaths={importVm.dropFilePaths}
-                  playlistTitle={viewSlot === 'playlist' ? playlistState.title ?? undefined : undefined}
-                  playlistTrackCount={viewSlot === 'playlist' ? playlistState.totalTrackCount ?? undefined : undefined}
                   playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
                   playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
                   playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
                   onLoadMorePlaylist={viewSlot === 'playlist' ? playerController.loadMorePlaylistInLibrary : undefined}
-                  onPlayAll={isBrowsingPlaylist ? playPlaylistFromStart : undefined}
-                  onShuffleAll={isBrowsingPlaylist ? shufflePlaylist : undefined}
                   pendingLocateSlot={pendingSlotLocate?.slot}
                   pendingLocateToken={pendingSlotLocate?.token}
                   onPendingLocatePrepared={handleSlotLocatePrepared}
-                  searchBox={searchBox}
-                  heading={sourceMenu}
-                  extraActions={layoutToggle}
+                  sourceMenu={sourceMenu}
+                  onBack={leaveWall}
                 />
               ) : (
               <LibraryView
-                heading={sourceMenu}
-                extraActions={layoutToggle}
                 tracks={isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks}
                 currentTrackIndex={library.slots[library.viewSlot].currentTrackIndex}
                 {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
@@ -365,17 +336,6 @@ const AppShell: React.FC<AppShellProps> = ({
               </div>
             )}
           </div>
-          {isUpNextOpen && !isFocusMode && (
-            <UpNextPanel
-              tracks={activeTracks}
-              currentIndex={library.slots[library.activeSlotId].currentTrackIndex}
-              mode={player.playbackMode}
-              sourceLabel={t(library.activeSlotId === 'playlist' ? 'sidebar.playlists' : `sidebar.${library.activeSlotId}`)}
-              bottomInset={MACOS_PLAYER_BOTTOM_INSET}
-              onPlayIndex={playUpNextIndex}
-              onClose={closeUpNext}
-            />
-          )}
           <Controls
             track={player.currentTrack}
             isPlaying={player.isPlaying}

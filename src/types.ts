@@ -109,5 +109,7 @@ export interface MetaJson {
 export enum ViewMode {
   PLAYER = 'player',
   SEARCH = 'search',
+  /** Full-window poster wall; hides the sidebar. */
+  WALL = 'wall',
   SETTINGS = 'settings'
 }

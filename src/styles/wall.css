@@ -1,20 +1,18 @@
 /*
  * Library poster wall. Geometry comes from wallLayout.ts; this file owns only
- * the look. The outer tile holds position (and transitions it when the now
- * playing tile re-flows); the inner element is what GSAP sinks and pops during
- * a source switch, so the two animations never fight over one transform.
+ * the look. The outer tile holds position; the inner element is what GSAP
+ * sinks and pops during a source switch, so the two never share a transform.
  */
 
 .poster-wall {
-  /* Bleed outward so the pop-in overshoot and tile shadows are not clipped by
-     the scroll box, while tiles stay aligned with the header. Keep in sync
-     with WALL_BLEED in PosterWall.tsx. */
-  --wall-bleed: 12px;
+  /* Edge padding equals the tile gap so the wall reads edge to edge, and gives
+     the pop-in overshoot room inside the scroll box. Keep in sync with
+     WALL_EDGE in PosterWall.tsx. */
+  --wall-edge: 8px;
   position: relative;
   flex: 1;
   min-height: 0;
-  margin: 0 calc(-1 * var(--wall-bleed));
-  padding: var(--wall-bleed);
+  padding: var(--wall-edge);
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -35,12 +33,6 @@
   outline: none;
 }
 
-.poster-wall[data-animate-layout='true'] .wall-tile {
-  transition: transform 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    width 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    height 460ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
 .wall-tile__inner {
   position: relative;
   width: 100%;
@@ -54,10 +46,10 @@
   transform-origin: 50% 100%;
 }
 
-.wall-tile--featured .wall-tile__inner {
-  border-radius: var(--theme-surface-radius);
-  border-color: color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 55%, transparent);
-  box-shadow: var(--theme-elevated-shadow);
+.wall-tile--current .wall-tile__inner {
+  border-color: color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 80%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 55%, transparent),
+    var(--theme-elevated-shadow);
 }
 
 .wall-tile--unavailable .wall-tile__inner {
@@ -99,12 +91,6 @@
   font-variant-numeric: tabular-nums;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-}
-
-.wall-tile--featured .wall-tile__badge {
-  top: 14px;
-  left: 14px;
-  font-size: 11px;
 }
 
 .wall-tile__text {
@@ -152,18 +138,6 @@
   font-size: 12px;
 }
 
-.wall-tile--featured .wall-tile__text {
-  left: 22px;
-  right: 22px;
-  bottom: 20px;
-}
-.wall-tile--featured .wall-tile__title {
-  font-size: 26px;
-}
-.wall-tile--featured .wall-tile__artist {
-  font-size: 14px;
-}
-
 .wall-tile:focus-visible .wall-tile__inner {
   outline: 2px solid var(--theme-primary);
   outline-offset: 2px;
@@ -175,21 +149,41 @@
   font-size: 0.9rem;
 }
 
-/* Source switcher: the library title doubles as the dropdown trigger. */
+/* Floating chrome over the wall: back to the library + source switcher.
+   Radius nests in the controlbar scale: 16px pill, 4px padding, 12px buttons. */
+.wall-chrome {
+  position: absolute;
+  z-index: 30;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 32px);
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+  border-radius: var(--theme-surface-radius);
+  background: color-mix(in srgb, var(--theme-background-dark) 72%, transparent);
+  box-shadow: 0 16px 36px -18px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
 .library-source-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  max-width: 100%;
-  margin-left: -0.5rem;
-  padding: 0.1rem 0.5rem;
+  gap: 0.25rem;
+  max-width: 16rem;
+  height: 36px;
+  padding: 0 0.5rem 0 0.75rem;
   border-radius: var(--theme-control-radius);
   color: var(--theme-text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
   transition: background-color 140ms ease;
 }
 .library-source-trigger:hover,
 .library-source-trigger[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+  background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
 }
 .library-source-trigger:focus-visible {
   outline: 2px solid var(--theme-primary);
@@ -201,7 +195,7 @@
   white-space: nowrap;
 }
 .library-source-trigger__chevron {
-  font-size: 1.6rem;
+  font-size: 1.25rem;
   transition: transform 180ms ease;
 }
 .library-source-trigger[aria-expanded='true'] .library-source-trigger__chevron {
@@ -211,8 +205,8 @@
 .library-source-menu {
   position: absolute;
   z-index: 90;
-  top: calc(100% + 6px);
-  left: -0.5rem;
+  top: calc(100% + 10px);
+  left: -2.75rem;
   display: flex;
   flex-direction: column;
   width: 18rem;
@@ -296,7 +290,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .poster-wall[data-animate-layout='true'] .wall-tile,
   .wall-tile__cover,
   .library-source-menu {
     transition: none;

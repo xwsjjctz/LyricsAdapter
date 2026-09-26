@@ -3,15 +3,20 @@ import { useTranslation } from 'react-i18next';
 import type { SlotId, Track } from '../types';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useCurrentTheme } from './settings/shared';
-import LibraryToolbar from './LibraryToolbar';
 import PosterWall from './wall/PosterWall';
+import IconButton from './ui/IconButton';
 import TrackMenu from './TrackMenu';
 import ConfirmDialog from './ConfirmDialog';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import type { TrackDownloadQuality, TrackMenuItem } from './trackMenuItems';
 import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
-import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
+
+/** Windows/Linux custom title bar height (h-9). */
+const FRAMELESS_TITLE_BAR_HEIGHT = 36;
+/** Floating chrome: 36px controls + 4px padding on each side + 1px borders. */
+const WALL_CHROME_HEIGHT = 46;
 
 interface LibraryWallViewProps {
   tracks: Track[];
@@ -24,25 +29,17 @@ interface LibraryWallViewProps {
   onRemoveMultipleTracks?: ((trackIds: string[]) => void | Promise<void>) | undefined;
   onUpdateTrack?: ((track: Track) => void) | undefined;
   onDownloadTrack?: ((track: Track, quality: TrackDownloadQuality) => void) | undefined;
-  onImportClick?: (() => void) | undefined;
-  importDisabled?: boolean;
-  importProgress?: { loaded: number; total: number } | null | undefined;
-  onDropFiles?: ((files: File[]) => void) | undefined;
-  onDropFilePaths?: ((filePaths: { path: string; name: string }[]) => void) | undefined;
-  playlistTitle?: string | undefined;
-  playlistTrackCount?: number | undefined;
   playlistLoading?: boolean;
   playlistHasMore?: boolean;
   playlistLoadError?: string | null;
   onLoadMorePlaylist?: (() => void | Promise<void>) | undefined;
-  onPlayAll?: (() => void) | undefined;
-  onShuffleAll?: (() => void) | undefined;
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: ((token: number) => void) | undefined;
-  searchBox?: React.ReactNode;
-  heading?: React.ReactNode;
-  extraActions?: React.ReactNode;
+  /** Source switcher rendered in the floating chrome. */
+  sourceMenu: React.ReactNode;
+  /** Leaves the wall for the classic library. */
+  onBack: () => void;
 }
 
 /** Multi-select lives in the list layout; the wall menu omits it. */
@@ -52,19 +49,23 @@ const withoutSelect = (items: TrackMenuItem[]): TrackMenuItem[] => {
     || (index > 0 && index < kept.length - 1 && kept[index - 1]!.kind !== 'separator'));
 };
 
-/** Poster-wall presentation of a library source; mutations go through the same callbacks as the list. */
+/**
+ * Full-window poster-wall presentation of a library source. The wall is a
+ * song list: clicking plays in place. Mutations use the list's callbacks.
+ */
 const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   tracks, sourceKey, dataSource, currentTrackId, onTrackSelect,
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
-  onImportClick, importDisabled = false, importProgress, onDropFiles, onDropFilePaths,
-  playlistTitle, playlistTrackCount, playlistLoading = false, playlistHasMore = false,
-  playlistLoadError = null, onLoadMorePlaylist, onPlayAll, onShuffleAll,
-  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared,
-  searchBox, heading, extraActions,
+  playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
+  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, sourceMenu, onBack,
 }) => {
   const { t } = useTranslation();
   const { colors } = useCurrentTheme();
-  const bottomInset = getDesktopAPI()?.platform === 'darwin' ? MACOS_PLAYER_BOTTOM_INSET : 24;
+  const desktop = getDesktopAPI();
+  const isMac = desktop?.platform === 'darwin';
+  const bottomInset = isMac ? MACOS_PLAYER_BOTTOM_INSET : 24;
+  // Chrome sits just below the title bar so it never covers the traffic lights.
+  const chromeTop = (isMac ? getMacTitleBarLayout(desktop?.osRelease).height : FRAMELESS_TITLE_BAR_HEIGHT) + 8;
 
   const actions = useLibraryTrackActions({
     tracks,
@@ -76,11 +77,6 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
     onRemoveMultipleTracks,
     onUpdateTrack,
     onDownloadTrack,
-  });
-  const { isDragging, handleDragOver, handleDragLeave, handleDrop } = useLibraryFileDrop({
-    importDisabled: importDisabled || dataSource !== 'local',
-    onDropFiles,
-    onDropFilePaths,
   });
 
   const menuItemsFor = useCallback(
@@ -97,26 +93,11 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   const loadMore = useCallback(() => { void onLoadMorePlaylist?.(); }, [onLoadMorePlaylist]);
 
   return (
-    <div
-      className="library-view library-view--wall w-full flex flex-col h-full relative"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <LibraryToolbar
-        dataSource={dataSource}
-        colors={colors}
-        {...(dataSource === 'local' && onImportClick ? { onImportClick, importDisabled } : {})}
-        trackCount={tracks.length}
-        {...(playlistTitle ? { playlistTitle } : {})}
-        {...(playlistTrackCount != null ? { playlistTrackCount } : {})}
-        importProgress={importProgress}
-        searchBox={searchBox}
-        onPlayAll={onPlayAll}
-        onShuffleAll={onShuffleAll}
-        heading={heading}
-        extraActions={extraActions}
-      />
+    <div className="library-wall-view relative flex h-full w-full flex-col">
+      <div className="wall-chrome" style={{ top: chromeTop }}>
+        <IconButton icon="arrow_back" label={t('wall.back')} size="md" onClick={onBack} />
+        {sourceMenu}
+      </div>
 
       <PosterWall
         tracks={tracks}
@@ -127,17 +108,12 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         loadingLabel={t('common.loading')}
         hasMore={playlistHasMore}
         onLoadMore={onLoadMorePlaylist ? loadMore : undefined}
+        topInset={chromeTop + WALL_CHROME_HEIGHT}
         bottomInset={bottomInset}
         onTrackSelect={onTrackSelect}
         hasMenu={hasMenu}
         onOpenMenu={actions.openTrackMenu}
       />
-
-      {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm r-surface border-2 border-dashed border-primary pointer-events-none">
-          <p className="text-2xl font-bold text-primary">{t('library.dropFiles')}</p>
-        </div>
-      )}
 
       {actions.trackMenu && actions.menuTrack && (
         <TrackMenu

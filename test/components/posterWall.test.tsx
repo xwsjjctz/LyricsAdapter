@@ -66,16 +66,15 @@ describe('PosterWall', () => {
     expect(onTrackSelect).toHaveBeenCalledWith(2);
   });
 
-  it('features the playing track at the origin without reordering the DOM', () => {
+  it('marks the playing track in place without moving any tile', () => {
     const { rerenderWall } = renderWall();
+    const geometry = () => screen.getAllByRole('button').map(tile => [tile.style.transform, tile.style.width]);
+    const before = geometry();
     rerenderWall({ currentTrackId: 'c' });
-    // DOM order stays in track order so position transitions survive a re-flow.
+    expect(geometry()).toEqual(before);
     expect(tileNames()).toEqual(local.map(t => `${t.title} / Artist`));
-    const featured = screen.getByRole('button', { name: 'Song c / Artist' });
-    expect(featured).toHaveAttribute('aria-current', 'true');
-    expect(featured.style.transform).toBe('translate(0px, 0px)');
-    const other = screen.getByRole('button', { name: 'Song a / Artist' });
-    expect(parseFloat(featured.style.width)).toBeGreaterThan(parseFloat(other.style.width));
+    expect(screen.getByRole('button', { name: 'Song c / Artist' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getAllByRole('button').filter(tile => tile.hasAttribute('aria-current'))).toHaveLength(1);
   });
 
   it('pops the first source in on mount', () => {

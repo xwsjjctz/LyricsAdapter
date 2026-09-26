@@ -339,9 +339,10 @@ const AppContent: React.FC = () => {
     const loading = playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
     loading.catch(() => undefined); // still rethrown by `await loading` below
     await handleSwitchSlot('playlist');
-    transitionToView(ViewMode.PLAYER);
+    // The poster wall browses playlists itself; any other view returns to the library.
+    if (viewMode !== ViewMode.WALL) transitionToView(ViewMode.PLAYER);
     await loading;
-  }, [handleSwitchSlot, playerController, transitionToView]);
+  }, [handleSwitchSlot, playerController, transitionToView, viewMode]);
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.

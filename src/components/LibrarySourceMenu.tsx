@@ -28,7 +28,7 @@ const isSameSource = (a: LibrarySource | null, b: LibrarySource): boolean => {
 };
 
 /**
- * Library heading that doubles as the source switcher. Local, online history
+ * Source switcher for the poster wall's floating chrome. Local, online history
  * and every visible online playlist sit side by side; the provider behind a
  * playlist is intentionally not shown.
  */
@@ -105,27 +105,22 @@ const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
 
   return (
     <div ref={rootRef} className="relative min-w-0">
-      <h1
-        className="text-3xl"
-        style={{ fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}
+      <button
+        ref={triggerRef}
+        type="button"
+        className="library-source-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-label={t('library.switchSource', { source: title })}
+        onClick={() => setOpen(value => !value)}
+        onKeyDown={event => {
+          if (event.key === 'ArrowDown' && !open) { event.preventDefault(); setOpen(true); }
+        }}
       >
-        <button
-          ref={triggerRef}
-          type="button"
-          className="library-source-trigger"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
-          aria-label={t('library.switchSource', { source: title })}
-          onClick={() => setOpen(value => !value)}
-          onKeyDown={event => {
-            if (event.key === 'ArrowDown' && !open) { event.preventDefault(); setOpen(true); }
-          }}
-        >
-          <span className="library-source-trigger__label">{title}</span>
-          <span className="material-symbols-outlined library-source-trigger__chevron" aria-hidden="true">expand_more</span>
-        </button>
-      </h1>
+        <span className="library-source-trigger__label">{title}</span>
+        <span className="material-symbols-outlined library-source-trigger__chevron" aria-hidden="true">expand_more</span>
+      </button>
       {open && (
         <div
           ref={menuRef}

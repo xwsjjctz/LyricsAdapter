@@ -6,7 +6,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-test('poster wall plays tiles, switches sources with its menu and toggles to the list', async ({}, testInfo) => {
+test('poster wall opens from the sidebar, plays in place, switches sources and returns', async ({}, testInfo) => {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-poster-wall-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'user-data');
@@ -45,30 +45,36 @@ test('poster wall plays tiles, switches sources with its menu and toggles to the
     page.on('pageerror', error => errors.push(error.message));
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
 
-    // The wall is the default layout: one poster per song, no list rows.
+    // The classic library stays the default; the sidebar button enters the wall.
+    await expect(page.locator('.library-track-row')).toHaveCount(3);
+    await page.getByRole('button', { name: 'Poster wall' }).click();
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
-    await expect(page.locator('.library-track-row')).toHaveCount(0);
+    await expect(page.locator('aside')).toHaveCount(0);
+    await expect(page.locator('.library-toolbar')).toHaveCount(0);
     await expect(tiles.first()).toHaveAttribute('aria-label', 'Amber, Test Artist');
 
-    // Playing a tile features it in the top-left.
+    // Let the view transition and tile pop-in settle before measuring.
+    const settled = () => expect.poll(() => tiles.evaluateAll(nodes => nodes.every(node =>
+      getComputedStyle(node.querySelector('[data-wall-tile-inner]')!).opacity === '1'))).toBe(true);
+    await settled();
+    await page.waitForTimeout(400);
+
+    // The wall is a song list: playing a tile marks it where it is.
     const coral = page.getByRole('button', { name: 'Coral, Test Artist' });
+    const before = await coral.boundingBox();
     await coral.click();
     await expect(page.locator('.wall-tile[aria-current="true"]')).toHaveAttribute('aria-label', 'Coral, Test Artist');
-    // Every tile slides to its new seat; the featured one ends top-left and largest.
-    await expect.poll(async () => {
-      const [featured, amber] = await Promise.all([coral.boundingBox(), tiles.first().boundingBox()]);
-      return !!featured && !!amber && featured.x < amber.x && featured.width > amber.width * 1.8;
-    }).toBe(true);
-    await page.waitForTimeout(600);
+    expect(await coral.boundingBox()).toEqual(before);
+    await page.waitForTimeout(1200);
     await page.screenshot({ path: testInfo.outputPath('wall.png') });
 
-    // Wall menus leave multi-select to the list layout.
-    await tiles.nth(1).click({ button: 'right' });
+    // Wall menus leave multi-select to the list.
+    await tiles.first().click({ button: 'right' });
     await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Remove from library']);
     await page.keyboard.press('Escape');
 
-    // The title is the source switcher; tiles sink out and the empty history takes over.
+    // The floating chrome's source switcher: tiles sink out, the empty history takes over.
     const trigger = page.getByRole('button', { name: /switch music source/ });
     await trigger.click();
     await expect(page.getByRole('menuitemradio', { name: /Local/ })).toHaveAttribute('aria-checked', 'true');
@@ -79,14 +85,12 @@ test('poster wall plays tiles, switches sources with its menu and toggles to the
     await trigger.click();
     await page.getByRole('menuitemradio', { name: /Local/ }).click();
     await expect(tiles).toHaveCount(3);
-    await expect.poll(() => tiles.evaluateAll(nodes => nodes.every(node =>
-      getComputedStyle(node.querySelector('[data-wall-tile-inner]')!).opacity === '1'))).toBe(true);
+    await settled();
 
-    // The layout toggle swaps to the list and persists.
-    await page.getByRole('button', { name: 'Show as list' }).click();
+    // Back returns to the classic library with its sidebar.
+    await page.getByRole('button', { name: 'Back to library' }).click();
     await expect(page.locator('.library-track-row')).toHaveCount(3);
-    await page.getByRole('button', { name: 'Show as poster wall' }).click();
-    await expect(tiles).toHaveCount(3);
+    await expect(page.locator('aside')).toHaveCount(1);
     expect(errors).toEqual([]);
   } finally {
     if (app) await app.close();

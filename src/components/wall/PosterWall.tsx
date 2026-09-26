@@ -5,12 +5,10 @@ import { computeWallLayout } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
 
 const WALL_GAP = 8;
-/** Matches --wall-bleed: padding on every side of the scroll box. */
-const WALL_BLEED = 12;
+/** Matches --wall-edge: padding on every side, equal to the gap so tiles read edge to edge. */
+const WALL_EDGE = WALL_GAP;
 /** Extra viewport heights mounted above and below the visible band. */
 const OVERSCAN_VIEWPORTS = 1;
-/** Suppress re-flow transitions while the width is being dragged. */
-const RESIZE_SETTLE_MS = 180;
 
 interface PosterWallProps {
   tracks: Track[];
@@ -22,6 +20,8 @@ interface PosterWallProps {
   loadingLabel: string;
   hasMore?: boolean;
   onLoadMore?: (() => void) | undefined;
+  /** Space kept clear above the first row for floating chrome; tiles scroll under it. */
+  topInset?: number;
   /** Space kept clear below the last row for the floating control bar. */
   bottomInset: number;
   onTrackSelect: (index: number) => void;
@@ -30,44 +30,34 @@ interface PosterWallProps {
 }
 
 /**
- * Virtualized poster wall. Every track is a cover tile; the playing track is
- * featured at 6x6 in the top-left and neighbours re-flow around it.
+ * Virtualized poster wall. Every track is a cover tile in list order; the
+ * playing track is marked where it is rather than moved.
  */
 const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
-  hasMore = false, onLoadMore, bottomInset, onTrackSelect, hasMenu, onOpenMenu,
+  hasMore = false, onLoadMore, topInset = 0, bottomInset, onTrackSelect, hasMenu, onOpenMenu,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
-  const [animateLayout, setAnimateLayout] = useState(false);
   const scrollFrameRef = useRef<number | null>(null);
   const { renderKey, renderedTracks, isExiting } = useWallSourceTransition(sourceKey, tracks, containerRef);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    let settleTimer: ReturnType<typeof setTimeout> | undefined;
     const measure = () => {
-      setWidth(Math.max(0, container.clientWidth - WALL_BLEED * 2));
+      setWidth(Math.max(0, container.clientWidth - WALL_EDGE * 2));
       setViewportHeight(container.clientHeight);
     };
     measure();
-    const observer = new ResizeObserver(() => {
-      setAnimateLayout(false);
-      measure();
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => setAnimateLayout(true), RESIZE_SETTLE_MS);
-    });
+    const observer = new ResizeObserver(measure);
     observer.observe(container);
-    return () => {
-      observer.disconnect();
-      clearTimeout(settleTimer);
-    };
+    return () => observer.disconnect();
   }, []);
 
-  // A new source starts from the top, where its featured tile lives.
+  // A new source starts from the top.
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -79,25 +69,17 @@ const PosterWall: React.FC<PosterWallProps> = ({
     if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
   }, []);
 
-  const featuredIndex = useMemo(
-    () => (currentTrackId ? renderedTracks.findIndex(track => track.id === currentTrackId) : -1),
-    [currentTrackId, renderedTracks],
-  );
   const layout = useMemo(
-    () => computeWallLayout({ count: renderedTracks.length, featuredIndex, width, gap: WALL_GAP }),
-    [featuredIndex, renderedTracks.length, width],
+    () => computeWallLayout({ count: renderedTracks.length, width, gap: WALL_GAP }),
+    [renderedTracks.length, width],
   );
 
   const overscan = viewportHeight * OVERSCAN_VIEWPORTS;
   const visibleTiles = useMemo(() => {
-    const top = scrollTop - overscan;
-    const bottom = scrollTop + viewportHeight + overscan;
-    // Render in track order, not layout order: reordering DOM nodes when the
-    // featured track changes would cancel the tiles' position transitions.
-    return layout.tiles
-      .filter(tile => tile.y + tile.height >= top && tile.y <= bottom)
-      .sort((a, b) => a.index - b.index);
-  }, [layout.tiles, overscan, scrollTop, viewportHeight]);
+    const top = scrollTop - topInset - overscan;
+    const bottom = scrollTop - topInset + viewportHeight + overscan;
+    return layout.tiles.filter(tile => tile.y + tile.height >= top && tile.y <= bottom);
+  }, [layout.tiles, overscan, scrollTop, topInset, viewportHeight]);
 
   const handleScroll = useCallback(() => {
     if (scrollFrameRef.current !== null) return;
@@ -106,10 +88,10 @@ const PosterWall: React.FC<PosterWallProps> = ({
       const container = containerRef.current;
       if (!container) return;
       setScrollTop(container.scrollTop);
-      const nearEnd = container.scrollTop + container.clientHeight >= layout.height - container.clientHeight;
+      const nearEnd = container.scrollTop + container.clientHeight >= topInset + layout.height - container.clientHeight;
       if (nearEnd && hasMore && !loading) onLoadMore?.();
     });
-  }, [hasMore, layout.height, loading, onLoadMore]);
+  }, [hasMore, layout.height, loading, onLoadMore, topInset]);
 
   const isEmpty = renderedTracks.length === 0;
 
@@ -118,17 +100,16 @@ const PosterWall: React.FC<PosterWallProps> = ({
       ref={containerRef}
       className="poster-wall"
       data-slot-transition="self"
-      data-animate-layout={animateLayout}
       aria-busy={isExiting || loading || undefined}
       style={isExiting ? { pointerEvents: 'none' } : undefined}
       onScroll={handleScroll}
     >
       {isEmpty ? (
-        <p className="poster-wall__status" style={{ color: 'var(--theme-text-muted)' }}>
+        <p className="poster-wall__status" style={{ color: 'var(--theme-text-muted)', marginTop: topInset }}>
           {loading ? loadingLabel : emptyLabel}
         </p>
       ) : (
-        <div className="poster-wall__canvas" style={{ height: layout.height + bottomInset + WALL_GAP }}>
+        <div className="poster-wall__canvas" style={{ height: layout.height + bottomInset + WALL_GAP, marginTop: topInset }}>
           {visibleTiles.map(tile => {
             const track = renderedTracks[tile.index]!;
             return (
@@ -136,6 +117,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
                 key={`${renderKey}:${track.id}`}
                 track={track}
                 tile={tile}
+                isCurrent={track.id === currentTrackId}
                 hasMenu={hasMenu(track)}
                 onSelect={onTrackSelect}
                 onOpenMenu={onOpenMenu}

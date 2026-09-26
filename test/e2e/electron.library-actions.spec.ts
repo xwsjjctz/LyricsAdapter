@@ -12,7 +12,7 @@ test('song menus, selection, reorder and removal preserve original files across 
   const userData = path.join(root, 'user-data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData, { recursive: true });
-  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_library_layout: 'list' }));
+  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
   // A tiny PCM fixture lets us verify the original audio bytes remain unchanged.
   const audio = Buffer.alloc(44 + 8000);
   audio.write('RIFF'); audio.writeUInt32LE(audio.length - 8, 4); audio.write('WAVEfmt ', 8);
@@ -48,8 +48,7 @@ test('song menus, selection, reorder and removal preserve original files across 
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
     const rows = page.locator('.library-track-row');
     await expect(rows).toHaveCount(3);
-    // Add Music plus the poster wall / list layout toggle.
-    await expect(page.locator('.library-toolbar-actions button')).toHaveCount(2);
+    await expect(page.locator('.library-toolbar-actions button')).toHaveCount(1);
     await expect(rows.first()).toHaveAttribute('draggable', 'true');
     await expect(rows.first().locator('> div')).toHaveCount(3);
 

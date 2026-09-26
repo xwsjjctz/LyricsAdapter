@@ -9,7 +9,6 @@ const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const ONLINE_SOURCE_KEY = 'la_online_source';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 const LIST_DENSITY_KEY = 'la_list_density';
-const LIBRARY_LAYOUT_KEY = 'la_library_layout';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
@@ -23,7 +22,6 @@ export type OnlineSource = OnlineMusicSource;
 type Listener = () => void;
 
 export type ListDensity = 'comfortable' | 'compact';
-export type LibraryLayout = 'wall' | 'list';
 
 class SettingsManager {
   private downloadPath: string = '';
@@ -34,7 +32,6 @@ class SettingsManager {
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
   private listDensity: ListDensity = 'comfortable';
-  private libraryLayout: LibraryLayout = 'wall';
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 32;
   private focusLyricLineSpacing: number = 30;
@@ -60,7 +57,6 @@ class SettingsManager {
       this.onlineSource = 'qq';
       this.gsapButtonBounce = true;
       this.listDensity = 'comfortable';
-      this.libraryLayout = 'wall';
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 32;
       this.focusLyricLineSpacing = 30;
@@ -89,7 +85,6 @@ class SettingsManager {
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
       this.listDensity = appStorage.getItem(LIST_DENSITY_KEY) === 'compact' ? 'compact' : 'comfortable';
-      this.libraryLayout = appStorage.getItem(LIBRARY_LAYOUT_KEY) === 'list' ? 'list' : 'wall';
 
       const blurRadius = appStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
       if (blurRadius) {
@@ -274,21 +269,6 @@ class SettingsManager {
     const persisted = this.persistSetting(LIST_DENSITY_KEY, density, () => { this.listDensity = previous; });
     this.notify();
     logger.debug(`[SettingsManager] List density set to: ${density}`);
-    return persisted;
-  }
-
-  // --- Library Layout (poster wall or track list) ---
-
-  getLibraryLayout(): LibraryLayout {
-    return this.libraryLayout;
-  }
-
-  setLibraryLayout(layout: LibraryLayout): Promise<boolean> {
-    const previous = this.libraryLayout;
-    this.libraryLayout = layout;
-    const persisted = this.persistSetting(LIBRARY_LAYOUT_KEY, layout, () => { this.libraryLayout = previous; });
-    this.notify();
-    logger.debug(`[SettingsManager] Library layout set to: ${layout}`);
     return persisted;
   }
 

@@ -7,6 +7,8 @@ import type { WallTile } from './wallLayout';
 interface PosterTileProps {
   track: Track;
   tile: WallTile;
+  /** Playing now: marked in place, never moved. */
+  isCurrent: boolean;
   hasMenu: boolean;
   onSelect: (index: number) => void;
   onOpenMenu: (track: Track, x: number, y: number, trigger: HTMLElement) => void;
@@ -21,14 +23,14 @@ const thumbSizeFor = (width: number): number => {
 };
 
 /** One poster on the wall. Position comes from the layout; GSAP animates the inner element. */
-const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, hasMenu, onSelect, onOpenMenu }) => {
+const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, isCurrent, hasMenu, onSelect, onOpenMenu }) => {
   const { t } = useTranslation();
   const unavailable = track.available === false;
   const large = tile.cols >= 4 && tile.rows >= 3;
   const classes = [
     'wall-tile',
-    tile.featured ? 'wall-tile--featured' : '',
-    large && !tile.featured ? 'wall-tile--lg' : '',
+    isCurrent ? 'wall-tile--current' : '',
+    large ? 'wall-tile--lg' : '',
     unavailable ? 'wall-tile--unavailable' : '',
   ].filter(Boolean).join(' ');
 
@@ -42,7 +44,7 @@ const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, hasMenu, onSe
       role="button"
       tabIndex={0}
       aria-label={t('wall.tileLabel', { title: track.title, artist: track.artist })}
-      aria-current={tile.featured ? 'true' : undefined}
+      aria-current={isCurrent ? 'true' : undefined}
       aria-disabled={unavailable || undefined}
       data-track-id={track.id}
       style={{
@@ -77,8 +79,8 @@ const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, hasMenu, onSe
           thumbSize={thumbSizeFor(tile.width)}
         />
         <div className="wall-tile__scrim" aria-hidden="true" />
-        {tile.featured ? (
-          <span className="wall-tile__badge">{t('upNext.nowPlaying')}</span>
+        {isCurrent ? (
+          <span className="wall-tile__badge">{t('library.nowPlaying')}</span>
         ) : (
           <span className="wall-tile__index" aria-hidden="true">
             {String(tile.index + 1).padStart(2, '0')}
