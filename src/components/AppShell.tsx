@@ -11,6 +11,12 @@ import UpNextPanel from './UpNextPanel';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
+import LibraryWallView from './LibraryWallView';
+import LibrarySourceMenu, { type LibrarySource } from './LibrarySourceMenu';
+import IconButton from './ui/IconButton';
+import { useSettingValue } from './settings/hooks/useSettingValue';
+import { settingsManager } from '../services/settingsManager';
+import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import SettingsView from './settings/SettingsView';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
@@ -20,6 +26,8 @@ import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
 import type { useImportViewModel } from '../viewmodels/useImportViewModel';
 import type { useOnlineViewModel } from '../viewmodels/useOnlineViewModel';
 import type { usePlayerController } from '../controllers/usePlayerController';
+
+const readLibraryLayout = () => settingsManager.getLibraryLayout();
 
 // The single application shell. AppContent owns wiring while this component
 // remains presentational; all state and user intents arrive via props.
@@ -111,6 +119,44 @@ const AppShell: React.FC<AppShellProps> = ({
   // A browsed playlist always shows its own (possibly still loading) tracks,
   // never the previously played playlist held in the 'playlist' play slot.
   const isBrowsingPlaylist = viewSlot === 'playlist' && !!playerController.libraryPlaylistLoadState.playlistId;
+  const libraryLayout = useSettingValue(readLibraryLayout);
+  const playlistState = playerController.libraryPlaylistLoadState;
+  const librarySource = useMemo<LibrarySource | null>(() => {
+    if (viewSlot === 'local' || viewSlot === 'online') return { kind: 'slot', slot: viewSlot };
+    if (viewSlot === 'playlist' && playlistState.playlistId) {
+      return { kind: 'playlist', source: playlistState.source, id: playlistState.playlistId };
+    }
+    return null;
+  }, [playlistState.playlistId, playlistState.source, viewSlot]);
+  const librarySourceKey = librarySource?.kind === 'playlist'
+    ? `playlist:${librarySource.source}:${librarySource.id}`
+    : viewSlot;
+  const librarySourceTitle = viewSlot === 'playlist'
+    ? (playlistState.title ?? t('sidebar.playlists'))
+    : t(`sidebar.${viewSlot}`);
+  const selectLibrarySlot = useCallback((slot: 'local' | 'online') => {
+    void library.switchViewSlot(slot);
+  }, [library]);
+  const openLibraryPlaylist = useCallback((playlist: PlaylistInfo) => {
+    void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount);
+  }, [onOpenPlaylist]);
+  const sourceMenu = (
+    <LibrarySourceMenu
+      current={librarySource}
+      title={librarySourceTitle}
+      counts={{ local: slots.local.tracks.length, online: slots.online.tracks.length }}
+      onSelectSlot={selectLibrarySlot}
+      onOpenPlaylist={openLibraryPlaylist}
+    />
+  );
+  const layoutToggle = (
+    <IconButton
+      icon={libraryLayout === 'wall' ? 'view_list' : 'grid_view'}
+      label={t(libraryLayout === 'wall' ? 'library.showAsList' : 'library.showAsWall')}
+      size="lg"
+      onClick={() => { void settingsManager.setLibraryLayout(libraryLayout === 'wall' ? 'list' : 'wall'); }}
+    />
+  );
   const playPlaylistFromStart = useCallback(() => {
     if (libraryBrowsingTracks.length > 0) onPlayLibraryPlaylistTrack(0);
   }, [libraryBrowsingTracks.length, onPlayLibraryPlaylistTrack]);
@@ -232,7 +278,43 @@ const AppShell: React.FC<AppShellProps> = ({
               />
             ) : (
               <div ref={libraryContentRef} className="h-full">
+              {libraryLayout === 'wall' && slots[viewSlot].filterType === 'default' ? (
+                <LibraryWallView
+                  tracks={isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks}
+                  sourceKey={librarySourceKey}
+                  dataSource={library.viewSlot}
+                  currentTrackId={player.currentTrack?.id}
+                  onTrackSelect={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
+                    ? onPlayLibraryPlaylistTrack
+                    : library.selectTrack}
+                  onRemoveTrack={library.removeTrack}
+                  onRemoveMultipleTracks={library.removeTracks}
+                  onUpdateTrack={library.updateTrack}
+                  onDownloadTrack={online.downloadTrack}
+                  onImportClick={importVm.importClick}
+                  importDisabled={importVm.importDisabled}
+                  importProgress={importVm.importProgress}
+                  onDropFiles={importVm.dropFiles}
+                  onDropFilePaths={importVm.dropFilePaths}
+                  playlistTitle={viewSlot === 'playlist' ? playlistState.title ?? undefined : undefined}
+                  playlistTrackCount={viewSlot === 'playlist' ? playlistState.totalTrackCount ?? undefined : undefined}
+                  playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
+                  playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
+                  playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
+                  onLoadMorePlaylist={viewSlot === 'playlist' ? playerController.loadMorePlaylistInLibrary : undefined}
+                  onPlayAll={isBrowsingPlaylist ? playPlaylistFromStart : undefined}
+                  onShuffleAll={isBrowsingPlaylist ? shufflePlaylist : undefined}
+                  pendingLocateSlot={pendingSlotLocate?.slot}
+                  pendingLocateToken={pendingSlotLocate?.token}
+                  onPendingLocatePrepared={handleSlotLocatePrepared}
+                  searchBox={searchBox}
+                  heading={sourceMenu}
+                  extraActions={layoutToggle}
+                />
+              ) : (
               <LibraryView
+                heading={sourceMenu}
+                extraActions={layoutToggle}
                 tracks={isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks}
                 currentTrackIndex={library.slots[library.viewSlot].currentTrackIndex}
                 {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
@@ -279,6 +361,7 @@ const AppShell: React.FC<AppShellProps> = ({
                 searchBox={searchBox}
                 {...(isBrowsingPlaylist ? { onPlayAll: playPlaylistFromStart, onShuffleAll: shufflePlaylist } : {})}
               />
+              )}
               </div>
             )}
           </div>

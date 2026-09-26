@@ -22,6 +22,10 @@ interface LibraryToolbarProps {
   /** Playlist header actions; shown only for platform playlists. */
   onPlayAll?: (() => void) | undefined;
   onShuffleAll?: (() => void) | undefined;
+  /** Replaces the plain title, e.g. with the source switcher. */
+  heading?: React.ReactNode | undefined;
+  /** Trailing controls rendered after the source-specific actions. */
+  extraActions?: React.ReactNode | undefined;
 }
 
 function getDataSourceTitle(dataSource: SlotId): string {
@@ -48,6 +52,8 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   searchBox,
   onPlayAll,
   onShuffleAll,
+  heading,
+  extraActions,
 }) => {
   const { t } = useTranslation();
   const renderCloudUploadButton = () => {
@@ -77,9 +83,11 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
   return (
     <div className="library-toolbar mb-4 flex-shrink-0 flex items-center justify-between">
       <div className="library-toolbar-leading">
-        <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-          {playlistTitle ?? getDataSourceTitle(dataSource)}
-        </h1>
+        {heading ?? (
+          <h1 className="text-3xl" style={{ color: 'var(--theme-text-primary, #fff)', fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
+            {playlistTitle ?? getDataSourceTitle(dataSource)}
+          </h1>
+        )}
         <p style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>
           {importProgress ? (
             `${t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
@@ -158,6 +166,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
             {t('library.addMusic')}
           </Button>
         )}
+        {extraActions}
       </div>
     </div>
   );

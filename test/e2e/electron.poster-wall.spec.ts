@@ -1,0 +1,95 @@
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+
+const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+
+test('poster wall plays tiles, switches sources with its menu and toggles to the list', async ({}, testInfo) => {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-poster-wall-')));
+  const isolatedHome = path.join(root, 'home');
+  const userData = path.join(root, 'user-data');
+  await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
+  await mkdir(userData, { recursive: true });
+  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
+  const audio = Buffer.alloc(44 + 8000);
+  audio.write('RIFF'); audio.writeUInt32LE(audio.length - 8, 4); audio.write('WAVEfmt ', 8);
+  audio.writeUInt32LE(16, 16); audio.writeUInt16LE(1, 20); audio.writeUInt16LE(1, 22);
+  audio.writeUInt32LE(8000, 24); audio.writeUInt32LE(16000, 28); audio.writeUInt16LE(2, 32);
+  audio.writeUInt16LE(16, 34); audio.write('data', 36); audio.writeUInt32LE(8000, 40);
+  const songs = ['Amber', 'Blue', 'Coral'].map((title, index) => ({
+    id: `poster-wall-${index}`, title, artist: 'Test Artist', album: 'Test Album',
+    duration: 0.5, audioUrl: '', source: 'local', available: true,
+    filePath: path.join(root, `${title}.wav`), fileName: `${title}.wav`,
+  }));
+  for (const song of songs) await writeFile(song.filePath, audio);
+  await writeFile(path.join(userData, 'library-index.json'), JSON.stringify({ songs, settings: {
+    activeSlotId: 'local', localSlot: { currentTrackIndex: -1, currentTime: 0, volume: 0.5,
+      playbackMode: 'order', scrollPosition: 0, filterType: 'default', categorySelection: null },
+  } }));
+  const env = Object.fromEntries(Object.entries({ ...process.env,
+    HOME: isolatedHome, USERPROFILE: isolatedHome, APPDATA: path.join(root, 'app-data'),
+    LOCALAPPDATA: path.join(root, 'local-app-data'), XDG_CONFIG_HOME: path.join(root, 'config'),
+    XDG_DATA_HOME: path.join(root, 'data'), XDG_CACHE_HOME: path.join(root, 'cache'),
+    NODE_ENV: 'test', LYRICS_ADAPTER_E2E_STATIC: '1', LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
+  }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+  delete env['ELECTRON_RUN_AS_NODE'];
+  let app: ElectronApplication | undefined;
+  try {
+    app = await electron.launch({ cwd: root, args: [
+      ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
+    ], env });
+    const page = await app.firstWindow();
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+
+    // The wall is the default layout: one poster per song, no list rows.
+    const tiles = page.locator('.wall-tile');
+    await expect(tiles).toHaveCount(3);
+    await expect(page.locator('.library-track-row')).toHaveCount(0);
+    await expect(tiles.first()).toHaveAttribute('aria-label', 'Amber, Test Artist');
+
+    // Playing a tile features it in the top-left.
+    const coral = page.getByRole('button', { name: 'Coral, Test Artist' });
+    await coral.click();
+    await expect(page.locator('.wall-tile[aria-current="true"]')).toHaveAttribute('aria-label', 'Coral, Test Artist');
+    // Every tile slides to its new seat; the featured one ends top-left and largest.
+    await expect.poll(async () => {
+      const [featured, amber] = await Promise.all([coral.boundingBox(), tiles.first().boundingBox()]);
+      return !!featured && !!amber && featured.x < amber.x && featured.width > amber.width * 1.8;
+    }).toBe(true);
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: testInfo.outputPath('wall.png') });
+
+    // Wall menus leave multi-select to the list layout.
+    await tiles.nth(1).click({ button: 'right' });
+    await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Remove from library']);
+    await page.keyboard.press('Escape');
+
+    // The title is the source switcher; tiles sink out and the empty history takes over.
+    const trigger = page.getByRole('button', { name: /switch music source/ });
+    await trigger.click();
+    await expect(page.getByRole('menuitemradio', { name: /Local/ })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitemradio', { name: /Online History/ }).click();
+    await expect(page.getByText('No online history yet')).toBeVisible();
+    await expect(tiles).toHaveCount(0);
+
+    await trigger.click();
+    await page.getByRole('menuitemradio', { name: /Local/ }).click();
+    await expect(tiles).toHaveCount(3);
+    await expect.poll(() => tiles.evaluateAll(nodes => nodes.every(node =>
+      getComputedStyle(node.querySelector('[data-wall-tile-inner]')!).opacity === '1'))).toBe(true);
+
+    // The layout toggle swaps to the list and persists.
+    await page.getByRole('button', { name: 'Show as list' }).click();
+    await expect(page.locator('.library-track-row')).toHaveCount(3);
+    await page.getByRole('button', { name: 'Show as poster wall' }).click();
+    await expect(tiles).toHaveCount(3);
+    expect(errors).toEqual([]);
+  } finally {
+    if (app) await app.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

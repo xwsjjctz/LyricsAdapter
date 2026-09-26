@@ -1,4 +1,5 @@
 @import "./styles/ui.css";
+@import "./styles/wall.css";
 @import "tailwindcss";
 
 @theme {

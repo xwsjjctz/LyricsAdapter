@@ -1,0 +1,184 @@
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { SlotId } from '../types';
+import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
+import { useOnlinePlaylists } from '../hooks/useOnlinePlaylists';
+import { applyOverrides, loadOverrides } from '../services/playlistOverrides';
+import { logger } from '../services/logger';
+
+/** What the library is showing: a library slot, or one online playlist. */
+export type LibrarySource =
+  | { kind: 'slot'; slot: Extract<SlotId, 'local' | 'online'> }
+  | { kind: 'playlist'; source: OnlineSource; id: string };
+
+interface LibrarySourceMenuProps {
+  current: LibrarySource | null;
+  /** Heading text for the current source (a playlist shows its own name). */
+  title: string;
+  counts: { local: number; online: number };
+  onSelectSlot: (slot: 'local' | 'online') => void;
+  onOpenPlaylist: (playlist: PlaylistInfo) => void;
+}
+
+const isSameSource = (a: LibrarySource | null, b: LibrarySource): boolean => {
+  if (!a || a.kind !== b.kind) return false;
+  if (a.kind === 'slot' && b.kind === 'slot') return a.slot === b.slot;
+  if (a.kind === 'playlist' && b.kind === 'playlist') return a.source === b.source && a.id === b.id;
+  return false;
+};
+
+/**
+ * Library heading that doubles as the source switcher. Local, online history
+ * and every visible online playlist sit side by side; the provider behind a
+ * playlist is intentionally not shown.
+ */
+const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
+  current, title, counts, onSelectSlot, onOpenPlaylist,
+}) => {
+  const { t } = useTranslation();
+  const menuId = useId();
+  const [open, setOpen] = useState(false);
+  const [visiblePlaylists, setVisiblePlaylists] = useState<PlaylistInfo[]>([]);
+  const { playlists } = useOnlinePlaylists();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Hidden-playlist overrides have no change feed; re-read them whenever the menu opens.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    loadOverrides()
+      .then(overrides => {
+        if (!cancelled) setVisiblePlaylists(applyOverrides(playlists, overrides).visible);
+      })
+      .catch(error => {
+        logger.warn('[LibrarySourceMenu] Failed to load playlist overrides:', error);
+        if (!cancelled) setVisiblePlaylists(playlists);
+      });
+    return () => { cancelled = true; };
+  }, [open, playlists]);
+
+  const close = useCallback((restoreFocus: boolean) => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) close(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [close, open]);
+
+  // Move focus into the menu on open: the checked item, else the first one.
+  useEffect(() => {
+    if (!open) return;
+    const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]');
+    const checked = menuRef.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+    (checked ?? items?.[0])?.focus();
+  }, [open, visiblePlaylists.length]);
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent) => {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []);
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const focusAt = (next: number) => items[(next + items.length) % items.length]?.focus();
+    if (event.key === 'ArrowDown') { event.preventDefault(); focusAt(index + 1); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); focusAt(index - 1); }
+    else if (event.key === 'Home') { event.preventDefault(); focusAt(0); }
+    else if (event.key === 'End') { event.preventDefault(); focusAt(items.length - 1); }
+    else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); }
+    else if (event.key === 'Tab') close(false);
+  };
+
+  const slotItems = useMemo(() => [
+    { slot: 'local' as const, icon: 'hard_drive', label: t('sidebar.local'), count: counts.local },
+    { slot: 'online' as const, icon: 'history', label: t('sidebar.online'), count: counts.online },
+  ], [counts.local, counts.online, t]);
+
+  const choose = (action: () => void) => {
+    close(true);
+    action();
+  };
+
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <h1
+        className="text-3xl"
+        style={{ fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}
+      >
+        <button
+          ref={triggerRef}
+          type="button"
+          className="library-source-trigger"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          aria-label={t('library.switchSource', { source: title })}
+          onClick={() => setOpen(value => !value)}
+          onKeyDown={event => {
+            if (event.key === 'ArrowDown' && !open) { event.preventDefault(); setOpen(true); }
+          }}
+        >
+          <span className="library-source-trigger__label">{title}</span>
+          <span className="material-symbols-outlined library-source-trigger__chevron" aria-hidden="true">expand_more</span>
+        </button>
+      </h1>
+      {open && (
+        <div
+          ref={menuRef}
+          id={menuId}
+          role="menu"
+          aria-label={t('library.sourceMenu')}
+          className="library-source-menu"
+          onKeyDown={handleMenuKeyDown}
+        >
+          {slotItems.map(item => (
+            <button
+              key={item.slot}
+              type="button"
+              role="menuitemradio"
+              aria-checked={isSameSource(current, { kind: 'slot', slot: item.slot })}
+              className="library-source-menu__item"
+              onClick={() => choose(() => onSelectSlot(item.slot))}
+            >
+              <span className="library-source-menu__art" aria-hidden="true">
+                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+              </span>
+              <span className="library-source-menu__name">{item.label}</span>
+              <span className="library-source-menu__count">{item.count}</span>
+            </button>
+          ))}
+          {visiblePlaylists.length > 0 && (
+            <>
+              <div className="library-source-menu__separator" role="separator" />
+              <div className="library-source-menu__label" aria-hidden="true">{t('sidebar.playlists')}</div>
+              {visiblePlaylists.map(playlist => (
+                <button
+                  key={`${playlist.source}:${playlist.id}`}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={isSameSource(current, { kind: 'playlist', source: playlist.source, id: playlist.id })}
+                  className="library-source-menu__item"
+                  onClick={() => choose(() => onOpenPlaylist(playlist))}
+                >
+                  <span className="library-source-menu__art" aria-hidden="true">
+                    {playlist.coverUrl
+                      ? <img src={playlist.coverUrl} alt="" loading="lazy" />
+                      : <span className="material-symbols-outlined text-[18px]">queue_music</span>}
+                  </span>
+                  <span className="library-source-menu__name">{playlist.name}</span>
+                  <span className="library-source-menu__count">{playlist.songCount}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LibrarySourceMenu;

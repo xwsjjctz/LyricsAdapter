@@ -1,0 +1,305 @@
+/*
+ * Library poster wall. Geometry comes from wallLayout.ts; this file owns only
+ * the look. The outer tile holds position (and transitions it when the now
+ * playing tile re-flows); the inner element is what GSAP sinks and pops during
+ * a source switch, so the two animations never fight over one transform.
+ */
+
+.poster-wall {
+  /* Bleed outward so the pop-in overshoot and tile shadows are not clipped by
+     the scroll box, while tiles stay aligned with the header. Keep in sync
+     with WALL_BLEED in PosterWall.tsx. */
+  --wall-bleed: 12px;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 calc(-1 * var(--wall-bleed));
+  padding: var(--wall-bleed);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.poster-wall::-webkit-scrollbar {
+  display: none;
+}
+
+.poster-wall__canvas {
+  position: relative;
+}
+
+.wall-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: pointer;
+  outline: none;
+}
+
+.poster-wall[data-animate-layout='true'] .wall-tile {
+  transition: transform 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 460ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wall-tile__inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--theme-control-radius);
+  border: var(--theme-control-border-width, 1px) solid
+    color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+  background: var(--theme-background-card);
+  box-shadow: 0 10px 24px -18px rgba(0, 0, 0, 0.6);
+  transform-origin: 50% 100%;
+}
+
+.wall-tile--featured .wall-tile__inner {
+  border-radius: var(--theme-surface-radius);
+  border-color: color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 55%, transparent);
+  box-shadow: var(--theme-elevated-shadow);
+}
+
+.wall-tile--unavailable .wall-tile__inner {
+  opacity: 0.45;
+}
+
+.wall-tile__cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wall-tile:hover .wall-tile__cover {
+  transform: scale(1.04);
+}
+
+.wall-tile__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.18) 42%, transparent 65%);
+  pointer-events: none;
+}
+
+.wall-tile__index,
+.wall-tile__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  border-radius: var(--theme-small-radius);
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.wall-tile--featured .wall-tile__badge {
+  top: 14px;
+  left: 14px;
+  font-size: 11px;
+}
+
+.wall-tile__text {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 9px;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+
+.wall-tile__title,
+.wall-tile__artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-tile__title {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.wall-tile__artist {
+  margin-top: 1px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+/* Larger tiles get larger type; span classes come from the layout. */
+.wall-tile--lg .wall-tile__text {
+  left: 14px;
+  right: 14px;
+  bottom: 13px;
+}
+.wall-tile--lg .wall-tile__title {
+  font-size: 19px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.wall-tile--lg .wall-tile__artist {
+  font-size: 12px;
+}
+
+.wall-tile--featured .wall-tile__text {
+  left: 22px;
+  right: 22px;
+  bottom: 20px;
+}
+.wall-tile--featured .wall-tile__title {
+  font-size: 26px;
+}
+.wall-tile--featured .wall-tile__artist {
+  font-size: 14px;
+}
+
+.wall-tile:focus-visible .wall-tile__inner {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+.poster-wall__status {
+  padding: 4rem 0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+/* Source switcher: the library title doubles as the dropdown trigger. */
+.library-source-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  margin-left: -0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--theme-control-radius);
+  color: var(--theme-text-primary);
+  transition: background-color 140ms ease;
+}
+.library-source-trigger:hover,
+.library-source-trigger[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+}
+.library-source-trigger:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+.library-source-trigger__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.library-source-trigger__chevron {
+  font-size: 1.6rem;
+  transition: transform 180ms ease;
+}
+.library-source-trigger[aria-expanded='true'] .library-source-trigger__chevron {
+  transform: rotate(180deg);
+}
+
+.library-source-menu {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% + 6px);
+  left: -0.5rem;
+  display: flex;
+  flex-direction: column;
+  width: 18rem;
+  max-height: min(28rem, 70vh);
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--theme-border-light);
+  border-radius: var(--theme-surface-radius);
+  background: var(--theme-background-dark);
+  box-shadow: 0 24px 48px -16px rgba(0, 0, 0, 0.5);
+  animation: library-source-menu-in 160ms ease-out;
+}
+
+@keyframes library-source-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+
+.library-source-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: max(0px, calc(var(--theme-surface-radius) - 6px));
+  color: var(--theme-text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+}
+.library-source-menu__item:hover,
+.library-source-menu__item:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+.library-source-menu__item[aria-checked='true'] {
+  color: var(--theme-primary);
+}
+.library-source-menu__art {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  overflow: hidden;
+  border-radius: var(--theme-media-radius-sm);
+  background: var(--theme-control-icon-bg);
+  color: var(--theme-control-icon-fg);
+}
+.library-source-menu__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.library-source-menu__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.library-source-menu__count {
+  flex-shrink: 0;
+  color: var(--theme-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.library-source-menu__label {
+  padding: 0.6rem 0.55rem 0.3rem;
+  color: var(--theme-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.library-source-menu__separator {
+  height: 1px;
+  margin: 0.35rem 0.25rem;
+  background: var(--theme-border-light);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-wall[data-animate-layout='true'] .wall-tile,
+  .wall-tile__cover,
+  .library-source-menu {
+    transition: none;
+    animation: none;
+  }
+}

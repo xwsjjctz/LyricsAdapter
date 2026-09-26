@@ -64,6 +64,8 @@ interface LibraryViewProps {
   onPendingLocatePrepared?: (token: number) => void;
   onSlotContentReady?: (slot: SlotId) => void;
   searchBox?: React.ReactNode;
+  heading?: React.ReactNode;
+  extraActions?: React.ReactNode;
   onPlayAll?: () => void;
   onShuffleAll?: () => void;
 }
@@ -124,6 +126,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onPendingLocatePrepared,
   onSlotContentReady,
   searchBox,
+  heading,
+  extraActions,
   onPlayAll,
   onShuffleAll,
 }) => {
@@ -751,6 +755,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         importProgress={importProgress}
         loadProgress={dataSource === 'cloud' ? loadProgress : undefined}
         searchBox={searchBox}
+        heading={heading}
+        extraActions={extraActions}
         onPlayAll={onPlayAll}
         onShuffleAll={onShuffleAll}
       />
