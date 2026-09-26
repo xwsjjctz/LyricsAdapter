@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { ThemeColors } from '../types/theme';
 import type { TrackMenuActionId, TrackMenuItem } from './trackMenuItems';
+import { lastInputWasKeyboard } from '../services/inputModality';
 
 export interface TrackMenuPosition {
   trackId: string;
@@ -28,7 +29,10 @@ export default function TrackMenu({ position, colors, items, onClose, onAction }
     const rect = menu.getBoundingClientRect();
     setPoint({ x: Math.max(8, Math.min(position.x, window.innerWidth - rect.width - 8)),
       y: Math.max(8, Math.min(position.y, window.innerHeight - rect.height - 8)) });
-    menu.querySelector<HTMLButtonElement>('button')?.focus();
+    // Keyboard users land on the first item; after a right-click the menu itself
+    // takes focus so no item looks selected, and arrow keys still work.
+    if (lastInputWasKeyboard()) menu.querySelector<HTMLButtonElement>('button')?.focus();
+    else menu.focus();
     const outside = (event: PointerEvent) => { if (!menu.contains(event.target as Node)) onClose(); };
     const dismiss = (event: Event) => { if (!menu.contains(event.target as Node)) onClose(); };
     document.addEventListener('pointerdown', outside);
@@ -42,7 +46,7 @@ export default function TrackMenu({ position, colors, items, onClose, onAction }
   }, [position, onClose]);
   const choose = (id: TrackMenuActionId) => { onClose(); onAction(id); };
   return createPortal(
-    <div ref={ref} role="menu" aria-label={t('library.songActions')}
+    <div ref={ref} role="menu" tabIndex={-1} aria-label={t('library.songActions')}
       className="library-track-menu fixed z-[100] p-1.5 shadow-2xl"
       style={{ left: point.x, top: point.y, width: 220, maxWidth: 'calc(100vw - 16px)',
         backgroundColor: colors.backgroundSidebar, color: colors.textPrimary,

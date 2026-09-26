@@ -5,6 +5,7 @@ import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider
 import { useOnlinePlaylists } from '../hooks/useOnlinePlaylists';
 import { applyOverrides, loadOverrides } from '../services/playlistOverrides';
 import { logger } from '../services/logger';
+import { lastInputWasKeyboard } from '../services/inputModality';
 
 /** What the library is showing: a library slot, or one online playlist. */
 export type LibrarySource =
@@ -61,7 +62,7 @@ const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
-    if (restoreFocus) triggerRef.current?.focus();
+    if (restoreFocus && lastInputWasKeyboard()) triggerRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -73,9 +74,14 @@ const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [close, open]);
 
-  // Move focus into the menu on open: the checked item, else the first one.
+  // Keyboard users land on the checked item (else the first); a click focuses
+  // the menu itself so no item looks selected.
   useEffect(() => {
     if (!open) return;
+    if (!lastInputWasKeyboard()) {
+      menuRef.current?.focus();
+      return;
+    }
     const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]');
     const checked = menuRef.current?.querySelector<HTMLElement>('[aria-checked="true"]');
     (checked ?? items?.[0])?.focus();
@@ -126,6 +132,7 @@ const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
           ref={menuRef}
           id={menuId}
           role="menu"
+          tabIndex={-1}
           aria-label={t('library.sourceMenu')}
           className="library-source-menu"
           onKeyDown={handleMenuKeyDown}

@@ -15,8 +15,6 @@ import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 /** Windows/Linux custom title bar height (h-9). */
 const FRAMELESS_TITLE_BAR_HEIGHT = 36;
-/** Floating chrome: 36px controls + 4px padding on each side + 1px borders. */
-const WALL_CHROME_HEIGHT = 46;
 
 interface LibraryWallViewProps {
   tracks: Track[];
@@ -108,7 +106,6 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         loadingLabel={t('common.loading')}
         hasMore={playlistHasMore}
         onLoadMore={onLoadMorePlaylist ? loadMore : undefined}
-        topInset={chromeTop + WALL_CHROME_HEIGHT}
         bottomInset={bottomInset}
         onTrackSelect={onTrackSelect}
         hasMenu={hasMenu}

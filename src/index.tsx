@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { appStorage } from './services/appStorage';
+import { installInputModality } from './services/inputModality';
 
 // 初始化应用存储：主进程已有设置时以其为权威；仅在主存储为空时迁移
 // allowlist 中的旧 localStorage 设置。UI 模块在初始化完成后才加载，避免
@@ -24,6 +25,7 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
+  installInputModality();
   try {
     await appStorage.init();
     const { default: App } = await import('./App');

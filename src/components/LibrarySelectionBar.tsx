@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ThemeColors } from '../types/theme';
+import { lastInputWasKeyboard } from '../services/inputModality';
 
 interface Props {
   count: number;
@@ -13,7 +14,7 @@ interface Props {
 export default function LibrarySelectionBar({ count, total, colors, onToggleAll, onRemove, onDone }: Props) {
   const { t } = useTranslation();
   const done = useRef<HTMLButtonElement>(null);
-  useEffect(() => { done.current?.focus(); }, []);
+  useEffect(() => { if (lastInputWasKeyboard()) done.current?.focus(); }, []);
   return <div className="library-selection-bar flex items-center flex-wrap gap-3 mb-3 px-4 py-2 text-sm"
     role="toolbar" aria-label={t('library.selectMultiple')}
     style={{ backgroundColor: `${colors.primary}15`, color: colors.textPrimary, borderRadius: 'var(--theme-control-radius)' }}>

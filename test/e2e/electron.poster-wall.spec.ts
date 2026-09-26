@@ -82,10 +82,20 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
     const trigger = page.getByRole('button', { name: /switch music source/ });
     await trigger.click();
     await expect(page.getByRole('menuitemradio', { name: /Local/ })).toHaveAttribute('aria-checked', 'true');
+    // A click focuses the menu itself, so no item or ring lights up.
+    await expect(page.locator('.library-source-menu')).toBeFocused();
+    await expect(page.locator('html')).toHaveAttribute('data-input-modality', 'pointer');
     await page.getByRole('menuitemradio', { name: /Online History/ }).click();
+    await expect(trigger).not.toBeFocused();
     await expect(page.getByText('No online history yet')).toBeVisible();
     await expect(tiles).toHaveCount(0);
 
+    // The keyboard path still moves focus into the menu and back to the trigger.
+    await trigger.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitemradio', { name: /Online History/ })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
     await trigger.click();
     await page.getByRole('menuitemradio', { name: /Local/ }).click();
     await expect(tiles).toHaveCount(3);

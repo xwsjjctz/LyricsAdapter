@@ -435,6 +435,21 @@ html.electron[data-window-effect='translucent'] #root {
   outline: none;
 }
 
+/* Focus rings are for keyboard users. After a pointer interaction Chromium still
+   marks script-moved focus (menus, dialogs) as :focus-visible, so every ring is
+   suppressed while <html data-input-modality="pointer"> (see inputModality.ts). */
+:root[data-input-modality='pointer'] :focus-visible,
+:root[data-input-modality='pointer'] .player-slider:has(input:focus-visible),
+:root[data-input-modality='pointer'] .wall-tile:focus-visible .wall-tile__inner {
+  outline: none !important;
+}
+:root[data-input-modality='pointer'] :is(.ui-btn, .ui-icon-btn):focus-visible {
+  box-shadow: none;
+}
+:root[data-input-modality='pointer'] .ui-btn--primary:focus-visible {
+  box-shadow: var(--theme-elevated-shadow, none);
+}
+
 /* Theme-aware radius utilities (override fixed Tailwind rounded-* so themes with
    0px radii render sharp corners). r-card=8px, r-control=12px, r-surface=16px. */
 .r-card { border-radius: var(--theme-card-radius); }

@@ -20,8 +20,6 @@ interface PosterWallProps {
   loadingLabel: string;
   hasMore?: boolean;
   onLoadMore?: (() => void) | undefined;
-  /** Space kept clear above the first row for floating chrome; tiles scroll under it. */
-  topInset?: number;
   /** Space kept clear below the last row for the floating control bar. */
   bottomInset: number;
   onTrackSelect: (index: number) => void;
@@ -35,7 +33,7 @@ interface PosterWallProps {
  */
 const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
-  hasMore = false, onLoadMore, topInset = 0, bottomInset, onTrackSelect, hasMenu, onOpenMenu,
+  hasMore = false, onLoadMore, bottomInset, onTrackSelect, hasMenu, onOpenMenu,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -76,10 +74,10 @@ const PosterWall: React.FC<PosterWallProps> = ({
 
   const overscan = viewportHeight * OVERSCAN_VIEWPORTS;
   const visibleTiles = useMemo(() => {
-    const top = scrollTop - topInset - overscan;
-    const bottom = scrollTop - topInset + viewportHeight + overscan;
+    const top = scrollTop - overscan;
+    const bottom = scrollTop + viewportHeight + overscan;
     return layout.tiles.filter(tile => tile.y + tile.height >= top && tile.y <= bottom);
-  }, [layout.tiles, overscan, scrollTop, topInset, viewportHeight]);
+  }, [layout.tiles, overscan, scrollTop, viewportHeight]);
 
   const handleScroll = useCallback(() => {
     if (scrollFrameRef.current !== null) return;
@@ -88,10 +86,10 @@ const PosterWall: React.FC<PosterWallProps> = ({
       const container = containerRef.current;
       if (!container) return;
       setScrollTop(container.scrollTop);
-      const nearEnd = container.scrollTop + container.clientHeight >= topInset + layout.height - container.clientHeight;
+      const nearEnd = container.scrollTop + container.clientHeight >= layout.height - container.clientHeight;
       if (nearEnd && hasMore && !loading) onLoadMore?.();
     });
-  }, [hasMore, layout.height, loading, onLoadMore, topInset]);
+  }, [hasMore, layout.height, loading, onLoadMore]);
 
   const isEmpty = renderedTracks.length === 0;
 
@@ -105,11 +103,11 @@ const PosterWall: React.FC<PosterWallProps> = ({
       onScroll={handleScroll}
     >
       {isEmpty ? (
-        <p className="poster-wall__status" style={{ color: 'var(--theme-text-muted)', marginTop: topInset }}>
+        <p className="poster-wall__status" style={{ color: 'var(--theme-text-muted)' }}>
           {loading ? loadingLabel : emptyLabel}
         </p>
       ) : (
-        <div className="poster-wall__canvas" style={{ height: layout.height + bottomInset + WALL_GAP, marginTop: topInset }}>
+        <div className="poster-wall__canvas" style={{ height: layout.height + bottomInset + WALL_GAP }}>
           {visibleTiles.map(tile => {
             const track = renderedTracks[tile.index]!;
             return (

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
+import { lastInputWasKeyboard } from '../services/inputModality';
 
 interface GsapModalProps {
   isOpen: boolean;
@@ -105,7 +106,11 @@ const GsapModal: React.FC<GsapModalProps> = ({
       if (heading && !heading.id) heading.id = headingId;
       if (heading) panel.setAttribute('aria-labelledby', heading.id);
     }
-    if (!panel.contains(document.activeElement)) (focusableIn(panel)[0] ?? panel).focus();
+    // Keyboard users start on the first control; pointer users on the panel, so
+    // no button shows a focus ring they did not ask for. Tab still cycles inside.
+    if (!panel.contains(document.activeElement)) {
+      (lastInputWasKeyboard() ? focusableIn(panel)[0] ?? panel : panel).focus();
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
