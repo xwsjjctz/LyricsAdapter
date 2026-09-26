@@ -49,7 +49,7 @@ beforeEach(() => {
 function renderWall(props: Partial<React.ComponentProps<typeof PosterWall>> = {}) {
   const onTrackSelect = vi.fn();
   const base = {
-    tracks: local, sourceKey: 'local', emptyLabel: 'empty', loadingLabel: 'loading', bottomInset: 0,
+    tracks: local, sourceKey: 'local', emptyLabel: 'empty', loadingLabel: 'loading',
     onTrackSelect, hasMenu: () => true, onOpenMenu: vi.fn(),
   };
   const view = render(<PosterWall {...base} {...props} />);

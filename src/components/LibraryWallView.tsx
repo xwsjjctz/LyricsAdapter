@@ -106,7 +106,6 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         loadingLabel={t('common.loading')}
         hasMore={playlistHasMore}
         onLoadMore={onLoadMorePlaylist ? loadMore : undefined}
-        bottomInset={bottomInset}
         onTrackSelect={onTrackSelect}
         hasMenu={hasMenu}
         onOpenMenu={actions.openTrackMenu}

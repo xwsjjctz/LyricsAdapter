@@ -66,6 +66,14 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
     await settled();
     await page.waitForTimeout(400);
 
+    // Tiles run flush to both window edges, with no side padding.
+    const edges = await tiles.evaluateAll(nodes => {
+      const rects = nodes.map(node => node.getBoundingClientRect());
+      return { left: Math.min(...rects.map(r => r.left)), right: Math.max(...rects.map(r => r.right)), width: window.innerWidth };
+    });
+    expect(edges.left).toBeCloseTo(0, 0);
+    expect(edges.right).toBeLessThanOrEqual(edges.width);
+
     // The wall is a song list: playing a tile marks it where it is.
     const coral = page.getByRole('button', { name: 'Coral, Test Artist' });
     const before = await coral.boundingBox();

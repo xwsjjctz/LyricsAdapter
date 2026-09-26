@@ -5,8 +5,6 @@ import { computeWallLayout } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
 
 const WALL_GAP = 8;
-/** Matches --wall-edge: padding on every side, equal to the gap so tiles read edge to edge. */
-const WALL_EDGE = WALL_GAP;
 /** Extra viewport heights mounted above and below the visible band. */
 const OVERSCAN_VIEWPORTS = 1;
 
@@ -20,8 +18,6 @@ interface PosterWallProps {
   loadingLabel: string;
   hasMore?: boolean;
   onLoadMore?: (() => void) | undefined;
-  /** Space kept clear below the last row for the floating control bar. */
-  bottomInset: number;
   onTrackSelect: (index: number) => void;
   hasMenu: (track: Track) => boolean;
   onOpenMenu: (track: Track, x: number, y: number, trigger: HTMLElement) => void;
@@ -33,7 +29,7 @@ interface PosterWallProps {
  */
 const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
-  hasMore = false, onLoadMore, bottomInset, onTrackSelect, hasMenu, onOpenMenu,
+  hasMore = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -46,7 +42,8 @@ const PosterWall: React.FC<PosterWallProps> = ({
     const container = containerRef.current;
     if (!container) return;
     const measure = () => {
-      setWidth(Math.max(0, container.clientWidth - WALL_EDGE * 2));
+      // No horizontal padding: tiles span the full width.
+      setWidth(container.clientWidth);
       setViewportHeight(container.clientHeight);
     };
     measure();
@@ -107,7 +104,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
           {loading ? loadingLabel : emptyLabel}
         </p>
       ) : (
-        <div className="poster-wall__canvas" style={{ height: layout.height + bottomInset + WALL_GAP }}>
+        <div className="poster-wall__canvas" style={{ height: layout.height }}>
           {visibleTiles.map(tile => {
             const track = renderedTracks[tile.index]!;
             return (

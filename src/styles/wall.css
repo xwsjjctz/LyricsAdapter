@@ -5,14 +5,11 @@
  */
 
 .poster-wall {
-  /* Edge padding equals the tile gap so the wall reads edge to edge, and gives
-     the pop-in overshoot room inside the scroll box. Keep in sync with
-     WALL_EDGE in PosterWall.tsx. */
-  --wall-edge: 8px;
+  /* Tiles run flush to every window edge. The floating control bar may cover
+     part of the last row for now. */
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: var(--wall-edge);
   overflow-y: auto;
   scrollbar-width: none;
 }
