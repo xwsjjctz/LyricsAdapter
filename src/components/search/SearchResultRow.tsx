@@ -4,6 +4,7 @@ import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
 import { formatDuration } from '../../shared/formatDuration';
 import TrackCover from '../TrackCover';
+import { isPlainEnter } from '../../shared/keyboard';
 
 interface SearchResultRowProps {
   track: Track;
@@ -34,7 +35,7 @@ function SearchResultRow({ track, isSelected, colors, progress, id, onActivate, 
       className={`search-result-row${isSelected ? ' search-result-row--selected' : ''}`}
       onClick={onActivate}
       onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (isPlainEnter(event) || (event.key === ' ' && !event.metaKey && !event.ctrlKey && !event.altKey)) {
           event.preventDefault();
           onActivate();
         }

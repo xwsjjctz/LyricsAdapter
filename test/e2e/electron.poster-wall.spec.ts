@@ -13,14 +13,16 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData, { recursive: true });
   await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
-  const audio = Buffer.alloc(44 + 8000);
+  // 10 s of silence: long enough to pause before the track ends and auto-advances.
+  const pcmBytes = 16000 * 10;
+  const audio = Buffer.alloc(44 + pcmBytes);
   audio.write('RIFF'); audio.writeUInt32LE(audio.length - 8, 4); audio.write('WAVEfmt ', 8);
   audio.writeUInt32LE(16, 16); audio.writeUInt16LE(1, 20); audio.writeUInt16LE(1, 22);
   audio.writeUInt32LE(8000, 24); audio.writeUInt32LE(16000, 28); audio.writeUInt16LE(2, 32);
-  audio.writeUInt16LE(16, 34); audio.write('data', 36); audio.writeUInt32LE(8000, 40);
+  audio.writeUInt16LE(16, 34); audio.write('data', 36); audio.writeUInt32LE(pcmBytes, 40);
   const songs = ['Amber', 'Blue', 'Coral'].map((title, index) => ({
     id: `poster-wall-${index}`, title, artist: 'Test Artist', album: 'Test Album',
-    duration: 0.5, audioUrl: '', source: 'local', available: true,
+    duration: 10, audioUrl: '', source: 'local', available: true,
     filePath: path.join(root, `${title}.wav`), fileName: `${title}.wav`,
   }));
   for (const song of songs) await writeFile(song.filePath, audio);
@@ -72,6 +74,23 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
     expect(await coral.boundingBox()).toEqual(before);
     await page.waitForTimeout(1200);
     await page.screenshot({ path: testInfo.outputPath('wall.png') });
+
+    // Regression: the clicked tile keeps focus. Pausing with Space and toggling
+    // focus mode with Cmd/Ctrl+Enter must not replay that tile.
+    const audioPaused = () => page.locator('audio').evaluate(node => (node as HTMLAudioElement).paused);
+    await expect(coral).toBeFocused();
+    await expect.poll(audioPaused).toBe(false);
+    await page.keyboard.press('Space');
+    await expect.poll(audioPaused).toBe(true);
+    const focusOverlay = page.locator('.focus-mode-overlay');
+    await page.keyboard.press('ControlOrMeta+Enter');
+    await expect(focusOverlay).toHaveClass(/translate-y-0/);
+    await page.waitForTimeout(500);
+    expect(await audioPaused()).toBe(true);
+    await page.keyboard.press('ControlOrMeta+Enter');
+    await expect(focusOverlay).toHaveClass(/translate-y-full/);
+    await page.waitForTimeout(500);
+    expect(await audioPaused()).toBe(true);
 
     // Wall menus leave multi-select to the list.
     await tiles.first().click({ button: 'right' });

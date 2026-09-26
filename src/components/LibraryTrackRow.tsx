@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import TrackCover from './TrackCover';
 import { formatDuration } from '../shared/formatDuration';
+import { isPlainEnter } from '../shared/keyboard';
 
 interface LibraryTrackRowProps {
   track: Track;
@@ -65,7 +66,8 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       }}
       onKeyDown={e => {
         if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+        // Space stays the global play/pause shortcut; see isPlainEnter for modifiers.
+        if (isPlainEnter(e)) { e.preventDefault(); activate(); }
         if (hasMenu && !isSelecting && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
           e.preventDefault();
           const rect = e.currentTarget.getBoundingClientRect();

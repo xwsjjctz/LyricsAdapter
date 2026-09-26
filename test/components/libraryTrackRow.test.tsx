@@ -47,4 +47,16 @@ describe('song row interactions', () => {
     expect(onTrackSelect).toHaveBeenCalledOnce();
     expect(onOpenMenu).toHaveBeenCalledOnce();
   });
+  it('leaves modified Enter and Space to the global shortcuts', () => {
+    // Regression: a clicked row keeps focus, and Cmd+Enter (focus mode) or Space
+    // (play/pause) must not also replay the row.
+    const { container, onTrackSelect } = setup();
+    const row = container.firstElementChild!;
+    fireEvent.keyDown(row, { key: 'Enter', metaKey: true });
+    fireEvent.keyDown(row, { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(row, { key: 'Enter', altKey: true });
+    fireEvent.keyDown(row, { key: 'Enter', shiftKey: true });
+    fireEvent.keyDown(row, { key: ' ' });
+    expect(onTrackSelect).not.toHaveBeenCalled();
+  });
 });

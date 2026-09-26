@@ -22,6 +22,13 @@ describe('SearchResultRow', () => {
     expect(onActivate).toHaveBeenCalledTimes(2);
   });
 
+  it('ignores Enter with modifiers so app shortcuts do not activate the row', () => {
+    const onActivate = vi.fn();
+    render(<SearchResultRow track={track} isSelected={false} colors={colors} onActivate={onActivate} />);
+    fireEvent.keyDown(screen.getByRole('option', { name: /Song title/ }), { key: 'Enter', metaKey: true });
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
   it('shows the provider badge for online tracks', () => {
     render(<SearchResultRow track={track} isSelected={false} colors={colors} onActivate={vi.fn()} />);
     expect(screen.getByText('search.sourceNetease')).toBeInTheDocument();

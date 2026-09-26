@@ -66,6 +66,17 @@ describe('PosterWall', () => {
     expect(onTrackSelect).toHaveBeenCalledWith(2);
   });
 
+  it('plays on plain Enter only, leaving Cmd+Enter and Space to global shortcuts', () => {
+    const { onTrackSelect } = renderWall();
+    const tile = screen.getByRole('button', { name: 'Song b / Artist' });
+    fireEvent.keyDown(tile, { key: 'Enter', metaKey: true });
+    fireEvent.keyDown(tile, { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(tile, { key: ' ' });
+    expect(onTrackSelect).not.toHaveBeenCalled();
+    fireEvent.keyDown(tile, { key: 'Enter' });
+    expect(onTrackSelect).toHaveBeenCalledWith(1);
+  });
+
   it('marks the playing track in place without moving any tile', () => {
     const { rerenderWall } = renderWall();
     const geometry = () => screen.getAllByRole('button').map(tile => [tile.style.transform, tile.style.width]);

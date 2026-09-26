@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Track } from '../../types';
 import TrackCover from '../TrackCover';
 import type { WallTile } from './wallLayout';
+import { isPlainEnter } from '../../shared/keyboard';
 
 interface PosterTileProps {
   track: Track;
@@ -55,7 +56,8 @@ const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, isCurrent, ha
       onClick={activate}
       onKeyDown={event => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter' || event.key === ' ') {
+        // Space stays the global play/pause shortcut; see isPlainEnter for modifiers.
+        if (isPlainEnter(event)) {
           event.preventDefault();
           activate();
         } else if (hasMenu && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
