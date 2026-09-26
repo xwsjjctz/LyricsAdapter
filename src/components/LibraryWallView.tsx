@@ -4,17 +4,13 @@ import type { SlotId, Track } from '../types';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useCurrentTheme } from './settings/shared';
 import PosterWall from './wall/PosterWall';
-import IconButton from './ui/IconButton';
 import TrackMenu from './TrackMenu';
 import ConfirmDialog from './ConfirmDialog';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import type { TrackDownloadQuality, TrackMenuItem } from './trackMenuItems';
 import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
 import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
-import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
-/** Windows/Linux custom title bar height (h-9). */
-const FRAMELESS_TITLE_BAR_HEIGHT = 36;
 
 interface LibraryWallViewProps {
   tracks: Track[];
@@ -34,10 +30,8 @@ interface LibraryWallViewProps {
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: ((token: number) => void) | undefined;
-  /** Source switcher rendered in the floating chrome. */
-  sourceMenu: React.ReactNode;
-  /** Leaves the wall for the classic library. */
-  onBack: () => void;
+  /** Floating back button + source switcher (see WallChrome). */
+  chrome: React.ReactNode;
 }
 
 /** Multi-select lives in the list layout; the wall menu omits it. */
@@ -55,15 +49,13 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   tracks, sourceKey, dataSource, currentTrackId, onTrackSelect,
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
-  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, sourceMenu, onBack,
+  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, chrome,
 }) => {
   const { t } = useTranslation();
   const { colors } = useCurrentTheme();
   const desktop = getDesktopAPI();
   const isMac = desktop?.platform === 'darwin';
   const bottomInset = isMac ? MACOS_PLAYER_BOTTOM_INSET : 24;
-  // Chrome sits just below the title bar so it never covers the traffic lights.
-  const chromeTop = (isMac ? getMacTitleBarLayout(desktop?.osRelease).height : FRAMELESS_TITLE_BAR_HEIGHT) + 8;
 
   const actions = useLibraryTrackActions({
     tracks,
@@ -92,10 +84,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
   return (
     <div className="library-wall-view relative flex h-full w-full flex-col">
-      <div className="wall-chrome" style={{ top: chromeTop }}>
-        <IconButton icon="arrow_back" label={t('wall.back')} size="md" onClick={onBack} />
-        {sourceMenu}
-      </div>
+      {chrome}
 
       <PosterWall
         tracks={tracks}

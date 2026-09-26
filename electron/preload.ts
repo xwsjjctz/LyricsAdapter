@@ -4,6 +4,7 @@ import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
+import type { WallChromeAction, WallChromeState } from '../src/types/wallChrome';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -23,6 +24,16 @@ const typedIpc = {
       const handler = (_event: unknown, action: PlayerControlbarAction) => callback(action);
       ipcRenderer.on('player-controlbar-action', handler);
       return () => ipcRenderer.removeListener('player-controlbar-action', handler);
+    },
+  },
+  wallChrome: {
+    start: async () => ipcRenderer.invoke('ipc:wallChrome:start'),
+    update: async (state: WallChromeState) => ipcRenderer.invoke('ipc:wallChrome:update', state),
+    stop: async () => ipcRenderer.invoke('ipc:wallChrome:stop'),
+    onAction: (callback: (action: WallChromeAction) => void) => {
+      const handler = (_event: unknown, action: WallChromeAction) => callback(action);
+      ipcRenderer.on('wall-chrome-action', handler);
+      return () => ipcRenderer.removeListener('wall-chrome-action', handler);
     },
   },
   focusGlass: {

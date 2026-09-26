@@ -16,20 +16,34 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  char name[128];napi_get_value_string_utf8(env,args[1],name,128,nullptr);
  NSString* actionName=[NSString stringWithUTF8String:name];BOOL hover=[actionName hasSuffix:@":hover"];
  if(hover)actionName=[actionName substringToIndex:actionName.length-6];
- NSView* view=Find(content,actionName);
+ // `wall-chrome-menu:<item id>` fires a source menu item without opening the modal menu.
+ if([actionName hasPrefix:@"wall-chrome-menu:"]){
+  NSString* itemId=[actionName substringFromIndex:17];
+  NSMenu* menu=[Find(content,@"wall-chrome-host") valueForKey:@"sourceMenu"];
+  for(NSInteger i=0;i<menu.numberOfItems;i++){ if([[menu itemAtIndex:i].representedObject isEqual:itemId]){[menu performActionForItemAtIndex:i];break;} }
+  actionName=@"";
+ }
+ NSView* view=actionName.length?Find(content,actionName):nil;
  if(argc>2 && [view isKindOfClass:NSSlider.class]) {double value=0;napi_get_value_double(env,args[2],&value);((NSSlider*)view).doubleValue=value;}
  if(hover&&view)[view mouseEntered:nil];
  else if([view isKindOfClass:NSControl.class]) {NSControl* control=(NSControl*)view;[control sendAction:control.action to:control.target];}
  else if(view) [view mouseExited:nil];
  }
  NSMutableArray* items=[NSMutableArray array];
- NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-highlight",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-controlbar-host",@"player-controlbar-glass",@"player-controlbar-highlight",@"player-controlbar-slider-glass",@"player-controlbar-volume-disclosure",@"player-controlbar-title",@"player-controlbar-artist",@"player-controlbar-focus",@"player-controlbar-previous",@"player-controlbar-play",@"player-controlbar-next",@"player-controlbar-seek",@"player-controlbar-mode",@"player-controlbar-volume",@"player-controlbar-mute"];
+ NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-highlight",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-controlbar-host",@"player-controlbar-glass",@"player-controlbar-highlight",@"player-controlbar-slider-glass",@"player-controlbar-volume-disclosure",@"player-controlbar-title",@"player-controlbar-artist",@"player-controlbar-focus",@"player-controlbar-previous",@"player-controlbar-play",@"player-controlbar-next",@"player-controlbar-seek",@"player-controlbar-mode",@"player-controlbar-volume",@"player-controlbar-mute",@"wall-chrome-host",@"wall-chrome-glass",@"wall-chrome-back",@"wall-chrome-source"];
  for(NSString* name in names){NSView* v=Find(content,name);if(!v)continue;
  NSRect frame=[v convertRect:v.bounds toView:content];
  NSString* label=[v isKindOfClass:NSTextField.class]?((NSTextField*)v).stringValue:v.accessibilityLabel;
  NSString* appearance=[v.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]];
  [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@""}];}
- NSDictionary* result=@{@"windowNumber":@(content.window.windowNumber),@"items":items};
+ NSMutableArray* menuItems=[NSMutableArray array];
+ NSView* wallHost=Find(content,@"wall-chrome-host");
+ NSMenu* wallMenu=wallHost?[wallHost valueForKey:@"sourceMenu"]:nil;
+ for(NSMenuItem* entry in wallMenu.itemArray){
+  [menuItems addObject:@{@"title":entry.title?:@"",@"header":@(entry.isSectionHeader),@"checked":@(entry.state==NSControlStateValueOn),
+   @"badge":entry.badge.stringValue?:@"",@"image":@(entry.image!=nil),@"id":[entry.representedObject isKindOfClass:NSString.class]?entry.representedObject:@""}];
+ }
+ NSDictionary* result=@{@"windowNumber":@(content.window.windowNumber),@"items":items,@"menu":menuItems};
  NSData* data=[NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
  napi_value value;napi_create_string_utf8(env,(const char*)data.bytes,data.length,&value);return value;
 }

@@ -1,6 +1,7 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
 import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
+import type { WallChromeAction, WallChromeState } from './wallChrome';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -57,6 +58,12 @@ export interface TypedElectronIPC {
     updateArtwork: (url: string | null) => Promise<IpcResult<void>>;
     stop: () => Promise<IpcResult<void>>;
     onAction: (callback: (action: PlayerControlbarAction) => void) => () => void;
+  };
+  wallChrome?: {
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: WallChromeState) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: WallChromeAction) => void) => () => void;
   };
   focusGlass?: {
     getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;

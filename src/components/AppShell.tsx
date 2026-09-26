@@ -11,7 +11,8 @@ import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import LibraryWallView from './LibraryWallView';
-import LibrarySourceMenu, { type LibrarySource } from './LibrarySourceMenu';
+import type { LibrarySource } from './LibrarySourceMenu';
+import WallChrome from './wall/WallChrome';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import SettingsView from './settings/SettingsView';
 import { useTranslation } from 'react-i18next';
@@ -135,11 +136,12 @@ const AppShell: React.FC<AppShellProps> = ({
     void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount);
   }, [onOpenPlaylist]);
   const leaveWall = useCallback(() => handleNavigate(ViewMode.PLAYER), [handleNavigate]);
-  const sourceMenu = (
-    <LibrarySourceMenu
+  const wallChrome = (
+    <WallChrome
       current={librarySource}
       title={librarySourceTitle}
       counts={{ local: slots.local.tracks.length, online: slots.online.tracks.length }}
+      onBack={leaveWall}
       onSelectSlot={selectLibrarySlot}
       onOpenPlaylist={openLibraryPlaylist}
     />
@@ -281,8 +283,7 @@ const AppShell: React.FC<AppShellProps> = ({
                   pendingLocateSlot={pendingSlotLocate?.slot}
                   pendingLocateToken={pendingSlotLocate?.token}
                   onPendingLocatePrepared={handleSlotLocatePrepared}
-                  sourceMenu={sourceMenu}
-                  onBack={leaveWall}
+                  chrome={wallChrome}
                 />
               ) : (
               <LibraryView

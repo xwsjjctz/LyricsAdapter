@@ -5,31 +5,27 @@ import type { PlaylistInfo } from '@/services/onlineMusicProvider';
 const playlists: PlaylistInfo[] = [
   { id: '1', name: 'Favourites', coverUrl: '', songCount: 651, source: 'qq' },
   { id: '2', name: 'Road trip', coverUrl: '', songCount: 20, source: 'netease' },
-  { id: '3', name: 'Hidden one', coverUrl: '', songCount: 5, source: 'qq' },
 ];
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('@/hooks/useOnlinePlaylists', () => ({ useOnlinePlaylists: () => ({ playlists, loading: false }) }));
-vi.mock('@/services/playlistOverrides', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/services/playlistOverrides')>()),
-  loadOverrides: vi.fn().mockResolvedValue({ 'qq:3': { hidden: true } }),
-}));
 
 import LibrarySourceMenu from '@/components/LibrarySourceMenu';
 
 function setup(current: React.ComponentProps<typeof LibrarySourceMenu>['current'] = { kind: 'slot', slot: 'local' }) {
   const onSelectSlot = vi.fn();
   const onOpenPlaylist = vi.fn();
-  render(<LibrarySourceMenu current={current} title="Local" counts={{ local: 118, online: 3 }}
-    onSelectSlot={onSelectSlot} onOpenPlaylist={onOpenPlaylist} />);
+  const onOpen = vi.fn();
+  render(<LibrarySourceMenu current={current} title="Local" counts={{ local: 118, online: 3 }} playlists={playlists}
+    onOpen={onOpen} onSelectSlot={onSelectSlot} onOpenPlaylist={onOpenPlaylist} />);
   const trigger = screen.getByRole('button', { name: 'library.switchSource' });
-  return { trigger, onSelectSlot, onOpenPlaylist };
+  return { trigger, onSelectSlot, onOpenPlaylist, onOpen };
 }
 
 describe('LibrarySourceMenu', () => {
-  it('lists local, online history and visible playlists at one level', async () => {
-    const { trigger } = setup();
+  it('lists local, online history and the given playlists at one level', async () => {
+    const { trigger, onOpen } = setup();
     fireEvent.click(trigger);
+    expect(onOpen).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.getAllByRole('menuitemradio')).toHaveLength(4));
     const names = screen.getAllByRole('menuitemradio').map(item => item.textContent);
     expect(names).toEqual(['hard_drivesidebar.local118', 'historysidebar.online3', 'queue_musicFavourites651', 'queue_musicRoad trip20']);

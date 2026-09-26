@@ -146,6 +146,17 @@
   font-size: 0.9rem;
 }
 
+/* Placeholder the native (macOS 26+) chrome tracks: same corner, no paint.
+   Keep it fully opaque: the native side multiplies ancestor opacity, so page
+   transitions fade the glass, and a zero here would hide it for good. */
+.wall-chrome-anchor {
+  position: absolute;
+  z-index: 30;
+  left: 16px;
+  width: 44px;
+  height: 44px;
+}
+
 /* Floating chrome over the wall: back to the library + source switcher.
    Radius nests in the controlbar scale: 16px pill, 4px padding, 12px buttons. */
 .wall-chrome {

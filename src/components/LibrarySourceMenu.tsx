@@ -2,9 +2,6 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { useTranslation } from 'react-i18next';
 import type { SlotId } from '../types';
 import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
-import { useOnlinePlaylists } from '../hooks/useOnlinePlaylists';
-import { applyOverrides, loadOverrides } from '../services/playlistOverrides';
-import { logger } from '../services/logger';
 import { lastInputWasKeyboard } from '../services/inputModality';
 
 /** What the library is showing: a library slot, or one online playlist. */
@@ -17,6 +14,10 @@ interface LibrarySourceMenuProps {
   /** Heading text for the current source (a playlist shows its own name). */
   title: string;
   counts: { local: number; online: number };
+  /** Visible online playlists (see useVisiblePlaylists). */
+  playlists: PlaylistInfo[];
+  /** Called when the menu opens, so the caller can refresh hidden playlists. */
+  onOpen?: (() => void) | undefined;
   onSelectSlot: (slot: 'local' | 'online') => void;
   onOpenPlaylist: (playlist: PlaylistInfo) => void;
 }
@@ -34,31 +35,18 @@ const isSameSource = (a: LibrarySource | null, b: LibrarySource): boolean => {
  * playlist is intentionally not shown.
  */
 const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
-  current, title, counts, onSelectSlot, onOpenPlaylist,
+  current, title, counts, playlists, onOpen, onSelectSlot, onOpenPlaylist,
 }) => {
   const { t } = useTranslation();
   const menuId = useId();
   const [open, setOpen] = useState(false);
-  const [visiblePlaylists, setVisiblePlaylists] = useState<PlaylistInfo[]>([]);
-  const { playlists } = useOnlinePlaylists();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Hidden-playlist overrides have no change feed; re-read them whenever the menu opens.
   useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    loadOverrides()
-      .then(overrides => {
-        if (!cancelled) setVisiblePlaylists(applyOverrides(playlists, overrides).visible);
-      })
-      .catch(error => {
-        logger.warn('[LibrarySourceMenu] Failed to load playlist overrides:', error);
-        if (!cancelled) setVisiblePlaylists(playlists);
-      });
-    return () => { cancelled = true; };
-  }, [open, playlists]);
+    if (open) onOpen?.();
+  }, [onOpen, open]);
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -85,7 +73,7 @@ const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
     const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]');
     const checked = menuRef.current?.querySelector<HTMLElement>('[aria-checked="true"]');
     (checked ?? items?.[0])?.focus();
-  }, [open, visiblePlaylists.length]);
+  }, [open, playlists.length]);
 
   const handleMenuKeyDown = (event: React.KeyboardEvent) => {
     const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []);
@@ -153,11 +141,11 @@ const LibrarySourceMenu: React.FC<LibrarySourceMenuProps> = ({
               <span className="library-source-menu__count">{item.count}</span>
             </button>
           ))}
-          {visiblePlaylists.length > 0 && (
+          {playlists.length > 0 && (
             <>
               <div className="library-source-menu__separator" role="separator" />
               <div className="library-source-menu__label" aria-hidden="true">{t('sidebar.playlists')}</div>
-              {visiblePlaylists.map(playlist => (
+              {playlists.map(playlist => (
                 <button
                   key={`${playlist.source}:${playlist.id}`}
                   type="button"
