@@ -155,7 +155,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
       onDismiss={onClose}
       overlayClassName="z-[200]"
       overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-      panelClassName="rounded-2xl shadow-2xl w-[520px] max-h-[85vh] flex flex-col overflow-hidden"
+      panelClassName="r-surface shadow-2xl w-[520px] max-h-[85vh] flex flex-col overflow-hidden"
       panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
     >
         {/* Header */}
@@ -173,11 +173,11 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
                 trackId={edited.id}
                 filePath={edited.filePath}
                 fallbackUrl={pendingCoverDataUrl || edited.coverUrl}
-                className="w-32 h-32 rounded-2xl object-cover shadow-xl"
+                className="w-32 h-32 r-media object-cover shadow-xl"
                 thumbSize={256}
               />
               <button onClick={handleCoverImport}
-                className="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                className="absolute bottom-2 right-2 px-2 py-1 r-card bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
                 <span className="material-symbols-outlined text-sm" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
                 <span className="text-xs" style={{ color: colors.textPrimary }}>{t('metadataView.importCover')}</span>
               </button>
@@ -212,16 +212,9 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 flex-shrink-0" style={{ borderTop: `1px solid ${colors.borderLight}` }}>
           <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-          <button onClick={handleSave} disabled={!hasChanges || saving}
-            className="px-5 py-2 rounded-lg text-sm font-medium transition-all"
-            style={{
-              backgroundColor: hasChanges ? colors.primary : colors.backgroundCard,
-              color: hasChanges ? '#fff' : colors.textMuted,
-              opacity: saving ? 0.6 : 1,
-              cursor: hasChanges ? 'pointer' : 'default',
-            }}>
+          <Button variant="primary" onClick={handleSave} disabled={!hasChanges || saving}>
             {saving ? '...' : t('common.save')}
-          </button>
+          </Button>
         </div>
     </GsapModal>
   );

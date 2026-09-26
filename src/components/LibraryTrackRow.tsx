@@ -76,7 +76,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
         animation: shouldShowAnimation ? `fadeInUp 0.3s ease-out ${Math.min(filteredIndex, 15) * 0.03}s both` : undefined,
         backgroundColor: isSelected ? `${colors.primary}20` : inlineCurrent ? colors.primary : isCurrentTrack && !isSelecting ? `${colors.primary}15` : undefined,
         border: `var(--theme-control-border-width) solid ${isSelected ? colors.primary : 'var(--theme-list-item-border)'}`,
-        borderBottom: 'none', borderRadius: 'var(--theme-control-radius)',
+        borderBottom: 'none', borderRadius: 'var(--library-row-radius)',
         paddingTop: 'var(--theme-list-item-padding-y)', paddingBottom: 'var(--theme-list-item-padding-y)',
         boxShadow: inlineCurrent ? 'var(--theme-elevated-shadow)' : undefined,
         zIndex: inlineCurrent ? 20 : undefined,
@@ -93,7 +93,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
           </div>
         ) : (
           <TrackCover trackId={track.id} filePath={track.filePath} fallbackUrl={track.coverUrl}
-            className="library-track-row__cover size-10 shrink-0 object-cover" style={{ borderRadius: 'var(--theme-media-radius-sm)' }} />
+            className="library-track-row__cover size-10 shrink-0 object-cover" style={{ borderRadius: 'var(--library-cover-radius)' }} />
         )}
         <div className="min-w-0 flex-1">
           <p className="text-sm truncate" style={{ color: inlineCurrent ? 'var(--theme-control-current-track-fg)' : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>

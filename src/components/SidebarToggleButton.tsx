@@ -63,7 +63,7 @@ const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = memo(({ onToggle
         <button
           onClick={onToggle}
           data-no-gsap-bounce
-          className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+          className="w-7 h-7 flex items-center justify-center r-card transition-colors"
           style={{ color: colors.textSecondary }}
           onMouseEnter={e => {
             e.currentTarget.style.color = colors.textPrimary;

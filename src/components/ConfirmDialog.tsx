@@ -29,7 +29,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       onDismiss={cancel}
       overlayClassName="z-50"
       overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      panelClassName="rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+      panelClassName="r-surface p-6 max-w-md w-full mx-4 shadow-2xl"
       panelStyle={{
         backgroundColor: 'var(--theme-background-dark)',
         border: '1px solid var(--theme-border-light)',

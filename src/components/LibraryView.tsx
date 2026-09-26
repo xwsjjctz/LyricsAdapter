@@ -775,12 +775,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
         <div
-          className="library-track-scroll-shell flex-1 relative min-h-0 overflow-hidden"
-          style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}
+          className="library-track-scroll-shell library-bleed flex-1 relative min-h-0 overflow-hidden"
         >
           {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
           {isDragging && (
-            <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
+            <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm r-surface border-2 border-dashed border-primary pointer-events-none animate-pulse">
               <div className="text-center">
                 <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
                 <p className="text-2xl font-bold text-primary mb-2">{t('library.dropFiles')}</p>
@@ -797,12 +796,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   transform: `translateY(${highlightStyle.top - scrollTop}px)`,
                   height: `${highlightStyle.height}px`,
                   opacity: highlightStyle.opacity,
-                  left: 24,
-                  right: 24,
+                  left: 'var(--library-bleed)',
+                  right: 'var(--library-bleed)',
                   backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
                   border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
                   boxShadow: 'var(--theme-elevated-shadow)',
-                  borderRadius: 'var(--theme-control-radius)',
+                  borderRadius: 'var(--library-row-radius)',
                 }}
               />
             )}
@@ -877,7 +876,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 ))}
               </div>
             ) : (
-              <div className="py-16 text-center rounded-2xl" style={{ color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
+              <div className="py-16 text-center r-surface" style={{ color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
                 <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">{emptyState.icon}</span>
                 <p className="text-xl font-medium" style={{ color: colors.textSecondary }}>{emptyState.title}</p>
                 <p className="text-sm mt-1">{emptyState.description}</p>
@@ -930,7 +929,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           />
         </div>
       ) : (
-        <div className="flex-1 flex gap-4 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
+        <div className="library-bleed flex-1 flex gap-4 overflow-hidden">
           {/* 左侧分类列表 */}
           <div
             className="w-64 flex-shrink-0 overflow-y-auto no-scrollbar"
@@ -945,14 +944,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={artist.name}
                     onClick={() => onCategoryChange(artist.name)}
-                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg"
+                    className="library-category-row flex items-center gap-3 px-3 py-2 r-control"
                     data-selected={selectedArtist === artist.name || undefined}
                   >
                     {artist.coverUrl && (
                       <img
                         src={toCoverThumb(artist.coverUrl, 128)}
                         alt=""
-                        className="w-10 h-10 rounded-lg object-cover"
+                        className="w-10 h-10 r-media-sm object-cover"
                         loading="lazy"
                         decoding="async"
                         width={40}
@@ -967,14 +966,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   <button
                     key={album.name}
                     onClick={() => onCategoryChange(album.name)}
-                    className="library-category-row flex items-center gap-3 px-3 py-2 rounded-lg"
+                    className="library-category-row flex items-center gap-3 px-3 py-2 r-control"
                     data-selected={selectedAlbum === album.name || undefined}
                   >
                     {album.coverUrl && (
                       <img
                         src={toCoverThumb(album.coverUrl, 128)}
                         alt=""
-                        className="w-10 h-10 rounded-lg object-cover"
+                        className="w-10 h-10 r-media-sm object-cover"
                         loading="lazy"
                         decoding="async"
                         width={40}
@@ -995,7 +994,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
            <div className="library-track-pane flex-1 flex flex-col min-w-0 relative overflow-hidden">
              {/* 拖放覆盖层 - 拖放时仅覆盖列表区域 */}
              {isDragging && (
-               <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-primary pointer-events-none animate-pulse">
+               <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm r-surface border-2 border-dashed border-primary pointer-events-none animate-pulse">
                  <div className="text-center">
                    <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
                    <p className="text-2xl font-bold text-primary mb-2">{t('library.dropFiles')}</p>
@@ -1003,7 +1002,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                  </div>
                </div>
              )}
-             <div className="flex-shrink-0" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
+             <div className="library-bleed flex-shrink-0">
                <div
                  className="library-track-grid grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 select-none"
                  style={{ color: colors.textMuted, borderColor: colors.borderLight }}
@@ -1013,7 +1012,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 <span className="text-right">{t('library.timeCol')}</span>
                </div>
              </div>
-             <div className="library-track-scroll-shell flex-1 relative min-h-0 overflow-hidden" style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24 }}>
+             <div className="library-track-scroll-shell library-bleed flex-1 relative min-h-0 overflow-hidden">
                {/* Sliding highlight overlay (outside scroll clipping) */}
                <div className="absolute inset-0 pointer-events-none">
                  {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
@@ -1023,12 +1022,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                        transform: `translateY(${highlightStyle.top - scrollTop}px)`,
                        height: `${highlightStyle.height}px`,
                        opacity: highlightStyle.opacity,
-                       left: 24,
-                       right: 24,
+                       left: 'var(--library-bleed)',
+                       right: 'var(--library-bleed)',
                        backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
                        border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
                        boxShadow: 'var(--theme-elevated-shadow)',
-                       borderRadius: 'var(--theme-control-radius)',
+                       borderRadius: 'var(--library-row-radius)',
                      }}
                    />
                  )}
@@ -1080,12 +1079,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {((showLocateButton && currentTrackInFilteredIndex >= 0) || (dataSource !== activeSlotId && currentTrackId)) && (
         <button
           onClick={handleLocateToCurrentTrack}
-          className="absolute right-28 w-9 h-9 rounded-lg shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
+          className="absolute right-28 w-9 h-9 shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
           style={{
             backgroundColor: inlineFab ? colors.primary : colors.backgroundCard,
             color: inlineFab ? 'var(--theme-control-action-fg)' : colors.textSecondary,
             border: inlineFab ? 'var(--theme-control-border-width) solid var(--theme-list-item-border)' : undefined,
-            borderRadius: inlineFab ? 'var(--theme-button-radius)' : undefined,
+            borderRadius: 'var(--theme-button-radius)',
             boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
             bottom: bottomInset + 24,
           }}
@@ -1137,7 +1136,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
       {dataSource === 'playlist' && playlistLoadError && (
         <div
-          className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-1.5 rounded-lg px-3 py-2 text-xs shadow-lg"
+          className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-1.5 r-control px-3 py-2 text-xs shadow-lg"
           style={{
             bottom: bottomInset + 12,
             backgroundColor: colors.backgroundCard,

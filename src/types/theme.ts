@@ -105,6 +105,8 @@ export interface ThemeControlStyles {
 }
 
 export interface ThemeAppearanceStyles {
+  /** Floating player bar; the outermost radius every other surface nests inside. */
+  controlbarRadius: string;
   surfaceRadius: string;
   controlRadius: string;
   cardRadius: string;

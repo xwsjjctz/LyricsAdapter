@@ -10,11 +10,12 @@
 }
 
 :root {
+  --theme-controlbar-radius: 22px;
   --theme-surface-radius: 16px;
   --theme-control-radius: 12px;
   --theme-card-radius: 8px;
   --theme-small-radius: 4px;
-  --theme-button-radius: 9999px;
+  --theme-button-radius: 12px;
   --theme-media-radius: 12px;
   --theme-media-radius-sm: 8px;
   --theme-progress-radius: 9999px;
@@ -436,6 +437,8 @@ html.electron[data-window-effect='translucent'] #root {
 /* Theme-aware radius utilities (override fixed Tailwind rounded-* so themes with
    0px radii render sharp corners). r-card=8px, r-control=12px, r-surface=16px. */
 .r-card { border-radius: var(--theme-card-radius); }
+.r-media { border-radius: var(--theme-media-radius); }
+.r-media-sm { border-radius: var(--theme-media-radius-sm); }
 .r-control { border-radius: var(--theme-control-radius); }
 .r-surface { border-radius: var(--theme-surface-radius); }
 .r-sm { border-radius: var(--theme-small-radius); }
@@ -961,7 +964,8 @@ textarea:focus-visible {
   text-align: left;
   padding: 9px 12px;
   font-size: 13px;
-  border-radius: var(--theme-button-radius);
+  /* Concentric with the menu: surface radius minus its 6px (p-1.5) padding. */
+  border-radius: max(0px, calc(var(--theme-surface-radius) - 6px));
 }
 .library-track-row:focus-visible,
 .library-menu-item:focus-visible, .library-selection-bar button:focus-visible {

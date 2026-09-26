@@ -239,7 +239,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={() => void handlePlaylistClick(playlist)}
-          className={`relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 ${isPlaylistEditMode ? 'pr-10' : 'pr-3'} text-left transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_70%,transparent)] ${isHidden ? 'opacity-45' : ''}`}
+          className={`relative flex min-h-10 w-full items-center gap-3 r-control px-3 py-1.5 ${isPlaylistEditMode ? 'pr-10' : 'pr-3'} text-left transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_70%,transparent)] ${isHidden ? 'opacity-45' : ''}`}
           style={{
             backgroundColor: selectedPlaylistKey === playlistKey && activeSlotId === 'playlist'
               ? 'color-mix(in srgb, var(--theme-control-item-bg-active) 62%, transparent)'
@@ -250,7 +250,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           <span
-            className="h-8 w-8 shrink-0 overflow-hidden rounded-md"
+            className="h-8 w-8 shrink-0 overflow-hidden r-media-sm"
             style={{ backgroundColor: 'var(--theme-control-icon-bg)' }}
           >
             {playlist.coverUrl ? (
@@ -272,7 +272,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => void handleTogglePlaylistVisibility(playlist)}
-            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center r-card transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
             style={{ color: isHidden ? 'var(--theme-text-muted)' : 'var(--theme-control-icon-fg)' }}
             aria-label={isHidden ? t('playlists.show') : t('playlists.hide')}
           >
@@ -299,7 +299,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPlaylistEditMode((editing) => !editing)}
-                className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
+                className="flex h-6 w-6 items-center justify-center r-card transition-colors hover:bg-[color-mix(in_srgb,var(--theme-control-item-bg-hover)_80%,transparent)]"
                 style={{ color: isPlaylistEditMode ? 'var(--theme-control-icon-fg-active)' : 'var(--theme-control-icon-fg)' }}
                 aria-label={isPlaylistEditMode ? t('playlists.doneEditing') : t('playlists.edit')}
               >
@@ -325,7 +325,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onReloadFiles}
-            className="mt-5 flex w-full items-center gap-3 rounded-lg border border-dashed px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:bg-[var(--theme-warning-10)]"
+            className="mt-5 flex w-full items-center gap-3 r-control border border-dashed px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:bg-[var(--theme-warning-10)]"
             style={{
               borderColor: 'var(--theme-warning-20)',
               borderWidth: 'var(--theme-control-border-width)',

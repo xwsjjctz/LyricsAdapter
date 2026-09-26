@@ -10,12 +10,15 @@ import { ThemeAppearanceStyles, ThemeConfig } from '../types/theme';
 
 export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyles {
   const { borderRadius, colors } = theme;
+  // Radii nest concentrically inside the macOS native player bar (22px):
+  // overlays 16 → controls and buttons 12 → small items and list covers 8.
   const defaults: ThemeAppearanceStyles = {
+    controlbarRadius: '22px',
     surfaceRadius: borderRadius.xl,
     controlRadius: borderRadius.lg,
     cardRadius: borderRadius.md,
     smallRadius: borderRadius.sm,
-    buttonRadius: borderRadius.full,
+    buttonRadius: borderRadius.lg,
     mediaRadius: borderRadius.lg,
     mediaRadiusSm: borderRadius.md,
     progressRadius: borderRadius.full,

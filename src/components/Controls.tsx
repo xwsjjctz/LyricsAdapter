@@ -134,14 +134,14 @@ const Controls: React.FC<ControlsProps> = memo(({
         backdropFilter: 'blur(24px) saturate(135%)',
         WebkitBackdropFilter: 'blur(24px) saturate(135%)',
         border: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
-        borderRadius: 20,
+        borderRadius: 'var(--theme-controlbar-radius)',
         boxShadow: '0 12px 32px -12px rgba(0, 0, 0, 0.45)',
       } : floating ? {
         backgroundColor: 'var(--theme-control-panel-bg-floating)',
         borderTop: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
         borderRight: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
         borderBottom: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
-        borderRadius: 'var(--theme-surface-radius)',
+        borderRadius: 'var(--theme-controlbar-radius)',
         boxShadow: 'var(--theme-control-panel-shadow)',
       } : {
         borderColor: 'var(--theme-control-panel-border)',

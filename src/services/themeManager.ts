@@ -110,6 +110,7 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   el.style.setProperty('--theme-control-input-border', controls.inputBorder);
   el.style.setProperty('--theme-control-input-border-active', controls.inputBorderActive);
 
+  el.style.setProperty('--theme-controlbar-radius', appearance.controlbarRadius);
   el.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
   el.style.setProperty('--theme-control-radius', appearance.controlRadius);
   el.style.setProperty('--theme-card-radius', appearance.cardRadius);

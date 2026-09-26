@@ -227,7 +227,7 @@
   width: min(20rem, calc(100% - 1.5rem));
   padding: 1rem;
   border: var(--theme-control-border-width, 1px) solid;
-  border-radius: var(--theme-control-radius);
+  border-radius: var(--theme-surface-radius);
   box-shadow: var(--theme-elevated-shadow);
   outline: none;
   animation: up-next-in 180ms ease-out;
@@ -314,7 +314,7 @@
   gap: 0.65rem;
   width: 100%;
   padding: 0.4rem 0.5rem;
-  border-radius: var(--theme-button-radius);
+  border-radius: var(--theme-card-radius);
   transition: background-color 140ms ease;
 }
 
@@ -341,10 +341,30 @@
   }
 }
 
+/* Library list geometry. Rows, their covers and the floating now-playing
+   highlight read the same tokens so they stay aligned in both densities.
+   The bleed lets the highlight's shadow extend past the scroll clip. */
+.library-view {
+  --library-max-width: 1120px;
+  --library-bleed: 24px;
+  --library-row-radius: var(--theme-control-radius);
+  --library-cover-radius: var(--theme-media-radius-sm);
+  max-width: var(--library-max-width);
+  margin-inline: auto;
+}
+
+.library-bleed {
+  margin-inline: calc(-1 * var(--library-bleed));
+  padding-inline: var(--library-bleed);
+}
+
 /* Compact list density (Settings → General). Rows are measured by the
-   virtual scroller, so only the padding and cover size change here. */
+   virtual scroller, so only padding, cover size and radii change here;
+   min() keeps square themes square. */
 .library-view[data-density='compact'] {
   --theme-list-item-padding-y: 6px;
+  --library-row-radius: min(var(--theme-control-radius), 10px);
+  --library-cover-radius: min(var(--theme-media-radius-sm), 6px);
 }
 .library-view[data-density='compact'] .library-track-row__cover {
   width: 2rem;
@@ -365,7 +385,7 @@
   width: 2.5rem;
   height: 2.5rem;
   flex-shrink: 0;
-  border-radius: var(--theme-media-radius-sm);
+  border-radius: var(--library-cover-radius);
 }
 
 .library-skeleton-row__lines {

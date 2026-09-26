@@ -46,7 +46,7 @@ export default function TrackMenu({ position, colors, items, onClose, onAction }
       className="library-track-menu fixed z-[100] p-1.5 shadow-2xl"
       style={{ left: point.x, top: point.y, width: 220, maxWidth: 'calc(100vw - 16px)',
         backgroundColor: colors.backgroundSidebar, color: colors.textPrimary,
-        border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-control-radius)' }}
+        border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-surface-radius)' }}
       onContextMenu={e => e.preventDefault()}
       onKeyDown={e => {
         const buttons = Array.from(ref.current!.querySelectorAll<HTMLButtonElement>('button'));

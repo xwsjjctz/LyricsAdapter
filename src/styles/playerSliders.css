@@ -42,7 +42,7 @@ body:has(.focus-mode-overlay) .macos-floating-player {
   width: 40px;
   height: 104px;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--theme-surface-radius);
   background: color-mix(in srgb, var(--theme-control-panel-bg-floating) 58%, transparent);
   backdrop-filter: blur(18px) saturate(130%);
   -webkit-backdrop-filter: blur(18px) saturate(130%);
