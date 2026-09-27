@@ -36,6 +36,34 @@ const CollapseIcon = () => (
   </svg>
 );
 
+// macOS 27 traffic lights (sampled from the native red/yellow/green lights at
+// 2x) have a ~1px pale, hue-tinted specular rim along both the top and the
+// bottom edge, a saturated center band and a lifted lower half. Only the icon
+// rotates so the lighting stays anchored to the dot.
+const GLOSSY_RIM = 'rgba(196, 222, 255, 0.9)';
+const GLOSSY_RIM_FALLOFF = 'rgba(196, 222, 255, 0.45)';
+
+const GLOSSY_FOCUSED_LIGHT: React.CSSProperties = {
+  backgroundColor: '#3b82f6',
+  backgroundImage: 'linear-gradient(180deg, #5d98f8 0%, #3b82f6 32%, #3b82f6 48%, #5a95f6 64%, #6299f5 100%)',
+  boxShadow: [
+    `inset 0 0.5px 0 ${GLOSSY_RIM}`,
+    `inset 0 1px 0 ${GLOSSY_RIM_FALLOFF}`,
+    `inset 0 -0.5px 0 ${GLOSSY_RIM}`,
+    `inset 0 -1px 0 ${GLOSSY_RIM_FALLOFF}`,
+  ].join(', '),
+};
+
+const GLOSSY_UNFOCUSED_LIGHT: React.CSSProperties = {
+  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  boxShadow: 'inset 0 0.5px 0 rgba(255, 255, 255, 0.3), inset 0 -0.5px 0 rgba(255, 255, 255, 0.3)',
+};
+
+function getFocusLightStyle(isWindowFocused: boolean, glossy: boolean): React.CSSProperties {
+  if (glossy) return isWindowFocused ? GLOSSY_FOCUSED_LIGHT : GLOSSY_UNFOCUSED_LIGHT;
+  return { backgroundColor: isWindowFocused ? '#3b82f6' : 'rgba(255, 255, 255, 0.15)' };
+}
+
 interface TitleBarProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
@@ -96,23 +124,21 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             onMouseLeave={() => setIsButtonHovered(false)}
           >
             <div
-              className="rounded-full flex items-center justify-center transition-all"
+              className="rounded-full flex items-center justify-center"
               style={{
                 width: layout.dotSize,
                 height: layout.dotSize,
-                backgroundColor: isWindowFocused ? '#3b82f6' : 'rgba(255, 255, 255, 0.15)',
-                transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)',
-                transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.00s ease-in-out'
+                ...getFocusLightStyle(isWindowFocused, layout.glossy),
               }}
             >
               {isWindowFocused && isButtonHovered && (
                 <span
                   className="material-symbols-outlined"
                   style={{
-                    color: 'black',
+                    color: layout.glossy ? 'rgba(0, 32, 96, 0.75)' : 'black',
                     fontSize: 12,
-                    transition: 'opacity 0.15s ease-in-out',
-                    opacity: 1
+                    transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)',
+                    transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
                 >
                   expand_more
