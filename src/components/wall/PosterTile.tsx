@@ -39,6 +39,13 @@ const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, isCurrent, ha
     if (!unavailable) onSelect(tile.index);
   };
 
+  // Tiles sit edge to edge, so snap both edges to whole pixels; fractional
+  // offsets would let the background bleed through as hairline seams.
+  const left = Math.round(tile.x);
+  const top = Math.round(tile.y);
+  const snappedWidth = Math.round(tile.x + tile.width) - left;
+  const snappedHeight = Math.round(tile.y + tile.height) - top;
+
   return (
     <div
       className={classes}
@@ -49,9 +56,9 @@ const PosterTile: React.FC<PosterTileProps> = memo(({ track, tile, isCurrent, ha
       aria-disabled={unavailable || undefined}
       data-track-id={track.id}
       style={{
-        transform: `translate(${tile.x}px, ${tile.y}px)`,
-        width: tile.width,
-        height: tile.height,
+        transform: `translate(${left}px, ${top}px)`,
+        width: snappedWidth,
+        height: snappedHeight,
       }}
       onClick={activate}
       onKeyDown={event => {

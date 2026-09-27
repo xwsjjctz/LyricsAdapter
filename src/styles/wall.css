@@ -35,18 +35,18 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  border-radius: var(--theme-control-radius);
-  border: var(--theme-control-border-width, 1px) solid
-    color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+  /* Seamless mosaic: no gap, radius, border or drop shadow between covers. */
   background: var(--theme-background-card);
-  box-shadow: 0 10px 24px -18px rgba(0, 0, 0, 0.6);
   transform-origin: 50% 100%;
 }
 
-.wall-tile--current .wall-tile__inner {
-  border-color: color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 80%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 55%, transparent),
-    var(--theme-elevated-shadow);
+/* Drawn above the cover and scrim so it stays visible without a gap. */
+.wall-tile--current .wall-tile__inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 80%, transparent);
+  pointer-events: none;
 }
 
 .wall-tile--unavailable .wall-tile__inner {
@@ -136,7 +136,7 @@
 
 .wall-tile:focus-visible .wall-tile__inner {
   outline: 2px solid var(--theme-primary);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .poster-wall__status {

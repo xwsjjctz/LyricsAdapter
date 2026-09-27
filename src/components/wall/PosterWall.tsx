@@ -4,7 +4,8 @@ import PosterTile from './PosterTile';
 import { computeWallLayout } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
 
-const WALL_GAP = 8;
+// Covers sit flush against each other.
+const WALL_GAP = 0;
 /** Extra viewport heights mounted above and below the visible band. */
 const OVERSCAN_VIEWPORTS = 1;
 
