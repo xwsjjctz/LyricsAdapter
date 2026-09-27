@@ -8,6 +8,19 @@ import type { SlotId, Track } from '@/types';
 
 const providerMocks = vi.hoisted(() => ({
   getLyrics: vi.fn(),
+  getPlaylistSongs: vi.fn(),
+}));
+
+const cacheMocks = vi.hoisted(() => ({
+  load: vi.fn(),
+  save: vi.fn(async () => undefined),
+  fresh: vi.fn(),
+}));
+
+vi.mock('@/services/playlistTracksCache', () => ({
+  loadPlaylistTracks: cacheMocks.load,
+  savePlaylistTracks: cacheMocks.save,
+  isPlaylistTracksFresh: cacheMocks.fresh,
 }));
 
 vi.mock('@/services/onlineMusicProvider', async (importOriginal) => {
@@ -17,6 +30,7 @@ vi.mock('@/services/onlineMusicProvider', async (importOriginal) => {
     getOnlineProvider: () => ({
       id: 'qq',
       getLyrics: providerMocks.getLyrics,
+      getPlaylistSongs: providerMocks.getPlaylistSongs,
     }),
   };
 });
@@ -466,4 +480,72 @@ describe('usePlayerController', () => {
 
   // Playlist browsing is covered through the Library-facing flow: opening a
   // playlist does not replace the play slot until a row is selected.
+
+  describe('online playlist browsing cache', () => {
+    const song = (n: number) => ({ songmid: `m${n}`, songname: `Song ${n}`, singer: [{ name: 'A' }], interval: 60 });
+    const page = (from: number, count: number) => Array.from({ length: count }, (_, i) => song(from + i));
+    const cachedTracks = (from: number, count: number) => page(from, count).map(s => ({
+      id: `online-qq-${s.songmid}`, title: s.songname, artist: 'A', album: 'Unknown Album', duration: 60,
+      audioUrl: '', source: 'qq' as const, songmid: s.songmid,
+    }));
+    const ids = (tracks: Track[]) => tracks.map(t => t.songmid);
+
+    beforeEach(() => {
+      providerMocks.getPlaylistSongs.mockReset();
+      cacheMocks.load.mockReset();
+      cacheMocks.save.mockClear();
+      cacheMocks.fresh.mockReset();
+    });
+
+    it('shows a fresh cached list without asking the provider', async () => {
+      cacheMocks.load.mockResolvedValue({ tracks: cachedTracks(0, 60), nextOffset: 60, hasMore: true, totalTrackCount: 100, savedAt: 1 });
+      cacheMocks.fresh.mockReturnValue(true);
+      const { result } = makePlaylistHarness([], -1, 'local');
+
+      await act(() => result.current.controller.openOnlinePlaylistInLibrary('qq', 'p1', 'Mix', 100));
+
+      expect(result.current.controller.libraryBrowsingTracks).toHaveLength(60);
+      expect(result.current.controller.libraryPlaylistLoadState).toMatchObject({ nextOffset: 60, hasMore: true, isLoading: false });
+      expect(providerMocks.getPlaylistSongs).not.toHaveBeenCalled();
+    });
+
+    it('keeps the deeper cached pages when a stale list still starts the same', async () => {
+      cacheMocks.load.mockResolvedValue({ tracks: cachedTracks(0, 60), nextOffset: 60, hasMore: true, totalTrackCount: 100, savedAt: 1 });
+      cacheMocks.fresh.mockReturnValue(false);
+      providerMocks.getPlaylistSongs.mockResolvedValue(page(0, 30));
+      const { result } = makePlaylistHarness([], -1, 'local');
+
+      await act(() => result.current.controller.openOnlinePlaylistInLibrary('qq', 'p1', 'Mix', 100));
+
+      expect(result.current.controller.libraryBrowsingTracks).toHaveLength(60);
+      expect(result.current.controller.libraryPlaylistLoadState).toMatchObject({ nextOffset: 60, isLoading: false });
+      expect(cacheMocks.save).toHaveBeenCalledWith('qq', 'p1', expect.objectContaining({ nextOffset: 60 }));
+    });
+
+    it('restarts from the new first page when a stale list changed', async () => {
+      cacheMocks.load.mockResolvedValue({ tracks: cachedTracks(0, 60), nextOffset: 60, hasMore: true, totalTrackCount: 100, savedAt: 1 });
+      cacheMocks.fresh.mockReturnValue(false);
+      providerMocks.getPlaylistSongs.mockResolvedValue([song(999), ...page(0, 29)]);
+      const { result } = makePlaylistHarness([], -1, 'local');
+
+      await act(() => result.current.controller.openOnlinePlaylistInLibrary('qq', 'p1', 'Mix', 100));
+
+      expect(ids(result.current.controller.libraryBrowsingTracks)[0]).toBe('m999');
+      expect(result.current.controller.libraryPlaylistLoadState).toMatchObject({ nextOffset: 30, hasMore: true });
+    });
+
+    it('saves every loaded page so the next open resumes where browsing stopped', async () => {
+      cacheMocks.load.mockResolvedValue(null);
+      providerMocks.getPlaylistSongs.mockImplementation(async (_id: string, offset: number) => page(offset, 30));
+      const { result } = makePlaylistHarness([], -1, 'local');
+
+      await act(() => result.current.controller.openOnlinePlaylistInLibrary('qq', 'p1', 'Mix', 100));
+      await act(() => result.current.controller.loadMorePlaylistInLibrary());
+
+      expect(result.current.controller.libraryBrowsingTracks).toHaveLength(60);
+      const lastSave = cacheMocks.save.mock.calls.at(-1) as unknown as [string, string, { tracks: Track[]; nextOffset: number }];
+      expect(lastSave[2].nextOffset).toBe(60);
+      expect(ids(lastSave[2].tracks)).toEqual(page(0, 60).map(s => s.songmid));
+    });
+  });
 });

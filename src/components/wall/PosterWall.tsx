@@ -18,6 +18,8 @@ interface PosterWallProps {
   emptyLabel: string;
   loadingLabel: string;
   hasMore?: boolean;
+  /** The last page failed; only an explicit scroll retries it. */
+  loadError?: boolean;
   onLoadMore?: (() => void) | undefined;
   onTrackSelect: (index: number) => void;
   hasMenu: (track: Track) => boolean;
@@ -30,13 +32,14 @@ interface PosterWallProps {
  */
 const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
-  hasMore = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
+  hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
   const scrollFrameRef = useRef<number | null>(null);
+  const autoRequestedLengthRef = useRef<number | null>(null);
   const { renderKey, renderedTracks, isExiting } = useWallSourceTransition(sourceKey, tracks, containerRef);
 
   useLayoutEffect(() => {
@@ -59,6 +62,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
     if (!container) return;
     container.scrollTop = 0;
     setScrollTop(0);
+    autoRequestedLengthRef.current = null;
   }, [renderKey]);
 
   useEffect(() => () => {
@@ -77,6 +81,26 @@ const PosterWall: React.FC<PosterWallProps> = ({
     return layout.tiles.filter(tile => tile.y + tile.height >= top && tile.y <= bottom);
   }, [layout.tiles, overscan, scrollTop, viewportHeight]);
 
+  // Within one viewport of the end, ask for the next page.
+  const loadMoreIfNearEnd = useCallback((automatic: boolean) => {
+    const container = containerRef.current;
+    // Mid-transition the wall still lays out the outgoing source.
+    if (!container || !hasMore || loading || isExiting) return;
+    const nearEnd = container.scrollTop + container.clientHeight >= layout.height - container.clientHeight;
+    if (!nearEnd) return;
+    // Layout settling re-runs the check; ask once per list length.
+    if (automatic && autoRequestedLengthRef.current === renderedTracks.length) return;
+    autoRequestedLengthRef.current = renderedTracks.length;
+    onLoadMore?.();
+  }, [hasMore, isExiting, layout.height, loading, onLoadMore, renderedTracks.length]);
+
+  // Scroll events alone miss a page that lands while the user rests at the
+  // bottom, and a first page too short to scroll. Re-check whenever the
+  // wall grows or a load settles; a failed page waits for the user instead.
+  useEffect(() => {
+    if (!loadError) loadMoreIfNearEnd(true);
+  }, [loadError, loadMoreIfNearEnd]);
+
   const handleScroll = useCallback(() => {
     if (scrollFrameRef.current !== null) return;
     scrollFrameRef.current = requestAnimationFrame(() => {
@@ -84,10 +108,9 @@ const PosterWall: React.FC<PosterWallProps> = ({
       const container = containerRef.current;
       if (!container) return;
       setScrollTop(container.scrollTop);
-      const nearEnd = container.scrollTop + container.clientHeight >= layout.height - container.clientHeight;
-      if (nearEnd && hasMore && !loading) onLoadMore?.();
+      loadMoreIfNearEnd(false);
     });
-  }, [hasMore, layout.height, loading, onLoadMore]);
+  }, [loadMoreIfNearEnd]);
 
   const isEmpty = renderedTracks.length === 0;
 

@@ -129,4 +129,34 @@ describe('PosterWall', () => {
     expect(gsapMock.calls.fromTo.length).toBe(entrances + 1);
     expect(tileNames()).toHaveLength(online.length);
   });
+  it('keeps loading pages without a scroll while the wall ends within a viewport of the bottom', () => {
+    const onLoadMore = vi.fn();
+    const { rerenderWall } = renderWall({ tracks: online, hasMore: true, onLoadMore });
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    rerenderWall({ tracks: online, hasMore: true, onLoadMore, loading: true });
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    // The page landed while the user stayed at the bottom: fetch the next one.
+    rerenderWall({ tracks: [...online, track('z')], hasMore: true, onLoadMore, loading: false });
+    expect(onLoadMore).toHaveBeenCalledTimes(2);
+
+    rerenderWall({ tracks: [...online, track('z'), track('w')], hasMore: false, onLoadMore });
+    expect(onLoadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a failed page on its own, only when the user scrolls', () => {
+    const onLoadMore = vi.fn();
+    const { container } = renderWall({ tracks: online, hasMore: true, onLoadMore, loadError: true });
+    expect(onLoadMore).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.scroll(container.querySelector('.poster-wall')!);
+      act(() => { vi.runAllTimers(); });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
 });

@@ -90,6 +90,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         emptyLabel={dataSource === 'online' ? t('library.noOnlineTracks') : t('library.noTracksImported')}
         loadingLabel={t('common.loading')}
         hasMore={playlistHasMore}
+        loadError={playlistLoadError !== null}
         onLoadMore={onLoadMorePlaylist ? loadMore : undefined}
         onTrackSelect={onTrackSelect}
         hasMenu={hasMenu}
