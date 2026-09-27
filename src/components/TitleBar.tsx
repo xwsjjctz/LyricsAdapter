@@ -54,9 +54,21 @@ const GLOSSY_FOCUSED_LIGHT: React.CSSProperties = {
   ].join(', '),
 };
 
+// Unfocused native lights are translucent glass: a near-opaque neutral gray
+// rim (it does not pick up the backdrop hue) at top and bottom that tapers
+// along the sides, and a fill that is brighter in the upper third.
+const UNFOCUSED_RIM = 'rgba(186, 184, 184, 0.95)';
+const UNFOCUSED_RIM_FALLOFF = 'rgba(186, 184, 184, 0.45)';
+
 const GLOSSY_UNFOCUSED_LIGHT: React.CSSProperties = {
-  backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  boxShadow: 'inset 0 0.5px 0 rgba(255, 255, 255, 0.3), inset 0 -0.5px 0 rgba(255, 255, 255, 0.3)',
+  backgroundColor: 'rgba(255, 255, 255, 0.16)',
+  backgroundImage: 'linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.05) 30%, rgba(255, 255, 255, 0) 70%)',
+  boxShadow: [
+    `inset 0 0.5px 0 ${UNFOCUSED_RIM}`,
+    `inset 0 1px 0 ${UNFOCUSED_RIM_FALLOFF}`,
+    `inset 0 -0.5px 0 ${UNFOCUSED_RIM}`,
+    `inset 0 -1px 0 ${UNFOCUSED_RIM_FALLOFF}`,
+  ].join(', '),
 };
 
 function getFocusLightStyle(isWindowFocused: boolean, glossy: boolean): React.CSSProperties {
