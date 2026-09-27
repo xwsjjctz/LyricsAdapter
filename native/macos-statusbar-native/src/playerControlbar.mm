@@ -140,6 +140,7 @@ API_AVAILABLE(macos(26.0))
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
 - (void)applyDarkMode:(BOOL)darkMode;
+- (NSColor*)barTintForDarkMode:(BOOL)darkMode;
 - (NSColor*)volumeDisclosureColor;
 - (void)refreshAccessibility:(NSNotification*)notification;
 @end
@@ -167,7 +168,7 @@ API_AVAILABLE(macos(26.0))
   self = [super initWithFrame:frame]; if (!self) return nil;
   self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; self.accessibilityIdentifier = @"player-controlbar-host";
   _bar = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _bar.style = NSGlassEffectViewStyleRegular;
-  _bar.tintColor = [NSColor colorWithWhite:0 alpha:0.3];
+  _bar.tintColor = [self barTintForDarkMode:YES];
   _bar.contentView = [[NSView alloc] initWithFrame:NSZeroRect]; _bar.hidden = YES; _bar.alphaValue = 0;
   _bar.accessibilityIdentifier = @"player-controlbar-glass"; [self addSubview:_bar]; NSView* content = _bar.contentView;
   _highlight = [[LAGlassHighlightView alloc] initWithFrame:NSZeroRect];
@@ -210,11 +211,17 @@ API_AVAILABLE(macos(26.0))
     NSAppearance* appearance = [NSAppearance appearanceNamed:name];
     self.bar.appearance = appearance; self.volumeDisclosure.appearance = appearance;
   }
-  self.bar.tintColor = [NSColor colorWithWhite:darkMode ? 0 : 1 alpha:0.3];
+  self.bar.tintColor = [self barTintForDarkMode:darkMode];
   if (self.volumeRevealed) self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
   self.title.textColor = NSColor.labelColor;
   for (NSButton* button in @[self.artwork, self.previous, self.play, self.next, self.mute]) button.contentTintColor = NSColor.labelColor;
   for (NSTextField* label in @[self.artist, self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
+}
+// macOS 27 glass reads well untinted, so let the backdrop show straight
+// through; macOS 26 keeps the dimming tint for contrast.
+- (NSColor*)barTintForDarkMode:(BOOL)darkMode {
+  if (NSProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27) return nil;
+  return [NSColor colorWithWhite:darkMode ? 0 : 1 alpha:0.3];
 }
 - (NSColor*)volumeDisclosureColor {
   if (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency) return NSColor.controlBackgroundColor;
