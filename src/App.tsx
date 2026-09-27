@@ -4,6 +4,7 @@ import { LibrarySlot, Track, ViewMode } from './types';
 import { getDesktopAPI } from './services/desktopAdapter';
 import type { LibrarySettings } from './services/libraryStorage';
 import { syncOnlineCookiesToMain } from './services/cookieManager';
+import { qqCredentialManager } from './services/qqCredentialManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -308,6 +309,12 @@ const AppContent: React.FC = () => {
 
   // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
   useEffect(() => { void syncOnlineCookiesToMain(); }, []);
+
+  // Renew the QQ Music musickey before it expires (no-op without a stored credential).
+  useEffect(() => {
+    qqCredentialManager.start();
+    return () => qqCredentialManager.stop();
+  }, []);
 
   // Download-complete (add to local library) now lives in the library controller;
   // AppContent delegates. (Phase 2 boundary completion — see roadmap §4.)

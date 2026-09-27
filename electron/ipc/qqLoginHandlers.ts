@@ -2,6 +2,13 @@ import { ipcMain } from 'electron';
 import crypto from 'node:crypto';
 import { CookieJar } from 'tough-cookie';
 import { logger } from '../logger';
+import { qqMusicHeaders } from '../utils/httpHeaders';
+import { refreshQQCredential } from '../services/qqCredential';
+import {
+  isQQCredential,
+  parseQQCredential,
+  type QQCredential,
+} from '../../src/shared/qqCredential';
 
 /**
  * QQ Music (QQ音乐) two-step scan-login, main-process implementation.
@@ -362,6 +369,7 @@ interface PollResult {
   status: 'waiting' | 'confirming' | 'done' | 'expired' | 'error';
   msg: string;
   cookie?: string;
+  credential?: QQCredential;
 }
 
 // ===== Step 2：轮询（直到拿到最终 Cookie）=====
@@ -580,9 +588,15 @@ async function pollLogin(token: string): Promise<PollResult> {
     }
 
     const cookie = await buildFinalCookie(session);
+    const credential = parseQQCredential(musicJson.req?.data);
+    if (!credential) {
+      logger.warn('[QQLogin] login response has no refresh credential; silent refresh disabled');
+    }
     session.status = 'done';
     safeDelete(token);
-    return { status: 'done', msg: '登录成功', cookie };
+    return credential
+      ? { status: 'done', msg: '登录成功', cookie, credential }
+      : { status: 'done', msg: '登录成功', cookie };
   } catch (e) {
     session.status = 'error';
     session.msg = (e as Error).message || 'unknown';
@@ -620,6 +634,20 @@ export function registerQQLoginHandlers(): void {
       return { success: true, ...result };
     } catch (error) {
       logger.error('[QQLogin] pollLogin failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('qq-login-refresh', async (_event, credential: unknown, cookie: unknown) => {
+    if (!isQQCredential(credential) || typeof cookie !== 'string') {
+      return { success: false, error: 'Invalid credential' };
+    }
+    try {
+      const result = await refreshQQCredential(credential, cookie, qqMusicHeaders(cookie));
+      logger.info('[QQLogin] musickey refreshed, expires in', result.credential.keyExpiresIn, 's');
+      return { success: true, ...result };
+    } catch (error) {
+      logger.warn('[QQLogin] refresh failed:', (error as Error).message);
       return { success: false, error: (error as Error).message };
     }
   });

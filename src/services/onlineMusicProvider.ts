@@ -10,6 +10,7 @@ import { settingsManager } from './settingsManager';
 import { qqMusicApi } from './qqMusicApi';
 import { neteaseMusicApi } from './neteaseMusicApi';
 import { cookieManager, neteaseCookieManager, type CookieStore } from './cookieManager';
+import type { QQCredential } from '../shared/qqCredential';
 
 // ---- Shared data model -----------------------------------------------------
 
@@ -122,6 +123,17 @@ export interface OnlineMusicElectronAPI {
     success: boolean;
     status?: 'waiting' | 'confirming' | 'done' | 'expired' | 'error';
     msg?: string;
+    cookie?: string;
+    credential?: QQCredential;
+    error?: string;
+  }>;
+  /** QQ Music — exchange the stored refresh key/token for a fresh musickey. */
+  qqLoginRefresh?: (
+    credential: QQCredential,
+    cookie: string
+  ) => Promise<{
+    success: boolean;
+    credential?: QQCredential;
     cookie?: string;
     error?: string;
   }>;

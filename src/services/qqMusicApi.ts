@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { cookieManager } from './cookieManager';
+import { qqCredentialManager } from './qqCredentialManager';
 import { getDesktopAPI } from './desktopAdapter';
 import { providerLyricsCache } from './providerLyricsCache';
 import type {
@@ -40,6 +41,21 @@ class QQMusicAPI implements OnlineMusicProvider {
     }
 
     throw new Error(`${context}失败: ${errorMessage || '未知错误'}`);
+  }
+
+  /**
+   * Run a cookie-authenticated call; when QQ Music reports the cookie as
+   * expired, renew the musickey with the stored refresh credential and retry once.
+   */
+  private async withAuthRetry<T>(call: () => Promise<T>): Promise<T> {
+    try {
+      return await call();
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith('Cookie expired or invalid')) throw error;
+      if (!await qqCredentialManager.refresh()) throw error;
+      logger.info('[QQMusicAPI] Retrying after musickey refresh');
+      return call();
+    }
   }
 
   private getCookieHeaders(): Record<string, string> {
@@ -155,7 +171,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Search for songs by name
    */
-  async searchMusic(query: string, limit: number = 20): Promise<QQMusicSong[]> {
+  searchMusic(query: string, limit: number = 20): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.searchMusicOnce(query, limit));
+  }
+
+  private async searchMusicOnce(query: string, limit: number): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -215,7 +235,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get detailed song info by songmid
    */
-  async getSongDetails(songmids: string[]): Promise<QQMusicSong[]> {
+  getSongDetails(songmids: string[]): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.getSongDetailsOnce(songmids));
+  }
+
+  private async getSongDetailsOnce(songmids: string[]): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -273,7 +297,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get music URL for playback/download
    */
-  async getMusicUrl(songmid: string, quality: OnlineQuality = '128'): Promise<QQMusicUrlResult> {
+  getMusicUrl(songmid: string, quality: OnlineQuality = '128'): Promise<QQMusicUrlResult> {
+    return this.withAuthRetry(() => this.getMusicUrlOnce(songmid, quality));
+  }
+
+  private async getMusicUrlOnce(songmid: string, quality: OnlineQuality): Promise<QQMusicUrlResult> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -361,7 +389,7 @@ class QQMusicAPI implements OnlineMusicProvider {
         // Try fallback to 128kbps if higher quality failed
         if (quality !== '128') {
           logger.debug('[QQMusicAPI] Quality', quality, 'failed, trying 128kbps...');
-          return this.getMusicUrl(songmid, '128');
+          return this.getMusicUrlOnce(songmid, '128');
         }
         throw new Error(`Cannot get download link (code: ${codeNum !== undefined ? codeNum : 'unknown'})`);
       }
@@ -379,7 +407,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get recommended songs (hot songs)
    */
-  async getRecommendedSongs(): Promise<QQMusicSong[]> {
+  getRecommendedSongs(): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.getRecommendedSongsOnce());
+  }
+
+  private async getRecommendedSongsOnce(): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -619,7 +651,11 @@ class QQMusicAPI implements OnlineMusicProvider {
     }
   }
 
-  async getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
+  getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.getPlaylistSongsOnce(playlistId, songBegin, songNum));
+  }
+
+  private async getPlaylistSongsOnce(playlistId: string, songBegin: number, songNum: number): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }

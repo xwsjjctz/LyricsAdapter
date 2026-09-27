@@ -6,6 +6,7 @@
 const SENSITIVE_SETTING_KEYS = new Set([
   'webdav-config',
   'qq_music_cookie',
+  'qq_music_credential',
   'netease_cookie',
 ]);
 

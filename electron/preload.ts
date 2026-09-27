@@ -268,6 +268,10 @@ contextBridge.exposeInMainWorld('electron', {
   qqLoginQrPoll: async (token: string) => {
     return ipcRenderer.invoke('qq-login-qr-poll', token);
   },
+  // Silent musickey refresh using the refresh key/token from the QR login
+  qqLoginRefresh: async (credential: unknown, cookieString: string) => {
+    return ipcRenderer.invoke('qq-login-refresh', credential, cookieString);
+  },
 
   // NetEase Cloud Music QR scan login (key → create → check)
   neteaseQrKey: async () => {
