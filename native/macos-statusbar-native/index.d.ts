@@ -51,17 +51,3 @@ export function updatePlayerControlbar(state: {
 }): void;
 export function updatePlayerControlbarArtwork(data: Buffer | null): void;
 export function stopPlayerControlbar(): void;
-/** Main-thread-only macOS 26 poster-wall chrome: glass back button and source menu. */
-export function startWallChrome(handle: Buffer, onAction: (action: { type: 'back' | 'select'; id: string }) => void): boolean;
-export function updateWallChrome(state: {
-  presentation: { x: number; y: number; width: number; height: number; opacity: number };
-  darkMode: boolean;
-  title: string;
-  labels: { back: string; source: string };
-  sections: Array<{ title: string; items: Array<{
-    id: string; title: string; count: number; icon: 'local' | 'history' | 'playlist'; checked: boolean; imageUrl: string | null;
-  }> }>;
-}): void;
-/** Artwork for playlist menu items, keyed by the item's imageUrl. */
-export function setWallChromeArtwork(url: string, data: Buffer): void;
-export function stopWallChrome(): void;

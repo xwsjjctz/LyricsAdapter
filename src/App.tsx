@@ -342,8 +342,8 @@ const AppContent: React.FC = () => {
     const loading = playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
     loading.catch(() => undefined); // still rethrown by `await loading` below
     await handleSwitchSlot('playlist');
-    // The poster wall browses playlists itself; any other view returns to the library.
-    if (viewMode !== ViewMode.WALL) transitionToView(ViewMode.PLAYER);
+    // Playlists always open on the poster wall.
+    if (viewMode !== ViewMode.WALL) transitionToView(ViewMode.WALL);
     await loading;
   }, [handleSwitchSlot, playerController, transitionToView, viewMode]);
 

@@ -11,8 +11,6 @@ import Controls from './Controls';
 import FocusMode from './FocusMode';
 import SearchBox from './SearchBox';
 import LibraryWallView from './LibraryWallView';
-import type { LibrarySource } from './LibrarySourceMenu';
-import WallChrome from './wall/WallChrome';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import SettingsView, { type SettingsSectionId } from './settings/SettingsView';
 import CommandPalette from './palette/CommandPalette';
@@ -122,36 +120,10 @@ const AppShell: React.FC<AppShellProps> = ({
   const isBrowsingPlaylist = viewSlot === 'playlist' && !!playerController.libraryPlaylistLoadState.playlistId;
   const isWall = viewMode === ViewMode.WALL;
   const playlistState = playerController.libraryPlaylistLoadState;
-  const librarySource = useMemo<LibrarySource | null>(() => {
-    if (viewSlot === 'local' || viewSlot === 'online') return { kind: 'slot', slot: viewSlot };
-    if (viewSlot === 'playlist' && playlistState.playlistId) {
-      return { kind: 'playlist', source: playlistState.source, id: playlistState.playlistId };
-    }
-    return null;
-  }, [playlistState.playlistId, playlistState.source, viewSlot]);
-  const librarySourceKey = librarySource?.kind === 'playlist'
-    ? `playlist:${librarySource.source}:${librarySource.id}`
+  // Identity of the shown list; a change plays the wall's source-switch animation.
+  const librarySourceKey = viewSlot === 'playlist' && playlistState.playlistId
+    ? `playlist:${playlistState.source}:${playlistState.playlistId}`
     : viewSlot;
-  const librarySourceTitle = viewSlot === 'playlist'
-    ? (playlistState.title ?? t('sidebar.playlists'))
-    : t(`sidebar.${viewSlot}`);
-  const selectLibrarySlot = useCallback((slot: 'local' | 'online') => {
-    void library.switchViewSlot(slot);
-  }, [library]);
-  const openLibraryPlaylist = useCallback((playlist: PlaylistInfo) => {
-    void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount);
-  }, [onOpenPlaylist]);
-  const leaveWall = useCallback(() => handleNavigate(ViewMode.PLAYER), [handleNavigate]);
-  const wallChrome = (
-    <WallChrome
-      current={librarySource}
-      title={librarySourceTitle}
-      counts={{ local: slots.local.tracks.length, online: slots.online.tracks.length }}
-      onBack={leaveWall}
-      onSelectSlot={selectLibrarySlot}
-      onOpenPlaylist={openLibraryPlaylist}
-    />
-  );
   const playPlaylistFromStart = useCallback(() => {
     if (libraryBrowsingTracks.length > 0) onPlayLibraryPlaylistTrack(0);
   }, [libraryBrowsingTracks.length, onPlayLibraryPlaylistTrack]);
@@ -181,6 +153,7 @@ const AppShell: React.FC<AppShellProps> = ({
     ? onPlayLibraryPlaylistTrack
     : library.selectTrack;
   const openWall = useCallback(() => handleNavigate(ViewMode.WALL), [handleNavigate]);
+  const openList = useCallback(() => handleNavigate(ViewMode.PLAYER), [handleNavigate]);
   const switchSource = useCallback((slot: PaletteSourceSlot) => {
     if (slot === 'cloud' && !webdavClient.hasConfig()) {
       notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
@@ -213,9 +186,10 @@ const AppShell: React.FC<AppShellProps> = ({
     toggleMute: player.toggleMute,
     openSettings: openSettingsSection,
     openWall,
+    openList,
   }), [
     activeTracks, importVm.importClick, importVm.importDisabled, importVm.reloadFiles, openPlaylistInfo,
-    openSettingsSection, openWall, playShownTrack, player, shownTracks.length, slots.cloud.tracks.length,
+    openList, openSettingsSection, openWall, playShownTrack, player, shownTracks.length, slots.cloud.tracks.length,
     slots.local.tracks.length, slots.online.tracks.length, switchSource, toggleFocusMode,
   ]);
   const { commands, visiblePlaylists } = useAppCommands(commandHandlers);
@@ -350,7 +324,6 @@ const AppShell: React.FC<AppShellProps> = ({
                   pendingLocateSlot={pendingSlotLocate?.slot}
                   pendingLocateToken={pendingSlotLocate?.token}
                   onPendingLocatePrepared={handleSlotLocatePrepared}
-                  chrome={wallChrome}
                 />
               ) : (
               <LibraryView

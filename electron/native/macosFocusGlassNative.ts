@@ -1,7 +1,6 @@
 import { createRequire } from 'node:module';
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../../src/types/playerControlbar';
-import type { WallChromeAction, WallChromeState } from '../../src/types/wallChrome';
 
 const require = createRequire(import.meta.url);
 
@@ -19,22 +18,6 @@ export function loadMacosPlayerControlbarBridge(): MacosPlayerControlbarBridge |
     && typeof native.updatePlayerControlbarArtwork === 'function'
     && typeof native.stopPlayerControlbar === 'function'
     ? native as MacosPlayerControlbarBridge : null;
-}
-
-export interface MacosWallChromeBridge {
-  startWallChrome(handle: Buffer, onAction: (action: WallChromeAction) => void): boolean;
-  updateWallChrome(state: WallChromeState): void;
-  setWallChromeArtwork(url: string, data: Buffer): void;
-  stopWallChrome(): void;
-}
-export function loadMacosWallChromeBridge(): MacosWallChromeBridge | null {
-  if (process.platform !== 'darwin') return null;
-  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosWallChromeBridge>;
-  return typeof native.startWallChrome === 'function'
-    && typeof native.updateWallChrome === 'function'
-    && typeof native.setWallChromeArtwork === 'function'
-    && typeof native.stopWallChrome === 'function'
-    ? native as MacosWallChromeBridge : null;
 }
 
 export interface MacosFocusGlassBridge {

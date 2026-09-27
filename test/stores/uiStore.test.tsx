@@ -26,36 +26,23 @@ vi.mock('@/hooks/useFloatingPanel', () => ({ useFloatingPanel: () => false }));
 
 import { useUIStore } from '@/stores/uiStore';
 
-describe('useUIStore library mode', () => {
+describe('useUIStore home page', () => {
   beforeEach(() => {
     settings.mode = 'list';
     settings.setLibraryMode.mockClear();
     window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
   });
 
-  it('opens in the poster wall when that was the last library mode', () => {
-    settings.mode = 'wall';
+  it('always opens on the poster wall, even if the list was last used', () => {
     const { result } = renderHook(() => useUIStore());
     expect(result.current.viewMode).toBe(ViewMode.WALL);
   });
 
-  it('opens in the list otherwise', () => {
+  it('no longer persists a library presentation', () => {
     const { result } = renderHook(() => useUIStore());
-    expect(result.current.viewMode).toBe(ViewMode.PLAYER);
-  });
-
-  it('remembers the wall and the list, but not other views', () => {
-    const { result } = renderHook(() => useUIStore());
-    settings.setLibraryMode.mockClear();
-
-    act(() => result.current.handleNavigate(ViewMode.WALL));
-    expect(settings.setLibraryMode).toHaveBeenLastCalledWith('wall');
-
-    settings.setLibraryMode.mockClear();
     act(() => result.current.handleNavigate(ViewMode.SETTINGS));
+    act(() => result.current.handleNavigate(ViewMode.WALL));
+    expect(result.current.viewMode).toBe(ViewMode.WALL);
     expect(settings.setLibraryMode).not.toHaveBeenCalled();
-
-    act(() => result.current.handleNavigate(ViewMode.PLAYER));
-    expect(settings.setLibraryMode).toHaveBeenLastCalledWith('list');
   });
 });

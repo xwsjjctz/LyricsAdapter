@@ -323,5 +323,6 @@
   "palette.state.hidden": "Hidden",
   "palette.state.shown": "Shown",
   "palette.state.on": "On",
-  "palette.state.off": "Off"
+  "palette.state.off": "Off",
+  "palette.command.showList": "Library list (legacy)"
 }

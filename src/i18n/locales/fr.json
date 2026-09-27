@@ -323,5 +323,6 @@
   "palette.state.hidden": "Masquée",
   "palette.state.shown": "Affichée",
   "palette.state.on": "Activé",
-  "palette.state.off": "Désactivé"
+  "palette.state.off": "Désactivé",
+  "palette.command.showList": "Liste de la bibliothèque (ancienne)"
 }

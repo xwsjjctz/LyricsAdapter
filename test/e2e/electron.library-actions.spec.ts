@@ -2,9 +2,20 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+import { _electron as electron, expect, test, type Page, type ElectronApplication } from '@playwright/test';
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+
+/** The wall is the home page; the legacy list opens from the command palette. */
+async function openLegacyList(page: Page) {
+  await expect(page.locator('.poster-wall')).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+K');
+  await expect(page.locator('.command-palette__input')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await page.locator('.command-palette__input').fill('legacy');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.command-palette')).toHaveCount(0);
+}
 
 test('song menus, selection, reorder and removal preserve original files across restart', async ({}, testInfo) => {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-library-actions-')));
@@ -46,6 +57,8 @@ test('song menus, selection, reorder and removal preserve original files across 
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+    await expect(page.locator('.wall-tile')).toHaveCount(3);
+    await openLegacyList(page);
     const rows = page.locator('.library-track-row');
     await expect(rows).toHaveCount(3);
     await expect(page.locator('.library-toolbar-actions button')).toHaveCount(1);
@@ -112,6 +125,7 @@ test('song menus, selection, reorder and removal preserve original files across 
     await expect(page.getByRole('heading', { name: 'Remove from library?' })).toHaveCount(0);
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('after-removal.png') });
     await page.reload();
+    await openLegacyList(page);
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Coral');
     await app.close(); app = undefined;
@@ -119,6 +133,8 @@ test('song menus, selection, reorder and removal preserve original files across 
 
     app = await launch();
     const restored = await app.firstWindow();
+    await expect(restored.locator('.wall-tile')).toHaveCount(1);
+    await openLegacyList(restored);
     await expect(restored.locator('.library-track-row')).toHaveCount(1);
     await expect(restored.locator('.library-track-row')).toContainText('Coral');
     await restored.locator('.library-track-row').click({ button: 'right' });

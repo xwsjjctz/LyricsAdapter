@@ -41,7 +41,6 @@ const sourcePaths = [
   path.join(sourceRoot, 'src', 'addon.mm'),
   path.join(sourceRoot, 'src', 'focusGlass.mm'),
   path.join(sourceRoot, 'src', 'playerControlbar.mm'),
-  path.join(sourceRoot, 'src', 'wallChrome.mm'),
 ];
 const electronVersion = require('electron/package.json').version;
 

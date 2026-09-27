@@ -323,5 +323,6 @@
   "palette.state.hidden": "Ausgeblendet",
   "palette.state.shown": "Sichtbar",
   "palette.state.on": "An",
-  "palette.state.off": "Aus"
+  "palette.state.off": "Aus",
+  "palette.command.showList": "Mediathek-Liste (alt)"
 }

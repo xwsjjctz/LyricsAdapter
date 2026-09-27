@@ -285,28 +285,18 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     })).toBe(true);
 
     if (process.platform === 'darwin') {
+      // The poster wall is the home page, so only the fourth light remains in the title bar.
       const focusButton = page.getByRole('button', { name: /Enter Focus Mode|进入专注模式/ });
-      const sidebarButton = page.getByRole('button', { name: /Collapse Sidebar|收起侧边栏/ });
       await expect(focusButton).toBeVisible();
-      await expect(sidebarButton).toBeVisible();
       const dot = await focusButton.locator(':scope > div').boundingBox();
-      const toggle = await sidebarButton.boundingBox();
       expect(dot).not.toBeNull();
-      expect(toggle).not.toBeNull();
-      if (!dot || !toggle) throw new Error('Missing macOS title bar controls');
+      if (!dot) throw new Error('Missing macOS title bar controls');
       // Native hiddenInset geometry measured on macOS 26; the older baseline
       // is preserved by resource/LibraryView_1.png. Do not import layout constants
       // here: this checks that the real preload and renderer agree with the OS.
       const isTahoe = Number.parseInt(os.release(), 10) >= 25;
       expect(dot.x + dot.width / 2).toBeCloseTo(isTahoe ? 88 : 79.2, 1);
       expect(dot.y + dot.height / 2).toBeCloseTo(isTahoe ? 18 : 19, 1);
-      expect(toggle.y + toggle.height / 2).toBeCloseTo(dot.y + dot.height / 2, 1);
-      expect(toggle.x).toBeGreaterThan(dot.x + dot.width);
-      await sidebarButton.click();
-      const expandButton = page.getByRole('button', { name: /Expand Sidebar|展开侧边栏/ });
-      await expect(expandButton).toBeVisible();
-      await expandButton.click();
-      await expect(sidebarButton).toBeVisible();
     }
 
     if (process.platform === 'win32') {
@@ -899,13 +889,22 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     // AMLL is now the default renderer and its experimental switch is hidden
     // from Settings. Persistence semantics are covered by SettingsManager unit
     // tests; this smoke test only verifies the shipped UI and active renderer.
-    const settingsButton = page.getByRole('button', {
-      name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i,
-    }).first();
-    await settingsButton.click();
+    // Pages open from the command palette: Cmd+K, Shift+Tab to features, then search.
+    const runPaletteCommand = async (query: string) => {
+      await page!.keyboard.press('ControlOrMeta+K');
+      const paletteInput = page!.locator('.command-palette__input');
+      await expect(paletteInput).toBeFocused();
+      await page!.keyboard.press('Shift+Tab');
+      await paletteInput.fill(query);
+      await page!.keyboard.press('Enter');
+      await expect(page!.locator('.command-palette')).toHaveCount(0);
+    };
+    await runPaletteCommand('settings');
+    await expect(page.locator('.settings-view')).toBeVisible();
     const amllLyricsSwitch = page.locator('[role="switch"][aria-describedby="focus-amll-lyrics-description"]');
     await expect(amllLyricsSwitch).toHaveCount(0);
-    await page.getByRole('button', { name: 'Close settings panel' }).click();
+    await runPaletteCommand('wall');
+    await expect(page.locator('.poster-wall')).toBeVisible();
 
     await focusToggle.click();
     await expect(focusOverlay).toBeVisible();

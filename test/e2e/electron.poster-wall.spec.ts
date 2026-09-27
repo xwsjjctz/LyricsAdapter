@@ -6,7 +6,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-test('poster wall opens from the sidebar, plays in place, switches sources and returns', async ({}, testInfo) => {
+test('poster wall is the home page, plays in place and switches sources from the command palette', async ({}, testInfo) => {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-poster-wall-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'user-data');
@@ -51,13 +51,13 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
     };
     let page = await launch();
 
-    // The classic library stays the default; the sidebar button enters the wall.
-    await expect(page.locator('.library-track-row')).toHaveCount(3);
-    await page.getByRole('button', { name: 'Poster wall' }).click();
+    // The wall is the home page: no sidebar, toolbar or floating chrome buttons.
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
     await expect(page.locator('aside')).toHaveCount(0);
     await expect(page.locator('.library-toolbar')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Back to library' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /switch music source/ })).toHaveCount(0);
     await expect(tiles.first()).toHaveAttribute('aria-label', 'Amber, Test Artist');
 
     // Let the view transition and tile pop-in settle before measuring.
@@ -105,43 +105,37 @@ test('poster wall opens from the sidebar, plays in place, switches sources and r
     await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Remove from library']);
     await page.keyboard.press('Escape');
 
-    // The floating chrome's source switcher: tiles sink out, the empty history takes over.
-    const trigger = page.getByRole('button', { name: /switch music source/ });
-    await trigger.click();
-    await expect(page.getByRole('menuitemradio', { name: /Local/ })).toHaveAttribute('aria-checked', 'true');
-    // A click focuses the menu itself, so no item or ring lights up.
-    await expect(page.locator('.library-source-menu')).toBeFocused();
-    await expect(page.locator('html')).toHaveAttribute('data-input-modality', 'pointer');
-    await page.getByRole('menuitemradio', { name: /Online History/ }).click();
-    await expect(trigger).not.toBeFocused();
+    // Features mode switches the source: tiles sink out, the empty history takes over.
+    const paletteInput = page.locator('.command-palette__input');
+    await page.keyboard.press('ControlOrMeta+K');
+    await expect(paletteInput).toBeFocused();
+    await expect(page.getByRole('tab', { name: 'Library', selected: true })).toBeVisible();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByRole('tab', { name: 'Features', selected: true })).toBeVisible();
+    await paletteInput.fill('Online History');
+    await expect(page.getByRole('option').first()).toContainText('Switch to Online History');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.command-palette')).toHaveCount(0);
     await expect(page.getByText('No online history yet')).toBeVisible();
     await expect(tiles).toHaveCount(0);
 
-    // The keyboard path still moves focus into the menu and back to the trigger.
-    await trigger.focus();
-    await page.keyboard.press('ArrowDown');
-    await expect(page.getByRole('menuitemradio', { name: /Online History/ })).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(trigger).toBeFocused();
-    await trigger.click();
-    await page.getByRole('menuitemradio', { name: /Local/ }).click();
+    // Library mode lists the sources first, so Cmd+K, Enter returns to Local.
+    await page.keyboard.press('ControlOrMeta+K');
+    await expect(page.getByRole('option').first()).toContainText('Switch to Local');
+    await page.keyboard.press('Enter');
     await expect(tiles).toHaveCount(3);
     await settled();
 
-    // The wall is remembered across restarts.
+    // Esc closes the palette without side effects.
+    await page.keyboard.press('ControlOrMeta+K');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.command-palette')).toHaveCount(0);
+
+    // The wall stays the home page after a restart.
     await app!.close(); app = undefined;
     page = await launch();
     await expect(page.locator('.wall-tile')).toHaveCount(3);
     await expect(page.locator('aside')).toHaveCount(0);
-
-    // Back returns to the classic library with its sidebar, and that is remembered too.
-    await page.getByRole('button', { name: 'Back to library' }).click();
-    await expect(page.locator('.library-track-row')).toHaveCount(3);
-    await expect(page.locator('aside')).toHaveCount(1);
-    await app!.close(); app = undefined;
-    page = await launch();
-    await expect(page.locator('.library-track-row')).toHaveCount(3);
-    await expect(page.locator('.wall-tile')).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     if (app) await app.close();

@@ -35,6 +35,8 @@ export interface AppCommandDeps {
   setLanguage: (language: Language) => void;
   openSettings: (section: SettingsSectionId) => void;
   openWall: () => void;
+  /** Temporary: keeps reorder and multi-select reachable until the wall has them. */
+  openList: () => void;
 }
 
 const SETTINGS_SECTIONS: { id: SettingsSectionId; icon: string; titleKey: string; keywords: string[] }[] = [
@@ -191,6 +193,10 @@ export function buildAppCommands(deps: AppCommandDeps, t: TFunction): PaletteCom
     {
       id: 'navigation.wall', title: t('palette.command.showWall'), icon: 'auto_awesome_mosaic', group: 'navigation',
       keywords: ['wall', 'home', 'library', 'back'], run: deps.openWall,
+    },
+    {
+      id: 'navigation.list', title: t('palette.command.showList'), icon: 'view_list', group: 'navigation',
+      keywords: ['list', 'legacy', 'reorder', 'select'], run: deps.openList,
     },
     ...sourceCommands(deps, t),
     ...playlistCommands(deps, t),

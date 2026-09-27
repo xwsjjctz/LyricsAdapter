@@ -323,5 +323,6 @@
   "palette.state.hidden": "已隐藏",
   "palette.state.shown": "显示中",
   "palette.state.on": "开",
-  "palette.state.off": "关"
+  "palette.state.off": "关",
+  "palette.command.showList": "曲库列表（旧版）"
 }

@@ -323,5 +323,6 @@
   "palette.state.hidden": "非表示",
   "palette.state.shown": "表示中",
   "palette.state.on": "オン",
-  "palette.state.off": "オフ"
+  "palette.state.off": "オフ",
+  "palette.command.showList": "ライブラリ一覧（旧）"
 }

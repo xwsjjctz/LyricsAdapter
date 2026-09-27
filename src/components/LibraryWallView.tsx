@@ -30,8 +30,6 @@ interface LibraryWallViewProps {
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: ((token: number) => void) | undefined;
-  /** Floating back button + source switcher (see WallChrome). */
-  chrome: React.ReactNode;
 }
 
 /** Multi-select lives in the list layout; the wall menu omits it. */
@@ -49,7 +47,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   tracks, sourceKey, dataSource, currentTrackId, onTrackSelect,
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
-  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, chrome,
+  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared,
 }) => {
   const { t } = useTranslation();
   const { colors } = useCurrentTheme();
@@ -84,8 +82,6 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
   return (
     <div className="library-wall-view relative flex h-full w-full flex-col">
-      {chrome}
-
       <PosterWall
         tracks={tracks}
         sourceKey={sourceKey}

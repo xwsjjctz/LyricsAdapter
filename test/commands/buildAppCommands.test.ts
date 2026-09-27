@@ -36,6 +36,7 @@ function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     setLanguage: vi.fn(),
     openSettings: vi.fn(),
     openWall: vi.fn(),
+    openList: vi.fn(),
     ...overrides,
   };
 }
@@ -46,7 +47,7 @@ describe('buildAppCommands', () => {
   it('covers every migrated entry point', () => {
     const ids = buildAppCommands(deps(), t).map(command => command.id);
     expect(ids).toEqual(expect.arrayContaining([
-      'navigation.wall', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
+      'navigation.wall', 'navigation.list', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
       'library.import', 'playback.playAll', 'playback.shuffleAll', 'playback.focusMode', 'playback.mode',
       'playback.mute', 'appearance.nightMode', 'appearance.language', 'settings.open', 'settings.general',
       'settings.online', 'settings.cloud', 'settings.focus', 'settings.shortcuts', 'settings.about',

@@ -323,5 +323,6 @@
   "palette.state.hidden": "숨김",
   "palette.state.shown": "표시 중",
   "palette.state.on": "켬",
-  "palette.state.off": "끔"
+  "palette.state.off": "끔",
+  "palette.command.showList": "라이브러리 목록 (이전)"
 }
