@@ -14,7 +14,13 @@ import LibraryWallView from './LibraryWallView';
 import type { LibrarySource } from './LibrarySourceMenu';
 import WallChrome from './wall/WallChrome';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
-import SettingsView from './settings/SettingsView';
+import SettingsView, { type SettingsSectionId } from './settings/SettingsView';
+import CommandPalette from './palette/CommandPalette';
+import type { PaletteLibrarySources } from './palette/usePaletteItems';
+import { useAppCommands, type AppCommandHandlers } from '../commands/useAppCommands';
+import type { PaletteSourceSlot } from '../commands/buildAppCommands';
+import { webdavClient } from '../services/webdavClient';
+import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
 import type { useSidebarLayout } from '../hooks/useSidebarLayout';
@@ -158,9 +164,70 @@ const AppShell: React.FC<AppShellProps> = ({
   const toggleFocusMode = useCallback(() => {
     setIsFocusMode(current => !current);
   }, [setIsFocusMode]);
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('general');
   const openSettings = useCallback(() => {
+    setSettingsSection('general');
     transitionToView(ViewMode.SETTINGS);
   }, [transitionToView]);
+  const openSettingsSection = useCallback((section: SettingsSectionId) => {
+    setSettingsSection(section);
+    handleNavigate(ViewMode.SETTINGS);
+  }, [handleNavigate]);
+
+  // The command palette drives the library the same way the old chrome did.
+  const isLibraryPage = viewMode === ViewMode.WALL || viewMode === ViewMode.PLAYER;
+  const shownTracks = isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks;
+  const playShownTrack = viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
+    ? onPlayLibraryPlaylistTrack
+    : library.selectTrack;
+  const openWall = useCallback(() => handleNavigate(ViewMode.WALL), [handleNavigate]);
+  const switchSource = useCallback((slot: PaletteSourceSlot) => {
+    if (slot === 'cloud' && !webdavClient.hasConfig()) {
+      notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
+      openSettingsSection('cloud');
+      return;
+    }
+    if (!isLibraryPage) handleNavigate(ViewMode.WALL);
+    void handleSwitchSlot(slot);
+  }, [handleNavigate, handleSwitchSlot, isLibraryPage, openSettingsSection, t]);
+  const openPlaylistInfo = useCallback((playlist: PlaylistInfo) => {
+    if (!isLibraryPage) handleNavigate(ViewMode.WALL);
+    void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount)
+      .catch(() => notify(t('playlists.title'), t('browse.error')));
+  }, [handleNavigate, isLibraryPage, onOpenPlaylist, t]);
+  const commandHandlers = useMemo<AppCommandHandlers>(() => ({
+    trackCounts: { local: slots.local.tracks.length, cloud: slots.cloud.tracks.length, online: slots.online.tracks.length },
+    switchSource,
+    openPlaylist: openPlaylistInfo,
+    importFiles: importVm.importClick,
+    importDisabled: importVm.importDisabled,
+    reloadFiles: importVm.reloadFiles,
+    hasUnavailableTracks: activeTracks.some(track => track.available === false),
+    playAll: shownTracks.length > 0 ? () => playShownTrack(0) : undefined,
+    shuffleAll: shownTracks.length > 0 ? () => {
+      player.setPlaybackMode('shuffle');
+      playShownTrack(Math.floor(Math.random() * shownTracks.length));
+    } : undefined,
+    toggleFocusMode,
+    togglePlaybackMode: player.togglePlaybackMode,
+    toggleMute: player.toggleMute,
+    openSettings: openSettingsSection,
+    openWall,
+  }), [
+    activeTracks, importVm.importClick, importVm.importDisabled, importVm.reloadFiles, openPlaylistInfo,
+    openSettingsSection, openWall, playShownTrack, player, shownTracks.length, slots.cloud.tracks.length,
+    slots.local.tracks.length, slots.online.tracks.length, switchSource, toggleFocusMode,
+  ]);
+  const { commands, visiblePlaylists } = useAppCommands(commandHandlers);
+  const paletteLibrary = useMemo<PaletteLibrarySources>(() => ({
+    localTracks: slots.local.tracks,
+    cloudTracks: slots.cloud.tracks,
+    playlists: visiblePlaylists,
+    playTrack: online.navigateToTrack,
+    playOnlineSong: online.playSong,
+    openPlaylist: openPlaylistInfo,
+    openAllResults: openSearchResults,
+  }), [online.navigateToTrack, online.playSong, openPlaylistInfo, openSearchResults, slots.cloud.tracks, slots.local.tracks, visiblePlaylists]);
   const hasUnavailableTracks = useMemo(
     () => activeTracks.some(track => track.available === false),
     [activeTracks],
@@ -248,7 +315,7 @@ const AppShell: React.FC<AppShellProps> = ({
           />
           <div ref={pageContentRef} className={`flex-1 overflow-hidden ${isWall ? '' : 'px-10 pt-2 pb-2'}`}>
             {viewMode === ViewMode.SETTINGS ? (
-              <SettingsView bottomInset={MACOS_PLAYER_BOTTOM_INSET} />
+              <SettingsView key={settingsSection} initialSection={settingsSection} bottomInset={MACOS_PLAYER_BOTTOM_INSET} />
             ) : isSearchView ? (
               <SearchView
                 query={searchQuery}
@@ -374,6 +441,7 @@ const AppShell: React.FC<AppShellProps> = ({
         />
         </div>
       </div>
+      <CommandPalette commands={commands} library={paletteLibrary} />
     </>
   );
 };

@@ -18,6 +18,9 @@ interface UseShortcutsProps {
   handleToggleMute: () => void;
   handleTogglePlaybackMode: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Cmd+K toggles the command palette; Cmd+F opens it on the music search. */
+  toggleCommandPalette?: () => void;
+  openMusicSearch?: () => void;
   currentTime: number;
   duration: number;
 }
@@ -37,6 +40,8 @@ export const useShortcuts = ({
   handleToggleMute,
   handleTogglePlaybackMode,
   searchInputRef: _searchInputRef,
+  toggleCommandPalette,
+  openMusicSearch,
   currentTime,
   duration
 }: UseShortcutsProps) => {
@@ -57,6 +62,10 @@ export const useShortcuts = ({
   const handleTogglePlaybackModeRef = useRef(handleTogglePlaybackMode);
   const setIsFocusModeRef = useRef(setIsFocusMode);
   const setViewModeRef = useRef(setViewMode);
+  const toggleCommandPaletteRef = useRef(toggleCommandPalette);
+  const openMusicSearchRef = useRef(openMusicSearch);
+  toggleCommandPaletteRef.current = toggleCommandPalette;
+  openMusicSearchRef.current = openMusicSearch;
   
   // Update refs when values change
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
@@ -207,12 +216,12 @@ export const useShortcuts = ({
         setIsFocusMode(!isFocusMode);
         break;
 
+      case 'toggleCommandPalette':
+        toggleCommandPaletteRef.current?.();
+        break;
+
       case 'focusSearch':
-        // Focus the search input in sidebar
-        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-        if (searchInput) {
-          searchInput.focus();
-        }
+        openMusicSearchRef.current?.();
         break;
 
       case 'gotoSettings':

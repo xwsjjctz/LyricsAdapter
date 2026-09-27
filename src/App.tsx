@@ -7,6 +7,7 @@ import { syncOnlineCookiesToMain } from './services/cookieManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
+import { commandPalette } from './hooks/useCommandPalette';
 import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
@@ -31,6 +32,8 @@ declare global {
     __DEV__?: boolean;
   }
 }
+
+const openPaletteMusicSearch = () => commandPalette.open('library');
 
 const AppContent: React.FC = () => {
   const {
@@ -360,6 +363,8 @@ const AppContent: React.FC = () => {
     setVolume,
     handleToggleMute,
     handleTogglePlaybackMode,
+    toggleCommandPalette: commandPalette.toggle,
+    openMusicSearch: openPaletteMusicSearch,
     currentTime,
     duration: currentTrack?.duration || 0
   });
