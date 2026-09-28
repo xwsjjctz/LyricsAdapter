@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { ThemeColors } from '../types/theme';
 import type { TrackMenuActionId, TrackMenuItem } from './trackMenuItems';
 import { lastInputWasKeyboard } from '../services/inputModality';
+import { getNativeContextMenu, markNativeContextMenuUnavailable, toNativeMenuItems, type NativeContextMenuApi } from '../services/nativeContextMenu';
 
 export interface TrackMenuPosition {
   trackId: string;
@@ -19,8 +20,43 @@ interface Props {
   onAction: (id: TrackMenuActionId) => void;
 }
 
-/** Song context menu shared by every track list; items come from buildTrackMenuItems. */
-export default function TrackMenu({ position, colors, items, onClose, onAction }: Props) {
+/**
+ * Song context menu shared by every track list; items come from buildTrackMenuItems.
+ * macOS 26+ shows the system menu; elsewhere, or if it fails, a themed web menu.
+ */
+export default function TrackMenu(props: Props) {
+  const [nativeFailed, setNativeFailed] = useState(false);
+  const native = nativeFailed ? undefined : getNativeContextMenu();
+  return native
+    ? <NativeTrackMenu {...props} api={native} onUnavailable={() => { markNativeContextMenuUnavailable(); setNativeFailed(true); }} />
+    : <WebTrackMenu {...props} />;
+}
+
+function NativeTrackMenu({ api, position, items, onClose, onAction, onUnavailable }: Props & {
+  api: NativeContextMenuApi;
+  onUnavailable: () => void;
+}) {
+  const { t } = useTranslation();
+  const latest = useRef({ items, onClose, onAction, onUnavailable, t });
+  latest.current = { items, onClose, onAction, onUnavailable, t };
+  useEffect(() => {
+    let active = true;
+    const { items: menuItems, t: translate } = latest.current;
+    api.popup({ items: toNativeMenuItems(menuItems, translate), x: position.x, y: position.y })
+      .then(result => {
+        if (!active) return;
+        if (!result.ok) { latest.current.onUnavailable(); return; }
+        const chosen = latest.current.items.find(item => item.kind === 'action' && item.id === result.data);
+        latest.current.onClose();
+        if (chosen?.kind === 'action') latest.current.onAction(chosen.id);
+      })
+      .catch(() => { if (active) latest.current.onUnavailable(); });
+    return () => { active = false; };
+  }, [api, position]);
+  return null;
+}
+
+function WebTrackMenu({ position, colors, items, onClose, onAction }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState({ x: position.x, y: position.y });

@@ -29,6 +29,7 @@ import { registerSystemLyricsHandlers } from './ipc/systemLyricsHandlers';
 import { registerFocusGlassHandlers } from './ipc/focusGlassHandlers';
 import { registerPlayerControlbarHandlers } from './ipc/playerControlbarHandlers';
 import { registerNativePaletteHandlers } from './ipc/nativePaletteHandlers';
+import { registerContextMenuHandlers } from './ipc/contextMenuHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 import { userStateRepository } from './services/userStateRepository';
 import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
@@ -149,6 +150,7 @@ app.whenReady().then(async () => {
   registerFocusGlassHandlers();
   registerPlayerControlbarHandlers();
   registerNativePaletteHandlers();
+  registerContextMenuHandlers();
 
   await createWindow();
 

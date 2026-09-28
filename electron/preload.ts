@@ -5,6 +5,7 @@ import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemL
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
+import type { NativeContextMenuRequest } from '../src/types/nativeContextMenu';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -15,6 +16,9 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
+  contextMenu: {
+    popup: async (request: NativeContextMenuRequest) => ipcRenderer.invoke('ipc:contextMenu:popup', request),
+  },
   playerControlbar: {
     start: async () => ipcRenderer.invoke('ipc:playerControlbar:start'),
     update: async (state: PlayerControlbarState) => ipcRenderer.invoke('ipc:playerControlbar:update', state),
