@@ -20,6 +20,12 @@ interface Options {
   onTogglePlaybackMode: () => void;
 }
 
+/**
+ * Marks a full-screen scrim (palette, settings sheet, modal) whose bare
+ * backdrop may sit over the bar; only its panel content obscures it.
+ */
+export const CONTROLBAR_PASSTHROUGH_ATTR = 'data-controlbar-passthrough';
+
 /** Hide the AppKit surface whenever another web layer covers its DOM anchor. */
 export function controlbarPresentation(element: HTMLElement | null, visible: boolean) {
   const result = readFocusGlassPresentation(element);
@@ -31,7 +37,8 @@ export function controlbarPresentation(element: HTMLElement | null, visible: boo
     // controlbar intentionally stays above that page for both directions, so
     // its temporary overlap must not be treated as an obscuring modal.
     const focusTransitionLayer = top instanceof Element && top.closest('.focus-mode-overlay');
-    if (!top || (!element.contains(top) && !focusTransitionLayer)) return { ...result, opacity: 0 };
+    const passthroughScrim = top instanceof Element && top.hasAttribute(CONTROLBAR_PASSTHROUGH_ATTR);
+    if (!top || (!element.contains(top) && !focusTransitionLayer && !passthroughScrim)) return { ...result, opacity: 0 };
   }
   return result;
 }

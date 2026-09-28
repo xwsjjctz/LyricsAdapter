@@ -85,7 +85,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
   let previousSection: string | null = null;
 
   return (
-    <div className="command-palette-backdrop" onMouseDown={palette.close}>
+    <div className="command-palette-backdrop" data-controlbar-passthrough onMouseDown={palette.close}>
       <div
         className="command-palette"
         role="dialog"

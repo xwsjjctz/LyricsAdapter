@@ -147,6 +147,7 @@ const GsapModal: React.FC<GsapModalProps> = ({
   const modal = (
     <div
       ref={overlayRef}
+      data-controlbar-passthrough
       className={`fixed inset-0 flex items-center justify-center ${overlayClassName}`}
       style={overlayStyle}
       onMouseDown={(event) => {

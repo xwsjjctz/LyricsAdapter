@@ -55,7 +55,7 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
   };
 
   return (
-    <div className="settings-sheet-backdrop" onMouseDown={onClose}>
+    <div className="settings-sheet-backdrop" data-controlbar-passthrough onMouseDown={onClose}>
       <div
         ref={sheetRef}
         className="settings-sheet"
