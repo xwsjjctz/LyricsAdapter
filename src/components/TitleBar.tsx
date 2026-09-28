@@ -1,9 +1,8 @@
 import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
+import { nativePaletteOwnsKeyboard } from '../hooks/useNativePalette';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 // 窗口控制按钮图标组件
@@ -38,6 +37,46 @@ const CollapseIcon = () => (
   </svg>
 );
 
+// macOS 27 traffic lights (sampled from the native red/yellow/green lights at
+// 2x) have a ~1px pale, hue-tinted specular rim along both the top and the
+// bottom edge, a saturated center band and a lifted lower half. Only the icon
+// rotates so the lighting stays anchored to the dot.
+const GLOSSY_RIM = 'rgba(196, 222, 255, 0.9)';
+const GLOSSY_RIM_FALLOFF = 'rgba(196, 222, 255, 0.45)';
+
+const GLOSSY_FOCUSED_LIGHT: React.CSSProperties = {
+  backgroundColor: '#3b82f6',
+  backgroundImage: 'linear-gradient(180deg, #5d98f8 0%, #3b82f6 32%, #3b82f6 48%, #5a95f6 64%, #6299f5 100%)',
+  boxShadow: [
+    `inset 0 0.5px 0 ${GLOSSY_RIM}`,
+    `inset 0 1px 0 ${GLOSSY_RIM_FALLOFF}`,
+    `inset 0 -0.5px 0 ${GLOSSY_RIM}`,
+    `inset 0 -1px 0 ${GLOSSY_RIM_FALLOFF}`,
+  ].join(', '),
+};
+
+// Unfocused native lights are translucent glass: a near-opaque neutral gray
+// rim (it does not pick up the backdrop hue) at top and bottom that tapers
+// along the sides, and a fill that is brighter in the upper third.
+const UNFOCUSED_RIM = 'rgba(186, 184, 184, 0.95)';
+const UNFOCUSED_RIM_FALLOFF = 'rgba(186, 184, 184, 0.45)';
+
+const GLOSSY_UNFOCUSED_LIGHT: React.CSSProperties = {
+  backgroundColor: 'rgba(255, 255, 255, 0.16)',
+  backgroundImage: 'linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.05) 30%, rgba(255, 255, 255, 0) 70%)',
+  boxShadow: [
+    `inset 0 0.5px 0 ${UNFOCUSED_RIM}`,
+    `inset 0 1px 0 ${UNFOCUSED_RIM_FALLOFF}`,
+    `inset 0 -0.5px 0 ${UNFOCUSED_RIM}`,
+    `inset 0 -1px 0 ${UNFOCUSED_RIM_FALLOFF}`,
+  ].join(', '),
+};
+
+function getFocusLightStyle(isWindowFocused: boolean, glossy: boolean): React.CSSProperties {
+  if (glossy) return isWindowFocused ? GLOSSY_FOCUSED_LIGHT : GLOSSY_UNFOCUSED_LIGHT;
+  return { backgroundColor: isWindowFocused ? '#3b82f6' : 'rgba(255, 255, 255, 0.15)' };
+}
+
 interface TitleBarProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
@@ -47,13 +86,12 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const { canControl, minimize, maximize, close, isMaximized, isFullScreen } = useWindowControls();
 
   const { t } = useTranslation();
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
 
   // Window focus state (for focus button styling)
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
+    const handleBlur = () => { if (!nativePaletteOwnsKeyboard()) setIsWindowFocused(false); };
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
     return () => {
@@ -64,15 +102,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
 
   // Mouse hover state for the button
   const [isButtonHovered, setIsButtonHovered] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
-
-  const colors = currentTheme.colors;
 
   // 检测平台
   const desktopAPI = getDesktopAPI();
@@ -108,23 +137,21 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             onMouseLeave={() => setIsButtonHovered(false)}
           >
             <div
-              className="rounded-full flex items-center justify-center transition-all"
+              className="rounded-full flex items-center justify-center"
               style={{
                 width: layout.dotSize,
                 height: layout.dotSize,
-                backgroundColor: isWindowFocused ? '#3b82f6' : 'rgba(255, 255, 255, 0.15)',
-                transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)',
-                transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.00s ease-in-out'
+                ...getFocusLightStyle(isWindowFocused, layout.glossy),
               }}
             >
               {isWindowFocused && isButtonHovered && (
                 <span
                   className="material-symbols-outlined"
                   style={{
-                    color: 'black',
+                    color: layout.glossy ? 'rgba(0, 32, 96, 0.75)' : 'black',
                     fontSize: 12,
-                    transition: 'opacity 0.15s ease-in-out',
-                    opacity: 1
+                    transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)',
+                    transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
                 >
                   expand_more
@@ -159,10 +186,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={onToggleFocusMode}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn"
             aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
           >
             <span className="transition-transform duration-250 ease-out" style={{ transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
@@ -172,10 +196,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={minimize}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn"
             aria-label={t('titleBar.minimize')}
           >
             <MinimizeIcon />
@@ -183,10 +204,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={maximize}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn"
             aria-label={isMaximized ? t('titleBar.restore') : t('titleBar.maximize')}
           >
             {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
@@ -194,10 +212,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={close}
             data-no-gsap-bounce
-            className="w-[46px] h-full flex items-center justify-center transition-colors"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.backgroundColor = '#c42b1c'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            className="titlebar-btn titlebar-btn--close"
             aria-label={t('titleBar.close')}
           >
             <CloseIcon />

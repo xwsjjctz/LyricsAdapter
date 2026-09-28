@@ -18,6 +18,7 @@ import type {
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
+import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
@@ -741,6 +742,9 @@ class ElectronAdapter implements FullDesktopAPI {
   }
   async qqLoginQrPoll(token: string) {
     return this.api.qqLoginQrPoll!(token);
+  }
+  async qqLoginRefresh(credential: QQCredential, cookie: string) {
+    return this.api.qqLoginRefresh!(credential, cookie);
   }
   async neteaseQrKey() {
     return this.api.neteaseQrKey!();

@@ -6,6 +6,32 @@ interface ReorderResult {
   changed: boolean;
 }
 
+/**
+ * Exchange two tracks' positions. The poster wall keeps every tile's size and
+ * place, so a drag only trades which songs the two tiles show.
+ */
+export function swapTracks(
+  tracks: Track[],
+  currentTrackIndex: number,
+  firstIndex: number,
+  secondIndex: number
+): ReorderResult {
+  const first = tracks[firstIndex];
+  const second = tracks[secondIndex];
+  if (!first || !second || firstIndex === secondIndex) {
+    return { tracks, currentTrackIndex, changed: false };
+  }
+  const swapped = tracks.map((track, index) => {
+    if (index === firstIndex) return second;
+    if (index === secondIndex) return first;
+    return track;
+  });
+  const nextCurrentTrackIndex = currentTrackIndex === firstIndex
+    ? secondIndex
+    : currentTrackIndex === secondIndex ? firstIndex : currentTrackIndex;
+  return { tracks: swapped, currentTrackIndex: nextCurrentTrackIndex, changed: true };
+}
+
 export function reorderTracks(
   tracks: Track[],
   currentTrackIndex: number,

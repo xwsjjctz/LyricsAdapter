@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { onlineSongToTrack } from '@/domain/trackFactory';
+import { onlineSongToTrack, trackToOnlineSong } from '@/domain/trackFactory';
+import type { Track } from '@/types';
 import type { OnlineSong } from '@/services/onlineMusicProvider';
 
 function makeSong(overrides: Partial<OnlineSong> & { songmid: string }): OnlineSong {
@@ -84,5 +85,37 @@ describe('onlineSongToTrack', () => {
     const track = onlineSongToTrack(song, 'qq');
 
     expect(track.artist).toBe('A & B & C');
+  });
+});
+
+describe('trackToOnlineSong', () => {
+  it('round-trips an online track back to its provider song and source', () => {
+    const song = makeSong({ songmid: 'ne456', songname: 'Hello' });
+    const result = trackToOnlineSong(onlineSongToTrack(song, 'netease'));
+
+    expect(result).toEqual({
+      source: 'netease',
+      song: {
+        songmid: 'ne456',
+        songname: 'Hello',
+        singer: [{ name: 'Artist One' }, { name: 'Artist Two' }],
+        albumname: 'Test Album',
+        interval: 240,
+        coverUrl: 'https://example.com/cover.jpg',
+      },
+    });
+  });
+
+  it('returns null for tracks that are not from an online provider', () => {
+    const local: Track = {
+      id: 'local-1', title: 'A', artist: 'B', album: 'C', duration: 1,
+      audioUrl: '', source: 'local', songmid: 'x',
+    };
+    expect(trackToOnlineSong(local)).toBeNull();
+  });
+
+  it('returns null when an online track has no songmid', () => {
+    const track = { ...onlineSongToTrack(makeSong({ songmid: 's1' }), 'qq'), songmid: undefined };
+    expect(trackToOnlineSong(track)).toBeNull();
   });
 });

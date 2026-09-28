@@ -4,6 +4,8 @@ import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
+import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
+import type { NativeContextMenuRequest } from '../src/types/nativeContextMenu';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -14,6 +16,9 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
+  contextMenu: {
+    popup: async (request: NativeContextMenuRequest) => ipcRenderer.invoke('ipc:contextMenu:popup', request),
+  },
   playerControlbar: {
     start: async () => ipcRenderer.invoke('ipc:playerControlbar:start'),
     update: async (state: PlayerControlbarState) => ipcRenderer.invoke('ipc:playerControlbar:update', state),
@@ -25,15 +30,31 @@ const typedIpc = {
       return () => ipcRenderer.removeListener('player-controlbar-action', handler);
     },
   },
+  nativePalette: {
+    start: async () => ipcRenderer.invoke('ipc:nativePalette:start'),
+    update: async (state: NativePaletteState) => ipcRenderer.invoke('ipc:nativePalette:update', state),
+    stop: async () => ipcRenderer.invoke('ipc:nativePalette:stop'),
+    onAction: (callback: (action: NativePaletteAction) => void) => {
+      const handler = (_event: unknown, action: NativePaletteAction) => callback(action);
+      ipcRenderer.on('native-palette-action', handler);
+      return () => ipcRenderer.removeListener('native-palette-action', handler);
+    },
+  },
   focusGlass: {
     getPlaybackSymbols: async () => ipcRenderer.invoke('ipc:focusGlass:playbackSymbols'),
     start: async () => ipcRenderer.invoke('ipc:focusGlass:start'),
     update: async (state: FocusGlassState) => ipcRenderer.invoke('ipc:focusGlass:update', state),
+    setBackdrop: async (source: string | null) => ipcRenderer.invoke('ipc:focusGlass:backdrop', { source }),
     stop: async () => ipcRenderer.invoke('ipc:focusGlass:stop'),
     onAction: (callback: (action: FocusGlassAction) => void) => {
       const handler = (_event: unknown, action: FocusGlassAction) => callback(action);
       ipcRenderer.on('focus-glass-action', handler);
       return () => ipcRenderer.removeListener('focus-glass-action', handler);
+    },
+    onBackdropLuminance: (callback: (luminance: number | null) => void) => {
+      const handler = (_event: unknown, payload: { luminance: number | null }) => callback(payload.luminance);
+      ipcRenderer.on('focus-glass-backdrop', handler);
+      return () => ipcRenderer.removeListener('focus-glass-backdrop', handler);
     },
   },
   file: {
@@ -261,6 +282,10 @@ contextBridge.exposeInMainWorld('electron', {
   },
   qqLoginQrPoll: async (token: string) => {
     return ipcRenderer.invoke('qq-login-qr-poll', token);
+  },
+  // Silent musickey refresh using the refresh key/token from the QR login
+  qqLoginRefresh: async (credential: unknown, cookieString: string) => {
+    return ipcRenderer.invoke('qq-login-refresh', credential, cookieString);
   },
 
   // NetEase Cloud Music QR scan login (key → create → check)

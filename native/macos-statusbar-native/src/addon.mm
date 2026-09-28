@@ -300,9 +300,14 @@ NSUInteger Utf16IndexForGraphemeCount(NSString* text, NSUInteger count) {
 }
 
 - (void)mouseDown:(NSEvent*)event {
+  (void)event;
   [self refreshPointerInside];
   if (!self.pointerInside) return;
-  NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+  // Status-bar mouse events report locationInWindow as the window centre on
+  // recent macOS releases, which made every click hit the middle control.
+  // The global pointer location stays accurate, so hit-test from it instead.
+  NSPoint windowPoint = [self.window convertPointFromScreen:NSEvent.mouseLocation];
+  NSPoint point = [self convertPoint:windowPoint fromView:nil];
   CGFloat stripWidth = std::min(self.bounds.size.width, self.controlStripWidth);
   CGFloat originX = NSMidX(self.bounds) - stripWidth / 2.0;
   if (point.x < originX || point.x >= originX + stripWidth) return;
@@ -544,10 +549,12 @@ napi_value StopStatusItem(napi_env env, napi_callback_info info) {
 
 void InitializeFocusGlass(napi_env env, napi_value exports);
 void InitializePlayerControlbar(napi_env env, napi_value exports);
+void InitializeNativePalette(napi_env env, napi_value exports);
 
 napi_value Initialize(napi_env env, napi_value exports) {
   InitializeFocusGlass(env, exports);
   InitializePlayerControlbar(env, exports);
+  InitializeNativePalette(env, exports);
   gEnv = env;
   napi_add_env_cleanup_hook(env, Cleanup, nullptr);
 

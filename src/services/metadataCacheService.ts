@@ -129,6 +129,11 @@ class MetadataCacheService {
     }
   }
 
+  async delete(songId: string): Promise<void> {
+    this.cache.delete(songId);
+    await indexedDBStorage.deleteMetadata(songId);
+  }
+
   clear(): void {
     this.cache.clear();
   }

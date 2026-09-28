@@ -1,14 +1,12 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { logger } from '../services/logger';
 import { shortcutManager, ShortcutAction } from '../services/shortcuts';
-import { ViewMode } from '../types';
 
 interface UseShortcutsProps {
-  viewMode: ViewMode;
   isFocusMode: boolean;
   isPlaying: boolean;
   setIsFocusMode: (value: boolean) => void;
-  setViewMode: (mode: ViewMode) => void;
+  openSettings: () => void;
   togglePlay: () => void;
   skipForward: () => void;
   skipBackward: () => void;
@@ -18,16 +16,18 @@ interface UseShortcutsProps {
   handleToggleMute: () => void;
   handleTogglePlaybackMode: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Cmd+K toggles the command palette; Cmd+F opens it on the music search. */
+  toggleCommandPalette?: () => void;
+  openMusicSearch?: () => void;
   currentTime: number;
   duration: number;
 }
 
 export const useShortcuts = ({
-  viewMode,
   isFocusMode,
   isPlaying: _isPlaying,
   setIsFocusMode,
-  setViewMode,
+  openSettings,
   togglePlay,
   skipForward,
   skipBackward,
@@ -37,6 +37,8 @@ export const useShortcuts = ({
   handleToggleMute,
   handleTogglePlaybackMode,
   searchInputRef: _searchInputRef,
+  toggleCommandPalette,
+  openMusicSearch,
   currentTime,
   duration
 }: UseShortcutsProps) => {
@@ -46,7 +48,6 @@ export const useShortcuts = ({
   const currentTimeRef = useRef(currentTime);
   const durationRef = useRef(duration);
   const volumeRef = useRef(volume);
-  const viewModeRef = useRef(viewMode);
   const isFocusModeRef = useRef(isFocusMode);
   const togglePlayRef = useRef(togglePlay);
   const skipForwardRef = useRef(skipForward);
@@ -56,13 +57,16 @@ export const useShortcuts = ({
   const handleToggleMuteRef = useRef(handleToggleMute);
   const handleTogglePlaybackModeRef = useRef(handleTogglePlaybackMode);
   const setIsFocusModeRef = useRef(setIsFocusMode);
-  const setViewModeRef = useRef(setViewMode);
+  const openSettingsRef = useRef(openSettings);
+  const toggleCommandPaletteRef = useRef(toggleCommandPalette);
+  const openMusicSearchRef = useRef(openMusicSearch);
+  toggleCommandPaletteRef.current = toggleCommandPalette;
+  openMusicSearchRef.current = openMusicSearch;
   
   // Update refs when values change
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
   useEffect(() => { durationRef.current = duration; }, [duration]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
-  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
   useEffect(() => { isFocusModeRef.current = isFocusMode; }, [isFocusMode]);
   useEffect(() => { togglePlayRef.current = togglePlay; }, [togglePlay]);
   useEffect(() => { skipForwardRef.current = skipForward; }, [skipForward]);
@@ -72,7 +76,7 @@ export const useShortcuts = ({
   useEffect(() => { handleToggleMuteRef.current = handleToggleMute; }, [handleToggleMute]);
   useEffect(() => { handleTogglePlaybackModeRef.current = handleTogglePlaybackMode; }, [handleTogglePlaybackMode]);
   useEffect(() => { setIsFocusModeRef.current = setIsFocusMode; }, [setIsFocusMode]);
-  useEffect(() => { setViewModeRef.current = setViewMode; }, [setViewMode]);
+  useEffect(() => { openSettingsRef.current = openSettings; }, [openSettings]);
 
   // Keep shortcuts up to date
   useEffect(() => {
@@ -148,7 +152,7 @@ export const useShortcuts = ({
     const handleToggleMute = handleToggleMuteRef.current;
     const handleTogglePlaybackMode = handleTogglePlaybackModeRef.current;
     const setIsFocusMode = setIsFocusModeRef.current;
-    const setViewMode = setViewModeRef.current;
+
 
     switch (action) {
       case 'playPause':
@@ -207,28 +211,17 @@ export const useShortcuts = ({
         setIsFocusMode(!isFocusMode);
         break;
 
-      case 'focusSearch':
-        // Focus the search input in sidebar
-        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-        if (searchInput) {
-          searchInput.focus();
-        }
+      case 'toggleCommandPalette':
+        toggleCommandPaletteRef.current?.();
         break;
 
-      // case 'gotoBrowse':
-      //   setViewMode(ViewMode.BROWSE);
-      //   setIsFocusMode(false);
-      //   break;
+      case 'focusSearch':
+        openMusicSearchRef.current?.();
+        break;
 
       case 'gotoSettings':
-        setViewMode(ViewMode.SETTINGS);
-        setIsFocusMode(false);
+        openSettingsRef.current();
         break;
-
-      // case 'gotoMetadata':
-      //   setViewMode(ViewMode.METADATA);
-      //   setIsFocusMode(false);
-      //   break;
     }
   }, []);
 

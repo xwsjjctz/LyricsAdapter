@@ -107,9 +107,8 @@ export interface MetaJson {
 }
 
 export enum ViewMode {
-  PLAYER = 'player',
-  LYRICS = 'lyrics',
-  BROWSE = 'browse',
-  METADATA = 'metadata',
-  SETTINGS = 'settings'
+  /** Full-window poster wall of the current library source. */
+  WALL = 'wall',
+  /** Search results shown as a poster wall. */
+  SEARCH = 'search',
 }

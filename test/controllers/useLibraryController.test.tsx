@@ -1,150 +1,114 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { MutableRefObject } from 'react';
 import { useLibraryController } from '@/controllers/useLibraryController';
 import type { LibrarySlot, SlotId, Track } from '@/types';
+import { libraryStorage } from '@/services/libraryStorage';
+import { metadataCacheService } from '@/services/metadataCacheService';
+import { coverArtService } from '@/services/coverArtService';
+import { requestLibraryFlush } from '@/services/libraryFlushEvent';
 
-function track(id: string, filePath?: string): Track {
-  return { id, title: id, artist: 'A', album: 'B', duration: 10, audioUrl: '', filePath };
+vi.mock('@/services/desktopAdapter', () => ({ isDesktop: () => true }));
+vi.mock('@/services/libraryStorage', () => ({ libraryStorage: { flushPendingSave: vi.fn(), saveLibrary: vi.fn() } }));
+vi.mock('@/services/libraryFlushEvent', () => ({ requestLibraryFlush: vi.fn() }));
+vi.mock('@/services/metadataCacheService', () => ({ metadataCacheService: { delete: vi.fn() } }));
+vi.mock('@/services/coverArtService', () => ({ coverArtService: { deleteCover: vi.fn() } }));
+function track(id: string): Track {
+  return { id, title: id, artist: 'A', album: 'B', duration: 10, audioUrl: '', filePath: `/music/${id}.mp3` };
 }
-
-function slot(tracks: Track[], currentTrackIndex = 0, id: SlotId = 'local'): LibrarySlot {
-  return {
-    id,
-    tracks,
-    currentTrackIndex,
-    currentTime: 0,
-    volume: 0.7,
-    playbackMode: 'order',
-    scrollPosition: 0,
-    filterType: 'default',
-    categorySelection: null,
-  };
+function slot(tracks: Track[], currentTrackIndex = -1, id: SlotId = 'local'): LibrarySlot {
+  return { id, tracks, currentTrackIndex, currentTime: 12, volume: 0.7,
+    playbackMode: 'order', scrollPosition: 0, filterType: 'default', categorySelection: null };
 }
-
-function makeEmptySlots(): Record<SlotId, LibrarySlot> {
-  return {
-    local: slot([]),
-    cloud: slot([], 0, 'cloud'),
-    online: slot([], 0, 'online'),
-    playlist: slot([], 0, 'playlist'),
-  };
-}
-
-function makeController(tracks: Track[], currentTrackIndex = 0) {
-  const viewSlot: SlotId = 'local';
-  const activeSlotId: SlotId = 'local';
-  const slots = { ...makeEmptySlots(), local: slot(tracks, currentTrackIndex) };
-  const slotsRef = { current: slots } as MutableRefObject<Record<SlotId, LibrarySlot>>;
-  const updateSlot = vi.fn();
-  const audioRef = { current: { pause: vi.fn(), src: '' } } as unknown as MutableRefObject<HTMLAudioElement | null>;
+function setup(tracks: Track[], index = 0, activeSlotId: SlotId = 'local', cloudTracks: Track[] = []) {
+  const slots = { local: slot(tracks, index), cloud: slot(cloudTracks, 0, 'cloud'),
+    online: slot([], -1, 'online'), playlist: slot([], -1, 'playlist') };
+  const slotsRef = { current: slots };
+  const updateSlot = vi.fn((_id: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => {
+    slotsRef.current = { ...slotsRef.current, [_id]: updater(slotsRef.current[_id]) };
+  });
+  const pause = vi.fn();
+  const audioRef = { current: { pause, src: '' } } as unknown as MutableRefObject<HTMLAudioElement | null>;
   const setIsPlaying = vi.fn();
   const revokeBlobUrl = vi.fn();
-  const getAppPersistenceData = vi.fn();
-
-  const { result } = renderHook(() =>
-    useLibraryController({
-      viewSlot,
-      activeSlotId,
-      slots,
-      slotsRef,
-      updateSlot,
-      updateLocalTracks: vi.fn(),
-      getAppPersistenceData,
-      audioRef,
-      setIsPlaying,
-      revokeBlobUrl,
-    })
-  );
-
-  return {
-    controller: result.current,
-    mocks: { updateSlot, audioRef, setIsPlaying, revokeBlobUrl },
-    slots,
-    viewSlot,
-  };
+  const { result } = renderHook(() => useLibraryController({
+    viewSlot: 'local', activeSlotId, slots, slotsRef, updateSlot, updateLocalTracks: vi.fn(),
+    getAppPersistenceData: () => ({}), audioRef, setIsPlaying, revokeBlobUrl,
+  }));
+  return { controller: result.current, slotsRef, updateSlot, pause, setIsPlaying, revokeBlobUrl };
 }
-
-describe('useLibraryController', () => {
-  describe('removeTrack', () => {
-    it('removes a track from the view slot', async () => {
-      const tracks = [track('a'), track('b'), track('c')];
-      const { controller, mocks } = makeController(tracks, 1);
-      await controller.removeTrack('a');
-
-      const call = mocks.updateSlot.mock.calls[0];
-      expect(call).toBeDefined();
-      expect(call![0]).toBe('local');
-      const updater = call![1] as (s: LibrarySlot) => LibrarySlot;
-      const result = updater(slot(tracks, 1));
-      expect(result.tracks.map(t => t.id)).toEqual(['b', 'c']);
-    });
-
-    it('decrements index when removed track is before current', async () => {
-      const tracks = [track('a'), track('b'), track('c')];
-      const { controller, mocks } = makeController(tracks, 1);
-      await controller.removeTrack('a');
-
-      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
-      const result = updater(slot(tracks, 1));
-      expect(result.currentTrackIndex).toBe(0);
-    });
-
-    it('clamps index when removed track is current', async () => {
-      const tracks = [track('a'), track('b'), track('c')];
-      const { controller, mocks } = makeController(tracks, 1);
-      await controller.removeTrack('b');
-
-      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
-      const result = updater(slot(tracks, 1));
-      // current was at 1, was removed, should stay within new length
-      expect(result.currentTrackIndex).toBe(Math.min(1, result.tracks.length - 1));
-    });
-
-    it('pauses audio and sets isPlaying false when last track is removed', async () => {
-      const tracks = [track('a')];
-      const { controller, mocks } = makeController(tracks, 0);
-      await controller.removeTrack('a');
-
-      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
-      const result = updater(slot(tracks, 0));
-      expect(result.tracks).toHaveLength(0);
-      expect(result.currentTrackIndex).toBe(-1);
-      // audio pause should have been attempted
-      expect(mocks.setIsPlaying).toHaveBeenCalledWith(false);
-    });
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(libraryStorage.flushPendingSave).mockResolvedValue(true);
+  vi.mocked(requestLibraryFlush).mockResolvedValue(true);
+});
+describe('library removal', () => {
+  it('persists removal, updates selection and clears unused application caches', async () => {
+    const { controller, slotsRef, pause } = setup([track('a'), track('b')], 1);
+    await controller.removeTrack('a');
+    expect(slotsRef.current.local.tracks.map(t => t.id)).toEqual(['b']);
+    expect(slotsRef.current.local.currentTrackIndex).toBe(0);
+    expect(slotsRef.current.local.currentTime).toBe(12);
+    expect(pause).not.toHaveBeenCalled();
+    expect(libraryStorage.flushPendingSave).toHaveBeenCalledWith(expect.objectContaining({ songs: [expect.objectContaining({ id: 'b' })] }));
+    expect(requestLibraryFlush).toHaveBeenCalled();
+    expect(coverArtService.deleteCover).toHaveBeenCalledWith('a');
+    expect(metadataCacheService.delete).toHaveBeenCalledWith('a');
+    // The desktop mock deliberately exposes no file-deletion API.
   });
-
-  describe('removeTracks', () => {
-    it('adjusts currentTrackIndex by removed tracks before it', async () => {
-      const tracks = [track('a'), track('b'), track('c'), track('d')];
-      const { controller, mocks } = makeController(tracks, 2);
-      await controller.removeTracks(['a', 'c']);
-
-      const updater = mocks.updateSlot.mock.calls[0]![1] as (s: LibrarySlot) => LibrarySlot;
-      const result = updater(slot(tracks, 2));
-      // removed 'a' (before current=2) and 'c' (is current=2) — after removal, new index should be
-      // current(2) - removedBefore(1) = 1 (since 'a' was before index 2, 'c' was at index 2)
-      // Wait, 'c' is at index 2, which IS the currentTrackIndex. removedBeforeCurrent counts those
-      // strictly before the current index, so only 'a' (index 0 < 2). So newIndex = 2 - 1 = 1.
-      expect(result.currentTrackIndex).toBe(1);
-      expect(result.tracks.map(t => t.id)).toEqual(['b', 'd']);
-    });
+  it('pauses removal of the current track and selects its next surviving neighbour', async () => {
+    const { controller, slotsRef, pause, setIsPlaying } = setup(['a', 'b', 'c', 'd'].map(track), 2);
+    await controller.removeTracks(['a', 'c', 'c', 'missing']);
+    expect(slotsRef.current.local.tracks.map(t => t.id)).toEqual(['b', 'd']);
+    expect(slotsRef.current.local.currentTrackIndex).toBe(1);
+    expect(slotsRef.current.local.currentTime).toBe(0);
+    expect(pause).toHaveBeenCalledOnce();
+    expect(setIsPlaying).toHaveBeenCalledWith(false);
   });
-
-  describe('reorderTracks', () => {
-    it('early-returns when result.changed is false', async () => {
-      // Test with fromIndex == toIndex (no change)
-      const tracks = [track('a'), track('b')];
-      const { controller, mocks } = makeController(tracks, 0);
-      await controller.reorderTracks(0, 0);
-
-      // updateSlot should NOT be called for no-change reorder
-      // But it IS called indirectly via the handler... actually reorderTracksHandler
-      // checks reorderTracks result.changed and only calls updateSlot when changed.
-      // However, the test setup might not trigger this through the pure function.
-      // For now, just verify the handler runs without error.
-      expect(mocks.updateSlot.mock.calls.length).toBe(0);
-    });
+  it('does not pause the playing source when removing from another source', async () => {
+    const { controller, slotsRef, pause } = setup([track('a')], 0, 'cloud');
+    await controller.removeTrack('a');
+    expect(slotsRef.current.local.currentTrackIndex).toBe(-1);
+    expect(pause).not.toHaveBeenCalled();
+  });
+  it('keeps an unselected library unselected', async () => {
+    const { controller, slotsRef } = setup(['a', 'b'].map(track), -1);
+    await controller.removeTracks(['a']);
+    expect(slotsRef.current.local.currentTrackIndex).toBe(-1);
+  });
+  it('retains caches and blob URLs still referenced by another slot', async () => {
+    const shared = { ...track('a'), audioUrl: 'blob:shared', coverUrl: 'cover://a.png' };
+    const { controller, revokeBlobUrl } = setup([shared], 0, 'cloud', [shared]);
+    await controller.removeTrack('a');
+    expect(coverArtService.deleteCover).not.toHaveBeenCalled();
+    expect(metadataCacheService.delete).not.toHaveBeenCalled();
+    expect(revokeBlobUrl).not.toHaveBeenCalled();
+  });
+  it('retains a shared cover even when track ids differ', async () => {
+    const { controller } = setup([{ ...track('a'), coverUrl: 'cover://a.png?v=1' }], 0, 'cloud', [{ ...track('b'), coverUrl: 'cover://a.png?v=2' }]);
+    await controller.removeTrack('a');
+    expect(coverArtService.deleteCover).not.toHaveBeenCalled();
+    expect(metadataCacheService.delete).toHaveBeenCalledWith('a');
+  });
+  it('leaves records and caches intact if saving fails', async () => {
+    vi.mocked(libraryStorage.flushPendingSave).mockResolvedValue(false);
+    const { controller, updateSlot, pause } = setup([track('a')]);
+    await expect(controller.removeTrack('a')).rejects.toThrow('Could not save');
+    expect(updateSlot).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+    expect(metadataCacheService.delete).not.toHaveBeenCalled();
+  });
+  it('retains caches when user-state persistence needs to retry', async () => {
+    vi.mocked(requestLibraryFlush).mockResolvedValue(false);
+    const { controller } = setup([track('a')]);
+    await controller.removeTrack('a');
+    expect(metadataCacheService.delete).not.toHaveBeenCalled();
+  });
+  it('does nothing for unknown ids or a cancelled reorder', async () => {
+    const { controller, updateSlot } = setup([track('a')]);
+    await controller.removeTrack('missing');
+    await controller.reorderTracks(0, 0);
+    expect(updateSlot).not.toHaveBeenCalled();
+    expect(libraryStorage.flushPendingSave).not.toHaveBeenCalled();
   });
 });

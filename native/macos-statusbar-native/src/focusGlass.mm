@@ -242,7 +242,12 @@ API_AVAILABLE(macos(26.0))
     [self setNeedsLayout:YES];
   }
   BOOL enabled = ReadBool(state, "enabled");
-  [self applyDarkMode:ReadBool(state, "darkMode")];
+  // Icon/text contrast follows the analyzed backdrop luminance so a very light
+  // or very dark cover stays readable; the theme dark flag is only the fallback
+  // while no luminance has been analyzed yet (-1).
+  double luminance = Number(state, "backdropLuminance", -1, 1);
+  BOOL dark = luminance >= 0 ? (luminance < 0.5) : ReadBool(state, "darkMode");
+  [self applyDarkMode:dark];
   self.play.image = Symbol(ReadBool(state, "isPlaying") ? @"pause.fill" : @"play.fill", 23);
   NSString* mode = String(state, "playbackMode");
   self.mode.image = Symbol([mode isEqualToString:@"shuffle"] ? @"shuffle" : [mode isEqualToString:@"repeat-one"] ? @"repeat.1" : @"repeat", 17);

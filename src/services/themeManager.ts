@@ -7,7 +7,7 @@ import { logger } from './logger';
 import { appStorage } from './appStorage';
 import { ThemeConfig, THEME_IDS, ThemeId } from '../types/theme';
 import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
-import { hexToRgba } from './colorUtils';
+import { hexToRgba, readableForeground } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
 
@@ -23,6 +23,7 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 
   el.style.setProperty('--theme-primary', colors.primary);
   el.style.setProperty('--theme-primary-hover', colors.primaryHover);
+  el.style.setProperty('--theme-on-primary', readableForeground(colors.primary));
   el.style.setProperty('--theme-primary-light', colors.primaryLight);
 
   el.style.setProperty('--theme-primary-08', hexToRgba(colors.primary, 0.08));
@@ -70,7 +71,6 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 
   el.style.setProperty('--theme-control-panel-bg', controls.panelBackground);
   el.style.setProperty('--theme-control-panel-bg-glass', controls.panelBackgroundGlass);
-  el.style.setProperty('--theme-control-panel-bg-glass-strong', controls.panelBackgroundGlassStrong);
   el.style.setProperty('--theme-control-panel-bg-floating', controls.panelFloatingBackground);
   el.style.setProperty('--theme-control-panel-border', controls.panelBorder);
   el.style.setProperty('--theme-control-panel-shadow', controls.panelShadow);
@@ -110,6 +110,7 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   el.style.setProperty('--theme-control-input-border', controls.inputBorder);
   el.style.setProperty('--theme-control-input-border-active', controls.inputBorderActive);
 
+  el.style.setProperty('--theme-controlbar-radius', appearance.controlbarRadius);
   el.style.setProperty('--theme-surface-radius', appearance.surfaceRadius);
   el.style.setProperty('--theme-control-radius', appearance.controlRadius);
   el.style.setProperty('--theme-card-radius', appearance.cardRadius);

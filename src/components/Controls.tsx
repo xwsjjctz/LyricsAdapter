@@ -2,7 +2,6 @@ import React, { memo, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { toCoverThumb } from '../services/coverUrl';
-import { useGlassUI } from '../hooks/useGlassUI';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
@@ -27,7 +26,6 @@ interface ControlsProps {
   onToggleFocus: () => void;
   isFocusMode: boolean;
   floating?: boolean;
-  nativeSlidersSuppressed?: boolean;
 }
 
 // Move formatTime outside component to avoid re-creation
@@ -50,10 +48,9 @@ const Controls: React.FC<ControlsProps> = memo(({
   track, isPlaying, currentTime, volume,
   onTogglePlay, onSkipNext, onSkipPrev, onSeek, onVolumeChange, onToggleMute,
   playbackMode, onTogglePlaybackMode, onToggleFocus, isFocusMode,
-  floating = false, nativeSlidersSuppressed = false
+  floating = false,
 }) => {
   const { t } = useTranslation();
-  const glassUI = useGlassUI();
   const symbols = usePlaybackSymbols();
   const isMac = getDesktopAPI()?.platform === 'darwin';
   const panelRef = useRef<HTMLDivElement>(null);
@@ -63,10 +60,10 @@ const Controls: React.FC<ControlsProps> = memo(({
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
-  const disclosure = useVolumeDisclosure(isMac && !isFocusMode && !nativeSlidersSuppressed);
+  const disclosure = useVolumeDisclosure(isMac && !isFocusMode);
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
-    visible: !nativeSlidersSuppressed,
+    visible: true,
     artworkUrl: track?.coverUrl,
     state: {
       enabled: !!track,
@@ -115,10 +112,7 @@ const Controls: React.FC<ControlsProps> = memo(({
     <button
       aria-label={t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence')}
       onClick={onTogglePlaybackMode}
-      className="size-8 flex items-center justify-center transition-colors relative"
-      style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+      className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--sm relative"
     >
       <PlaybackIcon symbols={symbols}
         name={playbackMode === 'shuffle' ? 'shuffle' : playbackMode === 'repeat-one' ? 'repeat_one' : 'repeat'}
@@ -132,7 +126,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       data-macos-floating={isMac || undefined}
       className={isMac ? `macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
         ? `mx-2 mb-2 h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
-        : `h-24 glass glass-soft border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${glassUI ? 'frosted-bar absolute bottom-0 left-0 right-0' : ''} ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
+        : `h-24 border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       }
       style={isMac ? {
         height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM,
@@ -140,28 +134,28 @@ const Controls: React.FC<ControlsProps> = memo(({
         backdropFilter: 'blur(24px) saturate(135%)',
         WebkitBackdropFilter: 'blur(24px) saturate(135%)',
         border: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
-        borderRadius: 20,
+        borderRadius: 'var(--theme-controlbar-radius)',
         boxShadow: '0 12px 32px -12px rgba(0, 0, 0, 0.45)',
       } : floating ? {
         backgroundColor: 'var(--theme-control-panel-bg-floating)',
         borderTop: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
         borderRight: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
         borderBottom: 'var(--theme-panel-border-width) solid var(--theme-control-panel-border)',
-        borderRadius: 'var(--theme-surface-radius)',
+        borderRadius: 'var(--theme-controlbar-radius)',
         boxShadow: 'var(--theme-control-panel-shadow)',
       } : {
         borderColor: 'var(--theme-control-panel-border)',
         borderTopWidth: 'var(--theme-panel-border-width)',
-        backgroundColor: glassUI ? 'var(--theme-control-panel-bg-glass-strong)' : 'var(--theme-control-panel-bg-glass)',
+        backgroundColor: 'var(--theme-control-panel-bg-glass)',
         boxShadow: 'var(--theme-control-panel-shadow)',
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
-      <div className={isMac ? 'player-track-info flex items-center min-w-0' : 'flex items-center gap-4 w-1/4 min-w-[200px]'}>
+      <div className={isMac ? 'player-track-info flex items-center min-w-0' : 'flex items-center gap-4 flex-[0_1_300px] min-w-[200px]'}>
         {track ? (
           <div
             onClick={onToggleFocus}
-            className={`flex items-center cursor-pointer group ${isMac ? 'gap-3 min-w-0' : 'gap-4'}`}
+            className="flex items-center cursor-pointer group gap-3 min-w-0"
           >
             <div className={`relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${isMac ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: 'var(--theme-media-radius)' }}>
               <img src={toCoverThumb(track.coverUrl, 128)} className="size-full object-cover" />
@@ -169,7 +163,7 @@ const Controls: React.FC<ControlsProps> = memo(({
                 <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }} />
               </div>
             </div>
-            <div className={`${isMac ? 'flex-1' : 'w-[130px]'} min-w-0 flex flex-col justify-center overflow-hidden`}>
+            <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
               <div className="text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: 'var(--theme-text-heading-weight)' }}>
                 <OverflowMarquee text={track.title} />
               </div>
@@ -187,7 +181,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       <div className={`flex items-center flex-1 ${isMac ? 'gap-3 min-w-0' : 'gap-6'}`}>
         {/* Play Controls */}
         <div className={`flex items-center shrink-0 ${isMac ? 'gap-2' : 'gap-4'}`}>
-          <button aria-label={t('shortcut.prevTrack')} onClick={onSkipPrev} disabled={!track} className="size-9 flex items-center justify-center transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
+          <button aria-label={t('shortcut.prevTrack')} onClick={onSkipPrev} disabled={!track} className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--md">
             <PlaybackIcon symbols={symbols} name="skip_previous" className="material-symbols-outlined text-2xl fill-icon" />
           </button>
           <button
@@ -205,7 +199,7 @@ const Controls: React.FC<ControlsProps> = memo(({
           >
             <PlaybackIcon symbols={symbols} name={isPlaying ? 'pause' : 'play_arrow'} className="material-symbols-outlined text-2xl fill-icon" />
           </button>
-          <button aria-label={t('shortcut.nextTrack')} onClick={onSkipNext} disabled={!track} className="size-9 flex items-center justify-center transition-colors disabled:opacity-20" style={{ color: 'var(--theme-control-icon-fg)', borderRadius: 'var(--theme-button-radius)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'; e.currentTarget.style.backgroundColor = 'var(--theme-control-icon-bg)'; }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-control-icon-fg)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
+          <button aria-label={t('shortcut.nextTrack')} onClick={onSkipNext} disabled={!track} className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--md">
             <PlaybackIcon symbols={symbols} name="skip_next" className="material-symbols-outlined text-2xl fill-icon" />
           </button>
         </div>
@@ -265,15 +259,12 @@ const Controls: React.FC<ControlsProps> = memo(({
       ) : (
       <div className="flex items-center justify-center gap-2 w-36">
         {modeControl}
-        <div className="flex items-center gap-2 group">
-          <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'}
-            className="material-symbols-outlined transition-colors text-base cursor-pointer"
-            style={{ color: 'var(--theme-control-icon-fg)' }}
-            aria-label={t('controls.mute')}
-            onClick={onToggleMute}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg-hover)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-control-icon-fg)'}
-          />
+        <div className="flex items-center gap-1">
+          <button type="button" aria-label={t('controls.mute')} onClick={onToggleMute}
+            className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--sm">
+            <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'}
+              className="material-symbols-outlined text-base" />
+          </button>
           <div ref={volumeRef} className="player-slider player-volume-slider" data-testid="main-volume-anchor" style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
             <input type="range" min="0" max="1" step="0.01" value={volume} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} onKeyDown={preserveSliderKeys} onChange={(e) => onVolumeChange(Number(e.target.value))} />
             <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
@@ -284,42 +275,6 @@ const Controls: React.FC<ControlsProps> = memo(({
       )}
     </div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison for React.memo
-  // Only re-render when critical props actually change
-  // Check track identity (reference equality)
-  if (prevProps.track !== nextProps.track) return false;
-
-  // Check playback state
-  if (prevProps.isPlaying !== nextProps.isPlaying) return false;
-
-  // Check volume (changes infrequently)
-  if (prevProps.volume !== nextProps.volume) return false;
-
-  // Check focus mode
-  if (prevProps.isFocusMode !== nextProps.isFocusMode) return false;
-
-  // Check callbacks (reference equality)
-  if (prevProps.onTogglePlay !== nextProps.onTogglePlay) return false;
-  if (prevProps.onSkipNext !== nextProps.onSkipNext) return false;
-  if (prevProps.onSkipPrev !== nextProps.onSkipPrev) return false;
-  if (prevProps.onSeek !== nextProps.onSeek) return false;
-  if (prevProps.onVolumeChange !== nextProps.onVolumeChange) return false;
-  if (prevProps.onToggleMute !== nextProps.onToggleMute) return false;
-  if (prevProps.playbackMode !== nextProps.playbackMode) return false;
-  if (prevProps.onTogglePlaybackMode !== nextProps.onTogglePlaybackMode) return false;
-  if (prevProps.onToggleFocus !== nextProps.onToggleFocus) return false;
-
-  // Native media timeupdate is already low-frequency. Keep every committed
-  // sample so the progress bar never lags behind the shared playback clock.
-  if (prevProps.currentTime !== nextProps.currentTime) return false;
-
-  // Check floating mode
-  if (prevProps.floating !== nextProps.floating) return false;
-  if (prevProps.nativeSlidersSuppressed !== nextProps.nativeSlidersSuppressed) return false;
-
-  // All props are effectively the same, skip re-render
-  return true;
 });
 
 Controls.displayName = 'Controls';

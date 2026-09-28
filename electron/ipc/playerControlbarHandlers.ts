@@ -41,11 +41,20 @@ export const playerControlbarStateSchema = z.object({
 const artworkSchema = z.string().max(8192).nullable();
 const ALLOWED_ARTWORK_PROTOCOLS = new Set(['cover:', 'https:', 'http:', 'data:']);
 const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
+// nativeImage decodes only PNG and JPEG. Cover CDNs such as y.gtimg.cn
+// negotiate WebP from the renderer's <img> Accept header, and Chromium's HTTP
+// cache is not keyed on Accept, so a cached renderer response would hand the
+// main process undecodable WebP. Skip the cache and ask for decodable formats.
+const ARTWORK_REQUEST: RequestInit = {
+  cache: 'no-store',
+  headers: { Accept: 'image/png,image/jpeg;q=0.9,*/*;q=0.1' },
+};
 
-async function loadArtwork(source: string): Promise<Buffer | null> {
+/** Fetches and decodes an artwork URL into a compact PNG; null when unavailable. */
+export async function loadArtwork(source: string): Promise<Buffer | null> {
   const url = new URL(source);
   if (!ALLOWED_ARTWORK_PROTOCOLS.has(url.protocol)) throw new Error('Unsupported artwork protocol');
-  const response = await net.fetch(source);
+  const response = await net.fetch(source, ARTWORK_REQUEST);
   if (!response.ok) return null;
   const declaredSize = Number(response.headers.get('content-length') ?? 0);
   if (declaredSize > MAX_ARTWORK_BYTES) throw new Error('Artwork is too large');

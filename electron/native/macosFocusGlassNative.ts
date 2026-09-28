@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../../src/types/playerControlbar';
+import type { NativePaletteAction, NativePaletteState } from '../../src/types/nativePalette';
 
 const require = createRequire(import.meta.url);
 
@@ -34,4 +35,21 @@ export function loadMacosFocusGlassBridge(): MacosFocusGlassBridge | null {
     || typeof native.updateFocusGlass !== 'function'
     || typeof native.stopFocusGlass !== 'function') return null;
   return native as MacosFocusGlassBridge;
+}
+
+export interface MacosNativePaletteBridge {
+  startNativePalette(handle: Buffer, onAction: (action: NativePaletteAction) => void): boolean;
+  updateNativePalette(state: NativePaletteState): void;
+  setNativePaletteCover(url: string, data: Buffer): void;
+  stopNativePalette(): void;
+}
+
+export function loadMacosNativePaletteBridge(): MacosNativePaletteBridge | null {
+  if (process.platform !== 'darwin') return null;
+  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosNativePaletteBridge>;
+  return typeof native.startNativePalette === 'function'
+    && typeof native.updateNativePalette === 'function'
+    && typeof native.setNativePaletteCover === 'function'
+    && typeof native.stopNativePalette === 'function'
+    ? native as MacosNativePaletteBridge : null;
 }

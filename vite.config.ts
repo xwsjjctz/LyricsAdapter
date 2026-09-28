@@ -39,15 +39,14 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [
         react(),
-        // `optimize: { minify: false }` disables Tailwind v4's internal
-        // lightningcss pass, which otherwise strips the standard
-        // `backdrop-filter` declaration and keeps only the `-webkit-` form.
-        // Chromium 148 / Electron 42 no longer honours the `-webkit-` prefix
-        // for backdrop-filter, so the packaged app lost every frosted-glass
-        // surface (dev was fine because Tailwind skips this pass in serve
-        // mode). With Tailwind's pass off, Vite's CSS minifier (esbuild,
-        // configured below) does the minification and preserves both forms.
-        tailwindcss({ optimize: false }),
+        // Tailwind's internal lightningcss pass once stripped the standard
+        // `backdrop-filter` declaration (keeping only the `-webkit-` form,
+        // which Chromium 148 / Electron 42 ignores), silently killing every
+        // packaged frosted-glass surface. Verified 2026-09 against the pinned
+        // Tailwind version: both forms now survive `optimize: true`, so the
+        // optimization is back on. If glass vanishes again in a packaged
+        // build, diff `dist/assets/index-*.css` for `backdrop-filter:`.
+        tailwindcss({ optimize: true }),
         electron([
           {
             entry: 'electron/main.ts',

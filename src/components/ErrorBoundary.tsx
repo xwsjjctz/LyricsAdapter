@@ -36,7 +36,7 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm mb-4" style={{ color: 'var(--theme-text-muted, rgba(255,255,255,0.4))' }}>{i18n.t('errorBoundary.errorLabel')}: {this.state.error?.message}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-lg transition-all"
+              className="px-4 py-2 r-control transition-all"
               style={{ backgroundColor: 'var(--theme-primary, #3b82f6)', color: 'var(--theme-text-primary, #fff)' }}
             >
               {i18n.t('errorBoundary.reload')}

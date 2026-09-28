@@ -28,3 +28,26 @@ export function onlineSongToTrack(song: OnlineSong, source: OnlineSource): Track
     songmid: song.songmid,
   };
 }
+
+/**
+ * Inverse of {@link onlineSongToTrack}: recover the provider song for a track
+ * that came from QQ / NetEase so it can be downloaded from any list. Returns
+ * null for local/WebDAV tracks or online tracks missing their provider id.
+ */
+export function trackToOnlineSong(
+  track: Track,
+): { song: OnlineSong; source: OnlineSource } | null {
+  const { source, songmid } = track;
+  if ((source !== 'qq' && source !== 'netease') || !songmid) return null;
+  return {
+    source,
+    song: {
+      songmid,
+      songname: track.title,
+      singer: track.artist.split(' & ').map(name => ({ name })),
+      albumname: track.album,
+      interval: track.duration,
+      coverUrl: track.coverUrl,
+    },
+  };
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
 import { settingsManager, type OnlineSource } from '@/services/settingsManager';
+import { qqCredentialManager } from '@/services/qqCredentialManager';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
 
@@ -85,6 +86,13 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     })();
   }, []);
 
+  // A silent musickey refresh rewrites the QQ cookie; keep the field in step so
+  // a later Save does not write the stale value back.
+  useEffect(() => cookieManager.subscribe(() => {
+    setCookie(cookieManager.getCookie());
+    setQqLoggedIn(cookieManager.hasCookie());
+  }), []);
+
   const showMessage = useCallback((msg: string, type: 'success' | 'error') => {
     setMessage(msg);
     setMessageType(type);
@@ -121,6 +129,8 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       setQrImage(null);
       if (res.cookie) {
         if (source === 'qq') {
+          if (res.credential) await qqCredentialManager.setCredential(res.credential);
+          else await qqCredentialManager.clearCredential();
           await cookieManager.setCookie(res.cookie);
           setCookie(cookieManager.getCookie());
           setQqLoggedIn(true);
@@ -188,6 +198,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
 
   const handleQrLogout = useCallback(async (): Promise<void> => {
     if (onlineSource === 'qq') {
+      await qqCredentialManager.clearCredential();
       await cookieManager.clearCookie();
       setCookie('');
       setQqLoggedIn(false);
@@ -250,6 +261,10 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       const cookieValue = (onlineSource === 'netease'
         ? neteaseCookie
         : cookie).trim();
+      // A hand-edited QQ cookie no longer matches the stored refresh credential.
+      if (onlineSource === 'qq' && cookieValue !== cookieManager.getCookie()) {
+        await qqCredentialManager.clearCredential();
+      }
       if (cookieValue) {
         await cookieStore.setCookie(cookieValue);
         const status = await cookieStore.validateCookie();

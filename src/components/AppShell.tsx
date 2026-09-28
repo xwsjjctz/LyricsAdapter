@@ -1,24 +1,22 @@
-import React, { type ReactElement, useCallback, useMemo } from 'react';
+import React, { type ReactElement, useCallback, useMemo, useState } from 'react';
 import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
-import { logger } from '../services/logger';
-import { getDesktopAPI } from '../services/desktopAdapter';
-import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
-import type { OnlineSource } from '../services/onlineMusicProvider';
+import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
 import TitleBar from './TitleBar';
-import SidebarToggleButton from './SidebarToggleButton';
-import Sidebar from './Sidebar';
-import LibraryView from './LibraryView';
-import BrowseView from './BrowseView';
-import MetadataView from './MetadataView';
-import FloatingPanel from './FloatingPanel';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
-import SearchBox from './SearchBox';
-import SettingsPanel from './settings/SettingsPanel';
-import GsapModal from './GsapModal';
+import LibraryWallView from './LibraryWallView';
+import SearchWallView from './search/SearchWallView';
+import SettingsView from './settings/SettingsView';
+import CommandPalette from './palette/CommandPalette';
+import type { PaletteLibrarySources } from './palette/usePaletteItems';
+import { useAppCommands, type AppCommandHandlers } from '../commands/useAppCommands';
+import type { PaletteSourceSlot } from '../commands/buildAppCommands';
+import { commandPalette } from '../hooks/useCommandPalette';
+import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
+import { webdavClient } from '../services/webdavClient';
+import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../stores/uiStore';
-import type { useSidebarLayout } from '../hooks/useSidebarLayout';
 import type { useLibraryViewModel } from '../viewmodels/useLibraryViewModel';
 import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
 import type { useImportViewModel } from '../viewmodels/useImportViewModel';
@@ -27,10 +25,13 @@ import type { usePlayerController } from '../controllers/usePlayerController';
 
 // The single application shell. AppContent owns wiring while this component
 // remains presentational; all state and user intents arrive via props.
+//
+// Layout: the poster wall (library or search results) always fills the
+// window. Settings float over it as a glass sheet, the control bar floats at
+// the bottom, and every other entry point lives in the Cmd+K palette.
 
 interface AppShellProps {
   ui: ReturnType<typeof useUIStore>;
-  sidebar: ReturnType<typeof useSidebarLayout>;
   library: ReturnType<typeof useLibraryViewModel>;
   player: ReturnType<typeof usePlayerViewModel>;
   importVm: ReturnType<typeof useImportViewModel>;
@@ -46,12 +47,8 @@ interface AppShellProps {
   pendingSlotLocate: { slot: SlotId; token: number } | null | undefined;
   loadCloudTracks: (tracks: Track[]) => void;
   mergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
-  handleLibraryScrollPositionChange: (pos: number) => void;
-  handleSlotContentReady: (slot: SlotId) => void;
   handleSlotLocatePrepared: (token: number) => void;
-  handleCategoryChange: (selection: string | null) => void;
   libraryContentRef: React.RefObject<HTMLDivElement>;
-  setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   onOpenPlaylist: (
     source: OnlineSource,
     playlistId: string,
@@ -60,17 +57,16 @@ interface AppShellProps {
   ) => Promise<void>;
   audioElement: ReactElement | null;
   isLinux: boolean;
-  // Playlist browse/play decoupling: the playlist being browsed in the
-  // Library list (viewSlot === 'playlist') is shown from this preview rather
-  // than the 'playlist' play slot, so opening a playlist never interrupts
-  // playback. The slot is only committed when the user clicks a row.
+  // Playlist browse/play decoupling: the playlist being browsed on the wall
+  // (viewSlot === 'playlist') is shown from this preview rather than the
+  // 'playlist' play slot, so opening a playlist never interrupts playback.
+  // The slot is only committed when the user plays a poster.
   libraryBrowsingTracks: Track[];
   onPlayLibraryPlaylistTrack: (index: number) => void;
 }
 
 const AppShell: React.FC<AppShellProps> = ({
   ui,
-  sidebar,
   library,
   player,
   importVm,
@@ -83,12 +79,8 @@ const AppShell: React.FC<AppShellProps> = ({
   pendingSlotLocate,
   loadCloudTracks,
   mergeCloudTracks,
-  handleLibraryScrollPositionChange,
-  handleSlotContentReady,
   handleSlotLocatePrepared,
-  handleCategoryChange,
   libraryContentRef,
-  setActiveTracks,
   onOpenPlaylist,
   audioElement,
   isLinux,
@@ -98,60 +90,117 @@ const AppShell: React.FC<AppShellProps> = ({
   const { t } = useTranslation();
   const {
     viewMode,
-    transitionToView,
     pageContentRef,
     isFocusMode,
     setIsFocusMode,
-    autoLocateToken,
-    pendingNavigation,
-    setPendingNavigation,
-    headerHeight,
-    metadataViewRef,
-    isWindowFocused,
     floatingPanel,
-    glassUI,
     handleNavigate,
+    settingsSection,
+    openSettings,
+    closeSettings,
   } = ui;
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const openSearchResults = useCallback((query: string) => {
+    setSearchQuery(query);
+    handleNavigate(ViewMode.SEARCH);
+  }, [handleNavigate]);
+  const isSearchView = viewMode === ViewMode.SEARCH;
+  const openWall = useCallback(() => handleNavigate(ViewMode.WALL), [handleNavigate]);
+  const editSearchQuery = useCallback(() => {
+    commandPalette.open('library');
+    commandPalette.setQuery(searchQuery);
+  }, [searchQuery]);
+
+  // A browsed playlist always shows its own (possibly still loading) tracks,
+  // never the previously played playlist held in the 'playlist' play slot.
+  const playlistState = playerController.libraryPlaylistLoadState;
+  const isBrowsingPlaylist = viewSlot === 'playlist' && !!playlistState.playlistId;
+  const shownTracks = isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks;
+  const playShownTrack = viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
+    ? onPlayLibraryPlaylistTrack
+    : library.selectTrack;
+  // Identity of the shown list; a change plays the wall's source-switch animation.
+  const librarySourceKey = viewSlot === 'playlist' && playlistState.playlistId
+    ? `playlist:${playlistState.source}:${playlistState.playlistId}`
+    : viewSlot;
+
+  // Cloud tracks load (and refresh) regardless of which view is on screen.
+  const { loadProgress: cloudLoadProgress, refreshCloudTracks } = useLibraryCloudSync({
+    dataSource: viewSlot,
+    onLoadCloudTracks: loadCloudTracks,
+    onMergeCloudTracks: mergeCloudTracks,
+  });
+  const refreshCloud = useCallback(() => {
+    void refreshCloudTracks().catch(() => notify(t('settingsDialog.webdavTitle'), t('browse.error')));
+  }, [refreshCloudTracks, t]);
+
+  const [selectionRequest, setSelectionRequest] = useState(0);
+  const selectTracks = useCallback(() => {
+    if (isSearchView) handleNavigate(ViewMode.WALL);
+    setSelectionRequest(token => token + 1);
+  }, [handleNavigate, isSearchView]);
 
   const toggleFocusMode = useCallback(() => {
     setIsFocusMode(current => !current);
   }, [setIsFocusMode]);
-  const openSettings = useCallback(() => {
-    transitionToView(ViewMode.SETTINGS);
-  }, [transitionToView]);
-  const closeOverlayView = useCallback(() => {
-    transitionToView(ViewMode.PLAYER);
-  }, [transitionToView]);
+
+  const switchSource = useCallback((slot: PaletteSourceSlot) => {
+    if (slot === 'cloud' && !webdavClient.hasConfig()) {
+      notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
+      openSettings('cloud');
+      return;
+    }
+    handleNavigate(ViewMode.WALL);
+    void handleSwitchSlot(slot);
+  }, [handleNavigate, handleSwitchSlot, openSettings, t]);
+  const openPlaylistInfo = useCallback((playlist: PlaylistInfo) => {
+    handleNavigate(ViewMode.WALL);
+    void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount)
+      .catch(() => notify(t('playlists.title'), t('browse.error')));
+  }, [handleNavigate, onOpenPlaylist, t]);
+
+  const canManageShown = viewSlot === 'local' || viewSlot === 'online';
   const hasUnavailableTracks = useMemo(
     () => activeTracks.some(track => track.available === false),
     [activeTracks],
   );
-  const libraryTrackCounts = useMemo(() => ({
-    local: slots.local.tracks.length,
-    cloud: slots.cloud.tracks.length,
-    online: slots.online.tracks.length,
-  }), [slots.local.tracks.length, slots.cloud.tracks.length, slots.online.tracks.length]);
-  const searchBox = useMemo(() => (
-    <SearchBox
-      isWindowFocused={isWindowFocused}
-      localTracks={slots.local.tracks}
-      cloudTracks={slots.cloud.tracks}
-      onNavigateToTrack={online.navigateToTrack}
-      onOnlineDownload={online.download}
-      onOnlineStreamPlay={online.playSong}
-      onOnlineUpload={online.upload}
-      onlineProgress={online.progress}
-    />
-  ), [
-    isWindowFocused,
-    online.download,
-    online.navigateToTrack,
-    online.playSong,
-    online.progress,
-    online.upload,
-    slots.cloud.tracks,
-    slots.local.tracks,
+  const commandHandlers = useMemo<AppCommandHandlers>(() => ({
+    trackCounts: { local: slots.local.tracks.length, cloud: slots.cloud.tracks.length, online: slots.online.tracks.length },
+    switchSource,
+    openPlaylist: openPlaylistInfo,
+    importFiles: importVm.importClick,
+    importDisabled: importVm.importDisabled,
+    reloadFiles: importVm.reloadFiles,
+    hasUnavailableTracks,
+    selectTracks: canManageShown && shownTracks.length > 0 ? selectTracks : undefined,
+    refreshCloud: viewSlot === 'cloud' && webdavClient.hasConfig() ? refreshCloud : undefined,
+    playAll: shownTracks.length > 0 ? () => playShownTrack(0) : undefined,
+    shuffleAll: shownTracks.length > 0 ? () => {
+      player.setPlaybackMode('shuffle');
+      playShownTrack(Math.floor(Math.random() * shownTracks.length));
+    } : undefined,
+    toggleFocusMode,
+    togglePlaybackMode: player.togglePlaybackMode,
+    toggleMute: player.toggleMute,
+    openSettings,
+    openWall,
+  }), [
+    canManageShown, hasUnavailableTracks, importVm.importClick, importVm.importDisabled, importVm.reloadFiles,
+    openPlaylistInfo, openSettings, openWall, playShownTrack, player, refreshCloud, selectTracks,
+    shownTracks.length, slots.cloud.tracks.length, slots.local.tracks.length, slots.online.tracks.length,
+    switchSource, toggleFocusMode, viewSlot,
   ]);
+  const { commands, visiblePlaylists } = useAppCommands(commandHandlers);
+  const paletteLibrary = useMemo<PaletteLibrarySources>(() => ({
+    localTracks: slots.local.tracks,
+    cloudTracks: slots.cloud.tracks,
+    playlists: visiblePlaylists,
+    playTrack: online.navigateToTrack,
+    playOnlineSong: online.playSong,
+    openPlaylist: openPlaylistInfo,
+    openAllResults: openSearchResults,
+  }), [online.navigateToTrack, online.playSong, openPlaylistInfo, openSearchResults, slots.cloud.tracks, slots.local.tracks, visiblePlaylists]);
 
   return (
     <>
@@ -165,42 +214,11 @@ const AppShell: React.FC<AppShellProps> = ({
           isFocusMode={isFocusMode}
           onToggleFocusMode={toggleFocusMode}
         />
-        <SidebarToggleButton
-          onToggle={sidebar.toggleCollapsed}
-          collapsed={sidebar.collapsed}
-          isFocusMode={isFocusMode}
-        />
-        <div className="flex flex-1">
-          <Sidebar
-          onNavigate={handleNavigate}
-          onReloadFiles={importVm.reloadFiles}
-          hasUnavailableTracks={hasUnavailableTracks}
-          currentView={viewMode}
-          viewMode={viewMode}
-          activeSlotId={viewSlot}
-          onSlotChange={handleSwitchSlot}
-          libraryTrackCounts={libraryTrackCounts}
-          onOpenPlaylist={onOpenPlaylist}
-          floating={floatingPanel}
-          width={sidebar.width}
-          collapsed={sidebar.collapsed}
-          isResizing={sidebar.isResizing}
-          onResizeStart={sidebar.startResize}
-        />
-        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden pt-8"
+        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden"
           style={floatingPanel ? {} : {
             background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
           }}
         >
-          {/* Frosted header band — clipped to each view's measured header bottom.
-              For LibraryView this ends at the song-list column divider; for
-              Settings it ends at the panel header container bottom. */}
-          {glassUI && (viewMode === ViewMode.PLAYER || viewMode === ViewMode.SETTINGS) && headerHeight > 0 && (
-            <div
-              className="frosted-header absolute top-0 left-0 right-0 z-20"
-              style={{ height: 40 + headerHeight }}
-            />
-          )}
           <input
             type="file"
             ref={importVm.fileInputRef}
@@ -209,88 +227,51 @@ const AppShell: React.FC<AppShellProps> = ({
             className="hidden"
             onChange={importVm.onFileInputChange}
           />
-          <div ref={pageContentRef} className={`flex-1 overflow-hidden ${floatingPanel ? 'px-10 pt-2 pb-2' : 'px-10 pt-2 pb-2'}`}
-            style={getDesktopAPI()?.platform === 'darwin' && (viewMode === ViewMode.BROWSE || viewMode === ViewMode.METADATA)
-              ? { paddingBottom: MACOS_PLAYER_BOTTOM_INSET } : undefined}>
-            {viewMode === ViewMode.BROWSE ? (
-              <BrowseView
-                online={online}
-                onNavigateToSettings={openSettings}
-              />
-            ) : viewMode === ViewMode.METADATA ? (
-              <MetadataView
-                ref={metadataViewRef}
-                libraryTracks={activeTracks}
-                onImportFromLibrary={(trackIds) => {
-                  logger.debug('[App] Imported tracks to metadata view:', trackIds);
-                }}
-                onUpdateTrack={(updatedTrack) => {
-                  setActiveTracks(prev => prev.map(track =>
-                    track.id === updatedTrack.id ? updatedTrack : track
-                  ));
-                }}
+          <div ref={pageContentRef} className="flex-1 overflow-hidden">
+            {isSearchView ? (
+              <SearchWallView
+                query={searchQuery}
+                localTracks={slots.local.tracks}
+                cloudTracks={slots.cloud.tracks}
+                currentTrackId={player.currentTrack?.id}
+                onNavigateToTrack={online.navigateToTrack}
+                onOnlineStreamPlay={online.playSong}
+                onDownloadTrack={online.downloadTrack}
+                onlineProgress={online.progress}
+                onEditQuery={editSearchQuery}
+                onClose={openWall}
               />
             ) : (
               <div ref={libraryContentRef} className="h-full">
-              <LibraryView
-                tracks={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
-                  ? libraryBrowsingTracks
-                  : library.slots[library.viewSlot].tracks}
-                currentTrackIndex={library.slots[library.viewSlot].currentTrackIndex}
-                {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
-                onTrackSelect={viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
-                  ? onPlayLibraryPlaylistTrack
-                  : library.selectTrack}
-                onRemoveTrack={library.removeTrack}
-                onRemoveMultipleTracks={library.removeTracks}
-                onImportClick={importVm.importClick}
-                importDisabled={importVm.importDisabled}
-                onOpenSettings={openSettings}
-                onDropFiles={importVm.dropFiles}
-                onDropFilePaths={importVm.dropFilePaths}
-                onReorderTracks={library.reorder}
-                onUpdateTrack={library.updateTrack}
-                isFocusMode={isFocusMode}
-                savedScrollPosition={library.slots[library.viewSlot].scrollPosition}
-                onScrollPositionChange={handleLibraryScrollPositionChange}
-                autoLocateToken={autoLocateToken}
-                importProgress={importVm.importProgress}
-                dataSource={library.viewSlot}
-                activeSlotId={library.activeSlotId}
-                onSwitchSlot={library.switchViewSlot}
-                pendingLocateSlot={pendingSlotLocate?.slot}
-                pendingLocateToken={pendingSlotLocate?.token}
-                onPendingLocatePrepared={handleSlotLocatePrepared}
-                onSlotContentReady={handleSlotContentReady}
-                filterType={slots[viewSlot].filterType}
-                categorySelection={slots[viewSlot].categorySelection}
-                onCategoryChange={handleCategoryChange}
-                onHeaderHeightChange={ui.setHeaderHeight}
-                onLoadCloudTracks={loadCloudTracks}
-                onMergeCloudTracks={mergeCloudTracks}
-                {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playerController.loadMorePlaylistInLibrary } : {})}
-                playlistLoading={viewSlot === 'playlist' ? playerController.libraryPlaylistLoadState.isLoading : false}
-                playlistHasMore={viewSlot === 'playlist' ? playerController.libraryPlaylistLoadState.hasMore : false}
-                playlistLoadError={viewSlot === 'playlist' ? playerController.libraryPlaylistLoadState.error : null}
-                {...(viewSlot === 'playlist' && playerController.libraryPlaylistLoadState.title
-                  ? { playlistTitle: playerController.libraryPlaylistLoadState.title }
-                  : {})}
-                {...(viewSlot === 'playlist' && playerController.libraryPlaylistLoadState.totalTrackCount != null
-                  ? { playlistTrackCount: playerController.libraryPlaylistLoadState.totalTrackCount }
-                  : {})}
-                searchBox={searchBox}
-              />
+                <LibraryWallView
+                  tracks={shownTracks}
+                  sourceKey={librarySourceKey}
+                  dataSource={library.viewSlot}
+                  currentTrackId={player.currentTrack?.id}
+                  onTrackSelect={playShownTrack}
+                  onRemoveTrack={library.removeTrack}
+                  onRemoveMultipleTracks={library.removeTracks}
+                  onUpdateTrack={library.updateTrack}
+                  onDownloadTrack={online.downloadTrack}
+                  onSwapTracks={library.swap}
+                  playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
+                  playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
+                  playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
+                  onLoadMorePlaylist={viewSlot === 'playlist' ? playerController.loadMorePlaylistInLibrary : undefined}
+                  pendingLocateSlot={pendingSlotLocate?.slot}
+                  pendingLocateToken={pendingSlotLocate?.token}
+                  onPendingLocatePrepared={handleSlotLocatePrepared}
+                  importDisabled={importVm.importDisabled}
+                  onImportClick={importVm.importClick}
+                  onDropFiles={importVm.dropFiles}
+                  onDropFilePaths={importVm.dropFilePaths}
+                  importProgress={importVm.importProgress}
+                  loadProgress={cloudLoadProgress}
+                  selectionRequest={selectionRequest}
+                />
               </div>
             )}
           </div>
-          {viewMode === ViewMode.SETTINGS && (
-            <FloatingPanel
-              onClose={closeOverlayView}
-              className="floating-panel-shell--settings"
-            >
-              <SettingsPanel onClose={closeOverlayView} />
-            </FloatingPanel>
-          )}
           <Controls
             track={player.currentTrack}
             isPlaying={player.isPlaying}
@@ -307,9 +288,9 @@ const AppShell: React.FC<AppShellProps> = ({
             onToggleFocus={toggleFocusMode}
             isFocusMode={isFocusMode}
             floating={floatingPanel}
-            nativeSlidersSuppressed={pendingNavigation !== null}
           />
         </main>
+        {settingsSection && <SettingsView initialSection={settingsSection} onClose={closeSettings} />}
         <FocusMode
           track={player.currentTrack}
           isVisible={isFocusMode}
@@ -327,65 +308,8 @@ const AppShell: React.FC<AppShellProps> = ({
           onToggleFocus={toggleFocusMode}
           getCurrentPlaybackTime={player.getCurrentPlaybackTime}
         />
-        </div>
       </div>
-      <GsapModal
-        isOpen={pendingNavigation !== null}
-        overlayClassName="z-50"
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
-        panelClassName="rounded-2xl p-6 w-96 shadow-2xl"
-        panelStyle={{ backgroundColor: 'var(--theme-background-dark, #0d1520)', border: '1px solid var(--theme-border-light, rgba(255,255,255,0.15))' }}
-      >
-        {pendingNavigation && (
-          <>
-            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary, #fff)' }}>
-              {t('metadataView.unsavedTitle')}
-            </h3>
-            <p className="mb-6 text-sm" style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}>
-              {t('metadataView.unsavedMessage')}
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setPendingNavigation(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ color: 'var(--theme-text-secondary, rgba(255,255,255,0.6))' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={() => {
-                  metadataViewRef.current?.stashAll();
-                  transitionToView(pendingNavigation);
-                  setIsFocusMode(false);
-                  setPendingNavigation(null);
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ backgroundColor: 'var(--theme-background-card-hover, rgba(255,255,255,0.1))', color: 'var(--theme-text-primary, #fff)' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-border-light, rgba(255,255,255,0.2))'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-background-card-hover, rgba(255,255,255,0.1))'; }}
-              >
-                {t('metadataView.stash')}
-              </button>
-              <button
-                onClick={async () => {
-                  await metadataViewRef.current?.saveAll();
-                  transitionToView(pendingNavigation);
-                  setIsFocusMode(false);
-                  setPendingNavigation(null);
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ backgroundColor: 'var(--theme-primary, #2b8cee)', color: '#fff' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary-hover, #1a7de0)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--theme-primary, #2b8cee)'; }}
-              >
-                {t('metadataView.saveChanges')}
-              </button>
-            </div>
-          </>
-        )}
-      </GsapModal>
+      <CommandPalette commands={commands} library={paletteLibrary} />
     </>
   );
 };

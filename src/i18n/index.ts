@@ -57,14 +57,12 @@ void i18next
     lng: getInitialLanguage(),
     fallbackLng: 'zh',
     // Missing translations return the key itself (old manager behaviour),
-    // never null/empty — callers do `.replace('{x}', …)` on the result.
+    // never null/empty.
     returnNull: false,
     returnEmptyString: false,
     interpolation: {
-      // react-i18next escapes values by default; the old code returned raw
-      // strings and callers did their own `.replace('{count}', …)`. Keep that
-      // working by NOT having i18next interpolate `{count}`-style placeholders
-      // (we'd migrate callers to real interpolation later).
+      // React already escapes rendered text, and notification bodies are
+      // plain strings, so interpolated `{{value}}`s must stay unescaped.
       escapeValue: false,
     },
     saveMissing: true,

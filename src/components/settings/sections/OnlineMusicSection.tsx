@@ -6,6 +6,7 @@ import type { SettingsTheme } from '../shared';
 import { settingsManager } from '@/services/settingsManager';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
+import Button from '../../ui/Button';
 
 // Presentational provider settings section used by the application settings panel.
 
@@ -71,14 +72,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
           {t('settingsDialog.onlineMusicTitle')}
         </h3>
-        <button
-          onClick={onSave}
-          disabled={isSaving}
-          className="px-4 py-2 text-sm transition-all disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
-          style={{ backgroundColor: colors.primary, color: '#fff', border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryHover}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.primary}
-        >
+        <Button variant="primary" size="sm" className="flex-shrink-0" onClick={onSave} disabled={isSaving}>
           {isSaving ? (
             <>
               <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
@@ -87,7 +81,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           ) : (
             t('settingsDialog.save')
           )}
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -170,15 +164,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   <button
                     type="button"
                     onClick={onQrLogout}
-                    className="px-2 py-1 text-xs transition-all"
-                    style={{
-                      backgroundColor: colors.backgroundCard,
-                      color: colors.textSecondary,
-                      border: `1px solid ${colors.borderLight}`,
-                      borderRadius: 'var(--theme-control-radius)',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; }}
+                    className="ui-btn ui-btn--secondary ui-btn--sm"
                   >
                     {t('settingsDialog.qrLogout')}
                   </button>
@@ -309,10 +295,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   }
                 }}
                 disabled={isSaving}
-                className="px-3 py-2 transition-all disabled:opacity-50 flex items-center flex-shrink-0"
-                style={{ backgroundColor: colors.backgroundCard, color: colors.textPrimary, border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-card-radius)' }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.backgroundCardHover}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = colors.backgroundCard}
+                aria-label={t('settingsDialog.chooseDownloadFolder')}
+                className="ui-btn ui-btn--secondary ui-btn--md flex-shrink-0"
               >
                 <span className="material-symbols-outlined text-base">folder_open</span>
               </button>

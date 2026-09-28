@@ -4,9 +4,11 @@ import { LibrarySlot, Track, ViewMode } from './types';
 import { getDesktopAPI } from './services/desktopAdapter';
 import type { LibrarySettings } from './services/libraryStorage';
 import { syncOnlineCookiesToMain } from './services/cookieManager';
+import { qqCredentialManager } from './services/qqCredentialManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
+import { commandPalette } from './hooks/useCommandPalette';
 import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
@@ -16,7 +18,6 @@ import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSource } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
-import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
@@ -30,36 +31,20 @@ declare global {
   interface Window {
     __DEV__?: boolean;
   }
-  interface ImportMeta {
-    env?: {
-      DEV?: boolean;
-      MODE?: string;
-      PROD?: boolean;
-    };
-  }
 }
 
+const openPaletteMusicSearch = () => commandPalette.open('library');
+
 const AppContent: React.FC = () => {
+  const ui = useUIStore();
   const {
     viewMode,
-    setViewMode,
     transitionToView,
-    pageContentRef,
     isFocusMode,
     setIsFocusMode,
-    autoLocateToken,
     markTrackSwitch,
-    pendingNavigation,
-    setPendingNavigation,
-    headerHeight,
-    setHeaderHeight,
-    metadataViewRef,
-    isWindowFocused,
-    floatingPanel,
-    glassUI,
-    handleNavigate,
-  } = useUIStore();
-  const sidebar = useSidebarLayout();
+    openSettings,
+  } = ui;
   const {
     slots,
     slotsRef,
@@ -85,11 +70,8 @@ const AppContent: React.FC = () => {
     pendingSlotLocate,
     cloudWritable,
     handleSwitchSlot,
-    handleSlotContentReady,
     handleSlotLocatePrepared,
-    handleLibraryScrollPositionChange,
     getLiveScrollPosition,
-    handleCategoryChange,
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
   activeSlotIdRef.current = activeSlotId;
@@ -105,6 +87,7 @@ const AppContent: React.FC = () => {
     playbackMode,
     setPlaybackMode,
     togglePlay,
+    pausePlayback,
     skipForward,
     skipBackward,
     handleSeek,
@@ -175,6 +158,7 @@ const AppContent: React.FC = () => {
     handleVolumeChange,
     handleToggleMute,
     handleTogglePlaybackMode,
+    setPlaybackMode,
   });
   useMediaSession({
     currentTrack: player.currentTrack,
@@ -267,6 +251,7 @@ const AppContent: React.FC = () => {
     getAppPersistenceData,
     audioRef,
     setIsPlaying,
+    pausePlayback,
     revokeBlobUrl,
   });
   const library = useLibraryViewModel({
@@ -279,6 +264,7 @@ const AppContent: React.FC = () => {
     removeTrack: libraryController.removeTrack,
     removeTracks: libraryController.removeTracks,
     reorder: libraryController.reorderTracks,
+    swap: libraryController.swapTracks,
     updateTrack: libraryController.updateTrack,
   });
   // Library mutations (remove / batch-remove / reorder / updateTrack /
@@ -316,6 +302,12 @@ const AppContent: React.FC = () => {
   // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
   useEffect(() => { void syncOnlineCookiesToMain(); }, []);
 
+  // Renew the QQ Music musickey before it expires (no-op without a stored credential).
+  useEffect(() => {
+    qqCredentialManager.start();
+    return () => qqCredentialManager.stop();
+  }, []);
+
   // Download-complete (add to local library) now lives in the library controller;
   // AppContent delegates. (Phase 2 boundary completion — see roadmap §4.)
   const handleDownloadComplete = useCallback(
@@ -326,7 +318,7 @@ const AppContent: React.FC = () => {
   // ViewModels; the per-handler delegates that lived here were removed by the
   // Phase 4 wiring.
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
-    setViewMode,
+    openSettings,
     mergeCloudTracks,
     onDownloadComplete: handleDownloadComplete,
   });
@@ -344,19 +336,23 @@ const AppContent: React.FC = () => {
     playlistTitle: string,
     totalTrackCount: number,
   ) => {
-    await playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
+    // Show the playlist (and its loading state) right away instead of waiting
+    // for the first page; openOnlinePlaylistInLibrary resets its state synchronously.
+    const loading = playerController.openOnlinePlaylistInLibrary(source, playlistId, playlistTitle, totalTrackCount);
+    loading.catch(() => undefined); // still rethrown by `await loading` below
     await handleSwitchSlot('playlist');
-    transitionToView(ViewMode.PLAYER);
-  }, [handleSwitchSlot, playerController, transitionToView]);
+    // Playlists always open on the poster wall.
+    if (viewMode !== ViewMode.WALL) transitionToView(ViewMode.WALL);
+    await loading;
+  }, [handleSwitchSlot, playerController, transitionToView, viewMode]);
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.
   useShortcuts({
-    viewMode,
     isFocusMode,
     isPlaying,
     setIsFocusMode,
-    setViewMode,
+    openSettings,
     togglePlay,
     skipForward,
     skipBackward,
@@ -365,6 +361,8 @@ const AppContent: React.FC = () => {
     setVolume,
     handleToggleMute,
     handleTogglePlaybackMode,
+    toggleCommandPalette: commandPalette.toggle,
+    openMusicSearch: openPaletteMusicSearch,
     currentTime,
     duration: currentTrack?.duration || 0
   });
@@ -389,13 +387,7 @@ const AppContent: React.FC = () => {
 
   return (
     <AppShell
-      ui={{
-        viewMode, setViewMode, transitionToView, pageContentRef,
-        isFocusMode, setIsFocusMode, autoLocateToken, markTrackSwitch,
-        pendingNavigation, setPendingNavigation, headerHeight, setHeaderHeight,
-        metadataViewRef, isWindowFocused, floatingPanel, glassUI, handleNavigate,
-      }}
-      sidebar={sidebar}
+      ui={ui}
       library={library}
       player={player}
       importVm={importVm}
@@ -408,12 +400,8 @@ const AppContent: React.FC = () => {
       pendingSlotLocate={pendingSlotLocate}
       loadCloudTracks={loadCloudTracks}
       mergeCloudTracks={mergeCloudTracks}
-      handleLibraryScrollPositionChange={handleLibraryScrollPositionChange}
-      handleSlotContentReady={handleSlotContentReady}
       handleSlotLocatePrepared={handleSlotLocatePrepared}
-      handleCategoryChange={handleCategoryChange}
       libraryContentRef={libraryContentRef}
-      setActiveTracks={setActiveTracks}
       onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}
       isLinux={isLinux}

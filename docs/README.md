@@ -10,6 +10,8 @@
 
 ## 开发与维护
 
+- [产品收敛与桌面交互规划](./development/product-direction.md)（区分已定方向、待验证方案和本次范围）
+- [命令面板交互方案](./development/command-palette-plan.md)（海报墙单入口，待实施）
 - [渐进式重构路线图](./development/refactor-roadmap.md)
 - [重构计划](./development/refactor-plan.md)
 - [重构待办](./development/refactor-backlog.md)

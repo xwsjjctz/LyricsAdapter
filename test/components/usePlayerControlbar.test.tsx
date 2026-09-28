@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { controlbarPresentation, usePlayerControlbar } from '@/hooks/usePlayerControlbar';
+import { CONTROLBAR_PASSTHROUGH_ATTR, controlbarPresentation, usePlayerControlbar } from '@/hooks/usePlayerControlbar';
 import type { PlayerControlbarAction } from '@/types/playerControlbar';
 
 const mocks = vi.hoisted(() => ({
@@ -48,6 +48,27 @@ describe('usePlayerControlbar', () => {
 
     expect(controlbarPresentation(anchor, true).opacity).toBe(1);
     elementFromPoint.mockReturnValue(regularOverlay);
+    expect(controlbarPresentation(anchor, true).opacity).toBe(0);
+    anchor.remove();
+  });
+
+  it('stays visible over pass-through scrims but hides behind their panels', () => {
+    const anchor = document.createElement('div');
+    anchor.style.opacity = '1';
+    document.body.appendChild(anchor);
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+      x: 20, y: 80, left: 20, top: 80, right: 420, bottom: 144,
+      width: 400, height: 64, toJSON: () => ({}),
+    });
+    const scrim = document.createElement('div');
+    scrim.setAttribute(CONTROLBAR_PASSTHROUGH_ATTR, '');
+    const panel = document.createElement('div');
+    scrim.appendChild(panel);
+    const elementFromPoint = vi.fn<() => Element | null>().mockReturnValue(scrim);
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: elementFromPoint });
+
+    expect(controlbarPresentation(anchor, true).opacity).toBe(1);
+    elementFromPoint.mockReturnValue(panel);
     expect(controlbarPresentation(anchor, true).opacity).toBe(0);
     anchor.remove();
   });

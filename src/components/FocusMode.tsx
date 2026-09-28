@@ -924,7 +924,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             maxWidth: `${1024 * focusScale}px`,
             paddingRight: `${32 * focusScale}px`,
             gap: `${128 * focusScale}px`,
-            transform: `translateX(${24 * focusScale}px)`,
+            // Override Tailwind's translate property; transform would add a second offset.
+            translate: `${24 * focusScale}px 0`,
           } : undefined}
         >
 

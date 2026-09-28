@@ -25,6 +25,7 @@ export type ShortcutAction =
   | 'toggleMute'
   | 'togglePlaybackMode'
   | 'toggleFocusMode'
+  | 'toggleCommandPalette'
   | 'focusSearch'
   | 'gotoBrowse'
   | 'gotoSettings'
@@ -142,6 +143,14 @@ const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     defaultKey: 'CmdOrCtrl+Enter',
     currentKey: 'CmdOrCtrl+Enter',
     scope: 'navigation'
+  },
+  toggleCommandPalette: {
+    id: 'toggleCommandPalette',
+    name: 'shortcut.toggleCommandPalette',
+    description: 'shortcut.toggleCommandPaletteDesc',
+    defaultKey: 'CmdOrCtrl+K',
+    currentKey: 'CmdOrCtrl+K',
+    scope: 'global'
   },
   focusSearch: {
     id: 'focusSearch',

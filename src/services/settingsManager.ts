@@ -7,8 +7,8 @@ const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const ONLINE_SOURCE_KEY = 'la_online_source';
-const GLASS_UI_KEY = 'la_glass_ui';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
+const LIBRARY_MODE_KEY = 'la_library_mode';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
@@ -21,15 +21,18 @@ export type OnlineSource = OnlineMusicSource;
 
 type Listener = () => void;
 
+/** Which library presentation the app reopens in: the track list or the poster wall. */
+export type LibraryMode = 'list' | 'wall';
+
 class SettingsManager {
   private downloadPath: string = '';
   private floatingPanel: boolean = false;
   private bgBlurTrans: number = 1.0;
   private qqMusicEnabled: boolean = false;
   private onlineSource: OnlineSource = 'qq';
-  private glassUI: boolean = false;
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
+  private libraryMode: LibraryMode = 'list';
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 32;
   private focusLyricLineSpacing: number = 30;
@@ -53,8 +56,8 @@ class SettingsManager {
       this.bgBlurTrans = 1.0;
       this.qqMusicEnabled = false;
       this.onlineSource = 'qq';
-      this.glassUI = false;
       this.gsapButtonBounce = true;
+      this.libraryMode = 'list';
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 32;
       this.focusLyricLineSpacing = 30;
@@ -80,12 +83,9 @@ class SettingsManager {
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
       this.onlineSource = storedSource === 'netease' ? storedSource : 'qq';
 
-      // Frosted Glass UI was retired (see useGlassUI); the persisted flag is
-      // ignored so a previously enabled profile cannot keep paying for two
-      // full-width backdrop-filter layers that no UI can turn off anymore.
-      this.glassUI = false;
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
+      this.libraryMode = appStorage.getItem(LIBRARY_MODE_KEY) === 'wall' ? 'wall' : 'list';
 
       const blurRadius = appStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
       if (blurRadius) {
@@ -243,24 +243,6 @@ class SettingsManager {
     return persisted;
   }
 
-  // --- Glass UI (frosted header & control bar) ---
-  // @deprecated Frosted Glass UI 已从实验性功能移除，暂时停用。后续迭代或移除。
-
-  /** @deprecated Frosted Glass UI 已停用，恒为 false，后续迭代或移除 */
-  getGlassUI(): boolean {
-    return this.glassUI;
-  }
-
-  /** @deprecated Frosted Glass UI 已停用，后续迭代或移除 */
-  setGlassUI(enabled: boolean): Promise<boolean> {
-    const previous = this.glassUI;
-    this.glassUI = enabled;
-    const persisted = this.persistSetting(GLASS_UI_KEY, enabled ? 'true' : 'false', () => { this.glassUI = previous; });
-    this.notify();
-    logger.debug(`[SettingsManager] Glass UI set to: ${enabled}`);
-    return persisted;
-  }
-
   // --- GSAP Button Bounce ---
 
   getGsapButtonBounce(): boolean {
@@ -273,6 +255,24 @@ class SettingsManager {
     const persisted = this.persistSetting(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false', () => { this.gsapButtonBounce = previous; });
     this.notify();
     logger.debug(`[SettingsManager] GSAP button bounce set to: ${enabled}`);
+    return persisted;
+  }
+
+  // --- Track List Density ---
+
+  // --- Library Mode (restored on launch) ---
+
+  getLibraryMode(): LibraryMode {
+    return this.libraryMode;
+  }
+
+  setLibraryMode(mode: LibraryMode): Promise<boolean> {
+    if (mode === this.libraryMode) return Promise.resolve(true);
+    const previous = this.libraryMode;
+    this.libraryMode = mode;
+    const persisted = this.persistSetting(LIBRARY_MODE_KEY, mode, () => { this.libraryMode = previous; });
+    this.notify();
+    logger.debug(`[SettingsManager] Library mode set to: ${mode}`);
     return persisted;
   }
 

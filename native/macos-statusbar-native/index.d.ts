@@ -51,3 +51,15 @@ export function updatePlayerControlbar(state: {
 }): void;
 export function updatePlayerControlbarArtwork(data: Buffer | null): void;
 export function stopPlayerControlbar(): void;
+/** Main-thread-only macOS 26 command palette surface. */
+export function startNativePalette(handle: Buffer, onAction: (action: {
+  type: 'query' | 'move' | 'hover' | 'activate' | 'tab' | 'cycle-mode' | 'mode' | 'escape' | 'backspace' | 'shortcut';
+  value: number; text: string;
+}) => void): boolean;
+export function updateNativePalette(state: {
+  open: boolean; darkMode: boolean; label: string; modes: string[]; modeIndex: number; hint: string;
+  placeholder: string; searchSymbol: string; query: string; trail: string; loading: boolean; empty: string; selected: number;
+  rows: Array<{ section: string; title: string; subtitle: string; detail: string; shortcut: string; symbol: string; cover: string | null; nested: boolean }>;
+}): void;
+export function setNativePaletteCover(url: string, data: Buffer): void;
+export function stopNativePalette(): void;

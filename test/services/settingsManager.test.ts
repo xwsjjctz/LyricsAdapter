@@ -8,7 +8,6 @@ beforeEach(() => {
   (settingsManager as any).floatingPanel = false;
   (settingsManager as any).bgBlurTrans = 1.0;
   (settingsManager as any).qqMusicEnabled = false;
-  (settingsManager as any).glassUI = false;
   (settingsManager as any).gsapButtonBounce = true;
   (settingsManager as any).focusBgBlurRadius = 80;
   (settingsManager as any).focusLyricsFontSize = 32;
@@ -116,6 +115,18 @@ describe('gsapButtonBounce', () => {
     settingsManager.setGsapButtonBounce(false);
     expect(settingsManager.getGsapButtonBounce()).toBe(false);
     expect(localStorage.getItem('la_gsap_button_bounce')).toBe('false');
+  });
+});
+
+describe('libraryMode', () => {
+  it('should default to the list', () => {
+    expect(settingsManager.getLibraryMode()).toBe('list');
+  });
+
+  it('should set and persist the poster wall', () => {
+    settingsManager.setLibraryMode('wall');
+    expect(settingsManager.getLibraryMode()).toBe('wall');
+    expect(localStorage.getItem('la_library_mode')).toBe('wall');
   });
 });
 

@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
 import { themeManager } from '../services/themeManager';
 import { ThemeConfig } from '../types/theme';
-import GsapModal from './GsapModal';
+import ConfirmDialog from './ConfirmDialog';
+import Button from './ui/Button';
 
 interface ShortcutsSettingsProps {
   layout?: 'single' | 'two-column';
@@ -192,10 +193,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
         {(config.currentKey !== config.defaultKey || !config.currentKey) && (
           <button
             onClick={() => handleReset(action)}
-            className="p-1 transition-colors"
-            style={{ color: colors.textMuted }}
-            onMouseEnter={e => e.currentTarget.style.color = colors.textSecondary}
-            onMouseLeave={e => e.currentTarget.style.color = colors.textMuted}
+            className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--sm"
             aria-label={config.currentKey ? t('settings.shortcuts.reset') : t('settings.shortcuts.clear')}
           >
             <span className="material-symbols-outlined text-sm">
@@ -215,15 +213,9 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
           <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>keyboard</span>
           {t('settings.shortcuts.title')}
         </h3>
-        <button
-          onClick={() => setShowResetConfirm(true)}
-          className="px-2.5 py-1 text-xs r-sm transition-colors"
-          style={{ color: colors.textSecondary, backgroundColor: colors.backgroundCard }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = colors.backgroundCardHover; e.currentTarget.style.color = colors.textPrimary; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.backgroundCard; e.currentTarget.style.color = colors.textSecondary; }}
-        >
+        <Button variant="secondary" size="sm" onClick={() => setShowResetConfirm(true)}>
           {t('settings.shortcuts.resetAll')}
-        </button>
+        </Button>
       </div>
 
       <div className="r-card overflow-hidden border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -240,35 +232,15 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
         <span className="text-xs" style={{ color: colors.textMuted }}>{t('settings.shortcuts.legend')}</span>
       </div>
 
-      {/* Reset All Confirmation Modal */}
-      <GsapModal
+      <ConfirmDialog
         isOpen={showResetConfirm}
-        overlayClassName="z-50"
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        panelClassName="r-control p-5 max-w-sm w-full mx-4 border"
-        panelStyle={{ backgroundColor: colors.backgroundDark, borderColor: colors.borderLight }}
-      >
-            <h4 className="text-base font-medium mb-2" style={{ color: colors.textPrimary }}>{t('settings.shortcuts.resetAllConfirm')}</h4>
-            <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>{t('settings.shortcuts.resetAllDesc')}</p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1.5 text-sm transition-colors"
-                style={{ color: colors.textSecondary }}
-                onMouseEnter={e => e.currentTarget.style.color = colors.textPrimary}
-                onMouseLeave={e => e.currentTarget.style.color = colors.textSecondary}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleResetAll}
-                className="px-3 py-1.5 text-sm r-card transition-colors"
-                style={{ backgroundColor: `${colors.primary}20`, color: colors.primary }}
-              >
-                {t('settings.shortcuts.resetAll')}
-              </button>
-            </div>
-      </GsapModal>
+        title={t('settings.shortcuts.resetAllConfirm')}
+        message={t('settings.shortcuts.resetAllDesc')}
+        confirmLabel={t('settings.shortcuts.resetAll')}
+        tone="primary"
+        onConfirm={handleResetAll}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </section>
   );
 };

@@ -25,7 +25,7 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
   trackId: _trackId,
   filePath: _filePath,
   fallbackUrl,
-  className = 'size-10 rounded-lg object-cover',
+  className = 'size-10 r-media-sm object-cover',
   style,
   thumbSize = 128
 }) => {

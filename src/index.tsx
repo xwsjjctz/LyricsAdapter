@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { appStorage } from './services/appStorage';
+import { installInputModality } from './services/inputModality';
 
 // 初始化应用存储：主进程已有设置时以其为权威；仅在主存储为空时迁移
 // allowlist 中的旧 localStorage 设置。UI 模块在初始化完成后才加载，避免
@@ -11,7 +12,9 @@ if (platform) {
   if (platform === 'win32') {
     document.documentElement.dataset['windowEffect'] = 'acrylic';
   } else if (platform === 'darwin') {
-    document.documentElement.dataset['windowEffect'] = 'vibrancy';
+    // Native vibrancy is gone; the translucent white wash on the root keeps
+    // the desktop faintly visible and biases glass surfaces light.
+    document.documentElement.dataset['windowEffect'] = 'translucent';
   }
 }
 
@@ -22,6 +25,7 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
+  installInputModality();
   try {
     await appStorage.init();
     const { default: App } = await import('./App');

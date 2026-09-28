@@ -1,0 +1,409 @@
+/*
+ * Library poster wall. Geometry comes from wallLayout.ts; this file owns only
+ * the look. The outer tile holds position; the inner element is what GSAP
+ * sinks and pops during a source switch, so the two never share a transform.
+ */
+
+.poster-wall {
+  /* Tiles run flush to every window edge. The floating control bar may cover
+     part of the last row for now. */
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.poster-wall::-webkit-scrollbar {
+  display: none;
+}
+
+.poster-wall__canvas {
+  position: relative;
+}
+
+.wall-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: pointer;
+  outline: none;
+}
+
+.wall-tile__inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* Seamless mosaic: no gap, radius, border or drop shadow between covers. */
+  background: var(--theme-background-card);
+  transform-origin: 50% 100%;
+}
+
+/* Drawn above the cover and scrim so it stays visible without a gap. */
+.wall-tile--current .wall-tile__inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 80%, transparent);
+  pointer-events: none;
+}
+
+.wall-tile--unavailable .wall-tile__inner {
+  opacity: 0.45;
+}
+
+.wall-tile__cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wall-tile:hover .wall-tile__cover {
+  transform: scale(1.04);
+}
+
+.wall-tile__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.18) 42%, transparent 65%);
+  pointer-events: none;
+}
+
+.wall-tile__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  border-radius: var(--theme-small-radius);
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(6px);
+}
+
+.wall-tile__text {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 9px;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+
+.wall-tile__title,
+.wall-tile__artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-tile__title {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.wall-tile__artist {
+  margin-top: 1px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+/* Larger tiles get larger type; span classes come from the layout. */
+.wall-tile--lg .wall-tile__text {
+  left: 14px;
+  right: 14px;
+  bottom: 13px;
+}
+.wall-tile--lg .wall-tile__title {
+  font-size: 19px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.wall-tile--lg .wall-tile__artist {
+  font-size: 12px;
+}
+
+.wall-tile:focus-visible .wall-tile__inner {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: -2px;
+}
+
+.poster-wall__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8rem 0 4rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-tile__cover {
+    transition: none;
+  }
+}
+
+/* ---- Selection and drag-to-swap ---- */
+
+.wall-tile__check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  color: #fff;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5));
+}
+
+.wall-tile__check .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.wall-tile--selecting .wall-tile__cover {
+  transform: none;
+}
+
+.wall-tile--selecting:not(.wall-tile--selected) .wall-tile__inner {
+  opacity: 0.55;
+}
+
+.wall-tile--selected .wall-tile__inner::after,
+.wall-tile--drag-target .wall-tile__inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 3px var(--theme-primary);
+  pointer-events: none;
+}
+
+.wall-tile--drag-source .wall-tile__inner {
+  opacity: 0.35;
+}
+
+.wall-tile--drag-target .wall-tile__cover {
+  transform: scale(1.06);
+}
+
+/* ---- Floating glass surfaces over the wall ---- */
+
+.wall-float {
+  border: 1px solid color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-background-dark) 62%, transparent);
+  color: var(--theme-text-primary);
+  box-shadow: 0 18px 48px -18px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-app-region: no-drag;
+}
+
+.wall-float__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.wall-float__button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+}
+
+.wall-float__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wall-float__button--danger {
+  color: var(--theme-error, #ef4444);
+}
+
+.wall-float__button--primary {
+  color: var(--theme-primary);
+}
+
+.wall-empty-action {
+  padding: 10px 18px;
+}
+
+.wall-selection-bar {
+  position: absolute;
+  left: 50%;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 6px 18px;
+  transform: translateX(-50%);
+  animation: wall-float-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wall-selection-bar__count {
+  margin-right: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-secondary, var(--theme-text-primary));
+}
+
+.wall-status-pill {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.wall-status-pill__track {
+  width: 72px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+}
+
+.wall-status-pill__fill {
+  display: block;
+  height: 100%;
+  background: var(--theme-primary);
+  transition: width 200ms ease;
+}
+
+.wall-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.wall-drop-overlay .material-symbols-outlined {
+  font-size: 56px;
+}
+
+.wall-drop-overlay__title {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.wall-drop-overlay__hint {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+@keyframes wall-float-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-selection-bar {
+    animation: none;
+  }
+}
+
+/* ---- Search results wall header ---- */
+
+.search-wall-header {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(720px, calc(100% - 180px));
+  padding: 4px;
+  transform: translateX(-50%);
+  animation: wall-float-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.search-wall-header__query {
+  min-width: 0;
+  max-width: 220px;
+}
+
+.search-wall-header__query .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--theme-text-muted);
+}
+
+.search-wall-header__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-wall-header__tabs {
+  display: flex;
+  gap: 2px;
+  padding-left: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
+}
+
+.search-wall-header__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.search-wall-header__tab:hover {
+  background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+}
+
+.search-wall-header__tab[aria-selected='true'] {
+  background: color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+  color: var(--theme-text-primary);
+}
+
+.search-wall-header__count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.search-wall-header__close {
+  padding: 6px;
+}
+
+.search-wall-view .wall-status-pill {
+  top: 60px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-wall-header {
+    animation: none;
+  }
+}

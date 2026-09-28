@@ -79,7 +79,10 @@ export async function createWindow(): Promise<BrowserWindow> {
     ...(windowsIconPath ? { icon: windowsIconPath } : {}),
     ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
     ...(isWindows ? { backgroundColor: '#00000000' } : {}),
-    ...(isMacOS ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
+    // No native background wash here: an 8-digit hex backgroundColor on a
+    // transparent macOS window is parsed as #AARRGGBB (opaque) and paints the
+    // whole window pale yellow. The translucent white base lives in the
+    // renderer root (index.css `[data-window-effect='translucent']`).
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

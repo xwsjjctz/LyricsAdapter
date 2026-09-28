@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { cookieManager } from './cookieManager';
+import { qqCredentialManager } from './qqCredentialManager';
 import { getDesktopAPI } from './desktopAdapter';
 import { providerLyricsCache } from './providerLyricsCache';
 import type {
@@ -15,8 +16,13 @@ import type {
 type QQMusicSong = OnlineSong;
 type QQMusicUrlResult = OnlineUrlResult;
 
+/** How long a downloaded playlist song list serves further pages. */
+const PLAYLIST_SONGS_TTL_MS = 5 * 60 * 1000;
+
 class QQMusicAPI implements OnlineMusicProvider {
   readonly id = 'qq' as const;
+  private playlistSongsCache = new Map<string, { songs: QQMusicSong[]; expiresAt: number }>();
+  private playlistSongsInFlight = new Map<string, Promise<QQMusicSong[]>>();
   private baseHeaders = {
     'Accept': '*/*',
     'Accept-Encoding': 'gzip, deflate, br',
@@ -35,6 +41,21 @@ class QQMusicAPI implements OnlineMusicProvider {
     }
 
     throw new Error(`${context}失败: ${errorMessage || '未知错误'}`);
+  }
+
+  /**
+   * Run a cookie-authenticated call; when QQ Music reports the cookie as
+   * expired, renew the musickey with the stored refresh credential and retry once.
+   */
+  private async withAuthRetry<T>(call: () => Promise<T>): Promise<T> {
+    try {
+      return await call();
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith('Cookie expired or invalid')) throw error;
+      if (!await qqCredentialManager.refresh()) throw error;
+      logger.info('[QQMusicAPI] Retrying after musickey refresh');
+      return call();
+    }
   }
 
   private getCookieHeaders(): Record<string, string> {
@@ -150,7 +171,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Search for songs by name
    */
-  async searchMusic(query: string, limit: number = 20): Promise<QQMusicSong[]> {
+  searchMusic(query: string, limit: number = 20): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.searchMusicOnce(query, limit));
+  }
+
+  private async searchMusicOnce(query: string, limit: number): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -210,7 +235,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get detailed song info by songmid
    */
-  async getSongDetails(songmids: string[]): Promise<QQMusicSong[]> {
+  getSongDetails(songmids: string[]): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.getSongDetailsOnce(songmids));
+  }
+
+  private async getSongDetailsOnce(songmids: string[]): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -268,7 +297,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get music URL for playback/download
    */
-  async getMusicUrl(songmid: string, quality: OnlineQuality = '128'): Promise<QQMusicUrlResult> {
+  getMusicUrl(songmid: string, quality: OnlineQuality = '128'): Promise<QQMusicUrlResult> {
+    return this.withAuthRetry(() => this.getMusicUrlOnce(songmid, quality));
+  }
+
+  private async getMusicUrlOnce(songmid: string, quality: OnlineQuality): Promise<QQMusicUrlResult> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -356,7 +389,7 @@ class QQMusicAPI implements OnlineMusicProvider {
         // Try fallback to 128kbps if higher quality failed
         if (quality !== '128') {
           logger.debug('[QQMusicAPI] Quality', quality, 'failed, trying 128kbps...');
-          return this.getMusicUrl(songmid, '128');
+          return this.getMusicUrlOnce(songmid, '128');
         }
         throw new Error(`Cannot get download link (code: ${codeNum !== undefined ? codeNum : 'unknown'})`);
       }
@@ -374,7 +407,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get recommended songs (hot songs)
    */
-  async getRecommendedSongs(): Promise<QQMusicSong[]> {
+  getRecommendedSongs(): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.getRecommendedSongsOnce());
+  }
+
+  private async getRecommendedSongsOnce(): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -569,11 +606,87 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get songs from a QQ Music playlist.
    */
-  async getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
+  /**
+   * fcg_ucc_getcdinfo_byids_cp ignores paging and always returns the whole
+   * playlist, so keep it briefly and serve every page from the same copy.
+   */
+  private async getFullPlaylistSongs(playlistId: string): Promise<QQMusicSong[]> {
+    const cached = this.playlistSongsCache.get(playlistId);
+    if (cached && cached.expiresAt > Date.now()) return cached.songs;
+    const inFlight = this.playlistSongsInFlight.get(playlistId);
+    if (inFlight) return inFlight;
+
+    const request = (async () => {
+      const params = new URLSearchParams({
+        type: '1',
+        utf8: '1',
+        disstid: playlistId,
+        loginUin: '0',
+        format: 'json',
+        inCharset: 'utf8',
+        outCharset: 'utf-8',
+      });
+      const result = await this.requestJson(
+        `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?${params.toString()}`,
+        {
+          headers: { ...this.getCookieHeaders(), Referer: 'https://y.qq.com/n/yqq/playlist' },
+          cookie: cookieManager.getCookie(),
+        }
+      );
+      const songList: unknown[] = result?.cdlist?.[0]?.songlist ?? [];
+      if (songList.length === 0) {
+        logger.info('[QQMusicAPI] fcg_ucc_getcdinfo_byids_cp empty; code=', result?.code, 'sub=', result?.subcode);
+        return [];
+      }
+      logger.info('[QQMusicAPI] getPlaylistSongs via fcg_ucc_getcdinfo_byids_cp:', songList.length);
+      const songs = songList.map((song) => this.normalizeSong(song));
+      this.playlistSongsCache.set(playlistId, { songs, expiresAt: Date.now() + PLAYLIST_SONGS_TTL_MS });
+      return songs;
+    })();
+    this.playlistSongsInFlight.set(playlistId, request);
+    try {
+      return await request;
+    } finally {
+      this.playlistSongsInFlight.delete(playlistId);
+    }
+  }
+
+  getPlaylistSongs(playlistId: string, songBegin: number = 0, songNum: number = 30): Promise<QQMusicSong[]> {
+    return this.withAuthRetry(() => this.getPlaylistSongsOnce(playlistId, songBegin, songNum));
+  }
+
+  private async getPlaylistSongsOnce(playlistId: string, songBegin: number, songNum: number): Promise<QQMusicSong[]> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
 
+    const cached = this.playlistSongsCache.get(playlistId);
+    if (cached && cached.expiresAt > Date.now()) return cached.songs.slice(songBegin, songBegin + songNum);
+
+    // The paged endpoint answers one page in a few KB; the full-list endpoint
+    // below costs ~0.5 MB and several seconds for a large playlist.
+    try {
+      const page = await this.getPlaylistSongsPage(playlistId, songBegin, songNum);
+      if (page) return page;
+    } catch (error: any) {
+      if (error instanceof Error && error.message === 'Cookie expired or invalid') throw error;
+      logger.warn('[QQMusicAPI] CgiGetDiss failed; falling back to the full list:', error);
+    }
+
+    try {
+      const allSongs = await this.getFullPlaylistSongs(playlistId);
+      return allSongs.slice(songBegin, songBegin + songNum);
+    } catch (error: any) {
+      this.handleFetchError(error, '获取歌单歌曲');
+    }
+  }
+
+  /** One page from CgiGetDiss; null when it gave nothing usable before the end. */
+  private async getPlaylistSongsPage(
+    playlistId: string,
+    songBegin: number,
+    songNum: number,
+  ): Promise<QQMusicSong[] | null> {
     const data = {
       comm: {
         g_tk: 5381,
@@ -589,63 +702,31 @@ class QQMusicAPI implements OnlineMusicProvider {
         module: 'srf_diss_info.DissInfoServer',
         method: 'CgiGetDiss',
         param: {
-          disstid: playlistId,
+          // CgiGetDiss answers a string id with req_0.code 10004.
+          disstid: /^\d+$/.test(playlistId) ? Number(playlistId) : playlistId,
           onlysonglist: 1,
           song_begin: songBegin,
           song_num: songNum,
         },
       },
     };
-
-    try {
-      const params = new URLSearchParams({
-        type: '1',
-        utf8: '1',
-        disstid: playlistId,
-        loginUin: '0',
-        format: 'json',
-        inCharset: 'utf8',
-        outCharset: 'utf-8',
-      });
-      const qzoneResult = await this.requestJson(
-        `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?${params.toString()}`,
-        {
-          headers: { ...this.getCookieHeaders(), Referer: 'https://y.qq.com/n/yqq/playlist' },
-          cookie: cookieManager.getCookie(),
-        }
-      );
-      const qzoneSongList = qzoneResult?.cdlist?.[0]?.songlist ?? [];
-      if (qzoneSongList.length > 0) {
-        logger.info('[QQMusicAPI] getPlaylistSongs via fcg_ucc_getcdinfo_byids_cp:', qzoneSongList.length);
-        return qzoneSongList
-          .slice(songBegin, songBegin + songNum)
-          .map((song: any) => this.normalizeSong(song));
+    const result = await this.requestJson(
+      `https://u.y.qq.com/cgi-bin/musicu.fcg?_webcgikey=uniform_get_Dissinfo&_=${Date.now()}`,
+      {
+        method: 'POST',
+        headers: { ...this.getCookieHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        cookie: cookieManager.getCookie(),
       }
-      logger.info('[QQMusicAPI] fcg_ucc_getcdinfo_byids_cp empty; code=', qzoneResult?.code, 'sub=', qzoneResult?.subcode);
-    } catch (error: any) {
-      logger.warn('[QQMusicAPI] fcg_ucc_getcdinfo_byids_cp failed:', error);
+    );
+    if (result?.code === 500001) {
+      throw new Error('Cookie expired or invalid');
     }
-
-    try {
-      const result = await this.requestJson(
-        `https://u.y.qq.com/cgi-bin/musicu.fcg?_webcgikey=uniform_get_Dissinfo&_=${Date.now()}`,
-        {
-          method: 'POST',
-          headers: { ...this.getCookieHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          cookie: cookieManager.getCookie(),
-        }
-      );
-
-      if (result.code === 500001) {
-        throw new Error('Cookie expired or invalid');
-      }
-
-      const songList = result.req_0?.data?.songlist || [];
-      return songList.map((song: any) => this.normalizeSong(song));
-    } catch (error: any) {
-      this.handleFetchError(error, '获取歌单歌曲');
-    }
+    const pageData = result?.req_0?.code === 0 ? result.req_0.data : undefined;
+    const songList: unknown[] = pageData?.songlist ?? [];
+    if (songList.length > 0) return songList.map((song) => this.normalizeSong(song));
+    const total = pageData?.total_song_num;
+    return typeof total === 'number' && songBegin >= total ? [] : null;
   }
 
   /**

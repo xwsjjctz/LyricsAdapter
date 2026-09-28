@@ -6,6 +6,12 @@ import type { OnlineLyricsResult, OnlineSong, OnlineSource } from '../services/o
 import { parseLyrics } from '../services/metadataService';
 import { PROVIDER_LYRICS_PARTIAL_TTL_MS } from '../services/providerLyricsCache';
 import { onlineSongToTrack } from '../domain/trackFactory';
+import {
+  isPlaylistTracksFresh,
+  loadPlaylistTracks as loadCachedPlaylistTracks,
+  savePlaylistTracks as saveCachedPlaylistTracks,
+  type CachedPlaylistTracks,
+} from '../services/playlistTracksCache';
 
 const PLAYLIST_PAGE_SIZE = 30;
 const LYRICS_UPGRADE_ATTEMPT_LIMIT = 256;
@@ -41,6 +47,10 @@ function playlistErrorMessage(error: unknown): string {
 function appendUniqueTracks(existing: Track[], incoming: Track[]): Track[] {
   const existingIds = new Set(existing.map(track => track.id));
   return [...existing, ...incoming.filter(track => !existingIds.has(track.id))];
+}
+
+function startsWithTracks(tracks: Track[], head: Track[]): boolean {
+  return head.length <= tracks.length && head.every((track, index) => tracks[index]!.id === track.id);
 }
 
 function hasLyrics(track: Track): boolean {
@@ -468,27 +478,73 @@ export function usePlayerController(options: PlayerControllerOptions) {
       isLoading: true,
       error: null,
     });
+    const settle = () => {
+      if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
+    };
+
+    // Show the cached pages at once; a fresh cache skips the network entirely.
+    const cached = await loadCachedPlaylistTracks(source, playlistId);
+    if (generation !== libraryGenerationRef.current) return;
+    const showCached = (entry: CachedPlaylistTracks, isLoading: boolean) => {
+      setLibraryBrowsingTracks(entry.tracks);
+      setLibraryPlaylistLoadState({
+        source,
+        playlistId,
+        title: playlistTitle,
+        totalTrackCount: entry.totalTrackCount ?? totalTrackCount,
+        nextOffset: entry.nextOffset,
+        hasMore: entry.hasMore,
+        isLoading,
+        error: null,
+      });
+    };
+    if (cached) {
+      const fresh = isPlaylistTracksFresh(cached);
+      showCached(cached, !fresh);
+      if (fresh) {
+        settle();
+        return;
+      }
+    }
 
     try {
       const page = await loadPlaylistPage(source, playlistId, 0);
       if (generation !== libraryGenerationRef.current) return;
-      setLibraryBrowsingTracks(page.tracks);
+      // An unchanged head keeps the deeper cached pages; any change restarts.
+      if (cached && startsWithTracks(cached.tracks, page.tracks)) {
+        showCached(cached, false);
+        void saveCachedPlaylistTracks(source, playlistId, cached);
+        return;
+      }
+      const loaded = {
+        tracks: page.tracks,
+        nextOffset: page.count,
+        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        totalTrackCount,
+      };
+      setLibraryBrowsingTracks(loaded.tracks);
       setLibraryPlaylistLoadState({
         source,
         playlistId,
         title: playlistTitle,
         totalTrackCount,
-        nextOffset: page.count,
-        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        nextOffset: loaded.nextOffset,
+        hasMore: loaded.hasMore,
         isLoading: false,
         error: null,
       });
+      void saveCachedPlaylistTracks(source, playlistId, loaded);
     } catch (error) {
       if (generation !== libraryGenerationRef.current) return;
+      if (cached) {
+        // Offline or rate-limited: the stale list is still better than nothing.
+        showCached(cached, false);
+        return;
+      }
       setLibraryPlaylistLoadState(prev => ({ ...prev, isLoading: false, hasMore: false, error: playlistErrorMessage(error) }));
       throw error;
     } finally {
-      if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
+      settle();
     }
   }, [loadPlaylistPage]);
 
@@ -497,21 +553,28 @@ export function usePlayerController(options: PlayerControllerOptions) {
     if (!state.playlistId || !state.hasMore || libraryLoadingRef.current) return;
 
     const generation = libraryGenerationRef.current;
-    const { source, playlistId, nextOffset } = state;
+    const { source, playlistId, nextOffset, totalTrackCount } = state;
     libraryLoadingRef.current = true;
     setLibraryPlaylistLoadState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const page = await loadPlaylistPage(source, playlistId, nextOffset);
       if (generation !== libraryGenerationRef.current) return;
-      setLibraryBrowsingTracks(prev => appendUniqueTracks(prev, page.tracks));
-      setLibraryPlaylistLoadState(prev => ({
-        ...prev,
+      const loaded = {
+        tracks: appendUniqueTracks(libraryBrowsingTracks, page.tracks),
         nextOffset: nextOffset + page.count,
         hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        totalTrackCount,
+      };
+      setLibraryBrowsingTracks(loaded.tracks);
+      setLibraryPlaylistLoadState(prev => ({
+        ...prev,
+        nextOffset: loaded.nextOffset,
+        hasMore: loaded.hasMore,
         isLoading: false,
         error: null,
       }));
+      void saveCachedPlaylistTracks(source, playlistId, loaded);
     } catch (error) {
       if (generation === libraryGenerationRef.current) {
         setLibraryPlaylistLoadState(prev => ({ ...prev, isLoading: false, error: playlistErrorMessage(error) }));
@@ -519,7 +582,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     } finally {
       if (generation === libraryGenerationRef.current) libraryLoadingRef.current = false;
     }
-  }, [libraryPlaylistLoadState, loadPlaylistPage]);
+  }, [libraryBrowsingTracks, libraryPlaylistLoadState, loadPlaylistPage]);
 
   // User clicked a track inside the legacy Library playlist view: commit the
   // browsed list into the 'playlist' play slot (so next/prev traverse it) and

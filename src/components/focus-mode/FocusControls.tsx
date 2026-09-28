@@ -2,6 +2,7 @@ import React, { useCallback, useRef } from 'react';
 import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
 import { useFocusGlassControls } from './useFocusGlassControls';
+import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
 
 type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
 
@@ -77,6 +78,29 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     onSeek, onTogglePlay, onSkipNext, onSkipPrev, onVolumeChange, onToggleMute,
     onTogglePlaybackMode, onMouseEnter, onMouseLeave,
   });
+  const backdropLight = useFocusBackdropLuminance(track?.coverUrl);
+  // Glass panels pick foreground colors from the analyzed backdrop instead of
+  // the theme: a washed-out cover otherwise hides whichever fixed color the
+  // theme picked. Null (not analyzed yet / not glass) keeps the theme colors.
+  const glassColors = glassMaterial && backdropLight != null
+    ? backdropLight
+      ? {
+        muted: 'rgba(15, 23, 42, 0.55)', secondary: 'rgba(15, 23, 42, 0.78)',
+        primary: 'rgba(15, 23, 42, 0.92)', border: 'rgba(15, 23, 42, 0.16)',
+        playBg: 'rgba(15, 23, 42, 0.92)', playFg: 'rgba(255, 255, 255, 0.92)',
+      }
+      : {
+        muted: 'rgba(255, 255, 255, 0.6)', secondary: 'rgba(255, 255, 255, 0.82)',
+        primary: '#ffffff', border: 'rgba(255, 255, 255, 0.22)',
+        playBg: 'rgba(255, 255, 255, 0.94)', playFg: 'rgba(15, 23, 42, 0.92)',
+      }
+    : null;
+  const fg = {
+    muted: glassColors ? glassColors.muted : colors.textMuted,
+    secondary: glassColors ? glassColors.secondary : colors.textSecondary,
+    primary: glassColors ? glassColors.primary : colors.textPrimary,
+    border: glassColors ? glassColors.border : colors.borderLight,
+  };
   if (nativeGlass) {
     // Keep a hover target when the native controls fade out; it owns no playback
     // controls or accessibility nodes and creates no duplicate tab stops.
@@ -124,16 +148,16 @@ const FocusControls: React.FC<FocusControlsProps> = ({
       ref={playerRef}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className="glass p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
+      className="p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
       style={scaledPanelStyle}
     >
       <div className="w-full flex items-center gap-3">
-        <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: colors.textMuted }}>
+        <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: fg.muted }}>
           {formatTime(activeCurrentTime)}
         </span>
         <div
           className="flex-1 relative h-1 cursor-pointer group"
-          style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}
+          style={{ backgroundColor: fg.border, borderRadius: 'var(--theme-progress-radius)' }}
           onClick={(event) => {
             const rect = event.currentTarget.getBoundingClientRect();
             const x = event.clientX - rect.left;
@@ -147,22 +171,22 @@ const FocusControls: React.FC<FocusControlsProps> = ({
           />
           <div
             className="absolute top-1/2 -translate-y-1/2 size-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: colors.textPrimary, borderRadius: 'var(--theme-progress-radius)' }}
+            style={{ left: `${progress}%`, marginLeft: '-4px', backgroundColor: fg.primary, borderRadius: 'var(--theme-progress-radius)' }}
           />
         </div>
-        <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: colors.textMuted }}>
+        <span className="text-[10px] tabular-nums font-bold w-10" style={{ color: fg.muted }}>
           {formatTime(track?.duration || 0)}
         </span>
       </div>
 
       <div className="flex items-center justify-between px-4">
-        <div className="flex gap-4" style={{ color: colors.textMuted }}>
+        <div className="flex gap-4" style={{ color: fg.muted }}>
           <span
             className="material-symbols-outlined text-lg cursor-pointer transition-colors relative -left-[4px]"
-            style={{ color: colors.textMuted }}
+            style={{ color: fg.muted }}
             onClick={onTogglePlaybackMode}
-            onMouseEnter={event => { event.currentTarget.style.color = colors.textPrimary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = colors.textMuted; }}
+            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
+            onMouseLeave={event => { event.currentTarget.style.color = fg.muted; }}
           >
             {playbackModeIcon[playbackMode]}
           </span>
@@ -173,9 +197,9 @@ const FocusControls: React.FC<FocusControlsProps> = ({
             type="button"
             onClick={onSkipPrev}
             className="transition-all hover:scale-110"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={event => { event.currentTarget.style.color = colors.textPrimary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = colors.textSecondary; }}
+            style={{ color: fg.secondary }}
+            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
+            onMouseLeave={event => { event.currentTarget.style.color = fg.secondary; }}
           >
             <span className="material-symbols-outlined text-2xl">skip_previous</span>
           </button>
@@ -183,7 +207,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
             type="button"
             onClick={onTogglePlay}
             className="size-11 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
-            style={{ backgroundColor: colors.textPrimary, color: colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
+            style={{ backgroundColor: glassColors ? glassColors.playBg : colors.textPrimary, color: glassColors ? glassColors.playFg : colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
           >
             <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
           </button>
@@ -191,21 +215,21 @@ const FocusControls: React.FC<FocusControlsProps> = ({
             type="button"
             onClick={onSkipNext}
             className="transition-all hover:scale-110"
-            style={{ color: colors.textSecondary }}
-            onMouseEnter={event => { event.currentTarget.style.color = colors.textPrimary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = colors.textSecondary; }}
+            style={{ color: fg.secondary }}
+            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
+            onMouseLeave={event => { event.currentTarget.style.color = fg.secondary; }}
           >
             <span className="material-symbols-outlined text-2xl">skip_next</span>
           </button>
         </div>
 
-        <div className="flex justify-end gap-4 items-center" style={{ color: colors.textMuted }}>
+        <div className="flex justify-end gap-4 items-center" style={{ color: fg.muted }}>
           <span
             className="material-symbols-outlined text-lg cursor-pointer transition-colors"
-            style={{ color: colors.textMuted }}
+            style={{ color: fg.muted }}
             onClick={onToggleMute}
-            onMouseEnter={event => { event.currentTarget.style.color = colors.textPrimary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = colors.textMuted; }}
+            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
+            onMouseLeave={event => { event.currentTarget.style.color = fg.muted; }}
           >
             {volume === 0 ? 'volume_off' : 'volume_up'}
           </span>
@@ -219,8 +243,8 @@ const FocusControls: React.FC<FocusControlsProps> = ({
               onChange={(event) => onVolumeChange(Number(event.target.value))}
               className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
             />
-            <div className="w-full h-1 overflow-hidden" style={{ backgroundColor: colors.borderLight, borderRadius: 'var(--theme-progress-radius)' }}>
-              <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: colors.textSecondary }} />
+            <div className="w-full h-1 overflow-hidden" style={{ backgroundColor: fg.border, borderRadius: 'var(--theme-progress-radius)' }}>
+              <div className="h-full" style={{ width: `${volume * 100}%`, backgroundColor: fg.secondary }} />
             </div>
           </div>
         </div>

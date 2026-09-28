@@ -259,6 +259,7 @@ export const predefinedThemes: ThemeConfig[] = [
       inputBorderActive: '#e8180a',
     },
     appearance: {
+      controlbarRadius: '0px',
       surfaceRadius: '0px',
       controlRadius: '0px',
       buttonRadius: '0px',

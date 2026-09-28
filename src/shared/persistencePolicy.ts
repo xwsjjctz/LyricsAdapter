@@ -6,6 +6,7 @@
 const SENSITIVE_SETTING_KEYS = new Set([
   'webdav-config',
   'qq_music_cookie',
+  'qq_music_credential',
   'netease_cookie',
 ]);
 
@@ -23,6 +24,7 @@ const RETIRED_LOCAL_SETTING_KEYS = new Set([
   'la_new_ux_enabled',
   'soda_cookie',
   'soda_cookie_last_check',
+  'la_list_density',
 ]);
 
 /**
@@ -45,7 +47,6 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
   'la_bg_blur_trans',
   'la_qq_music_enabled',
   'la_online_source',
-  'la_glass_ui',
   'la_gsap_button_bounce',
   'la_focus_bg_blur_radius',
   'la_focus_lyrics_font_size',

@@ -94,7 +94,25 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     const lyrics = focus.locator('.amll-lyric-player');
     const staticLines = lyrics.locator('[data-focus-amll-static]');
     const activeLines = lyrics.locator('[class*="_lyricLine"][class*="_active"]');
-    const settingsButton = page.getByRole('button', { name: /Settings|设置|設定|설정|Einstellungen|Paramètres/i }).first();
+    // Settings is a sheet opened from the command palette; the switches live in its focus tab.
+    const runPaletteCommand = async (query: string) => {
+      await expect(page.locator('.poster-wall')).toBeVisible();
+      await page.keyboard.press('ControlOrMeta+K');
+      await expect(page.locator('.command-palette__input')).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await page.locator('.command-palette__input').fill(query);
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.command-palette')).toHaveCount(0);
+    };
+    const openFocusSettings = async () => {
+      await runPaletteCommand('settings');
+      await expect(page.locator('.settings-sheet')).toBeVisible();
+      await page.locator('.settings-sheet__tabs').getByRole('tab').nth(3).click();
+    };
+    const leaveSettings = async () => {
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.settings-sheet')).toHaveCount(0);
+    };
     const memorySwitch = page.locator('[role="switch"][aria-describedby="focus-amll-memory-description"]');
     const fontSwitch = page.locator('[role="switch"][aria-describedby="focus-enhanced-font-description"]');
     const mainLyric = lyrics.locator('[class*="_lyricMainLine"]').first();
@@ -118,15 +136,14 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
       samples.push({ phase, ...metrics, layers: layerCount });
       return metrics;
     };
-    await settingsButton.click();
-    await expect(page.getByRole('button', { name: 'Close settings panel' })).toBeVisible();
+    await openFocusSettings();
     await expect(memorySwitch).toHaveCount(0);
     if (process.platform === 'win32') {
       await expect(fontSwitch).toHaveAttribute('aria-checked', 'false');
     } else {
       await expect(fontSwitch).toHaveCount(0);
     }
-    await page.getByRole('button', { name: 'Close settings panel' }).click();
+    await leaveSettings();
 
     // No animation-budget opt-in is needed on a fresh installation.
     await focusToggle.click();
@@ -259,7 +276,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await sample('retired-setting-ignored');
     if (process.platform === 'win32') {
       await focusToggle.click();
-      await settingsButton.click();
+      await openFocusSettings();
       await fontSwitch.click();
       await expect(fontSwitch).toHaveAttribute('aria-checked', 'true');
       await expect.poll(() => app!.evaluate(async ({ BrowserWindow }) => {
@@ -267,7 +284,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
           'window.electron.settingsGetAll().then(settings => settings.la_focus_enhanced_font_enabled)',
         );
       })).toBe('true');
-      await page.getByRole('button', { name: 'Close settings panel' }).click();
+      await leaveSettings();
       await focusToggle.click();
       await expect(mainLyric).toHaveCSS('font-weight', '800');
       await expect(mainLyric).toHaveCSS('font-synthesis', 'weight');
@@ -275,11 +292,11 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
 
       await page.reload();
       await expect(page.getByText(songs[0]!.title).first()).toBeVisible();
-      await settingsButton.click();
+      await openFocusSettings();
       await expect(fontSwitch).toHaveAttribute('aria-checked', 'true');
       await fontSwitch.click();
       await expect(fontSwitch).toHaveAttribute('aria-checked', 'false');
-      await page.getByRole('button', { name: 'Close settings panel' }).click();
+      await leaveSettings();
       await focusToggle.click();
       await expect(mainLyric).toHaveCSS('font-weight', '700');
       await expect(mainLyric).toHaveCSS('-webkit-text-stroke-width', '0px');

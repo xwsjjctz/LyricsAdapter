@@ -1,33 +1,25 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ViewMode } from '../types';
+import type { SettingsSectionId } from '../components/settings/SettingsView';
 import { useFloatingPanel } from '../hooks/useFloatingPanel';
-import { useGlassUI } from '../hooks/useGlassUI';
 import { useGsapButtonBounce } from '../hooks/useGsapButtonBounce';
 import { useGsapPageTransition } from '../hooks/useGsapPageTransition';
 import { useWindowFocus } from '../hooks/useWindowFocus';
-import type { MetadataViewHandle } from '../components/MetadataView';
 
 export function useUIStore() {
   useGsapButtonBounce();
 
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.PLAYER);
+  // The poster wall is the home page; other pages open from the command palette.
+  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.WALL);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  // Settings float over the current wall instead of replacing it.
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(null);
   const [autoLocateToken, setAutoLocateToken] = useState(0);
-  const [pendingNavigation, setPendingNavigation] = useState<ViewMode | null>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
-  const metadataViewRef = useRef<MetadataViewHandle>(null);
   const isWindowFocused = useWindowFocus();
   const floatingPanel = useFloatingPanel();
-  const glassUI = useGlassUI();
-  const shouldAnimateViewTransition = useCallback((fromView: ViewMode, toView: ViewMode) => {
-    const overlayViews = fromView === ViewMode.SETTINGS
-      || toView === ViewMode.SETTINGS;
-    return !overlayViews;
-  }, []);
   const { containerRef: pageContentRef, navigate: transitionToView } = useGsapPageTransition(
     viewMode,
     setViewMode,
-    shouldAnimateViewTransition,
   );
 
   const markTrackSwitch = useCallback(() => {
@@ -35,13 +27,16 @@ export function useUIStore() {
   }, []);
 
   const handleNavigate = useCallback((mode: ViewMode) => {
-    if (viewMode === ViewMode.METADATA && mode !== ViewMode.METADATA && metadataViewRef.current?.hasUnsavedChanges) {
-      setPendingNavigation(mode);
-      return;
-    }
     transitionToView(mode);
     setIsFocusMode(false);
-  }, [viewMode, transitionToView]);
+    setSettingsSection(null);
+  }, [transitionToView]);
+
+  const openSettings = useCallback((section: SettingsSectionId = 'general') => {
+    setSettingsSection(section);
+    setIsFocusMode(false);
+  }, []);
+  const closeSettings = useCallback(() => setSettingsSection(null), []);
 
   return {
     viewMode,
@@ -52,14 +47,11 @@ export function useUIStore() {
     setIsFocusMode,
     autoLocateToken,
     markTrackSwitch,
-    pendingNavigation,
-    setPendingNavigation,
-    headerHeight,
-    setHeaderHeight,
-    metadataViewRef,
     isWindowFocused,
     floatingPanel,
-    glassUI,
     handleNavigate,
+    settingsSection,
+    openSettings,
+    closeSettings,
   };
 }

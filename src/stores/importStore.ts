@@ -4,6 +4,7 @@ import { useImport } from '../hooks/useImport';
 import { isDesktop } from '../services/desktopAdapter';
 import type { LibrarySlotId } from './libraryStore';
 import type { LibrarySettings } from '../services/libraryStorage';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface ImportStoreOptions {
   localTracks: Track[];
@@ -54,10 +55,18 @@ export function useImportStore(options: ImportStoreOptions) {
     importApi.handleDropFilePaths(filePaths);
   }, [importApi.handleCloudDropFilePaths, importApi.handleDropFilePaths, options.viewSlot]);
 
+  // The browser File fallback must not turn a blocked cloud drop into a local import.
+  const handleViewDropFiles = useCallback(async (files: File[]) => {
+    if (options.viewSlot === 'cloud' && !WEBDAV_AUDIO_UPLOAD_ENABLED) return;
+    await importApi.handleDropFiles(files);
+  }, [importApi.handleDropFiles, options.viewSlot]);
+
   return {
     ...importApi,
+    handleDropFiles: handleViewDropFiles,
     handleImportClick,
     handleViewDropFilePaths,
-    importDisabled: options.viewSlot === 'cloud' && options.cloudWritable !== true,
+    importDisabled: options.viewSlot === 'cloud'
+      && (!WEBDAV_AUDIO_UPLOAD_ENABLED || options.cloudWritable !== true),
   };
 }

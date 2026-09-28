@@ -213,14 +213,14 @@ describe('appStorage persistence boundary', () => {
 
     await appStorage.init();
     await appStorage.setItem('app-theme', 'default-light');
-    await appStorage.setMany({ 'app-language': 'en', la_glass_ui: 'true' });
+    await appStorage.setMany({ 'app-language': 'en', la_gsap_button_bounce: 'true' });
     await appStorage.removeItem('la_floating_panel');
 
     expect(api.settingsSet).toHaveBeenCalledWith('app-theme', 'default-light');
     expect(api.settingsSetMany).toHaveBeenCalledTimes(1);
     expect(api.settingsSetMany).toHaveBeenCalledWith({
       'app-language': 'en',
-      la_glass_ui: 'true',
+      la_gsap_button_bounce: 'true',
     });
     expect(api.settingsDelete).toHaveBeenCalledWith('la_floating_panel');
     expect(api.settingsReplaceAll).not.toHaveBeenCalled();
@@ -244,11 +244,11 @@ describe('appStorage persistence boundary', () => {
     expect(localStorage.getItem('app-theme')).toBe('default-dark');
 
     api.settingsSetMany.mockRejectedValueOnce(new Error('disk full'));
-    await expect(appStorage.setMany({ 'app-language': 'en', la_glass_ui: 'true' })).rejects.toThrow('disk full');
+    await expect(appStorage.setMany({ 'app-language': 'en', la_gsap_button_bounce: 'true' })).rejects.toThrow('disk full');
     expect(appStorage.getItem('app-language')).toBe('zh');
-    expect(appStorage.getItem('la_glass_ui')).toBeNull();
+    expect(appStorage.getItem('la_gsap_button_bounce')).toBeNull();
     expect(localStorage.getItem('app-language')).toBe('zh');
-    expect(localStorage.getItem('la_glass_ui')).toBeNull();
+    expect(localStorage.getItem('la_gsap_button_bounce')).toBeNull();
 
     api.settingsDelete.mockRejectedValueOnce(new Error('disk full'));
     await expect(appStorage.removeItem('webdav-config')).rejects.toThrow('disk full');

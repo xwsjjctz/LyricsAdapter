@@ -1,0 +1,469 @@
+/*
+ * UI primitive layer (Phase 0 + 1).
+ *
+ * Single style source for interactive elements. Every visual state —
+ * hover / active / disabled / focus-visible — is expressed here in CSS and
+ * driven purely by the `--theme-*` custom properties that themeManager writes
+ * to :root. Components must NOT re-implement hover with inline
+ * onMouseEnter/onMouseLeave handlers, and must NOT subscribe to themeManager
+ * just to read colors: consume these classes instead.
+ */
+
+/* Shared reset for every primitive. */
+.ui-btn,
+.ui-icon-btn {
+  --ui-focus-ring: color-mix(in srgb, var(--theme-primary, #2b8cee) 55%, transparent);
+  appearance: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color 160ms ease, color 160ms ease,
+    border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.ui-btn:disabled,
+.ui-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Keyboard focus is visible everywhere; pointer focus stays quiet. */
+.ui-btn:focus-visible,
+.ui-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--theme-background-dark, #0d1520),
+    0 0 0 4px var(--ui-focus-ring);
+}
+
+/* ------------------------------------------------------------------ */
+/* Button — labelled action                                            */
+/* ------------------------------------------------------------------ */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  border-radius: var(--theme-button-radius, 10px);
+  letter-spacing: var(--theme-button-letter-spacing, normal);
+  text-transform: var(--theme-control-text-transform, none);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ui-btn--md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.ui-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.ui-btn__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ui-btn--sm .ui-btn__icon {
+  font-size: 18px;
+}
+
+/* Primary — the one emphasised action in a group. */
+.ui-btn--primary {
+  background: var(--theme-primary, #2b8cee);
+  color: var(--theme-on-primary, #fff);
+  box-shadow: var(--theme-elevated-shadow, none);
+}
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--theme-primary-hover, #1a7de0);
+}
+.ui-btn--primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Secondary — a bounded, non-emphasised action. */
+.ui-btn--secondary {
+  background: var(--theme-background-card, rgba(255, 255, 255, 0.06));
+  color: var(--theme-text-primary, #fff);
+  border: var(--theme-control-border-width, 1px) solid
+    var(--theme-border-light, rgba(255, 255, 255, 0.14));
+}
+.ui-btn--secondary:hover:not(:disabled) {
+  background: var(--theme-background-card-hover, rgba(255, 255, 255, 0.12));
+  border-color: var(--theme-border-hover, rgba(255, 255, 255, 0.24));
+}
+
+/* Ghost — inline, chromeless until hovered. */
+.ui-btn--ghost {
+  background: transparent;
+  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+}
+.ui-btn--ghost:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--theme-control-item-bg-hover, rgba(255, 255, 255, 0.1)) 80%,
+    transparent
+  );
+  color: var(--theme-text-primary, #fff);
+}
+
+/* Danger — destructive confirm. */
+.ui-btn--danger {
+  background: transparent;
+  color: var(--theme-error, #ef4444);
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-error, #ef4444) 14%, transparent);
+}
+
+.ui-btn--block {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* IconButton — square/circular icon-only control                      */
+/* ------------------------------------------------------------------ */
+
+.ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--theme-button-radius, 10px);
+  color: var(--theme-control-icon-fg, rgba(255, 255, 255, 0.78));
+}
+
+.ui-icon-btn--round {
+  border-radius: 999px;
+}
+
+.ui-icon-btn--sm {
+  width: 32px;
+  height: 32px;
+}
+.ui-icon-btn--sm .ui-icon-btn__glyph {
+  font-size: 18px;
+}
+
+.ui-icon-btn--md {
+  width: 36px;
+  height: 36px;
+}
+.ui-icon-btn--md .ui-icon-btn__glyph {
+  font-size: 20px;
+}
+
+.ui-icon-btn--lg {
+  width: 40px;
+  height: 40px;
+}
+.ui-icon-btn--lg .ui-icon-btn__glyph {
+  font-size: 22px;
+}
+
+.ui-icon-btn__glyph {
+  line-height: 1;
+}
+
+/* Ghost icon (default) — chromeless, tints + fills a subtle pad on hover. */
+.ui-icon-btn--ghost:hover:not(:disabled) {
+  background: var(--theme-control-icon-bg, rgba(255, 255, 255, 0.1));
+  color: var(--theme-control-icon-fg-hover, #fff);
+}
+
+/* Active/selected icon — persistent emphasis (e.g. an engaged toggle). */
+.ui-icon-btn--active {
+  background: var(--theme-control-icon-bg-active, rgba(255, 255, 255, 0.14));
+  color: var(--theme-control-icon-fg-active, #fff);
+}
+.ui-icon-btn--active:hover:not(:disabled) {
+  color: var(--theme-control-icon-fg-active, #fff);
+}
+
+/* Windows/Linux title bar buttons (min/max/close and focus mode). */
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.titlebar-btn:hover {
+  color: var(--theme-text-primary, #fff);
+  background: var(--theme-background-card, rgba(255, 255, 255, 0.06));
+}
+.titlebar-btn--close:hover {
+  color: #fff;
+  background: #c42b1c;
+}
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--theme-primary, #2b8cee);
+  outline-offset: -2px;
+}
+
+/* Library list geometry. Rows, their covers and the floating now-playing
+   highlight read the same tokens so they stay aligned in both densities.
+   The bleed lets the highlight's shadow extend past the scroll clip. */
+.library-view {
+  --library-max-width: 1120px;
+  --library-bleed: 24px;
+  --library-row-radius: var(--theme-control-radius);
+  --library-cover-radius: var(--theme-media-radius-sm);
+  max-width: var(--library-max-width);
+  margin-inline: auto;
+}
+
+.library-bleed {
+  margin-inline: calc(-1 * var(--library-bleed));
+  padding-inline: var(--library-bleed);
+}
+
+/* Compact list density (Settings → General). Rows are measured by the
+   virtual scroller, so only padding, cover size and radii change here;
+   min() keeps square themes square. */
+.library-view[data-density='compact'] {
+  --theme-list-item-padding-y: 6px;
+  --library-row-radius: min(var(--theme-control-radius), 10px);
+  --library-cover-radius: min(var(--theme-media-radius-sm), 6px);
+}
+.library-view[data-density='compact'] .library-track-row__cover {
+  width: 2rem;
+  height: 2rem;
+}
+
+/* Library placeholder rows (playlist first-page load). */
+.library-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: var(--theme-list-item-padding-y, 0.75rem);
+  padding-bottom: var(--theme-list-item-padding-y, 0.75rem);
+  animation: library-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.library-skeleton-row__cover {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: var(--library-cover-radius);
+}
+
+.library-skeleton-row__lines {
+  display: grid;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.library-skeleton-row__lines > span {
+  display: block;
+  height: 0.6rem;
+  border-radius: 999px;
+}
+
+@keyframes library-skeleton-pulse {
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-skeleton-row {
+    animation: none;
+  }
+}
+
+/* Switch: default (non-brutalist) on/off control. */
+.ui-switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  width: 2.75rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--theme-border-light, rgba(255, 255, 255, 0.2));
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+.ui-switch--checked {
+  background: var(--theme-primary, #2b8cee);
+}
+
+.ui-switch:focus-visible {
+  outline: 2px solid var(--theme-primary, #2b8cee);
+  outline-offset: 2px;
+}
+
+.ui-switch__thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transform: translateX(2px);
+  transition: transform 200ms ease;
+}
+
+.ui-switch--checked .ui-switch__thumb {
+  transform: translateX(22px);
+}
+
+/* Settings: a glass sheet floating over the poster wall. */
+.settings-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 56px 24px 120px;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px);
+  animation: settings-sheet-fade 140ms ease-out;
+  -webkit-app-region: no-drag;
+}
+
+.settings-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: 100%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
+  border-radius: var(--theme-surface-radius);
+  background: color-mix(in srgb, var(--theme-background-dark) 72%, transparent);
+  color: var(--theme-text-primary);
+  box-shadow: 0 32px 80px -24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(36px) saturate(170%);
+  outline: none;
+  animation: settings-sheet-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.settings-sheet__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding: 14px 12px 12px 20px;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+
+.settings-sheet__title {
+  flex-shrink: 0;
+  font-size: 1.05rem;
+  font-weight: var(--theme-text-heading-weight, 700);
+}
+
+.settings-sheet__tabs {
+  /* Own row under the title so every section fits at any window width. */
+  order: 3;
+  display: flex;
+  flex: 1 0 100%;
+  min-width: 0;
+  margin-left: -8px;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.settings-sheet__tab {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--theme-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.settings-sheet__tab .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.settings-sheet__tab:hover {
+  background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+}
+
+.settings-sheet__tab[aria-selected='true'] {
+  background: color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+  color: var(--theme-text-primary);
+}
+
+.settings-sheet__tab:focus-visible,
+.settings-select:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+.settings-sheet__close {
+  flex-shrink: 0;
+  padding: 6px;
+}
+
+.settings-sheet__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+@keyframes settings-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes settings-sheet-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-sheet-backdrop,
+  .settings-sheet {
+    animation: none;
+  }
+}
+
+.settings-card {
+  padding: 0.25rem 1rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+  padding: 0.6rem 0;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--theme-border-light, rgba(255, 255, 255, 0.1));
+}
+
+.settings-row__label {
+  font-size: 0.875rem;
+}
+
+.settings-select {
+  min-width: 9rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+

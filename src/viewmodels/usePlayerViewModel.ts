@@ -40,6 +40,7 @@ export interface PlayerViewModel {
   changeVolume(volume: number): void;
   toggleMute(): void;
   togglePlaybackMode(): void;
+  setPlaybackMode(mode: PlaybackMode): void;
 }
 
 export interface PlayerViewModelOptions {
@@ -57,6 +58,7 @@ export interface PlayerViewModelOptions {
   handleVolumeChange: (volume: number) => void;
   handleToggleMute: () => void;
   handleTogglePlaybackMode: () => void;
+  setPlaybackMode: (mode: PlaybackMode) => void;
 }
 
 export function usePlayerViewModel(opts: PlayerViewModelOptions): PlayerViewModel {
@@ -74,6 +76,7 @@ export function usePlayerViewModel(opts: PlayerViewModelOptions): PlayerViewMode
     handleVolumeChange,
     handleToggleMute,
     handleTogglePlaybackMode,
+    setPlaybackMode,
   } = opts;
 
   return {
@@ -92,5 +95,6 @@ export function usePlayerViewModel(opts: PlayerViewModelOptions): PlayerViewMode
     changeVolume: handleVolumeChange,
     toggleMute: handleToggleMute,
     togglePlaybackMode: handleTogglePlaybackMode,
+    setPlaybackMode,
   };
 }

@@ -83,7 +83,10 @@ Phase 2 严格遵循「迁移优先」（Rule 1），不改 API 形状以保持 
 
 ---
 
-## RF-007
+## RF-007 ✅ 已解决（MetadataView 删除, 2026-09-26）
+
+Resolution:
+MetadataView 没有任何 UI 入口，已连同 `ViewMode.METADATA`、未保存修改弹窗和 `setActiveTracks` 透传一起删除；元数据编辑只剩 LibraryView 的 `MetadataEditorPopup`，统一走 `libraryController.updateTrack`。
 
 Location:
 `src/components/AppShell.tsx` — MetadataView 的 `onUpdateTrack`

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track, type SyncedLyricLine } from '../types';
 import { parseAudioFile, parseLRCLyrics, libraryStorage } from '../services/metadataService';
 import { webdavClient, webdavCoverId } from '../services/webdavClient';
+import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface ParsedAudioMetadata {
   title?: string;
@@ -87,27 +88,26 @@ export function useImport({
         : 'notifications.uploadComplete');
     let body: string;
     if (!firstTrack) {
-      body = t('notifications.importPartialCount')
-        .replace('{success}', '0')
-        .replace('{failed}', String(failedCount));
+      body = t('notifications.importPartialCount', { success: 0, failed: failedCount });
     } else if (failedCount > 0) {
       body = t(kind === 'import'
         ? 'notifications.importBatchPartial'
-        : 'notifications.uploadBatchPartial')
-        .replace('{title}', firstTrack.title)
-        .replace('{success}', String(successfulTracks.length))
-        .replace('{failed}', String(failedCount));
+        : 'notifications.uploadBatchPartial', {
+        title: firstTrack.title,
+        success: successfulTracks.length,
+        failed: failedCount,
+      });
     } else if (successfulTracks.length === 1) {
       body = t(kind === 'import'
         ? 'notifications.importTrackSuccess'
-        : 'notifications.uploadTrackSuccess')
-        .replace('{title}', firstTrack.title);
+        : 'notifications.uploadTrackSuccess', { title: firstTrack.title });
     } else {
       body = t(kind === 'import'
         ? 'notifications.importBatchSuccess'
-        : 'notifications.uploadBatchSuccess')
-        .replace('{title}', firstTrack.title)
-        .replace('{count}', String(successfulTracks.length));
+        : 'notifications.uploadBatchSuccess', {
+        title: firstTrack.title,
+        count: successfulTracks.length,
+      });
     }
     notify(title, body, {
       silent: true,
@@ -783,6 +783,7 @@ export function useImport({
   }, [createTracksMap, processWebFileBatch, setTracks, tracks, cloudTracks, currentTrackIndex, currentTrack, isPlaying, playbackMode, volume, persistedTimeRef, notifyTrackResult]);
 
   const handleCloudDropFilePaths = useCallback(async (filePaths: { path: string; name: string }[]) => {
+    if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
     logger.debug('[Import] Cloud path import (upload to WebDAV) triggered');
     if (!mergeCloudTracks) {
       logger.warn('[Import] mergeCloudTracks not provided, cannot import to cloud');
@@ -908,6 +909,7 @@ export function useImport({
    * 仅桌面端可用。同名文件 PUT 覆盖、mergeCloudTracks 按 id 去重（与 QQ 上传一致）。
    */
   const handleCloudImport = useCallback(async () => {
+    if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
     logger.debug('[Import] Cloud import (upload to WebDAV) triggered');
     const desktopAPI = await getDesktopAPIAsync();
     if (!desktopAPI) {

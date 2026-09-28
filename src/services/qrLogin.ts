@@ -1,4 +1,5 @@
 import { getDesktopAPI } from './desktopAdapter';
+import type { QQCredential } from '../shared/qqCredential';
 
 /**
  * Renderer-side wrappers around the main-process QR-scan-login bridge.
@@ -23,6 +24,8 @@ export interface QRPollResult {
   // (the project enables exactOptionalPropertyTypes).
   msg?: string | undefined;
   cookie?: string | undefined; // present only on success
+  /** QQ only: refresh key/token for silent musickey renewal. */
+  credential?: QQCredential | undefined;
 }
 
 function ensureBridge(method: string): void {
@@ -56,7 +59,7 @@ export async function pollQQLogin(token: string): Promise<QRPollResult> {
   if (r.status === 'error' && /invalid|token/i.test(r.msg ?? '')) {
     return { status: 'expired', msg: '二维码已失效' };
   }
-  return { status: r.status, msg: r.msg, cookie: r.cookie };
+  return { status: r.status, msg: r.msg, cookie: r.cookie, credential: r.credential };
 }
 
 // ===== NetEase Cloud Music =====

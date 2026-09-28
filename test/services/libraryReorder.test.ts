@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reorderTracks } from '@/services/libraryReorder';
+import { reorderTracks, swapTracks } from '@/services/libraryReorder';
 import type { Track } from '@/types';
 
 function track(id: string): Track {
@@ -35,5 +35,27 @@ describe('reorderTracks', () => {
     expect(result.changed).toBe(false);
     expect(result.tracks).toBe(tracks);
     expect(result.currentTrackIndex).toBe(0);
+  });
+});
+
+describe('swapTracks', () => {
+  const list = () => [track('a'), track('b'), track('c')];
+
+  it('exchanges two positions and leaves the rest in place', () => {
+    const result = swapTracks(list(), 2, 0, 2);
+    expect(result.changed).toBe(true);
+    expect(result.tracks.map(item => item.id)).toEqual(['c', 'b', 'a']);
+    // The playing track moved from 2 to 0.
+    expect(result.currentTrackIndex).toBe(0);
+  });
+
+  it('keeps an uninvolved current track index', () => {
+    expect(swapTracks(list(), 1, 0, 2).currentTrackIndex).toBe(1);
+  });
+
+  it('ignores a drop onto itself or out of range', () => {
+    const tracks = list();
+    expect(swapTracks(tracks, 0, 1, 1)).toEqual({ tracks, currentTrackIndex: 0, changed: false });
+    expect(swapTracks(tracks, 0, 1, 9).changed).toBe(false);
   });
 });

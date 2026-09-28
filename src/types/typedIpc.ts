@@ -1,6 +1,8 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
 import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
+import type { NativePaletteAction, NativePaletteState } from './nativePalette';
+import type { NativeContextMenuRequest } from './nativeContextMenu';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -51,6 +53,9 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
+  contextMenu?: {
+    popup: (request: NativeContextMenuRequest) => Promise<IpcResult<string | null>>;
+  };
   playerControlbar?: {
     start: () => Promise<IpcResult<boolean>>;
     update: (state: PlayerControlbarState) => Promise<IpcResult<void>>;
@@ -58,12 +63,20 @@ export interface TypedElectronIPC {
     stop: () => Promise<IpcResult<void>>;
     onAction: (callback: (action: PlayerControlbarAction) => void) => () => void;
   };
+  nativePalette?: {
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: NativePaletteState) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: NativePaletteAction) => void) => () => void;
+  };
   focusGlass?: {
     getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;
     start: () => Promise<IpcResult<boolean>>;
     update: (state: FocusGlassState) => Promise<IpcResult<void>>;
+    setBackdrop: (source: string | null) => Promise<IpcResult<void>>;
     stop: () => Promise<IpcResult<void>>;
     onAction: (callback: (action: FocusGlassAction) => void) => () => void;
+    onBackdropLuminance: (callback: (luminance: number | null) => void) => () => void;
   };
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;

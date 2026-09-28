@@ -14,7 +14,10 @@ export interface FocusGlassPresentation {
 export interface FocusGlassState {
   visible: boolean;
   presentation: FocusGlassPresentation;
+  /** Theme dark mode; the native surface prefers backdropLuminance when known. */
   darkMode: boolean;
+  /** Average luminance of the blurred FocusMode backdrop, 0..1; negative when unknown. */
+  backdropLuminance: number;
   enabled: boolean;
   isPlaying: boolean;
   currentTime: number;
