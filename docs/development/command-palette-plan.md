@@ -171,3 +171,13 @@ interface AppCommand {
 - 删除：「紧凑列表」设置（`la_list_density` 已列入退役键）、「曲库列表（旧版）」命令，以及仅供列表使用的组件与测试。
 - 未迁移：歌手/专辑分类浏览（原列表左栏），`filterType` / `categorySelection` 状态仍保留在持久化结构中，后续可做成面板命令。
 - 修复：构建时的 CSS 压缩会把同时写了 `backdrop-filter` 与 `-webkit-backdrop-filter` 的规则合并为只剩带前缀版本，Electron 不识别，导致命令面板和悬浮控制条的毛玻璃从未生效；样式表只写不带前缀的属性即可。
+
+### 第 3 阶段结果（macOS 原生玻璃面板）
+
+- macOS 26+ 且原生模块可用时，面板由 `nativePalette.mm` 绘制：`NSGlassEffectView` 内含模式切换（`NSSegmentedControl`）、`NSTextField` 输入框和 `NSTableView` 结果列表（分组标题、SF Symbol 或封面、副标题、快捷键、二级箭头）。其他平台、旧系统或原生失败时回退到前端面板。
+- 状态仍归 React：`CommandPalette` 把当前模式、查询、结果和选中项推给原生（`useNativePalette`）；原生只回传意图（输入、上下移动、悬停、执行、Tab、Shift+Tab、Esc、空输入退格）。前端和原生共用同一套意图函数。
+- 输入法：原生输入框在组字期间不回传查询，确认后才搜索。
+- 快捷键：原生输入框持有键盘时，菜单栏未处理的 `Cmd` 组合键会转发给渲染进程，以 `keydown` 重新派发，全局快捷键（如 `Cmd+K` 关闭、`Cmd+→` 下一首）照常生效。
+- 封面：主进程按 URL 异步加载（复用控制条的 `loadArtwork`，每个 URL 只取一次），再推给原生缓存；无法获取的封面显示 SF Symbol。
+- 点击面板外：前端只保留半透明遮罩负责关闭；遮罩标记 `data-controlbar-passthrough`，原生控制条保持可见。
+- 原生输入框取得键盘时页面会收到 `blur`；打开期间窗口焦点指示（第四个交通灯）忽略这次 `blur`，关闭后焦点交还网页。

@@ -5,7 +5,8 @@
       "sources": [
         "src/addon.mm",
         "src/focusGlass.mm",
-        "src/playerControlbar.mm"
+        "src/playerControlbar.mm",
+        "src/nativePalette.mm"
       ],
       "defines": [
         "NAPI_VERSION=8"

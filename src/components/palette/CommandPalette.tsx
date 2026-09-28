@@ -3,6 +3,9 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PaletteCommand } from '../../commands/paletteCommand';
 import { PALETTE_MODES, commandPalette, useCommandPaletteState, type CommandPaletteStore } from '../../hooks/useCommandPalette';
+import { useDocumentDarkMode, useNativePalette } from '../../hooks/useNativePalette';
+import type { NativePaletteAction } from '../../types/nativePalette';
+import { dispatchForwardedShortcut, toNativePaletteState } from './nativePaletteState';
 import { usePaletteItems, type PaletteItem, type PaletteLibrarySources } from './usePaletteItems';
 
 interface CommandPaletteProps {
@@ -42,17 +45,59 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
     if (!item.keepOpen) palette.close();
   }, [palette]);
 
+  // Input intents shared by the web input and the native macOS field.
+  const move = useCallback((delta: number) => {
+    setSelected(index => Math.max(0, Math.min(index + delta, items.length - 1)));
+  }, [items.length]);
+  const tab = useCallback(() => {
+    if (items[selected]?.command) activate(items[selected]);
+  }, [activate, items, selected]);
+  const backspaceWhenEmpty = useCallback((): boolean => {
+    if (state.query || state.stack.length === 0) return false;
+    palette.pop();
+    return true;
+  }, [palette, state.query, state.stack.length]);
+
+  const handleNativeAction = useCallback((action: NativePaletteAction) => {
+    switch (action.type) {
+      case 'query': palette.setQuery(action.text); return;
+      case 'move': move(action.value); return;
+      case 'hover': setSelected(action.value); return;
+      case 'activate': activate(items[action.value < 0 ? selected : action.value]); return;
+      case 'tab': tab(); return;
+      case 'cycle-mode': palette.cycleMode(); return;
+      case 'mode': if (PALETTE_MODES[action.value] !== state.mode) palette.cycleMode(); return;
+      case 'escape': palette.back(); return;
+      case 'backspace': backspaceWhenEmpty(); return;
+      case 'shortcut': dispatchForwardedShortcut(action.text, action.value); return;
+    }
+  }, [activate, backspaceWhenEmpty, items, move, palette, selected, state.mode, tab]);
+
+  const darkMode = useDocumentDarkMode();
+  const nativeActive = useNativePalette(toNativePaletteState({
+    open: state.open,
+    darkMode,
+    mode: state.mode,
+    modes: PALETTE_MODES,
+    query: state.query,
+    trail,
+    loading: onlineLoading,
+    selected,
+    items,
+    t,
+  }), handleNativeAction);
+
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
     const stop = () => { event.preventDefault(); event.stopPropagation(); };
     switch (event.key) {
       case 'ArrowDown':
         stop();
-        setSelected(index => Math.min(index + 1, items.length - 1));
+        move(1);
         return;
       case 'ArrowUp':
         stop();
-        setSelected(index => Math.max(index - 1, 0));
+        move(-1);
         return;
       case 'Enter':
         stop();
@@ -61,25 +106,27 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
       case 'Tab':
         stop();
         if (event.shiftKey) palette.cycleMode();
-        else if (items[selected]?.command) activate(items[selected]);
+        else tab();
         return;
       case 'Escape':
         stop();
         palette.back();
         return;
       case 'Backspace':
-        if (!state.query && state.stack.length > 0) {
-          stop();
-          palette.pop();
-        }
+        if (backspaceWhenEmpty()) stop();
         return;
       default:
         // Plain typing stays in the input; keep it away from global shortcuts.
         if (!event.metaKey && !event.ctrlKey && !event.altKey) event.stopPropagation();
     }
-  }, [activate, items, palette, selected, state.query, state.stack.length]);
+  }, [activate, backspaceWhenEmpty, items, move, palette, selected, tab]);
 
   if (!state.open) return null;
+  // The native glass panel draws above the page; the web layer only dims it
+  // and closes the palette on an outside click.
+  if (nativeActive) {
+    return <div className="command-palette-backdrop" data-controlbar-passthrough onMouseDown={palette.close} />;
+  }
 
   const activeId = items[selected] ? `${listboxId}-${selected}` : undefined;
   let previousSection: string | null = null;

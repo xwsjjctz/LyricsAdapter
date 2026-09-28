@@ -1,6 +1,7 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
 import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
+import type { NativePaletteAction, NativePaletteState } from './nativePalette';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -57,6 +58,12 @@ export interface TypedElectronIPC {
     updateArtwork: (url: string | null) => Promise<IpcResult<void>>;
     stop: () => Promise<IpcResult<void>>;
     onAction: (callback: (action: PlayerControlbarAction) => void) => () => void;
+  };
+  nativePalette?: {
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: NativePaletteState) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: NativePaletteAction) => void) => () => void;
   };
   focusGlass?: {
     getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;

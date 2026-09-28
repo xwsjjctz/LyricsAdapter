@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { nativePaletteOwnsKeyboard } from './useNativePalette';
 
 /**
  * Tracks whether the browser/Electron window currently has focus.
@@ -9,7 +10,7 @@ export function useWindowFocus(): boolean {
 
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
+    const handleBlur = () => { if (!nativePaletteOwnsKeyboard()) setIsWindowFocused(false); };
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
     return () => {

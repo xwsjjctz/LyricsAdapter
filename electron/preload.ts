@@ -4,6 +4,7 @@ import type { AppNotificationOptions } from '../src/types/notification';
 import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
+import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -23,6 +24,16 @@ const typedIpc = {
       const handler = (_event: unknown, action: PlayerControlbarAction) => callback(action);
       ipcRenderer.on('player-controlbar-action', handler);
       return () => ipcRenderer.removeListener('player-controlbar-action', handler);
+    },
+  },
+  nativePalette: {
+    start: async () => ipcRenderer.invoke('ipc:nativePalette:start'),
+    update: async (state: NativePaletteState) => ipcRenderer.invoke('ipc:nativePalette:update', state),
+    stop: async () => ipcRenderer.invoke('ipc:nativePalette:stop'),
+    onAction: (callback: (action: NativePaletteAction) => void) => {
+      const handler = (_event: unknown, action: NativePaletteAction) => callback(action);
+      ipcRenderer.on('native-palette-action', handler);
+      return () => ipcRenderer.removeListener('native-palette-action', handler);
     },
   },
   focusGlass: {
