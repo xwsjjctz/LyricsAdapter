@@ -1,6 +1,7 @@
 import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
 import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
+import type { NativeContextMenuRequest } from './nativeContextMenu';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -51,6 +52,9 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
+  contextMenu?: {
+    popup: (request: NativeContextMenuRequest) => Promise<IpcResult<string | null>>;
+  };
   playerControlbar?: {
     start: () => Promise<IpcResult<boolean>>;
     update: (state: PlayerControlbarState) => Promise<IpcResult<void>>;
