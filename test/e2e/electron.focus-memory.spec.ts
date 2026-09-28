@@ -94,9 +94,9 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     const lyrics = focus.locator('.amll-lyric-player');
     const staticLines = lyrics.locator('[data-focus-amll-static]');
     const activeLines = lyrics.locator('[class*="_lyricLine"][class*="_active"]');
-    // Settings is a page opened from the command palette; the switches live in its focus section.
+    // Settings is a sheet opened from the command palette; the switches live in its focus tab.
     const runPaletteCommand = async (query: string) => {
-      await expect(page.locator('.poster-wall, .settings-view').first()).toBeVisible();
+      await expect(page.locator('.poster-wall')).toBeVisible();
       await page.keyboard.press('ControlOrMeta+K');
       await expect(page.locator('.command-palette__input')).toBeFocused();
       await page.keyboard.press('Shift+Tab');
@@ -106,12 +106,12 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     };
     const openFocusSettings = async () => {
       await runPaletteCommand('settings');
-      await expect(page.locator('.settings-view')).toBeVisible();
-      await page.locator('.settings-nav').getByRole('button').nth(3).click();
+      await expect(page.locator('.settings-sheet')).toBeVisible();
+      await page.locator('.settings-sheet__tabs').getByRole('tab').nth(3).click();
     };
     const leaveSettings = async () => {
-      await runPaletteCommand('wall');
-      await expect(page.locator('.poster-wall')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.settings-sheet')).toHaveCount(0);
     };
     const memorySwitch = page.locator('[role="switch"][aria-describedby="focus-amll-memory-description"]');
     const fontSwitch = page.locator('[role="switch"][aria-describedby="focus-enhanced-font-description"]');

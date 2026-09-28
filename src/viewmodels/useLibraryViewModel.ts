@@ -37,6 +37,8 @@ export interface LibraryViewModel {
   removeTrack(trackId: string): Promise<void>;
   removeTracks(trackIds: string[]): Promise<void>;
   reorder(fromIndex: number, toIndex: number): Promise<void>;
+  /** Exchange two tracks' positions (poster-wall drag). */
+  swap(firstIndex: number, secondIndex: number): Promise<void>;
   updateTrack(track: Track): void;
 }
 
@@ -54,6 +56,7 @@ export interface LibraryViewModelOptions {
   removeTrack: (trackId: string) => Promise<void>;
   removeTracks: (trackIds: string[]) => Promise<void>;
   reorder: (fromIndex: number, toIndex: number) => Promise<void>;
+  swap: (firstIndex: number, secondIndex: number) => Promise<void>;
   updateTrack: (track: Track) => void;
 }
 
@@ -68,6 +71,7 @@ export function useLibraryViewModel(opts: LibraryViewModelOptions): LibraryViewM
     removeTrack,
     removeTracks,
     reorder,
+    swap,
     updateTrack,
   } = opts;
   const { t } = useTranslation();
@@ -86,6 +90,7 @@ export function useLibraryViewModel(opts: LibraryViewModelOptions): LibraryViewM
     removeTrack,
     removeTracks,
     reorder,
+    swap,
     updateTrack,
   };
 }

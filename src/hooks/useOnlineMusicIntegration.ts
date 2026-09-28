@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Track, ViewMode } from '../types';
+import { Track } from '../types';
+import type { SettingsSectionId } from '../components/settings/SettingsView';
 import {
   getOnlineProvider,
   type OnlineMusicProvider,
@@ -21,7 +22,8 @@ import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface UseOnlineMusicIntegrationParams {
-  setViewMode: (mode: ViewMode) => void;
+  /** Opens the settings sheet when a download/upload lacks configuration. */
+  openSettings: (section: SettingsSectionId) => void;
   mergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
   /** Invoked after a download completes and the track is built (adds to local library). */
   onDownloadComplete?: (track: Track) => void;
@@ -40,7 +42,7 @@ export interface OnlineProgressEntry {
  * Source-agnostic: every call resolves the active provider fresh, so switching
  * the online source in settings takes effect immediately.
  */
-export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDownloadComplete }: UseOnlineMusicIntegrationParams) {
+export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDownloadComplete }: UseOnlineMusicIntegrationParams) {
   const [onlineProgress, setOnlineProgress] = useState<Record<string, OnlineProgressEntry>>({});
   const activeSongRef = useRef<string | null>(null);
   const { t } = useTranslation();
@@ -173,7 +175,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     source?: OnlineSource,
   ) => {
     const downloadPath = settingsManager.getDownloadPath();
-    if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
+    if (!downloadPath) { openSettings('online'); return; }
     // Playlist and queue tracks carry their own source; search results use the active one.
     const provider = getOnlineProvider(source);
     const songId = song.songmid;
@@ -224,13 +226,13 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
     }
-  }, [setViewMode, onDownloadComplete, buildDownloadedTrack]);
+  }, [openSettings, onDownloadComplete, buildDownloadedTrack]);
 
   const handleOnlineUpload = useCallback(async (song: OnlineSong, quality: OnlineQuality) => {
     if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
-    if (!webdavClient.hasConfig()) { setViewMode(ViewMode.SETTINGS); return; }
+    if (!webdavClient.hasConfig()) { openSettings('cloud'); return; }
     const downloadPath = settingsManager.getDownloadPath();
-    if (!downloadPath) { setViewMode(ViewMode.SETTINGS); return; }
+    if (!downloadPath) { openSettings('online'); return; }
     const provider = getOnlineProvider();
     const songId = song.songmid;
     activeSongRef.current = songId;
@@ -311,7 +313,7 @@ export function useOnlineMusicIntegration({ setViewMode, mergeCloudTracks, onDow
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
     }
-  }, [setViewMode, mergeCloudTracks]);
+  }, [openSettings, mergeCloudTracks]);
 
   // Download progress listener (forwarded from main process).
   useEffect(() => {

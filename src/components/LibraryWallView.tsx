@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SlotId, Track } from '../types';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -7,9 +7,14 @@ import PosterWall from './wall/PosterWall';
 import TrackMenu from './TrackMenu';
 import ConfirmDialog from './ConfirmDialog';
 import MetadataEditorPopup from './MetadataEditorPopup';
-import type { TrackDownloadQuality, TrackMenuItem } from './trackMenuItems';
+import type { TrackDownloadQuality } from './trackMenuItems';
 import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
+import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
+import WallSelectionBar from './wall/WallSelectionBar';
+import WallStatusPill from './wall/WallStatusPill';
+
+type Progress = { loaded: number; total: number } | null | undefined;
 
 
 interface LibraryWallViewProps {
@@ -30,14 +35,18 @@ interface LibraryWallViewProps {
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: ((token: number) => void) | undefined;
+  /** Drag-to-swap; only offered for lists the library manages. */
+  onSwapTracks?: ((firstIndex: number, secondIndex: number) => void) | undefined;
+  importDisabled?: boolean;
+  onImportClick?: (() => void) | undefined;
+  onDropFiles?: ((files: File[]) => void) | undefined;
+  onDropFilePaths?: ((filePaths: { path: string; name: string }[]) => void) | undefined;
+  importProgress?: Progress;
+  /** Cloud metadata loading progress. */
+  loadProgress?: Progress;
+  /** Bumped by the palette's "select" command to enter multi-select. */
+  selectionRequest?: number | undefined;
 }
-
-/** Multi-select lives in the list layout; the wall menu omits it. */
-const withoutSelect = (items: TrackMenuItem[]): TrackMenuItem[] => {
-  const kept = items.filter(item => !(item.kind === 'action' && item.id === 'select'));
-  return kept.filter((item, index) => item.kind !== 'separator'
-    || (index > 0 && index < kept.length - 1 && kept[index - 1]!.kind !== 'separator'));
-};
 
 /**
  * Full-window poster-wall presentation of a library source. The wall is a
@@ -48,6 +57,8 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
   pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared,
+  onSwapTracks, importDisabled = true, onImportClick, onDropFiles, onDropFilePaths,
+  importProgress, loadProgress, selectionRequest,
 }) => {
   const { t } = useTranslation();
   const { colors } = useCurrentTheme();
@@ -67,10 +78,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
     onDownloadTrack,
   });
 
-  const menuItemsFor = useCallback(
-    (track: Track) => withoutSelect(actions.menuItemsFor(track)),
-    [actions.menuItemsFor],
-  );
+  const { menuItemsFor, startSelection } = actions;
   const hasMenu = useCallback((track: Track) => menuItemsFor(track).length > 0, [menuItemsFor]);
 
   // The featured tile sits at the top, so "locate current track" is satisfied by the reset scroll.
@@ -80,8 +88,38 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
   const loadMore = useCallback(() => { void onLoadMorePlaylist?.(); }, [onLoadMorePlaylist]);
 
+  // Only lists the library manages can be selected or rearranged.
+  const canManage = dataSource === 'local' || dataSource === 'online';
+  const handledSelectionRequest = useRef(selectionRequest);
+  useEffect(() => {
+    if (selectionRequest === handledSelectionRequest.current) return;
+    handledSelectionRequest.current = selectionRequest;
+    if (canManage && tracks.length > 0) startSelection();
+  }, [canManage, selectionRequest, startSelection, tracks.length]);
+
+  const toggleSelect = useCallback((track: Track) => actions.toggleSelectOne(track.id), [actions.toggleSelectOne]);
+  const swap = useCallback((first: number, second: number) => onSwapTracks?.(first, second), [onSwapTracks]);
+
+  const fileDrop = useLibraryFileDrop({ importDisabled: importDisabled || dataSource !== 'local', onDropFiles, onDropFilePaths });
+  const progress = importProgress ?? (dataSource === 'cloud' ? loadProgress : null);
+  const progressLabel = importProgress
+    ? `${t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
+    : progress ? `${t('library.loadingMetadata')}${progress.loaded}/${progress.total}` : '';
+
+  const emptyAction = dataSource === 'local' && !importDisabled && onImportClick ? (
+    <button type="button" className="wall-float wall-float__button wall-empty-action" onClick={onImportClick}>
+      <span className="material-symbols-outlined" aria-hidden="true">library_add</span>
+      {t('sidebar.importFiles')}
+    </button>
+  ) : undefined;
+
   return (
-    <div className="library-wall-view relative flex h-full w-full flex-col">
+    <div
+      className="library-wall-view relative flex h-full w-full flex-col"
+      onDragOver={fileDrop.handleDragOver}
+      onDragLeave={fileDrop.handleDragLeave}
+      onDrop={event => { void fileDrop.handleDrop(event); }}
+    >
       <PosterWall
         tracks={tracks}
         sourceKey={sourceKey}
@@ -95,9 +133,35 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         onTrackSelect={onTrackSelect}
         hasMenu={hasMenu}
         onOpenMenu={actions.openTrackMenu}
+        emptyAction={emptyAction}
+        selecting={actions.isSelecting}
+        selectedIds={actions.selectedIds}
+        onToggleSelect={toggleSelect}
+        onSwap={canManage && onSwapTracks ? swap : undefined}
       />
 
-      {actions.trackMenu && actions.menuTrack && (
+      {progress && <WallStatusPill label={progressLabel} progress={progress.total > 0 ? progress.loaded / progress.total : undefined} />}
+
+      {fileDrop.isDragging && (
+        <div className="wall-drop-overlay" aria-hidden="true">
+          <span className="material-symbols-outlined">upload_file</span>
+          <p className="wall-drop-overlay__title">{t('library.dropFiles')}</p>
+          <p className="wall-drop-overlay__hint">{t('library.supportFormats')}</p>
+        </div>
+      )}
+
+      {actions.isSelecting && (
+        <WallSelectionBar
+          count={actions.selectedIds.size}
+          total={tracks.length}
+          bottom={bottomInset + 16}
+          onToggleAll={actions.toggleSelectAll}
+          onRemove={actions.requestBatchDelete}
+          onDone={actions.finishSelection}
+        />
+      )}
+
+      {actions.trackMenu && actions.menuTrack && !actions.isSelecting && (
         <TrackMenu
           position={actions.trackMenu}
           colors={colors}
@@ -110,7 +174,9 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
       <ConfirmDialog
         isOpen={actions.deleteConfirm !== null}
         title={t('library.removeConfirmTitle')}
-        message={t('library.removeConfirmMessage')}
+        message={actions.deleteConfirm === 'batch'
+          ? t('library.removeSelectedConfirmMessage', { count: actions.selectedIds.size })
+          : t('library.removeConfirmMessage')}
         confirmLabel={t('library.remove')}
         busy={actions.isRemoving}
         error={actions.removalError ? t('library.removalFailed') : null}

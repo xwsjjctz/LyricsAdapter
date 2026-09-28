@@ -22,6 +22,10 @@ export interface AppCommandDeps {
   importDisabled: boolean;
   reloadFiles: () => void;
   hasUnavailableTracks: boolean;
+  /** Present only while the shown list can be multi-selected. */
+  selectTracks?: (() => void) | undefined;
+  /** Present only while the cloud source is shown. */
+  refreshCloud?: (() => void) | undefined;
   /** Present only while the shown list has tracks to play. */
   playAll?: (() => void) | undefined;
   shuffleAll?: (() => void) | undefined;
@@ -35,8 +39,6 @@ export interface AppCommandDeps {
   setLanguage: (language: Language) => void;
   openSettings: (section: SettingsSectionId) => void;
   openWall: () => void;
-  /** Temporary: keeps reorder and multi-select reachable until the wall has them. */
-  openList: () => void;
 }
 
 const SETTINGS_SECTIONS: { id: SettingsSectionId; icon: string; titleKey: string; keywords: string[] }[] = [
@@ -108,6 +110,18 @@ function libraryCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
     commands.push({
       id: 'library.import', title: t('sidebar.importFiles'), icon: 'library_add', group: 'library',
       keywords: ['import', 'add', 'files'], run: deps.importFiles,
+    });
+  }
+  if (deps.selectTracks) {
+    commands.push({
+      id: 'library.select', title: t('library.selectMultiple'), icon: 'checklist', group: 'library',
+      keywords: ['select', 'multiple', 'remove', 'batch'], run: deps.selectTracks,
+    });
+  }
+  if (deps.refreshCloud) {
+    commands.push({
+      id: 'library.refreshCloud', title: t('palette.command.refreshCloud'), icon: 'sync', group: 'library',
+      keywords: ['refresh', 'sync', 'cloud', 'webdav'], run: deps.refreshCloud,
     });
   }
   if (deps.hasUnavailableTracks) {
@@ -193,10 +207,6 @@ export function buildAppCommands(deps: AppCommandDeps, t: TFunction): PaletteCom
     {
       id: 'navigation.wall', title: t('palette.command.showWall'), icon: 'auto_awesome_mosaic', group: 'navigation',
       keywords: ['wall', 'home', 'library', 'back'], run: deps.openWall,
-    },
-    {
-      id: 'navigation.list', title: t('palette.command.showList'), icon: 'view_list', group: 'navigation',
-      keywords: ['list', 'legacy', 'reorder', 'select'], run: deps.openList,
     },
     ...sourceCommands(deps, t),
     ...playlistCommands(deps, t),

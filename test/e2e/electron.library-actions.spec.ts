@@ -6,18 +6,24 @@ import { _electron as electron, expect, test, type Page, type ElectronApplicatio
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-/** The wall is the home page; the legacy list opens from the command palette. */
-async function openLegacyList(page: Page) {
+/** Runs a feature command from the Cmd+K palette. */
+async function runPaletteCommand(page: Page, query: string) {
   await expect(page.locator('.poster-wall')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+K');
   await expect(page.locator('.command-palette__input')).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await page.locator('.command-palette__input').fill('legacy');
+  await page.locator('.command-palette__input').fill(query);
   await page.keyboard.press('Enter');
   await expect(page.locator('.command-palette')).toHaveCount(0);
 }
 
-test('song menus, selection, reorder and removal preserve original files across restart', async ({}, testInfo) => {
+const tileTitles = (page: Page) => page.locator('.wall-tile').evaluateAll(nodes => nodes
+  .map(node => node as HTMLElement)
+  .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top
+    || a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+  .map(node => node.getAttribute('aria-label')!.split(',')[0]));
+
+test('wall song menus, selection, swap and removal preserve original files across restart', async ({}, testInfo) => {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-library-actions-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'user-data');
@@ -57,90 +63,90 @@ test('song menus, selection, reorder and removal preserve original files across 
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
-    await expect(page.locator('.wall-tile')).toHaveCount(3);
-    await openLegacyList(page);
-    const rows = page.locator('.library-track-row');
-    await expect(rows).toHaveCount(3);
-    await expect(page.locator('.library-toolbar-actions button')).toHaveCount(1);
-    await expect(rows.first()).toHaveAttribute('draggable', 'true');
-    await expect(rows.first().locator('> div')).toHaveCount(3);
+    const tiles = page.locator('.wall-tile');
+    await expect(tiles).toHaveCount(3);
+    const tile = (title: string) => page.locator(`.wall-tile[aria-label="${title}, Test Artist"]`);
+    await expect(tiles.first()).toHaveAttribute('draggable', 'true');
 
-    // Right click opens song actions without a trailing more button or playback.
-    await expect(rows.getByRole('button')).toHaveCount(0);
-    await expect(rows.first()).toHaveCSS('cursor', 'default');
-    await rows.first().click({ button: 'right' });
+    // Right click opens song actions without playing the song.
+    await tile('Amber').click({ button: 'right' });
     await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Select multiple songs', 'Remove from library']);
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('song-menu.png') });
     await page.getByRole('menuitem', { name: 'Edit song information' }).click();
     await expect(page.getByRole('heading', { name: 'Metadata', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Metadata', exact: true })).toHaveCount(0);
-    await rows.first().click({ button: 'right' });
+    await tile('Amber').click({ button: 'right' });
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu')).toHaveCount(0);
-    await rows.first().click({ button: 'right' });
+
+    // Multi-select from the menu: posters become checkboxes and clicks toggle them.
+    await tile('Amber').click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Select multiple songs' }).click();
-    await expect(page.getByRole('checkbox', { name: 'Select Amber' })).toBeChecked();
-    await expect(rows.first()).toHaveAttribute('draggable', 'false');
-    await expect(rows.getByRole('button')).toHaveCount(0);
-    await rows.nth(1).click();
-    await expect(page.getByRole('checkbox', { name: 'Select Blue' })).toBeChecked();
+    await expect(tile('Amber')).toHaveAttribute('aria-checked', 'true');
+    await expect(tile('Amber')).toHaveAttribute('draggable', 'false');
+    await tile('Blue').click();
+    await expect(tile('Blue')).toHaveAttribute('aria-checked', 'true');
     expect(await page.locator('audio').evaluateAll(nodes => nodes.every(node => (node as HTMLAudioElement).paused))).toBe(true);
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('selection.png') });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(820, 650));
     await expect(page.getByRole('button', { name: 'Remove selected', exact: true })).toBeInViewport();
-    await expect(rows.first().getByRole('checkbox')).toBeInViewport();
-    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('selection-narrow.png') });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
     await page.getByRole('button', { name: 'Select All', exact: true }).click();
-    await expect(page.getByRole('checkbox', { name: 'Select Coral' })).toBeChecked();
+    await expect(tile('Coral')).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('checkbox')).toHaveCount(0);
 
-    // Cancelling a drag does not commit the last hovered insertion position.
+    // Dragging a poster onto another swaps the two songs; a cancelled drag changes nothing.
+    expect(await tileTitles(page)).toEqual(['Amber', 'Blue', 'Coral']);
     const transfer = await page.evaluateHandle(() => new DataTransfer());
-    const target = (await rows.last().boundingBox())!;
-    await rows.first().dispatchEvent('dragstart', { dataTransfer: transfer });
-    await expect(rows.first()).toHaveCSS('cursor', 'grabbing');
-    await rows.last().dispatchEvent('dragover', { dataTransfer: transfer, clientY: target.y + target.height - 2 });
-    await rows.first().dispatchEvent('dragend', { dataTransfer: transfer });
-    await expect(rows.first()).toHaveCSS('cursor', 'default');
-    await expect(rows.first()).toContainText('Amber');
-    // A real drop commits; this also tests the normal-state sorting entry point.
-    await rows.first().dispatchEvent('dragstart', { dataTransfer: transfer });
-    await expect(rows.first()).toHaveCSS('cursor', 'grabbing');
-    await rows.last().dispatchEvent('dragover', { dataTransfer: transfer, clientY: target.y + target.height - 2 });
-    await rows.last().dispatchEvent('drop', { dataTransfer: transfer, clientY: target.y + target.height - 2 });
-    await expect(rows.last()).toContainText('Amber');
-    await expect(rows.last()).toHaveCSS('cursor', 'default');
+    await tile('Amber').dispatchEvent('dragstart', { dataTransfer: transfer });
+    await tile('Coral').dispatchEvent('dragover', { dataTransfer: transfer });
+    await expect(tile('Coral')).toHaveClass(/wall-tile--drag-target/);
+    await tile('Amber').dispatchEvent('dragend', { dataTransfer: transfer });
+    await expect(tile('Coral')).not.toHaveClass(/wall-tile--drag-target/);
+    expect(await tileTitles(page)).toEqual(['Amber', 'Blue', 'Coral']);
+    const boxesBefore = await tiles.evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return `${Math.round(rect.width)}x${Math.round(rect.height)}`;
+    }).sort());
+    await tile('Amber').dispatchEvent('dragstart', { dataTransfer: transfer });
+    await tile('Coral').dispatchEvent('dragover', { dataTransfer: transfer });
+    await tile('Coral').dispatchEvent('drop', { dataTransfer: transfer });
+    await expect.poll(() => tileTitles(page)).toEqual(['Coral', 'Blue', 'Amber']);
+    // The mosaic keeps its tile sizes; only the songs moved.
+    expect(await tiles.evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return `${Math.round(rect.width)}x${Math.round(rect.height)}`;
+    }).sort())).toEqual(boxesBefore);
 
-    await rows.last().click({ button: 'right' });
-    await page.getByRole('menuitem', { name: 'Select multiple songs' }).click();
-    await rows.first().click();
+    // The palette enters selection too; batch removal keeps the files.
+    await runPaletteCommand(page, 'select multiple');
+    await tile('Amber').click();
+    await tile('Blue').click();
     await page.getByRole('button', { name: 'Remove selected', exact: true }).click();
     await expect(page.getByText('Remove 2 selected songs from your library. The original audio files will be kept.')).toBeVisible();
     await page.getByRole('button', { name: 'Remove from library', exact: true }).click();
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText('Coral');
+    await expect(tiles).toHaveCount(1);
+    await expect(tiles.first()).toHaveAttribute('aria-label', 'Coral, Test Artist');
     await expect(page.getByRole('heading', { name: 'Remove from library?' })).toHaveCount(0);
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('after-removal.png') });
     await page.reload();
-    await openLegacyList(page);
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText('Coral');
+    await expect(tiles).toHaveCount(1);
+    await expect(tiles.first()).toHaveAttribute('aria-label', 'Coral, Test Artist');
     await app.close(); app = undefined;
     for (const song of songs) expect(await readFile(song.filePath)).toEqual(audio);
 
     app = await launch();
     const restored = await app.firstWindow();
-    await expect(restored.locator('.wall-tile')).toHaveCount(1);
-    await openLegacyList(restored);
-    await expect(restored.locator('.library-track-row')).toHaveCount(1);
-    await expect(restored.locator('.library-track-row')).toContainText('Coral');
-    await restored.locator('.library-track-row').click({ button: 'right' });
+    const restoredTiles = restored.locator('.wall-tile');
+    await expect(restoredTiles).toHaveCount(1);
+    await expect(restoredTiles.first()).toHaveAttribute('aria-label', 'Coral, Test Artist');
+    await restoredTiles.first().click({ button: 'right' });
     await restored.getByRole('menuitem', { name: 'Remove from library' }).click();
     await restored.getByRole('button', { name: 'Remove from library', exact: true }).click();
-    await expect(restored.locator('.library-track-row')).toHaveCount(0);
+    await expect(restoredTiles).toHaveCount(0);
+    await expect(restored.getByRole('button', { name: 'Import Files' })).toBeVisible();
     expect(await readFile(songs[2]!.filePath)).toEqual(audio);
     expect(errors).toEqual([]);
   } finally {

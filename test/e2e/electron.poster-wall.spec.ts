@@ -100,9 +100,9 @@ test('poster wall is the home page, plays in place and switches sources from the
     await page.waitForTimeout(500);
     expect(await audioPaused()).toBe(true);
 
-    // Wall menus leave multi-select to the list.
+    // The wall owns every song action, multi-select included.
     await tiles.first().click({ button: 'right' });
-    await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Remove from library']);
+    await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Select multiple songs', 'Remove from library']);
     await page.keyboard.press('Escape');
 
     // Features mode switches the source: tiles sink out, the empty history takes over.
@@ -130,6 +130,34 @@ test('poster wall is the home page, plays in place and switches sources from the
     await page.keyboard.press('ControlOrMeta+K');
     await page.keyboard.press('Escape');
     await expect(page.locator('.command-palette')).toHaveCount(0);
+
+    // Full search results are a poster wall too; Esc returns to the library.
+    await page.keyboard.press('ControlOrMeta+K');
+    await paletteInput.fill('Coral');
+    await page.getByRole('option', { name: /All results for "Coral"/ }).click();
+    await expect(page.locator('.search-wall-view')).toBeVisible();
+    await expect(page.locator('.search-wall-view .wall-tile')).toHaveCount(1);
+    await expect(page.locator('.search-wall-view .wall-tile')).toHaveAttribute('aria-label', 'Coral, Test Artist');
+    await expect(page.locator('aside')).toHaveCount(0);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: testInfo.outputPath('search-wall.png') });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.search-wall-view')).toHaveCount(0);
+    await expect(tiles).toHaveCount(3);
+
+    // Settings float over the wall as a sheet and close back to it.
+    await page.keyboard.press('ControlOrMeta+K');
+    await page.keyboard.press('Shift+Tab');
+    await paletteInput.fill('settings');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.settings-sheet')).toBeVisible();
+    await expect(tiles).toHaveCount(3);
+    // The sheet is frosted glass over the wall (a minifier once dropped the unprefixed blur).
+    expect(await page.locator('.settings-sheet').evaluate(node => getComputedStyle(node).backdropFilter)).toContain('blur');
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: testInfo.outputPath('settings-sheet.png') });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.settings-sheet')).toHaveCount(0);
 
     // The wall stays the home page after a restart.
     await app!.close(); app = undefined;

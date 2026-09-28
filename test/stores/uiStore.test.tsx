@@ -40,9 +40,22 @@ describe('useUIStore home page', () => {
 
   it('no longer persists a library presentation', () => {
     const { result } = renderHook(() => useUIStore());
-    act(() => result.current.handleNavigate(ViewMode.SETTINGS));
+    act(() => result.current.handleNavigate(ViewMode.SEARCH));
     act(() => result.current.handleNavigate(ViewMode.WALL));
     expect(result.current.viewMode).toBe(ViewMode.WALL);
     expect(settings.setLibraryMode).not.toHaveBeenCalled();
+  });
+
+  it('opens settings as a sheet over the current wall', () => {
+    const { result } = renderHook(() => useUIStore());
+    act(() => result.current.handleNavigate(ViewMode.SEARCH));
+    act(() => result.current.openSettings('cloud'));
+    expect(result.current.settingsSection).toBe('cloud');
+    expect(result.current.viewMode).toBe(ViewMode.SEARCH);
+    act(() => result.current.closeSettings());
+    expect(result.current.settingsSection).toBeNull();
+    act(() => result.current.openSettings());
+    act(() => result.current.handleNavigate(ViewMode.WALL));
+    expect(result.current.settingsSection).toBeNull();
   });
 });

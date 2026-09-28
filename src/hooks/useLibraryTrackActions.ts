@@ -31,6 +31,8 @@ export interface LibraryTrackActions {
   toggleSelectAll: () => void;
   toggleSelectOne: (id: string) => void;
   finishSelection: () => void;
+  /** Enter selection mode with nothing selected (palette "select" command). */
+  startSelection: () => void;
   trackMenu: TrackMenuPosition | null;
   menuTrack: Track | undefined;
   menuItemsFor: (track: Track) => TrackMenuItem[];
@@ -80,6 +82,11 @@ export function useLibraryTrackActions({
   const finishSelection = useCallback(() => {
     setIsSelecting(false);
     setSelectedIds(new Set());
+  }, []);
+
+  const startSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setIsSelecting(true);
   }, []);
 
   // A different list invalidates the selection, the open menu and any pending confirm.
@@ -193,6 +200,7 @@ export function useLibraryTrackActions({
     toggleSelectAll,
     toggleSelectOne,
     finishSelection,
+    startSelection,
     trackMenu,
     menuTrack,
     menuItemsFor,

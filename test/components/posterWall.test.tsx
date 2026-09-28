@@ -159,4 +159,35 @@ describe('PosterWall', () => {
     }
     expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
+
+  it('toggles selection instead of playing while selecting', () => {
+    const onToggleSelect = vi.fn();
+    const { onTrackSelect } = renderWall({ selecting: true, selectedIds: new Set(['b']), onToggleSelect });
+    const tiles = screen.getAllByRole('checkbox');
+    expect(tiles).toHaveLength(local.length);
+    expect(tiles[1]).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(tiles[0]!);
+    expect(onToggleSelect).toHaveBeenCalledWith(local[0]);
+    expect(onTrackSelect).not.toHaveBeenCalled();
+  });
+
+  it('swaps two tiles when one is dropped onto the other', () => {
+    const onSwap = vi.fn();
+    renderWall({ onSwap });
+    const tiles = screen.getAllByRole('button');
+    expect(tiles[0]).toHaveAttribute('draggable', 'true');
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(tiles[0]!, { dataTransfer });
+    fireEvent.dragOver(tiles[2]!, { dataTransfer });
+    expect(tiles[2]!.className).toContain('wall-tile--drag-target');
+    fireEvent.drop(tiles[2]!, { dataTransfer });
+    expect(onSwap).toHaveBeenCalledWith(0, 2);
+  });
+
+  it('does not offer dragging without a swap handler or while selecting', () => {
+    const { rerenderWall } = renderWall();
+    expect(screen.getAllByRole('button')[0]).toHaveAttribute('draggable', 'false');
+    rerenderWall({ onSwap: vi.fn(), selecting: true, selectedIds: new Set() });
+    expect(screen.getAllByRole('checkbox')[0]).toHaveAttribute('draggable', 'false');
+  });
 });

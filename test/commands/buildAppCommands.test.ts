@@ -36,7 +36,6 @@ function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     setLanguage: vi.fn(),
     openSettings: vi.fn(),
     openWall: vi.fn(),
-    openList: vi.fn(),
     ...overrides,
   };
 }
@@ -47,11 +46,25 @@ describe('buildAppCommands', () => {
   it('covers every migrated entry point', () => {
     const ids = buildAppCommands(deps(), t).map(command => command.id);
     expect(ids).toEqual(expect.arrayContaining([
-      'navigation.wall', 'navigation.list', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
+      'navigation.wall', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
       'library.import', 'playback.playAll', 'playback.shuffleAll', 'playback.focusMode', 'playback.mode',
       'playback.mute', 'appearance.nightMode', 'appearance.language', 'settings.open', 'settings.general',
       'settings.online', 'settings.cloud', 'settings.focus', 'settings.shortcuts', 'settings.about',
     ]));
+  });
+
+  it('offers multi-select and cloud refresh only when the shown list supports them', () => {
+    expect(buildAppCommands(deps(), t).map(command => command.id)).not.toEqual(
+      expect.arrayContaining(['library.select']),
+    );
+    const selectTracks = vi.fn();
+    const refreshCloud = vi.fn();
+    const commands = buildAppCommands(deps({ selectTracks, refreshCloud }), t);
+    void byId(commands, 'library.select')?.run?.();
+    void byId(commands, 'library.refreshCloud')?.run?.();
+    expect(selectTracks).toHaveBeenCalled();
+    expect(refreshCloud).toHaveBeenCalled();
+    expect(byId(commands, 'navigation.list')).toBeUndefined();
   });
 
   it('omits commands that cannot run right now', () => {

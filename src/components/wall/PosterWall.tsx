@@ -24,7 +24,17 @@ interface PosterWallProps {
   onTrackSelect: (index: number) => void;
   hasMenu: (track: Track) => boolean;
   onOpenMenu: (track: Track, x: number, y: number, trigger: HTMLElement) => void;
+  /** Shown under the empty label, e.g. an import button. */
+  emptyAction?: React.ReactNode;
+  selecting?: boolean;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: ((track: Track) => void) | undefined;
+  /** When set, tiles can be dragged onto each other to swap places. */
+  onSwap?: ((firstIndex: number, secondIndex: number) => void) | undefined;
 }
+
+/** Marks an internal tile drag so external file drops are told apart. */
+const TILE_DRAG_TYPE = 'application/x-lyricsadapter-tile';
 
 /**
  * Virtualized poster wall. Every track is a cover tile in list order; the
@@ -33,6 +43,7 @@ interface PosterWallProps {
 const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
+  emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -114,6 +125,38 @@ const PosterWall: React.FC<PosterWallProps> = ({
 
   const isEmpty = renderedTracks.length === 0;
 
+  // Drag-to-swap: tile geometry is fixed by index, so the two tiles keep their
+  // size and place and only exchange the songs they show.
+  const [dragSource, setDragSource] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const canSwap = !!onSwap && !selecting && !isExiting;
+  useEffect(() => { setDragSource(null); setDropTarget(null); }, [renderKey, selecting]);
+
+  const handleDragStart = useCallback((index: number, event: React.DragEvent) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(TILE_DRAG_TYPE, String(index));
+    setDragSource(index);
+  }, []);
+  const handleDragOver = useCallback((index: number, event: React.DragEvent) => {
+    if (dragSource === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    setDropTarget(index === dragSource ? null : index);
+  }, [dragSource]);
+  const handleDragEnd = useCallback(() => {
+    setDragSource(null);
+    setDropTarget(null);
+  }, []);
+  const handleDrop = useCallback((index: number, event: React.DragEvent) => {
+    if (dragSource === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const from = dragSource;
+    handleDragEnd();
+    if (from !== index) onSwap?.(from, index);
+  }, [dragSource, handleDragEnd, onSwap]);
+
   return (
     <div
       ref={containerRef}
@@ -124,9 +167,10 @@ const PosterWall: React.FC<PosterWallProps> = ({
       onScroll={handleScroll}
     >
       {isEmpty ? (
-        <p className="poster-wall__status" style={{ color: 'var(--theme-text-muted)' }}>
-          {loading ? loadingLabel : emptyLabel}
-        </p>
+        <div className="poster-wall__status" style={{ color: 'var(--theme-text-muted)' }}>
+          <p>{loading ? loadingLabel : emptyLabel}</p>
+          {!loading && emptyAction}
+        </div>
       ) : (
         <div className="poster-wall__canvas" style={{ height: layout.height }}>
           {visibleTiles.map(tile => {
@@ -140,6 +184,15 @@ const PosterWall: React.FC<PosterWallProps> = ({
                 hasMenu={hasMenu(track)}
                 onSelect={onTrackSelect}
                 onOpenMenu={onOpenMenu}
+                selecting={selecting}
+                selected={selectedIds?.has(track.id) ?? false}
+                onToggleSelect={onToggleSelect}
+                draggable={canSwap}
+                dragState={tile.index === dragSource ? 'source' : tile.index === dropTarget ? 'target' : undefined}
+                onDragStartTile={handleDragStart}
+                onDragOverTile={handleDragOver}
+                onDropTile={handleDrop}
+                onDragEndTile={handleDragEnd}
               />
             );
           })}

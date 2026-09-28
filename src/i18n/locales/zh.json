@@ -89,8 +89,6 @@
   "settings.nav.focus": "专注模式",
   "settings.onlineMusicHint": "开启后可搜索、播放和下载 QQ 音乐与网易云音乐的歌曲。",
   "settings.language": "语言",
-  "settings.compactList": "紧凑列表",
-  "settings.compactListDesc": "缩小曲目行高，一屏显示更多歌曲",
   "settings.nightMode": "夜间模式",
   "settings.language.zh": "中文",
   "settings.language.en": "English",
@@ -324,5 +322,7 @@
   "palette.state.shown": "显示中",
   "palette.state.on": "开",
   "palette.state.off": "关",
-  "palette.command.showList": "曲库列表（旧版）"
+  "palette.command.refreshCloud": "刷新云端曲库",
+  "search.editQuery": "修改搜索内容",
+  "search.downloading": "正在下载 {{count}} 首"
 }

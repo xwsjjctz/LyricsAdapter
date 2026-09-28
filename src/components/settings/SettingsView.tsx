@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { settingsManager } from '../../services/settingsManager';
 import ShortcutsSettings from '../ShortcutsSettings';
@@ -26,11 +26,14 @@ const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
 interface SettingsViewProps {
   initialSection?: SettingsSectionId | undefined;
-  bottomInset?: number;
+  onClose: () => void;
 }
 
-/** Full settings page: section list on the left, one section at a time. */
-export default function SettingsView({ initialSection = 'general', bottomInset = 0 }: SettingsViewProps) {
+/**
+ * Settings as a glass sheet floating over the poster wall. Sections are tabs;
+ * Esc, the close button or a click outside returns to the wall.
+ */
+export default function SettingsView({ initialSection = 'general', onClose }: SettingsViewProps) {
   const { t } = useTranslation();
   const themeUtils = useSettingsTheme(useCurrentTheme());
   const { colors } = themeUtils;
@@ -39,39 +42,53 @@ export default function SettingsView({ initialSection = 'general', bottomInset =
   const webdav = useWebdavSettings();
   const onlineMusic = useOnlineMusicSettings({ enabled: onlineEnabled });
   const activeLabel = t(SECTIONS.find(entry => entry.id === section)!.labelKey);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setSection(initialSection); }, [initialSection]);
+  useEffect(() => { sheetRef.current?.focus(); }, []);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+  };
 
   return (
-    <div className="library-view settings-view h-full flex flex-col">
-      <header className="mb-6 flex-shrink-0">
-        <h1 className="text-3xl" style={{ color: colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)', letterSpacing: 'var(--theme-heading-letter-spacing)' }}>
-          {t('settings.title')}
-        </h1>
-        <p style={{ color: colors.textMuted }}>{t('settings.description')}</p>
-      </header>
-
-      <div className="settings-view__body flex-1 min-h-0">
-        <nav aria-label={t('settings.title')} className="settings-nav">
-          {SECTIONS.map(entry => {
-            const current = entry.id === section;
-            return (
+    <div className="settings-sheet-backdrop" onMouseDown={onClose}>
+      <div
+        ref={sheetRef}
+        className="settings-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('settings.title')}
+        tabIndex={-1}
+        onMouseDown={event => event.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <header className="settings-sheet__header">
+          <h1 className="settings-sheet__title">{t('settings.title')}</h1>
+          <div role="tablist" aria-label={t('settings.title')} className="settings-sheet__tabs no-scrollbar">
+            {SECTIONS.map(entry => (
               <button
                 key={entry.id}
                 type="button"
-                aria-current={current ? 'page' : undefined}
-                className={`settings-nav__item${current ? ' settings-nav__item--current' : ''}`}
-                style={current ? { color: colors.textPrimary, backgroundColor: colors.backgroundCardHover } : { color: colors.textMuted }}
+                role="tab"
+                aria-selected={entry.id === section}
+                className="settings-sheet__tab"
                 onClick={() => setSection(entry.id)}
               >
                 <span className="material-symbols-outlined" aria-hidden="true">{entry.icon}</span>
                 <span>{t(entry.labelKey)}</span>
               </button>
-            );
-          })}
-        </nav>
+            ))}
+          </div>
+          <button type="button" className="wall-float__button settings-sheet__close" onClick={onClose} aria-label={t('common.close')}>
+            <span className="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </header>
 
-        <section aria-label={activeLabel} className="settings-view__content no-scrollbar" style={{ paddingBottom: bottomInset }}>
-          <h2 className="settings-view__section-title" style={{ color: colors.textPrimary }}>{activeLabel}</h2>
-
+        <section role="tabpanel" aria-label={activeLabel} className="settings-sheet__content no-scrollbar">
           {section === 'general' && <GeneralSection theme={themeUtils} />}
 
           {section === 'online' && (

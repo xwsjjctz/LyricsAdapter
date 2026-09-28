@@ -18,7 +18,6 @@ import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSource } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
-import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
@@ -37,20 +36,15 @@ declare global {
 const openPaletteMusicSearch = () => commandPalette.open('library');
 
 const AppContent: React.FC = () => {
+  const ui = useUIStore();
   const {
     viewMode,
-    setViewMode,
     transitionToView,
-    pageContentRef,
     isFocusMode,
     setIsFocusMode,
-    autoLocateToken,
     markTrackSwitch,
-    isWindowFocused,
-    floatingPanel,
-    handleNavigate,
-  } = useUIStore();
-  const sidebar = useSidebarLayout();
+    openSettings,
+  } = ui;
   const {
     slots,
     slotsRef,
@@ -76,11 +70,8 @@ const AppContent: React.FC = () => {
     pendingSlotLocate,
     cloudWritable,
     handleSwitchSlot,
-    handleSlotContentReady,
     handleSlotLocatePrepared,
-    handleLibraryScrollPositionChange,
     getLiveScrollPosition,
-    handleCategoryChange,
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
   activeSlotIdRef.current = activeSlotId;
@@ -273,6 +264,7 @@ const AppContent: React.FC = () => {
     removeTrack: libraryController.removeTrack,
     removeTracks: libraryController.removeTracks,
     reorder: libraryController.reorderTracks,
+    swap: libraryController.swapTracks,
     updateTrack: libraryController.updateTrack,
   });
   // Library mutations (remove / batch-remove / reorder / updateTrack /
@@ -326,7 +318,7 @@ const AppContent: React.FC = () => {
   // ViewModels; the per-handler delegates that lived here were removed by the
   // Phase 4 wiring.
   const { onlineProgress, handleOnlineDownload, handleOnlineUpload } = useOnlineMusicIntegration({
-    setViewMode,
+    openSettings,
     mergeCloudTracks,
     onDownloadComplete: handleDownloadComplete,
   });
@@ -357,11 +349,10 @@ const AppContent: React.FC = () => {
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.
   useShortcuts({
-    viewMode,
     isFocusMode,
     isPlaying,
     setIsFocusMode,
-    setViewMode,
+    openSettings,
     togglePlay,
     skipForward,
     skipBackward,
@@ -396,12 +387,7 @@ const AppContent: React.FC = () => {
 
   return (
     <AppShell
-      ui={{
-        viewMode, setViewMode, transitionToView, pageContentRef,
-        isFocusMode, setIsFocusMode, autoLocateToken, markTrackSwitch,
-        isWindowFocused, floatingPanel, handleNavigate,
-      }}
-      sidebar={sidebar}
+      ui={ui}
       library={library}
       player={player}
       importVm={importVm}
@@ -414,10 +400,7 @@ const AppContent: React.FC = () => {
       pendingSlotLocate={pendingSlotLocate}
       loadCloudTracks={loadCloudTracks}
       mergeCloudTracks={mergeCloudTracks}
-      handleLibraryScrollPositionChange={handleLibraryScrollPositionChange}
-      handleSlotContentReady={handleSlotContentReady}
       handleSlotLocatePrepared={handleSlotLocatePrepared}
-      handleCategoryChange={handleCategoryChange}
       libraryContentRef={libraryContentRef}
       onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}

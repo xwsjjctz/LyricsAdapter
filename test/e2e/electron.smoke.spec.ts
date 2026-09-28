@@ -900,10 +900,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       await expect(page!.locator('.command-palette')).toHaveCount(0);
     };
     await runPaletteCommand('settings');
-    await expect(page.locator('.settings-view')).toBeVisible();
+    await expect(page.locator('.settings-sheet')).toBeVisible();
     const amllLyricsSwitch = page.locator('[role="switch"][aria-describedby="focus-amll-lyrics-description"]');
     await expect(amllLyricsSwitch).toHaveCount(0);
-    await runPaletteCommand('wall');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.settings-sheet')).toHaveCount(0);
     await expect(page.locator('.poster-wall')).toBeVisible();
 
     await focusToggle.click();

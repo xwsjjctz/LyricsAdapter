@@ -6,7 +6,7 @@ import type { LibrarySlot, SlotId, Track } from '../types';
 import { coverArtService } from '../services/coverArtService';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
-import { reorderTracks } from '../services/libraryReorder';
+import { reorderTracks, swapTracks } from '../services/libraryReorder';
 import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibrarySettings } from '../services/libraryStorage';
@@ -135,10 +135,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
 
   const removeTrack = useCallback((trackId: string) => removeTracks([trackId]), [removeTracks]);
 
-  const reorderTracksHandler = useCallback(async (fromIndex: number, toIndex: number) => {
-    logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
-    const sourceSlot = slots[viewSlot];
-    const result = reorderTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, fromIndex, toIndex);
+  const applyOrder = useCallback(async (result: ReturnType<typeof reorderTracks>) => {
     if (!result.changed) return;
 
     updateSlot(viewSlot, slot => ({
@@ -158,6 +155,18 @@ export function useLibraryController(options: LibraryControllerOptions) {
     await libraryStorage.saveLibrary(libraryData);
     logger.debug('[App] Library saved after reordering');
   }, [getAppPersistenceData, slots, updateSlot, viewSlot]);
+
+  const reorderTracksHandler = useCallback(async (fromIndex: number, toIndex: number) => {
+    logger.debug(`[App] Reordering ${viewSlot} track from ${fromIndex} to ${toIndex}`);
+    const sourceSlot = slots[viewSlot];
+    await applyOrder(reorderTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, fromIndex, toIndex));
+  }, [applyOrder, slots, viewSlot]);
+
+  const swapTracksHandler = useCallback(async (firstIndex: number, secondIndex: number) => {
+    logger.debug(`[App] Swapping ${viewSlot} tracks ${firstIndex} <-> ${secondIndex}`);
+    const sourceSlot = slots[viewSlot];
+    await applyOrder(swapTracks(sourceSlot.tracks, sourceSlot.currentTrackIndex, firstIndex, secondIndex));
+  }, [applyOrder, slots, viewSlot]);
 
   // Update a single track's metadata in the view slot. Equivalent to the
   // inline `(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(...) }))`
@@ -190,6 +199,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
     removeTrack,
     removeTracks,
     reorderTracks: reorderTracksHandler,
+    swapTracks: swapTracksHandler,
     updateTrack,
     addDownloadedTrack,
   };

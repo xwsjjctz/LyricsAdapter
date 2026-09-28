@@ -89,8 +89,6 @@
   "settings.nav.focus": "フォーカスモード",
   "settings.onlineMusicHint": "QQ Music と NetEase Cloud Music の曲を検索・再生・ダウンロードできます。",
   "settings.language": "言語",
-  "settings.compactList": "コンパクトなリスト",
-  "settings.compactListDesc": "行の高さを縮めて、一画面により多くの曲を表示します",
   "settings.nightMode": "ナイトモード",
   "settings.language.zh": "中国語",
   "settings.language.en": "英語",
@@ -324,5 +322,7 @@
   "palette.state.shown": "表示中",
   "palette.state.on": "オン",
   "palette.state.off": "オフ",
-  "palette.command.showList": "ライブラリ一覧（旧）"
+  "palette.command.refreshCloud": "クラウドライブラリを更新",
+  "search.editQuery": "検索を編集",
+  "search.downloading": "{{count}} 曲をダウンロード中"
 }
