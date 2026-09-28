@@ -40,13 +40,33 @@
   transform-origin: 50% 100%;
 }
 
-/* Drawn above the cover and scrim so it stays visible without a gap. */
+/* Drawn above the cover and scrim so it stays visible without a gap: a solid
+   accent ring, a thin light keyline so it reads on accent-coloured covers,
+   and an inner glow that lifts the tile out of the mosaic. */
+.wall-tile--current {
+  --wall-current-accent: var(--theme-control-current-track-band-tint, var(--theme-primary));
+  z-index: 1;
+}
+
 .wall-tile--current .wall-tile__inner::after {
   content: '';
   position: absolute;
   inset: 0;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--theme-control-current-track-band-tint, var(--theme-primary)) 80%, transparent);
+  box-shadow:
+    inset 0 0 0 4px var(--wall-current-accent),
+    inset 0 0 0 5px rgba(255, 255, 255, 0.55),
+    inset 0 0 36px 4px color-mix(in srgb, var(--wall-current-accent) 55%, transparent);
   pointer-events: none;
+  animation: wall-current-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes wall-current-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-tile--current .wall-tile__inner::after { animation: none; }
 }
 
 .wall-tile--unavailable .wall-tile__inner {
@@ -86,6 +106,29 @@
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
   backdrop-filter: blur(6px);
+}
+
+/* The now-playing badge takes the accent colour so it reads at a glance. */
+.wall-tile--current .wall-tile__badge {
+  top: 12px;
+  left: 12px;
+  padding: 3px 8px;
+  background: var(--wall-current-accent);
+  color: #fff;
+  font-size: 11px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+
+.wall-tile__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wall-tile__badge-icon {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .wall-tile__text {

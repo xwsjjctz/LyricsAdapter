@@ -71,6 +71,9 @@ const AppContent: React.FC = () => {
     cloudWritable,
     handleSwitchSlot,
     handleSlotLocatePrepared,
+    handleSlotContentReady,
+    handleLibraryScrollPositionChange,
+    handleCategoryChange,
     getLiveScrollPosition,
   } = useLibraryStore();
   const activeSlotIdRef = useRef(activeSlotId);
@@ -401,6 +404,9 @@ const AppContent: React.FC = () => {
       loadCloudTracks={loadCloudTracks}
       mergeCloudTracks={mergeCloudTracks}
       handleSlotLocatePrepared={handleSlotLocatePrepared}
+      handleSlotContentReady={handleSlotContentReady}
+      handleLibraryScrollPositionChange={handleLibraryScrollPositionChange}
+      handleCategoryChange={handleCategoryChange}
       libraryContentRef={libraryContentRef}
       onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}

@@ -113,7 +113,12 @@ const PosterTile: React.FC<PosterTileProps> = memo(({
           thumbSize={thumbSizeFor(tile.width)}
         />
         <div className="wall-tile__scrim" aria-hidden="true" />
-        {isCurrent && <span className="wall-tile__badge">{t('library.nowPlaying')}</span>}
+        {isCurrent && (
+          <span className="wall-tile__badge">
+            <span className="material-symbols-outlined wall-tile__badge-icon" aria-hidden="true">graphic_eq</span>
+            {t('library.nowPlaying')}
+          </span>
+        )}
         {selecting && (
           <span className="wall-tile__check" aria-hidden="true">
             <span className="material-symbols-outlined">{selected ? 'check_circle' : 'radio_button_unchecked'}</span>

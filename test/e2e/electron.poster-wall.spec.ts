@@ -171,6 +171,26 @@ test('poster wall is the home page, plays in place and switches sources from the
     page = await launch();
     await expect(page.locator('.wall-tile')).toHaveCount(3);
     await expect(page.locator('aside')).toHaveCount(0);
+
+    // The classic list stays one palette command away, and the choice is remembered.
+    const listRows = page.locator('.library-view .library-track-row');
+    const runFeature = async (query: string, title: string) => {
+      await page.keyboard.press('ControlOrMeta+K');
+      await page.keyboard.press('Shift+Tab');
+      await page.locator('.command-palette__input').fill(query);
+      await expect(page.getByRole('option').first()).toContainText(title);
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.command-palette')).toHaveCount(0);
+    };
+    await runFeature('classic list', 'Switch to classic list view');
+    await expect(listRows).toHaveCount(3);
+    await expect(page.locator('.wall-tile')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('classic-list.png') });
+    await app!.close(); app = undefined;
+    page = await launch();
+    await expect(page.locator('.library-view .library-track-row')).toHaveCount(3);
+    await runFeature('poster wall view', 'Switch to poster wall view');
+    await expect(page.locator('.wall-tile')).toHaveCount(3);
     expect(errors).toEqual([]);
   } finally {
     if (app) await app.close();

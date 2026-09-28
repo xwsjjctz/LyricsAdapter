@@ -36,6 +36,8 @@ function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     setLanguage: vi.fn(),
     openSettings: vi.fn(),
     openWall: vi.fn(),
+    libraryLayout: 'wall',
+    setLibraryLayout: vi.fn(),
     ...overrides,
   };
 }
@@ -64,7 +66,30 @@ describe('buildAppCommands', () => {
     void byId(commands, 'library.refreshCloud')?.run?.();
     expect(selectTracks).toHaveBeenCalled();
     expect(refreshCloud).toHaveBeenCalled();
-    expect(byId(commands, 'navigation.list')).toBeUndefined();
+  });
+
+  it('keeps the poster wall as default with a switch to the classic list and back', () => {
+    const setLibraryLayout = vi.fn();
+    const onWall = buildAppCommands(deps({ setLibraryLayout }), t);
+    expect(byId(onWall, 'navigation.wall')?.title).toBe('palette.command.showWall');
+    expect(byId(onWall, 'navigation.useWall')).toBeUndefined();
+    void byId(onWall, 'navigation.list')?.run?.();
+    expect(setLibraryLayout).toHaveBeenLastCalledWith('list');
+
+    const onList = buildAppCommands(deps({ libraryLayout: 'list', setLibraryLayout }), t);
+    expect(byId(onList, 'navigation.wall')?.title).toBe('palette.command.showList');
+    expect(byId(onList, 'navigation.list')).toBeUndefined();
+    void byId(onList, 'navigation.useWall')?.run?.();
+    expect(setLibraryLayout).toHaveBeenLastCalledWith('wall');
+  });
+
+  it('offers "locate now playing" only while a track is playing', () => {
+    expect(byId(buildAppCommands(deps(), t), 'playback.locate')).toBeUndefined();
+    const locateCurrentTrack = vi.fn();
+    const command = byId(buildAppCommands(deps({ locateCurrentTrack }), t), 'playback.locate');
+    expect(command?.title).toBe('library.locateToCurrent');
+    void command?.run?.();
+    expect(locateCurrentTrack).toHaveBeenCalledTimes(1);
   });
 
   it('omits commands that cannot run right now', () => {

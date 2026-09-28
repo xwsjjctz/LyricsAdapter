@@ -25,6 +25,7 @@ const RETIRED_LOCAL_SETTING_KEYS = new Set([
   'soda_cookie',
   'soda_cookie_last_check',
   'la_list_density',
+  'la_library_mode',
 ]);
 
 /**

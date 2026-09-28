@@ -25,6 +25,7 @@ const SF_SYMBOLS: Readonly<Record<string, string>> = {
   light_mode: 'sun.max',
   manage_search: 'text.magnifyingglass',
   music_note: 'music.note',
+  my_location: 'location.fill',
   palette: 'paintpalette',
   play_arrow: 'play.fill',
   queue_music: 'music.note.list',
@@ -37,6 +38,7 @@ const SF_SYMBOLS: Readonly<Record<string, string>> = {
   tune: 'slider.horizontal.3',
   visibility: 'eye',
   visibility_off: 'eye.slash',
+  view_list: 'list.bullet',
   volume_off: 'speaker.slash',
 };
 const FALLBACK_SYMBOL = 'circle.dashed';

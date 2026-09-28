@@ -3,6 +3,7 @@ import type { Track } from '../../types';
 import PosterTile from './PosterTile';
 import { computeWallLayout } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
+import { autoLocateScrollTop, centerLocateScrollTop, type WallLocateInput } from './wallLocate';
 
 // Covers sit flush against each other.
 const WALL_GAP = 0;
@@ -31,6 +32,17 @@ interface PosterWallProps {
   onToggleSelect?: ((track: Track) => void) | undefined;
   /** When set, tiles can be dragged onto each other to swap places. */
   onSwap?: ((firstIndex: number, secondIndex: number) => void) | undefined;
+  /** Bumped on every track switch: scroll only if the playing tile left the view. */
+  autoLocateToken?: number | undefined;
+  /**
+   * A pending "centre the playing tile" request (explicit locate, or a source
+   * switch made to locate). Handled once this source is shown and laid out.
+   */
+  locateRequest?: { token: number; smooth: boolean } | undefined;
+  onLocateRequestHandled?: ((token: number) => void) | undefined;
+  /** Overlay heights the playing tile must stay clear of. */
+  topInset?: number;
+  bottomInset?: number;
 }
 
 /** Marks an internal tile drag so external file drops are told apart. */
@@ -44,6 +56,8 @@ const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
   emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
+  autoLocateToken = 0, locateRequest, onLocateRequestHandled,
+  topInset = 0, bottomInset = 0,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -124,6 +138,55 @@ const PosterWall: React.FC<PosterWallProps> = ({
   }, [loadMoreIfNearEnd]);
 
   const isEmpty = renderedTracks.length === 0;
+
+  // Locating the playing tile (ported from the list view).
+  const currentIndex = useMemo(
+    () => (currentTrackId ? renderedTracks.findIndex(track => track.id === currentTrackId) : -1),
+    [currentTrackId, renderedTracks],
+  );
+  const locateInput = useCallback((index: number): WallLocateInput | null => {
+    const container = containerRef.current;
+    const tile = layout.tiles[index]?.index === index ? layout.tiles[index] : layout.tiles.find(t => t.index === index);
+    if (!container || !tile) return null;
+    return {
+      tileTop: tile.y, tileBottom: tile.y + tile.height, scrollTop: container.scrollTop,
+      viewportHeight: container.clientHeight, contentHeight: layout.height, topInset, bottomInset,
+    };
+  }, [bottomInset, layout, topInset]);
+  const scrollWall = useCallback((top: number, behavior: ScrollBehavior) => {
+    containerRef.current?.scrollTo({ top, behavior });
+  }, []);
+
+  const previousIndexRef = useRef(currentIndex);
+  const handledAutoLocateRef = useRef(autoLocateToken);
+  useEffect(() => {
+    if (handledAutoLocateRef.current === autoLocateToken) return;
+    // Startup restores the playing track before the wall is measured or
+    // filled; keep the request until there is a layout to locate in.
+    if (isExiting || layout.tiles.length === 0) return;
+    handledAutoLocateRef.current = autoLocateToken;
+    const previous = previousIndexRef.current;
+    const input = currentIndex >= 0 ? locateInput(currentIndex) : null;
+    if (!input) return;
+    previousIndexRef.current = currentIndex;
+    const target = autoLocateScrollTop(input, previous < 0 || currentIndex > previous);
+    if (target !== null) scrollWall(target, 'smooth');
+  }, [autoLocateToken, currentIndex, isExiting, layout.tiles.length, locateInput, scrollWall]);
+
+  // Centre the playing tile once this source has entered and is laid out.
+  const requestToken = locateRequest?.token;
+  const requestSmooth = locateRequest?.smooth ?? false;
+  useEffect(() => {
+    if (requestToken == null || isExiting || renderKey !== sourceKey) return;
+    if (loading && currentIndex < 0) return; // It may be on a page still loading.
+    if (currentIndex >= 0) {
+      const input = locateInput(currentIndex);
+      if (!input) return; // Not measured yet.
+      previousIndexRef.current = currentIndex;
+      scrollWall(centerLocateScrollTop(input), requestSmooth ? 'smooth' : 'auto');
+    }
+    onLocateRequestHandled?.(requestToken);
+  }, [currentIndex, isExiting, loading, locateInput, onLocateRequestHandled, renderKey, requestSmooth, requestToken, scrollWall, sourceKey]);
 
   // Drag-to-swap: tile geometry is fixed by index, so the two tiles keep their
   // size and place and only exchange the songs they show.

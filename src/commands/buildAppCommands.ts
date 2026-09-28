@@ -29,6 +29,8 @@ export interface AppCommandDeps {
   /** Present only while the shown list has tracks to play. */
   playAll?: (() => void) | undefined;
   shuffleAll?: (() => void) | undefined;
+  /** Present only while a track is playing: scroll (or switch source) to it. */
+  locateCurrentTrack?: (() => void) | undefined;
   toggleFocusMode: () => void;
   togglePlaybackMode: () => void;
   toggleMute: () => void;
@@ -38,7 +40,10 @@ export interface AppCommandDeps {
   currentLanguage: string;
   setLanguage: (language: Language) => void;
   openSettings: (section: SettingsSectionId) => void;
+  /** Back to the library page (from search results), in its current layout. */
   openWall: () => void;
+  libraryLayout: 'wall' | 'list';
+  setLibraryLayout: (layout: 'wall' | 'list') => void;
 }
 
 const SETTINGS_SECTIONS: { id: SettingsSectionId; icon: string; titleKey: string; keywords: string[] }[] = [
@@ -141,6 +146,12 @@ function playbackCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] 
   if (deps.shuffleAll) {
     commands.push({ id: 'playback.shuffleAll', title: t('library.shuffleAll'), icon: 'shuffle', group: 'playback', keywords: ['shuffle'], run: deps.shuffleAll });
   }
+  if (deps.locateCurrentTrack) {
+    commands.push({
+      id: 'playback.locate', title: t('library.locateToCurrent'), icon: 'my_location', group: 'playback',
+      keywords: ['locate', 'now playing', 'current', 'scroll'], run: deps.locateCurrentTrack,
+    });
+  }
   commands.push(
     {
       id: 'playback.focusMode', title: t('titleBar.enterFocusMode'), icon: 'fullscreen', group: 'playback',
@@ -201,13 +212,33 @@ function settingsCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] 
   ];
 }
 
+function navigationCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
+  const onList = deps.libraryLayout === 'list';
+  return [
+    {
+      id: 'navigation.wall', title: t(onList ? 'palette.command.showList' : 'palette.command.showWall'),
+      icon: onList ? 'view_list' : 'auto_awesome_mosaic', group: 'navigation',
+      keywords: ['wall', 'list', 'home', 'library', 'back'], run: deps.openWall,
+    },
+    // The poster wall is the default; the classic list stays one command away.
+    onList
+      ? {
+        id: 'navigation.useWall', title: t('palette.command.useWallLayout'), icon: 'auto_awesome_mosaic',
+        group: 'navigation', keywords: ['wall', 'poster', 'cover', 'grid', 'layout'],
+        run: () => deps.setLibraryLayout('wall'),
+      }
+      : {
+        id: 'navigation.list', title: t('palette.command.useListLayout'), icon: 'view_list',
+        group: 'navigation', keywords: ['list', 'classic', 'legacy', 'traditional', 'rows', 'layout'],
+        run: () => deps.setLibraryLayout('list'),
+      },
+  ];
+}
+
 /** The full feature list, ordered by group as the palette shows it. */
 export function buildAppCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
   return [
-    {
-      id: 'navigation.wall', title: t('palette.command.showWall'), icon: 'auto_awesome_mosaic', group: 'navigation',
-      keywords: ['wall', 'home', 'library', 'back'], run: deps.openWall,
-    },
+    ...navigationCommands(deps, t),
     ...sourceCommands(deps, t),
     ...playlistCommands(deps, t),
     ...libraryCommands(deps, t),

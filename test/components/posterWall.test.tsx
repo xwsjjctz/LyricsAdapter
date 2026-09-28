@@ -191,3 +191,50 @@ describe('PosterWall', () => {
     expect(screen.getAllByRole('checkbox')[0]).toHaveAttribute('draggable', 'false');
   });
 });
+
+describe('PosterWall locating the playing tile', () => {
+  const many = Array.from({ length: 60 }, (_, index) => track(`t${index}`));
+  const setup = (props: Partial<React.ComponentProps<typeof PosterWall>> = {}) => {
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+    const view = renderWall({ tracks: many, sourceKey: 'many', ...props });
+    return { ...view, scrollTo };
+  };
+
+  it('follows a track switch only when the playing tile is out of view', () => {
+    const { rerenderWall, scrollTo } = setup({ currentTrackId: 't0', autoLocateToken: 0 });
+    rerenderWall({ tracks: many, sourceKey: 'many', currentTrackId: 't1', autoLocateToken: 1 });
+    expect(scrollTo).not.toHaveBeenCalled(); // Still on screen.
+
+    rerenderWall({ tracks: many, sourceKey: 'many', currentTrackId: 't59', autoLocateToken: 2 });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    const call = scrollTo.mock.calls[0]![0] as ScrollToOptions;
+    expect(call.behavior).toBe('smooth');
+    expect(call.top).toBeGreaterThan(0);
+  });
+
+  it('centres the playing tile for an explicit request and acknowledges it', () => {
+    const onLocateRequestHandled = vi.fn();
+    const { scrollTo } = setup({
+      currentTrackId: 't40', locateRequest: { token: 7, smooth: true }, onLocateRequestHandled,
+    });
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(onLocateRequestHandled).toHaveBeenCalledWith(7);
+  });
+
+  it('acknowledges a request even when the playing track is not in this list', () => {
+    const onLocateRequestHandled = vi.fn();
+    const { scrollTo } = setup({
+      currentTrackId: 'elsewhere', locateRequest: { token: 3, smooth: false }, onLocateRequestHandled,
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(onLocateRequestHandled).toHaveBeenCalledWith(3);
+  });
+
+  it('marks the playing tile with an accent badge', () => {
+    setup({ currentTrackId: 't0' });
+    const current = document.querySelector('[aria-current="true"]');
+    expect(current).toHaveClass('wall-tile--current');
+    expect(current?.querySelector('.wall-tile__badge')).toHaveTextContent('library.nowPlaying');
+  });
+});

@@ -119,14 +119,15 @@ describe('gsapButtonBounce', () => {
 });
 
 describe('libraryMode', () => {
-  it('should default to the list', () => {
-    expect(settingsManager.getLibraryMode()).toBe('list');
+  it('defaults to the poster wall', () => {
+    expect(settingsManager.getLibraryMode()).toBe('wall');
   });
 
-  it('should set and persist the poster wall', () => {
-    settingsManager.setLibraryMode('wall');
-    expect(settingsManager.getLibraryMode()).toBe('wall');
-    expect(localStorage.getItem('la_library_mode')).toBe('wall');
+  it('sets and persists the classic list under the new key', () => {
+    settingsManager.setLibraryMode('list');
+    expect(settingsManager.getLibraryMode()).toBe('list');
+    expect(localStorage.getItem('la_library_layout')).toBe('list');
+    expect(localStorage.getItem('la_library_mode')).toBeNull();
   });
 });
 

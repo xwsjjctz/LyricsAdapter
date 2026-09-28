@@ -8,7 +8,9 @@ const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const ONLINE_SOURCE_KEY = 'la_online_source';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
-const LIBRARY_MODE_KEY = 'la_library_mode';
+// Wall or classic list; a new key so values from the retired la_library_mode
+// (which defaulted to the list) cannot override the poster-wall default.
+const LIBRARY_MODE_KEY = 'la_library_layout';
 const FOCUS_BG_BLUR_RADIUS_KEY = 'la_focus_bg_blur_radius';
 const FOCUS_LYRICS_FONT_SIZE_KEY = 'la_focus_lyrics_font_size';
 const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
@@ -32,7 +34,7 @@ class SettingsManager {
   private onlineSource: OnlineSource = 'qq';
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
-  private libraryMode: LibraryMode = 'list';
+  private libraryMode: LibraryMode = 'wall';
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 32;
   private focusLyricLineSpacing: number = 30;
@@ -57,7 +59,7 @@ class SettingsManager {
       this.qqMusicEnabled = false;
       this.onlineSource = 'qq';
       this.gsapButtonBounce = true;
-      this.libraryMode = 'list';
+      this.libraryMode = 'wall';
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 32;
       this.focusLyricLineSpacing = 30;
@@ -85,7 +87,7 @@ class SettingsManager {
 
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
-      this.libraryMode = appStorage.getItem(LIBRARY_MODE_KEY) === 'wall' ? 'wall' : 'list';
+      this.libraryMode = appStorage.getItem(LIBRARY_MODE_KEY) === 'list' ? 'list' : 'wall';
 
       const blurRadius = appStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
       if (blurRadius) {

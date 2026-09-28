@@ -46,6 +46,14 @@ describe('useUIStore home page', () => {
     expect(settings.setLibraryMode).not.toHaveBeenCalled();
   });
 
+  it('shows the saved library layout and persists only an explicit switch', () => {
+    const { result } = renderHook(() => useUIStore());
+    expect(result.current.libraryLayout).toBe('list');
+    act(() => result.current.setLibraryLayout('wall'));
+    expect(result.current.libraryLayout).toBe('wall');
+    expect(settings.setLibraryMode).toHaveBeenCalledWith('wall');
+  });
+
   it('opens settings as a sheet over the current wall', () => {
     const { result } = renderHook(() => useUIStore());
     act(() => result.current.handleNavigate(ViewMode.SEARCH));
