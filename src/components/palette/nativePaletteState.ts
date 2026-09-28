@@ -47,7 +47,8 @@ const MAX_ROWS = 200;
 const MAX_TEXT = 2048;
 const MAX_SHORTCUT = 64;
 const MAX_COVER_URL = 8192;
-const COVER_PROTOCOLS = new Set(['cover:', 'https:', 'http:']);
+// app: serves bundled assets such as the default cover.
+const COVER_PROTOCOLS = new Set(['cover:', 'https:', 'http:', 'app:']);
 
 export function toSfSymbol(icon: string | undefined): string {
   return (icon && SF_SYMBOLS[icon]) || FALLBACK_SYMBOL;

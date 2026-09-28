@@ -10,6 +10,7 @@ export const WINDOWS_TASKBAR_HOST_EXECUTABLE = 'LyricsAdapter.TaskbarHost.exe';
 
 const MAX_PROTOCOL_LINE_LENGTH = 64 * 1024;
 const MAX_ARTWORK_URL_LENGTH = 8192;
+const DEFAULT_ARTWORK_FILE = 'default-cover.jpg';
 const HOST_READY_TIMEOUT_MS = 10_000;
 const COVER_FILE_NAME = /^[a-zA-Z0-9_-]+\.(?:jpe?g|png|webp)$/iu;
 const SUPPORTED_ARCHITECTURES = new Set(['x64', 'arm64']);
@@ -236,7 +237,31 @@ function isPathInsideDirectory(root: string, candidate: string): boolean {
 export function resolveWindowsTaskbarArtworkSource(
   value: string,
   userDataPath: string,
+  defaultArtworkPath?: string,
 ): string {
+  const resolved = resolveCoverArtworkSource(value, userDataPath);
+  if (resolved || !defaultArtworkPath) return resolved;
+  // No usable cover: show the bundled app-icon cover instead of the host's glyph.
+  try {
+    return fs.statSync(defaultArtworkPath).isFile() ? pathToFileURL(defaultArtworkPath).href : '';
+  } catch {
+    return '';
+  }
+}
+
+/** The bundled default cover: built renderer assets, or public/ before a build. */
+export function resolveDefaultArtworkPath(options: {
+  distDir: string;
+  appPath: string;
+  exists: (filePath: string) => boolean;
+}): string | undefined {
+  return [
+    path.join(options.distDir, DEFAULT_ARTWORK_FILE),
+    path.join(options.appPath, 'public', DEFAULT_ARTWORK_FILE),
+  ].find(options.exists);
+}
+
+function resolveCoverArtworkSource(value: string, userDataPath: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > MAX_ARTWORK_URL_LENGTH) return '';
 

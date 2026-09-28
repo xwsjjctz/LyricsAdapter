@@ -237,7 +237,6 @@ describe('useMediaSession', () => {
       artwork: [{
         src: DEFAULT_COVER_ARTWORK_URL,
         sizes: '256x256',
-        type: 'image/svg+xml',
       }],
     });
     expect(harness.session.metadata).toMatchObject({
@@ -264,7 +263,6 @@ describe('useMediaSession', () => {
       artwork: [{
         src: DEFAULT_COVER_ARTWORK_URL,
         sizes: '256x256',
-        type: 'image/svg+xml',
       }],
     });
 
@@ -276,6 +274,7 @@ describe('useMediaSession', () => {
     { label: 'missing', coverUrl: undefined },
     { label: 'empty', coverUrl: '' },
     { label: 'whitespace-only', coverUrl: '   ' },
+    { label: 'legacy picsum placeholder', coverUrl: 'https://picsum.photos/seed/song.mp3/1000/1000' },
   ])('publishes the default artwork without fetching for a $label cover URL', ({ coverUrl }) => {
     const harness = installMediaSession();
     const fetchMock = vi.fn();
@@ -289,7 +288,6 @@ describe('useMediaSession', () => {
     expect(harness.session.metadata?.artwork).toEqual([{
       src: DEFAULT_COVER_ARTWORK_URL,
       sizes: '256x256',
-      type: 'image/svg+xml',
     }]);
   });
 
@@ -366,7 +364,6 @@ describe('useMediaSession', () => {
       artwork: [{
         src: DEFAULT_COVER_ARTWORK_URL,
         sizes: '256x256',
-        type: 'image/svg+xml',
       }],
     });
 

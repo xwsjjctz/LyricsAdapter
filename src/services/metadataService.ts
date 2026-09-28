@@ -905,7 +905,7 @@ export async function parseAudioFile(file: File): Promise<ParsedMetadata> {
     artist: 'Unknown Artist',
     album: 'Unknown Album',
     duration: 0,
-    coverUrl: `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
+    coverUrl: '',
     lyrics: '',
     audioUrl,
     file

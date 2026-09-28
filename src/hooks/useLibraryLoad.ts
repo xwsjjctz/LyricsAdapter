@@ -180,7 +180,7 @@ export function useLibraryLoad({
           syncedLyrics: song.syncedLyrics,
           ...(song.wordLyrics != null ? { wordLyrics: song.wordLyrics } : {}),
           ...(song.wordLyricsFormat != null ? { wordLyricsFormat: song.wordLyricsFormat } : {}),
-          coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`,
+          coverUrl,
           audioUrl: '',
           source: 'webdav' as const,
           webdavPath: song.webdavPath,

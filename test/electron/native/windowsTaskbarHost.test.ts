@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
+import { pathToFileURL } from 'node:url';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   launchWindowsTaskbarHost,
   parseWindowsTaskbarHostMessage,
+  resolveDefaultArtworkPath,
   resolveWindowsTaskbarArtworkSource,
   resolveWindowsTaskbarHostExecutablePath,
   WINDOWS_TASKBAR_HOST_EXECUTABLE,
@@ -141,6 +143,30 @@ describe('Windows taskbar host protocol', () => {
       'http://example.com/insecure.jpg',
       userData,
     )).toBe('');
+  });
+
+  it('falls back to the bundled default cover when there is no usable artwork', () => {
+    const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'lyrics-adapter-host-'));
+    temporaryDirectories.push(userData);
+    const defaultCover = path.join(userData, 'default-cover.jpg');
+    fs.writeFileSync(defaultCover, 'image');
+
+    for (const value of ['', 'http://example.com/insecure.jpg', 'cover://missing.jpg']) {
+      expect(resolveWindowsTaskbarArtworkSource(value, userData, defaultCover))
+        .toBe(pathToFileURL(defaultCover).href);
+    }
+    expect(resolveWindowsTaskbarArtworkSource('https://example.com/cover.jpg', userData, defaultCover))
+      .toBe('https://example.com/cover.jpg');
+    expect(resolveWindowsTaskbarArtworkSource('', userData, path.join(userData, 'absent.jpg'))).toBe('');
+  });
+
+  it('prefers the built renderer copy of the default cover over public/', () => {
+    const exists = vi.fn((filePath: string) => filePath.includes('public'));
+    expect(resolveDefaultArtworkPath({ distDir: '/app/dist', appPath: '/app', exists }))
+      .toBe(path.join('/app', 'public', 'default-cover.jpg'));
+    expect(resolveDefaultArtworkPath({ distDir: '/app/dist', appPath: '/app', exists: () => true }))
+      .toBe(path.join('/app/dist', 'default-cover.jpg'));
+    expect(resolveDefaultArtworkPath({ distDir: '/app/dist', appPath: '/app', exists: () => false })).toBeUndefined();
   });
 
   it('terminates a host that never completes the ready handshake', () => {

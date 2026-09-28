@@ -111,8 +111,7 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
       const trackId = Math.random().toString(36).substr(2, 9);
       const singer = song.singer?.map(s => s.name).join(' / ') || 'Unknown';
 
-      const coverUrl = getOnlineProvider().getCoverUrl(song) || song.coverUrl
-        || `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+      const coverUrl = getOnlineProvider().getCoverUrl(song) || song.coverUrl || '';
 
       let finalCoverUrl = coverUrl;
       if (coverUrl && desktopAPI.saveCoverThumbnail) {

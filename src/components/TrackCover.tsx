@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, memo } from 'react';
 import {
   DEFAULT_COVER_ARTWORK_URL,
+  realCoverUrl,
   toCoverThumb,
   appendCoverQuery,
 } from '../services/coverUrl';
@@ -69,14 +70,16 @@ export const TrackCover: React.FC<TrackCoverProps> = memo(({
     }
   };
 
-  if (hasError || !fallbackUrl) {
+  // Missing, legacy placeholder (picsum) and unloadable covers all show the app-icon default.
+  const coverUrl = realCoverUrl(fallbackUrl);
+  if (hasError || !coverUrl) {
     return <img src={DEFAULT_COVER_ARTWORK_URL} className={className} style={style} alt="" />;
   }
 
   // 仅 cover:// 协议支持 ?size= 缩略图降采样；远程/blob URL 原样使用。
   // 先降采样，再用 retryKey 追加 cache-bust 参数（appendCoverQuery 会正确判断 ? / &，
   // 避免与 size 拼出非法的 `?size=128?_=1`）。
-  const thumbSrc = toCoverThumb(fallbackUrl, thumbSize);
+  const thumbSrc = toCoverThumb(coverUrl, thumbSize);
   const cacheBustSrc = retryKey > 0 ? appendCoverQuery(thumbSrc, '_', retryKey) : thumbSrc;
 
   return (

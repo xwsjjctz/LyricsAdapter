@@ -61,6 +61,9 @@ describe('native player control bar', () => {
     mocks.createFromBuffer.mockReturnValue({ isEmpty: () => false, resize: () => ({ toPNG: () => png }) });
     await expect(invoke('artwork', 'cover://track.png?size=128')).resolves.toEqual({ ok: true, data: undefined });
     expect(bridge.updatePlayerControlbarArtwork).toHaveBeenCalledWith(png);
+    // The bundled default cover is served by the app:// handler.
+    await invoke('artwork', 'app://localhost/default-cover.jpg');
+    expect(mocks.netFetch).toHaveBeenLastCalledWith('app://localhost/default-cover.jpg', expect.anything());
     await expect(invoke('artwork', null)).resolves.toEqual({ ok: true, data: undefined });
     expect(bridge.updatePlayerControlbarArtwork).toHaveBeenLastCalledWith(null);
   });

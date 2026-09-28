@@ -2,12 +2,15 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Track } from '../types';
 import {
   DEFAULT_COVER_ARTWORK_URL,
+  resolveCoverUrl,
   toCoverThumb,
 } from '../services/coverUrl';
 import { logger } from '../services/logger';
 
 const DEFAULT_SEEK_OFFSET_SECONDS = 10;
 const MEDIA_SESSION_ARTWORK_SIZE = 256;
+/** Artwork schemes Chromium's Media Session accepts as-is. */
+const MEDIA_SESSION_ARTWORK_SCHEME = /^(https?|data|blob):/i;
 
 interface MediaSessionPlaybackIntent {
   currentTrack: Track | null;
@@ -248,25 +251,21 @@ export function useMediaSession({
       album: currentTrack.album,
     };
     const coverUrl = toCoverThumb(
-      currentTrack.coverUrl?.trim() || DEFAULT_COVER_ARTWORK_URL,
+      resolveCoverUrl(currentTrack.coverUrl),
       MEDIA_SESSION_ARTWORK_SIZE,
     ) ?? DEFAULT_COVER_ARTWORK_URL;
-    const needsArtworkMaterialization = coverUrl?.startsWith('cover://') ?? false;
+    // cover:// and the bundled default (app://) must be materialized first.
+    const needsArtworkMaterialization = !MEDIA_SESSION_ARTWORK_SCHEME.test(coverUrl);
     publishMetadata(
       mediaSession,
       baseMetadata,
-      !needsArtworkMaterialization
-        ? buildArtwork(
-          coverUrl,
-          coverUrl === DEFAULT_COVER_ARTWORK_URL ? 'image/svg+xml' : undefined,
-        )
-        : undefined,
+      !needsArtworkMaterialization ? buildArtwork(coverUrl) : undefined,
     );
 
     if (!needsArtworkMaterialization) return;
 
     // Chromium's Media Session sanitizer accepts only http/https/data/blob
-    // artwork and silently drops Electron's app-private cover:// scheme.
+    // artwork and silently drops Electron's app-private cover:// and app:// schemes.
     // Materialize the bounded thumbnail as a data URL before publishing it.
     const abortController = new AbortController();
     void fetch(coverUrl, { signal: abortController.signal })

@@ -5,6 +5,7 @@ import {
   type SystemLyricsState,
 } from '../types/systemLyrics';
 import { countGraphemes } from '../shared/graphemes';
+import { realCoverUrl } from './coverUrl';
 import { normalizeSystemLyricsText } from '../shared/systemLyricsText';
 
 const TRACK_ID_LIMIT = 4096;
@@ -31,8 +32,9 @@ function boundedText(
   return result;
 }
 
+/** '' means no real cover; the taskbar host then shows the bundled default. */
 function safeCoverUrl(value: string | undefined): string {
-  const trimmed = value?.trim() ?? '';
+  const trimmed = realCoverUrl(value) ?? '';
   if (!trimmed || trimmed.length > COVER_URL_LIMIT) return '';
 
   try {

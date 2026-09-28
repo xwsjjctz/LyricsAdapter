@@ -54,6 +54,13 @@ test('poster wall is the home page, plays in place and switches sources from the
     // The wall is the home page: no sidebar, toolbar or floating chrome buttons.
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
+    // Songs without artwork show the bundled app-icon cover, and it really decodes.
+    const covers = tiles.locator('img');
+    await expect(covers).toHaveCount(3);
+    for (const cover of await covers.all()) {
+      await expect(cover).toHaveAttribute('src', /default-cover\.jpg$/);
+      await expect.poll(() => cover.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(512);
+    }
     await expect(page.locator('aside')).toHaveCount(0);
     await expect(page.locator('.library-toolbar')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Back to library' })).toHaveCount(0);

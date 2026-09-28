@@ -1,7 +1,7 @@
 import React, { memo, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
-import { toCoverThumb } from '../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
@@ -64,7 +64,7 @@ const Controls: React.FC<ControlsProps> = memo(({
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
     visible: true,
-    artworkUrl: track?.coverUrl,
+    artworkUrl: resolveCoverUrl(track?.coverUrl),
     state: {
       enabled: !!track,
       isPlaying,
@@ -158,7 +158,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             className="flex items-center cursor-pointer group gap-3 min-w-0"
           >
             <div className={`relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${isMac ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: 'var(--theme-media-radius)' }}>
-              <img src={toCoverThumb(track.coverUrl, 128)} className="size-full object-cover" />
+              <img src={toCoverThumb(resolveCoverUrl(track.coverUrl), 128)} className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }} />
               </div>
