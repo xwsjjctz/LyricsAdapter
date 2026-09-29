@@ -16,6 +16,14 @@ import type {
 type QQMusicSong = OnlineSong;
 type QQMusicUrlResult = OnlineUrlResult;
 
+/** The next quality to try when one is unavailable; 128kbps is the floor. */
+const LOWER_QUALITY: Record<OnlineQuality, OnlineQuality | null> = {
+  flac: '320',
+  '320': '128',
+  m4a: '128',
+  '128': null,
+};
+
 /** How long a downloaded playlist song list serves further pages. */
 const PLAYLIST_SONGS_TTL_MS = 5 * 60 * 1000;
 
@@ -297,11 +305,11 @@ class QQMusicAPI implements OnlineMusicProvider {
   /**
    * Get music URL for playback/download
    */
-  getMusicUrl(songmid: string, quality: OnlineQuality = '128'): Promise<QQMusicUrlResult> {
-    return this.withAuthRetry(() => this.getMusicUrlOnce(songmid, quality));
+  getMusicUrl(songmid: string, quality: OnlineQuality = '128', mediaMid?: string): Promise<QQMusicUrlResult> {
+    return this.withAuthRetry(() => this.getMusicUrlOnce(songmid, quality, mediaMid));
   }
 
-  private async getMusicUrlOnce(songmid: string, quality: OnlineQuality): Promise<QQMusicUrlResult> {
+  private async getMusicUrlOnce(songmid: string, quality: OnlineQuality, mediaMid?: string): Promise<QQMusicUrlResult> {
     if (!cookieManager.hasCookie()) {
       throw new Error('Cookie not set');
     }
@@ -314,7 +322,8 @@ class QQMusicAPI implements OnlineMusicProvider {
     };
 
     const config = fileConfig[quality]!;
-    const file = `${config.s}${songmid}${songmid}${config.e}`;
+    // The file is named by songmid plus the media file id, which can differ from songmid.
+    const file = `${config.s}${songmid}${mediaMid || songmid}${config.e}`;
 
     const reqData = {
       req_1: {
@@ -376,20 +385,23 @@ class QQMusicAPI implements OnlineMusicProvider {
         // Convert code to number for comparison (API may return string)
         const codeNum = typeof code === 'string' ? parseInt(code, 10) : code;
 
+        // An empty link for a higher quality usually means the song has no
+        // such file (or the account cannot get it); step down before
+        // concluding anything about the cookie.
+        const lower = LOWER_QUALITY[quality];
+        if (lower) {
+          logger.info('[QQMusicAPI] Quality', quality, 'unavailable (code', codeNum, '), trying', lower);
+          return this.getMusicUrlOnce(songmid, lower, mediaMid);
+        }
         if (codeNum === 800004 || codeNum === 800001) {
           throw new Error('VIP required');
         }
         if (codeNum === 800002) {
           throw new Error('Copyright restricted');
         }
-        // code 0 means API call succeeded but purl is empty - usually due to invalid cookie
+        // Even the lowest quality came back empty with code 0: the cookie is the likely cause.
         if (codeNum === 0 || codeNum === undefined || codeNum === null) {
           throw new Error('Cookie expired or invalid - please update your QQ Music cookie');
-        }
-        // Try fallback to 128kbps if higher quality failed
-        if (quality !== '128') {
-          logger.debug('[QQMusicAPI] Quality', quality, 'failed, trying 128kbps...');
-          return this.getMusicUrlOnce(songmid, '128');
         }
         throw new Error(`Cannot get download link (code: ${codeNum !== undefined ? codeNum : 'unknown'})`);
       }
@@ -398,7 +410,7 @@ class QQMusicAPI implements OnlineMusicProvider {
       const url = sip + purl;
       logger.debug('[QQMusicAPI] Final URL:', url);
 
-      return { url, bitrate: config!.bitrate };
+      return { url, bitrate: config!.bitrate, quality };
     } catch (error: unknown) {
       this.handleFetchError(error, '获取音乐链接');
     }
@@ -877,6 +889,7 @@ class QQMusicAPI implements OnlineMusicProvider {
       albummid: albummid,
       interval: song.interval || song.duration,
       coverUrl: albummid ? this.getAlbumCoverUrl(albummid) : undefined,
+      mediaMid: song.file?.media_mid || song.strMediaMid || undefined,
     };
   }
 
@@ -890,6 +903,7 @@ class QQMusicAPI implements OnlineMusicProvider {
       albummid: albummid,
       interval: track.interval,
       coverUrl: albummid ? this.getAlbumCoverUrl(albummid) : undefined,
+      mediaMid: track.file?.media_mid || undefined,
     };
   }
 

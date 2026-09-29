@@ -17,7 +17,7 @@ import { parseLyrics } from '../services/metadataService';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { logger } from '../services/logger';
 import { useTranslation } from 'react-i18next';
-import { buildSafeMusicFileName, joinDownloadPath } from '../services/fileName';
+import { QUALITY_EXTENSION, QUALITY_LABEL, saveOnlineAudio } from '../services/onlineDownload';
 import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
@@ -33,6 +33,8 @@ export interface OnlineProgressEntry {
   type: 'download' | 'upload';
   percent: number;
   status?: 'completed' | 'error';
+  /** Result shown in the app, which works even when system notifications are blocked. */
+  message?: string;
 }
 
 /**
@@ -182,18 +184,17 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const fileName = buildSafeMusicFileName(singer, song.songname, ext);
-      const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-      const fullPath = joinDownloadPath(downloadPath, fileName);
       const desktopAPI = getDesktopAPI();
-      const [lyrics, result] = await Promise.all([
+      const [lyrics, saved] = await Promise.all([
         fetchLyrics(song, provider),
-        provider.getMusicUrl(song.songmid, quality)
-          .then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+        saveOnlineAudio({
+          provider, song, quality, singer, downloadPath,
+          save: desktopAPI?.downloadAndSave?.bind(desktopAPI),
+        }),
       ]);
-      if (!result?.success || !result.filePath) throw new Error('Download failed');
+      const { fileName } = saved;
+      const result = { filePath: saved.filePath };
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
       if (desktopAPI?.writeAudioMetadata) {
         await desktopAPI.writeAudioMetadata(result.filePath, {
@@ -207,10 +208,16 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
       // no library callback was supplied.
       const downloadedTrack = await buildDownloadedTrack(result.filePath, fileName, song, lyrics);
       if (downloadedTrack && onDownloadComplete) onDownloadComplete(downloadedTrack);
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed' } }));
+      const doneMessage = saved.served === quality
+        ? t('notifications.trackDownloadSuccess', { artist: singer, title: song.songname })
+        : t('notifications.trackDownloadDowngraded', {
+          artist: singer, title: song.songname,
+          requested: QUALITY_LABEL[quality], served: QUALITY_LABEL[saved.served],
+        });
+      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed', message: doneMessage } }));
       notify(
         t('notifications.downloadComplete'),
-        t('notifications.trackDownloadSuccess', { artist: singer, title: song.songname }),
+        doneMessage,
         {
           silent: true,
           artworkUrls: [downloadedTrack?.coverUrl || coverUrl].filter((url): url is string => Boolean(url)),
@@ -219,8 +226,9 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] download failed:', err);
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, status: 'error' } }));
-      notify(t('notifications.downloadFailed'), err instanceof Error ? err.message : '');
+      const reason = err instanceof Error ? err.message : '';
+      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, status: 'error', message: reason } }));
+      notify(t('notifications.downloadFailed'), reason);
       setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 5000);
     } finally {
       if (activeSongRef.current === songId) activeSongRef.current = null;
@@ -238,19 +246,18 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
-      const ext = quality === 'flac' ? 'flac' : quality === 'm4a' ? 'm4a' : 'mp3';
-      const fileName = buildSafeMusicFileName(singer, song.songname, ext);
-      const cookie = provider.getRawCookie();
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
-      const fullPath = joinDownloadPath(downloadPath, fileName);
       const desktopAPI = getDesktopAPI();
-      const [lyrics, dlResult, coverBase64] = await Promise.all([
+      const [lyrics, saved, coverBase64] = await Promise.all([
         fetchLyrics(song, provider),
-        provider.getMusicUrl(song.songmid, quality)
-          .then(({ url }) => desktopAPI?.downloadAndSave?.(url, cookie, fullPath)),
+        saveOnlineAudio({
+          provider, song, quality, singer, downloadPath,
+          save: desktopAPI?.downloadAndSave?.bind(desktopAPI),
+        }),
         coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
       ]);
-      if (!dlResult?.success || !dlResult.filePath) throw new Error('Download failed');
+      const { fileName } = saved;
+      const dlResult = { filePath: saved.filePath };
       const parsedLyrics = lyrics
         ? parseLyrics(lyrics.lyrics, lyrics.wordLyrics, lyrics.wordLyricsFormat)
         : undefined;
@@ -268,7 +275,7 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
       if (!readResult?.success || !readResult.data) throw new Error('Failed to read file for upload');
       const webdavPath = `/${fileName}`;
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 65 } }));
-      await webdavClient.uploadFile(webdavPath, readResult.data, `audio/${ext}`);
+      await webdavClient.uploadFile(webdavPath, readResult.data, `audio/${QUALITY_EXTENSION[saved.served]}`);
       setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 85 } }));
       await webdavClient.uploadMetaJson(webdavPath, generateMetaJson({
         id: `webdav-${webdavPath}`, title: song.songname, artist: singer,

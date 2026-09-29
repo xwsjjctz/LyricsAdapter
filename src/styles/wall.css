@@ -331,6 +331,40 @@
   transition: width 200ms ease;
 }
 
+/* Online download status: above the control bar on every page, so a failure
+   is visible even when macOS blocks the app's notifications. */
+.wall-status-pill--download {
+  position: fixed;
+  top: auto;
+  bottom: var(--download-pill-bottom, 112px);
+  z-index: 60;
+  max-width: min(560px, calc(100vw - 32px));
+}
+
+.wall-status-pill__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-status-pill__icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.wall-status-pill--done .wall-status-pill__icon {
+  color: var(--theme-primary);
+}
+
+.wall-status-pill--error {
+  border-color: color-mix(in srgb, var(--theme-error, #ef4444) 55%, transparent);
+}
+
+.wall-status-pill--error .wall-status-pill__icon {
+  color: var(--theme-error, #ef4444);
+}
+
 .wall-drop-overlay {
   position: absolute;
   inset: 0;

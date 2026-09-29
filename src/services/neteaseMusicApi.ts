@@ -50,7 +50,21 @@ interface NetEaseAlbumRaw {
 interface NetEaseSongUrlEntry {
   url: string | null;
   br?: number;
+  /** Container of the served file, e.g. "mp3" or "flac". */
+  type?: string | null;
   freeTrialInfo?: unknown;
+}
+
+/**
+ * NetEase serves the best file available up to the requested level, so a
+ * lossless request can come back as MP3. Name the file after what arrived.
+ */
+export function servedNetEaseQuality(entry: Pick<NetEaseSongUrlEntry, 'br' | 'type'>, requested: OnlineQuality): OnlineQuality {
+  const type = entry.type?.toLowerCase();
+  if (type === 'flac') return 'flac';
+  if (type === 'm4a' || type === 'aac') return 'm4a';
+  if (type === 'mp3') return (entry.br ?? 0) >= 256_000 ? '320' : '128';
+  return requested;
 }
 
 interface NetEaseLyricBlock {
@@ -266,7 +280,7 @@ class NetEaseMusicAPI implements OnlineMusicProvider {
       }
       throw new Error('无法获取播放链接（可能为 VIP 歌曲，请在设置中登录网易云）');
     }
-    return { url: entry.url, bitrate: String(entry.br ?? 0) };
+    return { url: entry.url, bitrate: String(entry.br ?? 0), quality: servedNetEaseQuality(entry, quality) };
   }
 
   async getLyrics(songmid: string): Promise<OnlineLyricsResult | null> {

@@ -277,6 +277,7 @@
   "notifications.importComplete": "Import Complete",
   "notifications.importPartialCount": "Imported {{success}} track(s), {{failed}} failed",
   "notifications.trackDownloadSuccess": "{{artist}} - {{title}} downloaded",
+  "notifications.trackDownloadDowngraded": "{{artist}} - {{title}} downloaded ({{requested}} unavailable, got {{served}})",
   "notifications.importTrackSuccess": "“{{title}}” imported successfully",
   "notifications.importBatchSuccess": "“{{title}}” and {{count}} tracks imported successfully",
   "notifications.importBatchPartial": "“{{title}}” and {{success}} tracks imported, {{failed}} failed",

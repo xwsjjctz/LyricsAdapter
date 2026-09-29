@@ -102,12 +102,39 @@ function createNotificationIcon(artworkUrls: string[] | undefined): NativeImage 
   return composite.isEmpty() ? artwork[0] : composite;
 }
 
+/**
+ * UNErrorCodeNotificationsNotAllowed: macOS has not allowed this app to post
+ * notifications (typical for the unsigned development Electron.app). The
+ * message is localized, e.g. "UNErrorDomain error 1." / "UNErrorDomain错误1。".
+ */
+export function isNotificationPermissionError(error: unknown): boolean {
+  return /UNErrorDomain\D*1(?!\d)/.test(String(error));
+}
+
+let warnedNotificationPermission = false;
+
+/** Logs a failed notification; a missing permission is explained once, not repeated as an error. */
+export function reportNotificationFailure(error: unknown): void {
+  if (!isNotificationPermissionError(error)) {
+    logger.error('[Notification] Native notification failed:', error);
+    return;
+  }
+  if (warnedNotificationPermission) return;
+  warnedNotificationPermission = true;
+  logger.warn(
+    '[Notification] macOS has not allowed this app to show notifications; enable them in '
+    + 'System Settings › Notifications (the development build is listed as "Electron"). '
+    + 'Download results are still shown in the app.',
+    error,
+  );
+}
+
 function retainNotification(notification: Notification): void {
   activeNotifications.add(notification);
   const release = () => activeNotifications.delete(notification);
   notification.once('close', release);
   notification.once('failed', (_event, error) => {
-    logger.error('[Notification] Native notification failed:', error);
+    reportNotificationFailure(error);
     release();
   });
   const timer = setTimeout(release, 60_000);

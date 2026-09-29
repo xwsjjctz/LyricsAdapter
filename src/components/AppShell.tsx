@@ -6,6 +6,7 @@ import Controls from './Controls';
 import FocusMode from './FocusMode';
 import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
+import DownloadStatusPill from './wall/DownloadStatusPill';
 import SearchWallView from './search/SearchWallView';
 import SettingsView from './settings/SettingsView';
 import CommandPalette from './palette/CommandPalette';
@@ -274,7 +275,6 @@ const AppShell: React.FC<AppShellProps> = ({
                 onNavigateToTrack={online.navigateToTrack}
                 onOnlineStreamPlay={online.playSong}
                 onDownloadTrack={online.downloadTrack}
-                onlineProgress={online.progress}
                 onEditQuery={editSearchQuery}
                 onClose={openWall}
               />
@@ -361,6 +361,7 @@ const AppShell: React.FC<AppShellProps> = ({
               </div>
             )}
           </div>
+          <DownloadStatusPill progress={online.progress} />
           <Controls
             track={player.currentTrack}
             isPlaying={player.isPlaying}
