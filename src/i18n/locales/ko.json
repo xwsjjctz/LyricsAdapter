@@ -306,7 +306,7 @@
   "palette.modeLabel": "검색 모드",
   "palette.mode.library": "라이브러리",
   "palette.mode.commands": "기능",
-  "palette.switchHint": "⇧⇥ 모드 전환",
+  "palette.switchHint": "⇥ 모드 전환",
   "palette.placeholder.library": "노래, 아티스트, 앨범 또는 재생목록 검색",
   "palette.placeholder.commands": "기능 검색",
   "palette.viewAllResults": "\"{{query}}\" 전체 결과",

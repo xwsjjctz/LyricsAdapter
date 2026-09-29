@@ -306,7 +306,7 @@
   "palette.modeLabel": "Search mode",
   "palette.mode.library": "Library",
   "palette.mode.commands": "Features",
-  "palette.switchHint": "⇧⇥ switch mode",
+  "palette.switchHint": "⇥ switch mode",
   "palette.placeholder.library": "Search songs, artists, albums or playlists",
   "palette.placeholder.commands": "Search features",
   "palette.viewAllResults": "All results for \"{{query}}\"",

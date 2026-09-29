@@ -306,7 +306,7 @@
   "palette.modeLabel": "Mode de recherche",
   "palette.mode.library": "Bibliothèque",
   "palette.mode.commands": "Fonctions",
-  "palette.switchHint": "⇧⇥ changer de mode",
+  "palette.switchHint": "⇥ changer de mode",
   "palette.placeholder.library": "Rechercher titres, artistes, albums ou playlists",
   "palette.placeholder.commands": "Rechercher une fonction",
   "palette.viewAllResults": "Tous les résultats pour « {{query}} »",
