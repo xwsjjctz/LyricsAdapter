@@ -40,6 +40,10 @@ interface PosterWallProps {
    */
   locateRequest?: { token: number; smooth: boolean } | undefined;
   onLocateRequestHandled?: ((token: number) => void) | undefined;
+  /** Saved offset of this source, applied once when it is shown; omitted starts at the top. */
+  restoreScrollTop?: number | undefined;
+  /** Reports the offset while this source is shown, so it can be restored later. */
+  onScrollPositionChange?: ((scrollTop: number) => void) | undefined;
   /** Overlay heights the playing tile must stay clear of. */
   topInset?: number;
   bottomInset?: number;
@@ -57,7 +61,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
   emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
   autoLocateToken = 0, locateRequest, onLocateRequestHandled,
-  topInset = 0, bottomInset = 0,
+  topInset = 0, bottomInset = 0, restoreScrollTop, onScrollPositionChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -81,13 +85,15 @@ const PosterWall: React.FC<PosterWallProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // A new source starts from the top.
+  // A new source starts from the top until its saved offset is restored below.
+  const restorePendingRef = useRef(true);
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     container.scrollTop = 0;
     setScrollTop(0);
     autoRequestedLengthRef.current = null;
+    restorePendingRef.current = true;
   }, [renderKey]);
 
   useEffect(() => () => {
@@ -133,11 +139,37 @@ const PosterWall: React.FC<PosterWallProps> = ({
       const container = containerRef.current;
       if (!container) return;
       setScrollTop(container.scrollTop);
+      if (settledRef.current && !restorePendingRef.current) reportScrollRef.current?.(container.scrollTop);
       loadMoreIfNearEnd(false);
     });
   }, [loadMoreIfNearEnd]);
 
   const isEmpty = renderedTracks.length === 0;
+  const settled = !isExiting && renderKey === sourceKey;
+
+  // Reopen a source where it was left (like the list view) instead of jumping
+  // to the playing track. Runs before paint, once the tracks are laid out; the
+  // saved offset may arrive after mount (restored settings), so read it late.
+  const requestToken = locateRequest?.token;
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!restorePendingRef.current || !settled || !container) return;
+    // An explicit or cross-source locate decides where this source opens.
+    if (requestToken != null) { restorePendingRef.current = false; return; }
+    if (renderedTracks.length === 0 || layout.height === 0 || viewportHeight === 0) return;
+    restorePendingRef.current = false;
+    const top = Math.max(0, Math.min(restoreScrollTop ?? 0, layout.height - viewportHeight));
+    if (top === 0) return;
+    container.scrollTop = top;
+    setScrollTop(top);
+  }, [layout.height, renderedTracks.length, requestToken, restoreScrollTop, settled, viewportHeight]);
+
+  // Only the settled source reports its offset: the reset to the top on entry
+  // and the outgoing source's exit animation must not overwrite saved offsets.
+  const reportScrollRef = useRef(onScrollPositionChange);
+  reportScrollRef.current = onScrollPositionChange;
+  const settledRef = useRef(settled);
+  settledRef.current = settled;
 
   // Locating the playing tile (ported from the list view).
   const currentIndex = useMemo(
@@ -174,7 +206,6 @@ const PosterWall: React.FC<PosterWallProps> = ({
   }, [autoLocateToken, currentIndex, isExiting, layout.tiles.length, locateInput, scrollWall]);
 
   // Centre the playing tile once this source has entered and is laid out.
-  const requestToken = locateRequest?.token;
   const requestSmooth = locateRequest?.smooth ?? false;
   useEffect(() => {
     if (requestToken == null || isExiting || renderKey !== sourceKey) return;

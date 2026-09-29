@@ -296,8 +296,7 @@ const AppContent: React.FC = () => {
         // The playlist slot is a play context rather than a persisted browse
         // destination, so keep the restored library view on a real source.
         setViewSlot(restoredSlotId === 'playlist' ? 'local' : restoredSlotId);
-        // 触发 LibraryView 自动定位到当前曲目
-        markTrackSwitch();
+        // No locate here: the library reopens at its saved scroll offset.
       }
     },
   });

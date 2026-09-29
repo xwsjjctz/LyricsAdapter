@@ -151,3 +151,33 @@ describe('useLibraryStore scroll position commits', () => {
     expect(mocks.updateSlot).not.toHaveBeenCalled();
   });
 });
+
+describe('useLibraryStore restoring saved offsets at startup', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.updateSlot.mockClear();
+    mocks.slots.local = slotWith(0);
+    mocks.slots.cloud = { ...createEmptySlot('cloud'), scrollPosition: 40 };
+    mocks.slots.online = createEmptySlot('online');
+    mocks.slots.playlist = createEmptySlot('playlist');
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('keeps an offset restored after mount, so an unscrolled quit does not save 0', () => {
+    const { result, rerender } = renderHook(() => useLibraryStore());
+    mocks.slots.local = slotWith(500);
+    rerender();
+    expect(result.current.getLiveScrollPosition()).toEqual({ slot: 'local', position: 500 });
+  });
+
+  it('tracks a view slot restored without a switch, so its scrolling is saved', () => {
+    const { result } = renderHook(() => useLibraryStore());
+    // Startup restore sets the view directly, not through handleSwitchSlot.
+    act(() => { result.current.setViewSlot('cloud'); });
+    expect(result.current.getLiveScrollPosition()).toEqual({ slot: 'cloud', position: 40 });
+    act(() => { result.current.handleLibraryScrollPositionChange(320); });
+    expect(result.current.getLiveScrollPosition()).toEqual({ slot: 'cloud', position: 320 });
+  });
+});
+

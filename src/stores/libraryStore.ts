@@ -38,6 +38,23 @@ export function useLibraryStore() {
 
   useEffect(() => cancelPendingScrollCommit, [cancelPendingScrollCommit]);
 
+  // The view slot can also change without handleSwitchSlot (restoring the last
+  // source at startup). Track that slot too, or its scroll would be ignored
+  // and never saved.
+  useEffect(() => {
+    if (liveScrollRef.current.slot === viewSlot) return;
+    liveScrollRef.current = { slot: viewSlot, position: slotsRef.current[viewSlot].scrollPosition };
+  }, [viewSlot]);
+
+  // Restored settings replace the saved offsets after mount; keep the live
+  // offset in step until the user has scrolled the restored source.
+  const restoredPosition = library.slots[viewSlot].scrollPosition;
+  useEffect(() => {
+    if (liveScrollRef.current.slot === viewSlot && scrollCommitTimerRef.current === null) {
+      liveScrollRef.current = { slot: viewSlot, position: restoredPosition };
+    }
+  }, [restoredPosition, viewSlot]);
+
   useEffect(() => {
     if (viewSlot !== 'cloud') return;
     if (!webdavClient.hasConfig()) {

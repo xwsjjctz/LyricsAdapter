@@ -37,6 +37,9 @@ interface LibraryWallViewProps {
   onPendingLocatePrepared?: ((token: number) => void) | undefined;
   /** Bumped on every track switch; the wall follows the playing tile out of view. */
   autoLocateToken?: number;
+  /** This source's saved scroll offset and its reporter (not used for playlists). */
+  savedScrollPosition?: number | undefined;
+  onScrollPositionChange?: ((position: number) => void) | undefined;
   /** Pending palette "locate now playing" request, and its acknowledgement. */
   locateRequest?: number | null | undefined;
   onLocateRequestHandled?: ((token: number) => void) | undefined;
@@ -62,6 +65,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
   pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, autoLocateToken, locateRequest, onLocateRequestHandled,
+  savedScrollPosition, onScrollPositionChange,
   onSwapTracks, importDisabled = true, onImportClick, onDropFiles, onDropFilePaths,
   importProgress, loadProgress, selectionRequest,
 }) => {
@@ -85,6 +89,12 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
   const { menuItemsFor, startSelection } = actions;
   const hasMenu = useCallback((track: Track) => menuItemsFor(track).length > 0, [menuItemsFor]);
+
+  // Library sources reopen where they were left. The playlist slot is shared
+  // by every browsed playlist, so a playlist always opens at the top.
+  const rememberScroll = dataSource === 'playlist'
+    ? {}
+    : { restoreScrollTop: savedScrollPosition, onScrollPositionChange };
 
   // A source switch made to locate jumps there; a palette request scrolls smoothly.
   const slotLocateToken = pendingLocateSlot === dataSource ? pendingLocateToken : undefined;
@@ -154,6 +164,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         locateRequest={wallLocateRequest}
         onLocateRequestHandled={handleWallLocateHandled}
         bottomInset={bottomInset}
+        {...rememberScroll}
       />
 
       {progress && <WallStatusPill label={progressLabel} progress={progress.total > 0 ? progress.loaded / progress.total : undefined} />}

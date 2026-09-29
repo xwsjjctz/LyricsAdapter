@@ -238,3 +238,54 @@ describe('PosterWall locating the playing tile', () => {
     expect(current?.querySelector('.wall-tile__badge')).toHaveTextContent('library.nowPlaying');
   });
 });
+
+describe('PosterWall remembering its scroll offset', () => {
+  const many = Array.from({ length: 60 }, (_, index) => track(`r${index}`));
+  const wallScroll = () => (document.querySelector('.poster-wall') as HTMLElement).scrollTop;
+
+  it('reopens at the saved offset without locating the playing tile', () => {
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+    renderWall({ tracks: many, sourceKey: 'saved', currentTrackId: 'r59', restoreScrollTop: 900 });
+    expect(wallScroll()).toBe(900);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('waits for tracks and uses an offset restored after mount', () => {
+    const { rerenderWall } = renderWall({ tracks: [], sourceKey: 'late', restoreScrollTop: 0 });
+    rerenderWall({ tracks: [], sourceKey: 'late', restoreScrollTop: 700 });
+    rerenderWall({ tracks: many, sourceKey: 'late', restoreScrollTop: 700 });
+    expect(wallScroll()).toBe(700);
+  });
+
+  it('clamps a saved offset beyond the end', () => {
+    renderWall({ tracks: many, sourceKey: 'clamp', restoreScrollTop: 999_999 });
+    expect(wallScroll()).toBeGreaterThan(0);
+    expect(wallScroll()).toBeLessThan(999_999);
+  });
+
+  it('lets a pending locate decide where the source opens', () => {
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+    renderWall({
+      tracks: many, sourceKey: 'locate', currentTrackId: 'r50', restoreScrollTop: 300,
+      locateRequest: { token: 1, smooth: false }, onLocateRequestHandled: vi.fn(),
+    });
+    expect(wallScroll()).not.toBe(300);
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
+  });
+
+  it('reports user scrolling, not the reset to the top on entry', () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { frames.push(cb); return frames.length; });
+    const onScrollPositionChange = vi.fn();
+    renderWall({ tracks: many, sourceKey: 'report', restoreScrollTop: 400, onScrollPositionChange });
+    const wall = document.querySelector('.poster-wall') as HTMLElement;
+    wall.scrollTop = 650;
+    fireEvent.scroll(wall);
+    act(() => frames.splice(0).forEach(cb => cb(0)));
+    expect(onScrollPositionChange).toHaveBeenCalledWith(650);
+    expect(onScrollPositionChange).not.toHaveBeenCalledWith(0);
+    vi.restoreAllMocks();
+  });
+});
