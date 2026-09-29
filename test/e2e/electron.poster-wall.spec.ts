@@ -117,7 +117,7 @@ test('poster wall is the home page, plays in place and switches sources from the
     await page.keyboard.press('ControlOrMeta+K');
     await expect(paletteInput).toBeFocused();
     await expect(page.getByRole('tab', { name: 'Library', selected: true })).toBeVisible();
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Features', selected: true })).toBeVisible();
     await paletteInput.fill('Online History');
     await expect(page.getByRole('option').first()).toContainText('Switch to Online History');

@@ -306,7 +306,7 @@
   "palette.modeLabel": "搜索模式",
   "palette.mode.library": "音乐库",
   "palette.mode.commands": "功能",
-  "palette.switchHint": "⇧⇥ 切换模式",
+  "palette.switchHint": "⇥ 切换模式",
   "palette.placeholder.library": "搜索歌曲、歌手、专辑或歌单",
   "palette.placeholder.commands": "搜索功能",
   "palette.viewAllResults": "查看「{{query}}」的全部结果",

@@ -306,7 +306,7 @@
   "palette.modeLabel": "Suchmodus",
   "palette.mode.library": "Mediathek",
   "palette.mode.commands": "Funktionen",
-  "palette.switchHint": "⇧⇥ Modus wechseln",
+  "palette.switchHint": "⇥ Modus wechseln",
   "palette.placeholder.library": "Titel, Künstler, Alben oder Playlists suchen",
   "palette.placeholder.commands": "Funktionen suchen",
   "palette.viewAllResults": "Alle Ergebnisse für „{{query}}“",

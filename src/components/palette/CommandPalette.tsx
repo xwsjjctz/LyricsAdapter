@@ -49,9 +49,6 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
   const move = useCallback((delta: number) => {
     setSelected(index => Math.max(0, Math.min(index + delta, items.length - 1)));
   }, [items.length]);
-  const tab = useCallback(() => {
-    if (items[selected]?.command) activate(items[selected]);
-  }, [activate, items, selected]);
   const backspaceWhenEmpty = useCallback((): boolean => {
     if (state.query || state.stack.length === 0) return false;
     palette.pop();
@@ -64,14 +61,15 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
       case 'move': move(action.value); return;
       case 'hover': setSelected(action.value); return;
       case 'activate': activate(items[action.value < 0 ? selected : action.value]); return;
-      case 'tab': tab(); return;
+      // Tab and Shift+Tab both switch between music and features; Enter opens sub-lists.
+      case 'tab':
       case 'cycle-mode': palette.cycleMode(); return;
       case 'mode': if (PALETTE_MODES[action.value] !== state.mode) palette.cycleMode(); return;
       case 'escape': palette.back(); return;
       case 'backspace': backspaceWhenEmpty(); return;
       case 'shortcut': dispatchForwardedShortcut(action.text, action.value); return;
     }
-  }, [activate, backspaceWhenEmpty, items, move, palette, selected, state.mode, tab]);
+  }, [activate, backspaceWhenEmpty, items, move, palette, selected, state.mode]);
 
   const darkMode = useDocumentDarkMode();
   const nativeActive = useNativePalette(toNativePaletteState({
@@ -104,9 +102,10 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
         activate(items[selected]);
         return;
       case 'Tab':
+        // Tab switches between music and features (Shift+Tab too, as before);
+        // Enter opens a feature's sub-list.
         stop();
-        if (event.shiftKey) palette.cycleMode();
-        else tab();
+        palette.cycleMode();
         return;
       case 'Escape':
         stop();
@@ -119,7 +118,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
         // Plain typing stays in the input; keep it away from global shortcuts.
         if (!event.metaKey && !event.ctrlKey && !event.altKey) event.stopPropagation();
     }
-  }, [activate, backspaceWhenEmpty, items, move, palette, selected, tab]);
+  }, [activate, backspaceWhenEmpty, items, move, palette, selected]);
 
   if (!state.open) return null;
   // The native glass panel draws above the page; the web layer only dims it
