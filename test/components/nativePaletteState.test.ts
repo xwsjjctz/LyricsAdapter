@@ -33,12 +33,13 @@ describe('native palette state', () => {
     const rows = toNativeRows([
       item({ title: 'cover', coverUrl: 'cover://track/1?size=96' }),
       item({ title: 'https', coverUrl: 'https://example.com/a.jpg' }),
+      item({ title: 'default', coverUrl: 'app://localhost/default-cover.jpg' }),
       item({ title: 'blob', coverUrl: 'blob:http://localhost/abc' }),
       item({ title: 'relative', coverUrl: '/img/a.png' }),
       item({ title: 'huge', coverUrl: `data:image/png;base64,${'a'.repeat(9000)}` }),
     ]);
     expect(rows.map(row => row.cover)).toEqual([
-      'cover://track/1?size=96', 'https://example.com/a.jpg', null, null, null,
+      'cover://track/1?size=96', 'https://example.com/a.jpg', 'app://localhost/default-cover.jpg', null, null, null,
     ]);
   });
 

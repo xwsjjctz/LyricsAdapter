@@ -54,6 +54,13 @@ test('poster wall is the home page, plays in place and switches sources from the
     // The wall is the home page: no sidebar, toolbar or floating chrome buttons.
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
+    // Songs without artwork show the bundled app-icon cover, and it really decodes.
+    const covers = tiles.locator('img');
+    await expect(covers).toHaveCount(3);
+    for (const cover of await covers.all()) {
+      await expect(cover).toHaveAttribute('src', /default-cover\.jpg$/);
+      await expect.poll(() => cover.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(512);
+    }
     await expect(page.locator('aside')).toHaveCount(0);
     await expect(page.locator('.library-toolbar')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Back to library' })).toHaveCount(0);
@@ -110,7 +117,7 @@ test('poster wall is the home page, plays in place and switches sources from the
     await page.keyboard.press('ControlOrMeta+K');
     await expect(paletteInput).toBeFocused();
     await expect(page.getByRole('tab', { name: 'Library', selected: true })).toBeVisible();
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Features', selected: true })).toBeVisible();
     await paletteInput.fill('Online History');
     await expect(page.getByRole('option').first()).toContainText('Switch to Online History');
@@ -164,6 +171,26 @@ test('poster wall is the home page, plays in place and switches sources from the
     page = await launch();
     await expect(page.locator('.wall-tile')).toHaveCount(3);
     await expect(page.locator('aside')).toHaveCount(0);
+
+    // The classic list stays one palette command away, and the choice is remembered.
+    const listRows = page.locator('.library-view .library-track-row');
+    const runFeature = async (query: string, title: string) => {
+      await page.keyboard.press('ControlOrMeta+K');
+      await page.keyboard.press('Shift+Tab');
+      await page.locator('.command-palette__input').fill(query);
+      await expect(page.getByRole('option').first()).toContainText(title);
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.command-palette')).toHaveCount(0);
+    };
+    await runFeature('classic list', 'Switch to classic list view');
+    await expect(listRows).toHaveCount(3);
+    await expect(page.locator('.wall-tile')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('classic-list.png') });
+    await app!.close(); app = undefined;
+    page = await launch();
+    await expect(page.locator('.library-view .library-track-row')).toHaveCount(3);
+    await runFeature('poster wall view', 'Switch to poster wall view');
+    await expect(page.locator('.wall-tile')).toHaveCount(3);
     expect(errors).toEqual([]);
   } finally {
     if (app) await app.close();

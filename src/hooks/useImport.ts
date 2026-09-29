@@ -177,7 +177,7 @@ export function useImport({
 
         const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
 
-        let coverUrl = `https://picsum.photos/seed/${encodeURIComponent(fileName)}/1000/1000`;
+        let coverUrl = '';
         let coverSavedToDisk = false;
         if (metadata?.coverData && metadata?.coverMime) {
           if (desktopAPI.saveCoverThumbnail) {
@@ -292,7 +292,7 @@ export function useImport({
             artist: 'Unknown Artist',
             album: 'Unknown Album',
             duration: 0,
-            coverUrl: `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
+            coverUrl: '',
             lyrics: '',
             syncedLyrics: undefined,
             audioUrl: '',
@@ -882,7 +882,7 @@ export function useImport({
             ...(syncedLyrics != null && { syncedLyrics }),
             ...(meta?.wordLyrics != null && { wordLyrics: meta.wordLyrics }),
             ...(meta?.wordLyricsFormat != null && { wordLyricsFormat: meta.wordLyricsFormat }),
-            coverUrl: coverUrl || `https://picsum.photos/seed/${encodeURIComponent(remoteFileName)}/1000/1000`,
+            coverUrl: coverUrl || '',
           } as Track);
           logger.debug(`[Import] ✓ Uploaded to WebDAV: ${remoteFileName}`);
         } catch (err) {

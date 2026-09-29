@@ -4,6 +4,7 @@ import type { SystemLyricsAction, SystemLyricsState } from '../../src/types/syst
 import { logger } from '../logger';
 import {
   launchWindowsTaskbarHost,
+  resolveDefaultArtworkPath,
   resolveWindowsTaskbarArtworkSource,
   resolveWindowsTaskbarHostExecutablePath,
   type LaunchWindowsTaskbarHostOptions,
@@ -13,6 +14,7 @@ import {
   type WindowsTaskbarHostStatus,
 } from '../native/windowsTaskbarHost';
 import { settingsStore } from './settingsStore';
+import { getRendererDistDir } from '../protocols/appProtocol';
 
 export type WindowsTaskbarLyricsActionHandler = (
   action: SystemLyricsAction,
@@ -74,8 +76,10 @@ function defaultDependencies(): WindowsTaskbarLyricsServiceDependencies {
     }),
     hostExists: executablePath => fs.existsSync(executablePath),
     launchHost: options => launchWindowsTaskbarHost(options),
-    resolveArtworkSource: coverUrl => (
-      resolveWindowsTaskbarArtworkSource(coverUrl, app.getPath('userData'))
+    resolveArtworkSource: coverUrl => resolveWindowsTaskbarArtworkSource(
+      coverUrl,
+      app.getPath('userData'),
+      resolveDefaultArtworkPath({ distDir: getRendererDistDir(), appPath: app.getAppPath(), exists: fs.existsSync }),
     ),
     loadPlacement: () => parseWindowsTaskbarLyricsPlacement(
       settingsStore.get(TASKBAR_PLACEMENT_SETTING_KEY),

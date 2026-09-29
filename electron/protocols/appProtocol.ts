@@ -3,7 +3,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import { logger } from '../logger';
 
-function getRendererDistDir(): string {
+export function getRendererDistDir(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'dist');
   }

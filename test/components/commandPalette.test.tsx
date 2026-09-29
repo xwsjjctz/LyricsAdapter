@@ -57,8 +57,12 @@ describe('CommandPalette', () => {
     expect(store.getState().open).toBe(false);
   });
 
-  it('switches to feature mode with Shift+Tab and runs commands', () => {
+  it('switches modes with Tab (Shift+Tab too) and runs commands', () => {
     const { press, type, runs, store, titles } = setup();
+    press('Tab');
+    expect(store.getState().mode).toBe('commands');
+    press('Tab');
+    expect(store.getState().mode).toBe('library');
     press('Tab', { shiftKey: true });
     expect(store.getState().mode).toBe('commands');
     expect(titles()).toEqual(['Local library', 'Mute', 'Open settings', 'Language']);
@@ -74,22 +78,33 @@ describe('CommandPalette', () => {
     expect(store.getState().open).toBe(false);
   });
 
-  it('enters nested lists with Tab and backs out with Escape', () => {
+  it('enters nested lists with Enter and backs out with Escape', () => {
     const { press, store, titles, runs } = setup();
-    act(() => store.cycleMode());
-    press('ArrowDown');
-    press('ArrowDown');
-    press('ArrowDown');
     press('Tab');
+    press('ArrowDown');
+    press('ArrowDown');
+    press('ArrowDown');
+    press('Enter');
     expect(store.getState().stack).toEqual(['appearance.language']);
     expect(titles()).toEqual(['English']);
     expect(screen.getByText('Language ›')).toBeInTheDocument();
 
     press('Escape');
-    expect(store.getState()).toMatchObject({ open: true, stack: [] });
-    press('Tab');
+    expect(store.getState()).toMatchObject({ open: true, mode: 'commands', stack: [] });
     press('Enter');
     expect(runs.local).toHaveBeenCalled();
+  });
+
+  it('leaves a nested list when Tab switches back to music', () => {
+    const { press, store } = setup();
+    press('Tab');
+    press('ArrowDown');
+    press('ArrowDown');
+    press('ArrowDown');
+    press('Enter');
+    expect(store.getState().stack).toEqual(['appearance.language']);
+    press('Tab');
+    expect(store.getState()).toMatchObject({ mode: 'library', stack: [] });
   });
 
   it('keeps typing and handled keys away from global shortcuts', () => {
@@ -98,6 +113,7 @@ describe('CommandPalette', () => {
     window.addEventListener('keydown', globalListener);
     press(' ');
     press('ArrowDown');
+    press('Tab');
     press('Tab', { shiftKey: true });
     press('k', { metaKey: true });
     window.removeEventListener('keydown', globalListener);

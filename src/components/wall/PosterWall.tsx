@@ -3,6 +3,7 @@ import type { Track } from '../../types';
 import PosterTile from './PosterTile';
 import { computeWallLayout } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
+import { autoLocateScrollTop, centerLocateScrollTop, type WallLocateInput } from './wallLocate';
 
 // Covers sit flush against each other.
 const WALL_GAP = 0;
@@ -31,6 +32,21 @@ interface PosterWallProps {
   onToggleSelect?: ((track: Track) => void) | undefined;
   /** When set, tiles can be dragged onto each other to swap places. */
   onSwap?: ((firstIndex: number, secondIndex: number) => void) | undefined;
+  /** Bumped on every track switch: scroll only if the playing tile left the view. */
+  autoLocateToken?: number | undefined;
+  /**
+   * A pending "centre the playing tile" request (explicit locate, or a source
+   * switch made to locate). Handled once this source is shown and laid out.
+   */
+  locateRequest?: { token: number; smooth: boolean } | undefined;
+  onLocateRequestHandled?: ((token: number) => void) | undefined;
+  /** Saved offset of this source, applied once when it is shown; omitted starts at the top. */
+  restoreScrollTop?: number | undefined;
+  /** Reports the offset while this source is shown, so it can be restored later. */
+  onScrollPositionChange?: ((scrollTop: number) => void) | undefined;
+  /** Overlay heights the playing tile must stay clear of. */
+  topInset?: number;
+  bottomInset?: number;
 }
 
 /** Marks an internal tile drag so external file drops are told apart. */
@@ -44,6 +60,8 @@ const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
   emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
+  autoLocateToken = 0, locateRequest, onLocateRequestHandled,
+  topInset = 0, bottomInset = 0, restoreScrollTop, onScrollPositionChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -67,13 +85,16 @@ const PosterWall: React.FC<PosterWallProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // A new source starts from the top.
+  // A new source starts from the top until its saved offset is restored below.
+  const restorePendingRef = useRef(true);
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     container.scrollTop = 0;
+    lastScrollTopRef.current = 0;
     setScrollTop(0);
     autoRequestedLengthRef.current = null;
+    restorePendingRef.current = true;
   }, [renderKey]);
 
   useEffect(() => () => {
@@ -84,6 +105,25 @@ const PosterWall: React.FC<PosterWallProps> = ({
     () => computeWallLayout({ count: renderedTracks.length, width, gap: WALL_GAP }),
     [renderedTracks.length, width],
   );
+
+  // Tiles scale with the width (cell = width / 12), so a fixed pixel offset
+  // shows different songs after a resize. Rescale it around the viewport
+  // centre, before paint, so the songs in view stay put; a height-only
+  // resize leaves the layout and the offset unchanged.
+  const lastScrollTopRef = useRef(0);
+  const measuredWidthRef = useRef(width);
+  useLayoutEffect(() => {
+    const previous = measuredWidthRef.current;
+    measuredWidthRef.current = width;
+    const container = containerRef.current;
+    if (!container || previous <= 0 || width <= 0 || previous === width || restorePendingRef.current) return;
+    const half = container.clientHeight / 2;
+    const maxTop = Math.max(0, layout.height - container.clientHeight);
+    const top = Math.max(0, Math.min((lastScrollTopRef.current + half) * (width / previous) - half, maxTop));
+    container.scrollTop = top;
+    lastScrollTopRef.current = top;
+    setScrollTop(top);
+  }, [width, layout.height]);
 
   const overscan = viewportHeight * OVERSCAN_VIEWPORTS;
   const visibleTiles = useMemo(() => {
@@ -113,17 +153,94 @@ const PosterWall: React.FC<PosterWallProps> = ({
   }, [loadError, loadMoreIfNearEnd]);
 
   const handleScroll = useCallback(() => {
+    lastScrollTopRef.current = containerRef.current?.scrollTop ?? 0;
     if (scrollFrameRef.current !== null) return;
     scrollFrameRef.current = requestAnimationFrame(() => {
       scrollFrameRef.current = null;
       const container = containerRef.current;
       if (!container) return;
       setScrollTop(container.scrollTop);
+      if (settledRef.current && !restorePendingRef.current) reportScrollRef.current?.(container.scrollTop);
       loadMoreIfNearEnd(false);
     });
   }, [loadMoreIfNearEnd]);
 
   const isEmpty = renderedTracks.length === 0;
+  const settled = !isExiting && renderKey === sourceKey;
+
+  // Reopen a source where it was left (like the list view) instead of jumping
+  // to the playing track. Runs before paint, once the tracks are laid out; the
+  // saved offset may arrive after mount (restored settings), so read it late.
+  const requestToken = locateRequest?.token;
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!restorePendingRef.current || !settled || !container) return;
+    // An explicit or cross-source locate decides where this source opens.
+    if (requestToken != null) { restorePendingRef.current = false; return; }
+    if (renderedTracks.length === 0 || layout.height === 0 || viewportHeight === 0) return;
+    restorePendingRef.current = false;
+    const top = Math.max(0, Math.min(restoreScrollTop ?? 0, layout.height - viewportHeight));
+    if (top === 0) return;
+    container.scrollTop = top;
+    // The scroll event arrives later; a resize before it must see this offset.
+    lastScrollTopRef.current = top;
+    setScrollTop(top);
+  }, [layout.height, renderedTracks.length, requestToken, restoreScrollTop, settled, viewportHeight]);
+
+  // Only the settled source reports its offset: the reset to the top on entry
+  // and the outgoing source's exit animation must not overwrite saved offsets.
+  const reportScrollRef = useRef(onScrollPositionChange);
+  reportScrollRef.current = onScrollPositionChange;
+  const settledRef = useRef(settled);
+  settledRef.current = settled;
+
+  // Locating the playing tile (ported from the list view).
+  const currentIndex = useMemo(
+    () => (currentTrackId ? renderedTracks.findIndex(track => track.id === currentTrackId) : -1),
+    [currentTrackId, renderedTracks],
+  );
+  const locateInput = useCallback((index: number): WallLocateInput | null => {
+    const container = containerRef.current;
+    const tile = layout.tiles[index]?.index === index ? layout.tiles[index] : layout.tiles.find(t => t.index === index);
+    if (!container || !tile) return null;
+    return {
+      tileTop: tile.y, tileBottom: tile.y + tile.height, scrollTop: container.scrollTop,
+      viewportHeight: container.clientHeight, contentHeight: layout.height, topInset, bottomInset,
+    };
+  }, [bottomInset, layout, topInset]);
+  const scrollWall = useCallback((top: number, behavior: ScrollBehavior) => {
+    containerRef.current?.scrollTo({ top, behavior });
+  }, []);
+
+  const previousIndexRef = useRef(currentIndex);
+  const handledAutoLocateRef = useRef(autoLocateToken);
+  useEffect(() => {
+    if (handledAutoLocateRef.current === autoLocateToken) return;
+    // Startup restores the playing track before the wall is measured or
+    // filled; keep the request until there is a layout to locate in.
+    if (isExiting || layout.tiles.length === 0) return;
+    handledAutoLocateRef.current = autoLocateToken;
+    const previous = previousIndexRef.current;
+    const input = currentIndex >= 0 ? locateInput(currentIndex) : null;
+    if (!input) return;
+    previousIndexRef.current = currentIndex;
+    const target = autoLocateScrollTop(input, previous < 0 || currentIndex > previous);
+    if (target !== null) scrollWall(target, 'smooth');
+  }, [autoLocateToken, currentIndex, isExiting, layout.tiles.length, locateInput, scrollWall]);
+
+  // Centre the playing tile once this source has entered and is laid out.
+  const requestSmooth = locateRequest?.smooth ?? false;
+  useEffect(() => {
+    if (requestToken == null || isExiting || renderKey !== sourceKey) return;
+    if (loading && currentIndex < 0) return; // It may be on a page still loading.
+    if (currentIndex >= 0) {
+      const input = locateInput(currentIndex);
+      if (!input) return; // Not measured yet.
+      previousIndexRef.current = currentIndex;
+      scrollWall(centerLocateScrollTop(input), requestSmooth ? 'smooth' : 'auto');
+    }
+    onLocateRequestHandled?.(requestToken);
+  }, [currentIndex, isExiting, loading, locateInput, onLocateRequestHandled, renderKey, requestSmooth, requestToken, scrollWall, sourceKey]);
 
   // Drag-to-swap: tile geometry is fixed by index, so the two tiles keep their
   // size and place and only exchange the songs they show.

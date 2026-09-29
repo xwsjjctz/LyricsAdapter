@@ -1,24 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_COVER_ARTWORK_URL,
+  isPlaceholderCoverUrl,
   parseCoverDataUrl,
+  realCoverUrl,
+  resolveCoverUrl,
   sanitizePersistedCoverUrl,
   toCoverThumb,
 } from '@/services/coverUrl';
 
 describe('coverUrl helpers', () => {
-  it('provides the shared 256px default cover artwork', () => {
-    expect(DEFAULT_COVER_ARTWORK_URL).toMatch(/^data:image\/svg\+xml;charset=utf-8,/);
-
-    const encodedSvg = DEFAULT_COVER_ARTWORK_URL.split(',', 2)[1];
-    expect(encodedSvg).toBeDefined();
-    const svg = decodeURIComponent(encodedSvg!);
-    expect(svg).toContain('width="256" height="256"');
-    expect(svg).toContain('viewBox="0 0 40 40"');
-    expect(svg).toContain('fill="#222"');
-    expect(svg).toContain('fill="#666"');
-    expect(svg).toContain('>♪</text>');
+  it('uses the bundled app-icon cover as the shared default', () => {
+    expect(DEFAULT_COVER_ARTWORK_URL).toBe(new URL('default-cover.jpg', document.baseURI).href);
     expect(toCoverThumb(DEFAULT_COVER_ARTWORK_URL, 128)).toBe(DEFAULT_COVER_ARTWORK_URL);
+  });
+
+  it('treats missing and legacy picsum covers as placeholders', () => {
+    const picsum = 'https://picsum.photos/seed/example-track/1000/1000';
+    expect(isPlaceholderCoverUrl(picsum)).toBe(true);
+    expect(isPlaceholderCoverUrl('cover://track/1')).toBe(false);
+    expect(isPlaceholderCoverUrl('not a url')).toBe(false);
+    expect(realCoverUrl(picsum)).toBeUndefined();
+    expect(realCoverUrl('  ')).toBeUndefined();
+    expect(realCoverUrl(' cover://track/1 ')).toBe('cover://track/1');
+    expect(resolveCoverUrl(undefined)).toBe(DEFAULT_COVER_ARTWORK_URL);
+    expect(resolveCoverUrl(picsum)).toBe(DEFAULT_COVER_ARTWORK_URL);
+    expect(resolveCoverUrl('cover://track/1')).toBe('cover://track/1');
+    expect(sanitizePersistedCoverUrl(picsum)).toBe('');
   });
 
   it('parses supported image data URLs', () => {
@@ -60,11 +68,6 @@ describe('coverUrl helpers', () => {
   it('requests the target size from supported online cover CDNs', () => {
     expect(toCoverThumb('https://p1.music.126.net/key/id.jpg?param=800y800', 128))
       .toBe('https://p1.music.126.net/key/id.jpg?param=128y128');
-  });
-
-  it('keeps seeded placeholder artwork while requesting only its display size', () => {
-    expect(toCoverThumb('https://picsum.photos/seed/example-track/1000/1000', 128))
-      .toBe('https://picsum.photos/seed/example-track/128/128');
   });
 
   it('snaps QQ CDN cover requests to the only sizes the CDN actually serves', () => {

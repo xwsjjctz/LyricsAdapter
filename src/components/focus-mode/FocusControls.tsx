@@ -3,6 +3,7 @@ import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
 import { useFocusGlassControls } from './useFocusGlassControls';
 import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
+import { resolveCoverUrl } from '../../services/coverUrl';
 
 type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
 
@@ -78,7 +79,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     onSeek, onTogglePlay, onSkipNext, onSkipPrev, onVolumeChange, onToggleMute,
     onTogglePlaybackMode, onMouseEnter, onMouseLeave,
   });
-  const backdropLight = useFocusBackdropLuminance(track?.coverUrl);
+  const backdropLight = useFocusBackdropLuminance(track ? resolveCoverUrl(track.coverUrl) : undefined);
   // Glass panels pick foreground colors from the analyzed backdrop instead of
   // the theme: a washed-out cover otherwise hides whichever fixed color the
   // theme picked. Null (not analyzed yet / not glass) keeps the theme colors.

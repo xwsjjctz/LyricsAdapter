@@ -43,7 +43,6 @@ function renderView(overrides: Partial<Parameters<typeof SearchWallView>[0]> = {
     onNavigateToTrack: vi.fn(),
     onOnlineStreamPlay: vi.fn(),
     onDownloadTrack: vi.fn(),
-    onlineProgress: {},
     onEditQuery: vi.fn(),
     onClose: vi.fn(),
     ...overrides,

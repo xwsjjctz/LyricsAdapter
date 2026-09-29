@@ -30,11 +30,15 @@ export interface OnlineSong {
   /** Duration in seconds. */
   interval?: number | undefined;
   coverUrl?: string | undefined;
+  /** QQ media file id; can differ from songmid and names the audio file to request. */
+  mediaMid?: string | undefined;
 }
 
 export interface OnlineUrlResult {
   url: string;
   bitrate: string;
+  /** The quality actually served, which can be lower than requested. */
+  quality: OnlineQuality;
 }
 
 /** A provider lyric response with an LRC fallback and optional karaoke payload. */
@@ -62,7 +66,7 @@ export interface OnlineMusicProvider {
   getRecommendedSongs(): Promise<OnlineSong[]>;
   /** Optional batch metadata hydration for sources whose search result is sparse. */
   getSongDetails?(songmids: string[]): Promise<OnlineSong[]>;
-  getMusicUrl(songmid: string, quality: OnlineQuality): Promise<OnlineUrlResult>;
+  getMusicUrl(songmid: string, quality: OnlineQuality, mediaMid?: string): Promise<OnlineUrlResult>;
   getLyrics(songmid: string): Promise<OnlineLyricsResult | null>;
   /** Full-size cover URL for the song (used when embedding metadata). */
   getCoverUrl(song: OnlineSong): string;

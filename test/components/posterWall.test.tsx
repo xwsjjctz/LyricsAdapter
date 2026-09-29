@@ -191,3 +191,133 @@ describe('PosterWall', () => {
     expect(screen.getAllByRole('checkbox')[0]).toHaveAttribute('draggable', 'false');
   });
 });
+
+describe('PosterWall locating the playing tile', () => {
+  const many = Array.from({ length: 60 }, (_, index) => track(`t${index}`));
+  const setup = (props: Partial<React.ComponentProps<typeof PosterWall>> = {}) => {
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+    const view = renderWall({ tracks: many, sourceKey: 'many', ...props });
+    return { ...view, scrollTo };
+  };
+
+  it('follows a track switch only when the playing tile is out of view', () => {
+    const { rerenderWall, scrollTo } = setup({ currentTrackId: 't0', autoLocateToken: 0 });
+    rerenderWall({ tracks: many, sourceKey: 'many', currentTrackId: 't1', autoLocateToken: 1 });
+    expect(scrollTo).not.toHaveBeenCalled(); // Still on screen.
+
+    rerenderWall({ tracks: many, sourceKey: 'many', currentTrackId: 't59', autoLocateToken: 2 });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    const call = scrollTo.mock.calls[0]![0] as ScrollToOptions;
+    expect(call.behavior).toBe('smooth');
+    expect(call.top).toBeGreaterThan(0);
+  });
+
+  it('centres the playing tile for an explicit request and acknowledges it', () => {
+    const onLocateRequestHandled = vi.fn();
+    const { scrollTo } = setup({
+      currentTrackId: 't40', locateRequest: { token: 7, smooth: true }, onLocateRequestHandled,
+    });
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(onLocateRequestHandled).toHaveBeenCalledWith(7);
+  });
+
+  it('acknowledges a request even when the playing track is not in this list', () => {
+    const onLocateRequestHandled = vi.fn();
+    const { scrollTo } = setup({
+      currentTrackId: 'elsewhere', locateRequest: { token: 3, smooth: false }, onLocateRequestHandled,
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(onLocateRequestHandled).toHaveBeenCalledWith(3);
+  });
+
+  it('marks the playing tile with an accent badge', () => {
+    setup({ currentTrackId: 't0' });
+    const current = document.querySelector('[aria-current="true"]');
+    expect(current).toHaveClass('wall-tile--current');
+    expect(current?.querySelector('.wall-tile__badge')).toHaveTextContent('library.nowPlaying');
+  });
+});
+
+describe('PosterWall remembering its scroll offset', () => {
+  const many = Array.from({ length: 60 }, (_, index) => track(`r${index}`));
+  const wallScroll = () => (document.querySelector('.poster-wall') as HTMLElement).scrollTop;
+
+  it('reopens at the saved offset without locating the playing tile', () => {
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+    renderWall({ tracks: many, sourceKey: 'saved', currentTrackId: 'r59', restoreScrollTop: 900 });
+    expect(wallScroll()).toBe(900);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('waits for tracks and uses an offset restored after mount', () => {
+    const { rerenderWall } = renderWall({ tracks: [], sourceKey: 'late', restoreScrollTop: 0 });
+    rerenderWall({ tracks: [], sourceKey: 'late', restoreScrollTop: 700 });
+    rerenderWall({ tracks: many, sourceKey: 'late', restoreScrollTop: 700 });
+    expect(wallScroll()).toBe(700);
+  });
+
+  it('clamps a saved offset beyond the end', () => {
+    renderWall({ tracks: many, sourceKey: 'clamp', restoreScrollTop: 999_999 });
+    expect(wallScroll()).toBeGreaterThan(0);
+    expect(wallScroll()).toBeLessThan(999_999);
+  });
+
+  it('lets a pending locate decide where the source opens', () => {
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+    renderWall({
+      tracks: many, sourceKey: 'locate', currentTrackId: 'r50', restoreScrollTop: 300,
+      locateRequest: { token: 1, smooth: false }, onLocateRequestHandled: vi.fn(),
+    });
+    expect(wallScroll()).not.toBe(300);
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
+  });
+
+  it('reports user scrolling, not the reset to the top on entry', () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { frames.push(cb); return frames.length; });
+    const onScrollPositionChange = vi.fn();
+    renderWall({ tracks: many, sourceKey: 'report', restoreScrollTop: 400, onScrollPositionChange });
+    const wall = document.querySelector('.poster-wall') as HTMLElement;
+    wall.scrollTop = 650;
+    fireEvent.scroll(wall);
+    act(() => frames.splice(0).forEach(cb => cb(0)));
+    expect(onScrollPositionChange).toHaveBeenCalledWith(650);
+    expect(onScrollPositionChange).not.toHaveBeenCalledWith(0);
+    vi.restoreAllMocks();
+  });
+});
+
+describe('PosterWall resizing', () => {
+  it('keeps the songs at the viewport centre in place when the width changes', () => {
+    const callbacks: ResizeObserverCallback[] = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) { callbacks.push(callback); }
+      observe() {} disconnect() {} unobserve() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const many = Array.from({ length: 60 }, (_, index) => track(`w${index}`));
+      renderWall({ tracks: many, sourceKey: 'resize', restoreScrollTop: 1000 });
+      const wall = document.querySelector('.poster-wall') as HTMLElement;
+      expect(wall.scrollTop).toBe(1000);
+
+      // Narrower by 10%: every tile shrinks by 10%, so the centre (1000 + 400) does too.
+      size.width = 1080;
+      act(() => callbacks.forEach(callback => callback([], {} as ResizeObserver)));
+      expect(wall.scrollTop).toBeCloseTo((1000 + 400) * 0.9 - 400);
+
+      // A height-only change does not move anything.
+      const before = wall.scrollTop;
+      size.height = 700;
+      act(() => callbacks.forEach(callback => callback([], {} as ResizeObserver)));
+      expect(wall.scrollTop).toBe(before);
+    } finally {
+      globalThis.ResizeObserver = original;
+      size.width = 1200;
+      size.height = 800;
+    }
+  });
+});

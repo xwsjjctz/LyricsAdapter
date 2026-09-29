@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SlotId, Track } from '../types';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -35,6 +35,14 @@ interface LibraryWallViewProps {
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: ((token: number) => void) | undefined;
+  /** Bumped on every track switch; the wall follows the playing tile out of view. */
+  autoLocateToken?: number;
+  /** This source's saved scroll offset and its reporter (not used for playlists). */
+  savedScrollPosition?: number | undefined;
+  onScrollPositionChange?: ((position: number) => void) | undefined;
+  /** Pending palette "locate now playing" request, and its acknowledgement. */
+  locateRequest?: number | null | undefined;
+  onLocateRequestHandled?: ((token: number) => void) | undefined;
   /** Drag-to-swap; only offered for lists the library manages. */
   onSwapTracks?: ((firstIndex: number, secondIndex: number) => void) | undefined;
   importDisabled?: boolean;
@@ -56,7 +64,8 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   tracks, sourceKey, dataSource, currentTrackId, onTrackSelect,
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
-  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared,
+  pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, autoLocateToken, locateRequest, onLocateRequestHandled,
+  savedScrollPosition, onScrollPositionChange,
   onSwapTracks, importDisabled = true, onImportClick, onDropFiles, onDropFilePaths,
   importProgress, loadProgress, selectionRequest,
 }) => {
@@ -81,10 +90,23 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   const { menuItemsFor, startSelection } = actions;
   const hasMenu = useCallback((track: Track) => menuItemsFor(track).length > 0, [menuItemsFor]);
 
-  // The featured tile sits at the top, so "locate current track" is satisfied by the reset scroll.
-  useEffect(() => {
-    if (pendingLocateSlot === dataSource && pendingLocateToken != null) onPendingLocatePrepared?.(pendingLocateToken);
-  }, [dataSource, onPendingLocatePrepared, pendingLocateSlot, pendingLocateToken]);
+  // Library sources reopen where they were left. The playlist slot is shared
+  // by every browsed playlist, so a playlist always opens at the top.
+  const rememberScroll = dataSource === 'playlist'
+    ? {}
+    : { restoreScrollTop: savedScrollPosition, onScrollPositionChange };
+
+  // A source switch made to locate jumps there; a palette request scrolls smoothly.
+  const slotLocateToken = pendingLocateSlot === dataSource ? pendingLocateToken : undefined;
+  const wallLocateRequest = useMemo(() => {
+    if (slotLocateToken != null) return { token: slotLocateToken, smooth: false };
+    return locateRequest != null ? { token: locateRequest, smooth: true } : undefined;
+  }, [locateRequest, slotLocateToken]);
+  // The wall only ever holds the request above, so its kind decides the ack.
+  const handleWallLocateHandled = useCallback((token: number) => {
+    if (slotLocateToken != null) onPendingLocatePrepared?.(token);
+    else onLocateRequestHandled?.(token);
+  }, [onLocateRequestHandled, onPendingLocatePrepared, slotLocateToken]);
 
   const loadMore = useCallback(() => { void onLoadMorePlaylist?.(); }, [onLoadMorePlaylist]);
 
@@ -138,6 +160,11 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         selectedIds={actions.selectedIds}
         onToggleSelect={toggleSelect}
         onSwap={canManage && onSwapTracks ? swap : undefined}
+        autoLocateToken={autoLocateToken}
+        locateRequest={wallLocateRequest}
+        onLocateRequestHandled={handleWallLocateHandled}
+        bottomInset={bottomInset}
+        {...rememberScroll}
       />
 
       {progress && <WallStatusPill label={progressLabel} progress={progress.total > 0 ? progress.loaded / progress.total : undefined} />}

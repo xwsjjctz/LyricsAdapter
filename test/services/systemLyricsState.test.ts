@@ -173,6 +173,8 @@ describe('systemLyricsState', () => {
       'blob:app://localhost/id',
       'data:image/png;base64,AA==',
       `https://example.com/${'x'.repeat(8192)}`,
+      // Legacy random placeholder: not a real cover, so the host shows the default.
+      'https://picsum.photos/seed/song.mp3/1000/1000',
     ]) {
       expect(buildSystemLyricsState({ ...track, coverUrl }, 0, true).coverUrl).toBe('');
     }

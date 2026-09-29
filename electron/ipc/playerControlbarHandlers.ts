@@ -39,7 +39,8 @@ export const playerControlbarStateSchema = z.object({
 });
 
 const artworkSchema = z.string().max(8192).nullable();
-const ALLOWED_ARTWORK_PROTOCOLS = new Set(['cover:', 'https:', 'http:', 'data:']);
+// app: is the renderer bundle (e.g. the default cover), served by our own handler.
+const ALLOWED_ARTWORK_PROTOCOLS = new Set(['cover:', 'https:', 'http:', 'data:', 'app:']);
 const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
 // nativeImage decodes only PNG and JPEG. Cover CDNs such as y.gtimg.cn
 // negotiate WebP from the renderer's <img> Accept header, and Chromium's HTTP

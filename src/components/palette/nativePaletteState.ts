@@ -25,6 +25,7 @@ const SF_SYMBOLS: Readonly<Record<string, string>> = {
   light_mode: 'sun.max',
   manage_search: 'text.magnifyingglass',
   music_note: 'music.note',
+  my_location: 'location.fill',
   palette: 'paintpalette',
   play_arrow: 'play.fill',
   queue_music: 'music.note.list',
@@ -37,6 +38,7 @@ const SF_SYMBOLS: Readonly<Record<string, string>> = {
   tune: 'slider.horizontal.3',
   visibility: 'eye',
   visibility_off: 'eye.slash',
+  view_list: 'list.bullet',
   volume_off: 'speaker.slash',
 };
 const FALLBACK_SYMBOL = 'circle.dashed';
@@ -47,7 +49,8 @@ const MAX_ROWS = 200;
 const MAX_TEXT = 2048;
 const MAX_SHORTCUT = 64;
 const MAX_COVER_URL = 8192;
-const COVER_PROTOCOLS = new Set(['cover:', 'https:', 'http:']);
+// app: serves bundled assets such as the default cover.
+const COVER_PROTOCOLS = new Set(['cover:', 'https:', 'http:', 'app:']);
 
 export function toSfSymbol(icon: string | undefined): string {
   return (icon && SF_SYMBOLS[icon]) || FALLBACK_SYMBOL;

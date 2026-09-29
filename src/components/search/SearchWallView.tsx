@@ -5,7 +5,6 @@ import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import type { OnlineSong, OnlineSource } from '../../services/onlineMusicProvider';
 import type { Track } from '../../types';
 import PosterWall from '../wall/PosterWall';
-import WallStatusPill from '../wall/WallStatusPill';
 import { useCurrentTheme } from '../settings/shared';
 import TrackMenu, { type TrackMenuPosition } from '../TrackMenu';
 import { buildTrackMenuItems, downloadQualityOf, type TrackDownloadQuality } from '../trackMenuItems';
@@ -29,7 +28,6 @@ interface SearchWallViewProps {
   onNavigateToTrack: (track: Track) => void;
   onOnlineStreamPlay: (song: OnlineSong, source: OnlineSource) => void;
   onDownloadTrack: (track: Track, quality: TrackDownloadQuality) => void;
-  onlineProgress: Record<string, { type: 'download' | 'upload'; percent: number }>;
   /** Reopen the palette on this query to refine it. */
   onEditQuery: () => void;
   onClose: () => void;
@@ -54,7 +52,6 @@ export default function SearchWallView({
   onNavigateToTrack,
   onOnlineStreamPlay,
   onDownloadTrack,
-  onlineProgress,
   onEditQuery,
   onClose,
 }: SearchWallViewProps) {
@@ -124,11 +121,6 @@ export default function SearchWallView({
   }, []);
   const menuTrack = trackMenu ? onlineHits.find(hit => hit.track.id === trackMenu.trackId)?.track : undefined;
 
-  const downloads = Object.values(onlineProgress).filter(entry => entry.type === 'download');
-  const downloadPercent = downloads.length > 0
-    ? downloads.reduce((sum, entry) => sum + entry.percent, 0) / downloads.length
-    : null;
-
   const tabs: SearchTab[] = ['all', ...groups.map(group => group.id)];
 
   return (
@@ -174,12 +166,6 @@ export default function SearchWallView({
         </button>
       </div>
 
-      {downloadPercent !== null && (
-        <WallStatusPill
-          label={`${t('search.downloading', { count: downloads.length })} ${Math.round(downloadPercent)}%`}
-          progress={downloadPercent / 100}
-        />
-      )}
 
       {trackMenu && menuTrack && (
         <TrackMenu

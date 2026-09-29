@@ -6,7 +6,7 @@ import { registerCommand } from '../services/debugCommands';
 import { settingsManager } from '../services/settingsManager';
 import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { toCoverThumb } from '../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
 import FocusBackdrop from './focus-mode/FocusBackdrop';
 import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
@@ -685,8 +685,10 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   // Load the active background only while FocusMode is actually visible. The
   // host component unmounts this content after the exit animation, releasing
   // the canvas, decoded images and lyric DOM while ordinary playback continues.
+  // Tracks without artwork use the app-icon default cover as their backdrop too.
+  const coverUrl = track ? resolveCoverUrl(track.coverUrl) : undefined;
   useEffect(() => {
-    if (!isVisible || !track?.id || !track?.coverUrl) {
+    if (!isVisible || !track?.id || !coverUrl) {
       setBlurUnderlyingViewForTrackChange(false);
       return;
     }
@@ -757,7 +759,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     // Only set it for known CORS-enabled sources
     const corsEnabledHosts = ['localhost', '127.0.0.1'];
     try {
-      const url = new URL(track.coverUrl);
+      const url = new URL(coverUrl);
       if (corsEnabledHosts.some(host => url.hostname.includes(host))) {
         img.crossOrigin = 'anonymous';
       }
@@ -838,7 +840,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     };
 
     // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
-    img.src = toCoverThumb(track.coverUrl, 256)!;
+    img.src = toCoverThumb(coverUrl, 256)!;
 
     return () => {
       cancelled = true;
@@ -854,7 +856,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       // image because it may still be the currently painted transition source.
       if (!img.complete) img.src = '';
     };
-  }, [isVisible, track?.id, track?.coverUrl, renderCanvas]);
+  }, [isVisible, track?.id, coverUrl, renderCanvas]);
 
   useLayoutEffect(() => () => {
     if (scratchReleaseTimerRef.current !== null) {
@@ -934,7 +936,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             className="flex-none flex flex-col items-center justify-center w-auto p-6"
             style={hasScaledLayout ? { padding: `${24 * focusScale}px` } : undefined}
           >
-            <FocusCoverStage coverUrl={track?.coverUrl} isPlaying={isPlaying} scale={focusScale} />
+            <FocusCoverStage coverUrl={coverUrl} isPlaying={isPlaying} scale={focusScale} />
             <FocusTrackMeta
               track={track}
               textPrimary={focusColors.textPrimary}

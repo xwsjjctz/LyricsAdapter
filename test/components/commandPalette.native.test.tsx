@@ -85,7 +85,12 @@ describe('CommandPalette on native macOS glass', () => {
     const { store, emit, lastState, runs } = setup();
     await waitFor(() => expect(mocks.start).toHaveBeenCalled());
     act(() => store.open());
+    // Tab in the native field switches modes, like Shift+Tab.
+    emit({ type: 'tab' });
+    expect(store.getState().mode).toBe('commands');
     emit({ type: 'cycle-mode' });
+    expect(store.getState().mode).toBe('library');
+    emit({ type: 'tab' });
     expect(store.getState().mode).toBe('commands');
     await waitFor(() => expect(lastState().modeIndex).toBe(1));
     emit({ type: 'mode', value: 1 });

@@ -184,7 +184,7 @@ function fileToPlaceholderTrack(file: WebDAVFile): Track {
     artist,
     album: 'Unknown Album',
     duration: 0,
-    coverUrl: `https://picsum.photos/seed/${encodeURIComponent(file.name)}/1000/1000`,
+    coverUrl: '',
     audioUrl: '',
     source: 'webdav',
     webdavPath: file.path,

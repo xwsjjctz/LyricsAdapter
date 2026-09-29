@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PaletteCommand } from '../../commands/paletteCommand';
 import { resolveCommandLevel, searchCommands } from '../../commands/searchCommands';
-import { toCoverThumb } from '../../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
 import type { OnlineSong, OnlineSource, PlaylistInfo } from '../../services/onlineMusicProvider';
 import { shortcutManager } from '../../services/shortcuts';
 import { textMatchesQuery } from '../../services/trackSearch';
@@ -67,7 +67,7 @@ function trackItem(track: Track, section: string, run: () => void): PaletteItem 
     section,
     title: track.title,
     subtitle: [track.artist, track.album].filter(Boolean).join(' · '),
-    coverUrl: toCoverThumb(track.coverUrl, 96),
+    coverUrl: toCoverThumb(resolveCoverUrl(track.coverUrl), 96),
     icon: 'music_note',
     run,
   };
@@ -110,7 +110,7 @@ export function usePaletteItems(
         title: playlist.name,
         detail: String(playlist.songCount),
         icon: 'queue_music',
-        coverUrl: playlist.coverUrl || undefined,
+        coverUrl: resolveCoverUrl(playlist.coverUrl),
         run: () => library.openPlaylist(playlist),
       }));
 
@@ -134,7 +134,7 @@ export function usePaletteItems(
         subtitle: [song.singer.map(singer => singer.name).join(' / '), t(source === 'qq' ? 'search.sourceQq' : 'search.sourceNetease')]
           .filter(Boolean).join(' · '),
         icon: 'cloud_download',
-        coverUrl: song.coverUrl,
+        coverUrl: resolveCoverUrl(song.coverUrl),
         run: () => library.playOnlineSong(song, source),
       })),
       {

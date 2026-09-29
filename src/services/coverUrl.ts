@@ -3,13 +3,44 @@
 
 const COVER_PROTOCOL = 'cover://';
 
-// Shared fallback for tracks without embedded artwork. The 40x40 viewBox keeps
-// the existing TrackCover proportions while the explicit intrinsic size gives
-// platform Media Session implementations a truthful 256x256 artwork candidate.
-const DEFAULT_COVER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 40 40"><rect width="40" height="40" fill="#222"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#666" font-size="14">♪</text></svg>';
+// Shared fallback for tracks without artwork: a square, full-bleed crop of the
+// app icon (public/default-cover.jpg, 512px). Absolute so it survives being
+// parsed as a URL or handed to the main process (app:// is fetchable there).
+const DEFAULT_COVER_FILE = 'default-cover.jpg';
 
-export const DEFAULT_COVER_ARTWORK_URL =
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(DEFAULT_COVER_SVG)}`;
+function resolveDefaultCoverUrl(): string {
+  try {
+    return new URL(DEFAULT_COVER_FILE, document.baseURI).href;
+  } catch {
+    return `/${DEFAULT_COVER_FILE}`;
+  }
+}
+
+export const DEFAULT_COVER_ARTWORK_URL = resolveDefaultCoverUrl();
+
+// Older builds stored a random picsum.photos photo as the cover of tracks
+// without artwork. Those are placeholders too, not the track's real cover.
+const PLACEHOLDER_COVER_HOSTS = new Set(['picsum.photos']);
+
+export function isPlaceholderCoverUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  try {
+    return PLACEHOLDER_COVER_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** The track's real cover, or undefined when it only has a placeholder. */
+export function realCoverUrl(url: string | undefined | null): string | undefined {
+  const trimmed = url?.trim();
+  return trimmed && !isPlaceholderCoverUrl(trimmed) ? trimmed : undefined;
+}
+
+/** The cover to display: the real one, or the app-icon default. */
+export function resolveCoverUrl(url: string | undefined | null): string {
+  return realCoverUrl(url) ?? DEFAULT_COVER_ARTWORK_URL;
+}
 
 export function parseCoverDataUrl(dataUrl: string | undefined | null): { mime: string; base64: string } | null {
   if (!dataUrl) return null;
@@ -26,6 +57,7 @@ export function sanitizePersistedCoverUrl(url: string | undefined | null): strin
   if (url.startsWith('blob:') || url.startsWith('file:') || url.startsWith('data:')) {
     return '';
   }
+  if (isPlaceholderCoverUrl(url)) return '';
   return url;
 }
 
@@ -80,16 +112,6 @@ export function toCoverThumb(url: string | undefined, size: number): string | un
     // NetEase image CDN: `?param=800y800`.
     if (host === 'music.126.net' || host.endsWith('.music.126.net')) {
       parsed.searchParams.set('param', `${targetSize}y${targetSize}`);
-      return parsed.toString();
-    }
-
-    // Placeholder artwork is seed-stable, so requesting the display size keeps
-    // the same image while avoiding a 1000x1000 decoded texture for a 40px row.
-    if (host === 'picsum.photos') {
-      parsed.pathname = parsed.pathname.replace(
-        /\/\d+\/\d+\/?$/,
-        `/${targetSize}/${targetSize}`,
-      );
       return parsed.toString();
     }
 
