@@ -8,7 +8,7 @@ import type { PlaylistInfo } from '@/services/onlineMusicProvider';
 const t = ((key: string, options?: Record<string, unknown>) =>
   options ? `${key}(${Object.values(options).join(',')})` : key) as unknown as TFunction;
 
-const playlist = (id: string, name: string): PlaylistInfo => ({ id, name, coverUrl: '', songCount: 3, source: 'netease' });
+const playlist = (id: string, name: string): PlaylistInfo => ({ id, name, coverUrl: `cover://${id}.jpg`, songCount: 3, source: 'netease' });
 
 function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
   return {
@@ -112,6 +112,7 @@ describe('buildAppCommands', () => {
 
     const openable = byId(commands, 'playlist.open')!.children!();
     expect(openable.map(command => command.title)).toEqual(['Road Trip']);
+    expect(openable[0]!.coverUrl).toBe('cover://a.jpg');
     void openable[0]!.run!();
     expect(handlers.openPlaylist).toHaveBeenCalledWith(handlers.playlists[0]!.playlist);
 

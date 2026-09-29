@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Track } from '../../types';
+import type { OnlineProgress } from '../../types/onlineProgress';
 import PosterTile from './PosterTile';
 import { computeWallLayout } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
@@ -11,6 +12,7 @@ const WALL_GAP = 0;
 const OVERSCAN_VIEWPORTS = 1;
 
 interface PosterWallProps {
+  downloadProgress?: OnlineProgress | undefined;
   tracks: Track[];
   /** Identity of the source being shown; changing it plays the switch animation. */
   sourceKey: string;
@@ -57,7 +59,7 @@ const TILE_DRAG_TYPE = 'application/x-lyricsadapter-tile';
  * playing track is marked where it is rather than moved.
  */
 const PosterWall: React.FC<PosterWallProps> = ({
-  tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel,
+  tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel, downloadProgress,
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
   emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
   autoLocateToken = 0, locateRequest, onLocateRequestHandled,
@@ -292,10 +294,12 @@ const PosterWall: React.FC<PosterWallProps> = ({
         <div className="poster-wall__canvas" style={{ height: layout.height }}>
           {visibleTiles.map(tile => {
             const track = renderedTracks[tile.index]!;
+            const progress = downloadProgress?.[track.id];
             return (
               <PosterTile
                 key={`${renderKey}:${track.id}`}
                 track={track}
+                download={progress?.type === 'download' ? progress : undefined}
                 tile={tile}
                 isCurrent={track.id === currentTrackId}
                 hasMenu={hasMenu(track)}

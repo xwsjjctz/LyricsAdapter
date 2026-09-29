@@ -154,6 +154,7 @@
   "controls.sequence": "顺序播放",
   "controls.volume": "音量",
   "controls.mute": "静音",
+  "controls.unmute": "取消静音",
   "controls.noTrackSelected": "未选择曲目",
   "controls.shuffleMode": "随机播放",
   "controls.repeatOneMode": "单曲循环",
@@ -328,5 +329,8 @@
   "palette.state.off": "关",
   "palette.command.refreshCloud": "刷新云端曲库",
   "search.editQuery": "修改搜索内容",
-  "search.downloading": "正在下载 {{count}} 首"
+  "search.downloading": "正在下载 {{count}} 首",
+  "wall.download.preparing": "准备下载",
+  "wall.download.downloading": "下载中",
+  "wall.download.saving": "正在保存"
 }

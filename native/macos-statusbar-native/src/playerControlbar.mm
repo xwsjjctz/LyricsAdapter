@@ -43,17 +43,46 @@ NSString* Time(double seconds) {
 }
 }
 
-@protocol LAVolumeHoverDelegate <NSObject>
-- (void)volumeButtonEntered;
-- (void)volumeRegionEntered;
-- (void)volumeRegionExited;
+@protocol LAVolumeDisclosureDelegate <NSObject>
+- (void)volumePointerEntered;
+- (void)volumePointerExited;
+- (void)volumeFocusChanged;
+- (void)volumeInteractionEnded;
+- (void)volumeKeyDown:(NSEvent*)event;
 @end
 
 @interface LAControlbarSlider : NSSlider
 @property(nonatomic) BOOL dragging;
+@property(nonatomic, weak) id<LAVolumeDisclosureDelegate> volumeDelegate;
 @end
 @implementation LAControlbarSlider
-- (void)mouseDown:(NSEvent*)event { self.dragging = YES; @try { [super mouseDown:event]; } @finally { self.dragging = NO; } }
+- (BOOL)becomeFirstResponder { BOOL result = [super becomeFirstResponder]; if (result) [self.volumeDelegate volumeFocusChanged]; return result; }
+- (BOOL)resignFirstResponder { BOOL result = [super resignFirstResponder]; if (result) [self.volumeDelegate volumeInteractionEnded]; return result; }
+- (void)mouseDown:(NSEvent*)event {
+  // A clicked volume slider should accept subsequent arrow keys even when the
+  // system's keyboard navigation preference excludes controls from Tab order.
+  if (self.volumeDelegate) [self.window makeFirstResponder:self];
+  self.dragging = YES;
+  @try { [super mouseDown:event]; }
+  @finally { self.dragging = NO; [self.volumeDelegate volumeInteractionEnded]; }
+}
+- (void)keyDown:(NSEvent*)event {
+  if (self.vertical && !(event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption | NSEventModifierFlagShift))) {
+    double value = self.doubleValue;
+    switch (event.keyCode) {
+      case 123: case 125: value -= 0.01; break;
+      case 124: case 126: value += 0.01; break;
+      case 115: value = self.minValue; break;
+      case 119: value = self.maxValue; break;
+      case 116: value += 0.1; break;
+      case 121: value -= 0.1; break;
+      default: [super keyDown:event]; return;
+    }
+    self.doubleValue = std::clamp(value, self.minValue, self.maxValue);
+    [self sendAction:self.action to:self.target]; return;
+  }
+  [super keyDown:event];
+}
 @end
 
 @interface LAGlassHighlightView : NSView
@@ -83,44 +112,53 @@ NSString* Time(double seconds) {
 }
 @end
 
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
-API_AVAILABLE(macos(26.0))
 @interface LAVolumeHoverButton : NSButton
-@property(nonatomic, weak) id<LAVolumeHoverDelegate> hoverDelegate;
-@property(nonatomic, strong) NSTrackingArea* hoverTrackingArea;
+@property(nonatomic, weak) id<LAVolumeDisclosureDelegate> volumeDelegate;
+@property(nonatomic, strong) NSTrackingArea* volumeTrackingArea;
 @end
 @implementation LAVolumeHoverButton
 - (void)updateTrackingAreas {
   [super updateTrackingAreas];
-  if (self.hoverTrackingArea) [self removeTrackingArea:self.hoverTrackingArea];
-  self.hoverTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect owner:self userInfo:nil];
-  [self addTrackingArea:self.hoverTrackingArea];
+  if (!self.volumeTrackingArea) {
+    self.volumeTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect owner:self userInfo:nil];
+    [self addTrackingArea:self.volumeTrackingArea];
+  }
 }
-- (void)mouseEntered:(NSEvent*)event { (void)event; [self.hoverDelegate volumeButtonEntered]; }
-- (void)mouseExited:(NSEvent*)event { (void)event; [self.hoverDelegate volumeRegionExited]; }
+- (void)mouseEntered:(NSEvent*)event { (void)event; [self.volumeDelegate volumePointerEntered]; }
+- (void)mouseExited:(NSEvent*)event { (void)event; [self.volumeDelegate volumePointerExited]; }
+- (BOOL)becomeFirstResponder { BOOL result = [super becomeFirstResponder]; if (result) [self.volumeDelegate volumeFocusChanged]; return result; }
+- (BOOL)resignFirstResponder { BOOL result = [super resignFirstResponder]; if (result) [self.volumeDelegate volumeInteractionEnded]; return result; }
+- (void)keyDown:(NSEvent*)event {
+  if (event.keyCode >= 123 && event.keyCode <= 126 && !(event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption | NSEventModifierFlagShift))) [self.volumeDelegate volumeKeyDown:event];
+  else [super keyDown:event];
+}
 @end
 
-API_AVAILABLE(macos(26.0))
-@interface LAVolumeDisclosureView : NSView
-@property(nonatomic, weak) id<LAVolumeHoverDelegate> hoverDelegate;
-@property(nonatomic, strong) NSTrackingArea* hoverTrackingArea;
+@interface LAVolumeHoverPanel : NSView
+@property(nonatomic, weak) id<LAVolumeDisclosureDelegate> volumeDelegate;
+@property(nonatomic, strong) NSTrackingArea* volumeTrackingArea;
 @end
-@implementation LAVolumeDisclosureView
+@implementation LAVolumeHoverPanel
 - (void)updateTrackingAreas {
   [super updateTrackingAreas];
-  if (self.hoverTrackingArea) [self removeTrackingArea:self.hoverTrackingArea];
-  self.hoverTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect owner:self userInfo:nil];
-  [self addTrackingArea:self.hoverTrackingArea];
+  if (!self.volumeTrackingArea) {
+    self.volumeTrackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect owner:self userInfo:nil];
+    [self addTrackingArea:self.volumeTrackingArea];
+  }
 }
-- (void)mouseEntered:(NSEvent*)event { (void)event; [self.hoverDelegate volumeRegionEntered]; }
-- (void)mouseExited:(NSEvent*)event { (void)event; [self.hoverDelegate volumeRegionExited]; }
+- (void)mouseEntered:(NSEvent*)event { (void)event; [self.volumeDelegate volumePointerEntered]; }
+- (void)mouseExited:(NSEvent*)event { (void)event; [self.volumeDelegate volumePointerExited]; }
 @end
 
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
 API_AVAILABLE(macos(26.0))
-@interface LAPlayerControlbarHost : NSView <LAVolumeHoverDelegate>
+@interface LAPlayerControlbarHost : NSView <LAVolumeDisclosureDelegate>
 @property(nonatomic, strong) NSGlassEffectView* bar;
 @property(nonatomic, strong) NSView* sliderGlass;
-@property(nonatomic, strong) LAVolumeDisclosureView* volumeDisclosure;
+@property(nonatomic, strong) LAVolumeHoverPanel* volumeDisclosure;
+@property(nonatomic, strong) LAVolumeHoverButton* volumeButton;
+@property(nonatomic, strong) NSTextField* volumeValue;
+@property(nonatomic, strong) id volumeEventMonitor;
 @property(nonatomic, strong) LAGlassHighlightView* highlight;
 @property(nonatomic, strong) NSButton* artwork;
 @property(nonatomic, strong) NSTextField* title;
@@ -129,19 +167,22 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) NSButton* play;
 @property(nonatomic, strong) NSButton* next;
 @property(nonatomic, strong) NSButton* mode;
-@property(nonatomic, strong) NSButton* mute;
 @property(nonatomic, strong) LAControlbarSlider* seek;
 @property(nonatomic, strong) LAControlbarSlider* volume;
 @property(nonatomic, strong) NSTextField* elapsed;
 @property(nonatomic, strong) NSTextField* total;
 @property(nonatomic) NSRect presentationFrame;
 @property(nonatomic) BOOL volumeRevealed;
+@property(nonatomic) BOOL volumePointerInside;
+@property(nonatomic) BOOL volumeKeyboardActive;
+@property(nonatomic) BOOL suppressVolumeFocus;
 @property(nonatomic) BOOL darkMode;
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
 - (void)applyDarkMode:(BOOL)darkMode;
 - (NSColor*)volumeDisclosureColor;
 - (void)refreshAccessibility:(NSNotification*)notification;
+- (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated;
 @end
 
 @implementation LAPlayerControlbarHost
@@ -182,27 +223,50 @@ API_AVAILABLE(macos(26.0))
   _play = [self button:@"play.fill" name:@"player-controlbar-play" size:20 action:@selector(play:) parent:content];
   _next = [self button:@"forward.end.fill" name:@"player-controlbar-next" size:16 action:@selector(next:) parent:content];
   _mode = [self button:@"repeat" name:@"player-controlbar-mode" size:15 action:@selector(mode:) parent:content];
-  _volumeDisclosure = [[LAVolumeDisclosureView alloc] initWithFrame:NSZeroRect];
-  _volumeDisclosure.wantsLayer = YES; _volumeDisclosure.layer.cornerRadius = 16; _volumeDisclosure.layer.masksToBounds = YES;
-  _volumeDisclosure.hidden = YES; _volumeDisclosure.accessibilityIdentifier = @"player-controlbar-volume-disclosure"; _volumeDisclosure.hoverDelegate = self;
-  LAVolumeHoverButton* mute = [[LAVolumeHoverButton alloc] initWithFrame:NSZeroRect];
-  mute.image = PlayerControlbar::Symbol(@"speaker.wave.2.fill", 15); mute.target = self; mute.action = @selector(mute:);
-  mute.bordered = NO; mute.imagePosition = NSImageOnly; mute.contentTintColor = NSColor.labelColor;
-  mute.accessibilityIdentifier = @"player-controlbar-mute"; mute.hoverDelegate = self; [_volumeDisclosure addSubview:mute]; _mute = mute;
+  _volumeButton = [[LAVolumeHoverButton alloc] initWithFrame:NSZeroRect];
+  _volumeButton.image = PlayerControlbar::Symbol(@"speaker.wave.2.fill", 15);
+  _volumeButton.target = self; _volumeButton.action = @selector(mute:); _volumeButton.bordered = NO;
+  _volumeButton.imagePosition = NSImageOnly; _volumeButton.contentTintColor = NSColor.labelColor;
+  _volumeButton.accessibilityIdentifier = @"player-controlbar-volume-button"; _volumeButton.volumeDelegate = self;
+  [content addSubview:_volumeButton];
+  _volumeButton.accessibilityExpanded = NO;
+  _volumeDisclosure = [[LAVolumeHoverPanel alloc] initWithFrame:NSZeroRect];
+  _volumeDisclosure.volumeDelegate = self;
+  _volumeDisclosure.wantsLayer = YES; _volumeDisclosure.layer.cornerRadius = 16;
+  _volumeDisclosure.layer.borderWidth = 0.5;
+  _volumeDisclosure.hidden = YES; _volumeDisclosure.accessibilityIdentifier = @"player-controlbar-volume-disclosure";
+  _volumeDisclosure.accessibilityRole = NSAccessibilityGroupRole;
+  _volumeValue = [self label:11 weight:NSFontWeightSemibold color:NSColor.labelColor parent:_volumeDisclosure];
+  _volumeValue.font = [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightSemibold];
+  _volumeValue.alignment = NSTextAlignmentCenter; _volumeValue.accessibilityIdentifier = @"player-controlbar-volume-value";
   _sliderGlass = [[NSView alloc] initWithFrame:NSZeroRect];
   _sliderGlass.accessibilityIdentifier = @"player-controlbar-slider-glass"; [content addSubview:_sliderGlass];
   _seek = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
   _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [_sliderGlass addSubview:_seek];
   _volume = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
-  _volume.vertical = YES;
-  _volume.controlSize = NSControlSizeSmall; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume";
-  _volume.hidden = YES; _volume.alphaValue = 0; [_volumeDisclosure addSubview:_volume];
+  _volume.vertical = YES; _volume.volumeDelegate = self;
+  _volumeButton.nextKeyView = _volume; _volume.nextKeyView = _mode;
+  _volume.controlSize = NSControlSizeRegular; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume";
+  _volume.hidden = YES; [_volumeDisclosure addSubview:_volume];
   _elapsed = [self timeLabel:content]; _total = [self timeLabel:content];
   [self addSubview:_volumeDisclosure positioned:NSWindowAbove relativeTo:_bar];
   [NSWorkspace.sharedWorkspace.notificationCenter addObserver:self selector:@selector(refreshAccessibility:) name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
+  [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(windowResigned:) name:NSWindowDidResignKeyNotification object:nil];
   [self refreshAccessibility:nil]; return self;
 }
-- (void)dealloc { [NSObject cancelPreviousPerformRequestsWithTarget:self]; [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self]; }
+- (void)dealloc {
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
+  if (_volumeEventMonitor) [NSEvent removeMonitor:_volumeEventMonitor];
+  [NSNotificationCenter.defaultCenter removeObserver:self];
+  [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self];
+}
+- (void)viewWillMoveToSuperview:(NSView*)newSuperview {
+  if (!newSuperview) [self setVolumeRevealed:NO animated:NO];
+  [super viewWillMoveToSuperview:newSuperview];
+}
+- (void)windowResigned:(NSNotification*)notification {
+  if (notification.object == self.window) [self setVolumeRevealed:NO animated:NO];
+}
 - (void)applyDarkMode:(BOOL)darkMode {
   NSAppearanceName name = darkMode ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua;
   self.darkMode = darkMode;
@@ -213,12 +277,14 @@ API_AVAILABLE(macos(26.0))
   self.bar.tintColor = [NSColor colorWithWhite:darkMode ? 0 : 1 alpha:0.3];
   if (self.volumeRevealed) self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
   self.title.textColor = NSColor.labelColor;
-  for (NSButton* button in @[self.artwork, self.previous, self.play, self.next, self.mute]) button.contentTintColor = NSColor.labelColor;
+  self.volumeValue.textColor = NSColor.labelColor;
+  self.volumeDisclosure.layer.borderColor = [NSColor colorWithWhite:darkMode ? 1 : 0 alpha:0.16].CGColor;
+  for (NSButton* button in @[self.artwork, self.previous, self.play, self.next, self.volumeButton]) button.contentTintColor = NSColor.labelColor;
   for (NSTextField* label in @[self.artist, self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
 }
 - (NSColor*)volumeDisclosureColor {
   if (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency) return NSColor.controlBackgroundColor;
-  return self.darkMode ? [NSColor colorWithWhite:0 alpha:0.34] : [NSColor colorWithWhite:1 alpha:0.46];
+  return self.darkMode ? [NSColor colorWithWhite:0.12 alpha:0.96] : [NSColor colorWithWhite:0.97 alpha:0.98];
 }
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification; BOOL opaque = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
@@ -239,9 +305,12 @@ API_AVAILABLE(macos(26.0))
   self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
   CGFloat localVolumeX = width - 76;
-  CGFloat volumeX = NSMinX(self.bar.frame) + localVolumeX; CGFloat volumeY = NSMinY(self.bar.frame) + centerY - 16;
-  self.volumeDisclosure.frame = self.volumeRevealed ? NSMakeRect(volumeX, volumeY, 32, 104) : NSMakeRect(volumeX, volumeY, 32, 32);
-  self.mute.frame = NSMakeRect(0, 0, 32, 32); self.volume.frame = NSMakeRect(6, 42, 20, 52);
+  self.volumeButton.frame = NSMakeRect(localVolumeX, centerY - 16, 32, 32);
+  CGFloat volumeX = NSMinX(self.bar.frame) + localVolumeX - 8;
+  CGFloat volumeY = NSMinY(self.bar.frame) + centerY + 22;
+  self.volumeDisclosure.frame = NSMakeRect(volumeX, volumeY, 48, 156);
+  self.volume.frame = NSMakeRect(8, 12, 32, 112);
+  self.volumeValue.frame = NSMakeRect(2, 130, 44, 18);
   self.elapsed.frame = NSMakeRect(300, centerY - 7, 36, 14); CGFloat sliderX = 338;
   CGFloat modeX = width - 44; CGFloat totalX = localVolumeX - 42;
   CGFloat sliderWidth = std::max<CGFloat>(90, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
@@ -249,33 +318,69 @@ API_AVAILABLE(macos(26.0))
   self.mode.frame = NSMakeRect(modeX, centerY - 16, 32, 32);
 }
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
-  if (_volumeRevealed == revealed && self.volume.hidden == !revealed) return;
-  _volumeRevealed = revealed; [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil];
-  CGFloat centerY = floor(self.bar.bounds.size.height / 2.0) + 0.5;
-  CGFloat volumeX = NSMinX(self.bar.frame) + self.bar.bounds.size.width - 76;
-  CGFloat volumeY = NSMinY(self.bar.frame) + centerY - 16;
-  NSRect targetFrame = revealed ? NSMakeRect(volumeX, volumeY, 32, 104) : NSMakeRect(volumeX, volumeY, 32, 32);
-  if (revealed) {
-    self.volume.hidden = NO; self.volume.alphaValue = 0;
-    self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
+  if (_volumeRevealed == revealed) return;
+  _volumeRevealed = revealed;
+  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeIfIdle) object:nil];
+  self.volumeButton.accessibilityExpanded = revealed;
+  if (self.volumeEventMonitor) { [NSEvent removeMonitor:self.volumeEventMonitor]; self.volumeEventMonitor = nil; }
+  if (!revealed) {
+    self.volumePointerInside = NO; self.volumeKeyboardActive = NO; self.suppressVolumeFocus = YES;
+    NSResponder* responder = self.window.firstResponder;
+    if ([responder isKindOfClass:NSView.class] && [(NSView*)responder isDescendantOf:self.volumeDisclosure]) [self.window makeFirstResponder:self.volumeButton];
+    self.suppressVolumeFocus = NO;
+    self.volumeDisclosure.hidden = YES; self.volume.hidden = YES;
+    return;
   }
-  void (^changes)(void) = ^{
-    self.volumeDisclosure.frame = targetFrame; self.volume.alphaValue = revealed ? 1 : 0;
-  };
-  void (^completion)(void) = ^{
-    if (self.volumeRevealed != revealed) return;
-    if (!revealed) { self.volume.hidden = YES; self.volumeDisclosure.layer.backgroundColor = NSColor.clearColor.CGColor; }
-  };
-  if (!animated || NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) { changes(); completion(); return; }
-  [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
-    context.duration = 0.2; context.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-    self.volumeDisclosure.animator.frame = targetFrame; self.volume.animator.alphaValue = revealed ? 1 : 0;
-  } completionHandler:completion];
+  [self layoutSubtreeIfNeeded];
+  self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
+  self.volumeDisclosure.hidden = NO; self.volume.hidden = NO;
+  self.volumeDisclosure.alphaValue = self.bar.alphaValue;
+  if (animated && !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
+    self.volumeDisclosure.alphaValue = 0;
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
+      context.duration = 0.12; self.volumeDisclosure.animator.alphaValue = self.bar.alphaValue;
+    } completionHandler:nil];
+  }
+  __weak LAPlayerControlbarHost* weakSelf = self;
+  self.volumeEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown | NSEventMaskOtherMouseDown | NSEventMaskKeyDown handler:^NSEvent*(NSEvent* event) {
+    LAPlayerControlbarHost* host = weakSelf;
+    if (!host || !host.volumeRevealed) return event;
+    if (event.type == NSEventTypeKeyDown) {
+      if (event.window == host.window && event.keyCode == 53) {
+        [host setVolumeRevealed:NO animated:NO];
+        [host.window makeFirstResponder:host.volumeButton];
+        return nil;
+      }
+      if (event.window == host.window) { host.volumeKeyboardActive = YES; [host volumeInteractionEnded]; }
+      return event;
+    }
+    host.volumeKeyboardActive = NO;
+    BOOL inPanel = event.window == host.window && NSPointInRect([host.volumeDisclosure convertPoint:event.locationInWindow fromView:nil], host.volumeDisclosure.bounds);
+    BOOL inButton = event.window == host.window && NSPointInRect([host.volumeButton convertPoint:event.locationInWindow fromView:nil], host.volumeButton.bounds);
+    if (!inPanel && !inButton) [host setVolumeRevealed:NO animated:NO];
+    // Let the same outside click reach the library or other player controls.
+    return event;
+  }];
 }
-- (void)hideVolumeSlider { [self setVolumeRevealed:NO animated:YES]; }
-- (void)volumeButtonEntered { [self setVolumeRevealed:YES animated:YES]; }
-- (void)volumeRegionEntered { [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeSlider) object:nil]; }
-- (void)volumeRegionExited { [self performSelector:@selector(hideVolumeSlider) withObject:nil afterDelay:0.35]; }
+- (void)volumePointerEntered { self.volumePointerInside = YES; [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeIfIdle) object:nil]; [self setVolumeRevealed:YES animated:YES]; }
+- (void)volumePointerExited { self.volumePointerInside = NO; [self volumeInteractionEnded]; }
+- (void)volumeInteractionEnded {
+  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeIfIdle) object:nil];
+  if (self.volumeRevealed) [self performSelector:@selector(hideVolumeIfIdle) withObject:nil afterDelay:0.5];
+}
+- (void)hideVolumeIfIdle {
+  NSResponder* responder = self.window.firstResponder;
+  BOOL focused = responder == self.volumeButton || ([responder isKindOfClass:NSView.class] && [(NSView*)responder isDescendantOf:self.volumeDisclosure]);
+  if (!self.volumePointerInside && !self.volume.dragging && !(self.volumeKeyboardActive && focused)) [self setVolumeRevealed:NO animated:NO];
+}
+- (void)volumeFocusChanged {
+  if (self.suppressVolumeFocus || NSApp.currentEvent.type != NSEventTypeKeyDown || NSApp.currentEvent.keyCode == 53) return;
+  self.volumeKeyboardActive = YES; [self setVolumeRevealed:YES animated:YES];
+}
+- (void)volumeKeyDown:(NSEvent*)event {
+  self.volumeKeyboardActive = YES; [self setVolumeRevealed:YES animated:YES];
+  [self.window makeFirstResponder:self.volume]; [self.volume keyDown:event];
+}
 - (void)setArtworkData:(NSData*)data {
   NSImage* image = data.length ? [[NSImage alloc] initWithData:data] : nil; self.artwork.image = image ?: PlayerControlbar::Symbol(@"music.note", 22);
 }
@@ -290,19 +395,24 @@ API_AVAILABLE(macos(26.0))
   self.play.image = Symbol(Bool(state, "isPlaying") ? @"pause.fill" : @"play.fill", 20); NSString* mode = String(state, "playbackMode");
   self.mode.image = Symbol([mode isEqualToString:@"shuffle"] ? @"shuffle" : [mode isEqualToString:@"repeat-one"] ? @"repeat.1" : @"repeat", 15);
   self.mode.contentTintColor = [mode isEqualToString:@"order"] ? NSColor.secondaryLabelColor : NSColor.controlAccentColor;
-  self.mute.image = Symbol(volume == 0 ? @"speaker.slash.fill" : @"speaker.wave.2.fill", 15);
+  self.volumeButton.image = Symbol(volume == 0 ? @"speaker.slash.fill" : @"speaker.wave.2.fill", 15);
   self.elapsed.stringValue = Time(current); self.total.stringValue = Time(duration);
   if (!self.seek.dragging) { self.seek.maxValue = std::max(1.0, duration); self.seek.doubleValue = current; }
   if (!self.volume.dragging) self.volume.doubleValue = volume;
+  self.volumeValue.stringValue = [NSString stringWithFormat:@"%.0f%%", self.volume.doubleValue * 100];
   for (NSControl* control in @[self.artwork, self.previous, self.play, self.next]) control.enabled = enabled;
-  self.mode.enabled = YES; self.mute.enabled = YES; self.seek.enabled = enabled && duration > 0; self.volume.enabled = YES;
+  self.mode.enabled = YES; self.volumeButton.enabled = YES; self.seek.enabled = enabled && duration > 0; self.volume.enabled = YES;
   napi_value labels = Get(state, "labels");
-  NSArray<NSView*>* controls = @[self.artwork, self.play, self.previous, self.next, self.seek, self.volume, self.mute, self.mode];
-  const char* keys[] = {"focus", "playPause", "previous", "next", "seek", "volume", "mute", "mode"};
+  NSArray<NSView*>* controls = @[self.artwork, self.play, self.previous, self.next, self.seek, self.volume, self.mode, self.volumeButton, self.volumeDisclosure];
+  const char* keys[] = {"focus", "playPause", "previous", "next", "seek", "volume", "mode", "mute", "volume"};
   for (NSUInteger i = 0; i < controls.count; i++) { NSString* text = String(labels, keys[i]); controls[i].accessibilityLabel = text; }
   [self layoutSubtreeIfNeeded]; double opacity = Number(p, "opacity", 0, 1); self.bar.alphaValue = opacity; self.volumeDisclosure.alphaValue = opacity;
   BOOL hidden = opacity <= 0.001 || frame.size.width <= 0 || frame.size.height <= 0;
-  self.bar.hidden = hidden; self.volumeDisclosure.hidden = hidden;
+  self.bar.hidden = hidden;
+  // The bar slides below the window when entering FocusMode. Its taller volume
+  // panel must close as the bar leaves, even while the bar itself is animating.
+  if (hidden || !NSContainsRect(self.bounds, self.bar.frame)) [self setVolumeRevealed:NO animated:NO];
+  self.volumeDisclosure.hidden = hidden || !self.volumeRevealed;
   if (self.bar.hidden) { NSResponder* responder = self.window.firstResponder; if ([responder isKindOfClass:NSView.class] && [(NSView*)responder isDescendantOf:self]) [self.window makeFirstResponder:nil]; }
 }
 - (void)focus:(id)sender { (void)sender; PlayerControlbar::Emit("focus"); }
@@ -312,7 +422,10 @@ API_AVAILABLE(macos(26.0))
 - (void)mode:(id)sender { (void)sender; PlayerControlbar::Emit("mode"); }
 - (void)mute:(id)sender { (void)sender; PlayerControlbar::Emit("mute"); }
 - (void)seek:(NSSlider*)sender { PlayerControlbar::Emit("seek", sender.doubleValue); }
-- (void)volume:(NSSlider*)sender { PlayerControlbar::Emit("volume", sender.doubleValue); }
+- (void)volume:(NSSlider*)sender {
+  self.volumeValue.stringValue = [NSString stringWithFormat:@"%.0f%%", sender.doubleValue * 100];
+  PlayerControlbar::Emit("volume", sender.doubleValue);
+}
 @end
 #endif
 

@@ -13,11 +13,13 @@ import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
 import WallSelectionBar from './wall/WallSelectionBar';
 import WallStatusPill from './wall/WallStatusPill';
+import type { OnlineProgress } from '../types/onlineProgress';
 
 type Progress = { loaded: number; total: number } | null | undefined;
 
 
 interface LibraryWallViewProps {
+  downloadProgress?: OnlineProgress;
   tracks: Track[];
   /** Identity of the shown source; a change plays the wall's switch animation. */
   sourceKey: string;
@@ -61,7 +63,7 @@ interface LibraryWallViewProps {
  * song list: clicking plays in place. Mutations use the list's callbacks.
  */
 const LibraryWallView: React.FC<LibraryWallViewProps> = ({
-  tracks, sourceKey, dataSource, currentTrackId, onTrackSelect,
+  tracks, sourceKey, dataSource, currentTrackId, onTrackSelect, downloadProgress,
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
   pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, autoLocateToken, locateRequest, onLocateRequestHandled,
@@ -143,6 +145,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
       onDrop={event => { void fileDrop.handleDrop(event); }}
     >
       <PosterWall
+        downloadProgress={downloadProgress}
         tracks={tracks}
         sourceKey={sourceKey}
         currentTrackId={currentTrackId}

@@ -6,12 +6,13 @@ import type { PaletteCommand } from '@/commands/paletteCommand';
 import { createCommandPaletteStore, type CommandPaletteStore } from '@/hooks/useCommandPalette';
 import { settingsManager } from '@/services/settingsManager';
 import type { Track } from '@/types';
+import { DEFAULT_COVER_ARTWORK_URL } from '@/services/coverUrl';
 
 const track = (id: string, title: string): Track => ({
   id, title, artist: 'Artist', album: 'Album', duration: 180, audioUrl: '', lyrics: '',
 } as Track);
 
-function setup() {
+function setup(extraCommands: PaletteCommand[] = []) {
   const store: CommandPaletteStore = createCommandPaletteStore();
   const runs = { mute: vi.fn(), settings: vi.fn(), english: vi.fn(), local: vi.fn() };
   const commands: PaletteCommand[] = [
@@ -22,6 +23,7 @@ function setup() {
       id: 'appearance.language', title: 'Language', icon: 'translate', group: 'appearance',
       children: () => [{ id: 'appearance.language.en', title: 'English', icon: 'translate', group: 'appearance', run: runs.english }],
     },
+    ...extraCommands,
   ];
   const library: PaletteLibrarySources = {
     localTracks: [track('t1', 'Blue Moon'), track('t2', 'Yellow')],
@@ -105,6 +107,29 @@ describe('CommandPalette', () => {
     expect(store.getState().stack).toEqual(['appearance.language']);
     press('Tab');
     expect(store.getState()).toMatchObject({ mode: 'library', stack: [] });
+  });
+
+  it('shows covers in nested playlist commands and when searching for the same playlist', () => {
+    const run = vi.fn();
+    const { press, type, store } = setup([{
+      id: 'playlist.open', title: 'Open playlist', icon: 'queue_music', group: 'library',
+      children: () => [
+        { id: 'playlist.open.p1', title: 'Road Trip', icon: 'queue_music', group: 'library', coverUrl: 'cover://road-trip.jpg', run },
+        { id: 'playlist.open.p2', title: 'No artwork', icon: 'queue_music', group: 'library', coverUrl: '' },
+      ],
+    }]);
+    press('Tab');
+    expect(screen.getByRole('option', { name: 'Mute' }).querySelector('img')).toBeNull();
+    type('Open playlist');
+    press('Enter');
+    expect(screen.getByRole('option', { name: 'Road Trip' }).querySelector('img')).toHaveAttribute('src', 'cover://road-trip.jpg');
+    expect(screen.getByRole('option', { name: 'No artwork' }).querySelector('img')).toHaveAttribute('src', DEFAULT_COVER_ARTWORK_URL);
+    press('Escape');
+    type('Road Trip');
+    expect(screen.getByRole('option').querySelector('img')).toHaveAttribute('src', 'cover://road-trip.jpg');
+    press('Enter');
+    expect(run).toHaveBeenCalledOnce();
+    expect(store.getState().open).toBe(false);
   });
 
   it('keeps typing and handled keys away from global shortcuts', () => {

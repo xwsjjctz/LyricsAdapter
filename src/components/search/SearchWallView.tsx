@@ -4,6 +4,7 @@ import { onlineSongToTrack, trackToOnlineSong } from '../../domain/trackFactory'
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import type { OnlineSong, OnlineSource } from '../../services/onlineMusicProvider';
 import type { Track } from '../../types';
+import type { OnlineProgress } from '../../types/onlineProgress';
 import PosterWall from '../wall/PosterWall';
 import { useCurrentTheme } from '../settings/shared';
 import TrackMenu, { type TrackMenuPosition } from '../TrackMenu';
@@ -21,6 +22,7 @@ const GROUP_LABEL_KEYS: Record<SearchGroupId, string> = {
 };
 
 interface SearchWallViewProps {
+  downloadProgress?: OnlineProgress;
   query: string;
   localTracks: Track[];
   cloudTracks: Track[];
@@ -45,6 +47,7 @@ interface SearchGroup {
  * offer download from the context menu.
  */
 export default function SearchWallView({
+  downloadProgress,
   query,
   localTracks,
   cloudTracks,
@@ -126,6 +129,7 @@ export default function SearchWallView({
   return (
     <div className="search-wall-view relative flex h-full w-full flex-col">
       <PosterWall
+        downloadProgress={downloadProgress}
         tracks={shownTracks}
         sourceKey={`search:${query}:${tab}`}
         currentTrackId={currentTrackId}

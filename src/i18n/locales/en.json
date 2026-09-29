@@ -154,6 +154,7 @@
   "controls.sequence": "Sequence",
   "controls.volume": "Volume",
   "controls.mute": "Mute",
+  "controls.unmute": "Unmute",
   "controls.noTrackSelected": "No track selected",
   "controls.shuffleMode": "Shuffle",
   "controls.repeatOneMode": "Repeat One",
@@ -328,5 +329,8 @@
   "palette.state.off": "Off",
   "palette.command.refreshCloud": "Refresh cloud library",
   "search.editQuery": "Edit search",
-  "search.downloading": "Downloading {{count}}"
+  "search.downloading": "Downloading {{count}}",
+  "wall.download.preparing": "Preparing",
+  "wall.download.downloading": "Downloading",
+  "wall.download.saving": "Saving"
 }

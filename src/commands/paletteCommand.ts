@@ -11,6 +11,8 @@ export interface PaletteCommand {
   id: string;
   title: string;
   icon: string;
+  /** Optional artwork for content entries; an empty URL uses the default cover. */
+  coverUrl?: string | undefined;
   group: PaletteCommandGroup;
   keywords?: readonly string[];
   /** Trailing detail such as a track count or the current state. */

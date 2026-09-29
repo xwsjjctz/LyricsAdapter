@@ -1,4 +1,4 @@
-import React, { memo, useRef } from 'react';
+import React, { memo, useId, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
@@ -56,6 +56,7 @@ const Controls: React.FC<ControlsProps> = memo(({
   const panelRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
+  const volumePanelId = useId();
 
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
@@ -81,7 +82,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         next: t('shortcut.nextTrack'),
         seek: t('controls.seek'),
         volume: t('controls.volume'),
-        mute: t('controls.mute'),
+        mute: t(volume === 0 ? 'controls.unmute' : 'controls.mute'),
         mode: t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence'),
       },
     },
@@ -225,36 +226,42 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
       </div>
 
-      {/* macOS reveals a vertical volume strip above its speaker button. */}
+      {/* Hover/focus reveals volume; the single speaker button toggles mute. */}
       {isMac ? (
-        <div className="macos-volume-disclosure" data-open={disclosure.expanded} data-testid="main-volume-disclosure"
-          onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}>
+        <div className="macos-volume-controls">
           <div className="macos-volume-mode">{modeControl}</div>
-          <div className="macos-volume-slider-shell">
-            <div ref={volumeRef} className="player-slider macos-volume-slider"
-              data-testid="main-volume-anchor" aria-hidden={!disclosure.expanded || undefined}
-              onMouseEnter={disclosure.open} onFocusCapture={disclosure.open} onBlurCapture={disclosure.closeSoon}
-              style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
-              <input type="range" min="0" max="1" step="0.01" value={volume}
-                tabIndex={!disclosure.expanded ? -1 : undefined}
-                aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`}
-                onKeyDown={preserveSliderKeys} onChange={e => onVolumeChange(Number(e.target.value))} />
-              <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
-              <span className="player-slider-thumb" aria-hidden="true" />
+          <div ref={disclosure.rootRef} className="macos-volume-disclosure" data-open={disclosure.expanded} data-testid="main-volume-disclosure"
+            onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}
+            onFocusCapture={disclosure.focusIn} onBlurCapture={disclosure.focusOut}
+            onPointerDownCapture={disclosure.pointerDown} onKeyDownCapture={disclosure.keyDown}>
+            <button ref={disclosure.triggerRef} type="button" className="macos-volume-button" data-testid="main-volume-button"
+              aria-label={t(volume === 0 ? 'controls.unmute' : 'controls.mute')} aria-expanded={disclosure.expanded} aria-controls={volumePanelId}
+              onClick={onToggleMute}
+              onKeyDown={event => {
+                if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                if (['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp'].includes(event.key)) {
+                  event.preventDefault(); event.stopPropagation(); disclosure.open();
+                  onVolumeChange(Math.max(0, Math.min(1, volume + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.01 : 0.01))));
+                }
+              }}>
+              <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-outlined text-xl" />
+            </button>
+            <div id={volumePanelId} className="macos-volume-slider-shell" role="group" aria-label={t('controls.volume')}
+              aria-hidden={!disclosure.expanded || undefined}>
+              <span className="macos-volume-value" aria-hidden="true">{Math.round(volume * 100)}%</span>
+              <div ref={volumeRef} className="player-slider macos-volume-slider"
+                data-testid="main-volume-anchor"
+                style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
+                <input ref={disclosure.sliderRef} type="range" min="0" max="1" step="0.01" value={volume}
+                  onPointerDown={disclosure.startDrag}
+                  tabIndex={!disclosure.expanded ? -1 : undefined}
+                  aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} aria-orientation="vertical"
+                  onKeyDown={preserveSliderKeys} onChange={e => onVolumeChange(Number(e.target.value))} />
+                <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
+                <span className="player-slider-thumb" aria-hidden="true" />
+              </div>
             </div>
           </div>
-          <button type="button" className="macos-volume-button" data-testid="main-volume-button"
-            aria-label={t('controls.volume')} aria-expanded={disclosure.expanded}
-            onMouseEnter={disclosure.open} onFocus={disclosure.open} onBlur={disclosure.closeSoon}
-            onClick={() => { disclosure.open(); onToggleMute(); }}
-            onKeyDown={event => {
-              if (event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'ArrowUp') {
-                event.preventDefault(); event.stopPropagation(); disclosure.open();
-                onVolumeChange(Math.max(0, Math.min(1, volume + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.05 : 0.05))));
-              }
-            }}>
-            <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-outlined text-xl" />
-          </button>
         </div>
       ) : (
       <div className="flex items-center justify-center gap-2 w-36">

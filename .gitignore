@@ -72,6 +72,7 @@ FRONTEND.md
 *jpg
 # Bundled default cover (app-icon crop) ships with the renderer.
 !/public/default-cover.jpg
+!/public/wall-background.jpg
 *.whl
 talk.md
 /release

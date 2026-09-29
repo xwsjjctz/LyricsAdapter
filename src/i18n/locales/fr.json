@@ -154,6 +154,7 @@
   "controls.sequence": "Séquence",
   "controls.volume": "Volume",
   "controls.mute": "Muet",
+  "controls.unmute": "Réactiver le son",
   "controls.noTrackSelected": "Aucun titre sélectionné",
   "controls.shuffleMode": "Aléatoire",
   "controls.repeatOneMode": "Répéter une fois",
@@ -328,5 +329,8 @@
   "palette.state.off": "Désactivé",
   "palette.command.refreshCloud": "Actualiser la bibliothèque cloud",
   "search.editQuery": "Modifier la recherche",
-  "search.downloading": "Téléchargement de {{count}}"
+  "search.downloading": "Téléchargement de {{count}}",
+  "wall.download.preparing": "Préparation",
+  "wall.download.downloading": "Téléchargement",
+  "wall.download.saving": "Enregistrement"
 }

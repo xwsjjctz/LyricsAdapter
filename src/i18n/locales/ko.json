@@ -154,6 +154,7 @@
   "controls.sequence": "순차 재생",
   "controls.volume": "볼륨",
   "controls.mute": "음소거",
+  "controls.unmute": "음소거 해제",
   "controls.noTrackSelected": "선택된 트랙이 없습니다",
   "controls.shuffleMode": "무작위 재생",
   "controls.repeatOneMode": "한 곡 반복",
@@ -328,5 +329,8 @@
   "palette.state.off": "끔",
   "palette.command.refreshCloud": "클라우드 라이브러리 새로고침",
   "search.editQuery": "검색어 수정",
-  "search.downloading": "{{count}}곡 다운로드 중"
+  "search.downloading": "{{count}}곡 다운로드 중",
+  "wall.download.preparing": "준비 중",
+  "wall.download.downloading": "다운로드 중",
+  "wall.download.saving": "저장 중"
 }

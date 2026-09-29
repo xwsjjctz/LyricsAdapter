@@ -154,6 +154,7 @@
   "controls.sequence": "順次再生",
   "controls.volume": "音量",
   "controls.mute": "ミュート",
+  "controls.unmute": "ミュート解除",
   "controls.noTrackSelected": "トラックが選択されていません",
   "controls.shuffleMode": "シャッフル",
   "controls.repeatOneMode": "1曲リピート",
@@ -328,5 +329,8 @@
   "palette.state.off": "オフ",
   "palette.command.refreshCloud": "クラウドライブラリを更新",
   "search.editQuery": "検索を編集",
-  "search.downloading": "{{count}} 曲をダウンロード中"
+  "search.downloading": "{{count}} 曲をダウンロード中",
+  "wall.download.preparing": "準備中",
+  "wall.download.downloading": "ダウンロード中",
+  "wall.download.saving": "保存中"
 }

@@ -20,6 +20,7 @@ import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
 import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';
+import type { DownloadProgressEvent } from '../types/onlineProgress';
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
 type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
@@ -722,8 +723,8 @@ class ElectronAdapter implements FullDesktopAPI {
   async neteaseRequest(channel: string, params: Record<string, unknown>, cookie?: string) {
     return this.api.neteaseRequest!(channel, params, cookie);
   }
-  async downloadAndSave(url: string, cookie: string, filePath: string) {
-    return this.api.downloadAndSave!(url, cookie, filePath);
+  async downloadAndSave(url: string, cookie: string, filePath: string, requestId?: string) {
+    return this.api.downloadAndSave!(url, cookie, filePath, requestId);
   }
   async downloadAudioFile(url: string, cookie: string) {
     return this.api.downloadAudioFile!(url, cookie);
@@ -731,10 +732,10 @@ class ElectronAdapter implements FullDesktopAPI {
   async fetchCoverBase64(coverUrl: string) {
     return this.api.fetchCoverBase64!(coverUrl);
   }
-  onDownloadProgress(callback: (progress: { downloaded: number; total: number; progress: number }) => void): void {
+  onDownloadProgress(callback: (progress: DownloadProgressEvent) => void): void {
     this.api.onDownloadProgress!(callback);
   }
-  offDownloadProgress(callback: (progress: { downloaded: number; total: number; progress: number }) => void): void {
+  offDownloadProgress(callback: (progress: DownloadProgressEvent) => void): void {
     this.api.offDownloadProgress!(callback);
   }
   async qqLoginQrStart() {

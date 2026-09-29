@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { QUALITY_EXTENSION, QUALITY_LABEL, saveOnlineAudio } from '../services/onlineDownload';
 import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
+import type { DownloadProgressEvent, OnlineProgressEntry } from '../types/onlineProgress';
 
 interface UseOnlineMusicIntegrationParams {
   /** Opens the settings sheet when a download/upload lacks configuration. */
@@ -27,14 +28,6 @@ interface UseOnlineMusicIntegrationParams {
   mergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
   /** Invoked after a download completes and the track is built (adds to local library). */
   onDownloadComplete?: (track: Track) => void;
-}
-
-export interface OnlineProgressEntry {
-  type: 'download' | 'upload';
-  percent: number;
-  status?: 'completed' | 'error';
-  /** Result shown in the app, which works even when system notifications are blocked. */
-  message?: string;
 }
 
 /**
@@ -46,8 +39,28 @@ export interface OnlineProgressEntry {
  */
 export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDownloadComplete }: UseOnlineMusicIntegrationParams) {
   const [onlineProgress, setOnlineProgress] = useState<Record<string, OnlineProgressEntry>>({});
-  const activeSongRef = useRef<string | null>(null);
+  const requests = useRef(new Map<string, { key: string; type: 'download' | 'upload' }>());
+  const expiryTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const { t } = useTranslation();
+
+  const showDownloadOutcome = useCallback((key: string, entry: OnlineProgressEntry, delay: number) => {
+    setOnlineProgress(prev => ({ ...prev, [key]: entry }));
+    const timer = setTimeout(() => {
+      expiryTimers.current.delete(timer);
+      setOnlineProgress(prev => {
+        // A retry may already be running when the previous outcome expires.
+        if (prev[key] !== entry) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }, delay);
+    expiryTimers.current.add(timer);
+  }, []);
+
+  useEffect(() => () => {
+    for (const timer of expiryTimers.current) clearTimeout(timer);
+  }, []);
 
   // Every source goes through its provider so playback and download/upload
   // share bounded caching and in-flight request deduplication.
@@ -179,9 +192,12 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
     if (!downloadPath) { openSettings('online'); return; }
     // Playlist and queue tracks carry their own source; search results use the active one.
     const provider = getOnlineProvider(source);
-    const songId = song.songmid;
-    activeSongRef.current = songId;
-    setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0 } }));
+    // Same identity as onlineSongToTrack, including the provider.
+    const songId = `online-${provider.id}-${song.songmid}`;
+    if ([...requests.current.values()].some(task => task.key === songId)) return;
+    const requestId = crypto.randomUUID();
+    requests.current.set(requestId, { key: songId, type: 'download' });
+    setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, phase: 'preparing' } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
       const coverUrl = provider.getCoverUrl(song) || song.coverUrl;
@@ -190,12 +206,14 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
         fetchLyrics(song, provider),
         saveOnlineAudio({
           provider, song, quality, singer, downloadPath,
-          save: desktopAPI?.downloadAndSave?.bind(desktopAPI),
+          save: desktopAPI?.downloadAndSave
+            ? (url, cookie, filePath) => desktopAPI.downloadAndSave!(url, cookie, filePath, requestId)
+            : undefined,
         }),
       ]);
       const { fileName } = saved;
       const result = { filePath: saved.filePath };
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 80 } }));
+      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, phase: 'saving' } }));
       if (desktopAPI?.writeAudioMetadata) {
         await desktopAPI.writeAudioMetadata(result.filePath, {
           title: song.songname, artist: singer, album: song.albumname || '',
@@ -214,7 +232,7 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
           artist: singer, title: song.songname,
           requested: QUALITY_LABEL[quality], served: QUALITY_LABEL[saved.served],
         });
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 100, status: 'completed', message: doneMessage } }));
+      showDownloadOutcome(songId, { type: 'download', percent: 100, status: 'completed', message: doneMessage }, 3000);
       notify(
         t('notifications.downloadComplete'),
         doneMessage,
@@ -223,17 +241,15 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
           artworkUrls: [downloadedTrack?.coverUrl || coverUrl].filter((url): url is string => Boolean(url)),
         },
       );
-      setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 3000);
     } catch (err: unknown) {
       logger.error('[OnlineMusic] download failed:', err);
       const reason = err instanceof Error ? err.message : '';
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: 0, status: 'error', message: reason } }));
+      showDownloadOutcome(songId, { type: 'download', percent: 0, status: 'error', message: reason }, 5000);
       notify(t('notifications.downloadFailed'), reason);
-      setTimeout(() => setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; }), 5000);
     } finally {
-      if (activeSongRef.current === songId) activeSongRef.current = null;
+      requests.current.delete(requestId);
     }
-  }, [openSettings, onDownloadComplete, buildDownloadedTrack]);
+  }, [openSettings, onDownloadComplete, buildDownloadedTrack, showDownloadOutcome]);
 
   const handleOnlineUpload = useCallback(async (song: OnlineSong, quality: OnlineQuality) => {
     if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
@@ -241,8 +257,9 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
     const downloadPath = settingsManager.getDownloadPath();
     if (!downloadPath) { openSettings('online'); return; }
     const provider = getOnlineProvider();
-    const songId = song.songmid;
-    activeSongRef.current = songId;
+    const songId = `upload-${provider.id}-${song.songmid}`;
+    const requestId = crypto.randomUUID();
+    requests.current.set(requestId, { key: songId, type: 'upload' });
     setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'upload', percent: 0 } }));
     try {
       const singer = song.singer?.map((s) => s.name).join(' & ') || 'Unknown';
@@ -252,7 +269,9 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
         fetchLyrics(song, provider),
         saveOnlineAudio({
           provider, song, quality, singer, downloadPath,
-          save: desktopAPI?.downloadAndSave?.bind(desktopAPI),
+          save: desktopAPI?.downloadAndSave
+            ? (url, cookie, filePath) => desktopAPI.downloadAndSave!(url, cookie, filePath, requestId)
+            : undefined,
         }),
         coverUrl ? fetchCoverBase64(coverUrl) : Promise.resolve(undefined),
       ]);
@@ -317,16 +336,22 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
       setOnlineProgress((prev) => { const n = { ...prev }; delete n[songId]; return n; });
       notify(t('notifications.uploadFailed'), err instanceof Error ? err.message : '');
     } finally {
-      if (activeSongRef.current === songId) activeSongRef.current = null;
+      requests.current.delete(requestId);
     }
   }, [openSettings, mergeCloudTracks]);
 
   // Download progress listener (forwarded from main process).
   useEffect(() => {
-    const handler = (data: { downloaded: number; total: number; progress: number }) => {
-      const songId = activeSongRef.current;
-      if (!songId) return;
-      setOnlineProgress((prev) => ({ ...prev, [songId]: { type: 'download', percent: Math.round(data.progress) } }));
+    const handler = (data: DownloadProgressEvent) => {
+      const task = data.requestId ? requests.current.get(data.requestId) : undefined;
+      if (!task || !Number.isFinite(data.progress)) return;
+      setOnlineProgress(prev => {
+        const current = prev[task.key];
+        if (!current || current.status || current.phase === 'saving') return prev;
+        const percent = Math.max(0, Math.min(100, Math.round(data.progress)));
+        if (current.percent === percent && current.phase === 'downloading') return prev;
+        return { ...prev, [task.key]: { ...current, percent, phase: 'downloading' } };
+      });
     };
     const desktopAPI = getDesktopAPI();
     desktopAPI?.onDownloadProgress?.(handler);
