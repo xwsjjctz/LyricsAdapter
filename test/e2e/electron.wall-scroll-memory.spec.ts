@@ -65,6 +65,28 @@ test('the poster wall reopens where it was left instead of locating the playing 
     await expect.poll(() => wallScroll(page)).toBe(1000);
     await page.waitForTimeout(800);
     expect(await wallScroll(page)).toBe(1000);
+
+    // Resizing keeps the same songs in view: tiles scale with the width, so the
+    // offset scales with them (around the viewport centre) instead of staying
+    // a fixed number of pixels.
+    const centreSong = () => page.evaluate(() => {
+      const wall = document.querySelector('.poster-wall')!.getBoundingClientRect();
+      // Just off the exact centre: tile edges fall on whole cells, and the
+      // centre can sit exactly on one.
+      return document.elementFromPoint(wall.left + wall.width / 2 + 37, wall.top + wall.height / 2 + 23)
+        ?.closest('.wall-tile')?.getAttribute('aria-label') ?? null;
+    });
+    const before = await centreSong();
+    expect(before).not.toBeNull();
+    const widthOf = () => page.locator('.poster-wall').evaluate(node => node.clientWidth);
+    const oldWidth = await widthOf();
+    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(900, 800));
+    await expect.poll(widthOf).toBeLessThan(oldWidth);
+    await page.waitForTimeout(400);
+    expect(await centreSong()).toBe(before);
+    // The viewport centre (offset + half the height) scales with the width.
+    const half = await page.locator('.poster-wall').evaluate(node => node.clientHeight / 2);
+    expect(await wallScroll(page)).toBeCloseTo((1000 + half) * (await widthOf()) / oldWidth - half, -1);
   } finally {
     if (app) await app.close();
     await rm(root, { recursive: true, force: true });

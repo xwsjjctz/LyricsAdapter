@@ -91,6 +91,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
     const container = containerRef.current;
     if (!container) return;
     container.scrollTop = 0;
+    lastScrollTopRef.current = 0;
     setScrollTop(0);
     autoRequestedLengthRef.current = null;
     restorePendingRef.current = true;
@@ -104,6 +105,25 @@ const PosterWall: React.FC<PosterWallProps> = ({
     () => computeWallLayout({ count: renderedTracks.length, width, gap: WALL_GAP }),
     [renderedTracks.length, width],
   );
+
+  // Tiles scale with the width (cell = width / 12), so a fixed pixel offset
+  // shows different songs after a resize. Rescale it around the viewport
+  // centre, before paint, so the songs in view stay put; a height-only
+  // resize leaves the layout and the offset unchanged.
+  const lastScrollTopRef = useRef(0);
+  const measuredWidthRef = useRef(width);
+  useLayoutEffect(() => {
+    const previous = measuredWidthRef.current;
+    measuredWidthRef.current = width;
+    const container = containerRef.current;
+    if (!container || previous <= 0 || width <= 0 || previous === width || restorePendingRef.current) return;
+    const half = container.clientHeight / 2;
+    const maxTop = Math.max(0, layout.height - container.clientHeight);
+    const top = Math.max(0, Math.min((lastScrollTopRef.current + half) * (width / previous) - half, maxTop));
+    container.scrollTop = top;
+    lastScrollTopRef.current = top;
+    setScrollTop(top);
+  }, [width, layout.height]);
 
   const overscan = viewportHeight * OVERSCAN_VIEWPORTS;
   const visibleTiles = useMemo(() => {
@@ -133,6 +153,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
   }, [loadError, loadMoreIfNearEnd]);
 
   const handleScroll = useCallback(() => {
+    lastScrollTopRef.current = containerRef.current?.scrollTop ?? 0;
     if (scrollFrameRef.current !== null) return;
     scrollFrameRef.current = requestAnimationFrame(() => {
       scrollFrameRef.current = null;
@@ -161,6 +182,8 @@ const PosterWall: React.FC<PosterWallProps> = ({
     const top = Math.max(0, Math.min(restoreScrollTop ?? 0, layout.height - viewportHeight));
     if (top === 0) return;
     container.scrollTop = top;
+    // The scroll event arrives later; a resize before it must see this offset.
+    lastScrollTopRef.current = top;
     setScrollTop(top);
   }, [layout.height, renderedTracks.length, requestToken, restoreScrollTop, settled, viewportHeight]);
 

@@ -289,3 +289,35 @@ describe('PosterWall remembering its scroll offset', () => {
     vi.restoreAllMocks();
   });
 });
+
+describe('PosterWall resizing', () => {
+  it('keeps the songs at the viewport centre in place when the width changes', () => {
+    const callbacks: ResizeObserverCallback[] = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) { callbacks.push(callback); }
+      observe() {} disconnect() {} unobserve() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const many = Array.from({ length: 60 }, (_, index) => track(`w${index}`));
+      renderWall({ tracks: many, sourceKey: 'resize', restoreScrollTop: 1000 });
+      const wall = document.querySelector('.poster-wall') as HTMLElement;
+      expect(wall.scrollTop).toBe(1000);
+
+      // Narrower by 10%: every tile shrinks by 10%, so the centre (1000 + 400) does too.
+      size.width = 1080;
+      act(() => callbacks.forEach(callback => callback([], {} as ResizeObserver)));
+      expect(wall.scrollTop).toBeCloseTo((1000 + 400) * 0.9 - 400);
+
+      // A height-only change does not move anything.
+      const before = wall.scrollTop;
+      size.height = 700;
+      act(() => callbacks.forEach(callback => callback([], {} as ResizeObserver)));
+      expect(wall.scrollTop).toBe(before);
+    } finally {
+      globalThis.ResizeObserver = original;
+      size.width = 1200;
+      size.height = 800;
+    }
+  });
+});
