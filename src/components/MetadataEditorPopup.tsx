@@ -9,6 +9,8 @@ import GsapModal from './GsapModal';
 import Button from './ui/Button';
 import { parseLRCLyrics } from '../services/metadataService';
 import { parseCoverDataUrl, sanitizePersistedCoverUrl } from '../services/coverUrl';
+import { applyEditedWordLyrics } from '../shared/wordLyricsEditing';
+import { useWordLyricsDraft } from '../hooks/useWordLyricsDraft';
 import '../styles/metadataEditor.css';
 
 type TextField = 'title' | 'artist' | 'album';
@@ -33,12 +35,18 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldIdPrefix = useId();
+  const [lyricsError, setLyricsError] = useState<string | null>(null);
+  // Word-timed tracks edit their QRC/YRC body; `lyrics` stays the derived text.
+  const wordDraft = useWordLyricsDraft(track);
+  const editsWordLyrics = wordDraft.active;
+  const lineLyricsChanged = !editsWordLyrics && edited.lyrics !== track.lyrics;
 
   const hasChanges =
     edited.title !== track.title ||
     edited.artist !== track.artist ||
     edited.album !== track.album ||
-    edited.lyrics !== track.lyrics ||
+    lineLyricsChanged ||
+    wordDraft.changed ||
     pendingCoverFile !== null;
 
   const fieldValue = useCallback((field: EditableField): string => {
@@ -68,9 +76,17 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
 
   const handleSave = useCallback(async () => {
     if (!hasChanges) return;
+    // Validate edited QRC/YRC before touching the file, so a save never
+    // replaces working karaoke lyrics with text that has lost its timing.
+    const wordEdit = wordDraft.changed && wordDraft.format
+      ? applyEditedWordLyrics(wordDraft.text, wordDraft.format, wordDraft.original)
+      : null;
+    if (wordEdit && !wordEdit.ok) {
+      setLyricsError(t('metadataView.wordLyricsInvalid'));
+      return;
+    }
     setSaving(true);
     try {
-      const lyrics = edited.lyrics;
       const desktopAPI = getDesktopAPI();
       if (edited.filePath && desktopAPI?.writeAudioMetadata) {
         const coverUrl = pendingCoverDataUrl || edited.coverUrl;
@@ -78,15 +94,27 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
           title: edited.title || undefined,
           artist: edited.artist || undefined,
           album: edited.album || undefined,
-          ...(lyrics != null ? { lyrics } : {}),
+          // Only an edited field is written: re-saving the derived plain text
+          // would strip the file's LRC timestamps.
+          ...(lineLyricsChanged ? { lyrics: edited.lyrics ?? '' } : {}),
+          ...(wordEdit?.ok ? { wordLyrics: wordEdit.wordLyrics, wordLyricsFormat: wordDraft.format } : {}),
           ...(coverUrl != null ? { coverUrl } : {}),
         });
         if (!result.success) throw new Error(result.error || 'Write failed');
       }
 
-      // 保存成功后重新解析歌词文本，重建 syncedLyrics。
-      // 否则编辑歌词后 syncedLyrics 残留为 undefined，FocusMode 无法滚动。
-      const nextSynced = lyrics != null ? parseLRCLyrics(lyrics).syncedLyrics : edited.syncedLyrics;
+      // Rebuild synced lines from what was edited so FocusMode picks up the
+      // change immediately; untouched lyrics keep their existing timing.
+      const lyricsUpdate: Partial<Track> = wordEdit?.ok
+        ? {
+          lyrics: wordEdit.lyrics,
+          syncedLyrics: wordEdit.syncedLyrics,
+          wordLyrics: wordEdit.wordLyrics,
+          wordLyricsFormat: wordDraft.format,
+        }
+        : lineLyricsChanged
+          ? { syncedLyrics: parseLRCLyrics(edited.lyrics ?? '').syncedLyrics }
+          : { lyrics: track.lyrics, syncedLyrics: track.syncedLyrics };
       let finalCoverUrl = sanitizePersistedCoverUrl(edited.coverUrl);
 
       if (pendingCoverDataUrl) {
@@ -107,9 +135,9 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
         }
       }
 
-      const finalTrack = {
+      const finalTrack: Track = {
         ...edited,
-        syncedLyrics: nextSynced,
+        ...lyricsUpdate,
         coverUrl: finalCoverUrl,
       };
       onUpdateTrack(finalTrack);
@@ -121,11 +149,15 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
     } finally {
       setSaving(false);
     }
-  }, [hasChanges, edited, pendingCoverDataUrl, onUpdateTrack, onClose]);
+  }, [hasChanges, wordDraft, lineLyricsChanged, edited, track, pendingCoverDataUrl, onUpdateTrack, onClose, t]);
 
-  const fieldChanged = (field: EditableField): boolean => fieldValue(field) !== (track[field] || '');
+  const fieldChanged = (field: EditableField): boolean => (field === 'lyrics' && editsWordLyrics
+    ? wordDraft.changed
+    : fieldValue(field) !== (track[field] || ''));
   const fileLabel = track.fileName || track.filePath?.split(/[\\/]/).pop() || '';
-  const hasTimedLyrics = LRC_TIMESTAMP.test(fieldValue('lyrics'));
+  const lyricsBadge = editsWordLyrics
+    ? wordDraft.format?.toUpperCase()
+    : LRC_TIMESTAMP.test(fieldValue('lyrics')) ? 'LRC' : undefined;
 
   const renderLabel = (field: EditableField, labelKey: string, htmlFor: string, trailing?: React.ReactNode) => (
     <div className="metadata-editor__label-row">
@@ -217,16 +249,28 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
 
           <div className="metadata-editor__field metadata-editor__field--lyrics">
             {renderLabel('lyrics', 'metadataView.fieldLyrics', lyricsId,
-              hasTimedLyrics ? <span className="metadata-editor__badge">LRC</span> : null)}
+              lyricsBadge ? <span className="metadata-editor__badge">{lyricsBadge}</span> : null)}
+            {editsWordLyrics && (
+              <p id={`${lyricsId}-hint`} className="metadata-editor__hint">{t('metadataView.wordLyricsHint')}</p>
+            )}
             <textarea
               id={lyricsId}
-              value={fieldValue('lyrics')}
-              onChange={e => updateField('lyrics', e.target.value)}
-              placeholder={t('metadataView.lyricsPlaceholder')}
+              value={editsWordLyrics ? wordDraft.text : fieldValue('lyrics')}
+              onChange={e => {
+                setLyricsError(null);
+                if (editsWordLyrics) wordDraft.setText(e.target.value);
+                else updateField('lyrics', e.target.value);
+              }}
+              placeholder={editsWordLyrics ? undefined : t('metadataView.lyricsPlaceholder')}
               spellCheck={false}
               className="metadata-editor__input metadata-editor__lyrics no-scrollbar"
               data-edited={fieldChanged('lyrics') || undefined}
+              aria-invalid={lyricsError ? true : undefined}
+              aria-describedby={[editsWordLyrics && `${lyricsId}-hint`, lyricsError && `${lyricsId}-error`].filter(Boolean).join(' ') || undefined}
             />
+            {lyricsError && (
+              <p id={`${lyricsId}-error`} role="alert" className="metadata-editor__error">{lyricsError}</p>
+            )}
           </div>
 
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverFileChange} />

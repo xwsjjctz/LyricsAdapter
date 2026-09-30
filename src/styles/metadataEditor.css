@@ -194,6 +194,19 @@
   letter-spacing: 0.06em;
 }
 
+.metadata-editor__hint {
+  margin-top: -2px;
+  color: var(--theme-text-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.metadata-editor__error {
+  color: var(--theme-error, #ef4444);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .metadata-editor__input {
   width: 100%;
   min-width: 0;
@@ -213,6 +226,10 @@
 
 .metadata-editor__input:hover {
   border-color: color-mix(in srgb, var(--theme-text-primary) 18%, transparent);
+}
+
+.metadata-editor__input[aria-invalid='true'] {
+  border-color: color-mix(in srgb, var(--theme-error, #ef4444) 70%, transparent);
 }
 
 .metadata-editor__input:focus {

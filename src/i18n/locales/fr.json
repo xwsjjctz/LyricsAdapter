@@ -276,6 +276,8 @@
   "metadataView.edited": "Modifié",
   "metadataView.saving": "Enregistrement…",
   "metadataView.lyricsPlaceholder": "Collez des paroles en texte brut ou au format LRC",
+  "metadataView.wordLyricsHint": "Vous modifiez la source synchronisée mot à mot. Conservez les horodatages des lignes et des mots. L’enregistrement met à jour le fichier et le mode concentré immédiatement.",
+  "metadataView.wordLyricsInvalid": "Impossible d’analyser ces paroles mot à mot. Vérifiez les horodatages des lignes et des mots, puis enregistrez à nouveau.",
   "notifications.uploadComplete": "Téléchargement terminé",
   "notifications.uploadFailed": "Échec du téléchargement",
   "notifications.downloadComplete": "Téléchargement terminé",

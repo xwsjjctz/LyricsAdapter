@@ -276,6 +276,8 @@
   "metadataView.edited": "수정됨",
   "metadataView.saving": "저장 중…",
   "metadataView.lyricsPlaceholder": "일반 텍스트 또는 LRC 가사를 붙여넣기",
+  "metadataView.wordLyricsHint": "단어별 가사 원문을 편집하고 있습니다. 줄과 단어의 타임스탬프를 유지하세요. 저장하면 파일에 기록되고 집중 모드에 즉시 반영됩니다.",
+  "metadataView.wordLyricsInvalid": "단어별 가사를 해석할 수 없습니다. 줄과 단어의 타임스탬프를 확인한 뒤 다시 저장하세요.",
   "notifications.uploadComplete": "업로드 완료",
   "notifications.uploadFailed": "업로드 실패",
   "notifications.downloadComplete": "다운로드 완료",

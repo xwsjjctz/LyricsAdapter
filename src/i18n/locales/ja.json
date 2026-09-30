@@ -276,6 +276,8 @@
   "metadataView.edited": "変更済み",
   "metadataView.saving": "保存中…",
   "metadataView.lyricsPlaceholder": "テキストまたは LRC 形式の歌詞を貼り付け",
+  "metadataView.wordLyricsHint": "逐語歌詞の原文を編集しています。行と文字のタイムタグは残してください。保存するとファイルに書き込まれ、フォーカスモードにすぐ反映されます。",
+  "metadataView.wordLyricsInvalid": "逐語歌詞を解析できませんでした。行と文字のタイムタグを確認してから保存してください。",
   "notifications.uploadComplete": "アップロード完了",
   "notifications.uploadFailed": "アップロード失敗",
   "notifications.downloadComplete": "ダウンロード完了",

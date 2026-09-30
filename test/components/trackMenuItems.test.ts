@@ -20,8 +20,13 @@ describe('buildTrackMenuItems', () => {
     const items = buildTrackMenuItems({ dataSource: 'online', canEdit: true, canDownload: true });
     expect(items[0]).toEqual({ kind: 'label', labelKey: 'browse.download' });
     expect(actionIds(items)).toEqual([
-      'download:128', 'download:320', 'download:flac', 'edit', 'select', 'remove',
+      'download:128', 'download:320', 'download:flac', 'select', 'remove',
     ]);
+  });
+
+  it('never offers metadata editing for online queue tracks', () => {
+    const items = buildTrackMenuItems({ dataSource: 'online', canEdit: true, canDownload: false });
+    expect(actionIds(items)).toEqual(['select', 'remove']);
   });
 
   it('gives platform playlist tracks download actions only', () => {

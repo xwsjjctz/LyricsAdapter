@@ -30,7 +30,6 @@ describe('native context menu gate', () => {
       { kind: 'action', id: 'download:320', label: '320kbps' },
       { kind: 'action', id: 'download:flac', label: 'FLAC' },
       { kind: 'separator' },
-      { kind: 'action', id: 'edit', label: 't:library.editInfo' },
       { kind: 'action', id: 'select', label: 't:library.selectMultiple' },
       { kind: 'separator' },
       { kind: 'action', id: 'remove', label: 't:library.remove' },

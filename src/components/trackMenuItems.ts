@@ -42,8 +42,9 @@ const QUALITY_LABELS: Record<TrackDownloadQuality, string> = {
 
 /**
  * Decides which song actions a list offers. Local and online-queue lists are
- * managed by the library; platform playlists and search results are play-only,
- * so they only get download. Cloud lists are managed by their remote source.
+ * managed by the library, but only local files offer metadata editing; platform
+ * playlists and search results are play-only, so they only get download. Cloud
+ * lists are managed by their remote source.
  */
 export function buildTrackMenuItems({ dataSource, canEdit, canDownload }: TrackMenuContext): TrackMenuItem[] {
   const groups: TrackMenuItem[][] = [];
@@ -59,8 +60,10 @@ export function buildTrackMenuItems({ dataSource, canEdit, canDownload }: TrackM
     ]);
   }
   if (dataSource === 'local' || dataSource === 'online') {
+    // Online tracks are provider-owned; only local files have editable metadata.
+    const editable = canEdit && dataSource === 'local';
     groups.push([
-      ...(canEdit ? [{ kind: 'action' as const, id: 'edit' as const, labelKey: 'library.editInfo' }] : []),
+      ...(editable ? [{ kind: 'action' as const, id: 'edit' as const, labelKey: 'library.editInfo' }] : []),
       { kind: 'action', id: 'select', labelKey: 'library.selectMultiple' },
     ]);
     groups.push([{ kind: 'action', id: 'remove', labelKey: 'library.remove', danger: true }]);

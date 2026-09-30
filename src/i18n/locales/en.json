@@ -276,6 +276,8 @@
   "metadataView.edited": "Edited",
   "metadataView.saving": "Saving…",
   "metadataView.lyricsPlaceholder": "Paste plain-text or LRC lyrics",
+  "metadataView.wordLyricsHint": "Editing the word-timed source. Keep the line and word timestamps. Saving writes the file and updates Focus Mode immediately.",
+  "metadataView.wordLyricsInvalid": "These word-timed lyrics could not be parsed. Check the line and word timestamps, then save again.",
   "notifications.uploadComplete": "Upload Complete",
   "notifications.uploadFailed": "Upload Failed",
   "notifications.downloadComplete": "Download Complete",

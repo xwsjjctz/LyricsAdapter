@@ -276,6 +276,8 @@
   "metadataView.edited": "已修改",
   "metadataView.saving": "正在保存…",
   "metadataView.lyricsPlaceholder": "粘贴纯文本或 LRC 格式的歌词",
+  "metadataView.wordLyricsHint": "正在编辑逐字歌词原文，请保留行和字的时间标记。保存后写入文件，专注模式立即生效。",
+  "metadataView.wordLyricsInvalid": "逐字歌词解析失败，请检查行和字的时间标记后再保存。",
   "notifications.uploadComplete": "上传完成",
   "notifications.uploadFailed": "上传失败",
   "notifications.downloadComplete": "下载完成",
