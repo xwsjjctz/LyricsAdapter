@@ -1,17 +1,21 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useId } from 'react';
 import { Track } from '../types';
 import { logger } from '../services/logger';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
 import { notify } from '../services/notificationService';
-import { themeManager } from '../services/themeManager';
-import { ThemeConfig } from '../types/theme';
 import TrackCover from './TrackCover';
 import GsapModal from './GsapModal';
 import Button from './ui/Button';
-import IconButton from './ui/IconButton';
 import { parseLRCLyrics } from '../services/metadataService';
 import { parseCoverDataUrl, sanitizePersistedCoverUrl } from '../services/coverUrl';
+import '../styles/metadataEditor.css';
+
+type TextField = 'title' | 'artist' | 'album';
+type EditableField = TextField | 'lyrics';
+
+/** Any `[mm:ss]` line tag marks the text as time-synced LRC. */
+const LRC_TIMESTAMP = /^\s*\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]/m;
 
 interface MetadataEditorPopupProps {
   track: Track;
@@ -27,15 +31,8 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [pendingCoverDataUrl, setPendingCoverDataUrl] = useState<string | null>(null);
   const { t } = useTranslation();
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const u1 = themeManager.subscribe(() => setCurrentTheme(themeManager.getCurrentTheme()));
-    return () => { u1(); };
-  }, []);
-
-  const colors = currentTheme.colors;
+  const fieldIdPrefix = useId();
 
   const hasChanges =
     edited.title !== track.title ||
@@ -44,16 +41,14 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
     edited.lyrics !== track.lyrics ||
     pendingCoverFile !== null;
 
-  const fieldValue = useCallback((field: 'title' | 'artist' | 'album' | 'lyrics'): string => {
-    return (edited[field] as string) || '';
+  const fieldValue = useCallback((field: EditableField): string => {
+    return edited[field] || '';
   }, [edited]);
 
-  const updateField = useCallback((field: 'title' | 'artist' | 'album' | 'lyrics', value: string) => {
-    setEdited(prev => {
-      const next = { ...prev, [field]: value };
-      if (field === 'lyrics') (next as any).syncedLyrics = undefined;
-      return next;
-    });
+  const updateField = useCallback((field: EditableField, value: string) => {
+    setEdited(prev => (field === 'lyrics'
+      ? { ...prev, lyrics: value, syncedLyrics: undefined }
+      : { ...prev, [field]: value }));
   }, []);
 
   const handleCoverImport = useCallback(() => {
@@ -62,6 +57,8 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
 
   const handleCoverFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Clear the input so choosing the same image again still fires onChange.
+    e.target.value = '';
     if (!file) return;
     setPendingCoverFile(file);
     const reader = new FileReader();
@@ -126,96 +123,122 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
     }
   }, [hasChanges, edited, pendingCoverDataUrl, onUpdateTrack, onClose]);
 
-  const renderInput = (label: string, field: 'title' | 'artist' | 'album') => (
-    <div className="flex items-center gap-4" key={field}>
-      <span className="text-sm font-bold uppercase tracking-widest w-16 flex-shrink-0" style={{ color: colors.textMuted }}>{label}:</span>
-      <div className="relative flex-1">
-        <input
-          type="text"
-          value={fieldValue(field)}
-          onChange={e => updateField(field, e.target.value)}
-          className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none transition-all"
-          style={{
-            backgroundColor: colors.backgroundCard,
-            border: `1px solid ${fieldValue(field) !== ((track as any)[field] || '') ? colors.primary : colors.borderLight}`,
-            color: colors.textPrimary,
-          }}
-        />
-      </div>
+  const fieldChanged = (field: EditableField): boolean => fieldValue(field) !== (track[field] || '');
+  const fileLabel = track.fileName || track.filePath?.split(/[\\/]/).pop() || '';
+  const hasTimedLyrics = LRC_TIMESTAMP.test(fieldValue('lyrics'));
+
+  const renderLabel = (field: EditableField, labelKey: string, htmlFor: string, trailing?: React.ReactNode) => (
+    <div className="metadata-editor__label-row">
+      <label htmlFor={htmlFor} className="metadata-editor__label">{t(labelKey)}</label>
+      {fieldChanged(field) && (
+        <span className="metadata-editor__edited">
+          <span className="metadata-editor__edited-dot" aria-hidden="true" />
+          {t('metadataView.edited')}
+        </span>
+      )}
+      {trailing}
     </div>
   );
 
-  const lyricsValue = fieldValue('lyrics');
-  const lyricsChanged = lyricsValue !== (track.lyrics || '');
+  const renderInput = (field: TextField, labelKey: string) => {
+    const id = `${fieldIdPrefix}-${field}`;
+    return (
+      <div className="metadata-editor__field" key={field}>
+        {renderLabel(field, labelKey, id)}
+        <input
+          id={id}
+          type="text"
+          value={fieldValue(field)}
+          onChange={e => updateField(field, e.target.value)}
+          spellCheck={false}
+          className="metadata-editor__input"
+          data-edited={fieldChanged(field) || undefined}
+        />
+      </div>
+    );
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void handleSave();
+    }
+  };
+
+  const coverSource = pendingCoverDataUrl || edited.coverUrl;
+  const lyricsId = `${fieldIdPrefix}-lyrics`;
 
   return (
     <GsapModal
       isOpen={isOpen}
       onExited={onExited}
       onDismiss={onClose}
-      overlayClassName="z-[200]"
-      overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-      panelClassName="r-surface shadow-2xl w-[520px] max-h-[85vh] flex flex-col overflow-hidden"
-      panelStyle={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.borderLight}` }}
+      overlayClassName="metadata-editor-backdrop"
+      panelClassName="metadata-editor"
     >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
-          <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>{t('metadataView.title')}</h2>
-          <IconButton icon="close" label={t('common.close')} size="sm" onClick={onClose} />
-        </div>
+      <div className="metadata-editor__frame" onKeyDown={handleKeyDown}>
+        <header className="metadata-editor__header">
+          <div className="min-w-0">
+            <h2 className="metadata-editor__title">{t('metadataView.title')}</h2>
+            {fileLabel && <p className="metadata-editor__file">{fileLabel}</p>}
+          </div>
+          <button type="button" className="wall-float__button metadata-editor__close" onClick={onClose} aria-label={t('common.close')}>
+            <span className="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </header>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-6 py-5 flex flex-col gap-4">
-          {/* Cover + basic fields */}
-          <div className="flex gap-5 flex-shrink-0">
-            <div className="relative group flex-shrink-0">
+        <div className="metadata-editor__body no-scrollbar">
+          <div className="metadata-editor__hero">
+            <button
+              type="button"
+              className="metadata-editor__cover"
+              onClick={handleCoverImport}
+              aria-label={t('metadataView.importCover')}
+              data-edited={pendingCoverFile !== null || undefined}
+            >
               <TrackCover
                 trackId={edited.id}
                 filePath={edited.filePath}
-                fallbackUrl={pendingCoverDataUrl || edited.coverUrl}
-                className="w-32 h-32 r-media object-cover shadow-xl"
-                thumbSize={256}
+                fallbackUrl={coverSource}
+                className="metadata-editor__cover-image"
+                thumbSize={320}
               />
-              <button onClick={handleCoverImport}
-                className="absolute bottom-2 right-2 px-2 py-1 r-card bg-black/60 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
-                <span className="material-symbols-outlined text-sm" style={{ color: colors.textPrimary }}>add_photo_alternate</span>
-                <span className="text-xs" style={{ color: colors.textPrimary }}>{t('metadataView.importCover')}</span>
-              </button>
-            </div>
-            <div className="flex-1 flex flex-col gap-2 min-w-0">
-              {renderInput('TITLE', 'title')}
-              {renderInput('ARTIST', 'artist')}
-              {renderInput('ALBUM', 'album')}
+              <span className="metadata-editor__cover-overlay" aria-hidden="true">
+                <span className="material-symbols-outlined">add_photo_alternate</span>
+                <span>{t('metadataView.importCover')}</span>
+              </span>
+            </button>
+            <div className="metadata-editor__fields">
+              {renderInput('title', 'metadataView.fieldTitle')}
+              {renderInput('artist', 'metadataView.fieldArtist')}
+              {renderInput('album', 'metadataView.fieldAlbum')}
             </div>
           </div>
 
-          {/* Lyrics */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <span className="text-sm font-bold uppercase tracking-widest mb-2 flex-shrink-0" style={{ color: colors.textMuted }}>LYRICS:</span>
-            <div className="flex-1 relative min-h-[160px]">
-              <textarea
-                value={lyricsValue}
-                onChange={e => updateField('lyrics', e.target.value)}
-                className="absolute inset-0 w-full rounded-lg p-3 text-sm focus:outline-none transition-all resize-none"
-                style={{
-                  backgroundColor: colors.backgroundCard,
-                  border: `1px solid ${lyricsChanged ? colors.primary : colors.borderLight}`,
-                  color: colors.textPrimary,
-                }}
-              />
-            </div>
+          <div className="metadata-editor__field metadata-editor__field--lyrics">
+            {renderLabel('lyrics', 'metadataView.fieldLyrics', lyricsId,
+              hasTimedLyrics ? <span className="metadata-editor__badge">LRC</span> : null)}
+            <textarea
+              id={lyricsId}
+              value={fieldValue('lyrics')}
+              onChange={e => updateField('lyrics', e.target.value)}
+              placeholder={t('metadataView.lyricsPlaceholder')}
+              spellCheck={false}
+              className="metadata-editor__input metadata-editor__lyrics no-scrollbar"
+              data-edited={fieldChanged('lyrics') || undefined}
+            />
           </div>
 
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverFileChange} />
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 flex-shrink-0" style={{ borderTop: `1px solid ${colors.borderLight}` }}>
+        <footer className="metadata-editor__footer">
           <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" onClick={handleSave} disabled={!hasChanges || saving}>
-            {saving ? '...' : t('common.save')}
+            {saving ? t('metadataView.saving') : t('common.save')}
           </Button>
-        </div>
+        </footer>
+      </div>
     </GsapModal>
   );
 };

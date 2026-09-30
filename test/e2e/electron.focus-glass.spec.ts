@@ -121,11 +121,13 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     expect(await page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBe(0);
     await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-mode'))?.hidden).toBe(false);
-    expect((await mainSlider('player-controlbar-volume-disclosure'))!.width).toBe(48);
-    expect((await mainSlider('player-controlbar-volume'))!.height).toBe(112);
-    expect((await mainSlider('player-controlbar-volume'))!.width).toBe(32);
+    const volumePanel = (await mainSlider('player-controlbar-volume-disclosure'))!;
+    expect(volumePanel.width).toBe(44);
+    expect(volumePanel.height).toBe(149);
+    expect(volumePanel.x + volumePanel.width / 2).toBeCloseTo(mute.x + mute.width / 2, 0);
+    expect((await mainSlider('player-controlbar-volume'))!.height).toBe(108);
+    expect((await mainSlider('player-controlbar-volume'))!.width).toBe(24);
     expect((await probe()).items.some(item => item.id === 'player-controlbar-mute')).toBe(false);
-    expect((await mainSlider('player-controlbar-volume-disclosure'))!.height).toBe(156);
     await probe('player-controlbar-volume:click');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.label).toBe('50%');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.focused).toBe(true);

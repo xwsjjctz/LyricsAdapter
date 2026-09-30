@@ -85,6 +85,33 @@ NSString* Time(double seconds) {
 }
 @end
 
+// Control Center style volume capsule: a knobless track whose ink fills from
+// the bottom. Zero knob thickness maps the whole capsule length to the value.
+@interface LAVolumeCapsuleCell : NSSliderCell
+@end
+@implementation LAVolumeCapsuleCell
+- (CGFloat)knobThickness { return 0; }
+- (NSRect)barRectFlipped:(BOOL)flipped { (void)flipped; return self.controlView.bounds; }
+- (void)drawKnob:(NSRect)knobRect { (void)knobRect; }
+- (void)drawBarInside:(NSRect)rect flipped:(BOOL)flipped {
+  (void)rect; NSRect bar = self.controlView.bounds; CGFloat radius = NSWidth(bar) / 2;
+  double span = self.maxValue - self.minValue;
+  double fraction = span > 0 ? std::clamp((self.doubleValue - self.minValue) / span, 0.0, 1.0) : 0;
+  CGFloat filled = NSHeight(bar) * fraction;
+  NSRect ink = NSMakeRect(NSMinX(bar), flipped ? NSMaxY(bar) - filled : NSMinY(bar), NSWidth(bar), filled);
+  [NSGraphicsContext saveGraphicsState];
+  [[NSBezierPath bezierPathWithRoundedRect:bar xRadius:radius yRadius:radius] addClip];
+  [[NSColor.labelColor colorWithAlphaComponent:0.12] setFill]; [[NSBezierPath bezierPathWithRect:bar] fill];
+  [[NSColor.labelColor colorWithAlphaComponent:self.enabled ? 0.88 : 0.35] setFill]; [[NSBezierPath bezierPathWithRect:ink] fill];
+  [NSGraphicsContext restoreGraphicsState];
+}
+- (NSRect)focusRingMaskBoundsForFrame:(NSRect)cellFrame inView:(NSView*)controlView { (void)controlView; return cellFrame; }
+- (void)drawFocusRingMaskWithFrame:(NSRect)cellFrame inView:(NSView*)controlView {
+  (void)controlView; CGFloat radius = NSWidth(cellFrame) / 2;
+  [[NSBezierPath bezierPathWithRoundedRect:cellFrame xRadius:radius yRadius:radius] fill];
+}
+@end
+
 @interface LAGlassHighlightView : NSView
 @property(nonatomic) CGFloat cornerRadius;
 @end
@@ -151,11 +178,21 @@ NSString* Time(double seconds) {
 @end
 
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
+namespace {
+constexpr CGFloat kVolumePanelWidth = 44;
+constexpr CGFloat kVolumeTrackWidth = 24;
+constexpr CGFloat kVolumeTrackHeight = 108;
+// Equal side and bottom insets around the track, plus the percentage row.
+constexpr CGFloat kVolumePanelHeight = kVolumeTrackHeight + (kVolumePanelWidth - kVolumeTrackWidth) + 21;
+}
+
 API_AVAILABLE(macos(26.0))
 @interface LAPlayerControlbarHost : NSView <LAVolumeDisclosureDelegate>
 @property(nonatomic, strong) NSGlassEffectView* bar;
 @property(nonatomic, strong) NSView* sliderGlass;
 @property(nonatomic, strong) LAVolumeHoverPanel* volumeDisclosure;
+@property(nonatomic, strong) NSGlassEffectView* volumeGlass;
+@property(nonatomic, strong) LAGlassHighlightView* volumeHighlight;
 @property(nonatomic, strong) LAVolumeHoverButton* volumeButton;
 @property(nonatomic, strong) NSTextField* volumeValue;
 @property(nonatomic, strong) id volumeEventMonitor;
@@ -180,7 +217,6 @@ API_AVAILABLE(macos(26.0))
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
 - (void)applyDarkMode:(BOOL)darkMode;
-- (NSColor*)volumeDisclosureColor;
 - (void)refreshAccessibility:(NSNotification*)notification;
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated;
 @end
@@ -230,24 +266,29 @@ API_AVAILABLE(macos(26.0))
   _volumeButton.accessibilityIdentifier = @"player-controlbar-volume-button"; _volumeButton.volumeDelegate = self;
   [content addSubview:_volumeButton];
   _volumeButton.accessibilityExpanded = NO;
+  // The volume popover is a smaller sibling of the bar: the same glass, tint
+  // and rim highlight, shaped as a capsule around the fill track.
   _volumeDisclosure = [[LAVolumeHoverPanel alloc] initWithFrame:NSZeroRect];
   _volumeDisclosure.volumeDelegate = self;
-  _volumeDisclosure.wantsLayer = YES; _volumeDisclosure.layer.cornerRadius = 16;
-  _volumeDisclosure.layer.borderWidth = 0.5;
   _volumeDisclosure.hidden = YES; _volumeDisclosure.accessibilityIdentifier = @"player-controlbar-volume-disclosure";
   _volumeDisclosure.accessibilityRole = NSAccessibilityGroupRole;
-  _volumeValue = [self label:11 weight:NSFontWeightSemibold color:NSColor.labelColor parent:_volumeDisclosure];
+  _volumeGlass = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _volumeGlass.style = NSGlassEffectViewStyleRegular;
+  _volumeGlass.tintColor = _bar.tintColor; _volumeGlass.contentView = [[NSView alloc] initWithFrame:NSZeroRect];
+  _volumeGlass.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; [_volumeDisclosure addSubview:_volumeGlass];
+  NSView* volumeContent = _volumeGlass.contentView;
+  _volumeHighlight = [[LAGlassHighlightView alloc] initWithFrame:NSZeroRect]; [volumeContent addSubview:_volumeHighlight];
+  _volumeValue = [self label:11 weight:NSFontWeightSemibold color:NSColor.secondaryLabelColor parent:volumeContent];
   _volumeValue.font = [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightSemibold];
   _volumeValue.alignment = NSTextAlignmentCenter; _volumeValue.accessibilityIdentifier = @"player-controlbar-volume-value";
   _sliderGlass = [[NSView alloc] initWithFrame:NSZeroRect];
   _sliderGlass.accessibilityIdentifier = @"player-controlbar-slider-glass"; [content addSubview:_sliderGlass];
   _seek = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
   _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [_sliderGlass addSubview:_seek];
-  _volume = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
+  _volume = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _volume.cell = [[LAVolumeCapsuleCell alloc] init]; _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
   _volume.vertical = YES; _volume.volumeDelegate = self;
   _volumeButton.nextKeyView = _volume; _volume.nextKeyView = _mode;
   _volume.controlSize = NSControlSizeRegular; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume";
-  _volume.hidden = YES; [_volumeDisclosure addSubview:_volume];
+  _volume.hidden = YES; [volumeContent addSubview:_volume];
   _elapsed = [self timeLabel:content]; _total = [self timeLabel:content];
   [self addSubview:_volumeDisclosure positioned:NSWindowAbove relativeTo:_bar];
   [NSWorkspace.sharedWorkspace.notificationCenter addObserver:self selector:@selector(refreshAccessibility:) name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
@@ -274,23 +315,18 @@ API_AVAILABLE(macos(26.0))
     NSAppearance* appearance = [NSAppearance appearanceNamed:name];
     self.bar.appearance = appearance; self.volumeDisclosure.appearance = appearance;
   }
-  self.bar.tintColor = [NSColor colorWithWhite:darkMode ? 0 : 1 alpha:0.3];
-  if (self.volumeRevealed) self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
+  self.bar.tintColor = [NSColor colorWithWhite:darkMode ? 0 : 1 alpha:0.3]; self.volumeGlass.tintColor = self.bar.tintColor;
   self.title.textColor = NSColor.labelColor;
-  self.volumeValue.textColor = NSColor.labelColor;
-  self.volumeDisclosure.layer.borderColor = [NSColor colorWithWhite:darkMode ? 1 : 0 alpha:0.16].CGColor;
+  self.volumeValue.textColor = NSColor.secondaryLabelColor; [self.volume setNeedsDisplay:YES];
   for (NSButton* button in @[self.artwork, self.previous, self.play, self.next, self.volumeButton]) button.contentTintColor = NSColor.labelColor;
   for (NSTextField* label in @[self.artist, self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
 }
-- (NSColor*)volumeDisclosureColor {
-  if (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency) return NSColor.controlBackgroundColor;
-  return self.darkMode ? [NSColor colorWithWhite:0.12 alpha:0.96] : [NSColor colorWithWhite:0.97 alpha:0.98];
-}
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification; BOOL opaque = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
-  self.bar.wantsLayer = YES; self.bar.layer.backgroundColor = opaque ? NSColor.windowBackgroundColor.CGColor : NSColor.clearColor.CGColor;
-  if (self.volumeRevealed) self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
-  self.highlight.alphaValue = opaque ? 0.35 : 1;
+  for (NSGlassEffectView* glass in @[self.bar, self.volumeGlass]) {
+    glass.wantsLayer = YES; glass.layer.backgroundColor = opaque ? NSColor.windowBackgroundColor.CGColor : NSColor.clearColor.CGColor;
+  }
+  self.highlight.alphaValue = opaque ? 0.35 : 1; self.volumeHighlight.alphaValue = self.highlight.alphaValue;
 }
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self refreshAccessibility:nil]; }
 - (void)layout {
@@ -306,16 +342,25 @@ API_AVAILABLE(macos(26.0))
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
   CGFloat localVolumeX = width - 76;
   self.volumeButton.frame = NSMakeRect(localVolumeX, centerY - 16, 32, 32);
-  CGFloat volumeX = NSMinX(self.bar.frame) + localVolumeX - 8;
-  CGFloat volumeY = NSMinY(self.bar.frame) + centerY + 22;
-  self.volumeDisclosure.frame = NSMakeRect(volumeX, volumeY, 48, 156);
-  self.volume.frame = NSMakeRect(8, 12, 32, 112);
-  self.volumeValue.frame = NSMakeRect(2, 130, 44, 18);
+  // Centered over the speaker and floating just above the bar's top edge;
+  // the hover grace period bridges the gap between them.
+  self.volumeDisclosure.frame = [self volumePanelFrameWithLift:0];
+  self.volumeGlass.frame = self.volumeDisclosure.bounds; self.volumeGlass.cornerRadius = kVolumePanelWidth / 2;
+  self.volumeGlass.contentView.frame = self.volumeGlass.bounds;
+  self.volumeHighlight.frame = self.volumeGlass.bounds; self.volumeHighlight.cornerRadius = kVolumePanelWidth / 2;
+  [self.volumeHighlight setNeedsDisplay:YES];
+  CGFloat inset = (kVolumePanelWidth - kVolumeTrackWidth) / 2;
+  self.volume.frame = NSMakeRect(inset, inset, kVolumeTrackWidth, kVolumeTrackHeight);
+  self.volumeValue.frame = NSMakeRect(0, inset + kVolumeTrackHeight + 5, kVolumePanelWidth, 16);
   self.elapsed.frame = NSMakeRect(300, centerY - 7, 36, 14); CGFloat sliderX = 338;
   CGFloat modeX = width - 44; CGFloat totalX = localVolumeX - 42;
   CGFloat sliderWidth = std::max<CGFloat>(90, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
   self.seek.frame = self.sliderGlass.bounds; self.total.frame = NSMakeRect(totalX, centerY - 7, 38, 14);
   self.mode.frame = NSMakeRect(modeX, centerY - 16, 32, 32);
+}
+- (NSRect)volumePanelFrameWithLift:(CGFloat)lift {
+  CGFloat buttonMidX = NSMinX(self.bar.frame) + NSMidX(self.volumeButton.frame);
+  return NSMakeRect(round(buttonMidX - kVolumePanelWidth / 2), NSMaxY(self.bar.frame) + 8 - lift, kVolumePanelWidth, kVolumePanelHeight);
 }
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
   if (_volumeRevealed == revealed) return;
@@ -332,13 +377,15 @@ API_AVAILABLE(macos(26.0))
     return;
   }
   [self layoutSubtreeIfNeeded];
-  self.volumeDisclosure.layer.backgroundColor = self.volumeDisclosureColor.CGColor;
   self.volumeDisclosure.hidden = NO; self.volume.hidden = NO;
   self.volumeDisclosure.alphaValue = self.bar.alphaValue;
   if (animated && !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
-    self.volumeDisclosure.alphaValue = 0;
+    // Rise out of the bar rather than blink in place.
+    NSRect target = [self volumePanelFrameWithLift:0];
+    self.volumeDisclosure.alphaValue = 0; self.volumeDisclosure.frame = [self volumePanelFrameWithLift:6];
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
-      context.duration = 0.12; self.volumeDisclosure.animator.alphaValue = self.bar.alphaValue;
+      context.duration = 0.18; context.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.2 :0.8 :0.2 :1];
+      self.volumeDisclosure.animator.alphaValue = self.bar.alphaValue; self.volumeDisclosure.animator.frame = target;
     } completionHandler:nil];
   }
   __weak LAPlayerControlbarHost* weakSelf = self;

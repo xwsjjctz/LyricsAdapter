@@ -1,0 +1,272 @@
+/*
+ * Metadata editor: the same glass sheet as Settings and the command palette.
+ * Colors derive from the theme text/background tokens, so light, dark and
+ * brutalist themes need no per-theme overrides.
+ */
+
+.metadata-editor-backdrop {
+  z-index: 200;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-app-region: no-drag;
+}
+
+.metadata-editor {
+  --metadata-hairline: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+  --metadata-field-bg: color-mix(in srgb, var(--theme-text-primary) 5%, transparent);
+  --metadata-field-border: color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+  display: flex;
+  width: min(580px, 100%);
+  max-height: min(760px, 88vh);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
+  border-radius: var(--theme-surface-radius);
+  background: color-mix(in srgb, var(--theme-background-dark) 72%, transparent);
+  color: var(--theme-text-primary);
+  box-shadow: 0 32px 80px -24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(36px) saturate(170%);
+}
+
+.metadata-editor__frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.metadata-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 12px 20px;
+  border-bottom: 1px solid var(--metadata-hairline);
+}
+
+.metadata-editor__title {
+  font-size: 1.05rem;
+  font-weight: var(--theme-text-heading-weight, 700);
+  line-height: 1.3;
+}
+
+.metadata-editor__file {
+  margin-top: 1px;
+  overflow: hidden;
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metadata-editor__close {
+  flex-shrink: 0;
+  padding: 6px;
+}
+
+.metadata-editor__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.metadata-editor__hero {
+  display: flex;
+  gap: 20px;
+}
+
+/* The whole artwork is the "replace cover" control. */
+.metadata-editor__cover {
+  position: relative;
+  flex-shrink: 0;
+  width: 200px;
+  height: 200px;
+  overflow: hidden;
+  border-radius: var(--theme-media-radius);
+  box-shadow: 0 14px 32px -14px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+}
+
+.metadata-editor__cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.metadata-editor__cover-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.46);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.metadata-editor__cover-overlay .material-symbols-outlined {
+  font-size: 24px;
+}
+
+.metadata-editor__cover:hover .metadata-editor__cover-overlay,
+.metadata-editor__cover:focus-visible .metadata-editor__cover-overlay {
+  opacity: 1;
+}
+
+.metadata-editor__cover:hover .metadata-editor__cover-image {
+  transform: scale(1.04);
+}
+
+.metadata-editor__cover:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 3px;
+}
+
+/* A replaced cover keeps a quiet ring until it is saved or discarded. */
+.metadata-editor__cover[data-edited] {
+  box-shadow: 0 0 0 2px var(--theme-primary), 0 14px 32px -14px rgba(0, 0, 0, 0.65);
+}
+
+.metadata-editor__fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.metadata-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.metadata-editor__label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 16px;
+}
+
+.metadata-editor__label {
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metadata-editor__edited {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--theme-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.metadata-editor__edited-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.metadata-editor__badge {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+  color: var(--theme-text-secondary, var(--theme-text-muted));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.metadata-editor__input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--metadata-field-border);
+  border-radius: var(--theme-control-radius);
+  background: var(--metadata-field-bg);
+  color: var(--theme-text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.metadata-editor__input::placeholder {
+  color: var(--theme-text-muted);
+}
+
+.metadata-editor__input:hover {
+  border-color: color-mix(in srgb, var(--theme-text-primary) 18%, transparent);
+}
+
+.metadata-editor__input:focus {
+  border-color: color-mix(in srgb, var(--theme-primary) 70%, transparent);
+  background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary) 22%, transparent);
+}
+
+.metadata-editor__field--lyrics {
+  flex: 1;
+  min-height: 0;
+}
+
+.metadata-editor__lyrics {
+  flex: 1;
+  min-height: 220px;
+  padding: 12px 14px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.75;
+  resize: none;
+}
+
+.metadata-editor__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--metadata-hairline);
+}
+
+@media (max-width: 520px) {
+  .metadata-editor__hero {
+    flex-direction: column;
+    align-items: center;
+  }
+  .metadata-editor__fields {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metadata-editor__cover-image,
+  .metadata-editor__cover-overlay {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .metadata-editor {
+    background: var(--theme-background-dark);
+    backdrop-filter: none;
+  }
+  .metadata-editor-backdrop {
+    backdrop-filter: none;
+  }
+}

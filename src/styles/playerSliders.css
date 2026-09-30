@@ -35,26 +35,31 @@ body:has(.focus-mode-overlay) .macos-floating-player {
   right: 0;
   top: 4px;
 }
+/* Same glass as the floating bar, shaped as a capsule around the fill track
+   and floating just above the bar; mirrors the native AppKit popover. */
 .macos-volume-slider-shell {
+  --volume-track-width: 24px;
+  --volume-track-height: 108px;
   position: absolute;
   z-index: 1;
-  left: -4px;
-  bottom: calc(100% + 6px);
-  width: 48px;
-  height: 156px;
-  padding: 8px;
+  left: -2px;
+  bottom: calc(100% + 24px);
+  width: 44px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--theme-control-panel-border);
-  border-radius: 16px;
-  background: var(--theme-background-dark, #202024);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+  gap: 5px;
+  border: var(--theme-panel-border-width) solid var(--theme-control-panel-border);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--theme-control-panel-bg-floating) 30%, transparent);
+  backdrop-filter: blur(24px) saturate(135%);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   visibility: hidden;
   opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 180ms ease, transform 180ms ease, visibility 0s 180ms;
+  transform: translateY(6px);
+  transition: opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s 180ms;
 }
 .macos-volume-disclosure[data-open="true"] .macos-volume-slider-shell {
   visibility: visible;
@@ -63,33 +68,37 @@ body:has(.focus-mode-overlay) .macos-floating-player {
   transition-delay: 0s;
 }
 .macos-volume-slider-shell .macos-volume-slider {
-  width: 32px;
-  height: 112px;
-  flex: 0 0 112px;
+  width: var(--volume-track-width);
+  height: var(--volume-track-height);
+  flex: 0 0 var(--volume-track-height);
+  border-radius: calc(var(--volume-track-width) / 2);
 }
 .macos-volume-slider input { writing-mode: vertical-lr; direction: rtl; }
+/* Knobless capsule: ink fills from the bottom, like Control Center. */
 .macos-volume-slider .player-slider-track {
   position: absolute;
-  left: 14px;
-  width: 4px;
+  inset: 0;
+  width: 100%;
   height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
 }
-.macos-volume-slider .player-slider-fill { position: absolute; bottom: 0; width: 100%; height: var(--slider-progress); }
-.macos-volume-slider .player-slider-thumb {
-  left: 50%;
-  bottom: clamp(7px, var(--slider-progress), calc(100% - 7px));
-  width: 14px;
-  height: 14px;
-  transform: translate(-50%, 50%);
-  opacity: 1;
+.macos-volume-slider .player-slider-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: var(--slider-progress);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--theme-text-primary) 88%, transparent);
 }
+.macos-volume-slider .player-slider-thumb { display: none; }
 .macos-volume-value {
-  flex: 0 0 18px;
+  flex: 0 0 16px;
   font-size: 11px;
-  line-height: 18px;
+  line-height: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--theme-control-icon-fg);
+  color: var(--theme-text-muted);
 }
 .macos-volume-button {
   position: absolute;
@@ -112,6 +121,10 @@ body:has(.focus-mode-overlay) .macos-floating-player {
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  .macos-volume-slider-shell {
+    background: var(--theme-control-panel-bg-floating);
+    backdrop-filter: none;
+  }
   .macos-floating-player {
     background-color: var(--theme-control-panel-bg-floating) !important;
     backdrop-filter: none !important;
