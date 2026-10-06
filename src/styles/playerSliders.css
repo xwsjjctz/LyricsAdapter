@@ -18,10 +18,30 @@ body:has(.focus-mode-overlay) .macos-floating-player {
   z-index: 140;
 }
 
-.macos-floating-player .player-track-info {
-  flex: 0 1 220px;
-  width: 30%;
-}
+/* Reserve metadata and transport widths; let the progress track absorb resize.
+   These match the native bar's cover/text and transport proportions. */
+.player-controls { gap: 12px; }
+.player-controls .player-track-info { flex: 0 0 172px; width: 172px; min-width: 0; }
+.player-controls .player-track-trigger { width: 100%; gap: 12px; }
+.player-controls .player-track-cover { width: 44px; height: 44px; flex-shrink: 0; }
+.player-controls .player-primary-controls { min-width: 0; gap: 12px; }
+.player-controls .player-transport { gap: 2px; }
+.player-controls .player-transport button { width: 32px; height: 38px; min-width: 0; }
+.player-controls .player-transport [data-testid="main-play-button"] { width: 38px; }
+.player-controls .player-progress-controls { min-width: 0; gap: 6px; }
+.player-controls .player-progress-controls > span { width: 30px; flex-shrink: 0; }
+.player-controls:not([data-macos-floating]) { padding-inline: clamp(12px, 2vw, 24px); }
+.player-controls:not([data-macos-floating]) .player-volume-controls { flex: 0 0 124px; width: 124px; }
+.player-controls .player-volume-slider { flex-basis: 48px; }
+
+.player-controls[data-controlbar-layout="reduced"] .player-volume-controls,
+.player-controls[data-controlbar-layout="compact"] .player-volume-controls { display: none; }
+
+.player-controls[data-controlbar-layout="compact"] { padding-inline: 12px; }
+.player-controls[data-controlbar-layout="compact"] .player-track-info { flex: 1 1 0; width: auto; }
+.player-controls[data-controlbar-layout="compact"] .player-track-trigger { gap: 10px; }
+.player-controls[data-controlbar-layout="compact"] .player-primary-controls { flex: 0 0 auto; gap: 0; }
+.player-controls[data-controlbar-layout="compact"] .player-progress-controls { display: none; }
 
 .macos-volume-controls {
   position: relative;

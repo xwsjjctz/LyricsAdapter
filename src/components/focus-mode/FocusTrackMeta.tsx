@@ -10,7 +10,7 @@ interface FocusTrackMetaProps {
 
 const FocusTrackMeta: React.FC<FocusTrackMetaProps> = ({ track, textPrimary, textMuted, scale = 1 }) => (
   <div
-    className="mt-5 lg:mt-7 text-center w-full max-w-[340px]"
+    className="focus-track-meta mt-5 lg:mt-7 text-center w-full max-w-[340px]"
     style={scale > 1 ? { marginTop: `${28 * scale}px`, maxWidth: `${340 * scale}px` } : undefined}
   >
     <h1

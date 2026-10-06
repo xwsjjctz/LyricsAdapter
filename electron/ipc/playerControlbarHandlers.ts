@@ -19,6 +19,7 @@ export const playerControlbarStateSchema = z.object({
   presentation,
   darkMode: z.boolean(),
   enabled: z.boolean(),
+  layout: z.enum(['full', 'reduced', 'compact']),
   isPlaying: z.boolean(),
   currentTime: z.number().finite().min(0).max(604800),
   duration: z.number().finite().min(0).max(604800),

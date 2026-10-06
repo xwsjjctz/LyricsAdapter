@@ -44,8 +44,8 @@ test('macOS web volume panel supports hover, speaker mute, dragging and keyboard
     await slider.press('End');
     await expect(slider).toHaveValue('1');
     const rect = (await slider.boundingBox())!;
-    expect(rect.width).toBe(32);
-    expect(rect.height).toBe(112);
+    expect(rect.width).toBe(24);
+    expect(rect.height).toBe(108);
     await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height * 0.75);
     expect(Number(await slider.inputValue())).toBeLessThan(0.5);
     await page.mouse.down();

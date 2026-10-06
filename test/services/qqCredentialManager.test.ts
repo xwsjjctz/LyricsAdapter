@@ -63,18 +63,20 @@ describe('qqCredentialManager', () => {
 
   it('persists the refreshed credential and pushes the new cookie', async () => {
     await qqCredentialManager.setCredential(credentialExpiringIn(HOUR));
-    const next = { ...credentialExpiringIn(72 * HOUR), musickey: 'new' };
+    const next = { ...credentialExpiringIn(72 * HOUR), musickey: 'new', openId: 'open', accessToken: 'access', expiredIn: 1_800_000_000 };
     mocks.qqLoginRefresh.mockResolvedValue({ success: true, credential: next, cookie: 'qm_keyst=new' });
 
     expect(await qqCredentialManager.refreshIfNeeded()).toBe(true);
     expect(mocks.qqLoginRefresh).toHaveBeenCalledWith(expect.objectContaining({ musickey: 'old' }), 'qm_keyst=old');
-    expect(JSON.parse(mocks.store.get(QQ_CREDENTIAL_STORAGE_KEY)!).musickey).toBe('new');
+    expect(JSON.parse(mocks.store.get(QQ_CREDENTIAL_STORAGE_KEY)!)).toEqual(next);
+    expect(await qqCredentialManager.getCredential()).toEqual(next);
     expect(mocks.setCookie).toHaveBeenCalledWith('qm_keyst=new');
     expect(mocks.sync).toHaveBeenCalledWith('qq');
   });
 
   it('shares one in-flight refresh and rate-limits later attempts', async () => {
-    await qqCredentialManager.setCredential(credentialExpiringIn(HOUR));
+    const previous = credentialExpiringIn(HOUR);
+    await qqCredentialManager.setCredential(previous);
     mocks.qqLoginRefresh.mockResolvedValue({ success: false, error: 'expired' });
 
     const [a, b] = await Promise.all([qqCredentialManager.refresh(), qqCredentialManager.refresh()]);
@@ -82,6 +84,14 @@ describe('qqCredentialManager', () => {
     expect(await qqCredentialManager.refresh()).toBe(false);
     expect(mocks.qqLoginRefresh).toHaveBeenCalledTimes(1);
     expect(mocks.setCookie).not.toHaveBeenCalled();
+    expect(mocks.sync).not.toHaveBeenCalled();
+    expect(await qqCredentialManager.getCredential()).toEqual(previous);
+  });
+
+  it('loads credentials saved before OAuth fields were retained', async () => {
+    const legacy = credentialExpiringIn(HOUR);
+    mocks.store.set(QQ_CREDENTIAL_STORAGE_KEY, JSON.stringify(legacy));
+    expect(await qqCredentialManager.getCredential()).toEqual(legacy);
   });
 
   it('ignores a malformed stored credential', async () => {

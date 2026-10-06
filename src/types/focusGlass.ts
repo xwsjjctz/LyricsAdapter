@@ -1,5 +1,6 @@
 export type PlaybackSymbol = 'skip_previous' | 'play_arrow' | 'pause' | 'skip_next'
-  | 'repeat' | 'shuffle' | 'repeat_one' | 'volume_off' | 'volume_up' | 'open_in_full';
+  | 'repeat' | 'shuffle' | 'repeat_one' | 'volume_off' | 'volume_up' | 'open_in_full'
+  | 'fast_rewind' | 'fast_forward' | 'volume_down';
 export type PlaybackSymbols = Partial<Record<PlaybackSymbol, string>>;
 
 /** Rectangle normalized to the renderer viewport; y starts at the top. */

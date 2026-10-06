@@ -71,8 +71,8 @@ export async function createWindow(): Promise<BrowserWindow> {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 1080,
-    minHeight: 720,
+    minWidth: 360,
+    minHeight: 600,
     title: 'LyricsAdapter',
     frame: false,
     transparent: isMacOS || process.platform === 'linux',
