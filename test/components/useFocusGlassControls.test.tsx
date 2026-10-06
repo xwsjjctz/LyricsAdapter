@@ -15,10 +15,45 @@ beforeEach(() => {
   mocks.stop.mockResolvedValue({ ok: true }); mocks.onAction.mockReturnValue(mocks.unsubscribe);
 });
 describe('useFocusGlassControls', () => {
+  it('reserves the native anchor throughout delayed startup and orientation changes', async () => {
+    let complete!: (result: unknown) => void;
+    mocks.start.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    const first = { ...options(), nativeEnabled: true };
+    const { result, rerender } = renderHook(props => useFocusGlassControls(props), { initialProps: first });
+    expect(result.current).toBe('pending');
+    await act(async () => complete({ ok: true, data: true }));
+    expect(result.current).toBe('active');
+    rerender({ ...first, nativeEnabled: false });
+    expect(result.current).toBe('fallback');
+    rerender(first);
+    expect(result.current).toBe('pending');
+    await act(async () => complete({ ok: true, data: true }));
+    expect(result.current).toBe('active');
+  });
+  it.each(['unavailable', 'rejected'] as const)('restores usable web controls when startup is %s', async failure => {
+    if (failure === 'unavailable') mocks.start.mockResolvedValue({ ok: true, data: false });
+    else mocks.start.mockRejectedValue(new Error('IPC disconnected'));
+    const { result } = renderHook(() => useFocusGlassControls(options()));
+    await waitFor(() => expect(result.current).toBe('fallback'));
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it('ignores a delayed result from the previous orientation session', async () => {
+    const completions: ((result: unknown) => void)[] = [];
+    mocks.start.mockImplementation(() => new Promise(resolve => completions.push(resolve)));
+    const first = { ...options(), nativeEnabled: true };
+    const { result, rerender } = renderHook(props => useFocusGlassControls(props), { initialProps: first });
+    rerender({ ...first, nativeEnabled: false });
+    rerender(first);
+    await act(async () => completions[0]!({ ok: true, data: true }));
+    expect(result.current).toBe('pending');
+    expect(mocks.update).not.toHaveBeenCalled();
+    await act(async () => completions[1]!({ ok: true, data: true }));
+    expect(result.current).toBe('active');
+  });
   it('forwards intents to the latest callbacks and releases the surface on unmount', async () => {
     const first = options();
     const { result, rerender, unmount } = renderHook(props => useFocusGlassControls(props), { initialProps: first });
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitFor(() => expect(result.current).toBe('active'));
     const latest = options(); rerender(latest);
     const emit = mocks.onAction.mock.calls[0]![0] as (event: FocusGlassAction) => void;
     act(() => { emit({ type: 'toggle-play', value: 0 }); emit({ type: 'seek', value: 80 }); emit({ type: 'volume', value: -1 }); });
@@ -33,27 +68,27 @@ describe('useFocusGlassControls', () => {
   it('leaves Windows on its existing controls', () => {
     mocks.platform = 'win32';
     const { result } = renderHook(() => useFocusGlassControls(options()));
-    expect(result.current).toBe(false); expect(mocks.start).not.toHaveBeenCalled();
+    expect(result.current).toBe('fallback'); expect(mocks.start).not.toHaveBeenCalled();
   });
   it('releases native controls in portrait and starts a fresh surface when returning to landscape', async () => {
     const first = { ...options(), nativeEnabled: true };
     const { result, rerender } = renderHook(props => useFocusGlassControls(props), { initialProps: first });
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitFor(() => expect(result.current).toBe('active'));
     const emit = mocks.onAction.mock.calls[0]![0] as (event: FocusGlassAction) => void;
     rerender({ ...first, nativeEnabled: false });
-    expect(result.current).toBe(false);
+    expect(result.current).toBe('fallback');
     expect(mocks.stop).toHaveBeenCalledOnce();
     act(() => emit({ type: 'toggle-play', value: 0 }));
     expect(first.onTogglePlay).not.toHaveBeenCalled();
     rerender(first);
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitFor(() => expect(result.current).toBe('active'));
     expect(mocks.start).toHaveBeenCalledTimes(2);
   });
   it('falls back when AppKit cannot update the surface', async () => {
     mocks.update.mockResolvedValue({ ok: false, error: 'surface lost' });
     const { result } = renderHook(() => useFocusGlassControls(options()));
     await waitFor(() => expect(mocks.update).toHaveBeenCalled());
-    await waitFor(() => expect(result.current).toBe(false));
+    await waitFor(() => expect(result.current).toBe('fallback'));
     expect(mocks.stop).toHaveBeenCalled();
   });
   it('does not revive a native surface after its owner has unmounted', async () => {

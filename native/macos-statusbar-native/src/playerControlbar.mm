@@ -214,6 +214,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic) BOOL volumeKeyboardActive;
 @property(nonatomic) BOOL suppressVolumeFocus;
 @property(nonatomic) BOOL darkMode;
+@property(nonatomic) BOOL compact;
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
 - (void)applyDarkMode:(BOOL)darkMode;
@@ -340,6 +341,20 @@ API_AVAILABLE(macos(26.0))
   CGFloat centerY = floor(self.bar.bounds.size.height / 2.0) + 0.5;
   self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
+  for (NSView* view in @[self.sliderGlass, self.seek, self.elapsed, self.total, self.volumeButton, self.mode]) view.hidden = self.compact;
+  if (self.compact) {
+    // Let metadata take all remaining space; the transport stays on the right
+    // instead of retaining the desktop's fixed offsets in a narrow glass bar.
+    CGFloat transportX = width - 14 - 106;
+    CGFloat textWidth = std::max<CGFloat>(0, transportX - 10 - 70);
+    self.title.frame = NSMakeRect(70, centerY + 3, textWidth, 18);
+    self.artist.frame = NSMakeRect(70, centerY - 17, textWidth, 16);
+    self.previous.frame = NSMakeRect(transportX, centerY - 16, 32, 32);
+    self.play.frame = NSMakeRect(transportX + 34, centerY - 19, 38, 38);
+    self.next.frame = NSMakeRect(transportX + 74, centerY - 16, 32, 32);
+    [self setVolumeRevealed:NO animated:NO];
+    return;
+  }
   CGFloat localVolumeX = width - 76;
   self.volumeButton.frame = NSMakeRect(localVolumeX, centerY - 16, 32, 32);
   // Centered over the speaker and floating just above the bar's top edge;
@@ -363,6 +378,7 @@ API_AVAILABLE(macos(26.0))
   return NSMakeRect(round(buttonMidX - kVolumePanelWidth / 2), NSMaxY(self.bar.frame) + 8 - lift, kVolumePanelWidth, kVolumePanelHeight);
 }
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
+  if (self.compact && revealed) return;
   if (_volumeRevealed == revealed) return;
   _volumeRevealed = revealed;
   [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeIfIdle) object:nil];
@@ -433,6 +449,17 @@ API_AVAILABLE(macos(26.0))
 }
 - (void)apply:(napi_value)state {
   using namespace PlayerControlbar; napi_value p = Get(state, "presentation");
+  BOOL compact = Bool(state, "compact");
+  if (self.compact != compact) {
+    self.compact = compact; [self setNeedsLayout:YES];
+    if (compact) {
+      [self setVolumeRevealed:NO animated:NO];
+      NSResponder* responder = self.window.firstResponder;
+      for (NSView* control in @[self.seek, self.mode, self.volumeButton]) {
+        if (responder == control) [self.window makeFirstResponder:nil];
+      }
+    }
+  }
   NSRect frame = NSMakeRect(Number(p, "x", -4, 4), Number(p, "y", -4, 4), Number(p, "width", 0, 4), Number(p, "height", 0, 4));
   if (!NSEqualRects(self.presentationFrame, frame)) { self.presentationFrame = frame; [self setNeedsLayout:YES]; }
   BOOL enabled = Bool(state, "enabled"); double duration = Number(state, "duration", 0, 604800);

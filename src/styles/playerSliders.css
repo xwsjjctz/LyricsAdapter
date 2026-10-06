@@ -23,6 +23,19 @@ body:has(.focus-mode-overlay) .macos-floating-player {
   width: 30%;
 }
 
+@media (max-width: 719px) {
+  .player-controls { padding-inline: 12px; gap: 12px; }
+  .player-controls .player-track-info { flex: 1 1 0; width: auto; min-width: 0; }
+  .player-controls .player-track-trigger { width: 100%; gap: 10px; }
+  .player-controls .player-track-cover { width: 44px; height: 44px; flex-shrink: 0; }
+  .player-controls .player-primary-controls { flex: 0 0 auto; gap: 0; }
+  .player-controls .player-transport { gap: 2px; }
+  .player-controls .player-transport button { width: 32px; height: 38px; min-width: 0; }
+  .player-controls .player-transport [data-testid="main-play-button"] { width: 38px; }
+  .player-controls .player-progress-controls,
+  .player-controls .player-volume-controls { display: none; }
+}
+
 .macos-volume-controls {
   position: relative;
   flex: 0 0 72px;

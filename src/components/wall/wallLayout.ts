@@ -1,7 +1,7 @@
 /**
  * Pure geometry for the library poster wall.
  *
- * The wall is a 12-column grid of square cells, consumed in 12x8 blocks. Each
+ * The wall uses 12 columns on desktop and 6 in narrow windows, with 8-row blocks. Each
  * full block is filled from a template whose slots tile the block exactly, so
  * mixed tile sizes never leave holes. An incomplete block uses compact mixed
  * bands sized to its track count, so adding tracks never needs to wait for a
@@ -41,9 +41,29 @@ interface WallLayoutInput {
 
 export const WALL_BLOCK_COLS = 12;
 export const WALL_BLOCK_ROWS = 8;
+export const WALL_COMPACT_BREAKPOINT = 720;
 const TAIL_BAND_ROWS = 4;
 
 const slot = (x: number, y: number, cols: number, rows: number): WallSlot => ({ x, y, cols, rows });
+
+// Three cover widths, like the Android collage, using the desktop wall's
+// square/wide/tall vocabulary and its seamless, count-aware tail policy.
+const COMPACT_COLS = 6;
+const COMPACT_TEMPLATE: readonly WallSlot[] = [
+  slot(0, 0, 2, 2), slot(2, 0, 2, 2), slot(4, 0, 2, 4),
+  slot(0, 2, 4, 2), slot(0, 4, 4, 4), slot(4, 4, 2, 2), slot(4, 6, 2, 2),
+];
+const COMPACT_TAILS: readonly (readonly WallSlot[])[] = [
+  [slot(0, 0, 6, 3)],
+  [slot(0, 0, 4, 4), slot(4, 0, 2, 4)],
+  [slot(0, 0, 4, 2), slot(4, 0, 2, 4), slot(0, 2, 4, 2)],
+  [slot(0, 0, 4, 2), slot(4, 0, 2, 2), slot(0, 2, 2, 2), slot(2, 2, 4, 2)],
+  [slot(0, 0, 4, 4), slot(4, 0, 2, 4), slot(0, 4, 2, 2), slot(2, 4, 2, 2), slot(4, 4, 2, 2)],
+  [
+    slot(0, 0, 4, 2), slot(4, 0, 2, 2), slot(0, 2, 2, 4),
+    slot(2, 2, 4, 2), slot(2, 4, 2, 2), slot(4, 4, 2, 2),
+  ],
+];
 
 /** Rotating block layouts; each covers 12x8 exactly. */
 export const WALL_TEMPLATES: readonly (readonly WallSlot[])[] = [
@@ -84,8 +104,8 @@ const TAIL_BANDS: readonly (readonly WallSlot[])[] = [
 
 const byReadingOrder = (a: WallSlot, b: WallSlot) => a.y - b.y || a.x - b.x;
 
-const mirror = (slots: readonly WallSlot[]): WallSlot[] =>
-  slots.map(s => ({ ...s, x: WALL_BLOCK_COLS - s.x - s.cols })).sort(byReadingOrder);
+const mirror = (slots: readonly WallSlot[], columns = WALL_BLOCK_COLS): WallSlot[] =>
+  slots.map(s => ({ ...s, x: columns - s.x - s.cols })).sort(byReadingOrder);
 
 /** Template for the n-th block; every second cycle is mirrored. */
 const templateFor = (blockIndex: number): WallSlot[] => {
@@ -109,7 +129,9 @@ const tailFor = (count: number, blockIndex: number): WallSlot[] => {
 export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallLayout {
   if (count <= 0 || width <= 0) return { tiles: [], height: 0 };
 
-  const cell = (width - gap * (WALL_BLOCK_COLS - 1)) / WALL_BLOCK_COLS;
+  const compact = width < WALL_COMPACT_BREAKPOINT;
+  const columns = compact ? COMPACT_COLS : WALL_BLOCK_COLS;
+  const cell = (width - gap * (columns - 1)) / columns;
   const pitch = cell + gap;
   const blockHeight = WALL_BLOCK_ROWS * pitch;
   const span = (cells: number) => cells * cell + (cells - 1) * gap;
@@ -138,9 +160,12 @@ export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallL
   };
 
   for (let block = 0; cursor < count; block++) {
-    const template = templateFor(block);
+    const template = compact
+      ? (block % 2 === 1 ? mirror(COMPACT_TEMPLATE, columns) : [...COMPACT_TEMPLATE].sort(byReadingOrder))
+      : templateFor(block);
     if (count - cursor < template.length) {
-      place(tailFor(count - cursor, block), top);
+      const tail = compact ? COMPACT_TAILS[count - cursor - 1]! : tailFor(count - cursor, block);
+      place(compact && block % 2 === 1 ? mirror(tail, columns) : tail, top);
       break;
     }
     place(template, top);

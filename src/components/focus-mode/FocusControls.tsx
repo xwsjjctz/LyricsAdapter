@@ -111,13 +111,14 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
     onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
     onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />;
-  if (nativeGlass) {
+  if (nativeGlass !== 'fallback') {
     // Keep a hover target when the native controls fade out; it owns no playback
     // controls or accessibility nodes and creates no duplicate tab stops.
     return <div
       ref={setPlayerRef}
       className="focus-native-controls transition-opacity duration-500 motion-reduce:transition-none"
       data-testid="focus-native-controls"
+      data-native-status={nativeGlass}
       aria-hidden="true"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -156,6 +157,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   >
     <div
       ref={playerRef}
+      data-testid="focus-web-controls"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className="p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"

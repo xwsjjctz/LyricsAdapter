@@ -41,18 +41,29 @@ export function readFocusGlassPresentation(element: HTMLElement | null): FocusGl
     width: rect.width / innerWidth, height: rect.height / innerHeight, opacity };
 }
 
-/** The native surface owns presentation; all playback remains in the controller. */
-export function useFocusGlassControls(options: Options): boolean {
+export type FocusGlassStatus = 'pending' | 'active' | 'fallback';
+
+/** A pending native surface reserves its anchor without flashing web controls. */
+export function useFocusGlassControls(options: Options): FocusGlassStatus {
   const { t } = useTranslation();
-  const [active, setActive] = useState(false);
   const callbacks = useRef(options);
   callbacks.current = options;
   const desktop = getDesktopAPI();
-  const api = options.nativeEnabled !== false && desktop?.platform === 'darwin' ? desktop.ipc?.focusGlass : undefined;
+  const api = desktop?.platform === 'darwin' ? desktop.ipc?.focusGlass : undefined;
+  const enabledNative = !!api && options.nativeEnabled !== false;
+  const [session, setSession] = useState<{ api: typeof api; enabled: boolean; status: FocusGlassStatus }>(
+    () => ({ api, enabled: enabledNative, status: enabledNative ? 'pending' : 'fallback' }),
+  );
+  // The render that crosses the orientation boundary precedes its effect.
+  // Key readiness by the current session so that render also stays native.
+  const status = !enabledNative ? 'fallback'
+    : session.api === api && session.enabled === enabledNative ? session.status : 'pending';
+  const active = status === 'active';
 
   useEffect(() => {
-    setActive(false);
-    if (!api) return;
+    const setStatus = (status: FocusGlassStatus) => setSession({ api, enabled: enabledNative, status });
+    setStatus(enabledNative ? 'pending' : 'fallback');
+    if (!api || !enabledNative) return;
     let cancelled = false;
     const unsubscribe = api.onAction((action: FocusGlassAction) => {
       if (cancelled) return;
@@ -69,14 +80,17 @@ export function useFocusGlassControls(options: Options): boolean {
       }
     });
     void api.start().then(result => {
-      if (!cancelled) setActive(result.ok && result.data);
-    }).catch(error => logger.warn('[FocusGlass] Using web controls:', error));
+      if (!cancelled) setStatus(result.ok && result.data ? 'active' : 'fallback');
+    }).catch(error => {
+      if (!cancelled) setStatus('fallback');
+      logger.warn('[FocusGlass] Using web controls:', error);
+    });
     return () => {
       cancelled = true;
       unsubscribe();
       void api.stop().catch(error => logger.warn('[FocusGlass] Cleanup failed:', error));
     };
-  }, [api]);
+  }, [api, enabledNative]);
 
   // Time labels and the native slider only need four updates per second.
   const currentTime = Math.floor(Math.max(0, options.currentTime) * 4) / 4;
@@ -106,7 +120,7 @@ export function useFocusGlassControls(options: Options): boolean {
     const fallback = () => {
       if (cancelled) return;
       cancelled = true;
-      setActive(false);
+      setSession({ api, enabled: true, status: 'fallback' });
       void api.stop().catch(error => logger.warn('[FocusGlass] Cleanup failed:', error));
     };
     const send = () => {
@@ -161,5 +175,5 @@ export function useFocusGlassControls(options: Options): boolean {
   }, [api, active]);
   useEffect(() => { sync.current?.(); }, [active, visible, enabled, isPlaying, currentTime, duration, volume, playbackMode, scale, t]);
   useEffect(() => { animate.current?.(); }, [active, visible, options.focusVisible, scale]);
-  return !!api && active;
+  return status;
 }

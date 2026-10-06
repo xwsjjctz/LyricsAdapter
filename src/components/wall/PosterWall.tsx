@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { Track } from '../../types';
 import type { OnlineProgress } from '../../types/onlineProgress';
 import PosterTile from './PosterTile';
-import { computeWallLayout } from './wallLayout';
+import { computeWallLayout, WALL_COMPACT_BREAKPOINT } from './wallLayout';
 import { useWallSourceTransition } from './useWallSourceTransition';
 import { autoLocateScrollTop, centerLocateScrollTop, type WallLocateInput } from './wallLocate';
 
@@ -108,24 +108,41 @@ const PosterWall: React.FC<PosterWallProps> = ({
     [renderedTracks.length, width],
   );
 
-  // Tiles scale with the width (cell = width / 12), so a fixed pixel offset
-  // shows different songs after a resize. Rescale it around the viewport
-  // centre, before paint, so the songs in view stay put; a height-only
-  // resize leaves the layout and the offset unchanged.
+  // Preserve the song at the viewport centre when changing density; within
+  // one density, the existing proportional scroll anchoring still applies.
   const lastScrollTopRef = useRef(0);
   const measuredWidthRef = useRef(width);
+  const previousLayoutRef = useRef(layout);
   useLayoutEffect(() => {
     const previous = measuredWidthRef.current;
+    const previousLayout = previousLayoutRef.current;
     measuredWidthRef.current = width;
+    previousLayoutRef.current = layout;
     const container = containerRef.current;
     if (!container || previous <= 0 || width <= 0 || previous === width || restorePendingRef.current) return;
     const half = container.clientHeight / 2;
     const maxTop = Math.max(0, layout.height - container.clientHeight);
-    const top = Math.max(0, Math.min((lastScrollTopRef.current + half) * (width / previous) - half, maxTop));
+    let target = (lastScrollTopRef.current + half) * (width / previous) - half;
+    if ((previous < WALL_COMPACT_BREAKPOINT) !== (width < WALL_COMPACT_BREAKPOINT)) {
+      const centreY = lastScrollTopRef.current + half;
+      const centreX = previous / 2;
+      const distance = (tile: typeof layout.tiles[number]) =>
+        Math.max(tile.y - centreY, centreY - tile.y - tile.height, 0) ** 2 +
+        Math.max(tile.x - centreX, centreX - tile.x - tile.width, 0) ** 2;
+      const anchor = previousLayout.tiles.reduce<typeof layout.tiles[number] | undefined>(
+        (best, tile) => !best || distance(tile) < distance(best) ? tile : best, undefined,
+      );
+      const next = anchor && layout.tiles[anchor.index];
+      if (anchor && next) {
+        const fraction = Math.max(0, Math.min(1, (centreY - anchor.y) / anchor.height));
+        target = next.y + fraction * next.height - half;
+      }
+    }
+    const top = lastScrollTopRef.current === 0 ? 0 : Math.max(0, Math.min(target, maxTop));
     container.scrollTop = top;
     lastScrollTopRef.current = top;
     setScrollTop(top);
-  }, [width, layout.height]);
+  }, [width, layout]);
 
   const overscan = viewportHeight * OVERSCAN_VIEWPORTS;
   const visibleTiles = useMemo(() => {

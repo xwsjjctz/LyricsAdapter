@@ -8,7 +8,10 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock('@/components/OverflowMarquee', () => ({ default: ({ text }: { text: string }) => <span>{text}</span> }));
 const desktop = vi.hoisted(() => ({ platform: 'win32' }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: () => desktop }));
-beforeEach(() => { desktop.platform = 'win32'; });
+beforeEach(() => {
+  desktop.platform = 'win32';
+  window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+});
 
 const track: Track = { id: 'preview', title: 'Test track', artist: 'Artist', album: 'Album', duration: 180, audioUrl: '' };
 

@@ -97,19 +97,42 @@ describe('computeWallLayout', () => {
 
   it('scales mixed tail shapes with the window width', () => {
     const wide = computeWallLayout({ count: 17, width: 1200, gap: 0 });
-    const narrow = computeWallLayout({ count: 17, width: 600, gap: 0 });
+    const narrow = computeWallLayout({ count: 17, width: 900, gap: 0 });
     for (const [index, tile] of narrow.tiles.entries()) {
       const original = wide.tiles[index]!;
       expect([tile.cols, tile.rows]).toEqual([original.cols, original.rows]);
-      expect(tile.x).toBeCloseTo(original.x / 2);
-      expect(tile.y).toBeCloseTo(original.y / 2);
-      expect(tile.width).toBeCloseTo(original.width / 2);
-      expect(tile.height).toBeCloseTo(original.height / 2);
+      expect(tile.x).toBeCloseTo(original.x * 0.75);
+      expect(tile.y).toBeCloseTo(original.y * 0.75);
+      expect(tile.width).toBeCloseTo(original.width * 0.75);
+      expect(tile.height).toBeCloseTo(original.height * 0.75);
     }
   });
 
   it('returns an empty layout for no tracks or no width', () => {
     expect(computeWallLayout({ count: 0, ...metrics })).toEqual({ tiles: [], height: 0 });
     expect(computeWallLayout({ count: 5, width: 0, gap: 8 })).toEqual({ tiles: [], height: 0 });
+  });
+
+  it.each([360, 393, 600, 719])('keeps narrow covers readable at %i px, including every partial block', width => {
+    for (let count = 1; count <= 42; count++) {
+      const layout = computeWallLayout({ count, width, gap: 0 });
+      expect(layout.tiles).toHaveLength(count);
+      const cell = width / 6;
+      const cells = Array.from({ length: Math.round(layout.height / cell) }, () => Array<number>(6).fill(0));
+      for (const tile of layout.tiles) {
+        expect(tile.width).toBeGreaterThanOrEqual(width / 3 - 0.001);
+        expect(tile.height).toBeGreaterThanOrEqual(width / 3 - 0.001);
+        expect(tile.x + tile.width).toBeLessThanOrEqual(width + 0.001);
+        const x = Math.round(tile.x / cell), y = Math.round(tile.y / cell);
+        for (let row = y; row < y + tile.rows; row++) {
+          for (let col = x; col < x + tile.cols; col++) cells[row]![col]! += 1;
+        }
+      }
+      expect(cells.flat().every(coverage => coverage === 1)).toBe(true);
+      expect(layout.tiles.some(tile => tile.cols !== tile.rows)).toBe(true);
+      const after = computeWallLayout({ count: count + 1, width, gap: 0 });
+      const completed = Math.floor(count / 7) * 7;
+      expect(after.tiles.slice(0, completed)).toEqual(layout.tiles.slice(0, completed));
+    }
   });
 });

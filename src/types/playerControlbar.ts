@@ -4,6 +4,7 @@ export interface PlayerControlbarState {
   presentation: FocusGlassPresentation;
   darkMode: boolean;
   enabled: boolean;
+  compact: boolean;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
