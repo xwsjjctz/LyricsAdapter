@@ -55,6 +55,7 @@ function commandItem(command: PaletteCommand, section: string, path: string[]): 
     detail: command.detail,
     shortcut: shortcut ? shortcutManager.formatKeyForDisplay(shortcut) : undefined,
     icon: command.icon,
+    coverUrl: command.coverUrl === undefined ? undefined : resolveCoverUrl(command.coverUrl),
     command: command.children ? command : undefined,
     keepOpen: command.keepOpen,
     run: () => { void command.run?.(); },

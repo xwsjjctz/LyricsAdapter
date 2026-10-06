@@ -4,31 +4,40 @@ import { useVolumeDisclosure } from '@/hooks/useVolumeDisclosure';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
-describe('volume disclosure across web/native controls', () => {
-  it('keeps the strip open when the pointer crosses onto the native slider', () => {
+describe('hover volume disclosure', () => {
+  it('bridges the pointer gap and closes half a second after leaving', () => {
     const { result } = renderHook(() => useVolumeDisclosure(true));
-    act(() => { result.current.enter(); result.current.open(); result.current.leave(); });
-    act(() => result.current.onNativePresence(true));
-    act(() => vi.advanceTimersByTime(500));
+    act(() => { result.current.enter(); result.current.leave(); });
+    act(() => vi.advanceTimersByTime(300));
     expect(result.current.expanded).toBe(true);
-    act(() => result.current.onNativePresence(false));
-    act(() => vi.advanceTimersByTime(200));
-    expect(result.current.expanded).toBe(false);
-  });
-  it('ignores a late native exit after the pointer returns to the speaker', () => {
-    const { result } = renderHook(() => useVolumeDisclosure(true));
-    act(() => { result.current.onNativePresence(true); result.current.enter(); result.current.open(); result.current.onNativePresence(false); });
-    act(() => vi.advanceTimersByTime(500));
+    act(() => result.current.enter());
+    act(() => vi.advanceTimersByTime(1000));
     expect(result.current.expanded).toBe(true);
     act(() => result.current.leave());
-    act(() => vi.advanceTimersByTime(200));
+    act(() => vi.advanceTimersByTime(500));
     expect(result.current.expanded).toBe(false);
   });
-  it('closes and clears presence when the player is hidden', () => {
-    const { result, rerender } = renderHook(({ visible }) => useVolumeDisclosure(visible), { initialProps: { visible: true } });
-    act(() => result.current.onNativePresence(true));
-    rerender({ visible: false });
+  it('consumes Escape only while open and releases listeners and timers on unmount', () => {
+    const { result, unmount } = renderHook(() => useVolumeDisclosure(true));
+    act(() => result.current.enter());
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    act(() => document.dispatchEvent(escape));
+    expect(escape.defaultPrevented).toBe(true);
     expect(result.current.expanded).toBe(false);
+    act(() => { result.current.enter(); result.current.leave(); });
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    const after = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(after);
+    expect(after.defaultPrevented).toBe(false);
+  });
+  it('closes when the player or its window is hidden', () => {
+    const { result, rerender } = renderHook(({ visible }) => useVolumeDisclosure(visible), { initialProps: { visible: true } });
+    act(() => result.current.enter());
+    act(() => window.dispatchEvent(new Event('blur')));
+    expect(result.current.expanded).toBe(false);
+    act(() => result.current.enter());
+    rerender({ visible: false });
     rerender({ visible: true });
     expect(result.current.expanded).toBe(false);
   });

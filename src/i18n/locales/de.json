@@ -154,6 +154,7 @@
   "controls.sequence": "Sequenz",
   "controls.volume": "Lautstärke",
   "controls.mute": "Stumm",
+  "controls.unmute": "Stummschaltung aufheben",
   "controls.noTrackSelected": "Kein Titel ausgewählt",
   "controls.shuffleMode": "Zufällig",
   "controls.repeatOneMode": "Einen wiederholen",
@@ -268,6 +269,15 @@
   "shortcut.gotoMetadataDesc": "Zur Metadatenansicht wechseln",
   "metadataView.title": "Metadaten",
   "metadataView.importCover": "Cover importieren",
+  "metadataView.fieldTitle": "Titel",
+  "metadataView.fieldArtist": "Künstler",
+  "metadataView.fieldAlbum": "Album",
+  "metadataView.fieldLyrics": "Liedtext",
+  "metadataView.edited": "Geändert",
+  "metadataView.saving": "Wird gespeichert…",
+  "metadataView.lyricsPlaceholder": "Liedtext als Klartext oder LRC einfügen",
+  "metadataView.wordLyricsHint": "Du bearbeitest den wortgenauen Quelltext. Behalte die Zeilen- und Wortzeitstempel bei. Beim Speichern wird die Datei aktualisiert und der Fokusmodus übernimmt die Änderung sofort.",
+  "metadataView.wordLyricsInvalid": "Der wortgenaue Liedtext konnte nicht gelesen werden. Prüfe die Zeilen- und Wortzeitstempel und speichere erneut.",
   "notifications.uploadComplete": "Upload abgeschlossen",
   "notifications.uploadFailed": "Upload fehlgeschlagen",
   "notifications.downloadComplete": "Download abgeschlossen",
@@ -328,5 +338,8 @@
   "palette.state.off": "Aus",
   "palette.command.refreshCloud": "Cloud-Mediathek aktualisieren",
   "search.editQuery": "Suche bearbeiten",
-  "search.downloading": "{{count}} werden geladen"
+  "search.downloading": "{{count}} werden geladen",
+  "wall.download.preparing": "Vorbereitung",
+  "wall.download.downloading": "Download läuft",
+  "wall.download.saving": "Speichern"
 }

@@ -7,6 +7,7 @@ import { refreshQQCredential } from '../services/qqCredential';
 import {
   isQQCredential,
   parseQQCredential,
+  recoverQQCredentialFromCookie,
   type QQCredential,
 } from '../../src/shared/qqCredential';
 
@@ -588,7 +589,8 @@ async function pollLogin(token: string): Promise<PollResult> {
     }
 
     const cookie = await buildFinalCookie(session);
-    const credential = parseQQCredential(musicJson.req?.data);
+    const parsedCredential = parseQQCredential(musicJson.req?.data);
+    const credential = parsedCredential ? recoverQQCredentialFromCookie(parsedCredential, cookie) : null;
     if (!credential) {
       logger.warn('[QQLogin] login response has no refresh credential; silent refresh disabled');
     }

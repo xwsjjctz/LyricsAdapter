@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Track } from '@/types';
 
@@ -59,11 +59,57 @@ function renderWall(props: Partial<React.ComponentProps<typeof PosterWall>> = {}
 const tileNames = () => screen.getAllByRole('button').map(tile => tile.getAttribute('aria-label'));
 
 describe('PosterWall', () => {
+  it('shows each download on its own cover and keeps cover playback working', () => {
+    const qq = { ...track('online-qq-123'), songmid: '123', source: 'qq' as const };
+    const netease = { ...track('online-netease-123'), songmid: '123', source: 'netease' as const };
+    const { rerenderWall, onTrackSelect } = renderWall({ tracks: [qq, netease], downloadProgress: {
+      [qq.id]: { type: 'download', percent: 37 },
+      [netease.id]: { type: 'download', percent: 82 },
+    } });
+    const qqTile = screen.getByRole('button', { name: `Song ${qq.id} / Artist` });
+    const neteaseTile = screen.getByRole('button', { name: `Song ${netease.id} / Artist` });
+    expect(within(qqTile).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37');
+    expect(within(neteaseTile).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '82');
+    fireEvent.click(within(qqTile).getByText('37%'));
+    expect(onTrackSelect).toHaveBeenCalledWith(0);
+
+    rerenderWall({ downloadProgress: {
+      [qq.id]: { type: 'download', percent: 100, phase: 'saving' },
+      [netease.id]: { type: 'download', percent: 0, status: 'error' },
+    } });
+    expect(within(qqTile).getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+    expect(within(qqTile).getByText('wall.download.saving')).toBeVisible();
+    expect(within(neteaseTile).getByRole('status')).toHaveTextContent('notifications.downloadFailed');
+    rerenderWall({ downloadProgress: { [qq.id]: { type: 'download', percent: 100, status: 'completed' } } });
+    expect(within(qqTile).getByRole('status')).toHaveTextContent('notifications.downloadComplete');
+    expect(within(neteaseTile).queryByRole('status')).toBeNull();
+    rerenderWall({ downloadProgress: { [qq.id]: { type: 'upload', percent: 25 } } });
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
   it('renders a tile per track and plays the clicked one', () => {
     const { onTrackSelect } = renderWall();
     expect(tileNames()).toEqual(local.map(t => `${t.title} / Artist`));
     fireEvent.click(screen.getByRole('button', { name: 'Song c / Artist' }));
     expect(onTrackSelect).toHaveBeenCalledWith(2);
+  });
+
+  it('updates mixed tail shapes as tracks are added without moving a completed block', () => {
+    const songs = Array.from({ length: 14 }, (_, index) => track(`added-${index}`));
+    const { rerenderWall, onTrackSelect } = renderWall({ tracks: songs.slice(0, 12) });
+    const geometry = () => screen.getAllByRole('button').slice(0, 12)
+      .map(tile => [tile.style.transform, tile.style.width, tile.style.height]);
+    const completed = geometry();
+
+    for (const count of [13, 14]) {
+      rerenderWall({ tracks: songs.slice(0, count) });
+      expect(geometry()).toEqual(completed);
+      const tail = screen.getAllByRole('button').slice(12);
+      expect(tail).toHaveLength(count - 12);
+      expect(tail.some(tile => tile.style.width !== tile.style.height)).toBe(true);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Song added-13 / Artist' }));
+    expect(onTrackSelect).toHaveBeenCalledWith(13);
   });
 
   it('plays on plain Enter only, leaving Cmd+Enter and Space to global shortcuts', () => {

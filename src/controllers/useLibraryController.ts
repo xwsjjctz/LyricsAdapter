@@ -10,6 +10,7 @@ import { reorderTracks, swapTracks } from '../services/libraryReorder';
 import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibrarySettings } from '../services/libraryStorage';
+import { refreshTrackLyricsCaches } from '../services/trackLyricsCaches';
 
 /**
  * Library Controller (Phase 2 of the refactor roadmap, §4).
@@ -171,8 +172,13 @@ export function useLibraryController(options: LibraryControllerOptions) {
   // Update a single track's metadata in the view slot. Equivalent to the
   // inline `(track) => updateSlot(viewSlot, s => ({ ...s, tracks: s.tracks.map(...) }))`
   // that previously appeared at multiple LibraryView call sites.
+  // The slot update re-renders FocusMode at once; the metadata cache is
+  // refreshed so later cache hydration keeps the edit.
   const updateTrack = useCallback((track: Track) => {
     updateSlot(viewSlot, (s: LibrarySlot) => ({ ...s, tracks: s.tracks.map(t => t.id === track.id ? track : t) }));
+    void refreshTrackLyricsCaches(track).catch(error => {
+      logger.warn('[LibraryController] Failed to refresh caches for edited track:', error);
+    });
   }, [viewSlot, updateSlot]);
 
   // Add a freshly downloaded track to the local slot. Dedupes by filePath,

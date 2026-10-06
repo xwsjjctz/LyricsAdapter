@@ -38,7 +38,7 @@ export function parseLyrics(
   return parseLRCLyrics(lyrics);
 }
 
-function extractQrcContent(raw: string): string {
+export function extractQrcContent(raw: string): string {
   // Apostrophes are valid lyric content, so anchor on the closing `"/>` instead
   // of treating either quote character as the end of LyricContent.
   const lyricContent = raw.match(/LyricContent\s*=\s*"([\s\S]*?)"\s*\/>/i)?.[1];

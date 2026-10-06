@@ -3,6 +3,7 @@ import type { Track } from '../types';
 import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import type { OnlineQuality } from '../services/onlineMusicProvider';
 import { trackToOnlineSong } from '../domain/trackFactory';
+import type { OnlineProgressEntry } from '../types/onlineProgress';
 
 /**
  * Online-music-facing ViewModel (Phase 4 follow-up, roadmap §6.2).
@@ -16,13 +17,8 @@ import { trackToOnlineSong } from '../domain/trackFactory';
  * progress map. The underlying controller/hook stay untouched.
  */
 
-export interface OnlineProgressEntry {
-  type: 'download' | 'upload';
-  percent: number;
-}
-
 export interface OnlineViewModel {
-  /** Live download/upload progress keyed by songmid. */
+  /** Download progress keyed by the online track id (provider + songmid). */
   progress: Record<string, OnlineProgressEntry>;
 
   /** Stream-play an OnlineSong immediately (no download). */

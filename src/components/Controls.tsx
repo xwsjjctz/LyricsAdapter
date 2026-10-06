@@ -1,4 +1,4 @@
-import React, { memo, useRef } from 'react';
+import React, { memo, useId, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
@@ -7,6 +7,7 @@ import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
 import { useVolumeDisclosure } from '../hooks/useVolumeDisclosure';
 import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
+import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { MACOS_PLAYER_BOTTOM, MACOS_PLAYER_HEIGHT } from './playerLayout';
 
@@ -53,20 +54,24 @@ const Controls: React.FC<ControlsProps> = memo(({
   const { t } = useTranslation();
   const symbols = usePlaybackSymbols();
   const isMac = getDesktopAPI()?.platform === 'darwin';
+  const layout = usePlayerControlbarLayout();
+  const compact = layout === 'compact';
   const panelRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
+  const volumePanelId = useId();
 
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
-  const disclosure = useVolumeDisclosure(isMac && !isFocusMode);
+  const disclosure = useVolumeDisclosure(isMac && !isFocusMode && layout === 'full');
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
     visible: true,
     artworkUrl: resolveCoverUrl(track?.coverUrl),
     state: {
       enabled: !!track,
+      layout,
       isPlaying,
       currentTime: displayCurrentTime,
       duration,
@@ -81,7 +86,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         next: t('shortcut.nextTrack'),
         seek: t('controls.seek'),
         volume: t('controls.volume'),
-        mute: t('controls.mute'),
+        mute: t(volume === 0 ? 'controls.unmute' : 'controls.mute'),
         mode: t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence'),
       },
     },
@@ -101,6 +106,8 @@ const Controls: React.FC<ControlsProps> = memo(({
         ref={panelRef}
         data-testid="main-controlbar"
         data-native-controlbar="true"
+        data-compact-controlbar={compact}
+        data-controlbar-layout={layout}
         aria-hidden="true"
         className={`macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
         style={{ height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM, background: 'transparent' }}
@@ -124,10 +131,12 @@ const Controls: React.FC<ControlsProps> = memo(({
     <div
       data-testid="main-controlbar"
       data-macos-floating={isMac || undefined}
-      className={isMac ? `macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
+      data-compact-controlbar={compact}
+      data-controlbar-layout={layout}
+      className={'player-controls ' + (isMac ? `macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
         ? `mx-2 mb-2 h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
         : `h-24 border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
-      }
+      )}
       style={isMac ? {
         height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM,
         backgroundColor: 'color-mix(in srgb, var(--theme-control-panel-bg-floating) 30%, transparent)',
@@ -151,13 +160,13 @@ const Controls: React.FC<ControlsProps> = memo(({
       }}
     >
       {/* Current Track Info - Clickable for Focus Mode */}
-      <div className={isMac ? 'player-track-info flex items-center min-w-0' : 'flex items-center gap-4 flex-[0_1_300px] min-w-[200px]'}>
+      <div className={isMac ? 'player-track-info flex items-center min-w-0' : 'player-track-info flex items-center gap-4 flex-[0_1_300px] min-w-[200px]'}>
         {track ? (
           <div
             onClick={onToggleFocus}
-            className="flex items-center cursor-pointer group gap-3 min-w-0"
+            className="player-track-trigger flex items-center cursor-pointer group gap-3 min-w-0"
           >
-            <div className={`relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${isMac ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: 'var(--theme-media-radius)' }}>
+            <div className={`player-track-cover relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${isMac ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: 'var(--theme-media-radius)' }}>
               <img src={toCoverThumb(resolveCoverUrl(track.coverUrl), 128)} className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }} />
@@ -178,9 +187,9 @@ const Controls: React.FC<ControlsProps> = memo(({
       </div>
 
       {/* Main Controls - Horizontal Layout */}
-      <div className={`flex items-center flex-1 ${isMac ? 'gap-3 min-w-0' : 'gap-6'}`}>
+      <div className={`player-primary-controls flex items-center flex-1 ${isMac ? 'gap-3 min-w-0' : 'gap-6'}`}>
         {/* Play Controls */}
-        <div className={`flex items-center shrink-0 ${isMac ? 'gap-2' : 'gap-4'}`}>
+        <div className={`player-transport flex items-center shrink-0 ${isMac ? 'gap-2' : 'gap-4'}`}>
           <button aria-label={t('shortcut.prevTrack')} onClick={onSkipPrev} disabled={!track} className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--md">
             <PlaybackIcon symbols={symbols} name="skip_previous" className="material-symbols-outlined text-2xl fill-icon" />
           </button>
@@ -205,7 +214,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
 
         {/* Progress Bar */}
-        <div className={`flex items-center flex-1 ${isMac ? 'gap-2 min-w-0' : 'gap-3'}`}>
+        <div className={`player-progress-controls flex items-center flex-1 ${isMac ? 'gap-2 min-w-0' : 'gap-3'}`}>
           <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--theme-text-muted)' }}>{formatTime(displayCurrentTime)}</span>
           <div ref={seekRef} className="player-slider" data-testid="main-seek-anchor" style={{ '--slider-progress': `${progress}%` } as React.CSSProperties}>
             <input
@@ -225,39 +234,45 @@ const Controls: React.FC<ControlsProps> = memo(({
         </div>
       </div>
 
-      {/* macOS reveals a vertical volume strip above its speaker button. */}
+      {/* Hover/focus reveals volume; the single speaker button toggles mute. */}
       {isMac ? (
-        <div className="macos-volume-disclosure" data-open={disclosure.expanded} data-testid="main-volume-disclosure"
-          onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}>
+        <div className="player-volume-controls macos-volume-controls">
           <div className="macos-volume-mode">{modeControl}</div>
-          <div className="macos-volume-slider-shell">
-            <div ref={volumeRef} className="player-slider macos-volume-slider"
-              data-testid="main-volume-anchor" aria-hidden={!disclosure.expanded || undefined}
-              onMouseEnter={disclosure.open} onFocusCapture={disclosure.open} onBlurCapture={disclosure.closeSoon}
-              style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
-              <input type="range" min="0" max="1" step="0.01" value={volume}
-                tabIndex={!disclosure.expanded ? -1 : undefined}
-                aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`}
-                onKeyDown={preserveSliderKeys} onChange={e => onVolumeChange(Number(e.target.value))} />
-              <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
-              <span className="player-slider-thumb" aria-hidden="true" />
+          <div ref={disclosure.rootRef} className="macos-volume-disclosure" data-open={disclosure.expanded} data-testid="main-volume-disclosure"
+            onMouseEnter={disclosure.enter} onMouseLeave={disclosure.leave}
+            onFocusCapture={disclosure.focusIn} onBlurCapture={disclosure.focusOut}
+            onPointerDownCapture={disclosure.pointerDown} onKeyDownCapture={disclosure.keyDown}>
+            <button ref={disclosure.triggerRef} type="button" className="macos-volume-button" data-testid="main-volume-button"
+              aria-label={t(volume === 0 ? 'controls.unmute' : 'controls.mute')} aria-expanded={disclosure.expanded} aria-controls={volumePanelId}
+              onClick={onToggleMute}
+              onKeyDown={event => {
+                if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                if (['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp'].includes(event.key)) {
+                  event.preventDefault(); event.stopPropagation(); disclosure.open();
+                  onVolumeChange(Math.max(0, Math.min(1, volume + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.01 : 0.01))));
+                }
+              }}>
+              <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-outlined text-xl" />
+            </button>
+            <div id={volumePanelId} className="macos-volume-slider-shell" role="group" aria-label={t('controls.volume')}
+              aria-hidden={!disclosure.expanded || undefined}>
+              <span className="macos-volume-value" aria-hidden="true">{Math.round(volume * 100)}%</span>
+              <div ref={volumeRef} className="player-slider macos-volume-slider"
+                data-testid="main-volume-anchor"
+                style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
+                <input ref={disclosure.sliderRef} type="range" min="0" max="1" step="0.01" value={volume}
+                  onPointerDown={disclosure.startDrag}
+                  tabIndex={!disclosure.expanded ? -1 : undefined}
+                  aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} aria-orientation="vertical"
+                  onKeyDown={preserveSliderKeys} onChange={e => onVolumeChange(Number(e.target.value))} />
+                <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
+                <span className="player-slider-thumb" aria-hidden="true" />
+              </div>
             </div>
           </div>
-          <button type="button" className="macos-volume-button" data-testid="main-volume-button"
-            aria-label={t('controls.volume')} aria-expanded={disclosure.expanded}
-            onMouseEnter={disclosure.open} onFocus={disclosure.open} onBlur={disclosure.closeSoon}
-            onClick={() => { disclosure.open(); onToggleMute(); }}
-            onKeyDown={event => {
-              if (event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'ArrowUp') {
-                event.preventDefault(); event.stopPropagation(); disclosure.open();
-                onVolumeChange(Math.max(0, Math.min(1, volume + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.05 : 0.05))));
-              }
-            }}>
-            <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-outlined text-xl" />
-          </button>
         </div>
       ) : (
-      <div className="flex items-center justify-center gap-2 w-36">
+      <div className="player-volume-controls flex items-center justify-center gap-2 w-36">
         {modeControl}
         <div className="flex items-center gap-1">
           <button type="button" aria-label={t('controls.mute')} onClick={onToggleMute}

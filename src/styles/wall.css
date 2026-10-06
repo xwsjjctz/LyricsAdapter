@@ -4,6 +4,22 @@
  * sinks and pops during a source switch, so the two never share a transform.
  */
 
+/* The icon blur is baked into a small shared bitmap (npm run assets:wall-background).
+   Paint it on the shell, outside the scrolling/animated content. No runtime
+   filter, canvas, promoted layer or per-track background texture is needed. */
+.app-wall-background {
+  --wall-background-tint: color-mix(in srgb, var(--theme-background-dark, #101922) 78%, transparent);
+  background-color: var(--theme-background-dark, #101922);
+  background-image: linear-gradient(var(--wall-background-tint), var(--wall-background-tint)), url('/wall-background.jpg');
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.app-library-background {
+  background: linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533));
+}
+
 .poster-wall {
   /* Tiles run flush to every window edge. The floating control bar may cover
      part of the last row for now. */
@@ -139,6 +155,68 @@
   color: #fff;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
 }
+
+/* Small opaque surface, with no live blur; leaves artwork and song labels visible. */
+.wall-tile__download {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.wall-download-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 20px);
+  padding: 9px 12px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(15, 13, 24, 0.86);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+
+.wall-download-badge__ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+
+.wall-download-badge__ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  stroke-width: 3;
+}
+
+.wall-download-badge__track { stroke: rgba(255, 255, 255, 0.2); }
+.wall-download-badge__fill { stroke: #fff; stroke-linecap: round; }
+.wall-download-badge--completed .wall-download-badge__fill { stroke: #91e5b8; }
+.wall-download-badge--error .wall-download-badge__fill { stroke: #ffabb2; }
+.wall-download-badge__percent { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wall-download-badge__ring .material-symbols-outlined { font-size: 21px; }
+.wall-download-badge__label { font-size: 10px; line-height: 1.3; text-align: center; }
+
+.wall-tile__download--compact { inset: 36px 0 42px; }
+.wall-tile__download--compact .wall-download-badge {
+  flex-direction: row;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 12px;
+}
+.wall-tile__download--compact .wall-download-badge__ring {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.wall-tile__download--compact .wall-download-badge__percent { font-size: 10px; }
 
 .wall-tile__title,
 .wall-tile__artist {

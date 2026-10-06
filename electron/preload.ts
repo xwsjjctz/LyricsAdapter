@@ -6,6 +6,7 @@ import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass'
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
 import type { NativeContextMenuRequest } from '../src/types/nativeContextMenu';
+import type { DownloadProgressEvent } from '../src/types/onlineProgress';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const downloadProgressListenerMap = new Map();
@@ -114,18 +115,18 @@ const typedIpc = {
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electron', {
   // Listen for download progress updates
-  onDownloadProgress: (callback: (data: { downloaded: number; total: number; progress: number }) => void) => {
+  onDownloadProgress: (callback: (data: DownloadProgressEvent) => void) => {
     const existing = downloadProgressListenerMap.get(callback);
     if (existing) {
       ipcRenderer.removeListener('download-progress', existing);
     }
-    const wrapped = (_event: unknown, data: { downloaded: number; total: number; progress: number }) => callback(data);
+    const wrapped = (_event: unknown, data: DownloadProgressEvent) => callback(data);
     downloadProgressListenerMap.set(callback, wrapped);
     ipcRenderer.on('download-progress', wrapped);
   },
   
   // Remove download progress listener
-  offDownloadProgress: (callback: (data: { downloaded: number; total: number; progress: number }) => void) => {
+  offDownloadProgress: (callback: (data: DownloadProgressEvent) => void) => {
     const wrapped = downloadProgressListenerMap.get(callback);
     if (wrapped) {
       ipcRenderer.removeListener('download-progress', wrapped);
@@ -314,8 +315,8 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   // Download and save audio file directly to path (non-blocking)
-  downloadAndSave: async (url: string, cookieString: string, filePath: string) => {
-    return ipcRenderer.invoke('download-and-save', url, cookieString, filePath);
+  downloadAndSave: async (url: string, cookieString: string, filePath: string, requestId?: string) => {
+    return ipcRenderer.invoke('download-and-save', url, cookieString, filePath, requestId);
   },
 
   // Save file to specified path

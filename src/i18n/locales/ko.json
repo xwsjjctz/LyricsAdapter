@@ -154,6 +154,7 @@
   "controls.sequence": "순차 재생",
   "controls.volume": "볼륨",
   "controls.mute": "음소거",
+  "controls.unmute": "음소거 해제",
   "controls.noTrackSelected": "선택된 트랙이 없습니다",
   "controls.shuffleMode": "무작위 재생",
   "controls.repeatOneMode": "한 곡 반복",
@@ -268,6 +269,15 @@
   "shortcut.gotoMetadataDesc": "메타데이터 보기로 전환",
   "metadataView.title": "메타데이터",
   "metadataView.importCover": "표지 가져오기",
+  "metadataView.fieldTitle": "제목",
+  "metadataView.fieldArtist": "아티스트",
+  "metadataView.fieldAlbum": "앨범",
+  "metadataView.fieldLyrics": "가사",
+  "metadataView.edited": "수정됨",
+  "metadataView.saving": "저장 중…",
+  "metadataView.lyricsPlaceholder": "일반 텍스트 또는 LRC 가사를 붙여넣기",
+  "metadataView.wordLyricsHint": "단어별 가사 원문을 편집하고 있습니다. 줄과 단어의 타임스탬프를 유지하세요. 저장하면 파일에 기록되고 집중 모드에 즉시 반영됩니다.",
+  "metadataView.wordLyricsInvalid": "단어별 가사를 해석할 수 없습니다. 줄과 단어의 타임스탬프를 확인한 뒤 다시 저장하세요.",
   "notifications.uploadComplete": "업로드 완료",
   "notifications.uploadFailed": "업로드 실패",
   "notifications.downloadComplete": "다운로드 완료",
@@ -328,5 +338,8 @@
   "palette.state.off": "끔",
   "palette.command.refreshCloud": "클라우드 라이브러리 새로고침",
   "search.editQuery": "검색어 수정",
-  "search.downloading": "{{count}}곡 다운로드 중"
+  "search.downloading": "{{count}}곡 다운로드 중",
+  "wall.download.preparing": "준비 중",
+  "wall.download.downloading": "다운로드 중",
+  "wall.download.saving": "저장 중"
 }

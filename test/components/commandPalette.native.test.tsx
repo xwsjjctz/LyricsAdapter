@@ -20,12 +20,13 @@ const track = (id: string, title: string): Track => ({
   id, title, artist: 'Artist', album: 'Album', duration: 180, audioUrl: '', lyrics: '',
 } as Track);
 
-function setup() {
+function setup(extraCommands: PaletteCommand[] = []) {
   const store = createCommandPaletteStore();
   const runs = { settings: vi.fn() };
   const commands: PaletteCommand[] = [
     { id: 'source.local', title: 'Local library', icon: 'hard_drive', group: 'library', run: vi.fn() },
     { id: 'settings.open', title: 'Open settings', icon: 'settings', group: 'settings', run: runs.settings },
+    ...extraCommands,
   ];
   const library: PaletteLibrarySources = {
     localTracks: [track('t1', 'Blue Moon'), track('t2', 'Yellow')],
@@ -79,6 +80,20 @@ describe('CommandPalette on native macOS glass', () => {
     emit({ type: 'activate', value: -1 });
     expect(library.playTrack).toHaveBeenCalledWith(library.localTracks[1]);
     expect(store.getState().open).toBe(false);
+  });
+
+  it('passes playlist artwork to native rows after entering Open playlist', async () => {
+    const { store, emit, lastState } = setup([{
+      id: 'playlist.open', title: 'Open playlist', icon: 'queue_music', group: 'library',
+      children: () => [{ id: 'playlist.open.p1', title: 'Road Trip', icon: 'queue_music', group: 'library', coverUrl: 'cover://road-trip.jpg' }],
+    }]);
+    await waitFor(() => expect(mocks.start).toHaveBeenCalled());
+    act(() => store.open('commands'));
+    await waitFor(() => expect(lastState().rows).toHaveLength(3));
+    expect(lastState().rows[0]!.cover).toBeNull();
+    emit({ type: 'activate', value: 2 });
+    await waitFor(() => expect(lastState().rows).toHaveLength(1));
+    expect(lastState().rows[0]).toMatchObject({ title: 'Road Trip', cover: 'cover://road-trip.jpg', symbol: 'music.note.list' });
   });
 
   it('switches modes, runs a clicked row and closes on Escape', async () => {

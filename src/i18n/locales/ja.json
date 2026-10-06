@@ -154,6 +154,7 @@
   "controls.sequence": "順次再生",
   "controls.volume": "音量",
   "controls.mute": "ミュート",
+  "controls.unmute": "ミュート解除",
   "controls.noTrackSelected": "トラックが選択されていません",
   "controls.shuffleMode": "シャッフル",
   "controls.repeatOneMode": "1曲リピート",
@@ -268,6 +269,15 @@
   "shortcut.gotoMetadataDesc": "メタデータ画面に切り替え",
   "metadataView.title": "メタデータ",
   "metadataView.importCover": "カバーをインポート",
+  "metadataView.fieldTitle": "タイトル",
+  "metadataView.fieldArtist": "アーティスト",
+  "metadataView.fieldAlbum": "アルバム",
+  "metadataView.fieldLyrics": "歌詞",
+  "metadataView.edited": "変更済み",
+  "metadataView.saving": "保存中…",
+  "metadataView.lyricsPlaceholder": "テキストまたは LRC 形式の歌詞を貼り付け",
+  "metadataView.wordLyricsHint": "逐語歌詞の原文を編集しています。行と文字のタイムタグは残してください。保存するとファイルに書き込まれ、フォーカスモードにすぐ反映されます。",
+  "metadataView.wordLyricsInvalid": "逐語歌詞を解析できませんでした。行と文字のタイムタグを確認してから保存してください。",
   "notifications.uploadComplete": "アップロード完了",
   "notifications.uploadFailed": "アップロード失敗",
   "notifications.downloadComplete": "ダウンロード完了",
@@ -328,5 +338,8 @@
   "palette.state.off": "オフ",
   "palette.command.refreshCloud": "クラウドライブラリを更新",
   "search.editQuery": "検索を編集",
-  "search.downloading": "{{count}} 曲をダウンロード中"
+  "search.downloading": "{{count}} 曲をダウンロード中",
+  "wall.download.preparing": "準備中",
+  "wall.download.downloading": "ダウンロード中",
+  "wall.download.saving": "保存中"
 }

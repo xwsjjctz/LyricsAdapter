@@ -154,6 +154,7 @@
   "controls.sequence": "顺序播放",
   "controls.volume": "音量",
   "controls.mute": "静音",
+  "controls.unmute": "取消静音",
   "controls.noTrackSelected": "未选择曲目",
   "controls.shuffleMode": "随机播放",
   "controls.repeatOneMode": "单曲循环",
@@ -268,6 +269,15 @@
   "shortcut.gotoMetadataDesc": "切换到元数据编辑界面",
   "metadataView.title": "元数据",
   "metadataView.importCover": "导入封面",
+  "metadataView.fieldTitle": "标题",
+  "metadataView.fieldArtist": "艺术家",
+  "metadataView.fieldAlbum": "专辑",
+  "metadataView.fieldLyrics": "歌词",
+  "metadataView.edited": "已修改",
+  "metadataView.saving": "正在保存…",
+  "metadataView.lyricsPlaceholder": "粘贴纯文本或 LRC 格式的歌词",
+  "metadataView.wordLyricsHint": "正在编辑逐字歌词原文，请保留行和字的时间标记。保存后写入文件，专注模式立即生效。",
+  "metadataView.wordLyricsInvalid": "逐字歌词解析失败，请检查行和字的时间标记后再保存。",
   "notifications.uploadComplete": "上传完成",
   "notifications.uploadFailed": "上传失败",
   "notifications.downloadComplete": "下载完成",
@@ -328,5 +338,8 @@
   "palette.state.off": "关",
   "palette.command.refreshCloud": "刷新云端曲库",
   "search.editQuery": "修改搜索内容",
-  "search.downloading": "正在下载 {{count}} 首"
+  "search.downloading": "正在下载 {{count}} 首",
+  "wall.download.preparing": "准备下载",
+  "wall.download.downloading": "下载中",
+  "wall.download.saving": "正在保存"
 }

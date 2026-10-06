@@ -11,6 +11,7 @@ import { qqMusicApi } from './qqMusicApi';
 import { neteaseMusicApi } from './neteaseMusicApi';
 import { cookieManager, neteaseCookieManager, type CookieStore } from './cookieManager';
 import type { QQCredential } from '../shared/qqCredential';
+import type { DownloadProgressEvent } from '../types/onlineProgress';
 
 // ---- Shared data model -----------------------------------------------------
 
@@ -164,7 +165,8 @@ export interface OnlineMusicElectronAPI {
   downloadAndSave?: (
     url: string,
     cookie: string,
-    filePath: string
+    filePath: string,
+    requestId?: string
   ) => Promise<{ success: boolean; filePath?: string; size?: number; error?: string }>;
   saveFileToPath?: (
     dirPath: string,
@@ -182,10 +184,10 @@ export interface OnlineMusicElectronAPI {
     }
   ) => Promise<{ success: boolean; error?: string }>;
   onDownloadProgress?: (
-    callback: (progress: { downloaded: number; total: number; progress: number }) => void
+    callback: (progress: DownloadProgressEvent) => void
   ) => void;
   offDownloadProgress?: (
-    callback: (progress: { downloaded: number; total: number; progress: number }) => void
+    callback: (progress: DownloadProgressEvent) => void
   ) => void;
   fetchCoverBase64?: (
     coverUrl: string

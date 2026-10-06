@@ -10,7 +10,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from '@
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const require = createRequire(import.meta.url);
 const run = promisify(execFile);
-interface NativeItem { id: string; class: string; hidden: boolean; alpha: number; x: number; y: number; width: number; height: number; label: string; appearance: string }
+interface NativeItem { id: string; class: string; hidden: boolean; focused: boolean; alpha: number; x: number; y: number; width: number; height: number; label: string; appearance: string }
 interface NativeSnapshot { windowNumber: number; items: NativeItem[] }
 
 test('macOS Liquid Glass controls route intents, resize and release their native views', async ({}, testInfo) => {
@@ -105,7 +105,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await screenshot('main-native-controlbar-light.png');
     await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
     await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameDarkAqua');
-    const mute = (await mainSlider('player-controlbar-mute'))!;
+    const mute = (await mainSlider('player-controlbar-volume-button'))!;
     const mode = (await mainSlider('player-controlbar-mode'))!;
     expect((await mainSlider('player-controlbar-next'))!.x).toBeLessThan(mute.x);
     expect((await mainSlider('player-controlbar-seek'))!.x).toBeLessThan(mute.x);
@@ -113,38 +113,82 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     expect(mode.x - (mute.x + mute.width)).toBeCloseTo(0, 0);
     await probe('player-controlbar-seek', 8);
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime)).toBeCloseTo(8, 0);
-    await probe('player-controlbar-mute:hover');
+    await probe('player-controlbar-volume', 0);
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBe(0);
+    await probe('player-controlbar-volume-button:hover');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
+    expect((await mainSlider('player-controlbar-volume'))?.focused).toBe(false);
+    expect(await page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBe(0);
     await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-mode'))?.hidden).toBe(false);
-    await expect.poll(async () => (await mainSlider('player-controlbar-volume-disclosure'))?.height ?? 0).toBeGreaterThan(100);
-    expect((await mainSlider('player-controlbar-volume'))!.height).toBeGreaterThan(48);
-    expect((await mainSlider('player-controlbar-volume'))!.y).toBeGreaterThan((await mainSlider('player-controlbar-mute'))!.y);
+    const volumePanel = (await mainSlider('player-controlbar-volume-disclosure'))!;
+    expect(volumePanel.width).toBe(44);
+    expect(volumePanel.height).toBe(149);
+    expect(volumePanel.x + volumePanel.width / 2).toBeCloseTo(mute.x + mute.width / 2, 0);
+    expect((await mainSlider('player-controlbar-volume'))!.height).toBe(108);
+    expect((await mainSlider('player-controlbar-volume'))!.width).toBe(24);
+    expect((await probe()).items.some(item => item.id === 'player-controlbar-mute')).toBe(false);
+    await probe('player-controlbar-volume:click');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.label).toBe('50%');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.focused).toBe(true);
     await probe('player-controlbar-volume', 0.4);
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.label).toBe('40%');
+    await probe('@key:126');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.label).toBe('41%');
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.41 ** 2, 5);
+    await probe('player-controlbar-volume-disclosure:exit');
+    await page.waitForTimeout(700);
+    expect((await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
+    await probe('@key:53');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
+    await probe('player-controlbar-volume-button:hover');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
+    await probe('player-controlbar-volume:drag-outside');
+    await page.waitForTimeout(500);
+    expect((await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
+    await probe('player-controlbar-volume', 0.4);
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
+    await probe('player-controlbar-volume-button:click');
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBe(0);
+    expect((await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
+    await probe('player-controlbar-volume-button:click');
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.volume)).toBeCloseTo(0.4 ** 2, 5);
     await page.waitForTimeout(500);
     await screenshot('main-native-controlbar-volume.png');
-    await probe('player-controlbar-volume-disclosure');
+    await probe('player-controlbar-mode:click');
     await expect.poll(async () => (await mainSlider('player-controlbar-slider-glass'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-mode'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
+    await probe('player-controlbar-volume-button:hover');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
+    await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.appearance).toBe('NSAppearanceNameAqua');
+    await screenshot('main-native-volume-light.png');
+    await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
+    await probe('player-controlbar-volume-button:exit');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await probe('player-controlbar-mode');
     await probe('player-controlbar-mode');
-    await probe('player-controlbar-mode');
+    await expect.poll(async () => (await mainSlider('player-controlbar-mode'))?.label).toBe(mode.label);
     await probe('player-controlbar-play');
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(false);
     await probe('player-controlbar-play');
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(true);
     await probe('player-controlbar-seek', 0);
     // A web modal must suppress the whole AppKit surface, not only its sliders.
+    await probe('player-controlbar-volume-button:hover');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
     await page.evaluate(() => {
       const overlay = document.createElement('div'); overlay.id = 'test-slider-occluder';
       Object.assign(overlay.style, { position: 'fixed', inset: '0', zIndex: '99999', background: 'black' });
       document.body.append(overlay);
     });
     await expect.poll(async () => (await mainGlass())?.hidden).toBe(true);
+    expect((await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await page.evaluate(() => document.getElementById('test-slider-occluder')?.remove());
     await expect.poll(async () => (await mainGlass())?.hidden).toBe(false);
+    expect((await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await page.waitForTimeout(250);
     await screenshot('main-native-controlbar.png');
     await expect(panel).toHaveCSS('position', 'absolute');
@@ -167,6 +211,8 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     if (!(await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))) await probe('player-controlbar-play');
     await probe('player-controlbar-seek', 0);
     const mainGlassY = (await mainGlass())!.y;
+    await probe('player-controlbar-volume-button:hover');
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
     await toggle.click();
     await expect(page.getByTestId('focus-native-controls')).toBeAttached();
     await expect.poll(async () => (await mainSlider('focus-glass-highlight'))?.hidden).toBe(false);
@@ -174,6 +220,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     // timer from expiring while native geometry is being inspected offscreen.
     await page.getByTestId('focus-native-controls').dispatchEvent('mouseover');
     await expect.poll(async () => (await mainGlass())?.y ?? 0).toBeLessThan(mainGlassY);
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await expect(page.locator('html')).toHaveAttribute('data-paused-focus-transitions', '2');
     const pageOpacity = await page.locator('.focus-mode-content').evaluate(el => Number(getComputedStyle(el).opacity));
     expect(pageOpacity).toBeGreaterThan(0);
@@ -194,7 +241,10 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect.poll(async () => (await bar())?.alpha).toBe(1);
     expect((await bar())?.class).toBe('NSGlassEffectView');
     await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
-    await expect.poll(async () => (await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameAqua');
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameAqua');
+    // Focus controls follow the analyzed cover luminance; this dark fixture
+    // retains light icons even when the application switches to a light theme.
+    expect((await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameDarkAqua');
     await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
     await expect.poll(async () => (await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameDarkAqua');
     expect((await probe()).items.some(item => item.id === 'focus-glass-frost')).toBe(false);
@@ -229,6 +279,18 @@ test('macOS Liquid Glass controls route intents, resize and release their native
       await app.evaluate(({ BrowserWindow }, w) => { BrowserWindow.getAllWindows()[0]!.setSize(w, 800); }, width);
       await expect.poll(async () => { const item = await bar(); return item ? Math.abs(item.x + item.width / 2 - width / 2) : Infinity; }).toBeLessThan(1);
     }
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
+    await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
+    await expect.poll(async () => (await probe()).items.filter(item => item.id.startsWith('focus-glass')).length).toBe(0);
+    const portraitWasPaused = await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused);
+    await page.getByTestId('focus-play-button').click();
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(!portraitWasPaused);
+    await page.getByTestId('focus-play-button').click();
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(portraitWasPaused);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 800));
+    await expect(page.getByTestId('focus-portrait-controls')).toHaveCount(0);
+    await expect(page.getByTestId('focus-native-controls')).toBeAttached();
+    await expect.poll(async () => (await probe()).items.filter(item => item.id === 'focus-glass-host').length).toBe(1);
     // Move Chromium's pointer off the reveal target too; a synthetic AppKit exit
     // with the DOM pointer still inside would legitimately reveal the bar again.
     await page.mouse.move(10, 70);

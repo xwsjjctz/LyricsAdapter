@@ -62,6 +62,7 @@ export default function FocusLegacyLyrics({
   const preScrolledIndexRef = useRef(-1);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [manualOffsetY, setManualOffsetY] = useState(0);
+  const [layoutRevision, setLayoutRevision] = useState(0);
   const isDraggingRef = useRef(false);
   const dragStartYRef = useRef(0);
   const dragStartOffsetRef = useRef(0);
@@ -196,6 +197,17 @@ export default function FocusLegacyLyrics({
     preScrolledIndexRef.current = -1;
   }, [fontSize, lineSpacing, track.id]);
 
+  useEffect(() => {
+    const container = lyricsRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      preScrolledIndexRef.current = -1;
+      setLayoutRevision(revision => revision + 1);
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [hasLyrics]);
+
   const lyricScrollTargetIndex = useMemo(() => {
     if (activeIndex < 0) return -1;
     const earliestTime = currentTime - 0.1;
@@ -249,7 +261,7 @@ export default function FocusLegacyLyrics({
       }
     };
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [applyLyricOffset, fontSize, isUserScrolling, isVisible, lineSpacing, lyricScrollTargetIndex, track.syncedLyrics]);
+  }, [applyLyricOffset, fontSize, isUserScrolling, isVisible, layoutRevision, lineSpacing, lyricScrollTargetIndex, track.syncedLyrics]);
 
   useEffect(() => {
     if (!isVisible) return;

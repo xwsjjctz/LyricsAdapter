@@ -240,23 +240,19 @@ const AppShell: React.FC<AppShellProps> = ({
     openAllResults: openSearchResults,
   }), [online.navigateToTrack, online.playSong, openPlaylistInfo, openSearchResults, slots.cloud.tracks, slots.local.tracks, visiblePlaylists]);
 
+  const backgroundClass = isSearchView || libraryLayout === 'wall'
+    ? 'app-wall-background'
+    : 'app-library-background';
+
   return (
     <>
       {audioElement}
-      <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`} style={floatingPanel ? {
-        background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
-      } : {
-        backgroundColor: 'transparent',
-      }}>
+      <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}${floatingPanel ? ` ${backgroundClass}` : ''}`}>
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={toggleFocusMode}
         />
-        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden"
-          style={floatingPanel ? {} : {
-            background: 'linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533))',
-          }}
-        >
+        <main className={`flex-1 min-w-0 flex flex-col relative overflow-hidden${!floatingPanel ? ` ${backgroundClass}` : ''}`}>
           <input
             type="file"
             ref={importVm.fileInputRef}
@@ -268,6 +264,7 @@ const AppShell: React.FC<AppShellProps> = ({
           <div ref={pageContentRef} className="flex-1 overflow-hidden">
             {isSearchView ? (
               <SearchWallView
+                downloadProgress={online.progress}
                 query={searchQuery}
                 localTracks={slots.local.tracks}
                 cloudTracks={slots.cloud.tracks}
@@ -329,6 +326,7 @@ const AppShell: React.FC<AppShellProps> = ({
                   </div>
                 ) : (
                     <LibraryWallView
+                      downloadProgress={online.progress}
                       tracks={shownTracks}
                       sourceKey={librarySourceKey}
                       dataSource={library.viewSlot}

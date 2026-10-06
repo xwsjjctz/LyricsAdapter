@@ -6,7 +6,7 @@ import { expandHomeDir } from "../utils/fileUtils";
 import { qqMusicHeaders } from "../utils/httpHeaders";
 import { allowAudioPath } from "./typedHandlers";
 export function registerDownloadHandlers(): void {
-  ipcMain.handle('download-and-save', async (event, url: string, cookieString: string, filePath: string) => {
+  ipcMain.handle('download-and-save', async (event, url: string, cookieString: string, filePath: string, requestId?: string) => {
     try {
       const expandedPath = expandHomeDir(filePath);
       logger.info('[Main] Starting download to:', expandedPath);
@@ -43,6 +43,7 @@ export function registerDownloadHandlers(): void {
 
         if (total > 0) {
           event.sender.send('download-progress', {
+            requestId,
             downloaded,
             total,
             progress: Math.round((downloaded / total) * 100)
@@ -170,4 +171,3 @@ export function registerDownloadHandlers(): void {
     }
   });
 }
-

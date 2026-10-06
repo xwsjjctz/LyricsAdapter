@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { OnlineProgressEntry } from '../../hooks/useOnlineMusicIntegration';
+import type { OnlineProgressEntry } from '../../types/onlineProgress';
 
 export interface DownloadStatus {
   label: string;

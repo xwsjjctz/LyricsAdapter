@@ -348,8 +348,8 @@ napi_value PlaybackSymbols(napi_env e, napi_callback_info) {
   napi_value symbols;
   napi_value result = Guard(e, [&] {
     Check(napi_create_object(e, &symbols));
-    NSArray<NSString*>* keys = @[@"skip_previous", @"play_arrow", @"pause", @"skip_next", @"repeat", @"shuffle", @"repeat_one", @"volume_off", @"volume_up", @"open_in_full"];
-    NSArray<NSString*>* names = @[@"backward.end.fill", @"play.fill", @"pause.fill", @"forward.end.fill", @"repeat", @"shuffle", @"repeat.1", @"speaker.slash.fill", @"speaker.wave.2.fill", @"arrow.up.left.and.arrow.down.right"];
+    NSArray<NSString*>* keys = @[@"skip_previous", @"play_arrow", @"pause", @"skip_next", @"repeat", @"shuffle", @"repeat_one", @"volume_off", @"volume_up", @"open_in_full", @"fast_rewind", @"fast_forward", @"volume_down"];
+    NSArray<NSString*>* names = @[@"backward.end.fill", @"play.fill", @"pause.fill", @"forward.end.fill", @"repeat", @"shuffle", @"repeat.1", @"speaker.slash.fill", @"speaker.wave.2.fill", @"arrow.up.left.and.arrow.down.right", @"backward.fill", @"forward.fill", @"speaker.wave.1.fill"];
     for (NSUInteger i = 0; i < keys.count; i++) {
       NSImage* image = Symbol(names[i], 20);
       if (!image || image.size.width <= 0 || image.size.height <= 0) continue;

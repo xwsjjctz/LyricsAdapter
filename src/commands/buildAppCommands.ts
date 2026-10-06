@@ -85,6 +85,7 @@ function playlistCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] 
         id: `playlist.open.${playlist.source}.${playlist.id}`,
         title: playlist.name,
         icon: 'queue_music',
+        coverUrl: playlist.coverUrl,
         group: 'library',
         detail: String(playlist.songCount),
         run: () => deps.openPlaylist(playlist),

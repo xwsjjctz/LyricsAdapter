@@ -1,0 +1,151 @@
+/* Adapted from LyricsAdapter-Android's mobile Focus presentation. The same
+   artwork and lyric renderer stay mounted when the window changes proportions. */
+.focus-portrait-controls {
+  position: fixed;
+  bottom: var(--focus-controls-bottom);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100vw - 40px));
+  height: var(--focus-controls-height);
+  box-sizing: border-box;
+  z-index: 25;
+  display: grid;
+  grid-template-rows: 62px minmax(64px, 1fr) 44px;
+  gap: 12px;
+  padding: 0;
+  color: #fff;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  transition: opacity 500ms ease;
+}
+.focus-portrait-progress { min-width: 0; display: flex; flex-direction: column; }
+.focus-portrait-controls .player-slider {
+  height: 44px;
+  flex: none;
+  --theme-progress-height: 5px;
+  --theme-control-slider-track: rgba(255, 255, 255, .24);
+  --theme-control-slider-fill: rgba(255, 255, 255, .86);
+  --theme-progress-radius: 8px;
+}
+.focus-portrait-controls[data-macos-controls="true"] {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.focus-portrait-controls .player-slider-track {
+  transition: height 160ms ease, background-color 160ms ease;
+}
+/* Keep the hit area at 44px: only the centred capsule grows while dragging.
+   Chromium retains :active through the range's native pointer capture, even
+   outside its bounds, and clears it on release/cancel without React state. */
+.focus-portrait-controls .player-slider:has(input:active) {
+  --theme-progress-height: 10px;
+  --theme-control-slider-fill: #fff;
+}
+.focus-portrait-times {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, .55);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.focus-portrait-transport { display: flex; align-items: center; justify-content: space-evenly; }
+.focus-portrait-controls button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
+.focus-portrait-controls .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48; }
+.focus-portrait-transport .material-symbols-outlined { font-size: 42px; }
+.focus-portrait-transport [data-testid="focus-play-button"] .material-symbols-outlined { font-size: 58px; }
+.focus-portrait-volume { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.focus-portrait-volume .player-slider { flex: 1; min-width: 0; height: 44px; }
+.focus-portrait-volume > .material-symbols-outlined { font-size: 24px; }
+.focus-portrait-volume button .material-symbols-outlined { font-size: 22px; }
+.focus-portrait-controls button:disabled { opacity: .3; }
+.focus-portrait-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 8px; }
+
+@media (orientation: portrait) {
+  .focus-mode-content {
+    --focus-controls-height: 210px;
+    --focus-controls-bottom: 24px;
+  }
+  .focus-top-spacer { padding-top: 56px; }
+  .focus-main {
+    margin: 0 auto;
+    max-width: none;
+    gap: 12px;
+    padding: 0 20px;
+    translate: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 0;
+  }
+  .focus-artwork-column {
+    flex-direction: row;
+    padding: 0;
+    gap: 14px;
+    width: 100%;
+    justify-content: flex-start;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+  .focus-cover-stage { width: 88px; height: 88px; border-radius: 12px; flex: none; }
+  .focus-track-meta { margin: 0; text-align: left; min-width: 0; max-width: none; }
+  .focus-track-meta h1 { font-size: 20px; line-height: 1.2; margin-bottom: 4px; }
+  .focus-track-meta h1 + p { font-size: 14px; line-height: 1.4; }
+  .focus-track-meta p:last-child { font-size: 12px; line-height: 1.4; }
+  .focus-lyrics-viewport {
+    --focus-lyrics-controls-cutaway: 0px;
+    --focus-lyrics-bottom-fade: 36px;
+    max-height: none;
+    padding: 0;
+    min-height: 80px;
+    width: 100%;
+    mask-size: 100% max(0px, calc(100% - var(--focus-lyrics-controls-cutaway)));
+    -webkit-mask-size: 100% max(0px, calc(100% - var(--focus-lyrics-controls-cutaway)));
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: top;
+    -webkit-mask-position: top;
+    /* Hidden lyrics must also stop receiving clicks behind the controls. */
+    clip-path: inset(0 0 min(100%, var(--focus-lyrics-controls-cutaway)) 0);
+    transition: mask-size 500ms ease, -webkit-mask-size 500ms ease, clip-path 500ms ease;
+  }
+  .focus-mode-content[data-focus-controls-visible="true"] .focus-lyrics-viewport {
+    --focus-lyrics-controls-cutaway: calc(var(--focus-controls-height) + var(--focus-controls-bottom));
+  }
+}
+
+/* A short landscape window still needs two columns after relaxing the old
+   1080px minimum. Keep the original spacious desktop layout above that width. */
+@media (orientation: landscape) and (max-width: 1079px) {
+  .focus-main {
+    display: grid;
+    grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+    align-items: center;
+    padding: 0 24px;
+    gap: clamp(20px, 4vw, 48px);
+    translate: none;
+    min-height: 0;
+  }
+  .focus-artwork-column { padding: 0; min-width: 0; }
+  .focus-cover-stage { width: clamp(140px, 27vw, 280px); }
+  .focus-track-meta { max-width: 100%; }
+  .focus-track-meta h1 { font-size: 24px; }
+  .focus-lyrics-viewport { padding: 0; max-height: 60vh; }
+  .focus-main[data-focus-has-lyrics="false"] { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-portrait-controls, .focus-lyrics-viewport,
+  .focus-portrait-controls .player-slider-track { transition: none; }
+}

@@ -4,8 +4,11 @@ import type { Track } from '../../types';
 import TrackCover from '../TrackCover';
 import type { WallTile } from './wallLayout';
 import { isPlainEnter } from '../../shared/keyboard';
+import type { OnlineProgressEntry } from '../../types/onlineProgress';
+import PosterDownloadProgress from './PosterDownloadProgress';
 
 interface PosterTileProps {
+  download?: OnlineProgressEntry | undefined;
   track: Track;
   tile: WallTile;
   /** Playing now: marked in place, never moved. */
@@ -36,7 +39,7 @@ const thumbSizeFor = (width: number): number => {
 
 /** One poster on the wall. Position comes from the layout; GSAP animates the inner element. */
 const PosterTile: React.FC<PosterTileProps> = memo(({
-  track, tile, isCurrent, hasMenu, onSelect, onOpenMenu,
+  track, tile, isCurrent, hasMenu, onSelect, onOpenMenu, download,
   selecting = false, selected = false, onToggleSelect,
   draggable = false, dragState, onDragStartTile, onDragOverTile, onDropTile, onDragEndTile,
 }) => {
@@ -113,6 +116,7 @@ const PosterTile: React.FC<PosterTileProps> = memo(({
           thumbSize={thumbSizeFor(tile.width)}
         />
         <div className="wall-tile__scrim" aria-hidden="true" />
+        {download && <PosterDownloadProgress entry={download} title={track.title} compact={tile.height < 160} />}
         {isCurrent && (
           <span className="wall-tile__badge">
             <span className="material-symbols-outlined wall-tile__badge-icon" aria-hidden="true">graphic_eq</span>

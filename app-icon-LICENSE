@@ -21,4 +21,7 @@ https://creativecommons.org/licenses/by/4.0/legalcode
 
 ---
 
-**Note**: This license applies only to `app-icon.png`. The project source code is licensed separately under GPLv3 (see `LICENSE`).
+**Note**: This license applies to `app-icon.png` and the derivative listed below. The project source code is licensed separately under GPLv3 (see `LICENSE`).
+
+`public/wall-background.jpg` is a resized, blurred derivative of the app icon,
+prepared from `public/default-cover.jpg`, and retains the icon's CC BY 4.0 license.

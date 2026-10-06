@@ -154,6 +154,7 @@
   "controls.sequence": "Sequence",
   "controls.volume": "Volume",
   "controls.mute": "Mute",
+  "controls.unmute": "Unmute",
   "controls.noTrackSelected": "No track selected",
   "controls.shuffleMode": "Shuffle",
   "controls.repeatOneMode": "Repeat One",
@@ -268,6 +269,15 @@
   "shortcut.gotoMetadataDesc": "Switch to metadata view",
   "metadataView.title": "Metadata",
   "metadataView.importCover": "Import Cover",
+  "metadataView.fieldTitle": "Title",
+  "metadataView.fieldArtist": "Artist",
+  "metadataView.fieldAlbum": "Album",
+  "metadataView.fieldLyrics": "Lyrics",
+  "metadataView.edited": "Edited",
+  "metadataView.saving": "Saving…",
+  "metadataView.lyricsPlaceholder": "Paste plain-text or LRC lyrics",
+  "metadataView.wordLyricsHint": "Editing the word-timed source. Keep the line and word timestamps. Saving writes the file and updates Focus Mode immediately.",
+  "metadataView.wordLyricsInvalid": "These word-timed lyrics could not be parsed. Check the line and word timestamps, then save again.",
   "notifications.uploadComplete": "Upload Complete",
   "notifications.uploadFailed": "Upload Failed",
   "notifications.downloadComplete": "Download Complete",
@@ -328,5 +338,8 @@
   "palette.state.off": "Off",
   "palette.command.refreshCloud": "Refresh cloud library",
   "search.editQuery": "Edit search",
-  "search.downloading": "Downloading {{count}}"
+  "search.downloading": "Downloading {{count}}",
+  "wall.download.preparing": "Preparing",
+  "wall.download.downloading": "Downloading",
+  "wall.download.saving": "Saving"
 }

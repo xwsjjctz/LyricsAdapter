@@ -7,12 +7,14 @@ import { libraryStorage } from '@/services/libraryStorage';
 import { metadataCacheService } from '@/services/metadataCacheService';
 import { coverArtService } from '@/services/coverArtService';
 import { requestLibraryFlush } from '@/services/libraryFlushEvent';
+import { refreshTrackLyricsCaches } from '@/services/trackLyricsCaches';
 
 vi.mock('@/services/desktopAdapter', () => ({ isDesktop: () => true }));
 vi.mock('@/services/libraryStorage', () => ({ libraryStorage: { flushPendingSave: vi.fn(), saveLibrary: vi.fn() } }));
 vi.mock('@/services/libraryFlushEvent', () => ({ requestLibraryFlush: vi.fn() }));
 vi.mock('@/services/metadataCacheService', () => ({ metadataCacheService: { delete: vi.fn() } }));
 vi.mock('@/services/coverArtService', () => ({ coverArtService: { deleteCover: vi.fn() } }));
+vi.mock('@/services/trackLyricsCaches', () => ({ refreshTrackLyricsCaches: vi.fn(async () => {}) }));
 function track(id: string): Track {
   return { id, title: id, artist: 'A', album: 'B', duration: 10, audioUrl: '', filePath: `/music/${id}.mp3` };
 }
@@ -110,5 +112,17 @@ describe('library removal', () => {
     await controller.reorderTracks(0, 0);
     expect(updateSlot).not.toHaveBeenCalled();
     expect(libraryStorage.flushPendingSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('useLibraryController updateTrack', () => {
+  it('replaces the edited track in the view slot and refreshes its lyric caches', () => {
+    const { controller, slotsRef } = setup([track('a'), track('b')]);
+    const edited = { ...track('b'), lyrics: '新歌词', wordLyrics: '[1000,500](1000,500,0)新', wordLyricsFormat: 'yrc' as const };
+
+    controller.updateTrack(edited);
+
+    expect(slotsRef.current.local.tracks[1]).toBe(edited);
+    expect(refreshTrackLyricsCaches).toHaveBeenCalledWith(edited);
   });
 });

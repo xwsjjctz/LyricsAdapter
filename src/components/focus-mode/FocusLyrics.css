@@ -3,15 +3,15 @@
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    black var(--focus-lyrics-edge-fade),
-    black calc(100% - var(--focus-lyrics-edge-fade)),
+    black min(var(--focus-lyrics-edge-fade), 25%),
+    black calc(100% - min(var(--focus-lyrics-bottom-fade, var(--focus-lyrics-edge-fade)), 25%)),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    black var(--focus-lyrics-edge-fade),
-    black calc(100% - var(--focus-lyrics-edge-fade)),
+    black min(var(--focus-lyrics-edge-fade), 25%),
+    black calc(100% - min(var(--focus-lyrics-bottom-fade, var(--focus-lyrics-edge-fade)), 25%)),
     transparent 100%
   );
 }
