@@ -35,6 +35,20 @@ describe('useFocusGlassControls', () => {
     const { result } = renderHook(() => useFocusGlassControls(options()));
     expect(result.current).toBe(false); expect(mocks.start).not.toHaveBeenCalled();
   });
+  it('releases native controls in portrait and starts a fresh surface when returning to landscape', async () => {
+    const first = { ...options(), nativeEnabled: true };
+    const { result, rerender } = renderHook(props => useFocusGlassControls(props), { initialProps: first });
+    await waitFor(() => expect(result.current).toBe(true));
+    const emit = mocks.onAction.mock.calls[0]![0] as (event: FocusGlassAction) => void;
+    rerender({ ...first, nativeEnabled: false });
+    expect(result.current).toBe(false);
+    expect(mocks.stop).toHaveBeenCalledOnce();
+    act(() => emit({ type: 'toggle-play', value: 0 }));
+    expect(first.onTogglePlay).not.toHaveBeenCalled();
+    rerender(first);
+    await waitFor(() => expect(result.current).toBe(true));
+    expect(mocks.start).toHaveBeenCalledTimes(2);
+  });
   it('falls back when AppKit cannot update the surface', async () => {
     mocks.update.mockResolvedValue({ ok: false, error: 'surface lost' });
     const { result } = renderHook(() => useFocusGlassControls(options()));

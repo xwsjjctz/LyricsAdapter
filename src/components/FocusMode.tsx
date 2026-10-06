@@ -23,6 +23,10 @@ import {
   backdropTrackChangeBrightness,
 } from './focus-mode/focusBackdropAlpha';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
+import { useFocusPortraitLayout } from './focus-mode/useFocusPortraitLayout';
+import { useFocusControlsIdle } from './focus-mode/useFocusControlsIdle';
+import { hasTrackLyrics } from './focus-mode/focusLyricsTrack';
+import './focus-mode/FocusModeLayout.css';
 import FocusLyrics from './focus-mode/FocusLyrics';
 import {
   CLOCK_RESYNC_THRESHOLD_SECONDS,
@@ -163,6 +167,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   }, []);
 
   const playerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const portrait = useFocusPortraitLayout();
+  const portraitIdle = useFocusControlsIdle(portrait, isVisible, overlayRef);
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   const playerHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -201,7 +208,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const [focusAmlLyricsEnabled, setFocusAmlLyricsEnabled] = useState(
     () => settingsManager.getFocusAmlLyricsEnabled(),
   );
-  const focusScale = useFocusModeScale();
+  const viewportScale = useFocusModeScale();
+  const focusScale = portrait ? 1 : viewportScale;
   // Keep lyric density stable as the window grows. The vh-based lyric viewport
   // gets taller instead, revealing more surrounding lines.
   const hasScaledLayout = focusScale > 1;
@@ -640,7 +648,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
   // Reset player visibility when focus mode becomes visible
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible && !portrait) {
       setIsPlayerVisible(true);
       // Clear any pending hide timeout
       if (playerHideTimeoutRef.current) {
@@ -652,7 +660,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         setIsPlayerVisible(false);
       }, 1000);
     }
-  }, [isVisible]);
+  }, [isVisible, portrait]);
 
   // Settings change infrequently, so bake their new values into the small
   // backing bitmap once instead of leaving a live compositor filter attached.
@@ -906,7 +914,12 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   }, [isPlaying, onSeek, onTogglePlay]);
 
   return (
-    <div className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out motion-reduce:transition-none overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
+    <div ref={overlayRef} data-focus-layout={portrait ? 'portrait' : 'landscape'}
+      onPointerDownCapture={portraitIdle.pointerDown} onClickCapture={portraitIdle.click}
+      onPointerMoveCapture={portrait ? event => { if (event.pointerType === 'mouse') portraitIdle.activity(); } : undefined}
+      onKeyDownCapture={portrait ? portraitIdle.keyboardActivity : undefined}
+      onWheelCapture={portrait ? portraitIdle.activity : undefined}
+      className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out motion-reduce:transition-none overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={hasBackground}
         isLinux={isLinux}
@@ -914,13 +927,15 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         canvasRef={canvasRef}
       />
 
-      <div className={`focus-mode-content relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out motion-reduce:transition-none ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div data-focus-controls-visible={portrait ? portraitIdle.shown : isPlayerVisible}
+        className={`focus-mode-content relative h-full flex flex-col z-10 overflow-hidden transition-opacity duration-600 ease-in-out motion-reduce:transition-none ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Spacer to avoid content behind titlebar */}
-        <div className="shrink-0 pt-12" style={hasScaledLayout ? { paddingTop: `${48 * focusScale}px` } : undefined} />
+        <div className="focus-top-spacer shrink-0 pt-12" style={hasScaledLayout ? { paddingTop: `${48 * focusScale}px` } : undefined} />
 
         {/* Content Section */}
         <main
-          className="flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-col lg:flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
+          className="focus-main flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
+          data-focus-has-lyrics={hasTrackLyrics(track)}
           style={hasScaledLayout ? {
             marginBottom: `${96 * focusScale}px`,
             maxWidth: `${1024 * focusScale}px`,
@@ -933,7 +948,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
 
           {/* Cover & Title */}
           <div
-            className="flex-none flex flex-col items-center justify-center w-auto p-6"
+            className="focus-artwork-column flex-none flex flex-col items-center justify-center w-auto p-6"
             style={hasScaledLayout ? { padding: `${24 * focusScale}px` } : undefined}
           >
             <FocusCoverStage coverUrl={coverUrl} isPlaying={isPlaying} scale={focusScale} />
@@ -968,7 +983,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             track={track}
             colors={colors}
             isPlaying={isPlaying}
-            isPlayerVisible={isPlayerVisible}
+            isPlayerVisible={portrait ? portraitIdle.shown : isPlayerVisible}
             isFocusVisible={isVisible}
             activeCurrentTime={activeCurrentTime}
             progress={progress}
@@ -982,10 +997,11 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             onVolumeChange={onVolumeChange}
             onToggleMute={onToggleMute}
             onTogglePlaybackMode={onTogglePlaybackMode}
-            onMouseEnter={handlePlayerMouseEnter}
-            onMouseLeave={handlePlayerMouseLeave}
+            onMouseEnter={portrait ? portraitIdle.nativeStart : handlePlayerMouseEnter}
+            onMouseLeave={portrait ? portraitIdle.nativeEnd : handlePlayerMouseLeave}
             glassMaterial={useDefaultThemeControlGlass}
             scale={focusScale}
+            portrait={portrait}
           />
         </div>
       </div>

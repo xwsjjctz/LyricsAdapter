@@ -279,6 +279,18 @@ test('macOS Liquid Glass controls route intents, resize and release their native
       await app.evaluate(({ BrowserWindow }, w) => { BrowserWindow.getAllWindows()[0]!.setSize(w, 800); }, width);
       await expect.poll(async () => { const item = await bar(); return item ? Math.abs(item.x + item.width / 2 - width / 2) : Infinity; }).toBeLessThan(1);
     }
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
+    await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
+    await expect.poll(async () => (await probe()).items.filter(item => item.id.startsWith('focus-glass')).length).toBe(0);
+    const portraitWasPaused = await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused);
+    await page.getByTestId('focus-play-button').click();
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(!portraitWasPaused);
+    await page.getByTestId('focus-play-button').click();
+    await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(portraitWasPaused);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 800));
+    await expect(page.getByTestId('focus-portrait-controls')).toHaveCount(0);
+    await expect(page.getByTestId('focus-native-controls')).toBeAttached();
+    await expect.poll(async () => (await probe()).items.filter(item => item.id === 'focus-glass-host').length).toBe(1);
     // Move Chromium's pointer off the reveal target too; a synthetic AppKit exit
     // with the DOM pointer still inside would legitimately reveal the bar again.
     await page.mouse.move(10, 70);

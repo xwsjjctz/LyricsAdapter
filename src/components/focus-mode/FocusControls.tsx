@@ -4,6 +4,7 @@ import type { ThemeColors } from '../../types/theme';
 import { useFocusGlassControls } from './useFocusGlassControls';
 import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
 import { resolveCoverUrl } from '../../services/coverUrl';
+import FocusPortraitControls from './FocusPortraitControls';
 
 type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
 
@@ -29,6 +30,7 @@ interface FocusControlsProps {
   onMouseLeave: () => void;
   glassMaterial?: boolean;
   scale?: number;
+  portrait?: boolean;
 }
 
 const formatTime = (seconds: number): string => {
@@ -66,6 +68,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   onMouseLeave,
   glassMaterial = false,
   scale = 1,
+  portrait = false,
 }) => {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const setPlayerRef = useCallback((element: HTMLDivElement | null) => {
@@ -74,7 +77,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     else if (playerRef) (playerRef as React.MutableRefObject<HTMLDivElement | null>).current = element;
   }, [playerRef]);
   const nativeGlass = useFocusGlassControls({
-    anchorRef, focusVisible: isFocusVisible, visible: isPlayerVisible, enabled: !!track, isPlaying,
+    anchorRef, focusVisible: isFocusVisible, visible: isPlayerVisible, enabled: !!track, nativeEnabled: !portrait, isPlaying,
     currentTime: activeCurrentTime, duration: track?.duration ?? 0, volume, playbackMode, scale,
     onSeek, onTogglePlay, onSkipNext, onSkipPrev, onVolumeChange, onToggleMute,
     onTogglePlaybackMode, onMouseEnter, onMouseLeave,
@@ -102,6 +105,12 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     primary: glassColors ? glassColors.primary : colors.textPrimary,
     border: glassColors ? glassColors.border : colors.borderLight,
   };
+  if (portrait) return <FocusPortraitControls
+    playerRef={setPlayerRef} shown={isPlayerVisible && isFocusVisible} enabled={!!track} isPlaying={isPlaying}
+    currentTime={activeCurrentTime} duration={track?.duration ?? 0} volume={volume} playbackMode={playbackMode}
+    onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
+    onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
+    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />;
   if (nativeGlass) {
     // Keep a hover target when the native controls fade out; it owns no playback
     // controls or accessibility nodes and creates no duplicate tab stops.

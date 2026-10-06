@@ -9,6 +9,7 @@ interface Options {
   focusVisible: boolean;
   visible: boolean;
   enabled: boolean;
+  nativeEnabled?: boolean;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -47,9 +48,10 @@ export function useFocusGlassControls(options: Options): boolean {
   const callbacks = useRef(options);
   callbacks.current = options;
   const desktop = getDesktopAPI();
-  const api = desktop?.platform === 'darwin' ? desktop.ipc?.focusGlass : undefined;
+  const api = options.nativeEnabled !== false && desktop?.platform === 'darwin' ? desktop.ipc?.focusGlass : undefined;
 
   useEffect(() => {
+    setActive(false);
     if (!api) return;
     let cancelled = false;
     const unsubscribe = api.onAction((action: FocusGlassAction) => {
@@ -159,5 +161,5 @@ export function useFocusGlassControls(options: Options): boolean {
   }, [api, active]);
   useEffect(() => { sync.current?.(); }, [active, visible, enabled, isPlaying, currentTime, duration, volume, playbackMode, scale, t]);
   useEffect(() => { animate.current?.(); }, [active, visible, options.focusVisible, scale]);
-  return active;
+  return !!api && active;
 }
