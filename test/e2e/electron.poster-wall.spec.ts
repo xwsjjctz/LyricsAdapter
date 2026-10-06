@@ -79,7 +79,15 @@ test('poster wall is the home page, plays in place and switches sources from the
       return { left: Math.min(...rects.map(r => r.left)), right: Math.max(...rects.map(r => r.right)), width: window.innerWidth };
     });
     expect(edges.left).toBeCloseTo(0, 0);
-    expect(edges.right).toBeLessThanOrEqual(edges.width);
+    expect(edges.right).toBeCloseTo(edges.width, 0);
+    // Even a three-song library forms a filled mixed mosaic, without waiting
+    // for enough songs to complete the first twelve-song block.
+    const shapes = await tiles.evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    }));
+    expect(shapes.some(shape => shape.width > shape.height)).toBe(true);
+    expect(shapes.some(shape => shape.width < shape.height)).toBe(true);
 
     // The wall is a song list: playing a tile marks it where it is.
     const coral = page.getByRole('button', { name: 'Coral, Test Artist' });

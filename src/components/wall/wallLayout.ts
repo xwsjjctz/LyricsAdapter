@@ -3,9 +3,10 @@
  *
  * The wall is a 12-column grid of square cells, consumed in 12x8 blocks. Each
  * full block is filled from a template whose slots tile the block exactly, so
- * mixed tile sizes never leave holes. Tracks that cannot fill a whole template
- * fall into a regular tail grid. Tiles follow list order, so playing a track
- * never moves it.
+ * mixed tile sizes never leave holes. An incomplete block uses compact mixed
+ * bands sized to its track count, so adding tracks never needs to wait for a
+ * full block to show varied shapes. Tiles follow list order, so playing a track
+ * never moves it; only the incomplete block changes as tracks are appended.
  */
 
 export interface WallSlot {
@@ -40,7 +41,7 @@ interface WallLayoutInput {
 
 export const WALL_BLOCK_COLS = 12;
 export const WALL_BLOCK_ROWS = 8;
-const TAIL_SPAN = 3;
+const TAIL_BAND_ROWS = 4;
 
 const slot = (x: number, y: number, cols: number, rows: number): WallSlot => ({ x, y, cols, rows });
 
@@ -66,6 +67,21 @@ export const WALL_TEMPLATES: readonly (readonly WallSlot[])[] = [
   ],
 ];
 
+/** Two to six posters tile a compact 12x4 band without empty cells. */
+const TAIL_BANDS: readonly (readonly WallSlot[])[] = [
+  [slot(0, 0, 8, 4), slot(8, 0, 4, 4)],
+  [slot(0, 0, 6, 4), slot(6, 0, 3, 4), slot(9, 0, 3, 4)],
+  [slot(0, 0, 4, 4), slot(4, 0, 4, 2), slot(8, 0, 4, 4), slot(4, 2, 4, 2)],
+  [
+    slot(0, 0, 4, 4), slot(4, 0, 2, 2), slot(6, 0, 2, 2), slot(8, 0, 4, 4),
+    slot(4, 2, 4, 2),
+  ],
+  [
+    slot(0, 0, 6, 4), slot(6, 0, 2, 2), slot(8, 0, 2, 2), slot(10, 0, 2, 2),
+    slot(6, 2, 4, 2), slot(10, 2, 2, 2),
+  ],
+];
+
 const byReadingOrder = (a: WallSlot, b: WallSlot) => a.y - b.y || a.x - b.x;
 
 const mirror = (slots: readonly WallSlot[]): WallSlot[] =>
@@ -76,6 +92,18 @@ const templateFor = (blockIndex: number): WallSlot[] => {
   const base = WALL_TEMPLATES[blockIndex % WALL_TEMPLATES.length]!;
   const cycle = Math.floor(blockIndex / WALL_TEMPLATES.length);
   return cycle % 2 === 1 ? mirror(base) : [...base].sort(byReadingOrder);
+};
+
+const tailFor = (count: number, blockIndex: number): WallSlot[] => {
+  // A single poster fills the width at 2:1, matching the existing wide tiles.
+  if (count === 1) return [slot(0, 0, WALL_BLOCK_COLS, 6)];
+
+  const bandCounts = count <= 6 ? [count] : [Math.ceil(count / 2), Math.floor(count / 2)];
+  return bandCounts.flatMap((bandCount, bandIndex) => {
+    const base = TAIL_BANDS[bandCount - 2]!;
+    const band = (blockIndex + bandIndex) % 2 === 1 ? mirror(base) : [...base].sort(byReadingOrder);
+    return band.map(s => ({ ...s, y: s.y + bandIndex * TAIL_BAND_ROWS }));
+  });
 };
 
 export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallLayout {
@@ -111,18 +139,13 @@ export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallL
 
   for (let block = 0; cursor < count; block++) {
     const template = templateFor(block);
-    if (count - cursor < template.length) break;
+    if (count - cursor < template.length) {
+      place(tailFor(count - cursor, block), top);
+      break;
+    }
     place(template, top);
     top += blockHeight;
   }
-
-  // Tail: a regular grid, so a partial block never shows template holes.
-  const perRow = WALL_BLOCK_COLS / TAIL_SPAN;
-  const tailSlots: WallSlot[] = [];
-  for (let i = 0; cursor + i < count; i++) {
-    tailSlots.push(slot((i % perRow) * TAIL_SPAN, Math.floor(i / perRow) * TAIL_SPAN, TAIL_SPAN, TAIL_SPAN));
-  }
-  place(tailSlots, top);
 
   return { tiles, height: bottom };
 }

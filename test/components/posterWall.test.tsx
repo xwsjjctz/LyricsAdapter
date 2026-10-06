@@ -94,6 +94,24 @@ describe('PosterWall', () => {
     expect(onTrackSelect).toHaveBeenCalledWith(2);
   });
 
+  it('updates mixed tail shapes as tracks are added without moving a completed block', () => {
+    const songs = Array.from({ length: 14 }, (_, index) => track(`added-${index}`));
+    const { rerenderWall, onTrackSelect } = renderWall({ tracks: songs.slice(0, 12) });
+    const geometry = () => screen.getAllByRole('button').slice(0, 12)
+      .map(tile => [tile.style.transform, tile.style.width, tile.style.height]);
+    const completed = geometry();
+
+    for (const count of [13, 14]) {
+      rerenderWall({ tracks: songs.slice(0, count) });
+      expect(geometry()).toEqual(completed);
+      const tail = screen.getAllByRole('button').slice(12);
+      expect(tail).toHaveLength(count - 12);
+      expect(tail.some(tile => tile.style.width !== tile.style.height)).toBe(true);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Song added-13 / Artist' }));
+    expect(onTrackSelect).toHaveBeenCalledWith(13);
+  });
+
   it('plays on plain Enter only, leaving Cmd+Enter and Space to global shortcuts', () => {
     const { onTrackSelect } = renderWall();
     const tile = screen.getByRole('button', { name: 'Song b / Artist' });

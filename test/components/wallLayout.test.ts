@@ -57,10 +57,55 @@ describe('computeWallLayout', () => {
     expect(layout.tiles.map(tile => tile.index)).toEqual(Array.from({ length: 30 }, (_, i) => i));
   });
 
-  it('lays a short tail out as a regular grid instead of leaving template holes', () => {
-    const layout = computeWallLayout({ count: 3, ...metrics });
-    expect(new Set(layout.tiles.map(tile => tile.width)).size).toBe(1);
-    expect(layout.tiles.every(tile => tile.y === 0)).toBe(true);
+  it('mixes shapes in every incomplete block, including mirrored cycles', () => {
+    let prefix = 0;
+    for (let block = 0; block < WALL_TEMPLATES.length * 2; block++) {
+      const template = WALL_TEMPLATES[block % WALL_TEMPLATES.length]!;
+      for (let remaining = 1; remaining < template.length; remaining++) {
+        const layout = computeWallLayout({ count: prefix + remaining, width: 1200, gap: 0 });
+        const tail = layout.tiles.slice(prefix);
+        expect(tail).toHaveLength(remaining);
+        expect(tail.some(tile => tile.cols !== tile.rows)).toBe(true);
+        // Every cell inside the tail's rectangle is covered exactly once.
+        const rows = Math.round((layout.height - block * 800) / 100);
+        const cells = Array.from({ length: rows }, () => Array<number>(WALL_BLOCK_COLS).fill(0));
+        for (const tile of tail) {
+          const x = Math.round(tile.x / 100);
+          const y = Math.round(tile.y / 100) - block * WALL_BLOCK_ROWS;
+          for (let row = y; row < y + tile.rows; row++) {
+            for (let col = x; col < x + tile.cols; col++) cells[row]![col]! += 1;
+          }
+        }
+        expect(cells.flat().every(coverage => coverage === 1)).toBe(true);
+      }
+      prefix += template.length;
+    }
+  });
+
+  it('keeps completed blocks fixed throughout one-by-one additions', () => {
+    let completed = 0;
+    let nextBlock = 0;
+    for (let count = 1; count <= 100; count++) {
+      const before = computeWallLayout({ count, ...metrics });
+      const after = computeWallLayout({ count: count + 1, ...metrics });
+      const nextThreshold = completed + WALL_TEMPLATES[nextBlock % WALL_TEMPLATES.length]!.length;
+      if (count === nextThreshold) { completed = count; nextBlock++; }
+      expect(after.tiles.slice(0, completed)).toEqual(before.tiles.slice(0, completed));
+      expect(after.tiles.map(tile => tile.index)).toEqual(Array.from({ length: count + 1 }, (_, i) => i));
+    }
+  });
+
+  it('scales mixed tail shapes with the window width', () => {
+    const wide = computeWallLayout({ count: 17, width: 1200, gap: 0 });
+    const narrow = computeWallLayout({ count: 17, width: 600, gap: 0 });
+    for (const [index, tile] of narrow.tiles.entries()) {
+      const original = wide.tiles[index]!;
+      expect([tile.cols, tile.rows]).toEqual([original.cols, original.rows]);
+      expect(tile.x).toBeCloseTo(original.x / 2);
+      expect(tile.y).toBeCloseTo(original.y / 2);
+      expect(tile.width).toBeCloseTo(original.width / 2);
+      expect(tile.height).toBeCloseTo(original.height / 2);
+    }
   });
 
   it('returns an empty layout for no tracks or no width', () => {
