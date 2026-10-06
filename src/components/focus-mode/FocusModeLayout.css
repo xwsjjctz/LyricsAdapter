@@ -28,6 +28,19 @@
   --theme-control-slider-fill: rgba(255, 255, 255, .86);
   --theme-progress-radius: 8px;
 }
+.focus-portrait-controls[data-macos-controls="true"] {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.focus-portrait-controls .player-slider-track {
+  transition: height 160ms ease, background-color 160ms ease;
+}
+/* Keep the hit area at 44px: only the centred capsule grows while dragging.
+   Chromium retains :active through the range's native pointer capture, even
+   outside its bounds, and clears it on release/cancel without React state. */
+.focus-portrait-controls .player-slider:has(input:active) {
+  --theme-progress-height: 10px;
+  --theme-control-slider-fill: #fff;
+}
 .focus-portrait-times {
   display: flex;
   justify-content: space-between;
@@ -133,5 +146,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .focus-portrait-controls, .focus-lyrics-viewport { transition: none; }
+  .focus-portrait-controls, .focus-lyrics-viewport,
+  .focus-portrait-controls .player-slider-track { transition: none; }
 }

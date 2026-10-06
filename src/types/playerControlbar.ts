@@ -1,10 +1,12 @@
 import type { FocusGlassPresentation } from './focusGlass';
 
+export type PlayerControlbarLayout = 'full' | 'reduced' | 'compact';
+
 export interface PlayerControlbarState {
   presentation: FocusGlassPresentation;
   darkMode: boolean;
   enabled: boolean;
-  compact: boolean;
+  layout: PlayerControlbarLayout;
   isPlaying: boolean;
   currentTime: number;
   duration: number;

@@ -65,12 +65,12 @@ for (const native of [false, true]) {
       const page = await app.firstWindow();
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
-      const probe = async (id?: string): Promise<NativeSnapshot> => JSON.parse(await app!.evaluate(({ BrowserWindow }, args) => {
+      const probe = async (id?: string, value?: number): Promise<NativeSnapshot> => JSON.parse(await app!.evaluate(({ BrowserWindow }, args) => {
         const { createRequire } = process.getBuiltinModule('module');
-        const bridge = createRequire(args.file)(args.file) as { probe: (handle: Buffer, id?: string) => string };
+        const bridge = createRequire(args.file)(args.file) as { probe: (handle: Buffer, id?: string, value?: number) => string };
         const handle = BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle();
-        return args.id ? bridge.probe(handle, args.id) : bridge.probe(handle);
-      }, { file: probePath, id }));
+        return args.id ? (args.value === undefined ? bridge.probe(handle, args.id) : bridge.probe(handle, args.id, args.value)) : bridge.probe(handle);
+      }, { file: probePath, id, value }));
       const audioState = () => page.locator('audio').evaluate((node: HTMLAudioElement) => ({
         paused: node.paused, time: node.currentTime, volume: node.volume, src: node.currentSrc,
       }));
@@ -85,12 +85,16 @@ for (const native of [false, true]) {
       if (!(await audioState()).paused) await page.keyboard.press('Space');
       await expect.poll(async () => (await audioState()).paused).toBe(true);
       const before = await audioState();
-      for (const width of [360, 393, 600, 719, 720, 900, 1200]) {
+      const seekWidths = new Map<number, number>();
+      for (const width of [1200, 760, 720, 700, 680, 679, 660, 600, 560, 559, 393, 360, 560, 680, 1200]) {
         await resize(width);
-        const compact = width < 720;
+        const compact = width < 560;
+        const extrasHidden = width < 680;
+        const layout = compact ? 'compact' : extrasHidden ? 'reduced' : 'full';
         await expect(panel).toHaveAttribute('data-compact-controlbar', String(compact));
+        await expect(panel).toHaveAttribute('data-controlbar-layout', layout);
         await expect.poll(() => page.locator('.wall-tile').evaluateAll(nodes => Math.min(...nodes.map(node => node.getBoundingClientRect().width))))
-          .toBeGreaterThanOrEqual(Math.floor(width / (compact ? 3 : 6)));
+          .toBeGreaterThanOrEqual(Math.floor(width / (width < 720 ? 3 : 6)));
         const geometry = await page.locator('.wall-tile').evaluateAll(nodes => ({
           overflow: document.documentElement.scrollWidth > innerWidth,
           right: Math.max(...nodes.map(node => node.getBoundingClientRect().right)),
@@ -99,10 +103,14 @@ for (const native of [false, true]) {
         expect(geometry.overflow).toBe(false); expect(geometry.right).toBeLessThanOrEqual(width);
         expect(geometry.shapes).toBeGreaterThan(1);
         if (native) {
-          await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-mode')?.hidden).toBe(compact);
+          await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-mode')?.hidden).toBe(extrasHidden);
+          await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-seek')?.hidden).toBe(compact);
+          await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-glass')?.width)
+            .toBeCloseTo((await panel.boundingBox())!.width, 0);
           const items = (await probe()).items;
           const item = (suffix: string) => items.find(node => node.id === `player-controlbar-${suffix}`)!;
-          for (const suffix of ['seek', 'slider-glass', 'volume-button', 'mode']) expect(item(suffix).hidden).toBe(compact);
+          for (const suffix of ['seek', 'slider-glass']) expect(item(suffix).hidden).toBe(compact);
+          for (const suffix of ['volume-button', 'mode']) expect(item(suffix).hidden).toBe(extrasHidden);
           for (const suffix of ['focus', 'title', 'artist', 'previous', 'play', 'next']) expect(item(suffix).hidden).toBe(false);
           const glass = item('glass'), title = item('title'), previous = item('previous'), next = item('next');
           expect(title.x + title.width).toBeLessThanOrEqual(previous.x);
@@ -110,10 +118,17 @@ for (const native of [false, true]) {
           expect(previous.x + previous.width).toBeLessThanOrEqual(item('play').x);
           expect(item('play').x + item('play').width).toBeLessThanOrEqual(next.x);
           expect(next.x + next.width).toBeLessThanOrEqual(glass.x + glass.width);
+          if (!compact) {
+            const seek = item('seek');
+            expect(seek.width).toBeGreaterThanOrEqual(120);
+            expect(seek.x).toBeGreaterThan(next.x + next.width);
+            expect(seek.x + seek.width).toBeLessThanOrEqual(extrasHidden ? glass.x + glass.width - 14 : item('volume-button').x);
+            seekWidths.set(width, seek.width);
+          }
         } else {
           await expect(panel.getByRole('slider', { name: 'Playback position' })).toBeVisible({ visible: !compact });
-          await expect(panel.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible({ visible: process.platform !== 'darwin' && !compact });
-          expect(await panel.getByRole('button').count()).toBe(compact ? 3 : 5);
+          await expect(panel.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible({ visible: process.platform !== 'darwin' && !extrasHidden });
+          expect(await panel.getByRole('button').count()).toBe(extrasHidden ? 3 : 5);
           const bounds = await panel.evaluate(node => {
             const info = node.querySelector('.player-track-info')!.getBoundingClientRect();
             const transport = node.querySelector('.player-transport')!.getBoundingClientRect();
@@ -122,9 +137,14 @@ for (const native of [false, true]) {
           expect(bounds.infoRight).toBeLessThanOrEqual(bounds.controlsLeft);
           expect(bounds.controlsRight).toBeLessThanOrEqual(bounds.panelRight);
           if (compact) expect(bounds.infoWidth).toBeGreaterThan(140);
+          else {
+            const seekWidth = (await panel.getByTestId('main-seek-anchor').boundingBox())!.width;
+            expect(seekWidth).toBeGreaterThanOrEqual(110);
+            seekWidths.set(width, seekWidth);
+          }
         }
         expect(await audioState()).toEqual(before);
-        if (width === 393 || width === 1200) {
+        if (width === 393 || width === 600 || width === 700 || width === 1200) {
           if (native && process.env['LA_RESPONSIVE_SCREENSHOTS'] === '1') {
             const file = testInfo.outputPath(`native-${width}.png`);
             await mkdir(path.dirname(file), { recursive: true });
@@ -132,7 +152,22 @@ for (const native of [false, true]) {
           } else if (!native) await page.screenshot({ path: testInfo.outputPath(`web-${width}.png`) });
         }
       }
+      // Progress contracts continuously within each stage before content disappears.
+      expect(seekWidths.get(760)!).toBeGreaterThan(seekWidths.get(720)!);
+      expect(seekWidths.get(720)!).toBeGreaterThan(seekWidths.get(680)!);
+      expect(seekWidths.get(679)!).toBeGreaterThan(seekWidths.get(600)!);
+      expect(seekWidths.get(600)!).toBeGreaterThan(seekWidths.get(560)!);
+      await resize(600);
+      if (native) await probe('player-controlbar-seek', 18);
+      else {
+        const seek = panel.getByRole('slider', { name: 'Playback position' });
+        await seek.press('Home'); await seek.press('ArrowRight');
+      }
+      await expect.poll(async () => (await audioState()).time).toBeCloseTo(native ? 18 : .1, 1);
+      expect((await audioState()).paused).toBe(true);
+      expect((await audioState()).volume).toBe(before.volume);
       // A density change keeps the song in view, even far down a virtualized wall.
+      await resize(1200);
       await page.locator('.poster-wall').evaluate(node => { node.scrollTop = 1200; });
       await page.waitForTimeout(100);
       const anchoredId = await page.evaluate(() => document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('.wall-tile')?.getAttribute('data-track-id'));

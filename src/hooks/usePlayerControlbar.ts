@@ -153,8 +153,8 @@ export function usePlayerControlbar(options: Options): boolean {
     };
   }, [active, api]);
 
-  const { enabled, compact, isPlaying, currentTime, duration, volume, playbackMode, title, artist, labels } = options.state;
-  useEffect(() => { sync.current?.(); }, [active, options.visible, enabled, compact, isPlaying, currentTime, duration, volume, playbackMode, title, artist, labels]);
+  const { enabled, layout, isPlaying, currentTime, duration, volume, playbackMode, title, artist, labels } = options.state;
+  useEffect(() => { sync.current?.(); }, [active, options.visible, enabled, layout, isPlaying, currentTime, duration, volume, playbackMode, title, artist, labels]);
   useEffect(() => { animate.current?.(); }, [active, options.visible]);
   return active;
 }

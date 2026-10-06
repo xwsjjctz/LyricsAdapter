@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
 const rect = { x: 0.3, y: 0.9, width: 0.2, height: 0.03, opacity: 1 };
 const state = {
   presentation: rect, darkMode: true, currentTime: 10, duration: 60, volume: 0.4, enabled: true,
-  isPlaying: false, compact: false, playbackMode: 'order', title: 'Track', artist: 'Artist',
+  isPlaying: false, layout: 'full', playbackMode: 'order', title: 'Track', artist: 'Artist',
   labels: { focus: 'Focus', playPause: 'Play', previous: 'Previous', next: 'Next', seek: 'Seek', volume: 'Volume', mute: 'Mute', mode: 'Mode' },
 };
 function sender() { return Object.assign(new EventEmitter(), { mainFrame: {}, send: vi.fn(), isDestroyed: () => false }); }
@@ -54,11 +54,13 @@ describe('native player control bar', () => {
     expect(invoke('update', state).ok).toBe(false); expect(bridge.stopPlayerControlbar).toHaveBeenCalledTimes(2);
     expect(invoke('update', state).ok).toBe(false);
   });
-  it('forwards compact layout changes and rejects invalid layout flags', () => {
+  it('forwards each presentation stage and rejects invalid layouts', () => {
     const { bridge, invoke } = setup(); invoke('start');
-    expect(invoke('update', { ...state, compact: true }).ok).toBe(true);
-    expect(bridge.updatePlayerControlbar).toHaveBeenLastCalledWith({ ...state, compact: true });
-    expect(invoke('update', { ...state, compact: 'true' }).ok).toBe(false);
+    for (const layout of ['reduced', 'compact', 'full']) {
+      expect(invoke('update', { ...state, layout }).ok).toBe(true);
+      expect(bridge.updatePlayerControlbar).toHaveBeenLastCalledWith({ ...state, layout });
+    }
+    expect(invoke('update', { ...state, layout: 'unknown' }).ok).toBe(false);
     expect(invoke('update', state).ok).toBe(true);
     expect(bridge.updatePlayerControlbar).toHaveBeenLastCalledWith(state);
   });

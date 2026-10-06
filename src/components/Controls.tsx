@@ -7,7 +7,7 @@ import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
 import { useVolumeDisclosure } from '../hooks/useVolumeDisclosure';
 import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
-import { useCompactPlayerLayout } from '../hooks/useCompactPlayerLayout';
+import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { MACOS_PLAYER_BOTTOM, MACOS_PLAYER_HEIGHT } from './playerLayout';
 
@@ -54,7 +54,8 @@ const Controls: React.FC<ControlsProps> = memo(({
   const { t } = useTranslation();
   const symbols = usePlaybackSymbols();
   const isMac = getDesktopAPI()?.platform === 'darwin';
-  const compact = useCompactPlayerLayout();
+  const layout = usePlayerControlbarLayout();
+  const compact = layout === 'compact';
   const panelRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
@@ -63,14 +64,14 @@ const Controls: React.FC<ControlsProps> = memo(({
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
-  const disclosure = useVolumeDisclosure(isMac && !isFocusMode && !compact);
+  const disclosure = useVolumeDisclosure(isMac && !isFocusMode && layout === 'full');
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
     visible: true,
     artworkUrl: resolveCoverUrl(track?.coverUrl),
     state: {
       enabled: !!track,
-      compact,
+      layout,
       isPlaying,
       currentTime: displayCurrentTime,
       duration,
@@ -106,6 +107,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         data-testid="main-controlbar"
         data-native-controlbar="true"
         data-compact-controlbar={compact}
+        data-controlbar-layout={layout}
         aria-hidden="true"
         className={`macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`}
         style={{ height: MACOS_PLAYER_HEIGHT, bottom: MACOS_PLAYER_BOTTOM, background: 'transparent' }}
@@ -130,6 +132,7 @@ const Controls: React.FC<ControlsProps> = memo(({
       data-testid="main-controlbar"
       data-macos-floating={isMac || undefined}
       data-compact-controlbar={compact}
+      data-controlbar-layout={layout}
       className={'player-controls ' + (isMac ? `macos-floating-player transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
         ? `mx-2 mb-2 h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
         : `h-24 border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`

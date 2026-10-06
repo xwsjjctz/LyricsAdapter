@@ -215,6 +215,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic) BOOL suppressVolumeFocus;
 @property(nonatomic) BOOL darkMode;
 @property(nonatomic) BOOL compact;
+@property(nonatomic) BOOL extrasHidden;
 - (void)apply:(napi_value)state;
 - (void)setArtworkData:(NSData*)data;
 - (void)applyDarkMode:(BOOL)darkMode;
@@ -341,7 +342,8 @@ API_AVAILABLE(macos(26.0))
   CGFloat centerY = floor(self.bar.bounds.size.height / 2.0) + 0.5;
   self.artwork.frame = NSMakeRect(14, centerY - 22, 44, 44); self.title.frame = NSMakeRect(70, centerY + 3, 116, 18); self.artist.frame = NSMakeRect(70, centerY - 17, 116, 16);
   self.previous.frame = NSMakeRect(192, centerY - 16, 30, 32); self.play.frame = NSMakeRect(224, centerY - 19, 38, 38); self.next.frame = NSMakeRect(264, centerY - 16, 32, 32);
-  for (NSView* view in @[self.sliderGlass, self.seek, self.elapsed, self.total, self.volumeButton, self.mode]) view.hidden = self.compact;
+  for (NSView* view in @[self.sliderGlass, self.seek, self.elapsed, self.total]) view.hidden = self.compact;
+  for (NSView* view in @[self.volumeButton, self.mode]) view.hidden = self.extrasHidden;
   if (self.compact) {
     // Let metadata take all remaining space; the transport stays on the right
     // instead of retaining the desktop's fixed offsets in a narrow glass bar.
@@ -368,8 +370,8 @@ API_AVAILABLE(macos(26.0))
   self.volume.frame = NSMakeRect(inset, inset, kVolumeTrackWidth, kVolumeTrackHeight);
   self.volumeValue.frame = NSMakeRect(0, inset + kVolumeTrackHeight + 5, kVolumePanelWidth, 16);
   self.elapsed.frame = NSMakeRect(300, centerY - 7, 36, 14); CGFloat sliderX = 338;
-  CGFloat modeX = width - 44; CGFloat totalX = localVolumeX - 42;
-  CGFloat sliderWidth = std::max<CGFloat>(90, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
+  CGFloat modeX = width - 44; CGFloat totalX = self.extrasHidden ? width - 52 : localVolumeX - 42;
+  CGFloat sliderWidth = std::max<CGFloat>(0, totalX - sliderX - 4); self.sliderGlass.frame = NSMakeRect(sliderX, centerY - 12, sliderWidth, 24);
   self.seek.frame = self.sliderGlass.bounds; self.total.frame = NSMakeRect(totalX, centerY - 7, 38, 14);
   self.mode.frame = NSMakeRect(modeX, centerY - 16, 32, 32);
 }
@@ -378,7 +380,7 @@ API_AVAILABLE(macos(26.0))
   return NSMakeRect(round(buttonMidX - kVolumePanelWidth / 2), NSMaxY(self.bar.frame) + 8 - lift, kVolumePanelWidth, kVolumePanelHeight);
 }
 - (void)setVolumeRevealed:(BOOL)revealed animated:(BOOL)animated {
-  if (self.compact && revealed) return;
+  if (self.extrasHidden && revealed) return;
   if (_volumeRevealed == revealed) return;
   _volumeRevealed = revealed;
   [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideVolumeIfIdle) object:nil];
@@ -449,14 +451,16 @@ API_AVAILABLE(macos(26.0))
 }
 - (void)apply:(napi_value)state {
   using namespace PlayerControlbar; napi_value p = Get(state, "presentation");
-  BOOL compact = Bool(state, "compact");
-  if (self.compact != compact) {
-    self.compact = compact; [self setNeedsLayout:YES];
-    if (compact) {
+  NSString* layout = String(state, "layout");
+  BOOL compact = [layout isEqualToString:@"compact"];
+  BOOL extrasHidden = ![layout isEqualToString:@"full"];
+  if (self.compact != compact || self.extrasHidden != extrasHidden) {
+    self.compact = compact; self.extrasHidden = extrasHidden; [self setNeedsLayout:YES];
+    if (extrasHidden) {
       [self setVolumeRevealed:NO animated:NO];
       NSResponder* responder = self.window.firstResponder;
       for (NSView* control in @[self.seek, self.mode, self.volumeButton]) {
-        if (responder == control) [self.window makeFirstResponder:nil];
+        if (responder == control && (control != self.seek || compact)) [self.window makeFirstResponder:nil];
       }
     }
   }

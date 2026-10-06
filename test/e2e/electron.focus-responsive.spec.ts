@@ -113,6 +113,11 @@ for (const renderer of ['amll', 'legacy'] as const) {
           expect(bounds.controls!.x).toBeGreaterThanOrEqual(20);
           expect(bounds.clip).toContain('234px');
           expect(bounds.lyrics.bottom - bounds.clipInsetBottom).toBeLessThanOrEqual(bounds.controls!.y + 1);
+          if (process.platform === 'darwin') {
+            const controls = page.getByTestId('focus-portrait-controls');
+            await expect(controls.locator('[data-system-symbol]')).toHaveCount(6);
+            expect(await controls.evaluate(node => getComputedStyle(node).fontFamily)).toContain('-apple-system');
+          }
         } else {
           expect(bounds.meta.y).toBeGreaterThanOrEqual(bounds.cover.bottom);
           expect(bounds.lyrics.x).toBeGreaterThan(bounds.cover.right);
@@ -122,6 +127,31 @@ for (const renderer of ['amll', 'legacy'] as const) {
         if (width === 393 || width === 1200) {
           await page.waitForTimeout(700);
           await page.screenshot({ path: testInfo.outputPath(`${renderer}-${width}x${height}.png`) });
+        }
+      }
+      // The Apple Music-style capsule expands through a drag, including an
+      // out-of-bounds pointer move, then returns to its slim presentation.
+      for (const id of ['focus-seek-slider', 'focus-volume-slider']) {
+        const slider = page.getByTestId(id);
+        const track = slider.locator('..').locator('.player-slider-track');
+        const rect = (await slider.boundingBox())!;
+        await expect(track).toHaveCSS('height', '5px');
+        await page.mouse.move(rect.x + rect.width * .25, rect.y + rect.height / 2);
+        await page.mouse.down();
+        await expect(track).toHaveCSS('height', '10px');
+        expect((await slider.boundingBox())!.height).toBe(44);
+        await page.mouse.move(rect.x + rect.width * .6, rect.y - 30, { steps: 4 });
+        await expect(track).toHaveCSS('height', '10px');
+        await page.mouse.up();
+        await expect(track).toHaveCSS('height', '5px');
+        expect((await slider.boundingBox())!.height).toBe(44);
+        if (id === 'focus-seek-slider') {
+          await expect.poll(async () => (await audioState()).time).toBeGreaterThan(60);
+          expect((await audioState()).time).toBeLessThan(90);
+          expect((await audioState()).paused).toBe(true);
+        } else {
+          await expect.poll(async () => (await audioState()).volume).toBeGreaterThan(.3);
+          expect((await audioState()).volume).toBeLessThan(.5);
         }
       }
       const seek = page.getByTestId('focus-seek-slider');

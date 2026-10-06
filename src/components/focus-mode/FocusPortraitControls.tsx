@@ -1,5 +1,7 @@
 import type { CSSProperties, KeyboardEvent, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
+import { PlaybackIcon, usePlaybackSymbols } from '../PlaybackIcon';
+import { getDesktopAPI } from '../../services/desktopAdapter';
 
 interface Props {
   playerRef: Ref<HTMLDivElement>;
@@ -38,12 +40,15 @@ function handleSliderKey(event: KeyboardEvent<HTMLDivElement>) {
 /** Android's three-row presentation, routed through the desktop player callbacks. */
 export default function FocusPortraitControls(props: Props) {
   const { t } = useTranslation();
+  const symbols = usePlaybackSymbols();
+  const isMac = getDesktopAPI()?.platform === 'darwin';
   const duration = Math.max(0, props.duration);
   const time = Math.min(duration, Math.max(0, props.currentTime));
   const mode = props.playbackMode === 'shuffle' ? 'shuffleMode'
     : props.playbackMode === 'repeat-one' ? 'repeatOneMode' : 'sequence';
   return (
     <div ref={props.playerRef} className="focus-portrait-controls" data-focus-controls
+      data-macos-controls={isMac || undefined}
       data-testid="focus-portrait-controls" aria-hidden={!props.shown || undefined}
       {...(!props.shown ? { inert: '' } : {})}
       style={{ opacity: props.shown ? 1 : 0, pointerEvents: props.shown ? undefined : 'none' }}
@@ -60,25 +65,25 @@ export default function FocusPortraitControls(props: Props) {
       </div>
       <div className="focus-portrait-transport">
         <button type="button" aria-label={t('shortcut.prevTrack')} disabled={!props.shown || !props.enabled} onClick={props.onSkipPrev}>
-          <span className="material-symbols-outlined" aria-hidden="true">fast_rewind</span></button>
+          <PlaybackIcon symbols={symbols} name="fast_rewind" className="material-symbols-outlined" aria-hidden="true" /></button>
         <button type="button" aria-label={t('shortcut.playPause')} disabled={!props.shown || !props.enabled}
           onClick={props.onTogglePlay} data-testid="focus-play-button">
-          <span className="material-symbols-outlined" aria-hidden="true">{props.isPlaying ? 'pause' : 'play_arrow'}</span></button>
+          <PlaybackIcon symbols={symbols} name={props.isPlaying ? 'pause' : 'play_arrow'} className="material-symbols-outlined" aria-hidden="true" /></button>
         <button type="button" aria-label={t('shortcut.nextTrack')} disabled={!props.shown || !props.enabled} onClick={props.onSkipNext}>
-          <span className="material-symbols-outlined" aria-hidden="true">fast_forward</span></button>
+          <PlaybackIcon symbols={symbols} name="fast_forward" className="material-symbols-outlined" aria-hidden="true" /></button>
       </div>
       <div className="focus-portrait-volume">
         <button type="button" disabled={!props.shown} aria-label={t(props.volume === 0 ? 'controls.unmute' : 'controls.mute')} onClick={props.onToggleMute}>
-          <span className="material-symbols-outlined" aria-hidden="true">{props.volume === 0 ? 'volume_off' : 'volume_down'}</span></button>
+          <PlaybackIcon symbols={symbols} name={props.volume === 0 ? 'volume_off' : 'volume_down'} className="material-symbols-outlined" aria-hidden="true" /></button>
         <div className="player-slider" style={{ '--slider-progress': `${props.volume * 100}%` } as CSSProperties}>
           <input data-testid="focus-volume-slider" type="range" min="0" max="1" step="0.01" value={props.volume}
             disabled={!props.shown} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(props.volume * 100)}%`}
             onChange={event => props.onVolumeChange(Number(event.target.value))} />
           <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
         </div>
-        <span className="material-symbols-outlined" aria-hidden="true">volume_up</span>
+        <PlaybackIcon symbols={symbols} name="volume_up" className="material-symbols-outlined" aria-hidden="true" />
         <button type="button" disabled={!props.shown || !props.enabled} aria-label={t(`controls.${mode}`)} onClick={props.onTogglePlaybackMode}>
-          <span className="material-symbols-outlined" aria-hidden="true">{props.playbackMode === 'repeat-one' ? 'repeat_one' : props.playbackMode === 'shuffle' ? 'shuffle' : 'repeat'}</span></button>
+          <PlaybackIcon symbols={symbols} name={props.playbackMode === 'repeat-one' ? 'repeat_one' : props.playbackMode === 'shuffle' ? 'shuffle' : 'repeat'} className="material-symbols-outlined" aria-hidden="true" /></button>
       </div>
     </div>
   );

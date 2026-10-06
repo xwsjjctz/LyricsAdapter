@@ -14,7 +14,7 @@ vi.mock('@/services/desktopAdapter', () => ({
 const options = () => ({
   anchorRef: { current: null }, visible: true, artworkUrl: 'cover://track.png',
   state: {
-    enabled: true, compact: false, isPlaying: false, currentTime: 10, duration: 60, volume: 0.5,
+    enabled: true, layout: 'full' as const, isPlaying: false, currentTime: 10, duration: 60, volume: 0.5,
     playbackMode: 'order' as const, title: 'Track', artist: 'Artist',
     labels: { focus: 'Focus', playPause: 'Play', previous: 'Previous', next: 'Next', seek: 'Seek', volume: 'Volume', mute: 'Mute', mode: 'Mode' },
   },
