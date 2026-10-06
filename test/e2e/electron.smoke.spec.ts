@@ -254,7 +254,7 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
 
     await expect(page).toHaveURL('app://localhost/index.html');
     await expect(page).toHaveTitle('LyricsAdapter');
-    await expect(page.locator('#root > *').first()).toBeVisible();
+    await expect(page.locator('.poster-wall')).toBeVisible();
 
     await expect.poll(() => page!.evaluate(() => {
       const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;

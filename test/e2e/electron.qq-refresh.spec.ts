@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
 import type { QQCredential } from '../../src/shared/qqCredential';
+import type { TypedElectronIPC } from '../../src/types/typedIpc';
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const credentialKey = 'qq_music_credential';
@@ -13,15 +14,15 @@ interface TestBridge {
   qqLoginRefresh(credential: QQCredential, cookie: string): Promise<{
     success: boolean; error?: string; credential?: QQCredential; cookie?: string;
   }>;
-  settingsGet(key: string): Promise<string | null>;
-  settingsSetMany(entries: Record<string, string>): Promise<unknown>;
+  settingsGet(key: string): Promise<string | undefined>;
+  ipc: Pick<TypedElectronIPC, 'settings'>;
 }
 
 interface RefreshProbe {
   calls: { payload: { req: { param: Record<string, unknown> }; comm: Record<string, unknown> }; cookie: string }[];
 }
 
-test('QQ refresh recovers legacy OAuth fields, rotates tokens through IPC and retains them across restart', async () => {
+test('QQ refresh rotates OAuth fields through IPC and respects encrypted persistence availability across restart', async () => {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-qq-refresh-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'user-data');
@@ -97,10 +98,16 @@ test('QQ refresh recovers legacy OAuth fields, rotates tokens through IPC and re
     expect(probe.calls[0]?.cookie).toBe(oldCookie);
     expect(probe.calls[1]?.payload.req.param).toMatchObject({ openid: 'test-new-openid', access_token: 'test-new-access', refresh_token: 'test-new-refresh-token' });
 
-    // The renderer manager's write policy is unit-tested; verify the new optional
-    // fields also survive the actual encrypted settings bridge and restart.
+    // Keep the real encrypted store in the path. Headless Linux may only have
+    // basic_text: verify refusal to save credentials there, not plaintext storage.
+    const encryptionAvailable = await app.evaluate(({ safeStorage }) =>
+      safeStorage.isEncryptionAvailable()
+      && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'));
     const entries = { [credentialKey]: JSON.stringify(partial.credential), [cookieKey]: partial.cookie! };
-    await page.evaluate(async entries => (window as unknown as { electron: TestBridge }).electron.settingsSetMany(entries), entries);
+    const writeResult = await page.evaluate(async entries =>
+      (window as unknown as { electron: TestBridge }).electron.ipc.settings.setMany(entries), entries);
+    expect(writeResult.ok).toBe(encryptionAvailable);
+    if (!writeResult.ok) expect(writeResult.error).toContain('Failed to persist settings');
     await app.close(); app = undefined;
     app = await launch();
     page = await app.firstWindow();
@@ -109,7 +116,9 @@ test('QQ refresh recovers legacy OAuth fields, rotates tokens through IPC and re
       const api = (window as unknown as { electron: TestBridge }).electron;
       return { credential: await api.settingsGet(credentialKey), cookie: await api.settingsGet(cookieKey) };
     }, { credentialKey, cookieKey });
-    expect(persisted).toEqual({ credential: entries[credentialKey], cookie: entries[cookieKey] });
+    expect(persisted).toEqual(encryptionAvailable
+      ? { credential: entries[credentialKey], cookie: entries[cookieKey] }
+      : { credential: undefined, cookie: undefined });
   } finally {
     await app?.close();
     await rm(root, { recursive: true, force: true });

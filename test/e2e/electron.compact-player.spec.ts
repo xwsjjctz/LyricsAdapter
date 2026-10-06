@@ -93,15 +93,18 @@ for (const native of [false, true]) {
         const layout = compact ? 'compact' : extrasHidden ? 'reduced' : 'full';
         await expect(panel).toHaveAttribute('data-compact-controlbar', String(compact));
         await expect(panel).toHaveAttribute('data-controlbar-layout', layout);
-        await expect.poll(() => page.locator('.wall-tile').evaluateAll(nodes => Math.min(...nodes.map(node => node.getBoundingClientRect().width))))
-          .toBeGreaterThanOrEqual(Math.floor(width / (width < 720 ? 3 : 6)));
-        const geometry = await page.locator('.wall-tile').evaluateAll(nodes => ({
-          overflow: document.documentElement.scrollWidth > innerWidth,
-          right: Math.max(...nodes.map(node => node.getBoundingClientRect().right)),
-          shapes: new Set(nodes.map(node => { const r = node.getBoundingClientRect(); return `${Math.round(r.width)}x${Math.round(r.height)}`; })).size,
-        }));
-        expect(geometry.overflow).toBe(false); expect(geometry.right).toBeLessThanOrEqual(width);
-        expect(geometry.shapes).toBeGreaterThan(1);
+        // ResizeObserver and React commit after the viewport resize. A shrinking
+        // wall's old tiles already pass the minimum-size check, so await every
+        // geometry constraint together before inspecting controls or scrolling.
+        await expect.poll(() => page.locator('.wall-tile').evaluateAll((nodes, width) => {
+          const rects = nodes.map(node => node.getBoundingClientRect());
+          return {
+            coversReadable: Math.min(...rects.map(rect => rect.width)) >= Math.floor(width / (width < 720 ? 3 : 6)),
+            fitsViewport: Math.max(...rects.map(rect => rect.right)) <= width,
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            mixedShapes: new Set(rects.map(rect => `${Math.round(rect.width)}x${Math.round(rect.height)}`)).size > 1,
+          };
+        }, width)).toEqual({ coversReadable: true, fitsViewport: true, overflow: false, mixedShapes: true });
         if (native) {
           await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-mode')?.hidden).toBe(extrasHidden);
           await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-seek')?.hidden).toBe(compact);
