@@ -59,6 +59,17 @@ describe('findConflict', () => {
 
 // ========== matchesShortcut ==========
 describe('matchesShortcut', () => {
+  it('matches the physical backquote key with Cmd/Ctrl and optional reverse Shift', () => {
+    expect(shortcutManager.formatKeyForDisplay('CmdOrCtrl+Backquote')).toBe('Cmd/Ctrl+`');
+    for (const key of ['`', '§', '~']) {
+      const event = new KeyboardEvent('keydown', { key, code: 'Backquote', metaKey: true });
+      expect(shortcutManager.matchesShortcut('cyclePlaylists', event)).toBe(true);
+    }
+    const reverse = new KeyboardEvent('keydown', { key: '~', code: 'Backquote', ctrlKey: true, shiftKey: true });
+    expect(shortcutManager.matchesShortcut('cyclePlaylists', reverse)).toBe(false);
+    expect(shortcutManager.matchesShortcut('cyclePlaylists', reverse, true)).toBe(true);
+    expect(shortcutManager.matchesShortcut('cyclePlaylists', new KeyboardEvent('keydown', { key: '`', code: 'Backquote' }))).toBe(false);
+  });
   it('should match Space for playPause', () => {
     const event = new KeyboardEvent('keydown', { key: ' ' });
     expect(shortcutManager.matchesShortcut('playPause', event)).toBe(true);

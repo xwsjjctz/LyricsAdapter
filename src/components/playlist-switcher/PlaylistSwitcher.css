@@ -1,0 +1,58 @@
+.playlist-switcher-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, .16);
+  -webkit-app-region: no-drag;
+}
+.playlist-switcher {
+  max-width: min(860px, 100%);
+  min-width: 0;
+  padding: 16px 12px 10px;
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--theme-text-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--theme-background-dark) 64%, transparent);
+  color: var(--theme-text-primary);
+  backdrop-filter: blur(32px) saturate(160%);
+  box-shadow: 0 24px 72px -20px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .1);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.playlist-switcher__items { display: flex; gap: 8px; max-width: 100%; overflow-x: auto; outline: none; }
+.playlist-switcher__items button {
+  flex: 0 0 clamp(112px, 16vw, 144px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 10px;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.playlist-switcher__items button[aria-selected="true"] {
+  background: color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text-primary) 22%, transparent);
+}
+.playlist-switcher__artwork {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(72px, 12vw, 96px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 16px;
+  margin-bottom: 6px;
+  background: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, .12);
+}
+.playlist-switcher__artwork .material-symbols-outlined { font-size: 42px; }
+.playlist-switcher__artwork img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.playlist-switcher__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.playlist-switcher__detail { color: var(--theme-text-muted); font-size: 11px; }
+.playlist-switcher__hint { margin: 10px 4px 0; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.5; text-align: center; }

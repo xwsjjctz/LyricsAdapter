@@ -26,6 +26,7 @@ export type ShortcutAction =
   | 'togglePlaybackMode'
   | 'toggleFocusMode'
   | 'toggleCommandPalette'
+  | 'cyclePlaylists'
   | 'focusSearch'
   | 'gotoBrowse'
   | 'gotoSettings'
@@ -151,6 +152,14 @@ const DEFAULT_SHORTCUTS: Record<ShortcutAction, ShortcutConfig> = {
     defaultKey: 'CmdOrCtrl+K',
     currentKey: 'CmdOrCtrl+K',
     scope: 'global'
+  },
+  cyclePlaylists: {
+    id: 'cyclePlaylists',
+    name: 'shortcut.cyclePlaylists',
+    description: 'shortcut.cyclePlaylistsDesc',
+    defaultKey: 'CmdOrCtrl+Backquote',
+    currentKey: 'CmdOrCtrl+Backquote',
+    scope: 'navigation'
   },
   focusSearch: {
     id: 'focusSearch',
@@ -313,11 +322,12 @@ class ShortcutManager {
       .replace('Down', 'Down')
       .replace('Space', 'Space')
       .replace('Enter', 'Enter')
-      .replace('Escape', 'Esc');
+      .replace('Escape', 'Esc')
+      .replace('Backquote', '`');
   }
 
   // Check if an input event matches a shortcut
-  matchesShortcut(action: ShortcutAction, event: KeyboardEvent): boolean {
+  matchesShortcut(action: ShortcutAction, event: KeyboardEvent, allowExtraShift = false): boolean {
     const shortcut = this.shortcuts[action];
     if (!shortcut || !shortcut.currentKey) return false;
 
@@ -338,7 +348,8 @@ class ShortcutManager {
       'Enter': ['Enter'],
       'Escape': ['Escape'],
       'Tab': ['Tab'],
-      ',': [',']
+      ',': [','],
+      'Backquote': ['`', '~', 'Backquote']
     };
     const codeMap: Record<string, string> = {
       'Space': 'Space',
@@ -349,7 +360,8 @@ class ShortcutManager {
       'Enter': 'Enter',
       'Escape': 'Escape',
       'Tab': 'Tab',
-      ',': 'Comma'
+      ',': 'Comma',
+      'Backquote': 'Backquote'
     };
     
     // Get the expected event.key values (try lowercase too for letter shortcuts)
@@ -359,7 +371,7 @@ class ShortcutManager {
 
     const ctrlMatch = needsCtrl === (event.ctrlKey || event.metaKey);
     const altMatch = needsAlt === event.altKey;
-    const shiftMatch = needsShift === event.shiftKey;
+    const shiftMatch = needsShift === event.shiftKey || (allowExtraShift && !needsShift && event.shiftKey);
     
     // For letter keys, event.key can be lowercase when combined with modifiers
     const keyMatch =

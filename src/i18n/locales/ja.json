@@ -341,5 +341,11 @@
   "search.downloading": "{{count}} 曲をダウンロード中",
   "wall.download.preparing": "準備中",
   "wall.download.downloading": "ダウンロード中",
-  "wall.download.saving": "保存中"
+  "wall.download.saving": "保存中",
+  "shortcut.cyclePlaylists": "プレイリストを切り替え",
+  "shortcut.cyclePlaylistsDesc": "Cmd/Ctrl を押しながら 1 の左のキーで選択し、離して確定",
+  "playlistSwitcher.label": "プレイリストを切り替え",
+  "playlistSwitcher.count": "{{count}} 曲",
+  "playlistSwitcher.hint": "{{modifier}} を離して確定 · Shift で逆方向 · Esc でキャンセル",
+  "playlistSwitcher.confirmHint": "Enter で確定 · 矢印キーで選択 · Esc でキャンセル"
 }

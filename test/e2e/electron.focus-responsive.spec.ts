@@ -82,7 +82,10 @@ for (const renderer of ['amll', 'legacy'] as const) {
         await expect(focus).toHaveAttribute('data-focus-layout', portrait ? 'portrait' : 'landscape');
         await expect(lyricsRoot).toHaveAttribute('data-test-original-renderer', 'true');
         await page.mouse.move(20, 180);
-        if (portrait) await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
+        if (portrait) {
+          await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
+          await page.getByTestId('focus-portrait-controls').hover();
+        }
         // The lyric cutaway animates for 500ms when controls become visible.
         await page.waitForTimeout(550);
         const bounds = await focus.evaluate(node => {
@@ -129,6 +132,23 @@ for (const renderer of ['amll', 'legacy'] as const) {
           await page.screenshot({ path: testInfo.outputPath(`${renderer}-${width}x${height}.png`) });
         }
       }
+      // Both layouts hide on the same one-second deadline. Moving outside
+      // controls must release hover protection; playback cannot restart it.
+      const content = focus.locator('.focus-mode-content');
+      for (const [width, height] of [[600, 800], [1200, 800]] as const) {
+        await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+        await expect(focus).toHaveAttribute('data-focus-layout', width < height ? 'portrait' : 'landscape');
+        await page.mouse.move(20, 180);
+        await expect(content).toHaveAttribute('data-focus-controls-visible', 'true');
+        await page.waitForTimeout(700);
+        await expect(content).toHaveAttribute('data-focus-controls-visible', 'true');
+        await expect(content).toHaveAttribute('data-focus-controls-visible', 'false', { timeout: 800 });
+      }
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
+      await expect(focus).toHaveAttribute('data-focus-layout', 'portrait');
+      await page.mouse.move(20, 180);
+      await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
+      await page.getByTestId('focus-portrait-controls').hover();
       // The Apple Music-style capsule expands through a drag, including an
       // out-of-bounds pointer move, then returns to its slim presentation.
       for (const id of ['focus-seek-slider', 'focus-volume-slider']) {

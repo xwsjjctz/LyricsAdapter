@@ -1,4 +1,4 @@
-export const FOCUS_CONTROLS_IDLE_MS = 8_000;
+export const FOCUS_CONTROLS_IDLE_MS = 1_000;
 
 /** A presentation timer: playback updates never count as user activity. */
 export class FocusControlsIdle {

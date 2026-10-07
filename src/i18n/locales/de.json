@@ -341,5 +341,11 @@
   "search.downloading": "{{count}} werden geladen",
   "wall.download.preparing": "Vorbereitung",
   "wall.download.downloading": "Download läuft",
-  "wall.download.saving": "Speichern"
+  "wall.download.saving": "Speichern",
+  "shortcut.cyclePlaylists": "Playlists wechseln",
+  "shortcut.cyclePlaylistsDesc": "Cmd/Strg halten und die Taste links von 1 drücken; zum Bestätigen loslassen",
+  "playlistSwitcher.label": "Playlists wechseln",
+  "playlistSwitcher.count": "{{count}} Titel",
+  "playlistSwitcher.hint": "{{modifier}} zum Bestätigen loslassen · Shift rückwärts · Esc abbrechen",
+  "playlistSwitcher.confirmHint": "Enter bestätigen · Pfeiltasten auswählen · Esc abbrechen"
 }

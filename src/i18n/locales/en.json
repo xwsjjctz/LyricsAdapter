@@ -341,5 +341,11 @@
   "search.downloading": "Downloading {{count}}",
   "wall.download.preparing": "Preparing",
   "wall.download.downloading": "Downloading",
-  "wall.download.saving": "Saving"
+  "wall.download.saving": "Saving",
+  "shortcut.cyclePlaylists": "Switch playlists",
+  "shortcut.cyclePlaylistsDesc": "Hold Cmd/Ctrl and press the key left of 1 to cycle playlists; release to confirm",
+  "playlistSwitcher.label": "Switch playlists",
+  "playlistSwitcher.count": "{{count}} tracks",
+  "playlistSwitcher.hint": "Release {{modifier}} to confirm · Shift reverses · Esc cancels",
+  "playlistSwitcher.confirmHint": "Enter to confirm · Arrow keys to select · Esc cancels"
 }

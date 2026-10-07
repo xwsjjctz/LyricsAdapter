@@ -341,5 +341,11 @@
   "search.downloading": "{{count}}곡 다운로드 중",
   "wall.download.preparing": "준비 중",
   "wall.download.downloading": "다운로드 중",
-  "wall.download.saving": "저장 중"
+  "wall.download.saving": "저장 중",
+  "shortcut.cyclePlaylists": "재생 목록 전환",
+  "shortcut.cyclePlaylistsDesc": "Cmd/Ctrl을 누른 채 1 왼쪽 키로 선택하고 놓아서 확인",
+  "playlistSwitcher.label": "재생 목록 전환",
+  "playlistSwitcher.count": "{{count}}곡",
+  "playlistSwitcher.hint": "{{modifier}}을 놓아 확인 · Shift로 역방향 · Esc로 취소",
+  "playlistSwitcher.confirmHint": "Enter로 확인 · 방향키로 선택 · Esc로 취소"
 }

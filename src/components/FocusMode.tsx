@@ -25,6 +25,7 @@ import {
 import { useFocusModeScale } from './focus-mode/focusModeScale';
 import { useFocusPortraitLayout } from './focus-mode/useFocusPortraitLayout';
 import { useFocusControlsIdle } from './focus-mode/useFocusControlsIdle';
+import { FOCUS_CONTROLS_IDLE_MS } from './focus-mode/focusControlsIdle';
 import { hasTrackLyrics } from './focus-mode/focusLyricsTrack';
 import './focus-mode/FocusModeLayout.css';
 import FocusLyrics from './focus-mode/FocusLyrics';
@@ -616,7 +617,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     // Set timeout to hide player after 1 second
     playerHideTimeoutRef.current = setTimeout(() => {
       setIsPlayerVisible(false);
-    }, 1000);
+    }, FOCUS_CONTROLS_IDLE_MS);
   };
 
   // Cleanup player hide timeout on unmount
@@ -658,7 +659,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       // Start hide timer - mouse enter will cancel it if mouse is over player
       playerHideTimeoutRef.current = setTimeout(() => {
         setIsPlayerVisible(false);
-      }, 1000);
+      }, FOCUS_CONTROLS_IDLE_MS);
     }
   }, [isVisible, portrait]);
 

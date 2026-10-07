@@ -341,5 +341,11 @@
   "search.downloading": "正在下载 {{count}} 首",
   "wall.download.preparing": "准备下载",
   "wall.download.downloading": "下载中",
-  "wall.download.saving": "正在保存"
+  "wall.download.saving": "正在保存",
+  "shortcut.cyclePlaylists": "切换歌单",
+  "shortcut.cyclePlaylistsDesc": "按住 Cmd/Ctrl 并按数字 1 左侧按键切换歌单，松开确认",
+  "playlistSwitcher.label": "切换歌单",
+  "playlistSwitcher.count": "{{count}} 首",
+  "playlistSwitcher.hint": "松开 {{modifier}} 确认 · Shift 反向 · Esc 取消",
+  "playlistSwitcher.confirmHint": "Enter 确认 · 方向键选择 · Esc 取消"
 }
