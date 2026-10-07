@@ -19,7 +19,7 @@ import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
-import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { FLOATING_PLAYER_BOTTOM_INSET } from './playerLayout';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -297,8 +297,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // The header no longer overlays the track list, so no top inset is needed.
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
-  const bottomInset = getDesktopAPI()?.platform === 'darwin'
-    ? MACOS_PLAYER_BOTTOM_INSET : 0;
+  const bottomInset = ['darwin', 'win32'].includes(getDesktopAPI()?.platform ?? '')
+    ? FLOATING_PLAYER_BOTTOM_INSET : 0;
 
   const {
     baseRowHeight,

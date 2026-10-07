@@ -11,7 +11,7 @@ import { logger } from '../../services/logger';
  */
 export function useFocusBackdropLuminance(coverUrl: string | null | undefined): boolean | null {
   const desktop = getDesktopAPI();
-  const api = desktop?.platform === 'darwin' ? desktop.ipc?.focusGlass : undefined;
+  const api = desktop?.platform === 'darwin' || desktop?.platform === 'win32' ? desktop.ipc?.focusGlass : undefined;
   const source = toCoverThumb(coverUrl ?? undefined, 256) ?? null;
   const [light, setLight] = useState<boolean | null>(null);
 

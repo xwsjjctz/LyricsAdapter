@@ -58,6 +58,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
     let app: ElectronApplication | undefined;
     try {
       app = await electron.launch({ cwd: root, args: [
+        ...(process.platform === 'win32' ? ['--force-device-scale-factor=1'] : []),
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
       ], env });
       const page = await app.firstWindow();
@@ -75,6 +76,8 @@ for (const renderer of ['amll', 'legacy'] as const) {
       // Hidden controls remain inert, so hover their geometric bounds rather
       // than relying on the control element being a pointer-event target.
       const hoverPortraitControls = async () => {
+        // Re-entry sets the layout attribute before the page slide finishes.
+        await expect.poll(async () => Math.abs((await focus.boundingBox())!.y)).toBeLessThan(.5);
         const rect = (await page.getByTestId('focus-portrait-controls').boundingBox())!;
         await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
       };

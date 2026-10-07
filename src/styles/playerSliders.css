@@ -1,5 +1,5 @@
 /* Progress and volume sliders in the normal player only. */
-.macos-floating-player {
+.macos-floating-player, .floating-player {
   position: absolute;
   inset-inline: 20px;
   width: calc(100% - 40px);
@@ -14,7 +14,7 @@
 
 /* FocusMode remains mounted until its exit animation finishes. Keep the
    external player above that page for the complete enter and exit sequence. */
-body:has(.focus-mode-overlay) .macos-floating-player {
+body:has(.focus-mode-overlay) :is(.macos-floating-player, .floating-player) {
   z-index: 140;
 }
 
@@ -30,8 +30,8 @@ body:has(.focus-mode-overlay) .macos-floating-player {
 .player-controls .player-transport [data-testid="main-play-button"] { width: 38px; }
 .player-controls .player-progress-controls { min-width: 0; gap: 6px; }
 .player-controls .player-progress-controls > span { width: 30px; flex-shrink: 0; }
-.player-controls:not([data-macos-floating]) { padding-inline: clamp(12px, 2vw, 24px); }
-.player-controls:not([data-macos-floating]) .player-volume-controls { flex: 0 0 124px; width: 124px; }
+.player-controls:not([data-macos-floating]):not([data-floating-player]) { padding-inline: clamp(12px, 2vw, 24px); }
+.player-controls:not([data-macos-floating]):not([data-floating-player]) .player-volume-controls { flex: 0 0 124px; width: 124px; }
 .player-controls .player-volume-slider { flex-basis: 48px; }
 
 .player-controls[data-controlbar-layout="reduced"] .player-volume-controls,

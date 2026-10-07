@@ -1,0 +1,114 @@
+.liquid-glass-definitions { position: absolute; pointer-events: none; }
+
+.liquid-glass {
+  --glass-tint: rgba(0, 0, 0, .3);
+  --glass-rim: rgba(255, 255, 255, .32);
+  --glass-highlight: rgba(255, 255, 255, .07);
+  --glass-blur: 16px;
+  --liquid-glass-filter: blur(var(--glass-blur)) saturate(135%);
+  background: linear-gradient(155deg, var(--glass-highlight), transparent 48%), var(--glass-tint);
+  backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
+  -webkit-backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, .45),
+    inset 0 0 0 1px var(--glass-rim), inset 0 1px 0 rgba(255, 255, 255, .24),
+    inset 0 -1px 0 rgba(0, 0, 0, .1);
+}
+.theme-light .liquid-glass { --glass-tint: rgba(255, 255, 255, .3); --glass-rim: rgba(255, 255, 255, .6); }
+.liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); --glass-blur: 4px; }
+.theme-light .liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); }
+
+/* The main bar's backing is a sibling of its volume popup, so the popup can
+   sample the page instead of being trapped inside another backdrop root. */
+.liquid-glass--layered { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+.liquid-glass--layered::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(155deg, var(--glass-highlight), transparent 48%), var(--glass-tint);
+  backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
+  -webkit-backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, .45),
+    inset 0 0 0 1px var(--glass-rim), inset 0 1px 0 rgba(255, 255, 255, .24),
+    inset 0 -1px 0 rgba(0, 0, 0, .1);
+}
+
+.player-controls.windows-glass-player { border-radius: 22px; gap: 6px; }
+.windows-glass-player[data-controlbar-layout="full"] { padding-right: 12px; }
+.windows-glass-player .player-primary-controls { gap: 4px; }
+.windows-glass-player .player-transport button:first-child { width: 30px; }
+.windows-glass-player .player-track-trigger { text-align: left; }
+.windows-glass-player .player-track-title { font-size: 12.5px; font-weight: 600; }
+.windows-glass-player .player-track-artist { font-size: 10.5px; }
+.windows-glass-player .player-progress-controls { gap: 2px; }
+.windows-glass-player .player-progress-controls > span { width: 36px; font-weight: 500; }
+.windows-glass-player .player-progress-controls > span:last-child { width: 38px; margin-left: 2px; }
+.windows-glass-player .macos-volume-controls { flex-basis: 64px; margin-left: -2px; }
+.windows-glass-player .macos-volume-disclosure { width: 32px; }
+.windows-glass-player .macos-volume-button { width: 32px; }
+.windows-glass-player .macos-volume-slider-shell {
+  left: -6px;
+  bottom: calc(100% + 24px);
+  border: 0;
+}
+.windows-glass-player[data-controlbar-layout="compact"] .player-primary-controls { gap: 0; }
+.player-controls.windows-glass-player[data-controlbar-layout="compact"] { padding-inline: 14px; gap: 10px; }
+.windows-glass-player[data-controlbar-layout="compact"] .player-track-trigger { gap: 12px; }
+.windows-glass-player[data-controlbar-layout="compact"] .player-transport button:first-child { width: 32px; }
+
+.windows-focus-glass {
+  position: fixed;
+  bottom: var(--focus-glass-bottom);
+  left: 50%;
+  width: 350px;
+  max-width: calc((100vw - 48px) / var(--focus-glass-scale));
+  aspect-ratio: 350 / 96;
+  border-radius: 24px;
+  transform: translateX(-50%) scale(var(--focus-glass-scale));
+  transform-origin: center bottom;
+  z-index: 20;
+  color: var(--focus-glass-fg);
+  --theme-control-slider-track: var(--focus-glass-track);
+  --theme-control-slider-fill: var(--focus-glass-fg);
+  --theme-control-icon-fg-hover: var(--focus-glass-fg);
+}
+.windows-focus-glass button { position: absolute; display: grid; place-items: center; border-radius: 12px; }
+.windows-focus-glass button:hover:enabled { background: var(--focus-glass-track); }
+.windows-focus-glass button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.windows-focus-glass button:disabled { opacity: .3; }
+.windows-focus-glass .material-symbols-outlined { font-size: 22px; font-variation-settings: 'FILL' 1; }
+.windows-focus-glass .focus-glass-mode .material-symbols-outlined,
+.windows-focus-glass .focus-glass-mute .material-symbols-outlined { font-size: 20px; }
+.windows-focus-glass .focus-glass-play .material-symbols-outlined { font-size: 28px; }
+.focus-glass-time { position: absolute; top: 15.625%; width: 11.4286%; height: 14px; font-size: 10px; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; color: var(--focus-glass-muted); }
+.focus-glass-elapsed { left: 3.4286%; }
+.focus-glass-total { left: 85.1429%; }
+.windows-focus-glass .focus-glass-seek { position: absolute; left: 16%; top: 13.5417%; width: 68%; height: 18.75%; }
+.windows-focus-glass .focus-glass-mode { left: 4.5714%; top: 47.9167%; width: 9.1429%; height: 37.5%; color: var(--focus-glass-muted); }
+.windows-focus-glass .focus-glass-mode[data-active="true"] { color: var(--theme-primary); }
+.windows-focus-glass .focus-glass-previous { left: 20.5714%; top: 47.9167%; width: 10.2857%; height: 37.5%; }
+.windows-focus-glass .focus-glass-play { left: 33.1429%; top: 43.75%; width: 12.5714%; height: 45.8333%; }
+.windows-focus-glass .focus-glass-next { left: 48%; top: 47.9167%; width: 10.2857%; height: 37.5%; }
+.windows-focus-glass .focus-glass-mute { left: 64%; top: 47.9167%; width: 9.1429%; height: 37.5%; }
+.windows-focus-glass .focus-glass-volume { position: absolute; left: 76%; top: 56.25%; width: 19.4286%; height: 20.8333%; }
+.windows-focus-glass, .windows-glass-player { --theme-progress-height: 4px; --theme-progress-radius: 999px; }
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .liquid-glass, .liquid-glass--layered::before {
+    background: var(--theme-control-panel-bg-floating);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .windows-focus-glass {
+    --focus-glass-fg: var(--theme-text-primary) !important;
+    --focus-glass-muted: var(--theme-text-muted) !important;
+    --focus-glass-track: var(--theme-border-light) !important;
+  }
+  .liquid-glass--layered { background: transparent; }
+}
+@media (forced-colors: active) {
+  .windows-focus-glass { --focus-glass-fg: CanvasText !important; --focus-glass-muted: CanvasText !important; --focus-glass-track: GrayText !important; }
+  .liquid-glass, .liquid-glass--layered::before { background: Canvas; box-shadow: none; outline: 1px solid CanvasText; }
+  .liquid-glass--layered { background: transparent; outline: none; }
+}

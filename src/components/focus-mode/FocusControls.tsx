@@ -5,10 +5,12 @@ import { useFocusGlassControls } from './useFocusGlassControls';
 import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
 import { resolveCoverUrl } from '../../services/coverUrl';
 import FocusPortraitControls from './FocusPortraitControls';
+import WindowsFocusControls from './WindowsFocusControls';
+import { getDesktopAPI } from '../../services/desktopAdapter';
 
 type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
 
-interface FocusControlsProps {
+export interface FocusControlsProps {
   track: Track | null;
   colors: ThemeColors;
   isPlaying: boolean;
@@ -108,6 +110,13 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   if (portrait) return <FocusPortraitControls
     playerRef={setPlayerRef} shown={isPlayerVisible && isFocusVisible} enabled={!!track} isPlaying={isPlaying}
     currentTime={activeCurrentTime} duration={track?.duration ?? 0} volume={volume} playbackMode={playbackMode}
+    onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
+    onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
+    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />;
+  if (getDesktopAPI()?.platform === 'win32') return <WindowsFocusControls
+    track={track} colors={colors} isPlaying={isPlaying} isPlayerVisible={isPlayerVisible} isFocusVisible={isFocusVisible}
+    activeCurrentTime={activeCurrentTime} progress={progress} volume={volume} playbackMode={playbackMode}
+    playerRef={setPlayerRef} scale={scale} backdropLight={backdropLight}
     onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
     onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
     onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />;

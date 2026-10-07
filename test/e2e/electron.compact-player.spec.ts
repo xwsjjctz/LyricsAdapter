@@ -60,6 +60,8 @@ for (const native of [false, true]) {
     let app: ElectronApplication | undefined;
     try {
       app = await electron.launch({ cwd: root, args: [
+        // Exact CSS breakpoint assertions need deterministic DIP rounding on Windows.
+        ...(process.platform === 'win32' ? ['--force-device-scale-factor=1'] : []),
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
       ], env });
       const page = await app.firstWindow();
@@ -75,7 +77,7 @@ for (const native of [false, true]) {
         paused: node.paused, time: node.currentTime, volume: node.volume, src: node.currentSrc,
       }));
       const resize = async (width: number, height = 800) => {
-        await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+        await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height), { width, height });
         await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
       };
       const panel = page.getByTestId('main-controlbar');
@@ -130,8 +132,8 @@ for (const native of [false, true]) {
           }
         } else {
           await expect(panel.getByRole('slider', { name: 'Playback position' })).toBeVisible({ visible: !compact });
-          await expect(panel.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible({ visible: process.platform !== 'darwin' && !extrasHidden });
-          expect(await panel.getByRole('button').count()).toBe(extrasHidden ? 3 : 5);
+          await expect(panel.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible({ visible: !['darwin', 'win32'].includes(process.platform) && !extrasHidden });
+          expect(await panel.getByRole('button').count()).toBe(extrasHidden ? 4 : 6);
           const bounds = await panel.evaluate(node => {
             const info = node.querySelector('.player-track-info')!.getBoundingClientRect();
             const transport = node.querySelector('.player-transport')!.getBoundingClientRect();

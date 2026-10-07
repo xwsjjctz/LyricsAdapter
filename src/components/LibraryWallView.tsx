@@ -10,7 +10,7 @@ import MetadataEditorPopup from './MetadataEditorPopup';
 import type { TrackDownloadQuality } from './trackMenuItems';
 import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
 import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
-import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { FLOATING_PLAYER_BOTTOM_INSET } from './playerLayout';
 import WallSelectionBar from './wall/WallSelectionBar';
 import WallStatusPill from './wall/WallStatusPill';
 import type { OnlineProgress } from '../types/onlineProgress';
@@ -74,8 +74,8 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   const { t } = useTranslation();
   const { colors } = useCurrentTheme();
   const desktop = getDesktopAPI();
-  const isMac = desktop?.platform === 'darwin';
-  const bottomInset = isMac ? MACOS_PLAYER_BOTTOM_INSET : 24;
+  const floatingPlayer = desktop?.platform === 'darwin' || desktop?.platform === 'win32';
+  const bottomInset = floatingPlayer ? FLOATING_PLAYER_BOTTOM_INSET : 24;
 
   const actions = useLibraryTrackActions({
     tracks,

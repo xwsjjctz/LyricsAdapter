@@ -9,7 +9,7 @@ vi.mock('@/components/OverflowMarquee', () => ({ default: ({ text }: { text: str
 const desktop = vi.hoisted(() => ({ platform: 'win32' }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: () => desktop }));
 beforeEach(() => {
-  desktop.platform = 'win32';
+  desktop.platform = 'linux';
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 
@@ -58,8 +58,8 @@ describe('Controls progress and volume sliders', () => {
   });
 });
 
-describe('macOS volume panel fallback', () => {
-  beforeEach(() => { desktop.platform = 'darwin'; vi.useFakeTimers(); });
+describe.each(['darwin', 'win32'])('%s floating volume panel', platform => {
+  beforeEach(() => { desktop.platform = platform; vi.useFakeTimers(); });
   afterEach(() => vi.useRealTimers());
 
   it('reveals on hover without stealing focus, and only the original speaker toggles mute', () => {

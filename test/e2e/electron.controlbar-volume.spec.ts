@@ -6,8 +6,8 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-test('macOS web volume panel supports hover, speaker mute, dragging and keyboard control', async ({}, testInfo) => {
-  test.skip(process.platform !== 'darwin', 'macOS controlbar fallback');
+test('floating web volume panel supports hover, speaker mute, dragging and keyboard control', async ({}, testInfo) => {
+  test.skip(process.platform !== 'darwin' && process.platform !== 'win32', 'macOS and Windows floating player');
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-volume-panel-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'data');

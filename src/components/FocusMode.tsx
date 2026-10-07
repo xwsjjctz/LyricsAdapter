@@ -914,6 +914,20 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     if (!isPlaying) onTogglePlay();
   }, [isPlaying, onSeek, onTogglePlay]);
 
+  // Keep the Windows glass outside the content opacity layer. An ancestor with
+  // opacity < 1 would cut off its access to the animated backdrop canvas.
+  const externalControlGlass = getDesktopAPI()?.platform === 'win32' && !portrait;
+  const focusControls = <FocusControls
+    track={track} colors={colors} isPlaying={isPlaying}
+    isPlayerVisible={portrait ? portraitIdle.shown : isPlayerVisible} isFocusVisible={isVisible}
+    activeCurrentTime={activeCurrentTime} progress={progress} volume={volume} playbackMode={playbackMode}
+    playerRef={playerRef} onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipNext={onSkipNext} onSkipPrev={onSkipPrev}
+    onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
+    onMouseEnter={portrait ? portraitIdle.nativeStart : handlePlayerMouseEnter}
+    onMouseLeave={portrait ? portraitIdle.nativeEnd : handlePlayerMouseLeave}
+    glassMaterial={useDefaultThemeControlGlass} scale={focusScale} portrait={portrait}
+  />;
+
   return (
     <div ref={overlayRef} data-focus-layout={portrait ? 'portrait' : 'landscape'}
       onPointerDownCapture={portraitIdle.pointerDown} onClickCapture={portraitIdle.click}
@@ -980,33 +994,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
           />
         </main>
 
-        <div>
-          <FocusControls
-            track={track}
-            colors={colors}
-            isPlaying={isPlaying}
-            isPlayerVisible={portrait ? portraitIdle.shown : isPlayerVisible}
-            isFocusVisible={isVisible}
-            activeCurrentTime={activeCurrentTime}
-            progress={progress}
-            volume={volume}
-            playbackMode={playbackMode}
-            playerRef={playerRef}
-            onSeek={onSeek}
-            onTogglePlay={onTogglePlay}
-            onSkipNext={onSkipNext}
-            onSkipPrev={onSkipPrev}
-            onVolumeChange={onVolumeChange}
-            onToggleMute={onToggleMute}
-            onTogglePlaybackMode={onTogglePlaybackMode}
-            onMouseEnter={portrait ? portraitIdle.nativeStart : handlePlayerMouseEnter}
-            onMouseLeave={portrait ? portraitIdle.nativeEnd : handlePlayerMouseLeave}
-            glassMaterial={useDefaultThemeControlGlass}
-            scale={focusScale}
-            portrait={portrait}
-          />
-        </div>
+        <div>{!externalControlGlass && focusControls}</div>
       </div>
+      {externalControlGlass && focusControls}
     </div>
   );
 }, (prevProps, nextProps) => {
