@@ -126,6 +126,7 @@ API_AVAILABLE(macos(26.0))
 - (NSButton*)button:(NSString*)symbol name:(NSString*)name action:(SEL)action parent:(NSView*)parent {
   NSButton* button = [NSButton buttonWithImage:FocusGlass::Symbol(symbol, 17) target:self action:action];
   button.bordered = NO; button.imagePosition = NSImageOnly;
+  button.focusRingType = NSFocusRingTypeNone;
   button.contentTintColor = NSColor.labelColor;
   button.accessibilityIdentifier = name;
   [parent addSubview:button]; return button;
@@ -158,11 +159,13 @@ API_AVAILABLE(macos(26.0))
   _next = [self button:@"forward.end.fill" name:@"focus-glass-next" action:@selector(next:) parent:content];
   _mode = [self button:@"repeat" name:@"focus-glass-mode" action:@selector(mode:) parent:content];
   _seek = [[LAFocusSlider alloc] initWithFrame:NSZeroRect];
+  _seek.focusRingType = NSFocusRingTypeNone;
   _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
   _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"focus-glass-seek";
   _seek.controlSize = NSControlSizeSmall; [content addSubview:_seek];
   _elapsed = [self timeLabel:content]; _total = [self timeLabel:content];
   _volume = [[LAFocusSlider alloc] initWithFrame:NSZeroRect];
+  _volume.focusRingType = NSFocusRingTypeNone;
   _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
   _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"focus-glass-volume-slider";
   _volume.controlSize = NSControlSizeSmall; [content addSubview:_volume];
