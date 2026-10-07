@@ -35,6 +35,7 @@ import { userStateRepository } from './services/userStateRepository';
 import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
 import { configureDevelopmentProfile } from './developmentProfile';
 import { repairWindowsShellIdentity } from './services/windowsShellIdentity';
+import { registerApplicationMenu } from './applicationMenu';
 
 const WINDOWS_SHELL_IDENTITY_SETTLE_MS = 1_000;
 
@@ -140,7 +141,9 @@ app.whenReady().then(async () => {
   registerNetEaseHandlers();
   registerQQLoginHandlers();
   registerCleanupHandlers();
-  registerSettingsHandlers();
+  registerSettingsHandlers(keys => {
+    if (!keys || keys.some(key => key === 'app-language' || key === 'app-shortcuts')) registerApplicationMenu(getWindow);
+  });
   registerUserDataHandlers();
   // Store initialization and legacy migrations above must finish before the
   // aggregate read facade can be called by the renderer.
@@ -153,6 +156,7 @@ app.whenReady().then(async () => {
   registerContextMenuHandlers();
 
   await createWindow();
+  registerApplicationMenu(getWindow);
 
   const win = getWindow();
   registerWindowControls(win);  // needs window object

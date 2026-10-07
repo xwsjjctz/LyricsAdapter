@@ -1,4 +1,4 @@
-export const FOCUS_CONTROLS_IDLE_MS = 8_000;
+export const FOCUS_CONTROLS_IDLE_MS = 1_000;
 
 /** A presentation timer: playback updates never count as user activity. */
 export class FocusControlsIdle {
@@ -13,12 +13,12 @@ export class FocusControlsIdle {
   private show(value: boolean) { if (value !== this.shown) { this.shown = value; this.publish(value); } }
   private schedule() {
     this.clear();
-    if (!this.active || this.focused || this.holds.size) return;
+    if (!this.active || !this.shown || this.focused || this.holds.size) return;
     this.timer = setTimeout(() => { this.timer = null; this.show(false); }, FOCUS_CONTROLS_IDLE_MS);
   }
-  activate(value: boolean) {
+  activate(value: boolean, showOnActivate = true) {
     this.active = value; this.clear();
-    if (value) { this.show(true); this.schedule(); }
+    if (value) { this.show(showOnActivate); this.schedule(); }
     else { this.holds.clear(); this.focused = false; }
   }
   activity() { if (this.active) { this.show(true); this.schedule(); } }

@@ -53,6 +53,7 @@ export interface FocusAmlLyricsProps {
   currentTime: number;
   isPlaying: boolean;
   isVisible: boolean;
+  portrait?: boolean;
   fontSize: number;
   lineSpacing: number;
   inactiveBlur: number;
@@ -64,6 +65,7 @@ export default function FocusAmlLyrics({
   currentTime,
   isPlaying,
   isVisible,
+  portrait = false,
   fontSize,
   lineSpacing,
   inactiveBlur,
@@ -90,6 +92,12 @@ export default function FocusAmlLyrics({
   useLayoutEffect(() => {
     void playerRef.current?.lyricPlayer?.calcLayout(true, true);
   }, [fontSize, lineSpacing, enhancedFont]);
+
+  // AMLL's alignment setters do not recalculate layout. Run after the child
+  // applies its new anchor so a paused line also moves when orientation changes.
+  useEffect(() => {
+    void playerRef.current?.lyricPlayer?.calcLayout(true, true);
+  }, [portrait]);
 
   useEffect(() => {
     const wrapper = playerRef.current?.wrapperEl;
@@ -144,8 +152,8 @@ export default function FocusAmlLyrics({
       isSeeking={isSeeking}
       playing={isPlaying}
       disabled={!isVisible}
-      alignAnchor="center"
-      alignPosition={0.35}
+      alignAnchor={portrait ? 'top' : 'center'}
+      alignPosition={portrait ? 0.1 : 0.35}
       enableSpring
       enableScale
       enableBlur={inactiveBlur > 0}

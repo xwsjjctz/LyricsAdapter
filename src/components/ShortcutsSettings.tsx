@@ -47,6 +47,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
 
     // Handle special keys
     let key = event.key;
+    if (event.code === 'Backquote') key = 'Backquote';
     if (key === ' ') key = 'Space';
     if (key === 'ArrowLeft') key = 'Left';
     if (key === 'ArrowRight') key = 'Right';
@@ -81,6 +82,10 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
       setConflictAction(null);
       return;
     }
+
+    // A chord arrives one key at a time. Keep recording while Cmd/Ctrl,
+    // Option or Shift is pressed; only the actual key completes the binding.
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return;
 
     const newKey = formatKey(event);
 
@@ -143,6 +148,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
           <div className="relative">
             <input
               ref={inputRef}
+              data-shortcut-recorder
               type="text"
               readOnly
               className="w-20 px-2 py-1 r-sm text-xs text-center outline-none"

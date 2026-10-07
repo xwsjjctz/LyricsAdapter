@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { appStorage } from './services/appStorage';
 import { installInputModality } from './services/inputModality';
+import { dismissStartupScreen } from './services/startupScreen';
 
 // 初始化应用存储：主进程已有设置时以其为权威；仅在主存储为空时迁移
 // allowlist 中的旧 localStorage 设置。UI 模块在初始化完成后才加载，避免
@@ -33,6 +34,7 @@ async function bootstrap(): Promise<void> {
     root.render(<App />);
   } catch (err) {
     console.error("Failed to render React app:", err);
+    dismissStartupScreen();
     rootElement.innerHTML = `
       <div style="padding: 20px; color: white; background: #800; border-radius: 8px; margin: 20px;">
         <h2>Startup Error</h2>

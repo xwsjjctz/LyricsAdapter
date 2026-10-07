@@ -430,25 +430,21 @@ html.electron[data-window-effect='translucent'] #root {
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
 }
 
-/* Remove default focus outline for all elements */
+/* Suppress focus rings globally without changing focus or keyboard actions.
+   Slider and cover rings are painted on wrappers around the focused element. */
 *:focus,
-*:focus-visible {
-  outline: none;
-}
-
-/* Focus rings are for keyboard users. After a pointer interaction Chromium still
-   marks script-moved focus (menus, dialogs) as :focus-visible, so every ring is
-   suppressed while <html data-input-modality="pointer"> (see inputModality.ts). */
-:root[data-input-modality='pointer'] :focus-visible,
-:root[data-input-modality='pointer'] .player-slider:has(input:focus-visible),
-:root[data-input-modality='pointer'] .wall-tile:focus-visible .wall-tile__inner {
+*:focus-visible,
+.player-slider:has(input:focus-visible),
+.wall-tile:focus-visible .wall-tile__inner {
   outline: none !important;
+  outline-offset: 0 !important;
 }
-:root[data-input-modality='pointer'] :is(.ui-btn, .ui-icon-btn):focus-visible {
-  box-shadow: none;
+:is(.ui-btn, .ui-icon-btn):focus-visible,
+.metadata-editor__input:focus {
+  box-shadow: none !important;
 }
-:root[data-input-modality='pointer'] .ui-btn--primary:focus-visible {
-  box-shadow: var(--theme-elevated-shadow, none);
+.ui-btn--primary:focus-visible {
+  box-shadow: var(--theme-elevated-shadow, none) !important;
 }
 
 /* Theme-aware radius utilities (override fixed Tailwind rounded-* so themes with

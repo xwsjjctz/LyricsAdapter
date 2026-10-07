@@ -27,6 +27,7 @@ export interface FocusLegacyLyricsProps {
   currentTimeRef: MutableRefObject<number>;
   isPlaying: boolean;
   isVisible: boolean;
+  portrait?: boolean;
   fontSize: number;
   lineSpacing: number;
   inactiveBlur: number;
@@ -46,6 +47,7 @@ export default function FocusLegacyLyrics({
   currentTimeRef,
   isPlaying,
   isVisible,
+  portrait = false,
   fontSize,
   lineSpacing,
   inactiveBlur,
@@ -195,7 +197,7 @@ export default function FocusLegacyLyrics({
 
   useEffect(() => {
     preScrolledIndexRef.current = -1;
-  }, [fontSize, lineSpacing, track.id]);
+  }, [fontSize, lineSpacing, portrait, track.id]);
 
   useEffect(() => {
     const container = lyricsRef.current;
@@ -239,7 +241,10 @@ export default function FocusLegacyLyrics({
       offsetToTarget += lineElements[index]!.offsetHeight + lineSpacing;
     }
     const targetLineHeight = lineElements[lyricScrollTargetIndex]!.offsetHeight;
-    const targetOffset = container.clientHeight * 0.1 - offsetToTarget - targetLineHeight / 2;
+    // The desktop renderer includes its original list padding and centre
+    // anchor. Portrait anchors the whole current line below the top edge fade.
+    const targetOffset = container.clientHeight * 0.1 - offsetToTarget
+      - (portrait ? Number.parseFloat(getComputedStyle(lyricList).paddingTop) || 0 : targetLineHeight / 2);
     autoOffsetRef.current = targetOffset;
 
     if (lyricAnimationRef.current !== null) cancelAnimationFrame(lyricAnimationRef.current);
@@ -261,7 +266,7 @@ export default function FocusLegacyLyrics({
       }
     };
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [applyLyricOffset, fontSize, isUserScrolling, isVisible, layoutRevision, lineSpacing, lyricScrollTargetIndex, track.syncedLyrics]);
+  }, [applyLyricOffset, fontSize, isUserScrolling, isVisible, layoutRevision, lineSpacing, lyricScrollTargetIndex, portrait, track.syncedLyrics]);
 
   useEffect(() => {
     if (!isVisible) return;

@@ -10,6 +10,8 @@ import DownloadStatusPill from './wall/DownloadStatusPill';
 import SearchWallView from './search/SearchWallView';
 import SettingsView from './settings/SettingsView';
 import CommandPalette from './palette/CommandPalette';
+import PlaylistSwitcher from './playlist-switcher/PlaylistSwitcher';
+import type { PlaylistSwitchItem } from './playlist-switcher/types';
 import type { PaletteLibrarySources } from './palette/usePaletteItems';
 import { useAppCommands, type AppCommandHandlers } from '../commands/useAppCommands';
 import type { PaletteSourceSlot } from '../commands/buildAppCommands';
@@ -135,7 +137,7 @@ const AppShell: React.FC<AppShellProps> = ({
   const playShownTrack = viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
     ? onPlayLibraryPlaylistTrack
     : library.selectTrack;
-  // Identity of the shown list; a change plays the wall's source-switch animation.
+  // Identity of the shown list, used to restore the wall’s scroll position.
   const librarySourceKey = viewSlot === 'playlist' && playlistState.playlistId
     ? `playlist:${playlistState.source}:${playlistState.playlistId}`
     : viewSlot;
@@ -230,6 +232,25 @@ const AppShell: React.FC<AppShellProps> = ({
     switchSource, toggleFocusMode, viewSlot,
   ]);
   const { commands, visiblePlaylists } = useAppCommands(commandHandlers);
+  const hasCloudConfig = webdavClient.hasConfig();
+  const switcherItems = useMemo<PlaylistSwitchItem[]>(() => [
+    ...(['local', 'cloud', 'online'] as const).filter(slot => slot !== 'cloud' || hasCloudConfig).map(slot => ({
+      id: `source:${slot}`,
+      name: t(`sidebar.${slot}`),
+      detail: t('playlistSwitcher.count', { count: slots[slot].tracks.length }),
+      icon: slot === 'local' ? 'hard_drive' : slot === 'cloud' ? 'cloud' : 'history',
+      run: () => switchSource(slot),
+    })),
+    ...visiblePlaylists.map(playlist => ({
+      id: `playlist:${playlist.source}:${playlist.id}`,
+      name: playlist.name,
+      detail: t('playlistSwitcher.count', { count: playlist.songCount }),
+      icon: 'queue_music',
+      coverUrl: playlist.coverUrl,
+      run: () => openPlaylistInfo(playlist),
+    })),
+  ], [hasCloudConfig, openPlaylistInfo, slots.local.tracks.length, slots.cloud.tracks.length,
+    slots.online.tracks.length, switchSource, t, visiblePlaylists]);
   const paletteLibrary = useMemo<PaletteLibrarySources>(() => ({
     localTracks: slots.local.tracks,
     cloudTracks: slots.cloud.tracks,
@@ -400,6 +421,7 @@ const AppShell: React.FC<AppShellProps> = ({
         />
       </div>
       <CommandPalette commands={commands} library={paletteLibrary} />
+      <PlaylistSwitcher items={switcherItems} activeId={viewSlot === 'playlist' ? librarySourceKey : `source:${viewSlot}`} />
     </>
   );
 };

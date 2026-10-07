@@ -113,6 +113,27 @@ describe('persistence IPC handlers', () => {
     expect(invoke('userData:load')).toEqual(snapshot);
   });
 
+  it('notifies native menus only after successful settings writes, including legacy and bulk changes', () => {
+    const changed = vi.fn();
+    registerSettingsHandlers(changed);
+    invoke('ipc:settings:set', { key: 'app-language', value: 'en' });
+    expect(changed).toHaveBeenLastCalledWith(['app-language']);
+    invoke('ipc:settings:setMany', { entries: { 'app-language': 'ja', 'app-shortcuts': '{}' } });
+    expect(changed).toHaveBeenLastCalledWith(['app-language', 'app-shortcuts']);
+    invoke('settings:set', 'app-shortcuts');
+    expect(changed).toHaveBeenLastCalledWith(['app-shortcuts']);
+    invoke('ipc:settings:delete', { key: 'app-language' });
+    expect(changed).toHaveBeenLastCalledWith(['app-language']);
+    invoke('ipc:settings:replaceAll', { entries: {} });
+    expect(changed).toHaveBeenLastCalledWith(null);
+    changed.mockClear();
+    mocks.settingsStore.set.mockReturnValue(false);
+    invoke('ipc:settings:set', { key: 'app-language', value: 'fr' });
+    invoke('settings:set', 'app-language');
+    invoke('ipc:settings:set', { key: '', value: 'invalid' });
+    expect(changed).not.toHaveBeenCalled();
+  });
+
   it('validates user-data writes and reports durable write failures', () => {
     registerUserDataHandlers();
     const snapshot = {

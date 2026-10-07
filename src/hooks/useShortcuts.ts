@@ -1,12 +1,15 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { logger } from '../services/logger';
 import { shortcutManager, ShortcutAction } from '../services/shortcuts';
+import { getDesktopAPI } from '../services/desktopAdapter';
 
 interface UseShortcutsProps {
   isFocusMode: boolean;
   isPlaying: boolean;
   setIsFocusMode: (value: boolean) => void;
   openSettings: () => void;
+  importMusic?: () => void;
+  showShortcuts?: () => void;
   togglePlay: () => void;
   skipForward: () => void;
   skipBackward: () => void;
@@ -28,6 +31,8 @@ export const useShortcuts = ({
   isPlaying: _isPlaying,
   setIsFocusMode,
   openSettings,
+  importMusic,
+  showShortcuts,
   togglePlay,
   skipForward,
   skipBackward,
@@ -60,6 +65,10 @@ export const useShortcuts = ({
   const openSettingsRef = useRef(openSettings);
   const toggleCommandPaletteRef = useRef(toggleCommandPalette);
   const openMusicSearchRef = useRef(openMusicSearch);
+  const importMusicRef = useRef(importMusic);
+  const showShortcutsRef = useRef(showShortcuts);
+  importMusicRef.current = importMusic;
+  showShortcutsRef.current = showShortcuts;
   toggleCommandPaletteRef.current = toggleCommandPalette;
   openMusicSearchRef.current = openMusicSearch;
   
@@ -155,6 +164,9 @@ export const useShortcuts = ({
 
 
     switch (action) {
+      case 'importMusic':
+        importMusicRef.current?.();
+        break;
       case 'playPause':
         togglePlay();
         break;
@@ -224,6 +236,11 @@ export const useShortcuts = ({
         break;
     }
   }, []);
+
+  useEffect(() => getDesktopAPI()?.ipc?.applicationMenu?.onAction(action => {
+    if (action === 'showShortcuts') showShortcutsRef.current?.();
+    else if (action !== 'cyclePlaylists') handleAction(action);
+  }), [handleAction]);
 
   // Subscribe to keyboard events
   useEffect(() => {

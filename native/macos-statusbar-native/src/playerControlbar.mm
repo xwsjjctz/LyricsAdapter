@@ -232,6 +232,7 @@ API_AVAILABLE(macos(26.0))
   NSButton* button = [NSButton buttonWithImage:PlayerControlbar::Symbol(symbol, size) target:self action:action];
   button.bordered = NO; button.imagePosition = NSImageOnly; button.imageScaling = NSImageScaleProportionallyDown;
   button.alignment = NSTextAlignmentCenter; button.contentTintColor = NSColor.labelColor;
+  button.focusRingType = NSFocusRingTypeNone;
   button.accessibilityIdentifier = name; [parent addSubview:button]; return button;
 }
 - (NSTextField*)label:(CGFloat)size weight:(NSFontWeight)weight color:(NSColor*)color parent:(NSView*)parent {
@@ -265,6 +266,7 @@ API_AVAILABLE(macos(26.0))
   _volumeButton.image = PlayerControlbar::Symbol(@"speaker.wave.2.fill", 15);
   _volumeButton.target = self; _volumeButton.action = @selector(mute:); _volumeButton.bordered = NO;
   _volumeButton.imagePosition = NSImageOnly; _volumeButton.contentTintColor = NSColor.labelColor;
+  _volumeButton.focusRingType = NSFocusRingTypeNone;
   _volumeButton.accessibilityIdentifier = @"player-controlbar-volume-button"; _volumeButton.volumeDelegate = self;
   [content addSubview:_volumeButton];
   _volumeButton.accessibilityExpanded = NO;
@@ -285,8 +287,10 @@ API_AVAILABLE(macos(26.0))
   _sliderGlass = [[NSView alloc] initWithFrame:NSZeroRect];
   _sliderGlass.accessibilityIdentifier = @"player-controlbar-slider-glass"; [content addSubview:_sliderGlass];
   _seek = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
+  _seek.focusRingType = NSFocusRingTypeNone;
   _seek.controlSize = NSControlSizeSmall; _seek.target = self; _seek.action = @selector(seek:); _seek.accessibilityIdentifier = @"player-controlbar-seek"; [_sliderGlass addSubview:_seek];
   _volume = [[LAControlbarSlider alloc] initWithFrame:NSZeroRect]; _volume.cell = [[LAVolumeCapsuleCell alloc] init]; _volume.minValue = 0; _volume.maxValue = 1; _volume.continuous = YES;
+  _volume.focusRingType = NSFocusRingTypeNone;
   _volume.vertical = YES; _volume.volumeDelegate = self;
   _volumeButton.nextKeyView = _volume; _volume.nextKeyView = _mode;
   _volume.controlSize = NSControlSizeRegular; _volume.target = self; _volume.action = @selector(volume:); _volume.accessibilityIdentifier = @"player-controlbar-volume";

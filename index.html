@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-startup="loading">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LyricsAdapter</title>
+    <link rel="preload" as="image" href="/wall-background.jpg">
+    <link rel="preload" as="image" href="/default-cover.jpg">
+    <link rel="stylesheet" href="/src/styles/startup.css">
     <link rel="stylesheet" href="/fonts/inter/inter.css">
     <link rel="stylesheet" href="/fonts/material/material-symbols.css">
 
@@ -91,7 +94,12 @@
     <link rel="stylesheet" href="/src/index.css">
 </head>
 <body class="select-none">
-    <div id="root"></div>
+    <!-- Present before JavaScript loads, including settings/cache bootstrap. -->
+    <div id="app-startup" class="app-startup" role="status" aria-label="LyricsAdapter">
+        <img class="app-startup__background" src="/wall-background.jpg" alt="" draggable="false">
+        <img class="app-startup__icon" src="/default-cover.jpg" alt="" draggable="false">
+    </div>
+    <div id="root" inert aria-hidden="true"></div>
     <script type="module" src="/src/index.tsx"></script>
 </body>
 </html>

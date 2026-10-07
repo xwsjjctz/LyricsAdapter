@@ -6,6 +6,7 @@ import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass'
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
 import type { NativeContextMenuRequest } from '../src/types/nativeContextMenu';
+import type { ApplicationMenuAction } from '../src/types/applicationMenu';
 import type { DownloadProgressEvent } from '../src/types/onlineProgress';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
@@ -17,6 +18,13 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
+  applicationMenu: {
+    onAction: (callback: (action: ApplicationMenuAction) => void) => {
+      const handler = (_event: unknown, action: ApplicationMenuAction) => callback(action);
+      ipcRenderer.on('application-menu-action', handler);
+      return () => ipcRenderer.removeListener('application-menu-action', handler);
+    },
+  },
   contextMenu: {
     popup: async (request: NativeContextMenuRequest) => ipcRenderer.invoke('ipc:contextMenu:popup', request),
   },

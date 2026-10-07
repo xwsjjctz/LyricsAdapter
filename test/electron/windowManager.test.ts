@@ -19,6 +19,11 @@ const electronMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('electron', () => electronMocks);
+const windowStateMocks = vi.hoisted(() => ({
+  getInitialWindowState: vi.fn().mockReturnValue({ width: 480, height: 800, minWidth: 360, minHeight: 600, maximized: false }),
+  rememberWindowState: vi.fn(),
+}));
+vi.mock('@/../electron/services/windowState', () => windowStateMocks);
 vi.mock('@/../electron/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -88,12 +93,14 @@ describe('windowManager', () => {
 
     expect(electronMocks.BrowserWindow).toHaveBeenCalledOnce();
     expect(electronMocks.BrowserWindow).toHaveBeenCalledWith(expect.objectContaining({
+      width: 480, height: 800, minWidth: 360, minHeight: 600,
       webPreferences: expect.objectContaining({
         preload: path.join(electronDirectory, 'preload.cjs'),
         backgroundThrottling: shouldThrottleRendererInBackground(process.platform),
         spellcheck: false,
       }),
     }));
+    expect(windowStateMocks.rememberWindowState).toHaveBeenCalledWith(electronMocks.BrowserWindow.mock.results[0]!.value);
 
     const windowOptions = electronMocks.BrowserWindow.mock.calls[0]?.[0];
     if (process.platform === 'win32') {

@@ -32,8 +32,7 @@ export const useGsapSlotTransition = (
     }
 
     const container = containerRef.current;
-    // Views that animate their own content (the poster wall) opt out of the
-    // wrapper fade so the two transitions never run on top of each other.
+    // The poster wall switches immediately and opts out of the wrapper fade.
     const ownsTransition = container?.querySelector('[data-slot-transition="self"]') != null;
     if (!container || ownsTransition || prefersReducedMotion()) {
       setSlot(nextSlot);

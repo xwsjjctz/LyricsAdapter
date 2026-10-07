@@ -3,7 +3,6 @@ import type { Track } from '../../types';
 import type { OnlineProgress } from '../../types/onlineProgress';
 import PosterTile from './PosterTile';
 import { computeWallLayout, WALL_COMPACT_BREAKPOINT } from './wallLayout';
-import { useWallSourceTransition } from './useWallSourceTransition';
 import { autoLocateScrollTop, centerLocateScrollTop, type WallLocateInput } from './wallLocate';
 
 // Covers sit flush against each other.
@@ -14,7 +13,7 @@ const OVERSCAN_VIEWPORTS = 1;
 interface PosterWallProps {
   downloadProgress?: OnlineProgress | undefined;
   tracks: Track[];
-  /** Identity of the source being shown; changing it plays the switch animation. */
+  /** Identity of the source being shown; changing it restores its saved scroll offset. */
   sourceKey: string;
   currentTrackId?: string | undefined;
   loading?: boolean;
@@ -71,7 +70,6 @@ const PosterWall: React.FC<PosterWallProps> = ({
   const [scrollTop, setScrollTop] = useState(0);
   const scrollFrameRef = useRef<number | null>(null);
   const autoRequestedLengthRef = useRef<number | null>(null);
-  const { renderKey, renderedTracks, isExiting } = useWallSourceTransition(sourceKey, tracks, containerRef);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -92,20 +90,24 @@ const PosterWall: React.FC<PosterWallProps> = ({
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    if (scrollFrameRef.current !== null) {
+      cancelAnimationFrame(scrollFrameRef.current);
+      scrollFrameRef.current = null;
+    }
     container.scrollTop = 0;
     lastScrollTopRef.current = 0;
     setScrollTop(0);
     autoRequestedLengthRef.current = null;
     restorePendingRef.current = true;
-  }, [renderKey]);
+  }, [sourceKey]);
 
   useEffect(() => () => {
     if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
   }, []);
 
   const layout = useMemo(
-    () => computeWallLayout({ count: renderedTracks.length, width, gap: WALL_GAP }),
-    [renderedTracks.length, width],
+    () => computeWallLayout({ count: tracks.length, width, gap: WALL_GAP }),
+    [tracks.length, width],
   );
 
   // Preserve the song at the viewport centre when changing density; within
@@ -154,22 +156,21 @@ const PosterWall: React.FC<PosterWallProps> = ({
   // Within one viewport of the end, ask for the next page.
   const loadMoreIfNearEnd = useCallback((automatic: boolean) => {
     const container = containerRef.current;
-    // Mid-transition the wall still lays out the outgoing source.
-    if (!container || !hasMore || loading || isExiting) return;
+    if (!container || !hasMore || loading) return;
     const nearEnd = container.scrollTop + container.clientHeight >= layout.height - container.clientHeight;
     if (!nearEnd) return;
     // Layout settling re-runs the check; ask once per list length.
-    if (automatic && autoRequestedLengthRef.current === renderedTracks.length) return;
-    autoRequestedLengthRef.current = renderedTracks.length;
+    if (automatic && autoRequestedLengthRef.current === tracks.length) return;
+    autoRequestedLengthRef.current = tracks.length;
     onLoadMore?.();
-  }, [hasMore, isExiting, layout.height, loading, onLoadMore, renderedTracks.length]);
+  }, [hasMore, layout.height, loading, onLoadMore, tracks.length]);
 
   // Scroll events alone miss a page that lands while the user rests at the
   // bottom, and a first page too short to scroll. Re-check whenever the
   // wall grows or a load settles; a failed page waits for the user instead.
   useEffect(() => {
     if (!loadError) loadMoreIfNearEnd(true);
-  }, [loadError, loadMoreIfNearEnd]);
+  }, [loadError, loadMoreIfNearEnd, sourceKey]);
 
   const handleScroll = useCallback(() => {
     lastScrollTopRef.current = containerRef.current?.scrollTop ?? 0;
@@ -179,13 +180,12 @@ const PosterWall: React.FC<PosterWallProps> = ({
       const container = containerRef.current;
       if (!container) return;
       setScrollTop(container.scrollTop);
-      if (settledRef.current && !restorePendingRef.current) reportScrollRef.current?.(container.scrollTop);
+      if (!restorePendingRef.current) reportScrollRef.current?.(container.scrollTop);
       loadMoreIfNearEnd(false);
     });
   }, [loadMoreIfNearEnd]);
 
-  const isEmpty = renderedTracks.length === 0;
-  const settled = !isExiting && renderKey === sourceKey;
+  const isEmpty = tracks.length === 0;
 
   // Reopen a source where it was left (like the list view) instead of jumping
   // to the playing track. Runs before paint, once the tracks are laid out; the
@@ -193,10 +193,10 @@ const PosterWall: React.FC<PosterWallProps> = ({
   const requestToken = locateRequest?.token;
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!restorePendingRef.current || !settled || !container) return;
+    if (!restorePendingRef.current || !container) return;
     // An explicit or cross-source locate decides where this source opens.
     if (requestToken != null) { restorePendingRef.current = false; return; }
-    if (renderedTracks.length === 0 || layout.height === 0 || viewportHeight === 0) return;
+    if (tracks.length === 0 || layout.height === 0 || viewportHeight === 0) return;
     restorePendingRef.current = false;
     const top = Math.max(0, Math.min(restoreScrollTop ?? 0, layout.height - viewportHeight));
     if (top === 0) return;
@@ -204,19 +204,17 @@ const PosterWall: React.FC<PosterWallProps> = ({
     // The scroll event arrives later; a resize before it must see this offset.
     lastScrollTopRef.current = top;
     setScrollTop(top);
-  }, [layout.height, renderedTracks.length, requestToken, restoreScrollTop, settled, viewportHeight]);
+  }, [layout.height, tracks.length, requestToken, restoreScrollTop, sourceKey, viewportHeight]);
 
-  // Only the settled source reports its offset: the reset to the top on entry
-  // and the outgoing source's exit animation must not overwrite saved offsets.
+  // Report scrolling only after restoration, so opening a source does not
+  // overwrite its saved offset with the initial reset to the top.
   const reportScrollRef = useRef(onScrollPositionChange);
   reportScrollRef.current = onScrollPositionChange;
-  const settledRef = useRef(settled);
-  settledRef.current = settled;
 
   // Locating the playing tile (ported from the list view).
   const currentIndex = useMemo(
-    () => (currentTrackId ? renderedTracks.findIndex(track => track.id === currentTrackId) : -1),
-    [currentTrackId, renderedTracks],
+    () => (currentTrackId ? tracks.findIndex(track => track.id === currentTrackId) : -1),
+    [currentTrackId, tracks],
   );
   const locateInput = useCallback((index: number): WallLocateInput | null => {
     const container = containerRef.current;
@@ -237,7 +235,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
     if (handledAutoLocateRef.current === autoLocateToken) return;
     // Startup restores the playing track before the wall is measured or
     // filled; keep the request until there is a layout to locate in.
-    if (isExiting || layout.tiles.length === 0) return;
+    if (layout.tiles.length === 0) return;
     handledAutoLocateRef.current = autoLocateToken;
     const previous = previousIndexRef.current;
     const input = currentIndex >= 0 ? locateInput(currentIndex) : null;
@@ -245,12 +243,12 @@ const PosterWall: React.FC<PosterWallProps> = ({
     previousIndexRef.current = currentIndex;
     const target = autoLocateScrollTop(input, previous < 0 || currentIndex > previous);
     if (target !== null) scrollWall(target, 'smooth');
-  }, [autoLocateToken, currentIndex, isExiting, layout.tiles.length, locateInput, scrollWall]);
+  }, [autoLocateToken, currentIndex, layout.tiles.length, locateInput, scrollWall]);
 
-  // Centre the playing tile once this source has entered and is laid out.
+  // Centre the playing tile once this source is shown and laid out.
   const requestSmooth = locateRequest?.smooth ?? false;
   useEffect(() => {
-    if (requestToken == null || isExiting || renderKey !== sourceKey) return;
+    if (requestToken == null) return;
     if (loading && currentIndex < 0) return; // It may be on a page still loading.
     if (currentIndex >= 0) {
       const input = locateInput(currentIndex);
@@ -259,14 +257,14 @@ const PosterWall: React.FC<PosterWallProps> = ({
       scrollWall(centerLocateScrollTop(input), requestSmooth ? 'smooth' : 'auto');
     }
     onLocateRequestHandled?.(requestToken);
-  }, [currentIndex, isExiting, loading, locateInput, onLocateRequestHandled, renderKey, requestSmooth, requestToken, scrollWall, sourceKey]);
+  }, [currentIndex, loading, locateInput, onLocateRequestHandled, requestSmooth, requestToken, scrollWall, sourceKey]);
 
   // Drag-to-swap: tile geometry is fixed by index, so the two tiles keep their
   // size and place and only exchange the songs they show.
   const [dragSource, setDragSource] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
-  const canSwap = !!onSwap && !selecting && !isExiting;
-  useEffect(() => { setDragSource(null); setDropTarget(null); }, [renderKey, selecting]);
+  const canSwap = !!onSwap && !selecting;
+  useEffect(() => { setDragSource(null); setDropTarget(null); }, [sourceKey, selecting]);
 
   const handleDragStart = useCallback((index: number, event: React.DragEvent) => {
     event.dataTransfer.effectAllowed = 'move';
@@ -298,8 +296,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
       ref={containerRef}
       className="poster-wall"
       data-slot-transition="self"
-      aria-busy={isExiting || loading || undefined}
-      style={isExiting ? { pointerEvents: 'none' } : undefined}
+      aria-busy={loading || undefined}
       onScroll={handleScroll}
     >
       {isEmpty ? (
@@ -310,11 +307,11 @@ const PosterWall: React.FC<PosterWallProps> = ({
       ) : (
         <div className="poster-wall__canvas" style={{ height: layout.height }}>
           {visibleTiles.map(tile => {
-            const track = renderedTracks[tile.index]!;
+            const track = tracks[tile.index]!;
             const progress = downloadProgress?.[track.id];
             return (
               <PosterTile
-                key={`${renderKey}:${track.id}`}
+                key={`${sourceKey}:${track.id}`}
                 track={track}
                 download={progress?.type === 'download' ? progress : undefined}
                 tile={tile}

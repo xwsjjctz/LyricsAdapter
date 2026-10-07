@@ -25,6 +25,7 @@ import {
 import { useFocusModeScale } from './focus-mode/focusModeScale';
 import { useFocusPortraitLayout } from './focus-mode/useFocusPortraitLayout';
 import { useFocusControlsIdle } from './focus-mode/useFocusControlsIdle';
+import { FOCUS_CONTROLS_IDLE_MS } from './focus-mode/focusControlsIdle';
 import { hasTrackLyrics } from './focus-mode/focusLyricsTrack';
 import './focus-mode/FocusModeLayout.css';
 import FocusLyrics from './focus-mode/FocusLyrics';
@@ -616,7 +617,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     // Set timeout to hide player after 1 second
     playerHideTimeoutRef.current = setTimeout(() => {
       setIsPlayerVisible(false);
-    }, 1000);
+    }, FOCUS_CONTROLS_IDLE_MS);
   };
 
   // Cleanup player hide timeout on unmount
@@ -658,7 +659,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
       // Start hide timer - mouse enter will cancel it if mouse is over player
       playerHideTimeoutRef.current = setTimeout(() => {
         setIsPlayerVisible(false);
-      }, 1000);
+      }, FOCUS_CONTROLS_IDLE_MS);
     }
   }, [isVisible, portrait]);
 
@@ -916,9 +917,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   return (
     <div ref={overlayRef} data-focus-layout={portrait ? 'portrait' : 'landscape'}
       onPointerDownCapture={portraitIdle.pointerDown} onClickCapture={portraitIdle.click}
-      onPointerMoveCapture={portrait ? event => { if (event.pointerType === 'mouse') portraitIdle.activity(); } : undefined}
+      onPointerMoveCapture={portrait ? portraitIdle.pointerMove : undefined}
+      onPointerLeave={portrait ? portraitIdle.pointerLeave : undefined}
       onKeyDownCapture={portrait ? portraitIdle.keyboardActivity : undefined}
-      onWheelCapture={portrait ? portraitIdle.activity : undefined}
       className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out motion-reduce:transition-none overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={hasBackground}
@@ -968,6 +969,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             isPlaying={isPlaying}
             isVisible={isVisible}
             useAmlLyrics={focusAmlLyricsEnabled}
+            portrait={portrait}
             fontSize={lyricsFontSize}
             lineSpacing={lyricLineSpacing}
             inactiveBlur={inactiveLyricBlur}
