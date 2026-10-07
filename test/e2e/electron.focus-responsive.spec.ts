@@ -32,7 +32,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
       ...(index === 0 ? { syncedLyrics: Array.from({ length: 20 }, (_, line) => ({
         time: line * 6, text: `${line + 1} 陪你走过每一段漫长的旅程直到看见明亮的星光`,
         words: [...'陪你走过每一段漫长的旅程直到看见明亮的星光'].map((text, word) => ({
-          time: line * 6 + word * .2, duration: .2, text,
+          time: line * 6 + word * .2, duration: .2, text: word === 0 ? `${line + 1} ${text}` : text,
         })),
       })) } : {}),
     }));
@@ -76,6 +76,25 @@ for (const renderer of ['amll', 'legacy'] as const) {
       await expect.poll(async () => (await audioState()).paused).toBe(true);
       const before = await audioState();
       expect(before.paused).toBe(true);
+      const lyricPosition = () => lyricsRoot.evaluate(node => {
+        const active = node.querySelector('[aria-current="true"], [class*="_lyricLine"][class*="_active"]')!;
+        const row = active.closest('[class*="_lyricLineWrapper"]') ?? active;
+        const bounds = row.getBoundingClientRect();
+        const viewport = node.getBoundingClientRect();
+        const list = node.querySelector('.will-change-transform');
+        return { top: bounds.top - viewport.top, height: bounds.height, viewportHeight: viewport.height,
+          listPadding: list ? Number.parseFloat(getComputedStyle(list).paddingTop) : 0,
+          text: row.textContent };
+      });
+      const expectLyricAnchor = async (portrait: boolean) => {
+        await expect.poll(async () => {
+          const position = await lyricPosition();
+          const anchor = portrait ? position.top : position.top + position.height / 2;
+          const expected = position.viewportHeight * (portrait || renderer === 'legacy' ? .1 : .35)
+            + (!portrait && renderer === 'legacy' ? position.listPadding : 0);
+          return Math.abs(anchor - expected);
+        }).toBeLessThan(4);
+      };
       for (const [width, height] of [[393, 851], [480, 720], [600, 800], [800, 800], [900, 720], [1200, 800], [600, 800]] as const) {
         await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
         const portrait = width <= height;
@@ -126,12 +145,31 @@ for (const renderer of ['amll', 'legacy'] as const) {
           expect(bounds.lyrics.x).toBeGreaterThan(bounds.cover.right);
           expect(bounds.controls).toBeNull();
         }
+        // A wrapped current lyric starts near the top in portrait, while both
+        // desktop renderers keep their original centre anchors. Resize must
+        // reposition a paused line without remounting or changing playback.
+        await expectLyricAnchor(portrait);
         expect(await audioState()).toEqual(before);
         if (width === 393 || width === 1200) {
           await page.waitForTimeout(700);
           await page.screenshot({ path: testInfo.outputPath(`${renderer}-${width}x${height}.png`) });
         }
       }
+      // A new sung line and the return from manual browsing use the same
+      // portrait anchor, including after resizing back from desktop.
+      const previousLine = (await lyricPosition()).text;
+      await page.keyboard.press('Space');
+      await expect.poll(async () => (await lyricPosition()).text).not.toBe(previousLine);
+      await expectLyricAnchor(true);
+      await page.keyboard.press('Space');
+      await expect.poll(async () => (await audioState()).paused).toBe(true);
+      await page.mouse.move(100, 250);
+      await page.mouse.wheel(0, 180);
+      await expect.poll(async () => {
+        const position = await lyricPosition();
+        return Math.abs(position.top - position.viewportHeight * .1);
+      }).toBeGreaterThan(20);
+      await expectLyricAnchor(true);
       // Both layouts hide on the same one-second deadline. Moving outside
       // controls must release hover protection; playback cannot restart it.
       const content = focus.locator('.focus-mode-content');

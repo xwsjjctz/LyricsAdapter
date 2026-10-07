@@ -67,7 +67,7 @@ test('poster wall is the home page, plays in place and switches sources from the
     await expect(page.getByRole('button', { name: /switch music source/ })).toHaveCount(0);
     await expect(tiles.first()).toHaveAttribute('aria-label', 'Amber, Test Artist');
 
-    // Let the view transition and tile pop-in settle before measuring.
+    // Let the view transition settle before measuring; covers have no pop-in.
     const settled = () => expect.poll(() => tiles.evaluateAll(nodes => nodes.every(node =>
       getComputedStyle(node.querySelector('[data-wall-tile-inner]')!).opacity === '1'))).toBe(true);
     await settled();
@@ -120,7 +120,7 @@ test('poster wall is the home page, plays in place and switches sources from the
     await expect(page.getByRole('menuitem')).toHaveText(['Edit song information', 'Select multiple songs', 'Remove from library']);
     await page.keyboard.press('Escape');
 
-    // Features mode switches the source: tiles sink out, the empty history takes over.
+    // Features mode switches the source: the empty history takes over immediately.
     const paletteInput = page.locator('.command-palette__input');
     await page.keyboard.press('ControlOrMeta+K');
     await expect(paletteInput).toBeFocused();

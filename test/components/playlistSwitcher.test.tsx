@@ -19,6 +19,46 @@ beforeEach(() => { shortcutManager.resetAllToDefaults(); commandPalette.close();
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('Playlist switcher gesture', () => {
+  it('alternates rapid separate Ctrl+Backquote chords between the last two of three lists', () => {
+    const { items } = setup();
+    const controlCycle = () => cycle({ key: '~', metaKey: false, ctrlKey: true });
+    const controlRelease = () => fireEvent.keyUp(window, { key: 'Control', ctrlKey: false });
+    // Navigate to the third list while holding Ctrl; one chord after release
+    // must return to list 0, rather than continue around the fixed list.
+    controlCycle(); controlCycle(); controlRelease();
+    expect(items[2]!.run).toHaveBeenCalledTimes(1);
+    for (const index of [0, 2, 0, 2]) {
+      controlCycle(); expect(selected()).toHaveAccessibleName(`Playlist ${index}`); controlRelease();
+    }
+    expect(items[0]!.run).toHaveBeenCalledTimes(2);
+    expect(items[2]!.run).toHaveBeenCalledTimes(3);
+    expect(items[1]!.run).not.toHaveBeenCalled();
+  });
+  it('cycles through frozen recency order while held and remembers only the committed selection', () => {
+    const { items } = setup();
+    cycle(); cycle(); release(); // 2, 0, 1
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 0');
+    expect(screen.getAllByRole('option').map(item => item.getAttribute('aria-label')))
+      .toEqual(['Playlist 2', 'Playlist 0', 'Playlist 1']);
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 1');
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 2');
+    cycle({ shiftKey: true }); expect(selected()).toHaveAccessibleName('Playlist 1');
+    key('Escape'); release();
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 0'); release();
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 2'); release();
+    expect(items[1]!.run).not.toHaveBeenCalled();
+  });
+  it('includes visits outside the shortcut in recency and skips removed lists on the next gesture', () => {
+    const { items, rerender } = setup();
+    rerender(<PlaylistSwitcher items={items} activeId={items[2]!.id} />);
+    rerender(<PlaylistSwitcher items={items} activeId={items[1]!.id} />);
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 2'); release();
+    rerender(<PlaylistSwitcher items={items} activeId={items[2]!.id} />);
+    rerender(<PlaylistSwitcher items={[items[0]!, items[2]!]} activeId={items[2]!.id} />);
+    cycle(); expect(selected()).toHaveAccessibleName('Playlist 0');
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    release(); expect(items[0]!.run).toHaveBeenCalledTimes(1);
+  });
   it('previews a full list, cycles and reverses, then commits once on modifier release', () => {
     const { items } = setup(9);
     cycle();
@@ -78,7 +118,9 @@ describe('Playlist switcher gesture', () => {
   });
   it('handles synchronous press/release events and clicking a different card', () => {
     const { items } = setup();
-    act(() => { cycle(); release(); }); expect(items[1]!.run).toHaveBeenCalledTimes(1);
+    act(() => { cycle(); release(); cycle(); release(); cycle(); release(); });
+    expect(items[1]!.run).toHaveBeenCalledTimes(2);
+    expect(items[0]!.run).toHaveBeenCalledTimes(1);
     cycle(); fireEvent.click(screen.getByRole('option', { name: 'Playlist 2' })); release();
     expect(items[2]!.run).toHaveBeenCalledTimes(1);
   });

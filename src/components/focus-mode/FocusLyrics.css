@@ -15,3 +15,10 @@
     transparent 100%
   );
 }
+
+@media (orientation: portrait) {
+  .focus-lyrics-viewport {
+    /* The current line now sits near the top; keep its first words opaque. */
+    --focus-lyrics-edge-fade: 24px;
+  }
+}

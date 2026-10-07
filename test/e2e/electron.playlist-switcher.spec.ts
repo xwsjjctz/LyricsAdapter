@@ -68,6 +68,10 @@ test('playlist switcher previews, reverses, cancels and commits without changing
     await page.keyboard.press('Space'); expect(await audioState()).toEqual(before);
     await page.screenshot({ path: testInfo.outputPath('switcher-wide.png') });
     await page.keyboard.up(modifier);
+    // On the first rendered frame, no outgoing tiles remain fading or sinking.
+    expect(await page.evaluate(() => new Promise<number>(resolve => {
+      requestAnimationFrame(() => resolve(document.querySelectorAll('.wall-tile').length));
+    }))).toBe(0);
     await expect(dialog).toHaveCount(0); await expect(tiles).toHaveCount(0);
     expect(await audioState()).toEqual(before);
 
@@ -84,6 +88,17 @@ test('playlist switcher previews, reverses, cancels and commits without changing
     await dialog.getByRole('option', { name: 'Local', exact: true }).click();
     await page.keyboard.up(modifier);
     await expect(tiles).toHaveCount(3); expect(await audioState()).toEqual(before);
+
+    // Separate chords return to the previously used source immediately;
+    // repeat several times without changing the playing track or checkpoint.
+    for (const name of ['Online History', 'Local', 'Online History', 'Local']) {
+      await begin(); await expect(selected).toHaveAccessibleName(name);
+      await page.keyboard.up(modifier);
+      expect(await page.evaluate(() => new Promise<number>(resolve => {
+        requestAnimationFrame(() => resolve(document.querySelectorAll('.wall-tile').length));
+      }))).toBe(name === 'Local' ? 3 : 0);
+      expect(await audioState()).toEqual(before);
+    }
 
     // Available above FocusMode too: cancel preserves it, confirmation navigates
     // to the chosen list while leaving the playing slot and checkpoint intact.

@@ -13,6 +13,7 @@ export interface FocusLyricsProps {
   isPlaying: boolean;
   isVisible: boolean;
   useAmlLyrics: boolean;
+  portrait?: boolean;
   fontSize: number;
   lineSpacing: number;
   inactiveBlur: number;
@@ -30,6 +31,7 @@ export default function FocusLyrics({
   isPlaying,
   isVisible,
   useAmlLyrics,
+  portrait = false,
   fontSize,
   lineSpacing,
   inactiveBlur,
@@ -52,6 +54,7 @@ export default function FocusLyrics({
           currentTimeRef={currentTimeRef}
           isPlaying={isPlaying}
           isVisible={isVisible}
+          portrait={portrait}
           fontSize={fontSize}
           lineSpacing={lineSpacing}
           inactiveBlur={inactiveBlur}
@@ -67,6 +70,7 @@ export default function FocusLyrics({
             currentTime={currentTime}
             isPlaying={isPlaying}
             isVisible={isVisible}
+            portrait={portrait}
             fontSize={fontSize}
             lineSpacing={lineSpacing}
             inactiveBlur={inactiveBlur}

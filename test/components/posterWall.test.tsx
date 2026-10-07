@@ -43,6 +43,7 @@ afterAll(() => {
 beforeEach(() => {
   gsapMock.calls.to.length = 0;
   gsapMock.calls.fromTo.length = 0;
+  gsapMock.gsap.set.mockClear();
   window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
 });
 
@@ -134,46 +135,53 @@ describe('PosterWall', () => {
     expect(screen.getAllByRole('button').filter(tile => tile.hasAttribute('aria-current'))).toHaveLength(1);
   });
 
-  it('pops the first source in on mount', () => {
+  it('shows the first source without an entrance animation', () => {
     renderWall();
-    expect(gsapMock.calls.fromTo).toHaveLength(1);
-    expect(gsapMock.calls.fromTo[0]!.targets).toHaveLength(local.length);
+    expect(gsapMock.calls.fromTo).toHaveLength(0);
   });
 
-  it('keeps the outgoing tiles until they sink, then pops the new source in', () => {
-    const { rerenderWall } = renderWall();
+  it('switches sources immediately without entrance or exit animation and allows playback', () => {
+    const { rerenderWall, onTrackSelect } = renderWall();
     rerenderWall({ tracks: online, sourceKey: 'online' });
 
-    expect(tileNames()).toEqual(local.map(t => `${t.title} / Artist`));
-    const exit = gsapMock.calls.to.at(-1)!;
-    expect(exit.vars.opacity).toBe(0);
-    expect(exit.targets).toHaveLength(local.length);
-
-    act(() => exit.vars.onComplete?.());
     expect(tileNames()).toEqual(online.map(t => `${t.title} / Artist`));
-    expect(gsapMock.calls.fromTo.at(-1)!.targets).toHaveLength(online.length);
+    expect(gsapMock.calls.to).toHaveLength(0);
+    expect(gsapMock.calls.fromTo).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Song y / Artist' }));
+    expect(onTrackSelect).toHaveBeenCalledWith(1);
   });
 
-  it('replays the entrance when switching back before the exit finishes', () => {
+  it('follows rapid switches immediately without stale tiles or animation styles', () => {
     const { rerenderWall } = renderWall();
-    const entrancesBefore = gsapMock.calls.fromTo.length;
     rerenderWall({ tracks: online, sourceKey: 'online' });
+    expect(tileNames()).toEqual(online.map(t => `${t.title} / Artist`));
     rerenderWall({ tracks: local, sourceKey: 'local' });
-    act(() => gsapMock.calls.to.at(-1)!.vars.onComplete?.());
     expect(tileNames()).toEqual(local.map(t => `${t.title} / Artist`));
-    expect(gsapMock.calls.fromTo.length).toBe(entrancesBefore + 1);
+    expect(gsapMock.calls.to).toHaveLength(0);
+    expect(gsapMock.calls.fromTo).toHaveLength(0);
+    expect(gsapMock.gsap.set).not.toHaveBeenCalled();
   });
 
-  it('waits for a loading source before popping in', () => {
+  it('shows a loading source directly when its tracks arrive', () => {
     const { rerenderWall } = renderWall();
     rerenderWall({ tracks: [], sourceKey: 'playlist:qq:1', loading: true });
-    act(() => gsapMock.calls.to.at(-1)!.vars.onComplete?.());
     expect(screen.getByText('loading')).toBeInTheDocument();
-    const entrances = gsapMock.calls.fromTo.length;
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
 
     rerenderWall({ tracks: online, sourceKey: 'playlist:qq:1', loading: false });
-    expect(gsapMock.calls.fromTo.length).toBe(entrances + 1);
+    expect(gsapMock.calls.to).toHaveLength(0);
+    expect(gsapMock.calls.fromTo).toHaveLength(0);
     expect(tileNames()).toHaveLength(online.length);
+  });
+  it('restores each source offset even when the lists have identical geometry', () => {
+    const many = Array.from({ length: 60 }, (_, index) => track(`source-${index}`));
+    const { container, rerenderWall } = renderWall({ tracks: many, restoreScrollTop: 400 });
+    const wall = container.querySelector<HTMLElement>('.poster-wall')!;
+    expect(wall.scrollTop).toBe(400);
+    rerenderWall({ tracks: many, sourceKey: 'online', restoreScrollTop: 900 });
+    expect(wall.scrollTop).toBe(900);
+    rerenderWall({ tracks: many, sourceKey: 'local', restoreScrollTop: 400 });
+    expect(wall.scrollTop).toBe(400);
   });
   it('keeps loading pages without a scroll while the wall ends within a viewport of the bottom', () => {
     const onLoadMore = vi.fn();

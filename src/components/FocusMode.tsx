@@ -969,6 +969,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             isPlaying={isPlaying}
             isVisible={isVisible}
             useAmlLyrics={focusAmlLyricsEnabled}
+            portrait={portrait}
             fontSize={lyricsFontSize}
             lineSpacing={lyricLineSpacing}
             inactiveBlur={inactiveLyricBlur}

@@ -137,7 +137,7 @@ const AppShell: React.FC<AppShellProps> = ({
   const playShownTrack = viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
     ? onPlayLibraryPlaylistTrack
     : library.selectTrack;
-  // Identity of the shown list; a change plays the wall's source-switch animation.
+  // Identity of the shown list, used to restore the wall’s scroll position.
   const librarySourceKey = viewSlot === 'playlist' && playlistState.playlistId
     ? `playlist:${playlistState.source}:${playlistState.playlistId}`
     : viewSlot;

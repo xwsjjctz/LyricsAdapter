@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { shortcutManager } from '../../services/shortcuts';
 import { commandPalette } from '../../hooks/useCommandPalette';
 import type { PlaylistSwitchItem } from './types';
@@ -13,9 +13,18 @@ interface Session {
 export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], activeId: string) {
   const latest = useRef({ items, activeId });
   latest.current = { items, activeId };
+  const recentIds = useRef<string[]>([activeId]);
   const sessionRef = useRef<Session | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+
+  const remember = useCallback((id: string) => {
+    const available = new Set(latest.current.items.map(item => item.id));
+    recentIds.current = [id, ...recentIds.current.filter(previous => previous !== id && available.has(previous))];
+  }, []);
+  // Navigation outside the switcher also counts as a visit. Previewing a card
+  // does not change recency, and each held gesture keeps its initial order.
+  useLayoutEffect(() => { remember(activeId); }, [activeId, remember]);
 
   const publish = useCallback((next: Session | null) => {
     sessionRef.current = next;
@@ -29,8 +38,14 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
     previousFocus.current = null;
     if (!commit && restoreFocus && previous?.isConnected) previous.focus();
     // A playlist removed or hidden during the gesture must not be opened.
-    if (commit) latest.current.items.find(item => item.id === (id ?? current.selectedId))?.run();
-  }, [publish]);
+    const target = commit ? latest.current.items.find(item => item.id === (id ?? current.selectedId)) : undefined;
+    if (target) {
+      // Record before navigation renders: rapid separate chords must still
+      // alternate between this list and the one just left.
+      remember(target.id);
+      target.run();
+    }
+  }, [publish, remember]);
   const select = useCallback((id: string) => {
     const current = sessionRef.current;
     if (current?.items.some(item => item.id === id)) publish({ ...current, selectedId: id });
@@ -52,14 +67,20 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!sessionRef.current) {
-        const { items, activeId } = latest.current;
-        const index = Math.max(0, items.findIndex(item => item.id === activeId));
-        const next = (index + (event.shiftKey ? -1 : 1) + items.length) % items.length;
+        const available = new Map(latest.current.items.map(item => [item.id, item]));
+        const ids = new Set([...recentIds.current, ...available.keys()]);
+        const ordered = [...ids].flatMap(id => {
+          const item = available.get(id);
+          return item ? [item] : [];
+        });
+        const index = ordered.findIndex(item => item.id === recentIds.current[0]);
+        const next = event.shiftKey ? (index <= 0 ? ordered.length - 1 : index - 1)
+          : (index + 1) % ordered.length;
         previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         commandPalette.close();
         // Freeze order for this gesture; background playlist refreshes cannot
         // move a card under the user's selection or invoke network requests.
-        publish({ items: [...items], selectedId: items[next]!.id, modifier: event.metaKey ? 'Meta' : event.ctrlKey ? 'Control' : null });
+        publish({ items: ordered, selectedId: ordered[next]!.id, modifier: event.metaKey ? 'Meta' : event.ctrlKey ? 'Control' : null });
       } else if (trigger) {
         if (!event.repeat) move(event.shiftKey ? -1 : 1);
       } else if (event.key === 'Escape') finish(false);
