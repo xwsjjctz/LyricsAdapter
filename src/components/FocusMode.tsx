@@ -917,9 +917,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   return (
     <div ref={overlayRef} data-focus-layout={portrait ? 'portrait' : 'landscape'}
       onPointerDownCapture={portraitIdle.pointerDown} onClickCapture={portraitIdle.click}
-      onPointerMoveCapture={portrait ? event => { if (event.pointerType === 'mouse') portraitIdle.activity(); } : undefined}
+      onPointerMoveCapture={portrait ? portraitIdle.pointerMove : undefined}
+      onPointerLeave={portrait ? portraitIdle.pointerLeave : undefined}
       onKeyDownCapture={portrait ? portraitIdle.keyboardActivity : undefined}
-      onWheelCapture={portrait ? portraitIdle.activity : undefined}
       className={`focus-mode-overlay fixed inset-0 z-[120] transition-transform duration-600 ease-in-out motion-reduce:transition-none overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}${isLinux ? ' rounded-lg' : ''}`}>
       <FocusBackdrop
         hasBackground={hasBackground}

@@ -39,23 +39,29 @@ describe('Focus activity clock', () => {
 function mount(onSeek:()=>void, updates=0) {
   function Fixture({ticks}:{ticks:number}) {
     const overlay=useRef<HTMLDivElement>(null);const idle=useFocusControlsIdle(true,true,overlay);
-    return createElement('div',{ref:overlay,onPointerDownCapture:idle.pointerDown,onClickCapture:idle.click,onKeyDownCapture:idle.keyboardActivity,'data-shown':String(idle.shown)},
+    return createElement('div',{ref:overlay,onPointerDownCapture:idle.pointerDown,onPointerMoveCapture:idle.pointerMove,onClickCapture:idle.click,onKeyDownCapture:idle.keyboardActivity,'data-shown':String(idle.shown)},
       createElement('button',{'data-lyric':true,onClick:onSeek},'Lyric'),
       createElement('div',{'data-focus-controls':true},createElement('button',{'data-control':true},String(ticks))));
   }
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});const div=document.createElement('div');document.body.append(div);root=createRoot(div);
   act(()=>root!.render(createElement(Fixture,{ticks:updates})));
+  const controls=div.querySelector<HTMLElement>('[data-focus-controls]')!;
+  vi.spyOn(controls,'getBoundingClientRect').mockReturnValue(new DOMRect(20,600,400,200));
   return {div,rerender:(ticks:number)=>act(()=>root!.render(createElement(Fixture,{ticks})))};
 }
-function pointer(target:Element,type:string,id=1){const event=new Event(type,{bubbles:true});Object.defineProperty(event,'pointerId',{value:id});act(()=>{target.dispatchEvent(event);});}
+function pointer(target:Element,type:string,id=1,inControls=!!target.closest('[data-focus-controls]')){
+  const event=new Event(type,{bubbles:true});
+  Object.defineProperties(event,{pointerId:{value:id},pointerType:{value:type==='pointermove'?'mouse':'touch'},clientX:{value:50},clientY:{value:inControls?650:200}});
+  act(()=>{target.dispatchEvent(event);});
+}
 describe('Focus page event guard',()=>{
   it('does not extend idle time during repeated playback renders',()=>{
     vi.useFakeTimers();const fixture=mount(vi.fn());for(let i=0;i<10;i++){act(()=>vi.advanceTimersByTime(100));fixture.rerender(i);}
     expect(fixture.div.firstElementChild!.getAttribute('data-shown')).toBe('false');
   });
-  it('consumes the first hidden tap including AMLL programmatic detail-zero click, then permits explicit seek',()=>{
+  it('consumes a hidden-controls tap including AMLL detail-zero click, then permits a lyric seek outside the controls',()=>{
     vi.useFakeTimers();const seek=vi.fn();const fixture=mount(seek);act(()=>vi.advanceTimersByTime(FOCUS_CONTROLS_IDLE_MS));const lyric=fixture.div.querySelector<HTMLButtonElement>('[data-lyric]')!;
-    pointer(lyric,'pointerdown');pointer(lyric,'pointerup');act(()=>lyric.click());expect(seek).not.toHaveBeenCalled();
+    pointer(lyric,'pointerdown',1,true);pointer(lyric,'pointerup',1,true);act(()=>lyric.click());expect(seek).not.toHaveBeenCalled();
     expect(fixture.div.firstElementChild!.getAttribute('data-shown')).toBe('true');pointer(lyric,'pointerdown');pointer(lyric,'pointerup');act(()=>lyric.click());expect(seek).toHaveBeenCalledTimes(1);
   });
   it('protects DOM control focus and starts idle when focus moves outside it',async()=>{
@@ -63,10 +69,10 @@ describe('Focus page event guard',()=>{
     act(()=>control.focus());act(()=>vi.advanceTimersByTime(10000));expect(fixture.div.firstElementChild!.getAttribute('data-shown')).toBe('true');
     await act(async()=>{control.blur();await Promise.resolve();});act(()=>vi.advanceTimersByTime(FOCUS_CONTROLS_IDLE_MS));expect(fixture.div.firstElementChild!.getAttribute('data-shown')).toBe('false');
   });
-  it('keeps a hidden multi-pointer gesture wake-only until all fingers have finished',()=>{
+  it('keeps a hidden-controls multi-pointer gesture wake-only until all fingers have finished',()=>{
     vi.useFakeTimers();const seek=vi.fn();const fixture=mount(seek);act(()=>vi.advanceTimersByTime(FOCUS_CONTROLS_IDLE_MS));const lyric=fixture.div.querySelector<HTMLButtonElement>('[data-lyric]')!;
-    pointer(lyric,'pointerdown',1);pointer(lyric,'pointerdown',2);pointer(lyric,'pointerup',1);act(()=>lyric.click());
-    pointer(lyric,'pointerup',2);act(()=>lyric.click());expect(seek).not.toHaveBeenCalled();
+    pointer(lyric,'pointerdown',1,true);pointer(lyric,'pointerdown',2,true);pointer(lyric,'pointerup',1,true);act(()=>lyric.click());
+    pointer(lyric,'pointerup',2,true);act(()=>lyric.click());expect(seek).not.toHaveBeenCalled();
     pointer(lyric,'pointerdown',3);pointer(lyric,'pointerup',3);act(()=>lyric.click());expect(seek).toHaveBeenCalledTimes(1);
   });
   it('does not retain a wake-only click token from Tab navigation',()=>{

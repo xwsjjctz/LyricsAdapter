@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
+interface FooterFadeProbe {
+  done: boolean;
+  samples: { opacity: number; alpha: number; maskSize: string; clip: string }[];
+}
 
 for (const renderer of ['amll', 'legacy'] as const) {
   test(`${renderer} Focus switches proportions in place and routes portrait controls to the player`, async ({}, testInfo) => {
@@ -68,6 +72,12 @@ for (const renderer of ['amll', 'legacy'] as const) {
       const focus = page.locator('.focus-mode-overlay');
       await expect(focus).toHaveClass(/translate-y-0/);
       await expect.poll(async () => Math.abs((await focus.boundingBox())!.y)).toBeLessThan(.5);
+      // Hidden controls remain inert, so hover their geometric bounds rather
+      // than relying on the control element being a pointer-event target.
+      const hoverPortraitControls = async () => {
+        const rect = (await page.getByTestId('focus-portrait-controls').boundingBox())!;
+        await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      };
       const lyricsRoot = page.locator(renderer === 'amll' ? '.amll-lyric-player' : '[data-testid="focus-legacy-lyrics"]');
       await expect(lyricsRoot).toBeVisible();
       await lyricsRoot.evaluate(node => node.setAttribute('data-test-original-renderer', 'true'));
@@ -102,11 +112,13 @@ for (const renderer of ['amll', 'legacy'] as const) {
         await expect(lyricsRoot).toHaveAttribute('data-test-original-renderer', 'true');
         await page.mouse.move(20, 180);
         if (portrait) {
+          await hoverPortraitControls();
           await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
-          await page.getByTestId('focus-portrait-controls').hover();
         }
-        // The lyric cutaway animates for 500ms when controls become visible.
-        await page.waitForTimeout(550);
+        // Measure the layout after the lyric footer finishes fading.
+        await expect.poll(() => focus.locator('.focus-lyrics-viewport').evaluate(node =>
+          node.getAnimations().filter(animation => animation.playState === 'running').length,
+        )).toBe(0);
         const bounds = await focus.evaluate(node => {
           const rect = (selector: string) => {
             const element = node.querySelector(selector)!;
@@ -119,8 +131,10 @@ for (const renderer of ['amll', 'legacy'] as const) {
             lyrics: rect('.focus-lyrics-viewport'), controls: node.querySelector('.focus-portrait-controls') ? rect('.focus-portrait-controls') : null,
             // The clipped backdrop deliberately overscans by 100px for blur.
             // Only document overflow is a user-visible horizontal scroll bug.
-            clip: style.clipPath, scrollWidth: document.documentElement.scrollWidth,
-            clipInsetBottom: Number.parseFloat(style.clipPath.match(/[\d.]+px/g)?.[2] || '0') };
+            footerAlpha: Number(style.getPropertyValue('--focus-lyrics-controls-alpha')),
+            shieldHeight: Number.parseFloat(getComputedStyle(lyrics, '::after').height),
+            footerTarget: document.elementFromPoint(lyrics.getBoundingClientRect().left + 1, lyrics.getBoundingClientRect().bottom - 4)?.className,
+            scrollWidth: document.documentElement.scrollWidth };
         });
         expect(bounds.width).toBe(width); expect(bounds.height).toBe(height);
         expect(bounds.scrollWidth).toBeLessThanOrEqual(width);
@@ -133,8 +147,10 @@ for (const renderer of ['amll', 'legacy'] as const) {
           expect(bounds.controls!.height).toBe(210);
           expect(bounds.controls!.bottom).toBe(height - 24);
           expect(bounds.controls!.x).toBeGreaterThanOrEqual(20);
-          expect(bounds.clip).toContain('234px');
-          expect(bounds.lyrics.bottom - bounds.clipInsetBottom).toBeLessThanOrEqual(bounds.controls!.y + 1);
+          expect(bounds.footerAlpha).toBe(0);
+          expect(bounds.lyrics.bottom - bounds.shieldHeight).toBeLessThanOrEqual(bounds.controls!.y + 1);
+          // The transparent footer must intercept clicks before they reach a lyric row.
+          expect(bounds.footerTarget).toContain('focus-lyrics-viewport');
           if (process.platform === 'darwin') {
             const controls = page.getByTestId('focus-portrait-controls');
             await expect(controls.locator('[data-system-symbol]')).toHaveCount(6);
@@ -170,12 +186,15 @@ for (const renderer of ['amll', 'legacy'] as const) {
         return Math.abs(position.top - position.viewportHeight * .1);
       }).toBeGreaterThan(20);
       await expectLyricAnchor(true);
+      // Lyric scrolling cannot reveal portrait controls.
+      await expect(focus.locator('.focus-mode-content')).toHaveAttribute('data-focus-controls-visible', 'false');
       // Both layouts hide on the same one-second deadline. Moving outside
       // controls must release hover protection; playback cannot restart it.
       const content = focus.locator('.focus-mode-content');
       for (const [width, height] of [[600, 800], [1200, 800]] as const) {
         await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
         await expect(focus).toHaveAttribute('data-focus-layout', width < height ? 'portrait' : 'landscape');
+        if (width < height) await hoverPortraitControls();
         await page.mouse.move(20, 180);
         await expect(content).toHaveAttribute('data-focus-controls-visible', 'true');
         await page.waitForTimeout(700);
@@ -184,9 +203,41 @@ for (const renderer of ['amll', 'legacy'] as const) {
       }
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
       await expect(focus).toHaveAttribute('data-focus-layout', 'portrait');
+      const portraitControls = page.getByTestId('focus-portrait-controls');
+      await expect(content).toHaveAttribute('data-focus-controls-visible', 'false');
+      await expect(portraitControls).toHaveCSS('opacity', '0');
+      // Sample a real wake-up: the footer and controls cross-fade while its
+      // mask boundary stays fixed, rather than sliding up over the lyrics.
+      await focus.evaluate(node => {
+        const probe: FooterFadeProbe = { done: false, samples: [] };
+        (window as typeof window & { footerFadeProbe: FooterFadeProbe }).footerFadeProbe = probe;
+        let start: number | null = null;
+        const sample = (now: number) => {
+          const shown = node.querySelector('.focus-mode-content')?.getAttribute('data-focus-controls-visible') === 'true';
+          if (shown) {
+            start ??= now;
+            const style = getComputedStyle(node.querySelector('.focus-lyrics-viewport')!);
+            probe.samples.push({
+              alpha: Number(style.getPropertyValue('--focus-lyrics-controls-alpha')),
+              opacity: Number(getComputedStyle(node.querySelector('.focus-portrait-controls')!).opacity),
+              maskSize: style.maskSize, clip: style.clipPath,
+            });
+            if (now - start >= 250) { probe.done = true; return; }
+          }
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await hoverPortraitControls();
+      await expect.poll(() => page.evaluate(() => (window as typeof window & { footerFadeProbe: FooterFadeProbe }).footerFadeProbe.done)).toBe(true);
+      const samples = await page.evaluate(() => (window as typeof window & { footerFadeProbe: FooterFadeProbe }).footerFadeProbe.samples);
+      expect(samples.some(sample => sample.alpha > .05 && sample.alpha < .95 && sample.opacity > .05 && sample.opacity < .95)).toBe(true);
+      expect(samples.every(sample => sample.maskSize === '100% 100%' && sample.clip === 'none')).toBe(true);
+      expect(samples.at(-1)!.alpha).toBe(0);
+      expect(samples.at(-1)!.opacity).toBe(1);
       await page.mouse.move(20, 180);
+      await hoverPortraitControls();
       await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
-      await page.getByTestId('focus-portrait-controls').hover();
       // The Apple Music-style capsule expands through a drag, including an
       // out-of-bounds pointer move, then returns to its slim presentation.
       for (const id of ['focus-seek-slider', 'focus-volume-slider']) {
@@ -231,6 +282,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
       await expect(focus).toHaveCount(0);
       await page.keyboard.press('ControlOrMeta+Enter');
       await expect(focus).toHaveAttribute('data-focus-layout', 'portrait');
+      await hoverPortraitControls();
       await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
       expect(errors).toEqual([]);
     } finally {
