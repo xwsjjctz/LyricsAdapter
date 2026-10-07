@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { APP } from '../src/constants/config';
 import { logger } from './logger';
+import { getInitialWindowState, rememberWindowState } from './services/windowState';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,11 +69,9 @@ export async function createWindow(): Promise<BrowserWindow> {
     })
     : undefined;
 
+  const { maximized, ...windowState } = getInitialWindowState();
   win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 360,
-    minHeight: 600,
+    ...windowState,
     title: 'LyricsAdapter',
     frame: false,
     transparent: isMacOS || process.platform === 'linux',
@@ -104,6 +103,9 @@ export async function createWindow(): Promise<BrowserWindow> {
       sandbox: false
     },
   });
+
+  rememberWindowState(win);
+  if (maximized) win.maximize();
 
   if (isWindows && windowsIconPath) {
     // Windows can source a taskbar group's icon from its AppUserModelID instead

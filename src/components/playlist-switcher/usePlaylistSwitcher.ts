@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { shortcutManager } from '../../services/shortcuts';
 import { commandPalette } from '../../hooks/useCommandPalette';
+import { getDesktopAPI } from '../../services/desktopAdapter';
 import type { PlaylistSwitchItem } from './types';
 
 interface Session {
@@ -52,6 +53,24 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
   }, [publish]);
 
   useEffect(() => {
+    const begin = (reverse: boolean, modifier: Session['modifier']) => {
+      if (sessionRef.current || !latest.current.items.length) return;
+      const available = new Map(latest.current.items.map(item => [item.id, item]));
+      const ids = new Set([...recentIds.current, ...available.keys()]);
+      const ordered = [...ids].flatMap(id => {
+        const item = available.get(id);
+        return item ? [item] : [];
+      });
+      const index = ordered.findIndex(item => item.id === recentIds.current[0]);
+      const next = reverse ? (index <= 0 ? ordered.length - 1 : index - 1) : (index + 1) % ordered.length;
+      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      commandPalette.close();
+      // Freeze order for this session; only the user's confirmation browses.
+      publish({ items: ordered, selectedId: ordered[next]!.id, modifier });
+    };
+    const unsubscribe = getDesktopAPI()?.ipc?.applicationMenu?.onAction(action => {
+      if (action === 'cyclePlaylists') begin(false, null);
+    });
     const move = (delta: number) => {
       const current = sessionRef.current;
       if (!current) return;
@@ -67,20 +86,7 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!sessionRef.current) {
-        const available = new Map(latest.current.items.map(item => [item.id, item]));
-        const ids = new Set([...recentIds.current, ...available.keys()]);
-        const ordered = [...ids].flatMap(id => {
-          const item = available.get(id);
-          return item ? [item] : [];
-        });
-        const index = ordered.findIndex(item => item.id === recentIds.current[0]);
-        const next = event.shiftKey ? (index <= 0 ? ordered.length - 1 : index - 1)
-          : (index + 1) % ordered.length;
-        previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        commandPalette.close();
-        // Freeze order for this gesture; background playlist refreshes cannot
-        // move a card under the user's selection or invoke network requests.
-        publish({ items: ordered, selectedId: ordered[next]!.id, modifier: event.metaKey ? 'Meta' : event.ctrlKey ? 'Control' : null });
+        begin(event.shiftKey, event.metaKey ? 'Meta' : event.ctrlKey ? 'Control' : null);
       } else if (trigger) {
         if (!event.repeat) move(event.shiftKey ? -1 : 1);
       } else if (event.key === 'Escape') finish(false);
@@ -103,6 +109,7 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
     window.addEventListener('blur', blur);
     document.addEventListener('visibilitychange', visibility);
     return () => {
+      unsubscribe?.();
       sessionRef.current = null;
       window.removeEventListener('keydown', keydown, true);
       window.removeEventListener('keyup', keyup, true);

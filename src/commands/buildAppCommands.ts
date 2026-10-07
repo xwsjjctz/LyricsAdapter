@@ -115,7 +115,7 @@ function libraryCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
   if (!deps.importDisabled) {
     commands.push({
       id: 'library.import', title: t('sidebar.importFiles'), icon: 'library_add', group: 'library',
-      keywords: ['import', 'add', 'files'], run: deps.importFiles,
+      keywords: ['import', 'add', 'files'], shortcut: 'importMusic', run: deps.importFiles,
     });
   }
   if (deps.selectTracks) {

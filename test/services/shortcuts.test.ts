@@ -1,9 +1,28 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { shortcutManager } from '@/services/shortcuts';
+import { appStorage } from '@/services/appStorage';
 
 beforeEach(() => {
   localStorage.clear();
   shortcutManager.resetAllToDefaults();
+});
+
+describe('import shortcut migration', () => {
+  it('upgrades the saved old default to Cmd/Ctrl+I and keeps reset consistent', async () => {
+    await appStorage.setItem('app-shortcuts', JSON.stringify({ importMusic: { defaultKey: 'CmdOrCtrl+O', currentKey: 'CmdOrCtrl+O' } }));
+    shortcutManager.reload();
+    expect(shortcutManager.matchesShortcut('importMusic', new KeyboardEvent('keydown', { key: 'i', metaKey: true }))).toBe(true);
+    expect(shortcutManager.matchesShortcut('importMusic', new KeyboardEvent('keydown', { key: 'o', metaKey: true }))).toBe(false);
+    shortcutManager.updateShortcut('importMusic', 'CmdOrCtrl+Shift+I');
+    shortcutManager.resetToDefault('importMusic');
+    expect(shortcutManager.getShortcut('importMusic').currentKey).toBe('CmdOrCtrl+I');
+  });
+  it('preserves a custom import binding while updating its reset default', async () => {
+    await appStorage.setItem('app-shortcuts', JSON.stringify({ importMusic: { defaultKey: 'CmdOrCtrl+O', currentKey: 'CmdOrCtrl+Shift+I' } }));
+    shortcutManager.reload();
+    expect(shortcutManager.getShortcut('importMusic').currentKey).toBe('CmdOrCtrl+Shift+I');
+    expect(shortcutManager.getShortcut('importMusic').defaultKey).toBe('CmdOrCtrl+I');
+  });
 });
 
 // ========== formatKeyForDisplay ==========

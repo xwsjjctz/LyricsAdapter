@@ -355,11 +355,17 @@ const AppContent: React.FC = () => {
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.
+  const importMusic = useCallback(() => {
+    if (libraryReady && !importDisabled) handleImportClick();
+  }, [libraryReady, importDisabled, handleImportClick]);
+  const showShortcuts = useCallback(() => openSettings('shortcuts'), [openSettings]);
   useShortcuts({
     isFocusMode,
     isPlaying,
     setIsFocusMode,
     openSettings,
+    importMusic,
+    showShortcuts,
     togglePlay,
     skipForward,
     skipBackward,

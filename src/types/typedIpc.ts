@@ -3,6 +3,7 @@ import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focus
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from './nativePalette';
 import type { NativeContextMenuRequest } from './nativeContextMenu';
+import type { ApplicationMenuAction } from './applicationMenu';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -53,6 +54,9 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
+  applicationMenu?: {
+    onAction: (callback: (action: ApplicationMenuAction) => void) => () => void;
+  };
   contextMenu?: {
     popup: (request: NativeContextMenuRequest) => Promise<IpcResult<string | null>>;
   };

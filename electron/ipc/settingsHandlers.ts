@@ -13,12 +13,14 @@ import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';
 
-export function registerSettingsHandlers(): void {
+export function registerSettingsHandlers(onChanged?: (keys: string[] | null) => void): void {
   settingsStore.initialize();
 
-  const persist = (operation: () => boolean) => {
+  const persist = (operation: () => boolean, keys: string[] | null) => {
     try {
-      return operation() ? ok(undefined) : fail('Failed to persist settings');
+      if (!operation()) return fail('Failed to persist settings');
+      onChanged?.(keys);
+      return ok(undefined);
     } catch (error) {
       return fail(errorMessage(error));
     }
@@ -47,25 +49,25 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle('ipc:settings:set', (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.settingsSet, payload);
     if (!parsed.ok) return parsed;
-    return persist(() => settingsStore.set(parsed.data.key, parsed.data.value));
+    return persist(() => settingsStore.set(parsed.data.key, parsed.data.value), [parsed.data.key]);
   });
 
   ipcMain.handle('ipc:settings:setMany', (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.settingsEntries, payload);
     if (!parsed.ok) return parsed;
-    return persist(() => settingsStore.setMany(parsed.data.entries));
+    return persist(() => settingsStore.setMany(parsed.data.entries), Object.keys(parsed.data.entries));
   });
 
   ipcMain.handle('ipc:settings:delete', (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.settingsGet, payload);
     if (!parsed.ok) return parsed;
-    return persist(() => settingsStore.delete(parsed.data.key));
+    return persist(() => settingsStore.delete(parsed.data.key), [parsed.data.key]);
   });
 
   ipcMain.handle('ipc:settings:replaceAll', (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.settingsEntries, payload);
     if (!parsed.ok) return parsed;
-    return persist(() => settingsStore.replaceAll(parsed.data.entries));
+    return persist(() => settingsStore.replaceAll(parsed.data.entries), null);
   });
 
   ipcMain.handle('settings:get', (_event, key: string): string | undefined => {
@@ -77,19 +79,19 @@ export function registerSettingsHandlers(): void {
   });
 
   ipcMain.handle('settings:set', (_event, key: string, value: string): void => {
-    settingsStore.set(key, value);
+    if (settingsStore.set(key, value)) onChanged?.([key]);
   });
 
   ipcMain.handle('settings:setMany', (_event, entries: Record<string, string>): void => {
-    settingsStore.setMany(entries);
+    if (settingsStore.setMany(entries)) onChanged?.(Object.keys(entries));
   });
 
   ipcMain.handle('settings:delete', (_event, key: string): void => {
-    settingsStore.delete(key);
+    if (settingsStore.delete(key)) onChanged?.([key]);
   });
 
   ipcMain.handle('settings:replaceAll', (_event, entries: Record<string, string>): void => {
-    settingsStore.replaceAll(entries);
+    if (settingsStore.replaceAll(entries)) onChanged?.(null);
   });
 
   logger.info('[SettingsHandlers] Registered typed + legacy channels (store path: ' + settingsStore.getDirectoryPath() + ')');

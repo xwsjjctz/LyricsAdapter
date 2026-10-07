@@ -83,6 +83,10 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
       return;
     }
 
+    // A chord arrives one key at a time. Keep recording while Cmd/Ctrl,
+    // Option or Shift is pressed; only the actual key completes the binding.
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return;
+
     const newKey = formatKey(event);
 
     // Check if it's a valid shortcut (needs at least a key)
