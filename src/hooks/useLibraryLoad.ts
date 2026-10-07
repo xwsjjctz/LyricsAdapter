@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
@@ -98,6 +98,7 @@ export function useLibraryLoad({
   onLibrarySettingsRestored,
   updateSlot,
 }: UseLibraryLoadOptions) {
+  const [ready, setReady] = useState(false);
   const isFirstLoadRef = useRef(true);
   const userDataWritableRef = useRef(false);
   const closeSnapshotSourcesRef = useRef({ slots, getPersistenceData, getSlotsSnapshot });
@@ -262,43 +263,56 @@ export function useLibraryLoad({
 
     setIsPlaying(false);
 
-    metadataCacheService.initialize().then(async () => {
-      // 第 1 步：从元数据缓存充实本地曲目（清缓存前已有的元数据可直接恢复）
-      let enrichedCount = 0;
-      const localFilePathTracks = loadedTracks.filter(t => t.filePath);
-      if (localFilePathTracks.length > 0) {
-        setLocalTracks(prev => {
-          let changed = false;
-          const next = prev.map(track => {
-            if (!track.filePath) return track;
-            const cached = metadataCacheService.get(track.id);
-            if (!cached) return track;
+    // Activate the restored playback context in the same batch as its volume
+    // and mode, before cache I/O gives player effects a chance to update it.
+    const restoredSettings: { activeSlotId?: SlotId; currentTime?: number } = {
+      activeSlotId: activeSource,
+      currentTime: activeSlotState?.currentTime ?? 0,
+    };
+    onLibrarySettingsRestored?.(restoredSettings);
 
-            const fallbackTitle = track.fileName?.replace(/\.[^/.]+$/, '') || '';
-            const hasBetterInfo =
-              (track.title === fallbackTitle && !!cached.title) ||
-              (track.artist === 'Unknown Artist' && !!cached.artist) ||
-              (track.album === 'Unknown Album' && !!cached.album) ||
-              (track.duration === 0 && !!cached.duration);
+    // Cached metadata belongs to initial restoration; reparsing missing files
+    // remains background work so large libraries do not hold the launch screen.
+    await metadataCacheService.initialize().catch(err => {
+      logger.warn('[LibraryLoad] Metadata cache init failed:', err);
+    });
+    // 第 1 步：从元数据缓存充实本地曲目（清缓存前已有的元数据可直接恢复）
+    let enrichedCount = 0;
+    const localFilePathTracks = loadedTracks.filter(t => t.filePath);
+    if (localFilePathTracks.length > 0) {
+      setLocalTracks(prev => {
+        let changed = false;
+        const next = prev.map(track => {
+          if (!track.filePath) return track;
+          const cached = metadataCacheService.get(track.id);
+          if (!cached) return track;
 
-            if (!hasBetterInfo) return track;
+          const fallbackTitle = track.fileName?.replace(/\.[^/.]+$/, '') || '';
+          const hasBetterInfo =
+            (track.title === fallbackTitle && !!cached.title) ||
+            (track.artist === 'Unknown Artist' && !!cached.artist) ||
+            (track.album === 'Unknown Album' && !!cached.album) ||
+            (track.duration === 0 && !!cached.duration);
 
-            changed = true;
-            enrichedCount++;
-            return {
-              ...track,
-              title: cached.title || track.title,
-              artist: cached.artist || track.artist,
-              album: cached.album || track.album,
-              duration: cached.duration || track.duration,
-              lyrics: cached.lyrics || track.lyrics,
-              syncedLyrics: cached.syncedLyrics || track.syncedLyrics,
-            };
-          });
-          return changed ? next : prev;
+          if (!hasBetterInfo) return track;
+
+          changed = true;
+          enrichedCount++;
+          return {
+            ...track,
+            title: cached.title || track.title,
+            artist: cached.artist || track.artist,
+            album: cached.album || track.album,
+            duration: cached.duration || track.duration,
+            lyrics: cached.lyrics || track.lyrics,
+            syncedLyrics: cached.syncedLyrics || track.syncedLyrics,
+          };
         });
-      }
+        return changed ? next : prev;
+      });
+    }
 
+    void (async () => {
       // 第 2 步：对缓存不存在的本地文件曲目，从音频文件重新解析元数据
       const api = await getDesktopAPIAsync();
       if (api) {
@@ -453,8 +467,8 @@ export function useLibraryLoad({
       if (enrichedCount > 0) {
         logger.info('[LibraryLoad] Enriched', enrichedCount, 'tracks from metadata cache');
       }
-    }).catch(err => {
-      logger.warn('[LibraryLoad] Metadata cache init failed:', err);
+    })().catch(err => {
+      logger.warn('[LibraryLoad] Background metadata restoration failed:', err);
     });
 
     const desktopAPI = await getDesktopAPIAsync();
@@ -469,12 +483,6 @@ export function useLibraryLoad({
         logger.warn('[LibraryLoad] Startup cleanup failed:', err);
       });
     }
-
-    const restoredSettings: { activeSlotId?: SlotId; currentTime?: number } = {
-      activeSlotId: activeSource,
-      currentTime: activeSlotState?.currentTime ?? 0,
-    };
-    onLibrarySettingsRestored?.(restoredSettings);
 
     const tracksToValidate = loadedTracks.filter(t => t.filePath);
     if (tracksToValidate.length > 0) {
@@ -498,6 +506,7 @@ export function useLibraryLoad({
   };
 
   useEffect(() => {
+    let cancelled = false;
     const loadLibraryFromDisk = async () => {
       logger.debug('[LibraryLoad] Loading library from disk...');
       try {
@@ -619,10 +628,13 @@ export function useLibraryLoad({
         isFirstLoadRef.current = false;
       } catch (error) {
         logger.error('[LibraryLoad] Failed to load library:', error);
+      } finally {
+        if (!cancelled) setReady(true);
       }
     };
 
     loadLibraryFromDisk();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -811,4 +823,6 @@ export function useLibraryLoad({
       }
     };
   }, []);
+
+  return ready;
 }

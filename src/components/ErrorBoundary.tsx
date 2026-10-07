@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { i18n } from '../services/i18n';
+import { dismissStartupScreen } from '../services/startupScreen';
 
 interface Props {
   children: ReactNode;
@@ -21,6 +22,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    dismissStartupScreen();
     console.error('ErrorBoundary caught an error:', error);
     console.error('Error info:', errorInfo);
   }

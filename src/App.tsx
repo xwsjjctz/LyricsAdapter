@@ -26,6 +26,7 @@ import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
 import { useImportViewModel } from './viewmodels/useImportViewModel';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useSystemLyrics } from './hooks/useSystemLyrics';
+import { revealStartupScreen } from './services/startupScreen';
 
 declare global {
   interface Window {
@@ -275,7 +276,7 @@ const AppContent: React.FC = () => {
   // the per-handler delegates that lived here were removed by the Phase 4
   // LibraryViewModel wiring.
 
-  useLibraryLoad({
+  const libraryReady = useLibraryLoad({
     restoreFromPersistence,
     getPersistenceData: getAppPersistenceData,
     getSlotsSnapshot: () => slotsRef.current,
@@ -300,6 +301,10 @@ const AppContent: React.FC = () => {
       }
     },
   });
+
+  useEffect(() => {
+    if (libraryReady) return revealStartupScreen();
+  }, [libraryReady]);
 
   // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
   useEffect(() => { void syncOnlineCookiesToMain(); }, []);

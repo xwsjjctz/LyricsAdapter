@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
 import { usePlaylistSwitcher } from './usePlaylistSwitcher';
@@ -14,12 +14,18 @@ export default function PlaylistSwitcher({ items, activeId }: { items: readonly 
   const selected = session?.items.findIndex(item => item.id === session.selectedId) ?? -1;
   useEffect(() => { if (open) listRef.current?.focus(); }, [open]);
   useEffect(() => {
-    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [selected]);
+    const list = listRef.current;
+    if (!open || !list) return;
+    const revealSelection = () => list.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    revealSelection();
+    window.addEventListener('resize', revealSelection);
+    return () => window.removeEventListener('resize', revealSelection);
+  }, [open, selected]);
   if (!session) return null;
 
-  return <div className="playlist-switcher-backdrop" onMouseDown={cancel}>
+  return <div className="playlist-switcher-backdrop" data-controlbar-passthrough onMouseDown={cancel}>
     <section className="playlist-switcher" role="dialog" aria-modal="true" aria-label={t('playlistSwitcher.label')}
+      style={{ '--switcher-columns': Math.min(session.items.length, 5) } as CSSProperties}
       data-playlist-switcher data-testid="playlist-switcher" onMouseDown={event => event.stopPropagation()}>
       <div ref={listRef} className="playlist-switcher__items" role="listbox" tabIndex={-1}
         aria-label={t('playlistSwitcher.label')} aria-activedescendant={`${id}-${selected}`}>

@@ -4,6 +4,7 @@ import PlaylistSwitcher from '@/components/playlist-switcher/PlaylistSwitcher';
 import type { PlaylistSwitchItem } from '@/components/playlist-switcher/types';
 import { shortcutManager } from '@/services/shortcuts';
 import { commandPalette } from '@/hooks/useCommandPalette';
+import { controlbarPresentation } from '@/hooks/usePlayerControlbar';
 
 const key = (key: string, extra: KeyboardEventInit = {}) => fireEvent.keyDown(window, { key, ...extra });
 const cycle = (extra: KeyboardEventInit = {}) => key('`', { code: 'Backquote', metaKey: true, ...extra });
@@ -19,6 +20,23 @@ beforeEach(() => { shortcutManager.resetAllToDefaults(); commandPalette.close();
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('Playlist switcher gesture', () => {
+  it('keeps the native controlbar visible through the background without treating the panel as transparent', () => {
+    setup(); cycle();
+    const anchor = document.createElement('div');
+    anchor.style.opacity = '1';
+    document.body.appendChild(anchor);
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+      x: 20, y: 700, left: 20, top: 700, right: 420, bottom: 764,
+      width: 400, height: 64, toJSON: () => ({}),
+    });
+    const hitTest = vi.fn().mockReturnValue(document.querySelector('.playlist-switcher-backdrop'));
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: hitTest });
+    try {
+      expect(controlbarPresentation(anchor, true).opacity).toBe(1);
+      hitTest.mockReturnValue(screen.getByRole('dialog'));
+      expect(controlbarPresentation(anchor, true).opacity).toBe(0);
+    } finally { anchor.remove(); }
+  });
   it('alternates rapid separate Ctrl+Backquote chords between the last two of three lists', () => {
     const { items } = setup();
     const controlCycle = () => cycle({ key: '~', metaKey: false, ctrlKey: true });

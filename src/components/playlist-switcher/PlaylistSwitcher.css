@@ -3,14 +3,22 @@
   inset: 0;
   z-index: 320;
   display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
-  padding: 20px;
+  /* Reserve the bottom playback controls even when the list needs more rows. */
+  padding: 20px clamp(12px, 3vw, 20px) 112px;
   background: rgba(0, 0, 0, .16);
   -webkit-app-region: no-drag;
 }
 .playlist-switcher {
+  --switcher-item-width: clamp(96px, 16vmin, 144px);
+  width: calc(var(--switcher-columns) * (var(--switcher-item-width) + 8px) + 18px);
   max-width: min(860px, 100%);
+  max-height: 100%;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 16px 12px 10px;
   border-radius: 28px;
   border: 1px solid color-mix(in srgb, var(--theme-text-primary) 18%, transparent);
@@ -20,14 +28,20 @@
   box-shadow: 0 24px 72px -20px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .1);
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
-.playlist-switcher__items { display: flex; gap: 8px; max-width: 100%; overflow-x: auto; outline: none; }
+.playlist-switcher__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--switcher-item-width), 100%), 1fr));
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
 .playlist-switcher__items button {
-  flex: 0 0 clamp(112px, 16vw, 144px);
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 10px;
+  padding: clamp(8px, 1.5vmin, 12px) 8px;
   gap: 6px;
   border: 1px solid transparent;
   border-radius: 20px;
@@ -43,7 +57,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(72px, 12vw, 96px);
+  width: clamp(56px, 12vmin, 96px);
+  flex-shrink: 0;
   aspect-ratio: 1;
   overflow: hidden;
   border-radius: 16px;
@@ -51,8 +66,8 @@
   background: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
   box-shadow: 0 5px 14px rgba(0, 0, 0, .12);
 }
-.playlist-switcher__artwork .material-symbols-outlined { font-size: 42px; }
+.playlist-switcher__artwork .material-symbols-outlined { font-size: clamp(28px, 5vmin, 42px); }
 .playlist-switcher__artwork img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.playlist-switcher__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
-.playlist-switcher__detail { color: var(--theme-text-muted); font-size: 11px; }
-.playlist-switcher__hint { margin: 10px 4px 0; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.5; text-align: center; }
+.playlist-switcher__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(12px, 1.8vmin, 14px); font-weight: 600; }
+.playlist-switcher__detail { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--theme-text-muted); font-size: 11px; }
+.playlist-switcher__hint { flex-shrink: 0; margin: 10px 4px 0; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.5; text-align: center; }
