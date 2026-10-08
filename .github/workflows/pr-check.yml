@@ -28,6 +28,15 @@ jobs:
       - name: Quality checks
         run: npm run check
 
+      # The plugin sources are no longer a submodule. Check out the pinned commit of the
+      # plugin repository after the host checks so `npm run check` stays independent of it.
+      - name: Checkout official plugins
+        uses: actions/checkout@v4
+        with:
+          repository: xwsjjctz/LyricsAdapter-Music-Plugins
+          ref: 13096171cdf9f34f96e31562ee1dff4378b7efb2
+          path: music-source-plugins
+
       - name: Check optional official plugins and build integration fixtures
         run: |
           npm --prefix music-source-plugins ci
@@ -78,6 +87,15 @@ jobs:
 
       - name: Verify composed taskbar lyrics pixels
         run: npm run test:e2e -- windows-taskbar-lyrics.visual.spec.ts
+
+      - name: Upload taskbar lyrics captures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-taskbar-lyrics-captures
+          path: test-results/electron
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Type check
         run: npm run typecheck
