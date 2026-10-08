@@ -26,6 +26,7 @@ npm run check
 插件只负责获取数据、解析地址和平台协议；播放器控制器和音乐库控制器继续拥有状态修改权限。
 歌词缓存留在 renderer，音频代理与下载留在 Electron。插件提供流媒体请求头，宿主负责 Range、取消和进度。
 QQ 登录续期只在插件内执行：宿主的定时续期与请求过期触发的续期共用同一次上游交换，结果由插件写回凭据。
+网易云登录续期同样在插件内执行：有已保存登录时，使用该音乐源会每天延长一次会话并写回轮换后的 Cookie；请求返回需要登录（301）时先续期再重试一次。会话已失效时续期会被拒绝，仍需重新扫码。
 `test/shared/musicPluginContract.test.ts` 在 `npm run typecheck:test` 中比对宿主合同与 submodule 的 SDK 类型，两边不一致时检查失败。
 
 第一版继续保留 `qq` / `netease` 来源、旧歌曲 ID、Cookie 和凭据持久化键，因此不需要重写现有用户数据。新插件凭据使用 `music-plugin:<id>:secret:<name>`，按敏感数据策略加密。
