@@ -3,6 +3,8 @@ import type { Track } from '../../types';
 import FocusLegacyLyrics from './FocusLegacyLyrics';
 import { hasTrackLyrics } from './focusLyricsTrack';
 import './FocusLyrics.css';
+import { usePluginTranslation } from '../../hooks/usePluginTranslation';
+import { useTranslation } from 'react-i18next';
 
 const FocusAmlLyrics = lazy(() => import('./FocusAmlLyrics'));
 
@@ -40,6 +42,8 @@ export default function FocusLyrics({
   textMuted,
   onSeek,
 }: FocusLyricsProps) {
+  const translation = usePluginTranslation(track, isVisible);
+  const { t } = useTranslation();
   if (!track || !hasTrackLyrics(track)) return null;
 
   return (
@@ -47,9 +51,11 @@ export default function FocusLyrics({
       className="focus-lyrics-viewport flex-1 h-full min-h-0 min-w-0 max-h-[50vh] lg:max-h-[60vh] overflow-hidden relative px-8 select-none"
       data-testid={useAmlLyrics ? 'focus-amll-lyrics' : undefined}
     >
+      {translation.error && <p role="status" className="text-xs" style={{ color: textMuted }}>{t('plugins.translationError')}</p>}
       {!useAmlLyrics ? (
         <FocusLegacyLyrics
           track={track}
+          translations={translation.lines}
           currentTime={currentTime}
           currentTimeRef={currentTimeRef}
           isPlaying={isPlaying}
@@ -67,6 +73,7 @@ export default function FocusLyrics({
         <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
           <FocusAmlLyrics
             track={track}
+            translations={translation.lines}
             currentTime={currentTime}
             isPlaying={isPlaying}
             isVisible={isVisible}

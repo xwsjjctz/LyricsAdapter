@@ -5,6 +5,8 @@ import { refreshMusicPlugins, updateMusicPlugins, useMusicPlugins } from '@/stor
 import type { MusicPluginCatalogEntry, MusicPluginInfo } from '@/shared/musicPlugin';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import PluginConfiguration from './PluginConfiguration';
+import PluginTranslationSettings from './PluginTranslationSettings';
 
 export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) {
   const { t } = useTranslation();
@@ -50,6 +52,7 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
           <Button size="sm" disabled={busy || !directory} onClick={() => void change(() => api!.musicPluginOpenDirectory!())}>{t('musicPlugins.openDirectory')}</Button>
         </div>
       </section>
+      <PluginTranslationSettings theme={theme} />
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium" style={{ color: colors.textPrimary }}>{t('musicPlugins.available')}</h2>
@@ -90,6 +93,7 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
                 {t(plugin.enabled ? 'musicPlugins.enabled' : 'musicPlugins.disabled')}
               </button>
             </div>
+            {plugin.enabled && !plugin.error && plugin.platform?.contributes.configuration && <PluginConfiguration plugin={plugin} theme={theme} />}
           </div>
         ))}
       </section>

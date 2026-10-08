@@ -50,6 +50,7 @@ type AmlStyle = CSSProperties & {
 
 export interface FocusAmlLyricsProps {
   track: Track;
+  translations?: Readonly<Record<string, string>>;
   currentTime: number;
   isPlaying: boolean;
   isVisible: boolean;
@@ -62,6 +63,7 @@ export interface FocusAmlLyricsProps {
 
 export default function FocusAmlLyrics({
   track,
+  translations,
   currentTime,
   isPlaying,
   isVisible,
@@ -76,7 +78,7 @@ export default function FocusAmlLyrics({
   const scrollReturnTimerRef = useRef<number | null>(null);
   const previousTimeRef = useRef(Math.round(currentTime * 1000));
   const previousTrackRef = useRef(track.id);
-  const lyricLines = useMemo(() => trackToAmlLyricLines(track), [track]);
+  const lyricLines = useMemo(() => trackToAmlLyricLines(track, translations), [track, translations]);
   const currentTimeMs = Math.max(0, Math.round(currentTime * 1000));
   const isSeeking = previousTrackRef.current !== track.id
     || !isPlaying

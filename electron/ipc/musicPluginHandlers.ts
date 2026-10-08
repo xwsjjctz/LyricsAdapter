@@ -1,10 +1,11 @@
-import { BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
 import { logger } from '../logger';
 import { userStateRepository } from '../services/userStateRepository';
 import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import type { MusicPlugin } from '../../src/shared/musicPlugin';
+import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type PluginTranslationCall } from '../../src/shared/plugin';
 
 let registry: MusicPluginRegistry;
 // Downloads carry only a URL, so the resolving plugin is remembered for as long as
@@ -36,11 +37,20 @@ export function registerMusicPluginHandlers(): void {
     installedDirectory: directory,
     isEnabled: id => userStateRepository.getSetting(`music-plugin:${id}:enabled`) !== 'false',
     setEnabled: (id, enabled) => userStateRepository.setSetting(`music-plugin:${id}:enabled`, String(enabled)),
-    host: id => ({ logger,
+    host: id => ({ logger: {
+      debug: (...args) => logger.debug(`[Plugin:${id}]`, ...args),
+      info: (...args) => logger.info(`[Plugin:${id}]`, ...args),
+      warn: (...args) => logger.warn(`[Plugin:${id}]`, ...args),
+      error: (...args) => logger.error(`[Plugin:${id}]`, ...args),
+    },
+      readSetting: key => userStateRepository.getSetting(key),
+      writeSetting: (key, value) => { if (value === undefined) userStateRepository.deleteSetting(key); else userStateRepository.setSetting(key, value); },
       readSecret: name => userStateRepository.getSetting(secretKey(id, name)) ?? '',
       writeSecrets: entries => {
         userStateRepository.setManySettings(Object.fromEntries(Object.entries(entries).map(([name, value]) => [secretKey(id, name), value])));
+        registry.markChanged(id);
         for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugin-secrets-changed', id);
+        for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugins-changed', registry.list());
       },
     }),
   });
@@ -49,6 +59,33 @@ export function registerMusicPluginHandlers(): void {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugins-changed', plugins);
     return plugins;
   };
+  app.once('before-quit', () => registry.dispose());
+  ipcMain.handle('plugin-host-info', () => ({ coreApi: PLUGIN_CORE_API, extensionApis: PLUGIN_EXTENSION_APIS, legacyMusicApi: 1 }));
+  ipcMain.handle('plugin-providers', (_event, type: string) => {
+    if (!Object.hasOwn(PLUGIN_EXTENSION_APIS, type)) throw new Error('Unknown extension type');
+    return registry.providers(type as keyof typeof PLUGIN_EXTENSION_APIS);
+  });
+  ipcMain.handle('plugin-configuration', (_event, id: string) => registry.configuration(id));
+  ipcMain.handle('plugin-set-configuration', (_event, id: string, key: string, value: string | boolean | number) => { registry.setConfiguration(id, key, value); changed(); });
+  const requests = new Map<string, AbortController>();
+  const watched = new Set<number>();
+  ipcMain.handle('plugin-translate', async (event, call: PluginTranslationCall) => {
+    if (!call || typeof call.requestId !== 'string' || !/^[\w-]{1,128}$/.test(call.requestId) || typeof call.providerKey !== 'string') throw new Error('Invalid plugin request');
+    const key = `${event.sender.id}:${call.requestId}`;
+    if (requests.has(key) || requests.size >= 64) throw new Error('Duplicate or excessive plugin request');
+    if (!watched.has(event.sender.id)) {
+      watched.add(event.sender.id);
+      event.sender.once('destroyed', () => {
+        for (const [id, request] of requests) if (id.startsWith(`${event.sender.id}:`)) { request.abort(new Error('Window closed')); requests.delete(id); }
+        watched.delete(event.sender.id);
+      });
+    }
+    const controller = new AbortController(); requests.set(key, controller);
+    try { return await registry.translate(call.providerKey, call.request, controller.signal, call.requestId); }
+    catch (error) { changed(); throw error; }
+    finally { requests.delete(key); }
+  });
+  ipcMain.on('plugin-cancel', (event, requestId: string) => requests.get(`${event.sender.id}:${requestId}`)?.abort(new Error('Plugin request cancelled')));
   ipcMain.handle('music-plugin-call', async (_event, id: string, method: string, args: unknown[]) => {
     const result = await registry.call(id, method, args);
     if (method === 'getMusicUrl' && result && typeof result === 'object' && typeof (result as { url?: unknown }).url === 'string') {

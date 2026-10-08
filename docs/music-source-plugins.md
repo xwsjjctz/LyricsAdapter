@@ -1,6 +1,6 @@
 # 音乐源插件
 
-QQ 和网易云音乐协议实现维护在独立公开仓库 [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins)。协议源码不再属于主应用，保留的 `music-source-plugins` submodule 仅用于可选的开发与集成测试。
+QQ 和网易云音乐协议实现维护在独立公开仓库 [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins)。主应用已移除插件子模块引用，协议源码在独立仓库开发，通过安装包接入应用。
 
 ## 启动与安装
 
@@ -16,17 +16,9 @@ QQ 和网易云音乐协议实现维护在独立公开仓库 [LyricsAdapter-Musi
 
 ## 插件开发
 
-主项目中的 submodule 仅用于可选的插件开发，不是主应用依赖：
+第三方作者请先阅读[通用插件 API](plugins/README.md)和兼容接口的[音乐源插件开发指南](development/music-plugin-development.md)：其中说明 API v1 的接入边界、provider 合同、可运行示例和安装包格式。当前自定义 ID 可以安装和被主进程调用，但还不能自动成为界面中的新音乐源。
 
-```sh
-git submodule update --init --recursive -- music-source-plugins
-npm --prefix music-source-plugins ci
-npm run music-plugins:check
-```
-
-`music-plugins:check` 独立验证锁定的插件源码，并比对宿主与 SDK 类型；`music-plugins:build` 保留为可选开发命令，源码缺失时会尝试恢复锁定的 submodule 版本。
-
-也可在单独克隆的插件仓库中开发和打包，例如本机的 `../LyricsAdapter-Music-Plugins`：
+在单独克隆的插件仓库中开发和打包，例如本机的 `../LyricsAdapter-Music-Plugins`：
 
 ```sh
 cd ../LyricsAdapter-Music-Plugins
@@ -36,6 +28,8 @@ npm run check
 
 独立仓库的 `npm run package`（也由 `check` 调用）生成 `packages/qq.laplugin`、`packages/netease.laplugin` 和 `packages/catalog.json`。源码、目录和安装包一起提交至插件仓库的 `main` 后，主应用即可在线下载，用户不需要保留源码目录。独立仓库 CI 重新生成并比对分发文件，防止目录、安装包与源码不一致。
 
+主项目 `music-plugins:build` 默认读取相邻的独立仓库，也可通过 `LYRICS_ADAPTER_MUSIC_PLUGIN_SOURCE` 指定源码目录；不会初始化子模块。`plugins:check` 检查公共 SDK，`music-plugins:check` 暂作为其别名。官方插件自己的完整检查仍在独立仓库执行。CI 检查公共 SDK 并打包开发示例，再单独检出固定版本的官方仓库生成协议集成测试夹具；应用构建和启动仍不依赖这些源码。
+
 ## 合同与兼容
 
 合同定义在 `src/shared/musicPlugin.ts`，API 版本 1。宿主检查 manifest、入口范围和插件导出，通过统一 `music-plugin-call` 调用 provider。原有扫码与续期 bridge 是兼容转发，实际实现由插件提供。
@@ -43,7 +37,7 @@ npm run check
 歌词缓存留在 renderer，音频代理与下载留在 Electron。插件提供流媒体请求头，宿主负责 Range、取消和进度。
 QQ 登录续期只在插件内执行：宿主的定时续期与请求过期触发的续期共用同一次上游交换，结果由插件写回凭据。
 网易云登录续期同样在插件内执行：有已保存登录时，使用该音乐源会每天延长一次会话并写回轮换后的 Cookie；请求返回需要登录（301）时先续期再重试一次。会话已失效时续期会被拒绝，仍需重新扫码。
-`scripts/musicPluginContract.ts` 在显式运行 `npm run music-plugins:check` 时比对宿主合同与 submodule 的 SDK 类型，两边不一致时检查失败。
+`scripts/musicPluginContract.ts` 检查主项目公共 SDK 的旧音乐合同和类型化扩展注册；`plugins:check` 还在隔离 NodeNext 项目中验证生成 SDK 的类型及运行时导入。官方仓库的协议测试和主项目的实际安装/调用测试继续验证跨仓库兼容。
 
 第一版继续保留 `qq` / `netease` 来源、旧歌曲 ID、Cookie 和凭据持久化键，因此不需要重写现有用户数据。新插件凭据使用 `music-plugin:<id>:secret:<name>`，按敏感数据策略加密。
 
@@ -55,9 +49,15 @@ QQ 登录续期只在插件内执行：宿主的定时续期与请求过期触�
 
 平台协议的回归测试在插件仓库中运行；主项目覆盖无插件启动、目录迁移、官方包下载校验、首次安装即时生效、启用状态持久化、安装更新、兼容性拒绝、renderer 转发和真实 Electron 集成。
 
-插件页提供官方仓库的目录和手动下载安装；第三方市场、自动更新与已加载插件的热更新尚未实现。
+插件页提供官方仓库的目录和手动下载安装；第三方市场和自动更新尚未实现；旧格式音乐插件更新仍需重启，新格式插件更新可在清理旧实例后按需加载。
 
-真实 Electron 的 QQ 协议回归需要先显式运行 `npm run music-plugins:build`，测试会将构建后的 QQ 插件复制到临时用户的 `plugin/qq`，不会将其作为应用资源加载。CI 单独构建这些可选测试插件，主应用的 `npm run check` 始终不依赖插件源码。
+真实 Electron 的 QQ 协议回归需要先构建测试夹具。在独立插件仓库运行下面的命令，路径可按实际 checkout 调整：
+
+```sh
+node scripts/build.mjs ../LyricsAdapter/dist-music-plugins
+```
+
+测试会将构建后的 QQ 插件复制到临时用户的 `plugin/qq`，不会将其作为应用资源加载。主应用的 `npm run check` 不依赖官方插件源码；QQ 凭据刷新真实协议测试需要这个可选夹具，其余插件测试使用独立测试包。
 
 可验证 macOS 打包后的插件加载：先生成 `.app`，再运行：
 

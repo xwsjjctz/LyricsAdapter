@@ -107,3 +107,6 @@ problems.md
 /design
 
 /dist-music-plugins
+
+/dist-plugins
+/.ci-music-plugins

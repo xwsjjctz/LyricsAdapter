@@ -3,9 +3,11 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { MUSIC_PLUGIN_API_VERSION, type MusicPlugin, type MusicPluginHost, type MusicPluginInfo, type MusicPluginManifest } from '../../src/shared/musicPlugin';
+import { PLUGIN_ID, validatePlatformManifest, negotiateExtensions } from './pluginManifest';
+import { PluginRuntime, validateMusicSource } from './pluginRuntime';
+import type { ExtensionType, PluginProviderInfo, TranslationRequest, TranslationResult } from '../../src/shared/plugin';
 
 const requirePlugin = createRequire(import.meta.url);
-const PLUGIN_ID = /^[a-z][a-z0-9-]{0,63}$/;
 const PROVIDER_METHODS = new Set(['searchMusic', 'getRecommendedSongs', 'getSongDetails', 'getMusicUrl', 'getLyrics', 'getPlaylists', 'getPlaylistSongs']);
 
 export function validateMusicPluginManifest(value: unknown): MusicPluginManifest {
@@ -14,13 +16,13 @@ export function validateMusicPluginManifest(value: unknown): MusicPluginManifest
   if (typeof v['id'] !== 'string' || !PLUGIN_ID.test(v['id'])
     || typeof v['name'] !== 'string' || !v['name'].trim()
     || typeof v['version'] !== 'string' || !/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(v['version'])
-    || typeof v['requiresCookie'] !== 'boolean'
-    || !Array.isArray(v['capabilities']) || !v['capabilities'].every(c => typeof c === 'string')
     || (v['homepage'] !== undefined && (typeof v['homepage'] !== 'string' || !v['homepage'].startsWith('https://')))) {
     throw new Error('Invalid plugin manifest');
   }
-  if (v['apiVersion'] !== MUSIC_PLUGIN_API_VERSION) throw new Error(`Unsupported plugin API version: ${String(v['apiVersion'])}`);
   if (typeof v['main'] !== 'string' || !/^[\w.-]+\.cjs$/.test(v['main'])) throw new Error('Plugin entry must be a local .cjs file');
+  if (v['manifestVersion'] !== undefined) return validatePlatformManifest(v);
+  if (typeof v['requiresCookie'] !== 'boolean' || !Array.isArray(v['capabilities']) || !v['capabilities'].every(c => typeof c === 'string')) throw new Error('Invalid plugin manifest');
+  if (v['apiVersion'] !== MUSIC_PLUGIN_API_VERSION) throw new Error(`Unsupported plugin API version: ${String(v['apiVersion'])}`);
   return v as unknown as MusicPluginManifest;
 }
 
@@ -45,7 +47,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 /** `blocked` explains why the package in `directory` must not be loaded in this session. */
-interface PluginRecord { info: MusicPluginInfo; directory: string; plugin?: MusicPlugin; blocked?: string }
+interface PluginRecord { info: MusicPluginInfo; directory: string; plugin?: MusicPlugin; runtime?: PluginRuntime; blocked?: string }
 interface RegistryOptions {
   bundledDirectory?: string;
   installedDirectory: string;
@@ -89,11 +91,45 @@ export class MusicPluginRegistry {
   }
 
   list(): MusicPluginInfo[] { return [...this.records.values()].map(record => ({ ...record.info })); }
-  get(id: string): MusicPlugin {
+  private record(id: string): PluginRecord {
     const record = this.records.get(id);
     if (!record) throw new Error(`Music plugin is not installed: ${id}`);
     if (!record.info.enabled) throw new Error(`Music plugin is disabled: ${record.info.name}`);
     if (record.blocked) throw new Error(record.blocked);
+    return record;
+  }
+  private runtime(id: string): PluginRuntime {
+    const record = this.record(id);
+    if (!record.info.platform) throw new Error('This operation requires the platform API');
+    return record.runtime ??= new PluginRuntime(record.info.platform, path.join(record.directory, inspectDirectory(record.directory).main), this.options.host(id));
+  }
+  providers(type: ExtensionType): PluginProviderInfo[] {
+    return this.list().flatMap(info => {
+      if (!info.enabled || info.error) return [];
+      if (!info.platform) return type === 'music.source' ? [{ key: `${info.id}:default`, pluginId: info.id, id: 'default', type, name: info.name, version: info.version }] : [];
+      const versions = negotiateExtensions(info.platform);
+      return info.platform.contributes.providers.filter(p => p.type === type && versions[type])
+        .map(p => ({ key: `${info.id}:${p.id}`, pluginId: info.id, id: p.id, type, name: p.name, version: info.version }));
+    });
+  }
+  async translate(key: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult> {
+    const provider = this.providers('lyrics.translation').find(p => p.key === key);
+    if (!provider) throw new Error('Translation provider is unavailable');
+    const record = this.record(provider.pluginId);
+    try { return await this.runtime(provider.pluginId).translate(provider.id, request, signal, requestId); }
+    catch (error) {
+      // Request failures do not disable a provider; an activation failure does.
+      if (record.runtime?.failure) record.info.error = record.runtime.failure;
+      throw error;
+    }
+  }
+  configuration(id: string): Record<string, string | boolean | number> { return this.runtime(id).configuration(); }
+  markChanged(id: string): void { const record = this.records.get(id); if (record) record.info.revision = (record.info.revision ?? 0) + 1; }
+  setConfiguration(id: string, key: string, value: string | boolean | number): void { this.runtime(id).setConfiguration(key, value); this.markChanged(id); }
+  dispose(): void { for (const record of this.records.values()) record.runtime?.dispose(); }
+  get(id: string): MusicPlugin {
+    const record = this.record(id);
+    if (record.info.platform) return this.runtime(id).music();
     if (!record.plugin) {
       try {
         // Recheck the entry at load time; no renderer-provided path reaches require().
@@ -101,10 +137,7 @@ export class MusicPluginRegistry {
         const exported = requirePlugin(entry) as { createPlugin?: (host: MusicPluginHost) => MusicPlugin };
         if (typeof exported.createPlugin !== 'function') throw new Error('Plugin must export createPlugin');
         const plugin = exported.createPlugin(this.options.host(id));
-        if (!plugin?.provider || plugin.provider.id !== id || typeof plugin.invoke !== 'function' || typeof plugin.streamHeaders !== 'function' || typeof plugin.validateCookie !== 'function') throw new Error('Invalid music plugin exports');
-        for (const method of ['searchMusic', 'getRecommendedSongs', 'getMusicUrl', 'getLyrics', 'getPlaylists', 'getPlaylistSongs', 'requiresCookie'] as const) {
-          if (typeof plugin.provider[method] !== 'function') throw new Error(`Missing provider method: ${method}`);
-        }
+        validateMusicSource(plugin, id);
         record.plugin = plugin;
         delete record.info.error;
       } catch (error) {
@@ -116,7 +149,13 @@ export class MusicPluginRegistry {
   }
   async call(id: string, method: string, args: unknown[]): Promise<unknown> {
     if ((!PROVIDER_METHODS.has(method) && method !== 'validateCookie') || !Array.isArray(args) || args.length > 5) throw new Error('Invalid music plugin call');
-    const plugin = this.get(id);
+    if (this.record(id).info.platform) {
+      try { return await this.runtime(id).callMusic(plugin => this.callProvider(plugin, method, args)); }
+      catch (error) { const record = this.records.get(id); if (record?.runtime?.failure) record.info.error = record.runtime.failure; throw error; }
+    }
+    return this.callProvider(this.get(id), method, args);
+  }
+  private async callProvider(plugin: MusicPlugin, method: string, args: unknown[]): Promise<unknown> {
     if (method === 'validateCookie') {
       if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('Invalid cookie validation call');
       return plugin.validateCookie(args[0]);
@@ -136,6 +175,9 @@ export class MusicPluginRegistry {
     if (!record || typeof enabled !== 'boolean') throw new Error('Invalid music plugin');
     this.options.setEnabled(id, enabled);
     record.info.enabled = enabled;
+    this.markChanged(id);
+    if (!enabled) { record.runtime?.dispose(); delete record.runtime; }
+    else { if (record.runtime?.failure) { record.runtime.dispose(); delete record.runtime; } delete record.info.error; }
     return this.list();
   }
   private inspectBundled(id: string): MusicPluginManifest | undefined {
@@ -154,7 +196,7 @@ export class MusicPluginRegistry {
       throw new Error(`The bundled ${bundled.name} plugin (${bundled.version}) is newer than ${manifest.version}`);
     }
     fs.mkdirSync(this.options.installedDirectory, { recursive: true });
-    const target = path.join(this.options.installedDirectory, manifest.id);
+    const target = path.join(fs.realpathSync(this.options.installedDirectory), manifest.id);
     const root = fs.realpathSync(directory);
     if (root === target || root.startsWith(`${target}${path.sep}`)) throw new Error('Cannot install a plugin from its own installation directory');
     // A plugin package consists of a self-contained entry and manifest. No arbitrary
@@ -164,7 +206,7 @@ export class MusicPluginRegistry {
     const staging = fs.mkdtempSync(path.join(this.options.installedDirectory, '.install-'));
     try {
       fs.writeFileSync(path.join(staging, manifest.main), bytes);
-      fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(manifest));
+      fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(manifest.platform ?? manifest));
       if (fs.existsSync(target)) {
         if (fs.lstatSync(target).isSymbolicLink()) throw new Error('Invalid installed plugin directory');
         const backup = `${staging}-previous`;
@@ -174,14 +216,15 @@ export class MusicPluginRegistry {
       } else fs.renameSync(staging, target);
       // Updates retain working code until restart. First installations can load now.
       const previous = this.records.get(manifest.id);
-      const working = previous && !previous.blocked ? previous : undefined;
+      if (manifest.platform || previous?.info.platform) previous?.runtime?.dispose();
+      const working = previous && !previous.blocked && !previous.info.platform && !manifest.platform ? previous : undefined;
       this.records.set(manifest.id, {
         directory: working?.directory ?? target,
         ...(working?.plugin ? { plugin: working.plugin } : {}),
-        info: { ...manifest, origin: 'installed', enabled: this.options.isEnabled(manifest.id), ...(working ? { restartRequired: true } : {}) },
+        info: { ...manifest, origin: 'installed', enabled: this.options.isEnabled(manifest.id), revision: (previous?.info.revision ?? 0) + 1, ...(working ? { restartRequired: true } : {}) },
       });
-      if (!working && this.options.isEnabled(manifest.id)) {
-        delete requirePlugin.cache[path.join(target, manifest.main)];
+      if (!working && !manifest.platform && this.options.isEnabled(manifest.id)) {
+        delete requirePlugin.cache[requirePlugin.resolve(path.join(target, manifest.main))];
         // Keep incompatible packages visible with their error, but unavailable to UI.
         try { this.get(manifest.id); } catch { /* get() records the load error. */ }
       }
@@ -200,7 +243,7 @@ export class MusicPluginRegistry {
     fs.mkdirSync(this.options.installedDirectory, { recursive: true });
     const staging = fs.mkdtempSync(path.join(this.options.installedDirectory, '.package-'));
     try {
-      fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(manifest));
+      fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(manifest.platform ?? manifest));
       fs.writeFileSync(path.join(staging, manifest.main), code);
       return this.install(staging);
     } finally { fs.rmSync(staging, { recursive: true, force: true }); }
@@ -209,6 +252,7 @@ export class MusicPluginRegistry {
   uninstall(id: string): MusicPluginInfo[] {
     const record = this.records.get(id);
     if (!record || record.info.origin !== 'installed' || !PLUGIN_ID.test(id)) throw new Error('Music plugin is not locally installed');
+    record.runtime?.dispose();
     fs.rmSync(path.join(this.options.installedDirectory, id), { recursive: true, force: true });
     const bundled = this.inspectBundled(id);
     if (!bundled) this.records.delete(id);

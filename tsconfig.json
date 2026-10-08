@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@lyrics-adapter/plugin-sdk": [
+        "./packages/plugin-sdk/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
