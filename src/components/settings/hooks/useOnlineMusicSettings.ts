@@ -19,6 +19,7 @@ interface UseOnlineMusicSettingsOptions {
   /** When true, the section is mounted (experimental toggle enabled). Drives QR
    *  scan startup. */
   enabled: boolean;
+  sources?: OnlineSource[];
 }
 
 interface UseOnlineMusicSettingsResult {
@@ -52,7 +53,7 @@ interface UseOnlineMusicSettingsResult {
  * polling timer); isolating it keeps the QR polling lifecycle explicit and
  * scoped to the section that renders it.
  */
-export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOptions): UseOnlineMusicSettingsResult {
+export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSettingsOptions): UseOnlineMusicSettingsResult {
   const { t } = useTranslation();
   const [onlineSource, setOnlineSourceState] = useState<OnlineSource>('qq');
   const [cookie, setCookie] = useState('');
@@ -79,12 +80,17 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
       await settingsManager.ensureLoaded();
       setCookie(cookieManager.getCookie());
       setNeteaseCookie(neteaseCookieManager.getCookie());
-      setOnlineSourceState(settingsManager.getOnlineSource());
+      const selected = settingsManager.getOnlineSource();
+      setOnlineSourceState(sources?.length && !sources.includes(selected) ? sources[0]! : selected);
       setQqLoggedIn(cookieManager.hasCookie());
       setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
     })();
   }, []);
+  const availableSource = sources?.includes(onlineSource) ? onlineSource : sources?.[0];
+  useEffect(() => {
+    if (availableSource && availableSource !== onlineSource) setOnlineSourceState(availableSource);
+  }, [availableSource, onlineSource]);
 
   // A silent musickey refresh rewrites the QQ cookie; keep the field in step so
   // a later Save does not write the stale value back.
@@ -223,7 +229,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
 
   // (Re)start QR whenever the section is shown or the source changes.
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || (sources && !sources.includes(onlineSource))) {
       resetQr();
       return;
     }
@@ -239,7 +245,7 @@ export function useOnlineMusicSettings({ enabled }: UseOnlineMusicSettingsOption
     };
     // startQr/resetQr are stable in behavior (only refs + setters); omit from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, onlineSource]);
+  }, [enabled, onlineSource, availableSource]);
 
   const setOnlineSource = useCallback((source: OnlineSource) => {
     setOnlineSourceState(source);

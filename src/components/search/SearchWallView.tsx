@@ -144,7 +144,7 @@ export default function SearchWallView({
       <div className="wall-float search-wall-header">
         <button type="button" className="wall-float__button search-wall-header__query" onClick={onEditQuery}
           aria-label={t('search.editQuery')}>
-          <span className="material-symbols-outlined" aria-hidden="true">search</span>
+          <span className="material-symbols-rounded" aria-hidden="true">search</span>
           <span className="search-wall-header__text">{query}</span>
         </button>
         <div role="tablist" aria-label={t('search.resultsSubtitle')} className="search-wall-header__tabs">
@@ -166,7 +166,7 @@ export default function SearchWallView({
           })}
         </div>
         <button type="button" className="wall-float__button search-wall-header__close" onClick={onClose} aria-label={t('common.close')}>
-          <span className="material-symbols-outlined" aria-hidden="true">close</span>
+          <span className="material-symbols-rounded" aria-hidden="true">close</span>
         </button>
       </div>
 

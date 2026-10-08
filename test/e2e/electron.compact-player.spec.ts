@@ -11,7 +11,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
-interface NativeItem { id: string; hidden: boolean; x: number; y: number; width: number; height: number; label: string }
+interface NativeItem { id: string; hidden: boolean; x: number; y: number; width: number; height: number; label: string; appearance: string }
 interface NativeSnapshot { windowNumber: number; items: NativeItem[] }
 
 for (const native of [false, true]) {
@@ -60,6 +60,8 @@ for (const native of [false, true]) {
     let app: ElectronApplication | undefined;
     try {
       app = await electron.launch({ cwd: root, args: [
+        // Exact CSS breakpoint assertions need deterministic DIP rounding on Windows.
+        ...(process.platform === 'win32' ? ['--force-device-scale-factor=1'] : []),
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
       ], env });
       const page = await app.firstWindow();
@@ -75,12 +77,23 @@ for (const native of [false, true]) {
         paused: node.paused, time: node.currentTime, volume: node.volume, src: node.currentSrc,
       }));
       const resize = async (width: number, height = 800) => {
-        await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+        await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height), { width, height });
         await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
       };
       const panel = page.getByTestId('main-controlbar');
       await expect(page.locator('.wall-tile').first()).toBeVisible();
       if (native) await expect(panel).toHaveAttribute('data-native-controlbar', 'true');
+      if (native) {
+        await expect(panel).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+        await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-title')?.appearance)
+          .toBe('NSAppearanceNameDarkAqua');
+      } else if (process.platform === 'darwin') {
+        await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
+        await expect(panel).toHaveCSS('backdrop-filter', /blur\(24px\)/);
+      } else if (process.platform === 'linux') {
+        // The docked bar has no backdrop blur; it uses the night glass panel colour.
+        await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.4|, 0\.4)\)$/);
+      }
       await expect.poll(() => page.locator('audio').evaluate((node: HTMLAudioElement) => node.readyState)).toBeGreaterThanOrEqual(2);
       if (!(await audioState()).paused) await page.keyboard.press('Space');
       await expect.poll(async () => (await audioState()).paused).toBe(true);
@@ -130,8 +143,8 @@ for (const native of [false, true]) {
           }
         } else {
           await expect(panel.getByRole('slider', { name: 'Playback position' })).toBeVisible({ visible: !compact });
-          await expect(panel.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible({ visible: process.platform !== 'darwin' && !extrasHidden });
-          expect(await panel.getByRole('button').count()).toBe(extrasHidden ? 3 : 5);
+          await expect(panel.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible({ visible: !['darwin', 'win32'].includes(process.platform) && !extrasHidden });
+          expect(await panel.getByRole('button').count()).toBe(extrasHidden ? 4 : 6);
           const bounds = await panel.evaluate(node => {
             const info = node.querySelector('.player-track-info')!.getBoundingClientRect();
             const transport = node.querySelector('.player-transport')!.getBoundingClientRect();

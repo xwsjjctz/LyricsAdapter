@@ -37,13 +37,13 @@ function plainLyricsToSynced(track: Track): SyncedLyricLine[] {
   }));
 }
 
-function focusLyricSource(track: Track): SyncedLyricLine[] {
-  if (!track.syncedLyrics?.length) return plainLyricsToSynced(track);
+function focusLyricSource(track: Track): (SyncedLyricLine & { lineId: string })[] {
+  if (!track.syncedLyrics?.length) return plainLyricsToSynced(track).map((line, index) => ({ ...line, lineId: `line-${index}` }));
 
-  const lines = [...track.syncedLyrics];
+  const lines = track.syncedLyrics.map((line, index) => ({ ...line, lineId: `line-${index}` }));
   if (track.source === 'netease' && (track.title || track.artist)) {
     const title = [track.title, track.artist].filter(Boolean).join(' - ');
-    if (title) lines.unshift({ time: 0, text: title });
+    if (title) lines.unshift({ time: 0, text: title, lineId: '' });
   }
   return lines;
 }
@@ -59,7 +59,7 @@ function nextDistinctStart(lines: SyncedLyricLine[], index: number, startTime: n
 }
 
 /** Convert the persisted LyricsAdapter shape to AMLL's immutable millisecond timeline. */
-export function trackToAmlLyricLines(track: Track | null): AmlLyricLine[] {
+export function trackToAmlLyricLines(track: Track | null, translations?: Readonly<Record<string, string>>): AmlLyricLine[] {
   if (!track) return [];
   const sourceLines = focusLyricSource(track)
     .filter((line) => Number.isFinite(line.time) && line.text.trim())
@@ -89,7 +89,7 @@ export function trackToAmlLyricLines(track: Track | null): AmlLyricLine[] {
       words: timedWords.length > 0
         ? timedWords
         : [{ word: text, startTime, endTime }],
-      translatedLyric: '',
+      translatedLyric: translations?.[line.lineId] ?? '',
       romanLyric: '',
       startTime,
       endTime,

@@ -259,6 +259,32 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('download-audio-file', url, cookieString);
   },
 
+  musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
+  pluginHostInfo: () => ipcRenderer.invoke('plugin-host-info'),
+  pluginProviders: (type: import('../src/shared/plugin').ExtensionType) => ipcRenderer.invoke('plugin-providers', type),
+  pluginTranslate: (call: import('../src/shared/plugin').PluginTranslationCall) => ipcRenderer.invoke('plugin-translate', call),
+  pluginCancel: (requestId: string) => ipcRenderer.send('plugin-cancel', requestId),
+  pluginConfiguration: (id: string) => ipcRenderer.invoke('plugin-configuration', id),
+  pluginSetConfiguration: (id: string, key: string, value: string | boolean | number) => ipcRenderer.invoke('plugin-set-configuration', id, key, value),
+  musicPluginList: () => ipcRenderer.invoke('music-plugin-list'),
+  musicPluginCatalog: () => ipcRenderer.invoke('music-plugin-catalog'),
+  musicPluginDownload: (id: string) => ipcRenderer.invoke('music-plugin-download', id),
+  musicPluginDirectory: () => ipcRenderer.invoke('music-plugin-directory'),
+  musicPluginOpenDirectory: () => ipcRenderer.invoke('music-plugin-open-directory'),
+  onMusicPluginsChanged: (callback: (plugins: import('../src/shared/musicPlugin').MusicPluginInfo[]) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, plugins: import('../src/shared/musicPlugin').MusicPluginInfo[]) => callback(plugins);
+    ipcRenderer.on('music-plugins-changed', listener);
+    return () => ipcRenderer.removeListener('music-plugins-changed', listener);
+  },
+  musicPluginInstall: () => ipcRenderer.invoke('music-plugin-install'),
+  musicPluginUninstall: (id: string) => ipcRenderer.invoke('music-plugin-uninstall', id),
+  musicPluginSetEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke('music-plugin-set-enabled', id, enabled),
+  onMusicPluginSecretsChanged: (callback: (id: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id);
+    ipcRenderer.on('music-plugin-secrets-changed', listener);
+    return () => ipcRenderer.removeListener('music-plugin-secrets-changed', listener);
+  },
+
   // Get music URL from QQ Music API (via main process)
   getQQMusicUrl: async (requestData: any, cookieString: string) => {
     return ipcRenderer.invoke('get-qq-music-url', requestData, cookieString);

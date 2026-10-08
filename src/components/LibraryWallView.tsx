@@ -10,7 +10,7 @@ import MetadataEditorPopup from './MetadataEditorPopup';
 import type { TrackDownloadQuality } from './trackMenuItems';
 import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
 import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
-import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { FLOATING_PLAYER_BOTTOM_INSET } from './playerLayout';
 import WallSelectionBar from './wall/WallSelectionBar';
 import WallStatusPill from './wall/WallStatusPill';
 import type { OnlineProgress } from '../types/onlineProgress';
@@ -74,8 +74,8 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   const { t } = useTranslation();
   const { colors } = useCurrentTheme();
   const desktop = getDesktopAPI();
-  const isMac = desktop?.platform === 'darwin';
-  const bottomInset = isMac ? MACOS_PLAYER_BOTTOM_INSET : 24;
+  const floatingPlayer = desktop?.platform === 'darwin' || desktop?.platform === 'win32';
+  const bottomInset = floatingPlayer ? FLOATING_PLAYER_BOTTOM_INSET : 24;
 
   const actions = useLibraryTrackActions({
     tracks,
@@ -132,7 +132,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
   const emptyAction = dataSource === 'local' && !importDisabled && onImportClick ? (
     <button type="button" className="wall-float wall-float__button wall-empty-action" onClick={onImportClick}>
-      <span className="material-symbols-outlined" aria-hidden="true">library_add</span>
+      <span className="material-symbols-rounded" aria-hidden="true">library_add</span>
       {t('sidebar.importFiles')}
     </button>
   ) : undefined;
@@ -174,7 +174,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
       {fileDrop.isDragging && (
         <div className="wall-drop-overlay" aria-hidden="true">
-          <span className="material-symbols-outlined">upload_file</span>
+          <span className="material-symbols-rounded">upload_file</span>
           <p className="wall-drop-overlay__title">{t('library.dropFiles')}</p>
           <p className="wall-drop-overlay__hint">{t('library.supportFormats')}</p>
         </div>

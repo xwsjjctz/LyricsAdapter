@@ -14,12 +14,10 @@ import { registerFileHandlers } from './ipc/fileHandlers';
 import { registerLibraryHandlers } from './ipc/libraryHandlers';
 import { registerCoverHandlers } from './ipc/coverHandlers';
 import { registerWindowControls } from './ipc/windowHandlers';
+import { registerMusicPluginHandlers } from './ipc/musicPluginHandlers';
 import { registerDownloadHandlers } from './ipc/downloadHandlers';
 import { registerMetadataHandlers } from './ipc/metadataHandlers';
-import { registerQQMusicHandlers } from './ipc/qqMusicHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
-import { registerNetEaseHandlers } from './ipc/neteaseHandlers';
-import { registerQQLoginHandlers } from './ipc/qqLoginHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './cleanup-handler';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
@@ -125,6 +123,7 @@ app.whenReady().then(async () => {
   await registerAppProtocolHandler();
   registerCoverProtocol();
   registerAudioProtocol();
+  registerMusicPluginHandlers();
   registerStreamProtocol();
 
   // Register ALL IPC handlers BEFORE creating the window,
@@ -137,9 +136,6 @@ app.whenReady().then(async () => {
   registerCoverHandlers();
   registerDownloadHandlers();
   registerMetadataHandlers();
-  registerQQMusicHandlers();
-  registerNetEaseHandlers();
-  registerQQLoginHandlers();
   registerCleanupHandlers();
   registerSettingsHandlers(keys => {
     if (!keys || keys.some(key => key === 'app-language' || key === 'app-shortcuts')) registerApplicationMenu(getWindow);

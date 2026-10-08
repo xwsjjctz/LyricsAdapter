@@ -141,7 +141,7 @@
   color: var(--theme-text-secondary, var(--theme-text-primary));
 }
 
-.command-palette__icon .material-symbols-outlined {
+.command-palette__icon .material-symbols-rounded {
   font-size: 18px;
 }
 

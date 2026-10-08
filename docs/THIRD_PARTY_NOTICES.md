@@ -4,6 +4,16 @@ This file records third-party source and design acknowledgements for
 LyricsAdapter. It supplements, and does not replace, the project-wide
 [GNU General Public License version 3](../LICENSE).
 
+## Material Symbols
+
+LyricsAdapter bundles Google's Material Symbols Rounded icon font through the
+[`material-symbols` npm package](https://github.com/marella/material-symbols).
+The font and package are distributed under the Apache License, Version 2.0.
+
+The complete upstream license is preserved in
+[`public/licenses/material-symbols-LICENSE.txt`](../public/licenses/material-symbols-LICENSE.txt)
+and ships with the renderer at `dist/licenses/material-symbols-LICENSE.txt`.
+
 ## FluentFlyout
 
 The visual proportions and interaction design of LyricsAdapter's Windows

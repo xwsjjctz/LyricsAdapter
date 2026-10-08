@@ -87,6 +87,8 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await expect(page).toHaveURL('app://localhost/index.html');
+    // The root stays inert under the startup screen, so focus cannot move yet.
+    await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
     await expect(page.getByText(songs[0]!.title).first()).toBeVisible();
     await expect.poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.readyState)).toBeGreaterThanOrEqual(2);
     const focusToggle = page.getByRole('button', { name: /Focus|专注|集中|집중|Fokus|concentré|フォーカス/i }).first();

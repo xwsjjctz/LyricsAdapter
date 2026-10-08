@@ -4,7 +4,7 @@ import path from 'path';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
 import { doLoadLibraryIndex, doSaveLibraryIndex } from './core/libraryCore';
-import { qqMusicHeaders } from '../utils/httpHeaders';
+import { getMusicDownloadHeaders } from './musicPluginHandlers';
 import { fail, ok, parsePayload } from './typedResult';
 import {
   doWebdavDelete,
@@ -151,7 +151,7 @@ export function registerTypedIpcHandlers(): void {
 
     try {
       const response = await fetch(parsed.data.url, {
-        headers: qqMusicHeaders(parsed.data.cookieString),
+        headers: getMusicDownloadHeaders(parsed.data.url, parsed.data.cookieString),
       });
       if (!response.ok) return fail(`HTTP error: ${response.status}`);
       return ok({ data: await response.arrayBuffer() });

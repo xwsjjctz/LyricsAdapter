@@ -119,13 +119,13 @@ const PosterTile: React.FC<PosterTileProps> = memo(({
         {download && <PosterDownloadProgress entry={download} title={track.title} compact={tile.height < 160} />}
         {isCurrent && (
           <span className="wall-tile__badge">
-            <span className="material-symbols-outlined wall-tile__badge-icon" aria-hidden="true">graphic_eq</span>
+            <span className="material-symbols-rounded wall-tile__badge-icon" aria-hidden="true">graphic_eq</span>
             {t('library.nowPlaying')}
           </span>
         )}
         {selecting && (
           <span className="wall-tile__check" aria-hidden="true">
-            <span className="material-symbols-outlined">{selected ? 'check_circle' : 'radio_button_unchecked'}</span>
+            <span className="material-symbols-rounded">{selected ? 'check_circle' : 'radio_button_unchecked'}</span>
           </span>
         )}
         <div className="wall-tile__text">

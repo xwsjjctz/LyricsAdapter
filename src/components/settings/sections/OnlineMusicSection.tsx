@@ -12,6 +12,7 @@ import Button from '../../ui/Button';
 
 interface OnlineMusicSectionProps {
   theme: SettingsTheme;
+  sources?: OnlineSource[];
   onlineSource: OnlineSource;
   cookie: string;
   neteaseCookie: string;
@@ -40,6 +41,7 @@ interface OnlineMusicSectionProps {
  */
 const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   theme,
+  sources,
   onlineSource,
   cookie,
   neteaseCookie,
@@ -63,19 +65,19 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   const { t } = useTranslation();
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
   // Re-derived each render so labels follow the current i18n language.
-  const sourceOptions = getSourceOptions();
+  const sourceOptions = getSourceOptions().filter(option => !sources || sources.includes(option.value));
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>music_note</span>
+          <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>music_note</span>
           {t('settingsDialog.onlineMusicTitle')}
         </h3>
         <Button variant="primary" size="sm" className="flex-shrink-0" onClick={onSave} disabled={isSaving}>
           {isSaving ? (
             <>
-              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
               {t('settingsDialog.saving')}
             </>
           ) : (
@@ -83,6 +85,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           )}
         </Button>
       </div>
+
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">
@@ -125,7 +128,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   }}
                 >
                   <span className="truncate">{option.label}</span>
-                  {active && <span className="material-symbols-outlined text-sm flex-shrink-0">check</span>}
+                  {active && <span className="material-symbols-rounded text-sm flex-shrink-0">check</span>}
                 </button>
               );
             })}
@@ -140,7 +143,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 type="button"
                 onClick={() => startQr(onlineSource)}
                 aria-label={t('settingsDialog.qrRefresh')}
-                className="material-symbols-outlined text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
+                className="material-symbols-rounded text-xs leading-none opacity-60 hover:opacity-100 transition-opacity"
                 style={{ color: colors.textSecondary }}
               >
                 refresh
@@ -158,7 +161,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
             {/* Logged-in panel */}
             {isQrLoggedIn && !qrScanning ? (
               <div className="flex flex-col items-center gap-1.5 text-center px-2">
-                <span className="material-symbols-outlined text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
+                <span className="material-symbols-rounded text-5xl" style={{ color: '#22c55e' }}>check_circle</span>
                 <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoggedIn')}</span>
                 <div className="flex gap-1.5 mt-0.5">
                   <button
@@ -185,7 +188,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               </div>
             ) : qrState === 'loading' ? (
               <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
+                <span className="material-symbols-rounded text-5xl animate-spin">progress_activity</span>
                 <span className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsDialog.qrLoading')}</span>
               </div>
             ) : qrImage ? (
@@ -208,7 +211,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               </>
             ) : (
               <div className="flex flex-col items-center gap-1.5 text-center px-2">
-                <span className="material-symbols-outlined text-5xl">
+                <span className="material-symbols-rounded text-5xl">
                   {qrState === 'expired' ? 'qr_code_scanner' : 'error'}
                 </span>
                 <span className="text-xs" style={{ color: colors.textSecondary }}>
@@ -298,7 +301,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 aria-label={t('settingsDialog.chooseDownloadFolder')}
                 className="ui-btn ui-btn--secondary ui-btn--md flex-shrink-0"
               >
-                <span className="material-symbols-outlined text-base">folder_open</span>
+                <span className="material-symbols-rounded text-base">folder_open</span>
               </button>
             </div>
             <p className="mt-1 text-xs" style={{ color: colors.textMuted }}>
@@ -313,7 +316,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 : 'bg-red-500/10 border border-red-500/30 text-red-400'
             }`}>
               <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-xs">
+                <span className="material-symbols-rounded text-xs">
                   {messageType === 'success' ? 'check' : 'error'}
                 </span>
                 {message}

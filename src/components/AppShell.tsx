@@ -261,19 +261,15 @@ const AppShell: React.FC<AppShellProps> = ({
     openAllResults: openSearchResults,
   }), [online.navigateToTrack, online.playSong, openPlaylistInfo, openSearchResults, slots.cloud.tracks, slots.local.tracks, visiblePlaylists]);
 
-  const backgroundClass = isSearchView || libraryLayout === 'wall'
-    ? 'app-wall-background'
-    : 'app-library-background';
-
   return (
     <>
       {audioElement}
-      <div className={`flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}${floatingPanel ? ` ${backgroundClass}` : ''}`}>
+      <div className={`app-background flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`}>
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={toggleFocusMode}
         />
-        <main className={`flex-1 min-w-0 flex flex-col relative overflow-hidden${!floatingPanel ? ` ${backgroundClass}` : ''}`}>
+        <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden">
           <input
             type="file"
             ref={importVm.fileInputRef}

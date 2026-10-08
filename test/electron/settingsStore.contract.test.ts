@@ -20,7 +20,7 @@ vi.mock('../../electron/services/userStateRepository', () => ({
 }));
 vi.mock('../../electron/logger', () => ({ logger: mocks.logger }));
 
-import { settingsStore } from '../../electron/services/settingsStore';
+import { SettingsStore, settingsStore } from '../../electron/services/settingsStore';
 
 describe('SettingsStore SQLite compatibility facade', () => {
   beforeEach(() => {
@@ -79,5 +79,57 @@ describe('SettingsStore SQLite compatibility facade', () => {
 
     expect(invoke()).toBe(false);
     expect(mocks.logger.error).toHaveBeenCalled();
+  });
+
+  describe('sensitive settings that cannot be encrypted', () => {
+    const refuse = () => { throw new Error('safeStorage is unavailable'); };
+
+    it('keeps a refused secret for the session while still reporting it as not persisted', () => {
+      const store = new SettingsStore();
+      mocks.repository.setSetting.mockImplementationOnce(refuse);
+
+      expect(store.set('netease_cookie', 'MUSIC_U=session')).toBe(false);
+      expect(store.get('netease_cookie')).toBe('MUSIC_U=session');
+      expect(store.getAll()).toMatchObject({ 'app-theme': 'default-dark', netease_cookie: 'MUSIC_U=session' });
+      expect(new SettingsStore().get('netease_cookie')).toBeUndefined();
+    });
+
+    it('never keeps a non-sensitive value that failed to persist', () => {
+      const store = new SettingsStore();
+      mocks.repository.setSetting.mockImplementationOnce(refuse);
+
+      expect(store.set('app-language', 'zh')).toBe(false);
+      expect(store.get('app-language')).toBeUndefined();
+    });
+
+    it('persists the ordinary entries of a refused batch and keeps only its secrets in memory', () => {
+      const store = new SettingsStore();
+      mocks.repository.setManySettings.mockImplementationOnce(refuse);
+
+      expect(store.setMany({ qq_music_cookie: 'uin=1', 'app-language': 'zh' })).toBe(false);
+      expect(mocks.repository.setManySettings).toHaveBeenLastCalledWith({ 'app-language': 'zh' });
+      expect(store.get('qq_music_cookie')).toBe('uin=1');
+    });
+
+    it('drops the session copy once the secret is persisted, deleted or replaced', () => {
+      const store = new SettingsStore();
+      const hold = () => {
+        mocks.repository.setSetting.mockImplementationOnce(refuse);
+        store.set('qq_music_cookie', 'uin=1');
+      };
+
+      hold();
+      expect(store.set('qq_music_cookie', 'uin=2')).toBe(true);
+      expect(store.get('qq_music_cookie')).toBeUndefined();
+      hold();
+      expect(store.setMany({ qq_music_cookie: 'uin=3' })).toBe(true);
+      expect(store.get('qq_music_cookie')).toBeUndefined();
+      hold();
+      expect(store.delete('qq_music_cookie')).toBe(true);
+      expect(store.get('qq_music_cookie')).toBeUndefined();
+      hold();
+      expect(store.replaceAll({ 'app-theme': 'default-dark' })).toBe(true);
+      expect(store.get('qq_music_cookie')).toBeUndefined();
+    });
   });
 });

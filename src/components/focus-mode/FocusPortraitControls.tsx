@@ -65,25 +65,25 @@ export default function FocusPortraitControls(props: Props) {
       </div>
       <div className="focus-portrait-transport">
         <button type="button" aria-label={t('shortcut.prevTrack')} disabled={!props.shown || !props.enabled} onClick={props.onSkipPrev}>
-          <PlaybackIcon symbols={symbols} name="fast_rewind" className="material-symbols-outlined" aria-hidden="true" /></button>
+          <PlaybackIcon symbols={symbols} name="fast_rewind" className="material-symbols-rounded" aria-hidden="true" /></button>
         <button type="button" aria-label={t('shortcut.playPause')} disabled={!props.shown || !props.enabled}
           onClick={props.onTogglePlay} data-testid="focus-play-button">
-          <PlaybackIcon symbols={symbols} name={props.isPlaying ? 'pause' : 'play_arrow'} className="material-symbols-outlined" aria-hidden="true" /></button>
+          <PlaybackIcon symbols={symbols} name={props.isPlaying ? 'pause' : 'play_arrow'} className="material-symbols-rounded" aria-hidden="true" /></button>
         <button type="button" aria-label={t('shortcut.nextTrack')} disabled={!props.shown || !props.enabled} onClick={props.onSkipNext}>
-          <PlaybackIcon symbols={symbols} name="fast_forward" className="material-symbols-outlined" aria-hidden="true" /></button>
+          <PlaybackIcon symbols={symbols} name="fast_forward" className="material-symbols-rounded" aria-hidden="true" /></button>
       </div>
       <div className="focus-portrait-volume">
         <button type="button" disabled={!props.shown} aria-label={t(props.volume === 0 ? 'controls.unmute' : 'controls.mute')} onClick={props.onToggleMute}>
-          <PlaybackIcon symbols={symbols} name={props.volume === 0 ? 'volume_off' : 'volume_down'} className="material-symbols-outlined" aria-hidden="true" /></button>
+          <PlaybackIcon symbols={symbols} name={props.volume === 0 ? 'volume_off' : 'volume_down'} className="material-symbols-rounded" aria-hidden="true" /></button>
         <div className="player-slider" style={{ '--slider-progress': `${props.volume * 100}%` } as CSSProperties}>
           <input data-testid="focus-volume-slider" type="range" min="0" max="1" step="0.01" value={props.volume}
             disabled={!props.shown} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(props.volume * 100)}%`}
             onChange={event => props.onVolumeChange(Number(event.target.value))} />
           <div className="player-slider-track" aria-hidden="true"><div className="player-slider-fill" /></div>
         </div>
-        <PlaybackIcon symbols={symbols} name="volume_up" className="material-symbols-outlined" aria-hidden="true" />
+        <PlaybackIcon symbols={symbols} name="volume_up" className="material-symbols-rounded" aria-hidden="true" />
         <button type="button" disabled={!props.shown || !props.enabled} aria-label={t(`controls.${mode}`)} onClick={props.onTogglePlaybackMode}>
-          <PlaybackIcon symbols={symbols} name={props.playbackMode === 'repeat-one' ? 'repeat_one' : props.playbackMode === 'shuffle' ? 'shuffle' : 'repeat'} className="material-symbols-outlined" aria-hidden="true" /></button>
+          <PlaybackIcon symbols={symbols} name={props.playbackMode === 'repeat-one' ? 'repeat_one' : props.playbackMode === 'shuffle' ? 'shuffle' : 'repeat'} className="material-symbols-rounded" aria-hidden="true" /></button>
       </div>
     </div>
   );

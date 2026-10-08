@@ -1,6 +1,7 @@
 import { readableForeground } from '@/services/colorUtils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { themeManager } from '@/services/themeManager';
+import { appStorage } from '@/services/appStorage';
 import { THEME_IDS } from '@/types/theme';
 import { getDefaultTheme } from '@/services/themes/predefinedThemes';
 import { resolveThemeControls } from '@/services/themeControls';
@@ -8,12 +9,24 @@ import { resolveThemeAppearance } from '@/services/themeAppearance';
 
 beforeEach(() => {
   localStorage.clear();
+  appStorage.clearCache();
   (themeManager as any).currentThemeId = THEME_IDS.DEFAULT;
 });
 
 describe('getCurrentThemeId', () => {
   it('should return default theme id initially', () => {
     expect(themeManager.getCurrentThemeId()).toBe(THEME_IDS.DEFAULT);
+  });
+
+  it.each(['default-dark', 'default-light', 'warm'])('restores the unified palette from saved %s settings', async savedTheme => {
+    themeManager.setTheme(THEME_IDS.BRUTALIST);
+    await appStorage.setItem('app-theme', savedTheme);
+    themeManager.reload();
+
+    expect(themeManager.getCurrentThemeId()).toBe(THEME_IDS.DEFAULT);
+    expect(themeManager.getCurrentTheme()).toBe(getDefaultTheme());
+    expect(appStorage.getItem('app-theme')).toBe(savedTheme);
+    expect(document.documentElement.style.getPropertyValue('--theme-text-primary')).toBe('#31283a');
   });
 });
 

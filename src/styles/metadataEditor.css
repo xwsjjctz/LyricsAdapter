@@ -115,7 +115,7 @@
   transition: opacity 160ms ease;
 }
 
-.metadata-editor__cover-overlay .material-symbols-outlined {
+.metadata-editor__cover-overlay .material-symbols-rounded {
   font-size: 24px;
 }
 

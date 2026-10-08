@@ -339,6 +339,9 @@ test.describe('Windows taskbar lyrics visual surface', () => {
         expect(runtimeIdentity.iconSize.height).toBeGreaterThanOrEqual(32);
       }
 
+      // On a small display the app window overlaps the captured edges, so its own
+      // startup reveal must finish before the baseline or it reads as lyric pixels.
+      await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
       const baseline = await captureTaskbarEdges(electronApp);
       await page.waitForTimeout(250);
       const settledBaseline = await captureTaskbarEdges(electronApp);

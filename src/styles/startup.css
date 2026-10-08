@@ -1,3 +1,13 @@
+.app-background,
+.app-startup {
+  /* Share the baked icon colours from the first frame through every layout. */
+  background-color: #d1a6f3;
+  background-image: url('/wall-background.jpg'), linear-gradient(145deg, #ffc5d1, #d1a6f3 55%, #7cc6fc);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
 .app-startup {
   position: fixed;
   inset: 0;
@@ -5,7 +15,6 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: linear-gradient(145deg, #ffc5d1, #d1a6f3 55%, #7cc6fc);
 }
 
 .app-startup::after {

@@ -89,7 +89,6 @@
   "settings.nav.focus": "フォーカスモード",
   "settings.onlineMusicHint": "QQ Music と NetEase Cloud Music の曲を検索・再生・ダウンロードできます。",
   "settings.language": "言語",
-  "settings.nightMode": "ナイトモード",
   "settings.language.zh": "中国語",
   "settings.language.en": "英語",
   "settings.language.ja": "日本語",
@@ -378,5 +377,17 @@
   "menu.front": "すべてを手前に移動",
   "menu.landscape": "横向き",
   "menu.portrait": "縦向き",
-  "shortcut.importMusicDesc": "音声ファイルを選択して現在のライブラリに読み込む"
+  "shortcut.importMusicDesc": "音声ファイルを選択して現在のライブラリに読み込む",
+  "musicPlugins.title": "音楽ソースプラグイン",
+  "musicPlugins.install": "ローカルプラグインをインストール",
+  "musicPlugins.uninstall": "アンインストール",
+  "musicPlugins.description": "manifest.json を含むフォルダーを選択してください。信頼できるプラグインをインストールしてください。",
+  "musicPlugins.bundled": "同梱",
+  "musicPlugins.installed": "インストール済み",
+  "musicPlugins.restart": "新しいバージョンを使うにはアプリを再起動してください",
+  "musicPlugins.toggle": "有効・無効を切り替え",
+  "musicPlugins.enabled": "有効",
+  "musicPlugins.disabled": "無効",
+  "musicPlugins.empty": "音楽ソースプラグインはありません",
+  "musicPlugins.repository": "公式プラグインリポジトリ"
 }

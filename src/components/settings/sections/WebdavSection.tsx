@@ -47,7 +47,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       <div className="mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>cloud</span>
+          <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>cloud</span>
           {t('settingsDialog.webdavTitle')}
         </h3>
       </div>
@@ -88,7 +88,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
         <Button variant="secondary" size="sm" onClick={onTest} disabled={isTesting || isSaving}>
           {isTesting ? (
             <>
-              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
               {t('settingsDialog.webdavTesting')}
             </>
           ) : (
@@ -98,7 +98,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
         <Button variant="primary" size="sm" onClick={onSave} disabled={isTesting || isSaving}>
           {isSaving ? (
             <>
-              <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+              <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
               {t('settingsDialog.saving')}
             </>
           ) : (

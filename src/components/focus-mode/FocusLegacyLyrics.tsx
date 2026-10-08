@@ -23,6 +23,7 @@ function bezierEaseOutLong(progress: number): number {
 
 export interface FocusLegacyLyricsProps {
   track: Track;
+  translations?: Readonly<Record<string, string>>;
   currentTime: number;
   currentTimeRef: MutableRefObject<number>;
   isPlaying: boolean;
@@ -43,6 +44,7 @@ export interface FocusLegacyLyricsProps {
  */
 export default function FocusLegacyLyrics({
   track,
+  translations,
   currentTime,
   currentTimeRef,
   isPlaying,
@@ -74,16 +76,16 @@ export default function FocusLegacyLyrics({
     if (track.syncedLyrics?.length) {
       if (track.source === 'netease' && (track.title || track.artist)) {
         const titleText = [track.title, track.artist].filter(Boolean).join(' - ');
-        if (titleText) return [{ time: 0, text: titleText }, ...track.syncedLyrics];
+        if (titleText) return [{ time: 0, text: titleText, lineId: '' }, ...track.syncedLyrics.map((line, index) => ({ ...line, lineId: `line-${index}` }))];
       }
-      return track.syncedLyrics;
+      return track.syncedLyrics.map((line, index) => ({ ...line, lineId: `line-${index}` }));
     }
     if (track.lyrics) {
       return track.lyrics
         .split(/\r?\n/)
         .map((line) => line.trim().replace(/^\[\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?\]/, ''))
         .filter((line) => line.length > 0 && line !== '//')
-        .map((text) => ({ time: 0, text }));
+        .map((text, index) => ({ time: 0, text, lineId: `line-${index}` }));
     }
     return [];
   }, [track.syncedLyrics, track.lyrics, track.source, track.title, track.artist]);
@@ -197,7 +199,7 @@ export default function FocusLegacyLyrics({
 
   useEffect(() => {
     preScrolledIndexRef.current = -1;
-  }, [fontSize, lineSpacing, portrait, track.id]);
+  }, [fontSize, lineSpacing, portrait, track.id, translations]);
 
   useEffect(() => {
     const container = lyricsRef.current;
@@ -266,7 +268,7 @@ export default function FocusLegacyLyrics({
       }
     };
     lyricAnimationRef.current = requestAnimationFrame(animate);
-  }, [applyLyricOffset, fontSize, isUserScrolling, isVisible, layoutRevision, lineSpacing, lyricScrollTargetIndex, portrait, track.syncedLyrics]);
+  }, [applyLyricOffset, fontSize, isUserScrolling, isVisible, layoutRevision, lineSpacing, lyricScrollTargetIndex, portrait, track.syncedLyrics, translations]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -363,6 +365,7 @@ export default function FocusLegacyLyrics({
             <FocusLyricRow
               key={index}
               lyric={lyric}
+              translation={translations?.[lyric.lineId]}
               index={index}
               isActive={isActive}
               hasTimestamp={hasTimestamp}

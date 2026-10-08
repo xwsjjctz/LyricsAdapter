@@ -215,7 +215,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
             {fileLabel && <p className="metadata-editor__file">{fileLabel}</p>}
           </div>
           <button type="button" className="wall-float__button metadata-editor__close" onClick={onClose} aria-label={t('common.close')}>
-            <span className="material-symbols-outlined" aria-hidden="true">close</span>
+            <span className="material-symbols-rounded" aria-hidden="true">close</span>
           </button>
         </header>
 
@@ -236,7 +236,7 @@ const MetadataEditorPopup: React.FC<MetadataEditorPopupProps> = ({ track, isOpen
                 thumbSize={320}
               />
               <span className="metadata-editor__cover-overlay" aria-hidden="true">
-                <span className="material-symbols-outlined">add_photo_alternate</span>
+                <span className="material-symbols-rounded">add_photo_alternate</span>
                 <span>{t('metadataView.importCover')}</span>
               </span>
             </button>

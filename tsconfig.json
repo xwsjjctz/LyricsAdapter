@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@lyrics-adapter/plugin-sdk": [
+        "./packages/plugin-sdk/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
@@ -40,6 +43,9 @@
     "dist",
     "dist-electron",
     "release",
-    "node_modules"
+    "node_modules",
+    "music-source-plugins",
+    "dist-music-plugins",
+    "scripts/musicPluginContract.ts"
   ]
 }

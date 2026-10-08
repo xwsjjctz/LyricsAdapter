@@ -26,6 +26,26 @@ jobs:
       - name: Quality checks
         run: npm run check
 
+      - name: Check public plugin SDK and package development example
+        run: |
+          npm run plugins:check
+          npm run plugins:package
+
+      - name: Checkout pinned official plugin integration fixtures
+        uses: actions/checkout@v4
+        with:
+          repository: xwsjjctz/LyricsAdapter-Music-Plugins
+          ref: 13096171cdf9f34f96e31562ee1dff4378b7efb2
+          path: .ci-music-plugins
+
+      - name: Verify official plugins and build protocol fixtures
+        env:
+          LYRICS_ADAPTER_MUSIC_PLUGIN_SOURCE: .ci-music-plugins
+        run: |
+          npm --prefix .ci-music-plugins ci
+          npm --prefix .ci-music-plugins run check
+          npm run music-plugins:build
+
       - name: Install Chromium-family runtime libraries
         run: npx playwright install-deps chromium
 
@@ -68,6 +88,15 @@ jobs:
 
       - name: Verify composed taskbar lyrics pixels
         run: npm run test:e2e -- windows-taskbar-lyrics.visual.spec.ts
+
+      - name: Upload taskbar lyrics captures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-taskbar-lyrics-captures
+          path: test-results/electron
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Type check
         run: npm run typecheck

@@ -105,3 +105,8 @@ problems.md
 /.zcode
 
 /design
+
+/dist-music-plugins
+
+/dist-plugins
+/.ci-music-plugins

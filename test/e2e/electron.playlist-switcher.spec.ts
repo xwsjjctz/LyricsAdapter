@@ -17,7 +17,21 @@ test('playlist switcher previews, reverses, cancels and commits without changing
   const userData = path.join(root, 'data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData, { recursive: true });
-  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
+  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_qq_music_enabled: 'true' }));
+  // Online playlists come from an installed source plugin. This fixture serves the
+  // seven playlists used below once the test supplies a NetEase cookie.
+  const plugin = path.join(isolatedHome, '.la/plugin/netease');
+  await mkdir(plugin, { recursive: true });
+  await writeFile(path.join(plugin, 'manifest.json'), JSON.stringify({ id: 'netease', name: 'NetEase fixture', version: '1.0.0', apiVersion: 1, main: 'index.cjs', requiresCookie: true, capabilities: ['search'] }));
+  await writeFile(path.join(plugin, 'index.cjs'), `exports.createPlugin = () => ({
+    provider: { id: 'netease', searchMusic: async () => [], getRecommendedSongs: async () => [],
+      getMusicUrl: async () => null, getLyrics: async () => null, getPlaylistSongs: async () => [],
+      getPlaylists: async () => Array.from({ length: 7 }, (_, index) => ({
+        id: String(index + 1), name: 'Journey ' + (index + 1), songCount: 10, source: 'netease',
+        coverUrl: 'app://localhost/default-cover.jpg',
+      })), requiresCookie: () => true },
+    invoke: async () => ({ success: false }), validateCookie: async () => ({ valid: true }), streamHeaders: () => ({})
+  });`);
   const audio = Buffer.alloc(44 + 8000 * 2 * 120);
   audio.write('RIFF'); audio.writeUInt32LE(audio.length - 8, 4); audio.write('WAVEfmt ', 8);
   audio.writeUInt32LE(16, 16); audio.writeUInt16LE(1, 20); audio.writeUInt16LE(1, 22);
@@ -150,18 +164,8 @@ test('playlist switcher previews, reverses, cancels and commits without changing
     await expect(focus).toHaveCount(0); await expect(tiles).toHaveCount(0);
     expect(await audioState()).toEqual(before);
 
-    // Seed seven additional playlists through the real provider/preload path in
-    // this isolated app, so wrapping and vertical scrolling exercise nine items.
-    const cover = await page.evaluate(() => new URL('default-cover.jpg', location.href).href);
-    await app.evaluate(({ ipcMain }, coverUrl) => {
-      ipcMain.removeHandler('netease-request');
-      ipcMain.handle('netease-request', (_event, channel: string) => ({ success: true,
-        data: channel === '/nuser/account/get' ? { code: 200, profile: { userId: 1 } }
-          : { code: 200, playlist: Array.from({ length: 7 }, (_, index) => ({
-            id: index + 1, name: `Journey ${index + 1}`, trackCount: 10, coverImgUrl: coverUrl,
-          })) },
-      }));
-    }, cover);
+    // Sign in to the fixture plugin so its seven playlists load through the real
+    // provider/preload path; wrapping and vertical scrolling then exercise nine items.
     await page.evaluate(async () => {
       const api = (window as typeof window & { electron: { settingsSet: (key: string, value: string) => Promise<void> } }).electron;
       await api.settingsSet('netease_cookie', 'MUSIC_U=switcher-layout-fixture;');

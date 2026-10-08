@@ -19,7 +19,7 @@ import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
-import { MACOS_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { FLOATING_PLAYER_BOTTOM_INSET } from './playerLayout';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -297,8 +297,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // The header no longer overlays the track list, so no top inset is needed.
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
-  const bottomInset = getDesktopAPI()?.platform === 'darwin'
-    ? MACOS_PLAYER_BOTTOM_INSET : 0;
+  const bottomInset = ['darwin', 'win32'].includes(getDesktopAPI()?.platform ?? '')
+    ? FLOATING_PLAYER_BOTTOM_INSET : 0;
 
   const {
     baseRowHeight,
@@ -783,7 +783,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
           {isDragging && (
             <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm r-surface border-2 border-dashed border-primary pointer-events-none animate-pulse">
               <div className="text-center">
-                <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
+                <span className="material-symbols-rounded text-6xl text-primary mb-4">upload_file</span>
                 <p className="text-2xl font-bold text-primary mb-2">{t('library.dropFiles')}</p>
                 <p className="text-sm" style={{ color: colors.textMuted }}>{t('library.supportFormats')}</p>
               </div>
@@ -879,7 +879,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               </div>
             ) : (
               <div className="py-16 text-center r-surface" style={{ color: colors.textMuted, border: `2px dashed ${colors.borderLight}` }}>
-                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">{emptyState.icon}</span>
+                <span className="material-symbols-rounded text-6xl mb-4 block opacity-50">{emptyState.icon}</span>
                 <p className="text-xl font-medium" style={{ color: colors.textSecondary }}>{emptyState.title}</p>
                 <p className="text-sm mt-1">{emptyState.description}</p>
                 <div className="mt-6 flex items-center justify-center gap-3">
@@ -901,7 +901,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         opacity: dataSource === 'local' && importDisabled ? 0.55 : 1,
                       }}
                     >
-                      <span className="material-symbols-outlined text-lg">{emptyState.primaryIcon}</span>
+                      <span className="material-symbols-rounded text-lg">{emptyState.primaryIcon}</span>
                       <span>{emptyState.primaryLabel}</span>
                     </button>
                   )}
@@ -916,7 +916,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                         border: 'var(--theme-control-border-width) solid var(--theme-control-container-border)',
                       }}
                     >
-                      <span className="material-symbols-outlined text-lg">{emptyState.secondaryIcon}</span>
+                      <span className="material-symbols-rounded text-lg">{emptyState.secondaryIcon}</span>
                       <span>{emptyState.secondaryLabel}</span>
                     </button>
                   )}
@@ -998,7 +998,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              {isDragging && (
                <div className="absolute inset-y-0 left-6 right-6 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm r-surface border-2 border-dashed border-primary pointer-events-none animate-pulse">
                  <div className="text-center">
-                   <span className="material-symbols-outlined text-6xl text-primary mb-4">upload_file</span>
+                   <span className="material-symbols-rounded text-6xl text-primary mb-4">upload_file</span>
                    <p className="text-2xl font-bold text-primary mb-2">{t('library.dropFiles')}</p>
                    <p className="text-sm" style={{ color: colors.textMuted }}>{t('library.supportFormats')}</p>
                  </div>
@@ -1060,7 +1060,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   </div>
                 ) : (
                   <div className="py-20 text-center opacity-40">
-                    <span className="material-symbols-outlined text-6xl mb-4 block">music_note</span>
+                    <span className="material-symbols-rounded text-6xl mb-4 block">music_note</span>
                     <p className="text-xl font-medium">{t(filterType === 'artist' ? 'library.selectArtist' : 'library.selectAlbum')}</p>
                   </div>
                 )}
@@ -1102,7 +1102,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             e.currentTarget.style.color = colors.textSecondary;
           }}
         >
-          <span className="material-symbols-outlined text-lg">my_location</span>
+          <span className="material-symbols-rounded text-lg">my_location</span>
         </button>
       )}
 

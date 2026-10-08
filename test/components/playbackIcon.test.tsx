@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ desktop: vi.fn() }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: mocks.desktop }));
 function Icon({ name = 'play_arrow' }: { name?: 'play_arrow' | 'pause' }) {
   const symbols = usePlaybackSymbols();
-  return <PlaybackIcon name={name} symbols={symbols} className="material-symbols-outlined text-2xl fill-icon" data-testid="icon" />;
+  return <PlaybackIcon name={name} symbols={symbols} className="material-symbols-rounded text-2xl fill-icon" data-testid="icon" />;
 }
 describe('platform playback symbols', () => {
   it('preserves the Windows glyph and classes without requesting symbols', () => {
@@ -14,7 +14,7 @@ describe('platform playback symbols', () => {
     mocks.desktop.mockReturnValue({ platform: 'win32', ipc: { focusGlass: { getPlaybackSymbols: read } } });
     render(<Icon />);
     expect(screen.getByTestId('icon')).toHaveTextContent('play_arrow');
-    expect(screen.getByTestId('icon')).toHaveClass('material-symbols-outlined', 'text-2xl', 'fill-icon');
+    expect(screen.getByTestId('icon')).toHaveClass('material-symbols-rounded', 'text-2xl', 'fill-icon');
     expect(screen.getByTestId('icon')).not.toHaveAttribute('style');
     expect(read).not.toHaveBeenCalled();
   });

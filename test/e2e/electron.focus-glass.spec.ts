@@ -99,12 +99,9 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect.poll(async () => (await mainSlider('player-controlbar-seek'))?.hidden).toBe(false);
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.label).toBe('Glass Fixture 0');
-    await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
-    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameAqua');
-    await page.waitForTimeout(250);
-    await screenshot('main-native-controlbar-light.png');
-    await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
     await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameDarkAqua');
+    await page.waitForTimeout(250);
+    await screenshot('main-native-controlbar-palette.png');
     const mute = (await mainSlider('player-controlbar-volume-button'))!;
     const mode = (await mainSlider('player-controlbar-mode'))!;
     expect((await mainSlider('player-controlbar-next'))!.x).toBeLessThan(mute.x);
@@ -162,10 +159,8 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await probe('player-controlbar-volume-button:hover');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(false);
-    await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
-    await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.appearance).toBe('NSAppearanceNameAqua');
-    await screenshot('main-native-volume-light.png');
-    await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
+    await expect.poll(async () => (await mainSlider('player-controlbar-volume-value'))?.appearance).toBe('NSAppearanceNameDarkAqua');
+    await screenshot('main-native-volume.png');
     await probe('player-controlbar-volume-button:exit');
     await expect.poll(async () => (await mainSlider('player-controlbar-volume'))?.hidden).toBe(true);
     await probe('player-controlbar-mode');
@@ -240,13 +235,10 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await page.getByTestId('focus-native-controls').hover();
     await expect.poll(async () => (await bar())?.alpha).toBe(1);
     expect((await bar())?.class).toBe('NSGlassEffectView');
-    await page.evaluate(() => document.documentElement.classList.replace('theme-dark', 'theme-light'));
-    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameAqua');
-    // Focus controls follow the analyzed cover luminance; this dark fixture
-    // retains light icons even when the application switches to a light theme.
+    // The main bar keeps its night palette; immersive controls derive their
+    // native appearance independently from the current cover.
+    await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameDarkAqua');
     expect((await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameDarkAqua');
-    await page.evaluate(() => document.documentElement.classList.replace('theme-light', 'theme-dark'));
-    await expect.poll(async () => (await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameDarkAqua');
     expect((await probe()).items.some(item => item.id === 'focus-glass-frost')).toBe(false);
     await page.getByTestId('focus-native-controls').hover();
     await expect.poll(async () => (await bar())?.alpha).toBe(1);
@@ -280,6 +272,8 @@ test('macOS Liquid Glass controls route intents, resize and release their native
       await expect.poll(async () => { const item = await bar(); return item ? Math.abs(item.x + item.width / 2 - width / 2) : Infinity; }).toBeLessThan(1);
     }
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
+    // Portrait controls start hidden until the pointer enters their bounds.
+    await page.getByTestId('focus-portrait-controls').hover({ force: true });
     await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
     await expect.poll(async () => (await probe()).items.filter(item => item.id.startsWith('focus-glass')).length).toBe(0);
     const portraitWasPaused = await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused);

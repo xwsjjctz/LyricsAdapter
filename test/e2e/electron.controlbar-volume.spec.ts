@@ -6,8 +6,8 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-test('macOS web volume panel supports hover, speaker mute, dragging and keyboard control', async ({}, testInfo) => {
-  test.skip(process.platform !== 'darwin', 'macOS controlbar fallback');
+test('floating web volume panel supports hover, speaker mute, dragging and keyboard control', async ({}, testInfo) => {
+  test.skip(process.platform !== 'darwin' && process.platform !== 'win32', 'macOS and Windows floating player');
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-volume-panel-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'data');
@@ -27,6 +27,8 @@ test('macOS web volume panel supports hover, speaker mute, dragging and keyboard
     const page = await app.firstWindow();
     const button = page.getByTestId('main-volume-button');
     const panel = page.locator('.macos-volume-slider-shell');
+    await expect(page.getByTestId('main-controlbar')).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
+    await expect(page.getByTestId('main-controlbar')).toHaveCSS('backdrop-filter', /blur\(24px\)/);
     await button.hover();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
     const slider = page.getByRole('slider', { name: 'Volume', exact: true });
@@ -67,23 +69,23 @@ test('macOS web volume panel supports hover, speaker mute, dragging and keyboard
     await button.hover();
     await expect(panel).toBeVisible();
     await expect(panel).toHaveCSS('opacity', '1');
-    await page.screenshot({ path: testInfo.outputPath('volume-panel-dark.png') });
+    await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
+    await expect(panel).toHaveCSS('backdrop-filter', /blur\(24px\)/);
+    await page.screenshot({ path: testInfo.outputPath('volume-panel.png') });
     await page.keyboard.press('Escape');
     await expect(button).toBeFocused();
     await expect(panel).not.toBeVisible();
-    // Use the actual theme command so both colours and the light/dark marker change.
+    // The unified appearance keeps retired day/night controls out of the palette.
     await page.keyboard.press('ControlOrMeta+K');
     await page.keyboard.press('Tab');
     await page.locator('.command-palette__input').fill('Night Mode');
-    await page.getByRole('option').filter({ hasText: 'Night Mode' }).first().click();
-    await expect(page.locator('html')).toHaveClass(/theme-light/);
+    await expect(page.getByRole('option')).toHaveCount(0);
     await page.locator('.command-palette-backdrop').click({ position: { x: 5, y: 100 } });
     await expect(page.locator('.command-palette-backdrop')).toHaveCount(0);
     await button.hover();
     await expect(panel).toBeVisible();
     await expect(page.locator('html')).not.toHaveClass(/theme-is-transitioning/);
     await expect(panel).toHaveCSS('opacity', '1');
-    await page.screenshot({ path: testInfo.outputPath('volume-panel-light.png') });
     await page.mouse.click(20, 100);
     await expect(panel).not.toBeVisible();
     await button.hover();

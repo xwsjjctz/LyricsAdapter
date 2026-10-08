@@ -76,6 +76,10 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
       (globalThis as typeof globalThis & { startupGate?: { requested: boolean } }).startupGate?.requested)).toBe(true);
     const screen = page.locator('#app-startup');
     await expect(screen).toBeVisible();
+    const startupBackground = await screen.evaluate(element => {
+      const style = getComputedStyle(element);
+      return { image: style.backgroundImage, size: style.backgroundSize, position: style.backgroundPosition };
+    });
     await expect(page.locator('#root')).toHaveAttribute('inert');
     const artwork = screen.locator('img');
     await expect.poll(() => artwork.evaluateAll(nodes => nodes.every(node => (node as HTMLImageElement).naturalWidth > 0))).toBe(true);
@@ -96,6 +100,14 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
     await expect(page.locator('#root')).not.toHaveAttribute('inert');
     await expect(page.locator('html')).toHaveClass(/theme-light/);
     await expect(page.locator('.library-track-row')).toContainText('Restored from cache');
+    expect(await page.locator('.app-background').evaluate(element => {
+      const style = getComputedStyle(element);
+      return { image: style.backgroundImage, size: style.backgroundSize, position: style.backgroundPosition };
+    })).toEqual(startupBackground);
+    await page.screenshot({ path: testInfo.outputPath('library-portrait.png') });
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
+    await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1200);
+    await page.screenshot({ path: testInfo.outputPath('library-wide.png') });
     const samples = await page.evaluate(() =>
       (window as typeof window & { startupProbe?: { scale: number; opacity: number; title: string; list: boolean }[] }).startupProbe!);
     expect(samples.some(sample => sample.scale > 1.1 && sample.opacity > 0 && sample.opacity < 1)).toBe(true);
