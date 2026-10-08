@@ -191,7 +191,7 @@ const Controls: React.FC<ControlsProps> = memo(({
                 <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-rounded" style={{ color: '#fff', fontSize: '20px' }} />
               </div>
             </div>
-            <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
+            <div className="player-track-text flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
               <div className="player-track-title text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: isWindows ? 600 : 'var(--theme-text-heading-weight)' }}>
                 <OverflowMarquee text={track.title} />
               </div>

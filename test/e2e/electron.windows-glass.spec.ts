@@ -56,15 +56,31 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await expect.poll(() => main.evaluate(node => getComputedStyle(node, '::before').backdropFilter)).toContain('url(');
     const bounds = (await main.boundingBox())!;
     expect(bounds.width).toBe(720); expect(bounds.height).toBe(72);
-    const positions = await main.evaluate(node => {
-      const left = node.getBoundingClientRect().left;
-      const x = (selector: string) => node.querySelector(selector)!.getBoundingClientRect().left - left;
-      return { cover: x('.player-track-cover'), previous: x('.player-transport button:first-child'),
-        play: x('[data-testid="main-play-button"]'), next: x('.player-transport button:last-child'),
-        seek: x('[data-testid="main-seek-anchor"]'), volume: x('[data-testid="main-volume-button"]'), mode: x('.macos-volume-mode button') };
+    // [x, y, width, height] from the bar's top-left, in the bar's own unscaled points.
+    const frames = (node: HTMLElement | SVGElement, selectors: Record<string, string>) => {
+      const origin = node.getBoundingClientRect(), scale = origin.width / (node as HTMLElement).offsetWidth;
+      return Object.fromEntries(Object.entries(selectors).map(([name, selector]) => {
+        const rect = node.querySelector(selector)!.getBoundingClientRect();
+        return [name, [rect.left - origin.left, rect.top - origin.top, rect.width, rect.height].map(value => Math.round(value / scale * 10) / 10)];
+      }));
+    };
+    // LAPlayerControlbarHost -layout for a 720x72 bar, around its centre line.
+    expect(await main.evaluate(frames, {
+      cover: '.player-track-cover', title: '.player-track-title', artist: '.player-track-artist',
+      previous: '.player-transport button:first-child', play: '[data-testid="main-play-button"]', next: '.player-transport button:last-child',
+      elapsed: '.player-progress-controls > span:first-child', seek: '[data-testid="main-seek-anchor"]', total: '.player-progress-controls > span:last-child',
+      volume: '[data-testid="main-volume-button"]', mode: '.macos-volume-mode button',
+    })).toEqual({
+      cover: [14, 14, 44, 44], title: [70, 15, 116, 18], artist: [70, 37, 116, 16],
+      previous: [192, 20, 30, 32], play: [224, 17, 38, 38], next: [264, 20, 32, 32],
+      elapsed: [300, 29, 36, 14], seek: [338, 24, 260, 24], total: [602, 29, 38, 14],
+      volume: [644, 20, 32, 32], mode: [676, 20, 32, 32],
     });
-    expect(positions).toEqual({ cover: 14, previous: 192, play: 224, next: 264, seek: 338, volume: 644, mode: 676 });
+    await expect(main.locator('.player-progress-controls > span').first()).toHaveCSS('text-align', 'center');
+    await expect(main.locator('.player-transport .material-symbols-rounded').first()).toHaveCSS('font-variation-settings', '"FILL" 1');
     await expect(main.getByTestId('main-play-button')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    // The bar and its popup keep the night tint in the light default theme.
+    expect(await main.evaluate(node => getComputedStyle(node).getPropertyValue('--glass-tint').trim())).toBe('rgba(0, 0, 0, .3)');
     await page.screenshot({ path: testInfo.outputPath('windows-regular.png') });
 
     const filterId = await main.evaluate(node => getComputedStyle(node, '::before').backdropFilter.match(/#([^"\)]+)/)![1]!);
@@ -106,6 +122,8 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await expect(popup).toHaveCSS('backdrop-filter', /url\(/);
     const popupBounds = (await popup.boundingBox())!;
     expect(popupBounds.width).toBe(44); expect(popupBounds.height).toBe(149);
+    // Centred over the speaker, floating 8px above the bar.
+    expect(popupBounds.x - bounds.x).toBe(638); expect(bounds.y - popupBounds.y - popupBounds.height).toBe(8);
     await page.screenshot({ path: testInfo.outputPath('windows-volume.png') });
     await page.keyboard.press('Escape');
     await main.getByTestId('main-play-button').click();
@@ -123,6 +141,16 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await expect(focus).toHaveCSS('border-radius', '24px');
     const focusBounds = (await focus.boundingBox())!;
     expect(focusBounds.width).toBe(350); expect(focusBounds.height).toBe(96);
+    const focusSelectors = {
+      elapsed: '.focus-glass-elapsed', seek: '.focus-glass-seek', total: '.focus-glass-total', mode: '.focus-glass-mode',
+      previous: '.focus-glass-previous', play: '.focus-glass-play', next: '.focus-glass-next', mute: '.focus-glass-mute', volume: '.focus-glass-volume',
+    };
+    // LAFocusGlassHost -layout in its 350x96 content space.
+    const focusFrames = {
+      elapsed: [12, 15, 40, 14], seek: [56, 13, 238, 18], total: [298, 15, 40, 14], mode: [16, 46, 32, 36],
+      previous: [72, 46, 36, 36], play: [116, 42, 44, 44], next: [168, 46, 36, 36], mute: [224, 46, 32, 36], volume: [266, 54, 68, 20],
+    };
+    expect(await focus.evaluate(frames, focusSelectors)).toEqual(focusFrames);
     expect(await focus.evaluate(node => node.closest('.focus-mode-content') === null)).toBe(true);
     // Keyboard focus keeps controls awake during the longer pixel/frame probes.
     const seek = focus.getByRole('slider', { name: 'Playback position' });
@@ -189,6 +217,8 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1700, 1150));
     await expect.poll(async () => (await focus.boundingBox())!.width).toBeCloseTo(472.5, 0);
     await expect.poll(async () => (await focus.boundingBox())!.height).toBeCloseTo(129.6, 0);
+    // Like AppKit's content bounds, the whole layout scales with the bar.
+    expect(await focus.evaluate(frames, focusSelectors)).toEqual(focusFrames);
     await expect(page.locator(`[id="${focusFilterId}"] feImage`)).toHaveAttribute('href', focusMap!);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1200, 800));
     await page.keyboard.press('ControlOrMeta+Enter');
