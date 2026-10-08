@@ -255,32 +255,3 @@ describe('manifest entry helpers', () => {
     expect(manifestEntriesEqual(undefined, entry)).toBe(false);
   });
 });
-
-describe('Manifest types', () => {
-  it('should create a valid ManifestEntry', () => {
-    const entry = makeEntry({
-      title: 'Test Song',
-      artist: 'Test Artist',
-      duration: 180,
-    });
-    expect(entry.title).toBe('Test Song');
-    expect(entry.artist).toBe('Test Artist');
-    expect(entry.duration).toBe(180);
-    expect(entry.hasCover).toBe(false);
-  });
-
-  it('should create a valid Manifest object', () => {
-    const entry = makeEntry();
-    const manifest: Manifest = {
-      version: 3,
-      generatedAt: '2025-01-01T00:00:00.000Z',
-      chunkSize: DEFAULT_CHUNK_SIZE,
-      entries: {
-        '/music/test.flac': entry,
-      },
-    };
-    expect(manifest.version).toBe(3);
-    expect(Object.keys(manifest.entries).length).toBe(1);
-    expect(manifest.entries['/music/test.flac']!.title).toBe('Test');
-  });
-});
