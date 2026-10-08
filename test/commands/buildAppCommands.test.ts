@@ -29,8 +29,6 @@ function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     toggleFocusMode: vi.fn(),
     togglePlaybackMode: vi.fn(),
     toggleMute: vi.fn(),
-    isDark: true,
-    toggleNightMode: vi.fn(),
     languages: [{ value: 'zh', nativeLabel: '中文' }, { value: 'en', nativeLabel: 'English' }],
     currentLanguage: 'zh',
     setLanguage: vi.fn(),
@@ -50,7 +48,7 @@ describe('buildAppCommands', () => {
     expect(ids).toEqual(expect.arrayContaining([
       'navigation.wall', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
       'library.import', 'playback.playAll', 'playback.shuffleAll', 'playback.focusMode', 'playback.mode',
-      'playback.mute', 'appearance.nightMode', 'appearance.language', 'settings.open', 'settings.general',
+      'playback.mute', 'appearance.language', 'settings.open', 'settings.general',
       'settings.online', 'settings.cloud', 'settings.focus', 'settings.shortcuts', 'settings.about',
     ]));
   });

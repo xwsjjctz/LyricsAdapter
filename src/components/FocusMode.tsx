@@ -238,8 +238,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const colors = currentTheme.colors;
   // FocusMode uses fixed dark colors for immersive experience (except player controls)
   const focusColors = FOCUS_MODE_COLORS;
-  const useDefaultThemeControlGlass =
-    (currentTheme.id === THEME_IDS.DEFAULT_DARK || currentTheme.id === THEME_IDS.DEFAULT);
+  const useDefaultThemeControlGlass = currentTheme.id === THEME_IDS.DEFAULT;
 
   const { activeCurrentTime, realtimeCurrentTimeRef } = useFocusPlaybackClock({
     trackId: track?.id,

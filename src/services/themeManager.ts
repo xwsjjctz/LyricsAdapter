@@ -146,7 +146,7 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 }
 
 class ThemeManagerClass {
-  private currentThemeId: ThemeId = THEME_IDS.DEFAULT_DARK;
+  private currentThemeId: ThemeId = THEME_IDS.DEFAULT;
   private listeners: Set<(themeId: ThemeId) => void> = new Set();
   private themeTransitionTimer: number | null = null;
 
@@ -156,8 +156,8 @@ class ThemeManagerClass {
 
   private loadFromStorage(): void {
     try {
-      this.currentThemeId = THEME_IDS.DEFAULT_DARK;
-      const storedTheme = appStorage.getItem(THEME_STORAGE_KEY) as ThemeId | null;
+      this.currentThemeId = THEME_IDS.DEFAULT;
+      const storedTheme = appStorage.getItem(THEME_STORAGE_KEY);
       const normalizedTheme = this.normalizeThemeId(storedTheme);
       if (normalizedTheme && predefinedThemes.some(t => t.id === normalizedTheme)) {
         this.currentThemeId = normalizedTheme;
@@ -170,10 +170,12 @@ class ThemeManagerClass {
     }
   }
 
-  private normalizeThemeId(themeId: ThemeId | null): ThemeId | null {
-    if (themeId === THEME_IDS.DEFAULT) return THEME_IDS.DEFAULT_DARK;
-    if (themeId === THEME_IDS.WARM) return THEME_IDS.DEFAULT_LIGHT;
-    return themeId;
+  private normalizeThemeId(themeId: string | null): ThemeId | null {
+    // Saved day/night variants now share the icon palette, including recovery.
+    if (themeId === 'default-dark' || themeId === 'default-light' || themeId === THEME_IDS.WARM) {
+      return THEME_IDS.DEFAULT;
+    }
+    return predefinedThemes.find(theme => theme.id === themeId)?.id ?? null;
   }
 
   private saveToStorage(themeId: ThemeId): void {

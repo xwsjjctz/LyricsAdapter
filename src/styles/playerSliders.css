@@ -1,4 +1,28 @@
 /* Progress and volume sliders in the normal player only. */
+.player-controls {
+  /* Keep the original night palette scoped to the bar and its volume popover. */
+  --theme-primary: #f19bd1;
+  --theme-background-dark: #15121d;
+  --theme-text-primary: #fff7fc;
+  --theme-text-secondary: rgba(247, 237, 248, 0.74);
+  --theme-text-muted: rgba(234, 220, 238, 0.48);
+  --theme-control-panel-bg-floating: #1d1927;
+  --theme-control-panel-bg-glass: rgba(29, 25, 39, 0.4);
+  --theme-control-panel-border: rgba(238, 226, 249, 0.11);
+  --theme-control-panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --theme-control-icon-bg: rgba(241, 155, 209, 0.08);
+  --theme-control-icon-bg-active: rgba(241, 155, 209, 0.13);
+  --theme-control-icon-fg: var(--theme-text-secondary);
+  --theme-control-icon-fg-hover: var(--theme-text-primary);
+  --theme-control-icon-fg-active: var(--theme-primary);
+  --theme-control-primary-button-bg: var(--theme-text-primary);
+  --theme-control-primary-button-fg: var(--theme-background-dark);
+  --theme-control-slider-track: var(--theme-control-panel-border);
+  --theme-control-slider-fill: var(--theme-primary);
+  --theme-control-slider-fill-secondary: var(--theme-text-secondary);
+  color: var(--theme-text-primary);
+}
+
 .macos-floating-player {
   position: absolute;
   inset-inline: 20px;

@@ -77,6 +77,7 @@ describe('usePlayerControlbar', () => {
     const first = options();
     const { result, rerender, unmount } = renderHook(props => usePlayerControlbar(props), { initialProps: first });
     await waitFor(() => expect(result.current).toBe(true));
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ darkMode: true }));
     const latest = options(); rerender(latest);
     const emit = mocks.onAction.mock.calls[0]![0] as (action: PlayerControlbarAction) => void;
     act(() => {

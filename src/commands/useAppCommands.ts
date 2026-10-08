@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Language } from '../i18n';
-import { LANGUAGE_OPTIONS, useCurrentTheme } from '../components/settings/shared';
+import { LANGUAGE_OPTIONS } from '../components/settings/shared';
 import { useOnlinePlaylists } from '../hooks/useOnlinePlaylists';
 import { logger } from '../services/logger';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
@@ -11,15 +11,13 @@ import {
   setOverride,
   type PlaylistOverride,
 } from '../services/playlistOverrides';
-import { themeManager } from '../services/themeManager';
-import { THEME_IDS } from '../types/theme';
 import { buildAppCommands, type AppCommandDeps, type PlaylistEntry } from './buildAppCommands';
 import type { PaletteCommand } from './paletteCommand';
 
-/** Shell callbacks; theme, language and playlist visibility are handled here. */
+/** Shell callbacks; language and playlist visibility are handled here. */
 export type AppCommandHandlers = Omit<
   AppCommandDeps,
-  'playlists' | 'togglePlaylistHidden' | 'isDark' | 'toggleNightMode' | 'languages' | 'currentLanguage' | 'setLanguage'
+  'playlists' | 'togglePlaylistHidden' | 'languages' | 'currentLanguage' | 'setLanguage'
 >;
 
 interface AppCommands {
@@ -32,7 +30,6 @@ const playlistKey = (playlist: PlaylistInfo) => `${playlist.source}:${playlist.i
 
 export function useAppCommands(handlers: AppCommandHandlers): AppCommands {
   const { t, i18n } = useTranslation();
-  const theme = useCurrentTheme();
   const { playlists } = useOnlinePlaylists();
   const [overrides, setOverrides] = useState<Record<string, PlaylistOverride>>({});
 
@@ -57,10 +54,6 @@ export function useAppCommands(handlers: AppCommandHandlers): AppCommands {
       .catch(error => logger.warn('[Commands] Failed to update playlist visibility:', error));
   }, [overrides]);
 
-  const toggleNightMode = useCallback(() => {
-    themeManager.setTheme(theme.isDark ? THEME_IDS.DEFAULT_LIGHT : THEME_IDS.DEFAULT_DARK);
-  }, [theme.isDark]);
-
   const setLanguage = useCallback((language: Language) => {
     void i18n.changeLanguage(language);
   }, [i18n]);
@@ -69,12 +62,10 @@ export function useAppCommands(handlers: AppCommandHandlers): AppCommands {
     ...handlers,
     playlists: playlistEntries,
     togglePlaylistHidden,
-    isDark: theme.isDark,
-    toggleNightMode,
     languages: LANGUAGE_OPTIONS,
     currentLanguage: i18n.language,
     setLanguage,
-  }, t), [handlers, i18n.language, playlistEntries, setLanguage, t, theme.isDark, toggleNightMode, togglePlaylistHidden]);
+  }, t), [handlers, i18n.language, playlistEntries, setLanguage, t, togglePlaylistHidden]);
 
   return { commands, visiblePlaylists: visible };
 }

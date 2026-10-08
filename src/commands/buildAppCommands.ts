@@ -34,8 +34,6 @@ export interface AppCommandDeps {
   toggleFocusMode: () => void;
   togglePlaybackMode: () => void;
   toggleMute: () => void;
-  isDark: boolean;
-  toggleNightMode: () => void;
   languages: readonly { value: Language; nativeLabel: string }[];
   currentLanguage: string;
   setLanguage: (language: Language) => void;
@@ -172,11 +170,6 @@ function playbackCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] 
 
 function appearanceCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
   return [
-    {
-      id: 'appearance.nightMode', title: t('settings.nightMode'), icon: deps.isDark ? 'dark_mode' : 'light_mode',
-      group: 'appearance', keywords: ['dark', 'light', 'theme', 'night'],
-      detail: deps.isDark ? t('palette.state.on') : t('palette.state.off'), keepOpen: true, run: deps.toggleNightMode,
-    },
     {
       id: 'appearance.language', title: t('settings.language'), icon: 'translate', group: 'appearance',
       keywords: ['language', 'locale'],

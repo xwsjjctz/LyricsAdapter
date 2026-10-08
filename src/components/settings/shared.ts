@@ -68,8 +68,8 @@ export function useSettingsTheme(theme: ThemeConfig): SettingsTheme {
 
 /**
  * Subscribe to the active app-wide theme; re-renders on change. Used by shared
- * settings sections so they follow the global theme (e.g. light mode → dark
- * text) without duplicating a second theme state.
+ * settings sections so they follow the global palette without duplicating
+ * a second theme state.
  */
 export function useCurrentTheme(): ThemeConfig {
   const [theme, setTheme] = React.useState<ThemeConfig>(themeManager.getCurrentTheme());
