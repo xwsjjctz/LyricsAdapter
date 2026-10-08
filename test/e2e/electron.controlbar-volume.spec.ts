@@ -27,8 +27,13 @@ test('floating web volume panel supports hover, speaker mute, dragging and keybo
     const page = await app.firstWindow();
     const button = page.getByTestId('main-volume-button');
     const panel = page.locator('.macos-volume-slider-shell');
-    await expect(page.getByTestId('main-controlbar')).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
-    await expect(page.getByTestId('main-controlbar')).toHaveCSS('backdrop-filter', /blur\(24px\)/);
+    // Windows paints the same 30% night tint on the bar's SVG glass backing layer.
+    const windows = process.platform === 'win32';
+    const filter = windows ? /url\(/ : /blur\(24px\)/;
+    const backing = (property: 'backgroundColor' | 'backdropFilter') => page.getByTestId('main-controlbar')
+      .evaluate((node, [pseudo, name]) => getComputedStyle(node, pseudo)[name], [windows ? '::before' : null, property] as const);
+    await expect.poll(() => backing('backgroundColor')).toMatch(/(?:\/ 0\.3|, 0\.3)\)$/);
+    await expect.poll(() => backing('backdropFilter')).toMatch(filter);
     await button.hover();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
     const slider = page.getByRole('slider', { name: 'Volume', exact: true });
@@ -70,7 +75,7 @@ test('floating web volume panel supports hover, speaker mute, dragging and keybo
     await expect(panel).toBeVisible();
     await expect(panel).toHaveCSS('opacity', '1');
     await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
-    await expect(panel).toHaveCSS('backdrop-filter', /blur\(24px\)/);
+    await expect(panel).toHaveCSS('backdrop-filter', filter);
     await page.screenshot({ path: testInfo.outputPath('volume-panel.png') });
     await page.keyboard.press('Escape');
     await expect(button).toBeFocused();

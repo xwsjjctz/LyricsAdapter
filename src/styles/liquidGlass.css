@@ -13,9 +13,9 @@
     inset 0 0 0 1px var(--glass-rim), inset 0 1px 0 rgba(255, 255, 255, .24),
     inset 0 -1px 0 rgba(0, 0, 0, .1);
 }
-.theme-light .liquid-glass { --glass-tint: rgba(255, 255, 255, .3); --glass-rim: rgba(255, 255, 255, .6); }
+/* No light variant: like the AppKit bar, the player keeps its night palette in
+   every theme and the focus glass follows the cover instead of the theme. */
 .liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); --glass-blur: 4px; }
-.theme-light .liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); }
 
 /* The main bar's backing is a sibling of its volume popup, so the popup can
    sample the page instead of being trapped inside another backdrop root. */
@@ -34,24 +34,37 @@
     inset 0 -1px 0 rgba(0, 0, 0, .1);
 }
 
+/* Every frame below is LAPlayerControlbarHost's -layout (playerControlbar.mm)
+   around the bar's centre line; Material glyphs are sized to the SF Symbols
+   they replace. */
 .player-controls.windows-glass-player { border-radius: 22px; gap: 6px; }
 .windows-glass-player[data-controlbar-layout="full"] { padding-right: 12px; }
 .windows-glass-player .player-primary-controls { gap: 4px; }
+.player-controls.windows-glass-player .player-transport button { height: 32px; }
 .windows-glass-player .player-transport button:first-child { width: 30px; }
+.player-controls.windows-glass-player .player-transport [data-testid="main-play-button"] { height: 38px; }
+.windows-glass-player :is(.player-transport, .macos-volume-controls) .material-symbols-rounded { font-variation-settings: 'FILL' 1; }
+.windows-glass-player [data-testid="main-play-button"] .material-symbols-rounded { font-size: 30px; }
+.windows-glass-player .macos-volume-button .material-symbols-rounded { font-size: 22px; }
+.windows-glass-player .macos-volume-mode .material-symbols-rounded { font-size: 20px; }
 .windows-glass-player .player-track-trigger { text-align: left; }
-.windows-glass-player .player-track-title { font-size: 12.5px; font-weight: 600; }
-.windows-glass-player .player-track-artist { font-size: 10.5px; }
+/* AppKit labels draw from the top of their frame behind a 2px text inset: the
+   title frame spans 21..3px above the centre line, the artist 1..17px below. */
+.windows-glass-player .player-track-text { padding-bottom: 4px; }
+.windows-glass-player .player-track-title { height: 18px; padding-inline: 2px; font-size: 12.5px; line-height: 15px; font-weight: 600; }
+.windows-glass-player .player-track-artist { height: 16px; margin-top: 4px; padding-inline: 2px; font-size: 10.5px; line-height: 13px; font-weight: 400; }
 .windows-glass-player .player-progress-controls { gap: 2px; }
-.windows-glass-player .player-progress-controls > span { width: 36px; font-weight: 500; }
+.windows-glass-player .player-progress-controls > span { width: 36px; height: 14px; line-height: 12px; font-weight: 500; text-align: center; }
 .windows-glass-player .player-progress-controls > span:last-child { width: 38px; margin-left: 2px; }
 .windows-glass-player .macos-volume-controls { flex-basis: 64px; margin-left: -2px; }
 .windows-glass-player .macos-volume-disclosure { width: 32px; }
-.windows-glass-player .macos-volume-button { width: 32px; }
+.windows-glass-player .macos-volume-button { top: 4px; width: 32px; height: 32px; }
 .windows-glass-player .macos-volume-slider-shell {
   left: -6px;
   bottom: calc(100% + 24px);
   border: 0;
 }
+.windows-glass-player .macos-volume-value { line-height: 13px; }
 .windows-glass-player[data-controlbar-layout="compact"] .player-primary-controls { gap: 0; }
 .player-controls.windows-glass-player[data-controlbar-layout="compact"] { padding-inline: 14px; gap: 10px; }
 .windows-glass-player[data-controlbar-layout="compact"] .player-track-trigger { gap: 12px; }
@@ -77,11 +90,11 @@
 .windows-focus-glass button:hover:enabled { background: var(--focus-glass-track); }
 .windows-focus-glass button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .windows-focus-glass button:disabled { opacity: .3; }
-.windows-focus-glass .material-symbols-rounded { font-size: 22px; font-variation-settings: 'FILL' 1; }
-.windows-focus-glass .focus-glass-mode .material-symbols-rounded,
-.windows-focus-glass .focus-glass-mute .material-symbols-rounded { font-size: 20px; }
-.windows-focus-glass .focus-glass-play .material-symbols-rounded { font-size: 28px; }
-.focus-glass-time { position: absolute; top: 15.625%; width: 11.4286%; height: 14px; font-size: 10px; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; color: var(--focus-glass-muted); }
+.windows-focus-glass .material-symbols-rounded { font-size: 26px; font-variation-settings: 'FILL' 1; }
+.windows-focus-glass .focus-glass-mode .material-symbols-rounded { font-size: 22px; }
+.windows-focus-glass .focus-glass-mute .material-symbols-rounded { font-size: 24px; }
+.windows-focus-glass .focus-glass-play .material-symbols-rounded { font-size: 34px; }
+.focus-glass-time { position: absolute; top: 15.625%; width: 11.4286%; height: 14px; font-size: 10px; line-height: 12px; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; color: var(--focus-glass-muted); }
 .focus-glass-elapsed { left: 3.4286%; }
 .focus-glass-total { left: 85.1429%; }
 .windows-focus-glass .focus-glass-seek { position: absolute; left: 16%; top: 13.5417%; width: 68%; height: 18.75%; }
