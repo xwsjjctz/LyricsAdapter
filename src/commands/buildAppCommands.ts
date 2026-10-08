@@ -46,6 +46,7 @@ export interface AppCommandDeps {
 
 const SETTINGS_SECTIONS: { id: SettingsSectionId; icon: string; titleKey: string; keywords: string[] }[] = [
   { id: 'general', icon: 'tune', titleKey: 'settings.nav.general', keywords: ['general', 'settings'] },
+  { id: 'plugins', icon: 'extension', titleKey: 'settings.nav.plugins', keywords: ['plugin', 'plugins', 'extension', 'install', 'update', '插件', '安装', '更新'] },
   { id: 'online', icon: 'language', titleKey: 'settings.nav.online', keywords: ['online', 'qq', 'netease', 'login'] },
   { id: 'cloud', icon: 'cloud', titleKey: 'settings.nav.cloud', keywords: ['webdav', 'cloud'] },
   { id: 'focus', icon: 'fullscreen', titleKey: 'settings.nav.focus', keywords: ['focus', 'lyrics'] },
