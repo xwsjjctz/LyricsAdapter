@@ -4,6 +4,7 @@ import { themeManager } from '@/services/themeManager';
 import { appStorage } from '@/services/appStorage';
 import { THEME_IDS } from '@/types/theme';
 import { getDefaultTheme } from '@/services/themes/predefinedThemes';
+import { dayPaletteColors } from '@/services/themes/dayPalette';
 import { resolveThemeControls } from '@/services/themeControls';
 import { resolveThemeAppearance } from '@/services/themeAppearance';
 
@@ -26,7 +27,17 @@ describe('getCurrentThemeId', () => {
     expect(themeManager.getCurrentThemeId()).toBe(THEME_IDS.DEFAULT);
     expect(themeManager.getCurrentTheme()).toBe(getDefaultTheme());
     expect(appStorage.getItem('app-theme')).toBe(savedTheme);
-    expect(document.documentElement.style.getPropertyValue('--theme-text-primary')).toBe('#31283a');
+    expect(document.documentElement.style.getPropertyValue('--theme-text-primary')).toBe('#fff7fc');
+  });
+
+  it('applies the night palette by default and keeps the day palette out of the registry', () => {
+    themeManager.setTheme(THEME_IDS.DEFAULT);
+
+    expect(getDefaultTheme().isDark).toBe(true);
+    expect(document.documentElement.classList.contains('theme-dark')).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--theme-background-sidebar')).toBe('#1d1927');
+    expect(dayPaletteColors.textPrimary).toBe('#31283a');
+    expect(themeManager.getAllThemes().some(theme => theme.colors === dayPaletteColors)).toBe(false);
   });
 });
 
