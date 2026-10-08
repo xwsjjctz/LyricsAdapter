@@ -295,7 +295,7 @@ const AppShell: React.FC<AppShellProps> = ({
             ) : (
               <div ref={libraryContentRef} className="h-full">
                 {libraryLayout === 'list' ? (
-                  <div className="h-full px-10 pt-10 pb-2">
+                  <div className="h-full">
                     <LibraryView
                       tracks={shownTracks}
                       currentTrackIndex={slots[viewSlot].currentTrackIndex}
@@ -334,11 +334,6 @@ const AppShell: React.FC<AppShellProps> = ({
                       playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
                       playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
                       playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
-                      {...(viewSlot === 'playlist' && playlistState.title ? { playlistTitle: playlistState.title } : {})}
-                      {...(viewSlot === 'playlist' && playlistState.totalTrackCount != null
-                        ? { playlistTrackCount: playlistState.totalTrackCount }
-                        : {})}
-                      {...(isBrowsingPlaylist && shownTracks.length > 0 ? { onPlayAll: playAll, onShuffleAll: shuffleAll } : {})}
                     />
                   </div>
                 ) : (

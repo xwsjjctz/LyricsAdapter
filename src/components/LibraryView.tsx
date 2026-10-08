@@ -8,7 +8,6 @@ import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
-import LibraryToolbar from './LibraryToolbar';
 import TrackMenu from './TrackMenu';
 import type { TrackDownloadQuality } from './trackMenuItems';
 import LibrarySelectionBar from './LibrarySelectionBar';
@@ -20,6 +19,7 @@ import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
 import { FLOATING_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 interface LibraryViewProps {
   tracks: Track[];
@@ -58,15 +58,10 @@ interface LibraryViewProps {
   playlistLoading?: boolean;
   playlistHasMore?: boolean;
   playlistLoadError?: string | null;
-  playlistTitle?: string;
-  playlistTrackCount?: number;
   pendingLocateSlot?: SlotId | undefined;
   pendingLocateToken?: number | undefined;
   onPendingLocatePrepared?: (token: number) => void;
   onSlotContentReady?: (slot: SlotId) => void;
-  searchBox?: React.ReactNode;
-  onPlayAll?: () => void;
-  onShuffleAll?: () => void;
 }
 
 
@@ -119,17 +114,17 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   playlistLoading = false,
   playlistHasMore = false,
   playlistLoadError = null,
-  playlistTitle,
-  playlistTrackCount,
   pendingLocateSlot,
   pendingLocateToken,
   onPendingLocatePrepared,
   onSlotContentReady,
-  searchBox,
-  onPlayAll,
-  onShuffleAll,
 }) => {
   const { t } = useTranslation();
+  const desktopAPI = getDesktopAPI();
+  const titleBarHeight = desktopAPI
+    ? desktopAPI.platform === 'darwin' ? getMacTitleBarLayout(desktopAPI.osRelease).height : 36
+    : 0;
+  const progress = importProgress ?? (dataSource === 'cloud' ? loadProgress : null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null); // Track being reordered
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
   const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
@@ -297,7 +292,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // The header no longer overlays the track list, so no top inset is needed.
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
-  const bottomInset = ['darwin', 'win32'].includes(getDesktopAPI()?.platform ?? '')
+  const bottomInset = ['darwin', 'win32'].includes(desktopAPI?.platform ?? '')
     ? FLOATING_PLAYER_BOTTOM_INSET : 0;
 
   const {
@@ -740,22 +735,23 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Toolbar and column labels stay in flow above the scrolling rows. */}
+      {/* Reserve only the desktop window controls; the list has no outer padding. */}
+      {titleBarHeight > 0 && <div aria-hidden="true" className="flex-shrink-0" style={{ height: titleBarHeight }} />}
+
+      {/* Active progress, selection controls and column labels stay above the scrolling rows. */}
       <div className="flex-shrink-0">
-      <LibraryToolbar
-        dataSource={dataSource}
-        colors={colors}
-        {...(dataSource === 'local' || dataSource === 'cloud' ? { onImportClick, importDisabled } : {})}
-        {...(dataSource === 'cloud' ? { onRefreshCloud: handleRefreshCloud, isRefreshing } : {})}
-        trackCount={filteredTracks.length}
-        {...(playlistTitle ? { playlistTitle } : {})}
-        {...(playlistTrackCount != null ? { playlistTrackCount } : {})}
-        importProgress={importProgress}
-        loadProgress={dataSource === 'cloud' ? loadProgress ?? undefined : undefined}
-        searchBox={searchBox}
-        onPlayAll={onPlayAll}
-        onShuffleAll={onShuffleAll}
-      />
+      {progress && (
+        <div className="px-4 py-2 text-sm" style={{ color: colors.textMuted }}>
+          <p>{t(importProgress ? 'library.importing' : 'library.loadingMetadata')} {progress.loaded}/{progress.total}</p>
+          <div className="mt-1 overflow-hidden" style={{ backgroundColor: 'var(--theme-control-slider-track)', height: 'var(--theme-progress-height)', borderRadius: 'var(--theme-progress-radius)' }}>
+            <div className="h-full transition-all duration-300" style={{
+              width: `${progress.total > 0 ? Math.min(100, Math.max(0, progress.loaded / progress.total * 100)) : 0}%`,
+              backgroundColor: 'var(--theme-control-slider-fill)',
+              borderRadius: 'var(--theme-progress-radius)',
+            }} />
+          </div>
+        </div>
+      )}
 
       {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
         onToggleAll={toggleSelectAll} onRemove={trackActions.requestBatchDelete} onDone={finishSelection} />}

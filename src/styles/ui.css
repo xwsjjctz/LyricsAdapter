@@ -220,12 +220,9 @@
    highlight read the same tokens so they stay aligned in both densities.
    The bleed lets the highlight's shadow extend past the scroll clip. */
 .library-view {
-  --library-max-width: 1120px;
   --library-bleed: 24px;
   --library-row-radius: var(--theme-control-radius);
   --library-cover-radius: var(--theme-media-radius-sm);
-  max-width: var(--library-max-width);
-  margin-inline: auto;
 }
 
 .library-bleed {
@@ -466,4 +463,3 @@
   padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
 }
-
