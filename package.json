@@ -19,9 +19,9 @@
     "native:test:taskbar-host": "node scripts/smokeWindowsTaskbarHost.cjs --attach --expected-width-dip=210 --verify-lyric-end",
     "native:rebuild:macos-statusbar": "node scripts/rebuildMacosStatusbarNative.cjs",
     "postinstall": "npm run native:rebuild:macos-statusbar -- --allow-missing",
-    "preelectron:dev": "npm run music-plugins:build && npm run native:build:taskbar-host && npm run native:rebuild:macos-statusbar",
+    "preelectron:dev": "npm run native:build:taskbar-host && npm run native:rebuild:macos-statusbar",
     "electron:dev": "vite --mode development",
-    "preelectron:debug": "npm run music-plugins:build && npm run native:build:taskbar-host && npm run native:rebuild:macos-statusbar",
+    "preelectron:debug": "npm run native:build:taskbar-host && npm run native:rebuild:macos-statusbar",
     "electron:debug": "cross-env REMOTE_DEBUGGING_PORT=9222 ELECTRON_INSPECT=127.0.0.1:9229 vite --mode electron-debug",
     "electron:dev:proxy": "cross-env NODE_OPTIONS=--require=./scripts/proxy-preload.cjs vite --mode development",
     "preelectron:build": "npm run native:build:taskbar-host && npm run native:rebuild:macos-statusbar",
@@ -44,11 +44,9 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --project test/tsconfig.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
-    "check": "npm run music-plugins:check && npm run typecheck && npm run typecheck:test && npm run typecheck:e2e && npm test && npm run build",
-    "music-plugins:build": "node music-source-plugins/scripts/build.mjs dist-music-plugins",
-    "prebuild": "npm run music-plugins:build",
-    "predev": "npm run music-plugins:build",
-    "music-plugins:check": "npm run check --workspace=@lyrics-adapter/music-plugins"
+    "check": "npm run typecheck && npm run typecheck:test && npm run typecheck:e2e && npm test && npm run build",
+    "music-plugins:build": "node scripts/buildMusicPlugins.mjs",
+    "music-plugins:check": "npm --prefix music-source-plugins run check && tsc --project scripts/tsconfig.music-plugins.json"
   },
   "dependencies": {
     "@applemusic-like-lyrics/lyric": "^1.0.2",
@@ -124,13 +122,6 @@
         "filter": [
           "**/*"
         ]
-      },
-      {
-        "from": "dist-music-plugins",
-        "to": "music-plugins",
-        "filter": [
-          "**/*"
-        ]
       }
     ],
     "asar": true,
@@ -188,8 +179,5 @@
         "AppImage"
       ]
     }
-  },
-  "workspaces": [
-    "music-source-plugins"
-  ]
+  }
 }

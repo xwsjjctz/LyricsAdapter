@@ -28,6 +28,12 @@ jobs:
       - name: Quality checks
         run: npm run check
 
+      - name: Check optional official plugins and build integration fixtures
+        run: |
+          npm --prefix music-source-plugins ci
+          npm run music-plugins:check
+          npm run music-plugins:build
+
       - name: Install Chromium-family runtime libraries
         run: npx playwright install-deps chromium
 

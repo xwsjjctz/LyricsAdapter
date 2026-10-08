@@ -89,15 +89,17 @@ describe('music plugin runtime', () => {
     await expect(updated.call('netease', 'searchMusic', [])).resolves.toEqual(['1.10.0']);
     expect(() => updated.install(source)).toThrow(/newer/);
   });
-  it('keeps an unloaded source usable after installing an update and blocks only first installations', async () => {
+  it('keeps an unloaded source usable after updates and loads first installations immediately', async () => {
     const { root, registry } = fixture();
     const source = path.join(root, 'package'); packageAt(source, '2.0.0');
     registry.install(source);
     await expect(registry.call('netease', 'searchMusic', [])).resolves.toEqual(['1.0.0']);
     const other = path.join(root, 'other'); packageAt(other);
     fs.writeFileSync(path.join(other, 'manifest.json'), JSON.stringify({ ...manifest, id: 'other' }));
-    expect(registry.install(other).find(plugin => plugin.id === 'other')).toMatchObject({ restartRequired: true });
-    await expect(registry.call('other', 'searchMusic', [])).rejects.toThrow(/Restart/);
+    const entry = path.join(other, 'index.cjs');
+    fs.writeFileSync(entry, fs.readFileSync(entry, 'utf8').replace("id: 'netease'", "id: 'other'"));
+    expect(registry.install(other).find(plugin => plugin.id === 'other')?.restartRequired).toBeUndefined();
+    await expect(registry.call('other', 'searchMusic', [])).resolves.toEqual(['1.0.0']);
   });
   it('uninstalls a local installation, serving loaded code until restart and bundled code afterwards', async () => {
     const { root, registry, options } = fixture();

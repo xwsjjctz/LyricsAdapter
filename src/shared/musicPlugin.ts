@@ -17,6 +17,16 @@ export interface MusicPluginInfo extends MusicPluginManifest {
   error?: string;
   restartRequired?: boolean;
 }
+export interface MusicPluginCatalogEntry {
+  id: 'qq' | 'netease';
+  name: string;
+  version?: string;
+}
+export interface MusicPluginPackage {
+  manifest: MusicPluginManifest;
+  code: string;
+  sha256: string;
+}
 export interface MusicPluginHost {
   logger: { debug(...args: unknown[]): void; info(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };
   readSecret(name: string): string;
@@ -34,5 +44,10 @@ export interface MusicPluginElectronAPI {
   musicPluginInstall?: () => Promise<MusicPluginInfo[] | null>;
   musicPluginUninstall?: (id: string) => Promise<MusicPluginInfo[]>;
   musicPluginSetEnabled?: (id: string, enabled: boolean) => Promise<MusicPluginInfo[]>;
+  musicPluginCatalog?: () => Promise<MusicPluginCatalogEntry[]>;
+  musicPluginDownload?: (id: string) => Promise<MusicPluginInfo[]>;
+  musicPluginDirectory?: () => Promise<string>;
+  musicPluginOpenDirectory?: () => Promise<void>;
+  onMusicPluginsChanged?: (callback: (plugins: MusicPluginInfo[]) => void) => () => void;
   onMusicPluginSecretsChanged?: (callback: (id: string) => void) => () => void;
 }

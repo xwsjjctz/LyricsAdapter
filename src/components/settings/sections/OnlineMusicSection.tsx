@@ -7,12 +7,12 @@ import { settingsManager } from '@/services/settingsManager';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
 import Button from '../../ui/Button';
-import MusicPluginManager from './MusicPluginManager';
 
 // Presentational provider settings section used by the application settings panel.
 
 interface OnlineMusicSectionProps {
   theme: SettingsTheme;
+  sources?: OnlineSource[];
   onlineSource: OnlineSource;
   cookie: string;
   neteaseCookie: string;
@@ -41,6 +41,7 @@ interface OnlineMusicSectionProps {
  */
 const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   theme,
+  sources,
   onlineSource,
   cookie,
   neteaseCookie,
@@ -64,7 +65,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   const { t } = useTranslation();
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
   // Re-derived each render so labels follow the current i18n language.
-  const sourceOptions = getSourceOptions();
+  const sourceOptions = getSourceOptions().filter(option => !sources || sources.includes(option.value));
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
@@ -85,7 +86,6 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
         </Button>
       </div>
 
-      <MusicPluginManager theme={theme} />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">

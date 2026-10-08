@@ -1,8 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import path from 'node:path';
+import { BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
 import { logger } from '../logger';
 import { userStateRepository } from '../services/userStateRepository';
 import { MusicPluginRegistry } from '../services/musicPluginRegistry';
+import { MusicPluginCatalog } from '../services/musicPluginCatalog';
+import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import type { MusicPlugin } from '../../src/shared/musicPlugin';
 
 let registry: MusicPluginRegistry;
@@ -29,9 +30,10 @@ export function getMusicPlugin(id: string): MusicPlugin { return registry.get(id
 export function getMusicPluginCookie(id: string): string { return userStateRepository.getSetting(secretKey(id, 'cookie')) ?? ''; }
 
 export function registerMusicPluginHandlers(): void {
+  const directory = prepareMusicPluginDirectory(userStateRepository.directoryPath);
+  const catalog = new MusicPluginCatalog((url, init) => net.fetch(url, init));
   registry = new MusicPluginRegistry({
-    bundledDirectory: app.isPackaged ? path.join(process.resourcesPath, 'music-plugins') : path.join(app.getAppPath(), 'dist-music-plugins'),
-    installedDirectory: path.join(userStateRepository.directoryPath, 'music-plugins'),
+    installedDirectory: directory,
     isEnabled: id => userStateRepository.getSetting(`music-plugin:${id}:enabled`) !== 'false',
     setEnabled: (id, enabled) => userStateRepository.setSetting(`music-plugin:${id}:enabled`, String(enabled)),
     host: id => ({ logger,
@@ -42,6 +44,11 @@ export function registerMusicPluginHandlers(): void {
       },
     }),
   });
+  const changed = () => {
+    const plugins = registry.list();
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugins-changed', plugins);
+    return plugins;
+  };
   ipcMain.handle('music-plugin-call', async (_event, id: string, method: string, args: unknown[]) => {
     const result = await registry.call(id, method, args);
     if (method === 'getMusicUrl' && result && typeof result === 'object' && typeof (result as { url?: unknown }).url === 'string') {
@@ -53,12 +60,20 @@ export function registerMusicPluginHandlers(): void {
     return result;
   });
   ipcMain.handle('music-plugin-list', () => registry.list());
-  ipcMain.handle('music-plugin-set-enabled', (_event, id: string, enabled: boolean) => registry.setEnabled(id, enabled));
-  ipcMain.handle('music-plugin-uninstall', (_event, id: string) => registry.uninstall(id));
+  ipcMain.handle('music-plugin-set-enabled', (_event, id: string, enabled: boolean) => { registry.setEnabled(id, enabled); return changed(); });
+  ipcMain.handle('music-plugin-uninstall', (_event, id: string) => { registry.uninstall(id); return changed(); });
+  ipcMain.handle('music-plugin-catalog', () => catalog.list());
+  ipcMain.handle('music-plugin-directory', () => directory);
+  ipcMain.handle('music-plugin-open-directory', async () => {
+    const error = await shell.openPath(directory);
+    if (error) throw new Error(error);
+  });
+  ipcMain.handle('music-plugin-download', async (_event, id: string) => { await catalog.install(id, registry); return changed(); });
   ipcMain.handle('music-plugin-install', async () => {
-    const result = await dialog.showOpenDialog({ title: 'Install music source plugin', properties: ['openDirectory'] });
+    const result = await dialog.showOpenDialog({ title: 'Install plugin', properties: ['openFile'], filters: [{ name: 'LyricsAdapter Plugin', extensions: ['laplugin'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
-    return registry.install(result.filePaths[0]);
+    registry.install(result.filePaths[0]);
+    return changed();
   });
   // Compatibility aliases keep login UI / stored credentials stable. All protocol
   // implementations live inside the selected plugin and obey its enabled state.

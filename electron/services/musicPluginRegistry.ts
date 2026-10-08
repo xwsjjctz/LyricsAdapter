@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { MUSIC_PLUGIN_API_VERSION, type MusicPlugin, type MusicPluginHost, type MusicPluginInfo, type MusicPluginManifest } from '../../src/shared/musicPlugin';
 
 const requirePlugin = createRequire(import.meta.url);
 const PLUGIN_ID = /^[a-z][a-z0-9-]{0,63}$/;
-const RESTART_TO_LOAD = 'Restart the app to load the installed plugin';
 const PROVIDER_METHODS = new Set(['searchMusic', 'getRecommendedSongs', 'getSongDetails', 'getMusicUrl', 'getLyrics', 'getPlaylists', 'getPlaylistSongs']);
 
 export function validateMusicPluginManifest(value: unknown): MusicPluginManifest {
@@ -47,7 +47,7 @@ function compareVersions(a: string, b: string): number {
 /** `blocked` explains why the package in `directory` must not be loaded in this session. */
 interface PluginRecord { info: MusicPluginInfo; directory: string; plugin?: MusicPlugin; blocked?: string }
 interface RegistryOptions {
-  bundledDirectory: string;
+  bundledDirectory?: string;
   installedDirectory: string;
   host(id: string): MusicPluginHost;
   isEnabled(id: string): boolean;
@@ -61,7 +61,7 @@ export class MusicPluginRegistry {
 
   private discover(): void {
     for (const [origin, root] of [['bundled', this.options.bundledDirectory], ['installed', this.options.installedDirectory]] as const) {
-      if (!fs.existsSync(root)) continue;
+      if (!root || !fs.existsSync(root)) continue;
       for (const item of fs.readdirSync(root, { withFileTypes: true })) {
         // Staging leftovers and other non-id names are not plugin packages.
         if (!item.isDirectory() || item.isSymbolicLink() || !PLUGIN_ID.test(item.name)) continue;
@@ -139,9 +139,15 @@ export class MusicPluginRegistry {
     return this.list();
   }
   private inspectBundled(id: string): MusicPluginManifest | undefined {
+    if (!this.options.bundledDirectory) return undefined;
     try { return inspectDirectory(path.join(this.options.bundledDirectory, id)); } catch { return undefined; }
   }
   install(directory: string): MusicPluginInfo[] {
+    const stat = fs.statSync(directory);
+    if (stat.isFile()) {
+      if (stat.size > 24 * 1024 * 1024) throw new Error('Plugin package exceeds 24 MiB');
+      return this.installPackage(fs.readFileSync(directory));
+    }
     const manifest = inspectDirectory(directory);
     const bundled = this.inspectBundled(manifest.id);
     if (bundled && compareVersions(bundled.version, manifest.version) > 0) {
@@ -166,17 +172,37 @@ export class MusicPluginRegistry {
         try { fs.renameSync(staging, target); } catch (error) { fs.renameSync(backup, target); throw error; }
         fs.rmSync(backup, { recursive: true, force: true });
       } else fs.renameSync(staging, target);
-      // Keep the working version usable until restart; a first installation (or the
-      // replacement of a broken one) has no working version and waits for the restart.
+      // Updates retain working code until restart. First installations can load now.
       const previous = this.records.get(manifest.id);
       const working = previous && !previous.blocked ? previous : undefined;
       this.records.set(manifest.id, {
         directory: working?.directory ?? target,
         ...(working?.plugin ? { plugin: working.plugin } : {}),
-        ...(working ? {} : { blocked: RESTART_TO_LOAD }),
-        info: { ...manifest, origin: 'installed', enabled: this.options.isEnabled(manifest.id), restartRequired: true },
+        info: { ...manifest, origin: 'installed', enabled: this.options.isEnabled(manifest.id), ...(working ? { restartRequired: true } : {}) },
       });
+      if (!working && this.options.isEnabled(manifest.id)) {
+        delete requirePlugin.cache[path.join(target, manifest.main)];
+        // Keep incompatible packages visible with their error, but unavailable to UI.
+        try { this.get(manifest.id); } catch { /* get() records the load error. */ }
+      }
       return this.list();
+    } finally { fs.rmSync(staging, { recursive: true, force: true }); }
+  }
+  installPackage(bytes: Uint8Array, expectedId?: string, expectedVersion?: string): MusicPluginInfo[] {
+    if (bytes.byteLength > 24 * 1024 * 1024) throw new Error('Plugin package exceeds 24 MiB');
+    const value = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+    const manifest = validateMusicPluginManifest(value['manifest']);
+    if (expectedId && manifest.id !== expectedId) throw new Error('Downloaded plugin id does not match');
+    if (expectedVersion && manifest.version !== expectedVersion) throw new Error('Downloaded plugin version does not match');
+    const code = value['code'];
+    if (typeof code !== 'string' || Buffer.byteLength(code) > 20 * 1024 * 1024) throw new Error('Invalid plugin code');
+    if (value['sha256'] !== createHash('sha256').update(code).digest('hex')) throw new Error('Plugin checksum mismatch');
+    fs.mkdirSync(this.options.installedDirectory, { recursive: true });
+    const staging = fs.mkdtempSync(path.join(this.options.installedDirectory, '.package-'));
+    try {
+      fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(manifest));
+      fs.writeFileSync(path.join(staging, manifest.main), code);
+      return this.install(staging);
     } finally { fs.rmSync(staging, { recursive: true, force: true }); }
   }
   /** Removes a local installation; the bundled plugin with the same id takes over again. */
@@ -191,7 +217,7 @@ export class MusicPluginRegistry {
       // Code that is already loaded keeps serving until restart; otherwise the bundled plugin loads on demand.
       this.records.set(id, record.plugin
         ? { directory: record.directory, plugin: record.plugin, info: { ...info, restartRequired: true } }
-        : { directory: path.join(this.options.bundledDirectory, id), info });
+        : { directory: path.join(this.options.bundledDirectory!, id), info });
     }
     return this.list();
   }

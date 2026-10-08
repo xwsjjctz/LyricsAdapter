@@ -261,6 +261,15 @@ contextBridge.exposeInMainWorld('electron', {
 
   musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
   musicPluginList: () => ipcRenderer.invoke('music-plugin-list'),
+  musicPluginCatalog: () => ipcRenderer.invoke('music-plugin-catalog'),
+  musicPluginDownload: (id: string) => ipcRenderer.invoke('music-plugin-download', id),
+  musicPluginDirectory: () => ipcRenderer.invoke('music-plugin-directory'),
+  musicPluginOpenDirectory: () => ipcRenderer.invoke('music-plugin-open-directory'),
+  onMusicPluginsChanged: (callback: (plugins: import('../src/shared/musicPlugin').MusicPluginInfo[]) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, plugins: import('../src/shared/musicPlugin').MusicPluginInfo[]) => callback(plugins);
+    ipcRenderer.on('music-plugins-changed', listener);
+    return () => ipcRenderer.removeListener('music-plugins-changed', listener);
+  },
   musicPluginInstall: () => ipcRenderer.invoke('music-plugin-install'),
   musicPluginUninstall: (id: string) => ipcRenderer.invoke('music-plugin-uninstall', id),
   musicPluginSetEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke('music-plugin-set-enabled', id, enabled),

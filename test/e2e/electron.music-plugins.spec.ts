@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,8 @@ import type { MusicPluginInfo } from '../../src/shared/musicPlugin';
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 interface PluginAPI {
+  musicPluginCatalog(): Promise<{ id: string; version?: string }[]>;
+  musicPluginDirectory(): Promise<string>;
   musicPluginList(): Promise<MusicPluginInfo[]>;
   musicPluginCall(id: string, method: string, args: unknown[]): Promise<unknown>;
   musicPluginSetEnabled(id: string, enabled: boolean): Promise<MusicPluginInfo[]>;
@@ -54,9 +57,44 @@ test('music plugins work through real IPC, stream and download; local updates an
         return new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json' } });
       };
     });
+    expect(await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginList())).toEqual([]);
+    const entry = (id: string) => `exports.createPlugin = () => ({
+      provider: { id: '${id}', searchMusic: async () => [{ songmid: '42', songname: 'Plugin song', singer: [{ name: 'Artist' }], interval: 180 }],
+        getRecommendedSongs: async () => [], getMusicUrl: async () => ({ url: 'https://cdn.music.invalid/audio.flac', quality: 'flac' }),
+        getLyrics: async () => ({ lyrics: '[00:01]Plugin lyric', wordLyricsFormat: 'yrc' }), getPlaylists: async () => [], getPlaylistSongs: async () => [], requiresCookie: () => false },
+      invoke: async () => ({ success: false }), validateCookie: async () => ({ valid: true }), streamHeaders: () => ({})
+    });`;
+    const packageFor = (id: string) => { const code = entry(id); return JSON.stringify({ manifest: { id, name: id === 'qq' ? 'QQ 音乐' : '网易云音乐', version: '0.1.0', apiVersion: 1, main: 'index.cjs', requiresCookie: false, capabilities: ['search', 'stream'] }, code, sha256: createHash('sha256').update(code).digest('hex') }); };
+    const neteasePackage = packageFor('netease');
+    const digest = createHash('sha256').update(neteasePackage).digest('hex');
+    await app.evaluate(({ net }, data) => {
+      const directory = 'https://raw.githubusercontent.com/xwsjjctz/LyricsAdapter-Music-Plugins/main/packages/';
+      net.fetch = async input => {
+        if (String(input) === `${directory}catalog.json`) return new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'netease', version: '0.1.0', file: 'netease.laplugin', sha256: data.digest }] }));
+        if (String(input) === `${directory}netease.laplugin`) return new Response(data.package);
+        throw new Error(`Unexpected plugin download: ${input}`);
+      };
+    }, { package: neteasePackage, digest });
+    await expect(page.locator('.poster-wall')).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus());
+    await page.keyboard.press('ControlOrMeta+K');
+    const palette = page.locator('.command-palette__input');
+    await palette.click(); await expect(palette).toBeFocused();
+    await page.keyboard.press('Shift+Tab'); await palette.fill('settings'); await page.keyboard.press('Enter');
+    await expect(page.locator('.settings-sheet')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Online Music' })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Plugins' }).click();
+    await expect(page.getByTestId('plugin-directory')).toHaveText(path.join(isolatedHome, '.la/plugin'));
+    await page.screenshot({ path: testInfo.outputPath('plugins-empty.png') });
+    await page.getByTestId('official-plugin-netease').getByRole('button', { name: 'Download and install' }).click();
+    await expect(page.getByRole('tab', { name: 'Online Music' })).toBeVisible();
+    const qqFile = path.join(root, 'qq.laplugin'); await writeFile(qqFile, packageFor('qq'));
+    await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, qqFile);
+    await page.getByRole('button', { name: 'Install local plugin' }).click();
+    await expect(page.getByTestId('music-plugin-manager').getByRole('switch', { name: /QQ/ })).toBeVisible();
     const plugins = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginList());
     expect(plugins.map(plugin => plugin.id).sort()).toEqual(['netease', 'qq']);
-    expect(plugins.every(plugin => plugin.enabled && plugin.origin === 'bundled')).toBe(true);
+    expect(plugins.every(plugin => plugin.enabled && plugin.origin === 'installed' && !plugin.restartRequired)).toBe(true);
     const songs = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginCall('netease', 'searchMusic', ['song', 20]));
     expect(songs).toMatchObject([{ songmid: '42', songname: 'Plugin song', interval: 180 }]);
     const lyrics = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginCall('netease', 'getLyrics', ['42']));
@@ -75,15 +113,6 @@ test('music plugins work through real IPC, stream and download; local updates an
     expect(saved.success).toBe(true);
     expect([...await readFile(destination)]).toEqual([1, 2, 3, 4]);
 
-    await expect(page.locator('.poster-wall')).toBeVisible();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus());
-    await page.keyboard.press('ControlOrMeta+K');
-    const palette = page.locator('.command-palette__input');
-    await palette.click();
-    await expect(palette).toBeFocused();
-    await page.keyboard.press('Shift+Tab'); await palette.fill('settings'); await page.keyboard.press('Enter');
-    await expect(page.locator('.settings-sheet')).toBeVisible();
-    await page.getByRole('tab', { name: 'Online Music' }).click();
     const manager = page.getByTestId('music-plugin-manager');
     await expect(manager).toBeVisible();
     const toggle = manager.getByRole('switch', { name: /网易云/ });
@@ -121,7 +150,8 @@ test('music plugins work through real IPC, stream and download; local updates an
     expect(persisted.find(plugin => plugin.id === 'qq')?.enabled).toBe(false);
     expect(persisted.find(plugin => plugin.id === 'netease')).toMatchObject({ origin: 'installed', version: '9.0.0' });
     const uninstalled = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginUninstall('netease'));
-    expect(uninstalled.find(plugin => plugin.id === 'netease')).toMatchObject({ origin: 'bundled' });
-    expect(uninstalled.find(plugin => plugin.id === 'netease')?.version).not.toBe('9.0.0');
+    expect(uninstalled.find(plugin => plugin.id === 'netease')).toBeUndefined();
+    await page.keyboard.press('ControlOrMeta+,');
+    await expect(page.getByRole('tab', { name: 'Online Music' })).toHaveCount(0);
   } finally { await app?.close(); await rm(root, { recursive: true, force: true }); }
 });

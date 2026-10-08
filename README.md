@@ -88,9 +88,9 @@ QQ 音乐需要有效的登录凭证才能参与在线搜索；网易云音乐�
 
 ### 音乐源插件
 
-QQ 与网易云接口实现独立维护在 [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins)。应用随附这两个插件，也可在「设置 → 在线音乐 → 音乐源插件」中安装本地插件文件夹、查看版本或启用/禁用插件。安装和更新后重启应用。
+QQ 与网易云接口实现独立维护在 [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins)。主应用可无插件启动，在「设置 → 插件」中直接从 GitHub 下载安装 QQ 或网易云插件，也可导入本地 `.laplugin` 文件、查看版本或启用/禁用插件。首次安装立即生效，更新已有插件后重启应用。
 
-插件禁用后会保留歌曲、歌单与登录数据。首版支持本地安装；在线插件市场和自动更新尚未实现。开发合同与构建说明见[音乐源插件文档](docs/music-source-plugins.md)。
+安装文件集中保存在 `~/.la/plugin/`。启用音乐插件后显示在线音乐设置，禁用后保留歌曲、歌单与登录数据。首版提供官方插件目录和手动下载更新；第三方市场与自动更新尚未实现。开发合同与构建说明见[音乐源插件文档](docs/music-source-plugins.md)。
 
 ### 搜索、试听与下载
 
@@ -137,15 +137,16 @@ QQ 与网易云接口实现独立维护在 [LyricsAdapter-Music-Plugins](https:/
 
 ## 开发
 
-使用 Node 24.19.0 或更新的 24 系列版本。首次拉取项目后初始化插件 submodule：
+使用 Node 24.19.0 或更新的 24 系列版本。主应用可在无插件、无插件源码时启动：
 
 ```sh
-git submodule update --init --recursive
 npm ci
 npm run electron:dev
 ```
 
-`npm run check` 会运行主项目与插件测试，并构建应用。调试和隔离数据说明见 [DEBUGGING.md](DEBUGGING.md)。
+设置 → 插件提供官方插件下载、本地安装、启用和卸载。启用音乐插件后才会显示在线音乐设置。安装文件集中保存在 `~/.la/plugin/<插件 ID>/`，页面会显示实际路径并提供打开文件夹入口。
+
+`npm run check` 会检查、测试和构建主应用。插件开发和独立验证见 [音乐源插件文档](docs/music-source-plugins.md)。调试和隔离数据说明见 [DEBUGGING.md](DEBUGGING.md)。
 
 ## 许可与致谢
 

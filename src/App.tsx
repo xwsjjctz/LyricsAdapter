@@ -19,6 +19,7 @@ import { useLibraryStore } from './stores/libraryStore';
 import type { OnlineSource } from './services/onlineMusicProvider';
 import { usePlayerStore } from './stores/playerStore';
 import { useUIStore } from './stores/uiStore';
+import { useMusicPlugins } from './stores/musicPluginStore';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
 import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
@@ -38,6 +39,8 @@ declare global {
 const openPaletteMusicSearch = () => commandPalette.open('library');
 
 const AppContent: React.FC = () => {
+  const { sources } = useMusicPlugins();
+  const hasQQPlugin = sources.includes('qq');
   const ui = useUIStore();
   const {
     viewMode,
@@ -315,9 +318,10 @@ const AppContent: React.FC = () => {
 
   // Renew the QQ Music musickey before it expires (no-op without a stored credential).
   useEffect(() => {
+    if (!hasQQPlugin) return;
     qqCredentialManager.start();
     return () => qqCredentialManager.stop();
-  }, []);
+  }, [hasQQPlugin]);
 
   // Download-complete (add to local library) now lives in the library controller;
   // AppContent delegates. (Phase 2 boundary completion — see roadmap §4.)

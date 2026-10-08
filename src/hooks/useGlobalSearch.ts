@@ -5,10 +5,13 @@ import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { settingsManager } from '../services/settingsManager';
+import { useMusicPlugins } from '../stores/musicPluginStore';
+import { useSettingValue } from '../components/settings/hooks/useSettingValue';
 import { searchTracks, type TrackSearchResult } from '../services/trackSearch';
 import type { Track } from '../types';
 
 export const ONLINE_SEARCH_DEBOUNCE_MS = 500;
+const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
 export interface OnlineSearchHit {
   source: OnlineSource;
@@ -46,7 +49,10 @@ export function useGlobalSearch({
 }: GlobalSearchOptions): GlobalSearchResults {
   const [online, setOnline] = useState<OnlineSearchHit[]>([]);
   const [onlineLoading, setOnlineLoading] = useState(false);
-  const onlineEnabled = settingsManager.getQqMusicEnabled();
+  const { sources } = useMusicPlugins();
+  const hasQQ = sources.includes('qq');
+  const hasNetEase = sources.includes('netease');
+  const onlineEnabled = useSettingValue(readOnlineEnabled) && (hasQQ || hasNetEase);
   const trimmed = query.trim();
 
   const local = useMemo(
@@ -70,8 +76,8 @@ export function useGlobalSearch({
     setOnlineLoading(true);
     const debounceTimer = setTimeout(async () => {
       const [qqResult, neteaseResult] = await Promise.allSettled([
-        cookieManager.hasCookie() ? qqMusicApi.searchMusic(trimmed, onlineLimit) : Promise.resolve([] as OnlineSong[]),
-        neteaseMusicApi.searchMusic(trimmed, onlineLimit),
+        hasQQ && cookieManager.hasCookie() ? qqMusicApi.searchMusic(trimmed, onlineLimit) : Promise.resolve([] as OnlineSong[]),
+        hasNetEase ? neteaseMusicApi.searchMusic(trimmed, onlineLimit) : Promise.resolve([] as OnlineSong[]),
       ]);
       if (!isCurrentSearch) return;
 
@@ -91,7 +97,7 @@ export function useGlobalSearch({
       isCurrentSearch = false;
       clearTimeout(debounceTimer);
     };
-  }, [trimmed, active, onlineEnabled, onlineLimit]);
+  }, [trimmed, active, onlineEnabled, onlineLimit, hasQQ, hasNetEase]);
 
   return { local, cloud, online, onlineLoading, onlineEnabled };
 }

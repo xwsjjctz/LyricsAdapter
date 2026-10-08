@@ -42,6 +42,7 @@
     "release",
     "node_modules",
     "music-source-plugins",
-    "dist-music-plugins"
+    "dist-music-plugins",
+    "scripts/musicPluginContract.ts"
   ]
 }
