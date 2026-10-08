@@ -183,5 +183,12 @@
         "AppImage"
       ]
     }
+  },
+  "allowScripts": {
+    "file:../../native/macos-statusbar-native": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.28.1": true
   }
 }
