@@ -6,6 +6,8 @@ import { MUSIC_PLUGIN_API_VERSION, type MusicPlugin, type MusicPluginHost, type 
 import { PLUGIN_ID, validatePlatformManifest, negotiateExtensions } from './pluginManifest';
 import { PluginRuntime, validateMusicSource } from './pluginRuntime';
 import type { ExtensionType, PluginProviderInfo, TranslationRequest, TranslationResult } from '../../src/shared/plugin';
+import { isPluginVersion, comparePluginVersions, validatePluginUpdateSource } from '../../src/shared/pluginUpdate';
+import { Script } from 'node:vm';
 
 const requirePlugin = createRequire(import.meta.url);
 const PROVIDER_METHODS = new Set(['searchMusic', 'getRecommendedSongs', 'getSongDetails', 'getMusicUrl', 'getLyrics', 'getPlaylists', 'getPlaylistSongs']);
@@ -15,11 +17,12 @@ export function validateMusicPluginManifest(value: unknown): MusicPluginManifest
   const v = value as Record<string, unknown>;
   if (typeof v['id'] !== 'string' || !PLUGIN_ID.test(v['id'])
     || typeof v['name'] !== 'string' || !v['name'].trim()
-    || typeof v['version'] !== 'string' || !/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(v['version'])
+    || !isPluginVersion(v['version'])
     || (v['homepage'] !== undefined && (typeof v['homepage'] !== 'string' || !v['homepage'].startsWith('https://')))) {
     throw new Error('Invalid plugin manifest');
   }
   if (typeof v['main'] !== 'string' || !/^[\w.-]+\.cjs$/.test(v['main'])) throw new Error('Plugin entry must be a local .cjs file');
+  if (v['update'] !== undefined) v['update'] = validatePluginUpdateSource(v['update'], v['id'] as string);
   if (v['manifestVersion'] !== undefined) return validatePlatformManifest(v);
   if (typeof v['requiresCookie'] !== 'boolean' || !Array.isArray(v['capabilities']) || !v['capabilities'].every(c => typeof c === 'string')) throw new Error('Invalid plugin manifest');
   if (v['apiVersion'] !== MUSIC_PLUGIN_API_VERSION) throw new Error(`Unsupported plugin API version: ${String(v['apiVersion'])}`);
@@ -36,15 +39,7 @@ function inspectDirectory(directory: string): MusicPluginManifest {
   return manifest;
 }
 
-/** Orders release versions; prerelease tags are deliberately ignored. */
-function compareVersions(a: string, b: string): number {
-  const [x, y] = [a, b].map(version => version.split('-')[0]!.split('.').map(Number));
-  for (let i = 0; i < 3; i++) {
-    const difference = (x![i] ?? 0) - (y![i] ?? 0);
-    if (difference) return difference;
-  }
-  return 0;
-}
+const compareVersions = comparePluginVersions;
 
 /** `blocked` explains why the package in `directory` must not be loaded in this session. */
 interface PluginRecord { info: MusicPluginInfo; directory: string; plugin?: MusicPlugin; runtime?: PluginRuntime; blocked?: string }
@@ -247,6 +242,48 @@ export class MusicPluginRegistry {
       fs.writeFileSync(path.join(staging, manifest.main), code);
       return this.install(staging);
     } finally { fs.rmSync(staging, { recursive: true, force: true }); }
+  }
+  /** Online updates keep a filesystem backup through activation of the replacement. */
+  async updatePackage(bytes: Uint8Array, id: string, version: string): Promise<MusicPluginInfo[]> {
+    const previous = this.records.get(id);
+    if (!previous) throw new Error('Plugin is no longer installed');
+    // Validate without executing code or disturbing the active version.
+    if (bytes.byteLength > 24 * 1024 * 1024) throw new Error('Plugin package exceeds 24 MiB');
+    const value = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+    const manifest = validateMusicPluginManifest(value['manifest']);
+    if (manifest.id !== id || manifest.version !== version) throw new Error('Downloaded plugin id or version does not match');
+    if (typeof value['code'] !== 'string' || Buffer.byteLength(value['code']) > 20 * 1024 * 1024
+      || value['sha256'] !== createHash('sha256').update(value['code']).digest('hex')) throw new Error('Plugin checksum mismatch');
+    new Script(value['code'], { filename: manifest.main });
+    fs.mkdirSync(this.options.installedDirectory, { recursive: true });
+    const backup = fs.mkdtempSync(path.join(this.options.installedDirectory, '.rollback-'));
+    const target = path.join(fs.realpathSync(this.options.installedDirectory), id);
+    const hadInstalled = fs.existsSync(target);
+    let replaced = false;
+    try {
+      if (hadInstalled) {
+        if (fs.lstatSync(target).isSymbolicLink()) throw new Error('Invalid installed plugin directory');
+        fs.cpSync(target, path.join(backup, id), { recursive: true, dereference: false });
+      }
+      this.installPackage(bytes, id, version);
+      replaced = true;
+      const next = this.records.get(id)!;
+      if (next.info.platform && next.info.enabled) await this.runtime(id).activate();
+      if (next.info.error) throw new Error(next.info.error);
+      return this.list();
+    } catch (error) {
+      if (replaced) {
+        const replacement = this.records.get(id);
+        replacement?.runtime?.dispose();
+        fs.rmSync(target, { recursive: true, force: true });
+        if (hadInstalled) fs.renameSync(path.join(backup, id), target);
+        // The old platform runtime was cancelled during replacement; recreate it lazily.
+        if (previous.info.platform) delete previous.runtime;
+        previous.info = { ...previous.info, revision: Math.max(previous.info.revision ?? 0, replacement?.info.revision ?? 0) + 1 };
+        this.records.set(id, previous);
+      }
+      throw error;
+    } finally { fs.rmSync(backup, { recursive: true, force: true }); }
   }
   /** Removes a local installation; the bundled plugin with the same id takes over again. */
   uninstall(id: string): MusicPluginInfo[] {

@@ -1,5 +1,6 @@
 import type { OnlineMusicProvider } from './onlineMusic.js';
 import type { PluginManifest, PluginElectronAPI } from './plugin.js';
+import type { PluginUpdateSource } from './pluginUpdate.js';
 
 export const MUSIC_PLUGIN_API_VERSION = 1;
 export interface MusicPluginManifest {
@@ -11,6 +12,7 @@ export interface MusicPluginManifest {
   requiresCookie: boolean;
   capabilities: string[];
   homepage?: string;
+  update?: PluginUpdateSource;
   /** Present only for activate(context) packages; apiVersion remains a legacy management alias. */
   platform?: PluginManifest;
 }

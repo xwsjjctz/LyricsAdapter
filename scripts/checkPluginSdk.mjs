@@ -14,11 +14,13 @@ try {
   await cp(path.join(root, 'packages/plugin-sdk/dist'), path.join(installed, 'dist'), { recursive: true });
   await writeFile(path.join(temporary, 'package.json'), '{"type":"module"}');
   await writeFile(path.join(temporary, 'index.ts'), `
-import { PLUGIN_CORE_API, type PluginContext, type MusicSourceProvider } from '@lyrics-adapter/plugin-sdk';
+import { PLUGIN_CORE_API, type PluginContext, type MusicSourceProvider, type PluginUpdateFeed, type PluginManifest } from '@lyrics-adapter/plugin-sdk';
+const update: PluginManifest['update'] = { kind: 'github', repository: 'author/plugins', channel: 'stable' };
+const feed: PluginUpdateFeed = { schemaVersion: 1, plugins: [] };
 const sourceId: MusicSourceProvider['provider']['id'] = 'third-party';
 const playlistSource: Awaited<ReturnType<MusicSourceProvider['provider']['getPlaylists']>>[number]['source'] = 'third-party';
 export function activate(context: PluginContext) {
-  context.logger.info(PLUGIN_CORE_API, sourceId, playlistSource);
+  context.logger.info(PLUGIN_CORE_API, sourceId, playlistSource, update, feed);
   context.extensions.register('lyrics.translation', 'default', {
     async translate({ document, targetLanguage }, { signal }) {
       signal.throwIfAborted();

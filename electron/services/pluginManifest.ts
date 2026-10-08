@@ -74,5 +74,6 @@ export function validatePlatformManifest(value: Record<string, unknown>): MusicP
   const music = manifest.contributes.providers.some(p => p.type === 'music.source' && versions['music.source']);
   return { id: manifest.id, name: manifest.name, version: manifest.version, main: manifest.main,
     ...(manifest.homepage ? { homepage: manifest.homepage } : {}), apiVersion: 1, requiresCookie: false,
+    ...(manifest.update ? { update: manifest.update } : {}),
     capabilities: music ? ['search', 'stream', 'lyrics', 'playlists'] : [], platform: manifest };
 }

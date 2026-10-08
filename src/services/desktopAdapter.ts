@@ -17,6 +17,7 @@ import type {
 } from '../types/typedIpc';
 import type { MusicPluginInfo, MusicPluginCatalogEntry } from '../shared/musicPlugin';
 import type { ExtensionType, PluginHostInfo, PluginProviderInfo, PluginTranslationCall, TranslationResult } from '../shared/plugin';
+import type { PluginUpdateInfo, PluginUpdateSource } from '../shared/pluginUpdate';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
@@ -712,6 +713,17 @@ class ElectronAdapter implements FullDesktopAPI {
     if (!this.api.pluginHostInfo) throw new Error('Plugin platform is unavailable');
     return this.api.pluginHostInfo();
   }
+  async pluginUpdateList(): Promise<PluginUpdateInfo[]> { return this.api.pluginUpdateList?.() ?? []; }
+  async pluginCheckUpdates(): Promise<PluginUpdateInfo[]> { return this.api.pluginCheckUpdates?.() ?? []; }
+  async pluginUpdate(id: string): Promise<MusicPluginInfo[]> {
+    if (!this.api.pluginUpdate) throw new Error('Plugin updater is unavailable');
+    return this.api.pluginUpdate(id);
+  }
+  async pluginSetUpdateSource(id: string, source: PluginUpdateSource | null): Promise<PluginUpdateInfo[]> {
+    if (!this.api.pluginSetUpdateSource) throw new Error('Plugin updater is unavailable');
+    return this.api.pluginSetUpdateSource(id, source);
+  }
+  onPluginUpdatesChanged(callback: (updates: PluginUpdateInfo[]) => void): () => void { return this.api.onPluginUpdatesChanged?.(callback) ?? (() => {}); }
   async pluginProviders(type: ExtensionType): Promise<PluginProviderInfo[]> { return this.api.pluginProviders?.(type) ?? []; }
   async pluginTranslate(call: PluginTranslationCall): Promise<TranslationResult> {
     if (!this.api.pluginTranslate) throw new Error('Plugin platform is unavailable');

@@ -5,6 +5,8 @@ import { settingsStore } from '../services/settingsStore';
 import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
+import { PluginUpdateService } from '../services/pluginUpdates';
+import type { PluginUpdateSource } from '../../src/shared/pluginUpdate';
 import type { MusicPlugin } from '../../src/shared/musicPlugin';
 import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type PluginTranslationCall } from '../../src/shared/plugin';
 
@@ -61,7 +63,20 @@ export function registerMusicPluginHandlers(): void {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugins-changed', plugins);
     return plugins;
   };
-  app.once('before-quit', () => registry.dispose());
+  const updates = new PluginUpdateService({ registry, catalog, fetcher: (url, init) => net.fetch(url, init),
+    read: key => userStateRepository.getSetting(key), write: (key, value) => userStateRepository.setSetting(key, value),
+    changed: value => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('plugin-updates-changed', value); },
+  });
+  updates.start();
+  app.once('before-quit', () => { updates.dispose(); registry.dispose(); });
+  ipcMain.handle('plugin-update-list', () => {
+    const value = updates.list();
+    void updates.check(false).catch(error => logger.warn('[PluginUpdates] Check failed', error));
+    return value;
+  });
+  ipcMain.handle('plugin-check-updates', () => updates.check());
+  ipcMain.handle('plugin-set-update-source', (_event, id: string, source: PluginUpdateSource | null) => updates.setSource(id, source));
+  ipcMain.handle('plugin-update', async (_event, id: string) => { try { await updates.update(id); return changed(); } catch (error) { changed(); throw error; } });
   ipcMain.handle('plugin-host-info', () => ({ coreApi: PLUGIN_CORE_API, extensionApis: PLUGIN_EXTENSION_APIS, legacyMusicApi: 1 }));
   ipcMain.handle('plugin-providers', (_event, type: string) => {
     if (!Object.hasOwn(PLUGIN_EXTENSION_APIS, type)) throw new Error('Unknown extension type');
@@ -99,20 +114,19 @@ export function registerMusicPluginHandlers(): void {
     return result;
   });
   ipcMain.handle('music-plugin-list', () => registry.list());
-  ipcMain.handle('music-plugin-set-enabled', (_event, id: string, enabled: boolean) => { registry.setEnabled(id, enabled); return changed(); });
-  ipcMain.handle('music-plugin-uninstall', (_event, id: string) => { registry.uninstall(id); return changed(); });
+  ipcMain.handle('music-plugin-set-enabled', (_event, id: string, enabled: boolean) => { updates.assertIdle(); registry.setEnabled(id, enabled); return changed(); });
+  ipcMain.handle('music-plugin-uninstall', async (_event, id: string) => updates.mutate(() => { registry.uninstall(id); return changed(); }));
   ipcMain.handle('music-plugin-catalog', () => catalog.list());
   ipcMain.handle('music-plugin-directory', () => directory);
   ipcMain.handle('music-plugin-open-directory', async () => {
     const error = await shell.openPath(directory);
     if (error) throw new Error(error);
   });
-  ipcMain.handle('music-plugin-download', async (_event, id: string) => { await catalog.install(id, registry); return changed(); });
+  ipcMain.handle('music-plugin-download', async (_event, id: string) => updates.mutate(async () => { await catalog.install(id, registry); return changed(); }));
   ipcMain.handle('music-plugin-install', async () => {
     const result = await dialog.showOpenDialog({ title: 'Install plugin', properties: ['openFile'], filters: [{ name: 'LyricsAdapter Plugin', extensions: ['laplugin'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
-    registry.install(result.filePaths[0]);
-    return changed();
+    return updates.mutate(() => { registry.install(result.filePaths[0]!); return changed(); });
   });
   // Compatibility aliases keep login UI / stored credentials stable. All protocol
   // implementations live inside the selected plugin and obey its enabled state.
