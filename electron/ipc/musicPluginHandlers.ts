@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
 import { logger } from '../logger';
 import { userStateRepository } from '../services/userStateRepository';
+import { settingsStore } from '../services/settingsStore';
 import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
@@ -27,7 +28,7 @@ const secretKey = (id: string, name: string) => {
   return Object.hasOwn(legacy, name) ? legacy[name]! : `music-plugin:${id}:secret:${name}`;
 };
 export function getMusicPlugin(id: string): MusicPlugin { return registry.get(id); }
-export function getMusicPluginCookie(id: string): string { return userStateRepository.getSetting(secretKey(id, 'cookie')) ?? ''; }
+export function getMusicPluginCookie(id: string): string { return settingsStore.get(secretKey(id, 'cookie')) ?? ''; }
 
 export function registerMusicPluginHandlers(): void {
   const directory = prepareMusicPluginDirectory(userStateRepository.directoryPath);
@@ -37,9 +38,11 @@ export function registerMusicPluginHandlers(): void {
     isEnabled: id => userStateRepository.getSetting(`music-plugin:${id}:enabled`) !== 'false',
     setEnabled: (id, enabled) => userStateRepository.setSetting(`music-plugin:${id}:enabled`, String(enabled)),
     host: id => ({ logger,
-      readSecret: name => userStateRepository.getSetting(secretKey(id, name)) ?? '',
+      // The settings store keeps secrets it cannot encrypt for this session only, so a
+      // plugin still works where safeStorage is unavailable.
+      readSecret: name => settingsStore.get(secretKey(id, name)) ?? '',
       writeSecrets: entries => {
-        userStateRepository.setManySettings(Object.fromEntries(Object.entries(entries).map(([name, value]) => [secretKey(id, name), value])));
+        settingsStore.setMany(Object.fromEntries(Object.entries(entries).map(([name, value]) => [secretKey(id, name), value])));
         for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugin-secrets-changed', id);
       },
     }),
