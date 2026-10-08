@@ -44,7 +44,9 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --project test/tsconfig.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
-    "check": "npm run typecheck && npm run typecheck:test && npm run typecheck:e2e && npm test && npm run build"
+    "check": "npm run typecheck && npm run typecheck:test && npm run typecheck:e2e && npm test && npm run build",
+    "music-plugins:build": "node scripts/buildMusicPlugins.mjs",
+    "music-plugins:check": "npm --prefix music-source-plugins run check && tsc --project scripts/tsconfig.music-plugins.json"
   },
   "dependencies": {
     "@applemusic-like-lyrics/lyric": "^1.0.2",
@@ -56,7 +58,6 @@
     "node-id3": "^0.2.9",
     "pinyin-pro": "^3.28.1",
     "range-parser": "^1.3.0",
-    "tough-cookie": "^4.1.4",
     "write-file-atomic": "^7.0.1",
     "zod": "^4.4.3"
   },
@@ -72,11 +73,9 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.14.0",
-    "@types/qrcode": "^1.5.6",
     "@types/range-parser": "^1.2.7",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "@types/tough-cookie": "^4.0.5",
     "@types/write-file-atomic": "^4.0.3",
     "@vitejs/plugin-react": "^6.0.3",
     "cross-env": "^7.0.3",
@@ -85,7 +84,6 @@
     "i18next": "^26.3.5",
     "jsdom": "^25.0.1",
     "node-gyp": "^12.4.0",
-    "qrcode": "^1.5.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-i18next": "^17.0.8",

@@ -4,22 +4,6 @@
  * sinks and pops during a source switch, so the two never share a transform.
  */
 
-/* The icon blur is baked into a small shared bitmap (npm run assets:wall-background).
-   Paint it on the shell, outside the scrolling/animated content. No runtime
-   filter, canvas, promoted layer or per-track background texture is needed. */
-.app-wall-background {
-  --wall-background-tint: color-mix(in srgb, var(--theme-background-dark, #101922) 78%, transparent);
-  background-color: var(--theme-background-dark, #101922);
-  background-image: linear-gradient(var(--wall-background-tint), var(--wall-background-tint)), url('/wall-background.jpg');
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-}
-
-.app-library-background {
-  background: linear-gradient(135deg, var(--theme-background-gradient-start, #101922), var(--theme-background-gradient-end, #1a2533));
-}
-
 .poster-wall {
   /* Tiles run flush to every window edge. The floating control bar may cover
      part of the last row for now. */

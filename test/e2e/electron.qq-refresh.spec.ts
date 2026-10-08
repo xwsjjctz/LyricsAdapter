@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,11 +24,13 @@ interface RefreshProbe {
 }
 
 test('QQ refresh rotates OAuth fields through IPC and respects encrypted persistence availability across restart', async () => {
+  test.skip(!existsSync(path.join(repo, 'dist-music-plugins/qq')), 'Build optional official plugins to run QQ protocol integration');
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-qq-refresh-')));
   const isolatedHome = path.join(root, 'home');
   const userData = path.join(root, 'user-data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData, { recursive: true });
+  await cp(path.join(repo, 'dist-music-plugins/qq'), path.join(isolatedHome, '.la/plugin/qq'), { recursive: true });
   await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
   const env = Object.fromEntries(Object.entries({ ...process.env,
     HOME: isolatedHome, USERPROFILE: isolatedHome, APPDATA: path.join(root, 'app-data'),

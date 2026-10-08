@@ -57,7 +57,7 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
 ]);
 
 export function isSensitiveSettingKey(key: string): boolean {
-  return SENSITIVE_SETTING_KEYS.has(key);
+  return SENSITIVE_SETTING_KEYS.has(key) || /^music-plugin:[a-z][a-z0-9-]*:secret:/.test(key);
 }
 
 export function isReplaceableCacheSettingKey(key: string): boolean {

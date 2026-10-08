@@ -11,7 +11,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
-interface NativeItem { id: string; hidden: boolean; x: number; y: number; width: number; height: number; label: string }
+interface NativeItem { id: string; hidden: boolean; x: number; y: number; width: number; height: number; label: string; appearance: string }
 interface NativeSnapshot { windowNumber: number; items: NativeItem[] }
 
 for (const native of [false, true]) {
@@ -83,6 +83,14 @@ for (const native of [false, true]) {
       const panel = page.getByTestId('main-controlbar');
       await expect(page.locator('.wall-tile').first()).toBeVisible();
       if (native) await expect(panel).toHaveAttribute('data-native-controlbar', 'true');
+      if (native) {
+        await expect(panel).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+        await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-title')?.appearance)
+          .toBe('NSAppearanceNameDarkAqua');
+      } else {
+        await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
+        await expect(panel).toHaveCSS('backdrop-filter', /blur\(24px\)/);
+      }
       await expect.poll(() => page.locator('audio').evaluate((node: HTMLAudioElement) => node.readyState)).toBeGreaterThanOrEqual(2);
       if (!(await audioState()).paused) await page.keyboard.press('Space');
       await expect.poll(async () => (await audioState()).paused).toBe(true);

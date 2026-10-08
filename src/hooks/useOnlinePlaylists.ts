@@ -5,6 +5,11 @@ import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { logger } from '../services/logger';
 import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
+import { useMusicPlugins } from '../stores/musicPluginStore';
+import { settingsManager } from '../services/settingsManager';
+import { useSettingValue } from '../components/settings/hooks/useSettingValue';
+
+const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
 /**
  * Fetch the user's third-party playlists with a
@@ -20,6 +25,10 @@ import type { PlaylistInfo } from '../services/onlineMusicProvider';
  * data arrives (or all sources fail), it flips to false.
  */
 export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: boolean } {
+  const { sources } = useMusicPlugins();
+  const onlineEnabled = useSettingValue(readOnlineEnabled);
+  const hasQQ = onlineEnabled && sources.includes('qq');
+  const hasNetEase = onlineEnabled && sources.includes('netease');
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [cookieRevision, setCookieRevision] = useState(0);
@@ -35,6 +44,10 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
   }, []);
 
   useEffect(() => {
+    if (!hasQQ && !hasNetEase) {
+      setPlaylists([]); setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
 
@@ -49,8 +62,8 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
       if (cancelled) return;
 
       const authenticatedSources = new Set<PlaylistInfo['source']>();
-      if (cookieManager.hasCookie()) authenticatedSources.add('qq');
-      if (neteaseCookieManager.hasCookie()) authenticatedSources.add('netease');
+      if (hasQQ && cookieManager.hasCookie()) authenticatedSources.add('qq');
+      if (hasNetEase && neteaseCookieManager.hasCookie()) authenticatedSources.add('netease');
 
       const cached = await loadPlaylistCache();
       if (cancelled || !cached) return;
@@ -76,7 +89,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
       // QQ Music
       try {
         await cookieManager.ensureLoaded();
-        if (cookieManager.hasCookie()) {
+        if (hasQQ && !cancelled && cookieManager.hasCookie()) {
           const status = await cookieManager.validateCookie();
           if (status.valid) {
             const qq = await qqMusicApi.getPlaylists();
@@ -90,7 +103,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
       // NetEase
       try {
         await neteaseCookieManager.ensureLoaded();
-        if (neteaseCookieManager.hasCookie()) {
+        if (hasNetEase && !cancelled && neteaseCookieManager.hasCookie()) {
           const status = await neteaseCookieManager.validateCookie();
           if (status.valid) {
             const netease = await neteaseMusicApi.getPlaylists();
@@ -120,7 +133,7 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
     return () => {
       cancelled = true;
     };
-  }, [cookieRevision]);
+  }, [cookieRevision, hasQQ, hasNetEase]);
 
-  return { playlists, loading };
+  return { playlists: playlists.filter(playlist => playlist.source === 'qq' ? hasQQ : hasNetEase), loading };
 }

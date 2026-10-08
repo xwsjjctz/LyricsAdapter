@@ -183,8 +183,11 @@ test('poster wall is the home page, plays in place and switches sources from the
     // The classic list stays one palette command away, and the choice is remembered.
     const listRows = page.locator('.library-view .library-track-row');
     const runFeature = async (query: string, title: string) => {
+      await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
       await page.keyboard.press('ControlOrMeta+K');
+      await expect(page.locator('.command-palette__input')).toBeFocused();
       await page.keyboard.press('Shift+Tab');
+      await expect(page.getByRole('tab', { name: 'Features', selected: true })).toBeVisible();
       await page.locator('.command-palette__input').fill(query);
       await expect(page.getByRole('option').first()).toContainText(title);
       await page.keyboard.press('Enter');

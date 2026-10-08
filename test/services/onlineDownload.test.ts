@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QUALITY_LABEL, saveOnlineAudio } from '@/services/onlineDownload';
-import { servedNetEaseQuality } from '@/services/neteaseMusicApi';
 import type { OnlineMusicProvider, OnlineQuality } from '@/services/onlineMusicProvider';
 
 const song = { songmid: 'songA', songname: 'Title', singer: [{ name: 'Artist' }], mediaMid: 'mediaB' };
@@ -39,15 +38,5 @@ describe('saving online audio', () => {
   it('labels qualities for the downgrade message', () => {
     expect(QUALITY_LABEL.flac).toBe('FLAC');
     expect(QUALITY_LABEL['320']).toBe('320kbps');
-  });
-});
-
-describe('NetEase served quality', () => {
-  it('reads the served container and bitrate rather than trusting the request', () => {
-    expect(servedNetEaseQuality({ type: 'flac', br: 999000 }, 'flac')).toBe('flac');
-    expect(servedNetEaseQuality({ type: 'mp3', br: 320000 }, 'flac')).toBe('320');
-    expect(servedNetEaseQuality({ type: 'MP3', br: 128000 }, 'flac')).toBe('128');
-    expect(servedNetEaseQuality({ type: 'm4a', br: 192000 }, '320')).toBe('m4a');
-    expect(servedNetEaseQuality({ type: null, br: 0 }, '320')).toBe('320');
   });
 });

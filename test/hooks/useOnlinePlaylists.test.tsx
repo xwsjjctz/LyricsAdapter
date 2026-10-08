@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { musicPluginStore } from '@/stores/musicPluginStore';
+import { settingsManager } from '@/services/settingsManager';
 
 const mocks = vi.hoisted(() => {
   const state = { qqLoggedIn: false, neteaseLoggedIn: false };
@@ -60,6 +62,10 @@ import { useOnlinePlaylists } from '@/hooks/useOnlinePlaylists';
 
 describe('useOnlinePlaylists', () => {
   beforeEach(() => {
+    vi.spyOn(settingsManager, 'getQqMusicEnabled').mockReturnValue(true);
+    musicPluginStore.setState({ loaded: true, error: '', plugins: ['qq', 'netease'].map(id => ({
+      id, name: id, version: '1.0.0', apiVersion: 1, main: 'index.cjs', requiresCookie: false, capabilities: ['search'], enabled: true, origin: 'installed' as const,
+    })) });
     mocks.state.qqLoggedIn = false;
     mocks.state.neteaseLoggedIn = false;
     mocks.qqListeners.clear();
@@ -72,6 +78,31 @@ describe('useOnlinePlaylists', () => {
     mocks.loadPlaylistCache.mockResolvedValue(null);
     mocks.savePlaylistCache.mockReset();
     mocks.savePlaylistCache.mockResolvedValue(undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('makes no provider calls without plugins even when saved login credentials exist', async () => {
+    musicPluginStore.setState({ plugins: [] });
+    mocks.state.qqLoggedIn = true;
+    mocks.state.neteaseLoggedIn = true;
+    const { result } = renderHook(() => useOnlinePlaylists());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.playlists).toEqual([]);
+    expect(mocks.qqValidate).not.toHaveBeenCalled();
+    expect(mocks.neteaseValidate).not.toHaveBeenCalled();
+  });
+
+  it('does not request a disabled provider and hides cached data when a plugin is removed', async () => {
+    const [qq, netease] = musicPluginStore.getSnapshot().plugins;
+    musicPluginStore.setState({ plugins: [{ ...qq!, enabled: false }, netease!] });
+    mocks.state.qqLoggedIn = true;
+    mocks.state.neteaseLoggedIn = true;
+    mocks.getNetEasePlaylists.mockResolvedValue([{ id: 'net-list', name: 'Net list', songCount: 1 }]);
+    const { result } = renderHook(() => useOnlinePlaylists());
+    await waitFor(() => expect(result.current.playlists).toHaveLength(1));
+    expect(mocks.qqValidate).not.toHaveBeenCalled();
+    act(() => musicPluginStore.setState({ plugins: [] }));
+    expect(result.current.playlists).toEqual([]);
   });
 
   it('refreshes Sidebar playlists when a provider login changes', async () => {

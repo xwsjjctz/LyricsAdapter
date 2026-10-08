@@ -9,13 +9,16 @@ import { useWebdavSettings } from './hooks/useWebdavSettings';
 import FocusModeSection from './sections/FocusModeSection';
 import GeneralSection from './sections/GeneralSection';
 import OnlineMusicSection from './sections/OnlineMusicSection';
+import MusicPluginManager from './sections/MusicPluginManager';
+import { useMusicPlugins } from '../../stores/musicPluginStore';
 import WebdavSection from './sections/WebdavSection';
 import { useCurrentTheme, useSettingsTheme } from './shared';
 
-export type SettingsSectionId = 'general' | 'online' | 'cloud' | 'focus' | 'shortcuts';
+export type SettingsSectionId = 'general' | 'plugins' | 'online' | 'cloud' | 'focus' | 'shortcuts';
 
 const SECTIONS: { id: SettingsSectionId; icon: string; labelKey: string }[] = [
   { id: 'general', icon: 'tune', labelKey: 'settings.nav.general' },
+  { id: 'plugins', icon: 'extension', labelKey: 'settings.nav.plugins' },
   { id: 'online', icon: 'language', labelKey: 'settings.nav.online' },
   { id: 'cloud', icon: 'cloud', labelKey: 'settings.nav.cloud' },
   { id: 'focus', icon: 'fullscreen', labelKey: 'settings.nav.focus' },
@@ -39,9 +42,12 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
   const { colors } = themeUtils;
   const [section, setSection] = useState<SettingsSectionId>(initialSection);
   const onlineEnabled = useSettingValue(readOnlineEnabled);
+  const { sources } = useMusicPlugins();
+  const hasMusicPlugins = sources.length > 0;
+  const activeSection = section === 'online' && !hasMusicPlugins ? 'plugins' : section;
   const webdav = useWebdavSettings();
-  const onlineMusic = useOnlineMusicSettings({ enabled: onlineEnabled });
-  const activeLabel = t(SECTIONS.find(entry => entry.id === section)!.labelKey);
+  const onlineMusic = useOnlineMusicSettings({ enabled: onlineEnabled && hasMusicPlugins && activeSection === 'online', sources });
+  const activeLabel = t(SECTIONS.find(entry => entry.id === activeSection)!.labelKey);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setSection(initialSection); }, [initialSection]);
@@ -69,12 +75,12 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
         <header className="settings-sheet__header">
           <h1 className="settings-sheet__title">{t('settings.title')}</h1>
           <div role="tablist" aria-label={t('settings.title')} className="settings-sheet__tabs no-scrollbar">
-            {SECTIONS.map(entry => (
+            {SECTIONS.filter(entry => entry.id !== 'online' || hasMusicPlugins).map(entry => (
               <button
                 key={entry.id}
                 type="button"
                 role="tab"
-                aria-selected={entry.id === section}
+                aria-selected={entry.id === activeSection}
                 className="settings-sheet__tab"
                 onClick={() => setSection(entry.id)}
               >
@@ -89,9 +95,10 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
         </header>
 
         <section role="tabpanel" aria-label={activeLabel} className="settings-sheet__content no-scrollbar">
-          {section === 'general' && <GeneralSection theme={themeUtils} />}
+          {activeSection === 'general' && <GeneralSection theme={themeUtils} />}
+          {activeSection === 'plugins' && <MusicPluginManager theme={themeUtils} />}
 
-          {section === 'online' && (
+          {activeSection === 'online' && (
             <div className="space-y-4">
               <div className="settings-card r-card border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
                 <div className="settings-row">
@@ -108,6 +115,7 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
               {onlineEnabled && (
                 <OnlineMusicSection
                   theme={themeUtils}
+                  sources={sources}
                   onlineSource={onlineMusic.onlineSource}
                   cookie={onlineMusic.cookie}
                   neteaseCookie={onlineMusic.neteaseCookie}
