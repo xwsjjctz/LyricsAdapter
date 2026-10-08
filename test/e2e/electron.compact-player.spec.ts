@@ -87,9 +87,12 @@ for (const native of [false, true]) {
         await expect(panel).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
         await expect.poll(async () => (await probe()).items.find(item => item.id === 'player-controlbar-title')?.appearance)
           .toBe('NSAppearanceNameDarkAqua');
-      } else {
+      } else if (process.platform === 'darwin') {
         await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.3|, 0\.3)\)$/);
         await expect(panel).toHaveCSS('backdrop-filter', /blur\(24px\)/);
+      } else if (process.platform === 'linux') {
+        // The docked bar has no backdrop blur; it uses the night glass panel colour.
+        await expect(panel).toHaveCSS('background-color', /(?:\/ 0\.4|, 0\.4)\)$/);
       }
       await expect.poll(() => page.locator('audio').evaluate((node: HTMLAudioElement) => node.readyState)).toBeGreaterThanOrEqual(2);
       if (!(await audioState()).paused) await page.keyboard.press('Space');
