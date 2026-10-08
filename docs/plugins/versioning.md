@@ -7,7 +7,8 @@
 | `manifestVersion` | 1 | 清单解析和包语义；不兼容结构才增加版本 |
 | `coreApi` | 1.0.0 | 生命周期和基础服务；插件声明要求范围 |
 | `extensionApis[type]` | music.source / lyrics.translation 各 1.0.0 | 每个扩展独立演进，音乐变化不强迫翻译插件升级 |
-| 插件 `version` / SDK 包版本 | 插件自行维护 / SDK 1.0.0 | 插件发布版本、开发工具版本；不能代替宿主能力判断 |
+| 插件 `version` / SDK 包版本 | 插件自行维护 / SDK 1.1.0 | 插件发布版本、开发工具版本；不能代替宿主能力判断 |
+| 更新清单 `schemaVersion` | 1 | 分发信息独立演进，不改变已有运行时 API |
 
 API 的 patch 修正实现而不改契约；minor 只增加可选字段、新方法或新能力，不删除字段、不改变已有单位/默认行为/语义；major 才允许不兼容变化。新必需服务方法通过 `coreApi: "^1.1.0"` 声明最低版本，而不是假设用户都安装最新宿主。扩展点也声明自己的最低版本。
 
@@ -82,3 +83,4 @@ export function activate(context: PluginContext) {
 - music.source 1.0.0：保留旧音乐 DTO 和行为，将源 ID 扩展为 string 并增加通用注册入口。
 - lyrics.translation 1.0.0：不可变歌词文档、稳定行 ID、独立译文、取消/超时/结果校验，接入专注模式两种渲染器。
 - SDK 包 1.0.0：可生成和打包，尚未发布 npm；提供开发示例和宿主契约测试。
+- SDK 包 1.1.0：新增可选更新来源、更新清单和宿主管理接口类型；Core 与两个扩展点仍为 1.0.0。旧清单与 API v1 继续兼容。分发流程见[插件更新与分发](updates.md)。

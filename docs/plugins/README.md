@@ -5,6 +5,7 @@
 - [快速开始](getting-started.md)：构建、打包、安装并验证一个插件。
 - [API 参考](api.md)：清单、生命周期、核心服务和两个可用扩展点。
 - [版本演进与旧接口迁移](versioning.md)：兼容范围、可选能力、弃用规则和音乐源迁移。
+- [插件更新与分发](updates.md)：声明来源、生成清单、发布新版和失败恢复。
 - [完整 TypeScript 契约](../../src/shared/plugin.ts)、[可打包 SDK](../../packages/plugin-sdk/index.ts)。
 - [可运行的对照译文示例](../../examples/plugins/lyric-translation/index.ts)。该示例演示按行返回文本，不调用真实翻译服务。
 

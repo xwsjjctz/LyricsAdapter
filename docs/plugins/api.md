@@ -122,3 +122,7 @@ context.extensions.register('music.source', 'default', {
 `pluginHostInfo()` 返回全宿主版本表；`pluginProviders(type)` 返回启用且无加载错误的清单声明。`pluginTranslate({ requestId, providerKey, request })` 调用翻译；`pluginCancel(requestId)` 取消同一窗口拥有的请求。requestId 匹配 `^[\w-]{1,128}$`，同窗口不能重复；主进程总计最多 64 个等待请求，窗口关闭自动取消。
 
 `pluginConfiguration(id)` 和 `pluginSetConfiguration(id, key, value)` 供宿主设置页面使用，第三方插件使用 context.configuration。管理插件的旧 `musicPlugin*` 桥接名称暂时保留，同一列表/安装器同时支持两种格式。它们不属于可供第三方任意调用的公开 SDK。
+
+## 更新管理
+
+清单可选 `update` 元数据声明初始发布来源，类型为 `PluginUpdateSource`。宿主负责持久化来源、检查版本和替换安装包；运行时 API 版本与分发清单的 `schemaVersion` 独立。详细合同见[插件更新与分发](updates.md)。

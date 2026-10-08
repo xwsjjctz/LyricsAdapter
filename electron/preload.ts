@@ -261,6 +261,15 @@ contextBridge.exposeInMainWorld('electron', {
 
   musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
   pluginHostInfo: () => ipcRenderer.invoke('plugin-host-info'),
+  pluginUpdateList: () => ipcRenderer.invoke('plugin-update-list'),
+  pluginCheckUpdates: () => ipcRenderer.invoke('plugin-check-updates'),
+  pluginUpdate: (id: string) => ipcRenderer.invoke('plugin-update', id),
+  pluginSetUpdateSource: (id: string, source: import('../src/shared/pluginUpdate').PluginUpdateSource | null) => ipcRenderer.invoke('plugin-set-update-source', id, source),
+  onPluginUpdatesChanged: (callback: (updates: import('../src/shared/pluginUpdate').PluginUpdateInfo[]) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, updates: import('../src/shared/pluginUpdate').PluginUpdateInfo[]) => callback(updates);
+    ipcRenderer.on('plugin-updates-changed', listener);
+    return () => ipcRenderer.removeListener('plugin-updates-changed', listener);
+  },
   pluginProviders: (type: import('../src/shared/plugin').ExtensionType) => ipcRenderer.invoke('plugin-providers', type),
   pluginTranslate: (call: import('../src/shared/plugin').PluginTranslationCall) => ipcRenderer.invoke('plugin-translate', call),
   pluginCancel: (requestId: string) => ipcRenderer.send('plugin-cancel', requestId),
