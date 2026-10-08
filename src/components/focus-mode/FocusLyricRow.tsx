@@ -21,6 +21,7 @@ export function wordFillProgress(currentTime: number, word: LyricWord): number {
 
 export interface FocusLyricRowProps {
   lyric: SyncedLyricLine;
+  translation?: string | undefined;
   isActive: boolean;
   hasTimestamp: boolean;
   shouldAnimate: boolean;
@@ -40,7 +41,7 @@ export interface FocusLyricRowProps {
  * transient ref so a 60fps fill does not re-render FocusMode or the lyric list.
  */
 const FocusLyricRow = memo(({
-  lyric, isActive, hasTimestamp, shouldAnimate, currentTimeRef, pausedTime, fontSize, inactiveBlur,
+  lyric, translation, isActive, hasTimestamp, shouldAnimate, currentTimeRef, pausedTime, fontSize, inactiveBlur,
   textPrimary, textSecondary, textMuted, index, onSeek,
 }: FocusLyricRowProps) => {
   const timedWords = isActive && lyric.words?.length ? lyric.words : undefined;
@@ -117,10 +118,12 @@ const FocusLyricRow = memo(({
           </span>
         );
       }) : decodedText}
+      {translation && <span data-testid="lyric-translation" className="block mt-2 font-normal" style={{ fontSize: '0.55em', color: textSecondary }}>{translation}</span>}
     </p>
   );
 }, (previous, next) => (
   previous.lyric === next.lyric
+  && previous.translation === next.translation
   && previous.isActive === next.isActive
   && previous.hasTimestamp === next.hasTimestamp
   && previous.shouldAnimate === next.shouldAnimate

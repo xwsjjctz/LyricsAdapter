@@ -46,7 +46,10 @@
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
     "check": "npm run typecheck && npm run typecheck:test && npm run typecheck:e2e && npm test && npm run build",
     "music-plugins:build": "node scripts/buildMusicPlugins.mjs",
-    "music-plugins:check": "npm --prefix music-source-plugins run check && tsc --project scripts/tsconfig.music-plugins.json"
+    "music-plugins:check": "npm run plugins:check",
+    "plugin-sdk:build": "tsc --project packages/plugin-sdk/tsconfig.json",
+    "plugins:check": "tsc --project scripts/tsconfig.music-plugins.json && npm run plugin-sdk:build && node scripts/checkPluginSdk.mjs",
+    "plugins:package": "node scripts/packagePlugin.mjs"
   },
   "dependencies": {
     "@applemusic-like-lyrics/lyric": "^1.0.2",

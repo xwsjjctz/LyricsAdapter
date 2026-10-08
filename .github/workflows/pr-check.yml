@@ -13,8 +13,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,19 +26,24 @@ jobs:
       - name: Quality checks
         run: npm run check
 
-      # The plugin sources are no longer a submodule. Check out the pinned commit of the
-      # plugin repository after the host checks so `npm run check` stays independent of it.
-      - name: Checkout official plugins
+      - name: Check public plugin SDK and package development example
+        run: |
+          npm run plugins:check
+          npm run plugins:package
+
+      - name: Checkout pinned official plugin integration fixtures
         uses: actions/checkout@v4
         with:
           repository: xwsjjctz/LyricsAdapter-Music-Plugins
           ref: 13096171cdf9f34f96e31562ee1dff4378b7efb2
-          path: music-source-plugins
+          path: .ci-music-plugins
 
-      - name: Check optional official plugins and build integration fixtures
+      - name: Verify official plugins and build protocol fixtures
+        env:
+          LYRICS_ADAPTER_MUSIC_PLUGIN_SOURCE: .ci-music-plugins
         run: |
-          npm --prefix music-source-plugins ci
-          npm run music-plugins:check
+          npm --prefix .ci-music-plugins ci
+          npm --prefix .ci-music-plugins run check
           npm run music-plugins:build
 
       - name: Install Chromium-family runtime libraries
@@ -57,8 +60,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -111,8 +112,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

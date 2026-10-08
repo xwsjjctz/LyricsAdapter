@@ -260,6 +260,12 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
+  pluginHostInfo: () => ipcRenderer.invoke('plugin-host-info'),
+  pluginProviders: (type: import('../src/shared/plugin').ExtensionType) => ipcRenderer.invoke('plugin-providers', type),
+  pluginTranslate: (call: import('../src/shared/plugin').PluginTranslationCall) => ipcRenderer.invoke('plugin-translate', call),
+  pluginCancel: (requestId: string) => ipcRenderer.send('plugin-cancel', requestId),
+  pluginConfiguration: (id: string) => ipcRenderer.invoke('plugin-configuration', id),
+  pluginSetConfiguration: (id: string, key: string, value: string | boolean | number) => ipcRenderer.invoke('plugin-set-configuration', id, key, value),
   musicPluginList: () => ipcRenderer.invoke('music-plugin-list'),
   musicPluginCatalog: () => ipcRenderer.invoke('music-plugin-catalog'),
   musicPluginDownload: (id: string) => ipcRenderer.invoke('music-plugin-download', id),

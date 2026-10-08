@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "id": "example-translation",
+  "name": "歌词翻译开发示例",
+  "version": "1.0.0",
+  "main": "index.cjs",
+  "coreApi": "^1.0.0",
+  "extensionApis": { "lyrics.translation": "^1.0.0" },
+  "contributes": {
+    "providers": [{ "type": "lyrics.translation", "id": "default", "name": "对照译文示例" }],
+    "configuration": { "prefix": { "title": "译文前缀 / Translation prefix", "type": "string", "default": "示例译文" } }
+  }
+}

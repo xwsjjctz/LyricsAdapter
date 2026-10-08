@@ -10,6 +10,10 @@
 
 ## 开发与维护
 
+- [插件 API 与开发文档](./plugins/README.md)（核心 1.0.0、音乐源与歌词翻译、旧 API 兼容和版本迭代）
+- [应用插件平台设计与后续方向](./development/plugin-platform-design.md)（区分已实现能力和未来扩展）
+- [音乐源插件开发指南（API v1）](./development/music-plugin-development.md)（第三方接入边界、合同、示例与后续改造）
+- [音乐源插件安装与维护](./music-source-plugins.md)
 - [产品收敛与桌面交互规划](./development/product-direction.md)（区分已定方向、待验证方案和本次范围）
 - [命令面板交互方案](./development/command-palette-plan.md)（海报墙单入口，待实施）
 - [渐进式重构路线图](./development/refactor-roadmap.md)
