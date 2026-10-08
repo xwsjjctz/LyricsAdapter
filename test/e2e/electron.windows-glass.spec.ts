@@ -81,6 +81,8 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await expect(main.getByTestId('main-play-button')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     // The bar and its popup keep the night tint in the light default theme.
     expect(await main.evaluate(node => getComputedStyle(node).getPropertyValue('--glass-tint').trim())).toBe('rgba(0, 0, 0, .3)');
+    // The rim starts from LAGlassHighlightView's top stop.
+    expect(await main.evaluate(node => getComputedStyle(node, '::after').backgroundImage)).toContain('rgba(255, 255, 255, 0.24)');
     await page.screenshot({ path: testInfo.outputPath('windows-regular.png') });
 
     const filterId = await main.evaluate(node => getComputedStyle(node, '::before').backdropFilter.match(/#([^"\)]+)/)![1]!);
@@ -101,19 +103,22 @@ test('Windows glass samples the live page, keeps native proportions and routes b
         return [bitmap[offset + 2]!, bitmap[offset + 1]!, bitmap[offset]!];
       }, { png: screenshot.toString('base64'), x: Math.round(x), y: Math.round(y) });
     };
+    // The dark material dims the backdrop, so the colour differences are smaller than the raw page's.
     const red = await sample();
-    expect(red[0]! - red[2]!).toBeGreaterThan(80);
+    expect(red[0]! - red[2]!).toBeGreaterThan(50);
     // A reversible diagnostic matrix proves that the SVG receives the backdrop,
     // rather than merely checking whether the CSS URL parses.
-    await page.locator(`[id="${filterId}"] feColorMatrix`).evaluate(node => {
+    const backdropMatrix = page.locator(`[id="${filterId}"] feColorMatrix`).first();
+    const saturation = (await backdropMatrix.getAttribute('values'))!;
+    await backdropMatrix.evaluate(node => {
       node.setAttribute('type', 'matrix'); node.setAttribute('values', '-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0');
     });
     const inverted = await sample();
-    expect(red[0]! - inverted[0]!).toBeGreaterThan(80);
-    await page.locator(`[id="${filterId}"] feColorMatrix`).evaluate(node => { node.setAttribute('type', 'saturate'); node.setAttribute('values', '1.35'); });
+    expect(red[0]! - inverted[0]!).toBeGreaterThan(50);
+    await backdropMatrix.evaluate((node, values) => { node.setAttribute('type', 'saturate'); node.setAttribute('values', values); }, saturation);
     await page.locator('#glass-test-background').evaluate(node => { (node as HTMLElement).style.background = 'rgb(32, 80, 224)'; });
     const blue = await sample();
-    expect(blue[2]! - blue[0]!).toBeGreaterThan(80);
+    expect(blue[2]! - blue[0]!).toBeGreaterThan(50);
     await page.locator('#glass-test-background').evaluate(node => node.remove());
     await testInfo.attach('live-backdrop-pixels', { body: JSON.stringify({ red, inverted, blue }), contentType: 'application/json' });
     await main.getByTestId('main-volume-button').hover();
@@ -164,10 +169,13 @@ test('Windows glass samples the live page, keeps native proportions and routes b
       node.appendChild(background);
     });
     const refracted = await sample(focusBounds.x + 5, focusBounds.y + 36);
-    await page.locator(`[id="${focusFilterId}"] feDisplacementMap`).evaluate(node => node.setAttribute('scale', '0'));
+    // Both the frosted body and the clear rim pass through the same lens.
+    const lenses = page.locator(`[id="${focusFilterId}"] feDisplacementMap`);
+    const lensScale = (await lenses.first().getAttribute('scale'))!;
+    await lenses.evaluateAll(nodes => nodes.forEach(node => node.setAttribute('scale', '0')));
     const unrefracted = await sample(focusBounds.x + 5, focusBounds.y + 36);
     expect(Math.max(...refracted.map((value, index) => Math.abs(value - unrefracted[index]!)))).toBeGreaterThan(8);
-    await page.locator(`[id="${focusFilterId}"] feDisplacementMap`).evaluate(node => node.setAttribute('scale', '18'));
+    await lenses.evaluateAll((nodes, scale) => nodes.forEach(node => node.setAttribute('scale', scale)), lensScale);
     // Compare frame cadence while the backdrop really changes, with the same
     // blur as the CSS fallback. Record timings instead of imposing a CI GPU limit.
     const timings = await focus.evaluate(async node => {
@@ -189,7 +197,7 @@ test('Windows glass samples the live page, keeps native proportions and routes b
         intervals.sort((a, b) => a - b);
         return { median: intervals[Math.floor(intervals.length / 2)], p95: intervals[Math.floor(intervals.length * .95)] };
       };
-      try { return { svg: await measure(original), css: await measure('blur(4px) saturate(135%)') }; }
+      try { return { svg: await measure(original), css: await measure('blur(3px) saturate(140%)') }; }
       finally { panel.style.setProperty('--liquid-glass-filter', original); }
     });
     await testInfo.attach('backdrop-frame-intervals-ms', { body: JSON.stringify(timings), contentType: 'application/json' });

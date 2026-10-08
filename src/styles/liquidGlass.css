@@ -1,21 +1,41 @@
 .liquid-glass-definitions { position: absolute; pointer-events: none; }
 
+/* --glass-tint is NSGlassEffectView.tintColor from the AppKit bars. AppKit's
+   glass itself is approximated: --glass-material stands in for the dimming of
+   the dark regular material, and LiquidGlass.tsx bends and frosts the backdrop. */
 .liquid-glass {
   --glass-tint: rgba(0, 0, 0, .3);
-  --glass-rim: rgba(255, 255, 255, .32);
-  --glass-highlight: rgba(255, 255, 255, .07);
-  --glass-blur: 16px;
-  --liquid-glass-filter: blur(var(--glass-blur)) saturate(135%);
-  background: linear-gradient(155deg, var(--glass-highlight), transparent 48%), var(--glass-tint);
-  backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
-  -webkit-backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, .45),
-    inset 0 0 0 1px var(--glass-rim), inset 0 1px 0 rgba(255, 255, 255, .24),
-    inset 0 -1px 0 rgba(0, 0, 0, .1);
+  --glass-material: rgba(10, 10, 14, .45);
+  --glass-highlight: rgba(255, 255, 255, .06);
+  --glass-blur: 12px;
+  --glass-backing: linear-gradient(155deg, var(--glass-highlight), transparent 48%),
+    linear-gradient(var(--glass-material), var(--glass-material)), var(--glass-tint);
+  --glass-shadow: 0 10px 30px -10px rgba(0, 0, 0, .4), 0 2px 6px -2px rgba(0, 0, 0, .2);
+  --liquid-glass-filter: blur(var(--glass-blur)) saturate(140%);
+  background: var(--glass-backing);
+  backdrop-filter: var(--liquid-glass-filter);
+  -webkit-backdrop-filter: var(--liquid-glass-filter);
+  box-shadow: var(--glass-shadow);
 }
 /* No light variant: like the AppKit bar, the player keeps its night palette in
-   every theme and the focus glass follows the cover instead of the theme. */
-.liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); --glass-blur: 4px; }
+   every theme and the focus glass follows the cover instead of the theme. The
+   clear material has no dimming of its own. */
+.liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); --glass-material: transparent; --glass-blur: 3px; }
+
+/* The rim: LAGlassHighlightView's top-lit gradient over the specular hairline
+   that AppKit's glass draws around its own edge. */
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, .24), rgba(255, 255, 255, .08) 34%, rgba(255, 255, 255, .015) 63%, rgba(0, 0, 0, .06)),
+    linear-gradient(165deg, rgba(255, 255, 255, .38), rgba(255, 255, 255, .1) 42%, rgba(255, 255, 255, .06) 62%, rgba(255, 255, 255, .2));
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
 
 /* The main bar's backing is a sibling of its volume popup, so the popup can
    sample the page instead of being trapped inside another backdrop root. */
@@ -26,12 +46,10 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: linear-gradient(155deg, var(--glass-highlight), transparent 48%), var(--glass-tint);
-  backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
-  -webkit-backdrop-filter: var(--liquid-glass-filter, blur(var(--glass-blur)) saturate(135%));
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, .45),
-    inset 0 0 0 1px var(--glass-rim), inset 0 1px 0 rgba(255, 255, 255, .24),
-    inset 0 -1px 0 rgba(0, 0, 0, .1);
+  background: var(--glass-backing);
+  backdrop-filter: var(--liquid-glass-filter);
+  -webkit-backdrop-filter: var(--liquid-glass-filter);
+  box-shadow: var(--glass-shadow);
 }
 
 /* Every frame below is LAPlayerControlbarHost's -layout (playerControlbar.mm)
@@ -119,9 +137,12 @@
     --focus-glass-track: var(--theme-border-light) !important;
   }
   .liquid-glass--layered { background: transparent; }
+  /* AppKit dims its highlight the same way over the opaque backing. */
+  .liquid-glass::after { opacity: .35; }
 }
 @media (forced-colors: active) {
   .windows-focus-glass { --focus-glass-fg: CanvasText !important; --focus-glass-muted: CanvasText !important; --focus-glass-track: GrayText !important; }
   .liquid-glass, .liquid-glass--layered::before { background: Canvas; box-shadow: none; outline: 1px solid CanvasText; }
   .liquid-glass--layered { background: transparent; outline: none; }
+  .liquid-glass::after { display: none; }
 }
