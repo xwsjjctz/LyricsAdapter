@@ -77,10 +77,10 @@
 .windows-focus-glass button:hover:enabled { background: var(--focus-glass-track); }
 .windows-focus-glass button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .windows-focus-glass button:disabled { opacity: .3; }
-.windows-focus-glass .material-symbols-outlined { font-size: 22px; font-variation-settings: 'FILL' 1; }
-.windows-focus-glass .focus-glass-mode .material-symbols-outlined,
-.windows-focus-glass .focus-glass-mute .material-symbols-outlined { font-size: 20px; }
-.windows-focus-glass .focus-glass-play .material-symbols-outlined { font-size: 28px; }
+.windows-focus-glass .material-symbols-rounded { font-size: 22px; font-variation-settings: 'FILL' 1; }
+.windows-focus-glass .focus-glass-mode .material-symbols-rounded,
+.windows-focus-glass .focus-glass-mute .material-symbols-rounded { font-size: 20px; }
+.windows-focus-glass .focus-glass-play .material-symbols-rounded { font-size: 28px; }
 .focus-glass-time { position: absolute; top: 15.625%; width: 11.4286%; height: 14px; font-size: 10px; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; color: var(--focus-glass-muted); }
 .focus-glass-elapsed { left: 3.4286%; }
 .focus-glass-total { left: 85.1429%; }

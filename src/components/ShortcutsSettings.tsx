@@ -202,7 +202,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
             className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--sm"
             aria-label={config.currentKey ? t('settings.shortcuts.reset') : t('settings.shortcuts.clear')}
           >
-            <span className="material-symbols-outlined text-sm">
+            <span className="material-symbols-rounded text-sm">
               {config.currentKey ? 'restart_alt' : 'backspace'}
             </span>
           </button>
@@ -216,7 +216,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
       {/* Header with Reset All button */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="material-symbols-outlined text-lg" style={{ color: colors.primary }}>keyboard</span>
+          <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>keyboard</span>
           {t('settings.shortcuts.title')}
         </h3>
         <Button variant="secondary" size="sm" onClick={() => setShowResetConfirm(true)}>
@@ -234,7 +234,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
 
       {/* 提示信息 */}
       <div className="flex items-center gap-2 px-3 py-2 r-card border mt-2" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
-        <span className="material-symbols-outlined text-sm" style={{ color: colors.textMuted }}>info</span>
+        <span className="material-symbols-rounded text-sm" style={{ color: colors.textMuted }}>info</span>
         <span className="text-xs" style={{ color: colors.textMuted }}>{t('settings.shortcuts.legend')}</span>
       </div>
 

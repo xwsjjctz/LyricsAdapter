@@ -48,7 +48,7 @@ export default function DownloadStatusPill({ progress }: DownloadStatusPillProps
   return (
     <div className={`wall-float wall-status-pill wall-status-pill--download wall-status-pill--${status.tone}`} role="status">
       {status.tone !== 'active' && (
-        <span className="material-symbols-outlined wall-status-pill__icon" aria-hidden="true">
+        <span className="material-symbols-rounded wall-status-pill__icon" aria-hidden="true">
           {status.tone === 'error' ? 'error' : 'check_circle'}
         </span>
       )}

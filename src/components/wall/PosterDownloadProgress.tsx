@@ -28,7 +28,7 @@ export default function PosterDownloadProgress({ entry, title, compact }: { entr
               strokeDasharray={`${active ? percent : 100} 100`} />
           </svg>
           {transferring ? <span className="wall-download-badge__percent">{percent}%</span>
-            : <span className="material-symbols-outlined">{icon}</span>}
+            : <span className="material-symbols-rounded">{icon}</span>}
         </span>
         <span className="wall-download-badge__label">{label}</span>
       </div>

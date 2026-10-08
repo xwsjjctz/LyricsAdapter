@@ -69,7 +69,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
         }}
         aria-label={t('sidebar.importFiles')}
       >
-        <span className="material-symbols-outlined text-[22px]">cloud_upload</span>
+        <span className="material-symbols-rounded text-[22px]">cloud_upload</span>
       </button>
     );
   };
@@ -144,7 +144,7 @@ const LibraryToolbar: React.FC<LibraryToolbarProps> = memo(({
               aria-label={t('library.refresh')}
             >
               <span
-                className={`material-symbols-outlined${isRefreshing ? ' animate-spin' : ''}`}
+                className={`material-symbols-rounded${isRefreshing ? ' animate-spin' : ''}`}
                 style={{ fontSize: '22px' }}
               >
                 refresh

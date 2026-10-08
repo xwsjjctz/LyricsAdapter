@@ -130,7 +130,7 @@ const Controls: React.FC<ControlsProps> = memo(({
     >
       <PlaybackIcon symbols={symbols}
         name={playbackMode === 'shuffle' ? 'shuffle' : playbackMode === 'repeat-one' ? 'repeat_one' : 'repeat'}
-        className="material-symbols-outlined text-lg" />
+        className="material-symbols-rounded text-lg" />
     </button>
   );
 
@@ -188,7 +188,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             <div className={`player-track-cover relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${floatingPlayer ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: isWindows ? '12px' : 'var(--theme-media-radius)' }}>
               <img src={toCoverThumb(resolveCoverUrl(track.coverUrl), 128)} alt="" className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }} />
+                <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-rounded" style={{ color: '#fff', fontSize: '20px' }} />
               </div>
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
@@ -210,7 +210,7 @@ const Controls: React.FC<ControlsProps> = memo(({
         {/* Play Controls */}
         <div className={`player-transport flex items-center shrink-0 ${floatingPlayer ? 'gap-2' : 'gap-4'}`}>
           <button aria-label={t('shortcut.prevTrack')} onClick={onSkipPrev} disabled={!track} className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--md">
-            <PlaybackIcon symbols={symbols} name="skip_previous" className="material-symbols-outlined text-2xl fill-icon" />
+            <PlaybackIcon symbols={symbols} name="skip_previous" className="material-symbols-rounded text-2xl fill-icon" />
           </button>
           <button
             aria-label={t('shortcut.playPause')}
@@ -225,10 +225,10 @@ const Controls: React.FC<ControlsProps> = memo(({
               boxShadow: floatingPlayer ? 'none' : 'var(--theme-control-primary-button-shadow)',
             }}
           >
-            <PlaybackIcon symbols={symbols} name={isPlaying ? 'pause' : 'play_arrow'} className="material-symbols-outlined text-2xl fill-icon" />
+            <PlaybackIcon symbols={symbols} name={isPlaying ? 'pause' : 'play_arrow'} className="material-symbols-rounded text-2xl fill-icon" />
           </button>
           <button aria-label={t('shortcut.nextTrack')} onClick={onSkipNext} disabled={!track} className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--md">
-            <PlaybackIcon symbols={symbols} name="skip_next" className="material-symbols-outlined text-2xl fill-icon" />
+            <PlaybackIcon symbols={symbols} name="skip_next" className="material-symbols-rounded text-2xl fill-icon" />
           </button>
         </div>
 
@@ -271,7 +271,7 @@ const Controls: React.FC<ControlsProps> = memo(({
                   onVolumeChange(Math.max(0, Math.min(1, volume + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.01 : 0.01))));
                 }
               }}>
-              <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-outlined text-xl" />
+              <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-rounded text-xl" />
             </button>
             <div ref={volumeShellRef} id={volumePanelId} className={`macos-volume-slider-shell${isWindows ? ' liquid-glass' : ''}`} role="group" aria-label={t('controls.volume')}
               style={isWindows ? volumeGlass.style : undefined}
@@ -298,7 +298,7 @@ const Controls: React.FC<ControlsProps> = memo(({
           <button type="button" aria-label={t('controls.mute')} onClick={onToggleMute}
             className="ui-icon-btn ui-icon-btn--ghost ui-icon-btn--sm">
             <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'}
-              className="material-symbols-outlined text-base" />
+              className="material-symbols-rounded text-base" />
           </button>
           <div ref={volumeRef} className="player-slider player-volume-slider" data-testid="main-volume-anchor" style={{ '--slider-progress': `${volume * 100}%` } as React.CSSProperties}>
             <input type="range" min="0" max="1" step="0.01" value={volume} aria-label={t('controls.volume')} aria-valuetext={`${Math.round(volume * 100)}%`} onKeyDown={preserveSliderKeys} onChange={(e) => onVolumeChange(Number(e.target.value))} />

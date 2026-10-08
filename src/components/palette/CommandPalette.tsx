@@ -159,7 +159,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
         </div>
 
         <div className="command-palette__search">
-          <span className="material-symbols-outlined" aria-hidden="true">
+          <span className="material-symbols-rounded" aria-hidden="true">
             {state.mode === 'library' ? 'search' : 'bolt'}
           </span>
           {trail.length > 0 && <span className="command-palette__trail">{trail.join(' › ')} ›</span>}
@@ -177,7 +177,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
             onChange={event => palette.setQuery(event.target.value)}
             onKeyDown={handleKeyDown}
           />
-          {onlineLoading && <span className="material-symbols-outlined animate-spin command-palette__spinner" aria-label={t('search.searching')}>progress_activity</span>}
+          {onlineLoading && <span className="material-symbols-rounded animate-spin command-palette__spinner" aria-label={t('search.searching')}>progress_activity</span>}
         </div>
 
         <div ref={listRef} id={listboxId} role="listbox" className="command-palette__list no-scrollbar">
@@ -200,7 +200,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
                   <span className="command-palette__icon" aria-hidden="true">
                     {item.coverUrl
                       ? <img src={item.coverUrl} alt="" loading="lazy" />
-                      : <span className="material-symbols-outlined">{item.icon}</span>}
+                      : <span className="material-symbols-rounded">{item.icon}</span>}
                   </span>
                   <span className="command-palette__text">
                     <span className="command-palette__title">{item.title}</span>
@@ -208,7 +208,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
                   </span>
                   {item.detail && <span className="command-palette__detail">{item.detail}</span>}
                   {item.shortcut && <kbd className="command-palette__kbd">{item.shortcut}</kbd>}
-                  {item.command && <span className="material-symbols-outlined command-palette__chevron" aria-hidden="true">chevron_right</span>}
+                  {item.command && <span className="material-symbols-rounded command-palette__chevron" aria-hidden="true">chevron_right</span>}
                 </div>
               </div>
             );

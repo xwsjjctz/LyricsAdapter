@@ -32,7 +32,7 @@ export default function WindowsFocusControls(props: FocusControlsProps & { backd
   const muted = light == null ? props.colors.textMuted : light ? 'rgba(15, 23, 42, .55)' : 'rgba(255, 255, 255, .6)';
   const trackColor = light == null ? props.colors.borderLight : light ? 'rgba(15, 23, 42, .16)' : 'rgba(255, 255, 255, .22)';
   const mode = props.playbackMode === 'shuffle' ? 'shuffleMode' : props.playbackMode === 'repeat-one' ? 'repeatOneMode' : 'sequence';
-  const icon = (name: string) => <span className="material-symbols-outlined" aria-hidden="true">{name}</span>;
+  const icon = (name: string) => <span className="material-symbols-rounded" aria-hidden="true">{name}</span>;
   return <>
     {glass.filter}
     <div ref={setRef} className="windows-focus-glass liquid-glass liquid-glass--clear transition-opacity duration-500 motion-reduce:transition-none"

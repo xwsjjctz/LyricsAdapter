@@ -49,7 +49,7 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function
     .join(' ');
 
   const glyphClasses = [
-    'material-symbols-outlined',
+    'material-symbols-rounded',
     'ui-icon-btn__glyph',
     filled ? 'fill-1' : '',
     glyphClassName ?? '',

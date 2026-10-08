@@ -78,13 +78,13 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
                 className="settings-sheet__tab"
                 onClick={() => setSection(entry.id)}
               >
-                <span className="material-symbols-outlined" aria-hidden="true">{entry.icon}</span>
+                <span className="material-symbols-rounded" aria-hidden="true">{entry.icon}</span>
                 <span>{t(entry.labelKey)}</span>
               </button>
             ))}
           </div>
           <button type="button" className="wall-float__button settings-sheet__close" onClick={onClose} aria-label={t('common.close')}>
-            <span className="material-symbols-outlined" aria-hidden="true">close</span>
+            <span className="material-symbols-rounded" aria-hidden="true">close</span>
           </button>
         </header>
 

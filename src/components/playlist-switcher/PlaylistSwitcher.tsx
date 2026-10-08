@@ -35,7 +35,7 @@ export default function PlaylistSwitcher({ items, activeId }: { items: readonly 
           onMouseMove={event => { if (event.movementX || event.movementY) select(item.id); }}
           onClick={() => activate(item.id)}>
           <span className="playlist-switcher__artwork" aria-hidden="true">
-            <span className="material-symbols-outlined">{item.icon}</span>
+            <span className="material-symbols-rounded">{item.icon}</span>
             {item.coverUrl && <img src={toCoverThumb(resolveCoverUrl(item.coverUrl), 192)} alt="" draggable={false}
               onError={event => { event.currentTarget.hidden = true; }} />}
           </span>

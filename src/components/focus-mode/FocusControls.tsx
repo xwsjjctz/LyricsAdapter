@@ -203,7 +203,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
       <div className="flex items-center justify-between px-4">
         <div className="flex gap-4" style={{ color: fg.muted }}>
           <span
-            className="material-symbols-outlined text-lg cursor-pointer transition-colors relative -left-[4px]"
+            className="material-symbols-rounded text-lg cursor-pointer transition-colors relative -left-[4px]"
             style={{ color: fg.muted }}
             onClick={onTogglePlaybackMode}
             onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
@@ -222,7 +222,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
             onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
             onMouseLeave={event => { event.currentTarget.style.color = fg.secondary; }}
           >
-            <span className="material-symbols-outlined text-2xl">skip_previous</span>
+            <span className="material-symbols-rounded text-2xl">skip_previous</span>
           </button>
           <button
             type="button"
@@ -230,7 +230,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
             className="size-11 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
             style={{ backgroundColor: glassColors ? glassColors.playBg : colors.textPrimary, color: glassColors ? glassColors.playFg : colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
           >
-            <span className="material-symbols-outlined text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
+            <span className="material-symbols-rounded text-3xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
           </button>
           <button
             type="button"
@@ -240,13 +240,13 @@ const FocusControls: React.FC<FocusControlsProps> = ({
             onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
             onMouseLeave={event => { event.currentTarget.style.color = fg.secondary; }}
           >
-            <span className="material-symbols-outlined text-2xl">skip_next</span>
+            <span className="material-symbols-rounded text-2xl">skip_next</span>
           </button>
         </div>
 
         <div className="flex justify-end gap-4 items-center" style={{ color: fg.muted }}>
           <span
-            className="material-symbols-outlined text-lg cursor-pointer transition-colors"
+            className="material-symbols-rounded text-lg cursor-pointer transition-colors"
             style={{ color: fg.muted }}
             onClick={onToggleMute}
             onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}

@@ -34,7 +34,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
 
   return (
     <button ref={ref} type={type ?? 'button'} className={classes} {...rest}>
-      {icon && <span className="material-symbols-outlined ui-btn__icon">{icon}</span>}
+      {icon && <span className="material-symbols-rounded ui-btn__icon">{icon}</span>}
       {children}
     </button>
   );

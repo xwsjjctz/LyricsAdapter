@@ -146,7 +146,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
             >
               {isWindowFocused && isButtonHovered && (
                 <span
-                  className="material-symbols-outlined"
+                  className="material-symbols-rounded"
                   style={{
                     color: layout.glossy ? 'rgba(0, 32, 96, 0.75)' : 'black',
                     fontSize: 12,

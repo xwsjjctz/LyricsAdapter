@@ -51,6 +51,7 @@
     "electron-updater": "^6.3.9",
     "gsap": "^3.15.0",
     "idb": "^8.0.3",
+    "material-symbols": "^0.47.6",
     "music-tag-native": "^1.0.0",
     "node-id3": "^0.2.9",
     "pinyin-pro": "^3.28.1",

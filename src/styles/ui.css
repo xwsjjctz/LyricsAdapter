@@ -393,7 +393,7 @@
   transition: background-color 140ms ease, color 140ms ease;
 }
 
-.settings-sheet__tab .material-symbols-outlined {
+.settings-sheet__tab .material-symbols-rounded {
   font-size: 1rem;
 }
 

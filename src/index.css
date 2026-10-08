@@ -1,3 +1,4 @@
+@import "material-symbols/rounded.css";
 @import "./styles/ui.css";
 @import "./styles/wall.css";
 @import "./styles/palette.css";
@@ -603,7 +604,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
   background: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
 }
 
-.global-search-bar__close .material-symbols-outlined {
+.global-search-bar__close .material-symbols-rounded {
   font-size: 0.9rem;
 }
 
@@ -651,7 +652,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
   text-align: center;
 }
 
-.global-search-empty .material-symbols-outlined {
+.global-search-empty .material-symbols-rounded {
   display: block;
   margin-bottom: 0.45rem;
   font-size: 2rem;
@@ -682,7 +683,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
   text-transform: uppercase;
 }
 
-.search-result-section__label .material-symbols-outlined {
+.search-result-section__label .material-symbols-rounded {
   font-size: 0.85rem;
 }
 
@@ -816,7 +817,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
   cursor: pointer;
 }
 
-.search-view-all .material-symbols-outlined {
+.search-view-all .material-symbols-rounded {
   font-size: 0.95rem;
   opacity: 0.7;
 }
