@@ -1,7 +1,6 @@
 import { protocol, app, ipcMain } from 'electron';
 import { logger } from '../logger';
-import { qqResolveStreamUrl } from '../ipc/metadataHandlers';
-import { resolveNetEaseStreamUrl } from '../ipc/neteaseHandlers';
+import { getMusicPlugin, getMusicPluginCookie } from '../ipc/musicPluginHandlers';
 
 /**
  * `stream://` custom protocol — proxies third-party music CDN audio streams
@@ -12,11 +11,10 @@ import { resolveNetEaseStreamUrl } from '../ipc/neteaseHandlers';
  *   songmid  = third-party song id
  *   q        = quality: "128" | "320" | "flac" | "m4a"   (default "320")
  *
- * Cookies are pushed from the renderer via the `set-online-cookie` IPC channel.
+ * The compatibility `set-online-cookie` channel invalidates resolved URL caches.
  */
 
-// ── Cookie store (synced from renderer on login / app start) ──
-const onlineCookies: { qq?: string; netease?: string; [source: string]: string | undefined } = {};
+// Authentication is read from the encrypted settings repository by the plugin.
 
 // ── CDN URL cache (re-resolve every 5 min since URLs expire) ──
 interface CachedUrl {
@@ -49,11 +47,9 @@ async function resolveCdnUrl(
   songmid: string,
   quality: string
 ): Promise<string> {
-  const cookie = onlineCookies[source];
-  if (source === 'qq' && !cookie) throw new Error('请先登录 QQ 音乐');
-  if (source !== 'qq' && source !== 'netease') {
-    throw new Error(`Unknown source: ${source}`);
-  }
+  const cookie = getMusicPluginCookie(source);
+  const plugin = getMusicPlugin(source);
+  if (plugin.provider.requiresCookie() && !cookie) throw new Error('请先登录音乐源');
 
   const qualities = QUALITY_FALLBACKS[quality] ?? [quality, '128'];
   let lastError: unknown;
@@ -66,9 +62,7 @@ async function resolveCdnUrl(
     }
 
     try {
-      const url = source === 'qq'
-        ? await qqResolveStreamUrl(songmid, candidate, cookie!)
-        : await resolveNetEaseStreamUrl(songmid, candidate, cookie);
+      const { url } = await plugin.provider.getMusicUrl(songmid, candidate as import('../../src/services/onlineMusicProvider').OnlineQuality);
       cdnCache.set(cacheKey, { url, expiry: Date.now() + CACHE_TTL });
       if (candidate !== quality) {
         logger.info(`[StreamProtocol] ${source}:${songmid} fell back ${quality} -> ${candidate}`);
@@ -87,9 +81,9 @@ export function registerStreamProtocol(): void {
   // IPC: receive cookies from the renderer
   ipcMain.handle(
     'set-online-cookie',
-    (_event, source: string, cookie: string) => {
-      if (source === 'qq' || source === 'netease') {
-        onlineCookies[source] = cookie;
+    (_event, source: string, _cookie: string) => {
+      if (/^[a-z][a-z0-9-]{0,63}$/.test(source)) {
+        for (const key of cdnCache.keys()) if (key.startsWith(`${source}:`)) cdnCache.delete(key);
         logger.info(`[StreamProtocol] Cookie updated for ${source}`);
       }
     }
@@ -124,22 +118,7 @@ export function registerStreamProtocol(): void {
         const cdnUrl = await resolveCdnUrl(source, songmid, quality);
 
         // Build headers for the CDN fetch — User-Agent + Referer + (cookie)
-        const cdnHeaders: Record<string, string> = {
-          Accept: '*/*',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer:
-            source === 'qq'
-              ? 'https://y.qq.com/'
-              : 'https://music.163.com',
-          Origin:
-            source === 'qq'
-              ? 'https://y.qq.com'
-              : 'https://music.163.com',
-        };
-        const cookie = onlineCookies[source];
-        if (cookie) cdnHeaders['Cookie'] = cookie;
+        const cdnHeaders = getMusicPlugin(source).streamHeaders(getMusicPluginCookie(source));
 
         const cdnRes = await fetch(cdnUrl, {
           headers: rangeHeader

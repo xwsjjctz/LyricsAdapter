@@ -378,5 +378,17 @@
   "menu.front": "Alle nach vorne bringen",
   "menu.landscape": "Querformat",
   "menu.portrait": "Hochformat",
-  "shortcut.importMusicDesc": "Audiodateien auswählen und in die aktuelle Mediathek importieren"
+  "shortcut.importMusicDesc": "Audiodateien auswählen und in die aktuelle Mediathek importieren",
+  "musicPlugins.title": "Musikquellen-Plugins",
+  "musicPlugins.install": "Lokales Plugin installieren",
+  "musicPlugins.uninstall": "Deinstallieren",
+  "musicPlugins.description": "Wähle einen Ordner mit manifest.json. Installiere vertrauenswürdige Plugins.",
+  "musicPlugins.bundled": "Mitgeliefert",
+  "musicPlugins.installed": "Installiert",
+  "musicPlugins.restart": "Starte die App neu, um die neue Version zu verwenden",
+  "musicPlugins.toggle": "Aktivieren oder deaktivieren",
+  "musicPlugins.enabled": "Aktiviert",
+  "musicPlugins.disabled": "Deaktiviert",
+  "musicPlugins.empty": "Keine Musikquellen-Plugins",
+  "musicPlugins.repository": "Offizielles Plugin-Repository"
 }

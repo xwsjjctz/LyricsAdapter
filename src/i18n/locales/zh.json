@@ -378,5 +378,17 @@
   "menu.front": "全部置于最前",
   "menu.landscape": "横屏",
   "menu.portrait": "竖屏",
-  "shortcut.importMusicDesc": "选择音频文件并导入当前音乐库"
+  "shortcut.importMusicDesc": "选择音频文件并导入当前音乐库",
+  "musicPlugins.title": "音乐源插件",
+  "musicPlugins.install": "安装本地插件",
+  "musicPlugins.uninstall": "卸载",
+  "musicPlugins.description": "选择包含 manifest.json 的插件文件夹。仅安装你信任的插件。",
+  "musicPlugins.bundled": "随应用提供",
+  "musicPlugins.installed": "本地安装",
+  "musicPlugins.restart": "重启应用以使用新版本",
+  "musicPlugins.toggle": "启用或禁用",
+  "musicPlugins.enabled": "已启用",
+  "musicPlugins.disabled": "已禁用",
+  "musicPlugins.empty": "暂无音乐源插件",
+  "musicPlugins.repository": "查看官方插件仓库"
 }

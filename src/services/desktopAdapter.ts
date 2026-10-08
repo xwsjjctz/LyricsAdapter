@@ -15,6 +15,7 @@ import type {
   TypedElectronIPC,
   UserDataSnapshot,
 } from '../types/typedIpc';
+import type { MusicPluginInfo } from '../shared/musicPlugin';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
@@ -700,6 +701,24 @@ class ElectronAdapter implements FullDesktopAPI {
       return this.api.userDataGetFilePath();
     }
     throw new Error('Desktop userData.getFilePath API is unavailable');
+  }
+
+  async musicPluginCall(id: string, method: string, args: unknown[]): Promise<unknown> {
+    if (!this.api.musicPluginCall) throw new Error('Music plugin host is unavailable');
+    return this.api.musicPluginCall(id, method, args);
+  }
+  async musicPluginList(): Promise<MusicPluginInfo[]> { return this.api.musicPluginList?.() ?? []; }
+  async musicPluginInstall(): Promise<MusicPluginInfo[] | null> { return this.api.musicPluginInstall?.() ?? null; }
+  async musicPluginUninstall(id: string): Promise<MusicPluginInfo[]> {
+    if (!this.api.musicPluginUninstall) throw new Error('Music plugin host is unavailable');
+    return this.api.musicPluginUninstall(id);
+  }
+  async musicPluginSetEnabled(id: string, enabled: boolean): Promise<MusicPluginInfo[]> {
+    if (!this.api.musicPluginSetEnabled) throw new Error('Music plugin host is unavailable');
+    return this.api.musicPluginSetEnabled(id, enabled);
+  }
+  onMusicPluginSecretsChanged(callback: (id: string) => void): () => void {
+    return this.api.onMusicPluginSecretsChanged?.(callback) ?? (() => {});
   }
 
   // ---- Online music channels (OnlineMusicElectronAPI) ----

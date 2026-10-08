@@ -1,0 +1,38 @@
+import type { OnlineMusicProvider } from './onlineMusic';
+
+export const MUSIC_PLUGIN_API_VERSION = 1;
+export interface MusicPluginManifest {
+  id: string;
+  name: string;
+  version: string;
+  apiVersion: number;
+  main: string;
+  requiresCookie: boolean;
+  capabilities: string[];
+  homepage?: string;
+}
+export interface MusicPluginInfo extends MusicPluginManifest {
+  enabled: boolean;
+  origin: 'bundled' | 'installed';
+  error?: string;
+  restartRequired?: boolean;
+}
+export interface MusicPluginHost {
+  logger: { debug(...args: unknown[]): void; info(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };
+  readSecret(name: string): string;
+  writeSecrets(entries: Record<string, string>): void;
+}
+export interface MusicPlugin {
+  provider: OnlineMusicProvider;
+  validateCookie(cookie: string): Promise<{ valid: boolean; message?: string }>;
+  invoke(action: string, args: unknown[]): Promise<unknown>;
+  streamHeaders(cookie: string): Record<string, string>;
+}
+export interface MusicPluginElectronAPI {
+  musicPluginCall?: (id: string, method: string, args: unknown[]) => Promise<unknown>;
+  musicPluginList?: () => Promise<MusicPluginInfo[]>;
+  musicPluginInstall?: () => Promise<MusicPluginInfo[] | null>;
+  musicPluginUninstall?: (id: string) => Promise<MusicPluginInfo[]>;
+  musicPluginSetEnabled?: (id: string, enabled: boolean) => Promise<MusicPluginInfo[]>;
+  onMusicPluginSecretsChanged?: (callback: (id: string) => void) => () => void;
+}

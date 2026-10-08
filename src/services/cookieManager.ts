@@ -201,58 +201,10 @@ export class CookieStore {
   }
 }
 
-/** QQ Music cookie validator — hits the QQ top-list endpoint. */
-const validateQQCookie: CookieValidator = async (cookie: string): Promise<CookieStatus> => {
-  const testResponse = await fetch(
-    'https://u.y.qq.com/cgi-bin/musicu.fcg?data=' + encodeURIComponent(JSON.stringify({
-      comm: {
-        cv: 4747474, ct: 24, format: 'json', inCharset: 'utf-8', outCharset: 'utf-8',
-        notice: 0, platform: 'yqq.json', needNewCode: 1, uin: '0',
-        g_tk_new_20200303: 5381, g_tk: 5381,
-      },
-      req_1: { module: 'musicToplist.ToplistInfoServer', method: 'GetAll', param: {} },
-    })),
-    {
-      headers: {
-        'Accept': '*/*',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Referer': 'https://y.qq.com/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Cookie': cookie,
-      },
-      credentials: 'omit',
-    }
-  );
-
-  if (!testResponse.ok) {
-    return { valid: false, message: 'Network error during validation' };
-  }
-  const data = await testResponse.json();
-  if (data.code === 500001) {
-    return { valid: false, message: 'Cookie expired or invalid' };
-  }
-  return { valid: true };
-};
-
-/**
- * NetEase cookie validator — calls `/nuser/account/get` via the main process.
- * A valid login cookie returns an account/profile; anonymous returns neither.
- */
-const validateNetEaseCookie: CookieValidator = async (cookie: string): Promise<CookieStatus> => {
-  const desktopAPI = getDesktopAPI();
-  if (!desktopAPI?.neteaseRequest) {
-    return { valid: false, message: 'Main process bridge unavailable' };
-  }
-  const result = await desktopAPI.neteaseRequest('/nuser/account/get', { csrf_token: '' }, cookie);
-  if (!result.success) {
-    return { valid: false, message: result.error || '验证失败' };
-  }
-  const data = result.data as { code?: number; account?: unknown; profile?: unknown } | undefined;
-  if (data?.code !== 200 || (!data?.account && !data?.profile)) {
-    return { valid: false, message: 'Cookie 无效或已过期' };
-  }
-  return { valid: true };
+const pluginCookieValidator = (source: 'qq' | 'netease'): CookieValidator => async cookie => {
+  const api = getDesktopAPI();
+  if (!api?.musicPluginCall) return { valid: false, message: 'Music plugin host unavailable' };
+  return await api.musicPluginCall(source, 'validateCookie', [cookie]) as CookieStatus;
 };
 
 /** QQ Music cookie store (original singleton name preserved for back-compat). */
@@ -260,7 +212,7 @@ export const cookieManager = new CookieStore({
   storageKey: 'qq_music_cookie',
   checkTimeKey: 'qq_music_cookie_last_check',
   scope: 'QQMusic',
-  validate: validateQQCookie,
+  validate: pluginCookieValidator('qq'),
 });
 
 /** NetEase Cloud Music cookie store (optional — enables VIP/high-quality downloads). */
@@ -268,7 +220,7 @@ export const neteaseCookieManager = new CookieStore({
   storageKey: 'netease_cookie',
   checkTimeKey: 'netease_cookie_last_check',
   scope: 'NetEase',
-  validate: validateNetEaseCookie,
+  validate: pluginCookieValidator('netease'),
 });
 
 /**

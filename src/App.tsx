@@ -3,6 +3,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { LibrarySlot, Track, ViewMode } from './types';
 import { getDesktopAPI } from './services/desktopAdapter';
 import type { LibrarySettings } from './services/libraryStorage';
+import { subscribeMusicPluginSecrets } from './services/musicPluginProvider';
 import { syncOnlineCookiesToMain } from './services/cookieManager';
 import { qqCredentialManager } from './services/qqCredentialManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
@@ -307,7 +308,10 @@ const AppContent: React.FC = () => {
   }, [libraryReady]);
 
   // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
-  useEffect(() => { void syncOnlineCookiesToMain(); }, []);
+  useEffect(() => {
+    void syncOnlineCookiesToMain();
+    return subscribeMusicPluginSecrets();
+  }, []);
 
   // Renew the QQ Music musickey before it expires (no-op without a stored credential).
   useEffect(() => {

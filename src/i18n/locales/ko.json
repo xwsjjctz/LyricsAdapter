@@ -378,5 +378,17 @@
   "menu.front": "모두 앞으로 가져오기",
   "menu.landscape": "가로",
   "menu.portrait": "세로",
-  "shortcut.importMusicDesc": "오디오 파일을 선택하여 현재 라이브러리로 가져오기"
+  "shortcut.importMusicDesc": "오디오 파일을 선택하여 현재 라이브러리로 가져오기",
+  "musicPlugins.title": "음악 소스 플러그인",
+  "musicPlugins.install": "로컬 플러그인 설치",
+  "musicPlugins.uninstall": "제거",
+  "musicPlugins.description": "manifest.json이 포함된 폴더를 선택하세요. 신뢰하는 플러그인을 설치하세요.",
+  "musicPlugins.bundled": "기본 제공",
+  "musicPlugins.installed": "설치됨",
+  "musicPlugins.restart": "새 버전을 사용하려면 앱을 다시 시작하세요",
+  "musicPlugins.toggle": "활성화 또는 비활성화",
+  "musicPlugins.enabled": "활성화됨",
+  "musicPlugins.disabled": "비활성화됨",
+  "musicPlugins.empty": "음악 소스 플러그인이 없습니다",
+  "musicPlugins.repository": "공식 플러그인 저장소"
 }

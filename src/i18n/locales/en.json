@@ -378,5 +378,17 @@
   "menu.front": "Bring All to Front",
   "menu.landscape": "Landscape",
   "menu.portrait": "Portrait",
-  "shortcut.importMusicDesc": "Select audio files to import into the current library"
+  "shortcut.importMusicDesc": "Select audio files to import into the current library",
+  "musicPlugins.title": "Music source plugins",
+  "musicPlugins.install": "Install local plugin",
+  "musicPlugins.uninstall": "Uninstall",
+  "musicPlugins.description": "Choose a plugin folder containing manifest.json. Install plugins you trust.",
+  "musicPlugins.bundled": "Bundled",
+  "musicPlugins.installed": "Installed",
+  "musicPlugins.restart": "Restart the app to use the new version",
+  "musicPlugins.toggle": "Enable or disable",
+  "musicPlugins.enabled": "Enabled",
+  "musicPlugins.disabled": "Disabled",
+  "musicPlugins.empty": "No music source plugins",
+  "musicPlugins.repository": "Official plugin repository"
 }

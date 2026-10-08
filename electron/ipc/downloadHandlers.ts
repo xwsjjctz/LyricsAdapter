@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../logger";
 import { expandHomeDir } from "../utils/fileUtils";
-import { qqMusicHeaders } from "../utils/httpHeaders";
+import { getMusicDownloadHeaders } from './musicPluginHandlers';
 import { allowAudioPath } from "./typedHandlers";
 export function registerDownloadHandlers(): void {
   ipcMain.handle('download-and-save', async (event, url: string, cookieString: string, filePath: string, requestId?: string) => {
@@ -12,7 +12,7 @@ export function registerDownloadHandlers(): void {
       logger.info('[Main] Starting download to:', expandedPath);
 
       const response = await fetch(url, {
-        headers: qqMusicHeaders(cookieString),
+        headers: getMusicDownloadHeaders(url, cookieString),
       });
 
       if (!response.ok) {
@@ -70,7 +70,7 @@ export function registerDownloadHandlers(): void {
       logger.info('[Main] Starting streaming download from:', url.substring(0, 100) + '...');
 
       const response = await fetch(url, {
-        headers: qqMusicHeaders(cookieString),
+        headers: getMusicDownloadHeaders(url, cookieString),
       });
 
       if (!response.ok) {

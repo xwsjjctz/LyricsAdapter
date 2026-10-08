@@ -378,5 +378,17 @@
   "menu.front": "Tout ramener au premier plan",
   "menu.landscape": "Paysage",
   "menu.portrait": "Portrait",
-  "shortcut.importMusicDesc": "Sélectionner des fichiers audio à importer dans la bibliothèque actuelle"
+  "shortcut.importMusicDesc": "Sélectionner des fichiers audio à importer dans la bibliothèque actuelle",
+  "musicPlugins.title": "Plugins de sources musicales",
+  "musicPlugins.install": "Installer un plugin local",
+  "musicPlugins.uninstall": "Désinstaller",
+  "musicPlugins.description": "Choisissez un dossier contenant manifest.json. Installez des plugins de confiance.",
+  "musicPlugins.bundled": "Inclus",
+  "musicPlugins.installed": "Installé",
+  "musicPlugins.restart": "Redémarrez l’application pour utiliser la nouvelle version",
+  "musicPlugins.toggle": "Activer ou désactiver",
+  "musicPlugins.enabled": "Activé",
+  "musicPlugins.disabled": "Désactivé",
+  "musicPlugins.empty": "Aucun plugin de source musicale",
+  "musicPlugins.repository": "Dépôt officiel des plugins"
 }

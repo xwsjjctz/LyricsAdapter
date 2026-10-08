@@ -40,6 +40,8 @@
     "dist",
     "dist-electron",
     "release",
-    "node_modules"
+    "node_modules",
+    "music-source-plugins",
+    "dist-music-plugins"
   ]
 }

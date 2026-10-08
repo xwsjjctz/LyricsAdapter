@@ -259,6 +259,17 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('download-audio-file', url, cookieString);
   },
 
+  musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
+  musicPluginList: () => ipcRenderer.invoke('music-plugin-list'),
+  musicPluginInstall: () => ipcRenderer.invoke('music-plugin-install'),
+  musicPluginUninstall: (id: string) => ipcRenderer.invoke('music-plugin-uninstall', id),
+  musicPluginSetEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke('music-plugin-set-enabled', id, enabled),
+  onMusicPluginSecretsChanged: (callback: (id: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id);
+    ipcRenderer.on('music-plugin-secrets-changed', listener);
+    return () => ipcRenderer.removeListener('music-plugin-secrets-changed', listener);
+  },
+
   // Get music URL from QQ Music API (via main process)
   getQQMusicUrl: async (requestData: any, cookieString: string) => {
     return ipcRenderer.invoke('get-qq-music-url', requestData, cookieString);

@@ -7,6 +7,7 @@ import { settingsManager } from '@/services/settingsManager';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
 import Button from '../../ui/Button';
+import MusicPluginManager from './MusicPluginManager';
 
 // Presentational provider settings section used by the application settings panel.
 
@@ -83,6 +84,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           )}
         </Button>
       </div>
+
+      <MusicPluginManager theme={theme} />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">

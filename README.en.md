@@ -80,7 +80,7 @@ Cloud playback requires a working network connection. Uploading local files or o
 
 ### Enable sources and sign in
 
-1. Open **Settings** and enable the option to add third-party sources under **Experimental Features**.
+1. Open **Settings → Online Music** and enable **Add Third-Party Music Source**.
 2. Select QQ Music or NetEase Cloud Music in the third-party source section that appears below.
 3. Scan the QR code with the provider's mobile app and confirm login, or enter a Cookie manually and save.
 
@@ -106,6 +106,12 @@ After login, the sidebar's playlist section loads playlists from the correspondi
 
 Use the playlist section's edit button to hide or show playlists. This only changes their visibility in the app's sidebar; it does not delete playlists from the provider.
 
+### Music source plugins
+
+QQ Music and NetEase implementations are maintained in the independent [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins) repository. Both plugins ship with the app. In Settings → Online Music → Music source plugins, you can install a local plugin folder, inspect versions, and enable or disable each plugin. Restart after installing or updating a plugin.
+
+Disabling a plugin preserves tracks, playlists, and credentials. Online marketplace and automatic updates are not implemented yet.
+
 ## Appearance and shortcuts
 
 Use the light/dark button at the bottom of the sidebar to switch appearance. The button at the top left collapses or expands the sidebar, and dragging its right edge adjusts its width.
@@ -128,6 +134,18 @@ Common default shortcuts use `⌘` on macOS and `Ctrl` on Windows:
 | Open Settings | `⌘ / Ctrl` + `,` |
 
 In **Settings → Shortcuts**, click a key combination to change it. Press `Esc` to cancel, or `Backspace` or `Delete` to clear the binding. You can also restore the defaults.
+
+## Development
+
+Use Node 24.19.0 or a later 24.x version. Initialize the plugin submodule before installing dependencies:
+
+```sh
+git submodule update --init --recursive
+npm ci
+npm run electron:dev
+```
+
+`npm run check` validates both the application and its music plugins. See [music source plugins](docs/music-source-plugins.md) for plugin installation and the runtime contract, and [DEBUGGING.md](DEBUGGING.md) for isolated test data.
 
 ## License and credits
 
