@@ -9,7 +9,7 @@ import { dispatchForwardedShortcut, toNativePaletteState } from './nativePalette
 import { usePaletteItems, type PaletteItem, type PaletteLibrarySources } from './usePaletteItems';
 import TrackMenu, { type TrackMenuPosition } from '../TrackMenu';
 import { buildTrackMenuItems, downloadQualityOf } from '../trackMenuItems';
-import { useCurrentTheme } from '../settings/shared';
+import { themeManager } from '../../services/themeManager';
 
 interface CommandPaletteProps {
   /** Injectable for tests; the app uses the shared store. */
@@ -32,7 +32,6 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
   const listRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
   const backdropRef = useRef<HTMLDivElement>(null);
-  const { colors } = useCurrentTheme();
   // Context menu of an online result; `trackId` holds the row key.
   const [rowMenu, setRowMenu] = useState<TrackMenuPosition | null>(null);
   const menuItem = rowMenu ? items.find(item => item.key === rowMenu.trackId && item.download) : undefined;
@@ -145,7 +144,8 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
     <TrackMenu
       abovePalette
       position={rowMenu}
-      colors={colors}
+      // Read when the menu opens; the settings theme hook would pull settings modules in here.
+      colors={themeManager.getCurrentTheme().colors}
       items={buildTrackMenuItems({ dataSource: 'search', canEdit: false, canDownload: true })}
       onClose={closeRowMenu}
       onAction={id => { const quality = downloadQualityOf(id); if (quality) menuItem.download?.(quality); }}
