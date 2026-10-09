@@ -4,6 +4,7 @@
  *
  * macOS: 移除 Resources/*.lproj 目录
  * Windows/Linux: 移除 locales/*.pak 文件
+ * Windows: 另外把 VC++ 运行库放到原生模块旁，未安装运行库的机器也能启动
  */
 const fs = require('fs')
 const path = require('path')
@@ -24,8 +25,76 @@ async function defaultFn(context) {
     cleanWinLinux(appOutDir, electronPlatformName)
     if (electronPlatformName === 'win32') {
       verifyWindowsTaskbarHost(context)
+      bundleWindowsVcRuntime(context)
     }
   }
+}
+
+const VC_RUNTIME = 'vcruntime140.dll'
+// electron-builder's Arch enum.
+const WINDOWS_ARCH = { 1: 'x64', 3: 'arm64' }
+
+/**
+ * Prebuilt MSVC Node addons (music-tag-native) link the Visual C++ runtime
+ * dynamically, and Windows does not ship it: on a machine without the VC++
+ * redistributable the addon fails to load and the app cannot start. Ship the
+ * DLL app-locally. Node loads an addon with its own directory first in the DLL
+ * search path, so the copy goes beside each addon, not beside the executable.
+ */
+function bundleWindowsVcRuntime(context) {
+  const unpacked = path.join(context.appOutDir, 'resources', 'app.asar.unpacked')
+  const addonDirs = [...new Set(findFiles(unpacked, name => /win32-.+-msvc\.node$/.test(name)).map(file => path.dirname(file)))]
+  if (addonDirs.length === 0) {
+    console.warn(`[cleanLocales] No unpacked MSVC addon found under ${unpacked}; ${VC_RUNTIME} not bundled`)
+    return
+  }
+  if (process.platform !== 'win32') {
+    console.warn(`[cleanLocales] Cross-building on ${process.platform}; ${VC_RUNTIME} not bundled`)
+    return
+  }
+  const arch = WINDOWS_ARCH[context.arch]
+  const source = arch && findVcRuntime(arch)
+  if (!source) {
+    throw new Error(`[cleanLocales] ${VC_RUNTIME} for ${String(arch ?? context.arch)} not found on this build machine`)
+  }
+  for (const directory of addonDirs) {
+    fs.copyFileSync(source, path.join(directory, VC_RUNTIME))
+    console.log(`[cleanLocales] Bundled ${VC_RUNTIME} (${arch}) from ${source} into ${directory}`)
+  }
+}
+
+/** The redistributable copy from Visual Studio, else the host's own when the architecture matches. */
+function findVcRuntime(arch) {
+  // <Program Files>\Microsoft Visual Studio\<year>\<edition>\VC\Redist\MSVC\<version>\<arch>\Microsoft.VC143.CRT
+  const listDirs = directory => {
+    try { return fs.readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => path.join(directory, entry.name)) }
+    catch { return [] }
+  }
+  const redistributable = [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']].filter(Boolean)
+    .flatMap(root => listDirs(path.join(root, 'Microsoft Visual Studio')))
+    .flatMap(listDirs)
+    .flatMap(edition => findFiles(path.join(edition, 'VC', 'Redist', 'MSVC'), name => name.toLowerCase() === VC_RUNTIME, 4))
+    .filter(file => new RegExp(`[\\\\/]${arch}[\\\\/]Microsoft\\.VC\\d+\\.CRT[\\\\/]`, 'i').test(file))
+    .sort()
+    .pop()
+  if (redistributable) return redistributable
+  const system = path.join(process.env['SystemRoot'] || 'C:\\Windows', 'System32', VC_RUNTIME)
+  return arch === process.arch && fs.existsSync(system) ? system : null
+}
+
+function findFiles(root, matches, maxDepth = 12) {
+  const found = []
+  const walk = (directory, depth) => {
+    let entries
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      const entryPath = path.join(directory, entry.name)
+      if (entry.isDirectory()) { if (depth < maxDepth) walk(entryPath, depth + 1) }
+      else if (matches(entry.name)) found.push(entryPath)
+    }
+  }
+  walk(root, 0)
+  return found
 }
 
 function verifyWindowsTaskbarHost(context) {
