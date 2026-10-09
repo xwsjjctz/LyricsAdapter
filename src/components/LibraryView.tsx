@@ -770,7 +770,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {filterType === 'default' && (
         <div className="flex-shrink-0">
           <div
-            className="library-track-grid grid gap-4 px-4 py-2 mb-2 text-xs font-bold uppercase tracking-widest border-b select-none"
+            className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-2 text-xs font-bold uppercase tracking-widest border-b select-none"
             style={{ color: colors.textSecondary, borderColor: colors.borderLight }}
             onDoubleClick={handleScrollToTop}
           >
