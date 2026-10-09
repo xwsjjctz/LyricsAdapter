@@ -95,6 +95,19 @@ describe('optional plugin installation', () => {
     await expect(new MusicPluginCatalog(downloader(url, bytes, 'sha256:wrong')).install('netease', registry)).rejects.toThrow('checksum');
     expect(registry.list()).toEqual([]);
   });
+  it('retries dropped connections, then surfaces the failure once the attempts are used up', async () => {
+    const { registry } = fixture();
+    let failures = 2;
+    const flaky = vi.fn(async (input: string) => {
+      if (input === `${directory}netease.laplugin` && failures-- > 0) throw new Error('net::ERR_TIMED_OUT');
+      return input === `${directory}catalog.json` ? new Response(JSON.stringify({ apiVersion: 1, plugins: [catalogEntry] })) : new Response(bytes);
+    });
+    expect(await new MusicPluginCatalog(flaky, 0).install('netease', registry)).toMatchObject([{ id: 'netease', version: '1.0.0' }]);
+    expect(flaky).toHaveBeenCalledTimes(4);
+    const offline = vi.fn(async () => { throw new Error('net::ERR_TIMED_OUT'); });
+    await expect(new MusicPluginCatalog(offline, 0).list()).rejects.toThrow('net::ERR_TIMED_OUT');
+    expect(offline).toHaveBeenCalledTimes(3);
+  });
   it('rejects mismatched plugin ids and entry checksums', () => {
     const { registry } = fixture();
     expect(() => registry.installPackage(bytes, 'qq')).toThrow('id does not match');

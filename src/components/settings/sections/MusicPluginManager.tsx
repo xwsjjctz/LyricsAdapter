@@ -21,12 +21,13 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const api = getDesktopAPI();
+  const describe = (reason: unknown) => /net::ERR_|TimeoutError|fetch failed/.test(String(reason)) ? t('musicPlugins.networkError') : String(reason);
   useEffect(() => {
     let mounted = true;
     setLoadingCatalog(true); setError('');
     void (api?.musicPluginCatalog?.() ?? Promise.resolve([])).then(value => {
       if (mounted) setCatalog(value);
-    }).catch(reason => { if (mounted) setError(String(reason)); })
+    }).catch(reason => { if (mounted) setError(describe(reason)); })
       .finally(() => { if (mounted) setLoadingCatalog(false); });
     void (api?.musicPluginDirectory?.() ?? Promise.resolve('')).then(value => {
       if (mounted) setDirectory(value);
@@ -37,7 +38,7 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
   const change = async (operation: () => Promise<MusicPluginInfo[] | null | void>) => {
     setBusy(true); setError('');
     try { const value = await operation(); if (value) updateMusicPlugins(value); }
-    catch (reason) { setError(String(reason)); await refreshMusicPlugins(); }
+    catch (reason) { setError(describe(reason)); await refreshMusicPlugins(); }
     finally { setBusy(false); }
   };
   const { colors } = theme;

@@ -401,6 +401,7 @@
   "musicPlugins.unreleased": "暂无可下载版本",
   "musicPlugins.officialVersion": "官方版本 · {{version}}",
   "musicPlugins.desktopOnly": "请在桌面应用中管理插件",
+  "musicPlugins.networkError": "网络连接失败或超时，请检查网络或代理后重试。",
   "plugins.saveConfiguration": "保存插件设置",
   "plugins.translationTitle": "歌词对照翻译",
   "plugins.translationDescription": "选择翻译插件后，进入专注模式时会将歌词发送给该插件进行翻译。",

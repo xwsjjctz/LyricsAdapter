@@ -401,6 +401,7 @@
   "musicPlugins.unreleased": "No downloadable release yet",
   "musicPlugins.officialVersion": "Official version · {{version}}",
   "musicPlugins.desktopOnly": "Manage plugins in the desktop app",
+  "musicPlugins.networkError": "The network connection failed or timed out. Check your network or proxy and try again.",
   "plugins.saveConfiguration": "Save plugin settings",
   "plugins.translationTitle": "Parallel lyric translation",
   "plugins.translationDescription": "Selecting a translation plugin sends lyrics to that plugin when you enter Focus Mode.",
