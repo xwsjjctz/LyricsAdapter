@@ -8,7 +8,15 @@
   /* Reserve the bottom playback controls even when the list needs more rows. */
   padding: 20px clamp(12px, 3vw, 20px) 112px;
   background: rgba(0, 0, 0, .16);
+  /* Holds focus while AppKit draws the panel on macOS 26+. */
+  outline: none;
   -webkit-app-region: no-drag;
+}
+/* Clear glass has no blur of its own to tune, so the page blurs the wall
+   beneath it, like the web settings sheet's backdrop. */
+.playlist-switcher-backdrop[data-native-switcher='true'] {
+  background: rgba(0, 0, 0, .28);
+  backdrop-filter: blur(6px);
 }
 .playlist-switcher {
   --switcher-item-width: clamp(96px, 16vmin, 144px);

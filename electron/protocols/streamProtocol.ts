@@ -157,7 +157,8 @@ export function registerStreamProtocol(): void {
         if (request.signal.aborted || (error as Error).name === 'AbortError') {
           return new Response(null, { status: 499 });
         }
-        logger.error('[StreamProtocol] Error:', error);
+        // undici reports every network failure as "fetch failed"; the reason is in `cause`.
+        logger.error('[StreamProtocol] Error:', error, 'cause:', (error as { cause?: unknown }).cause ?? 'none');
         return new Response(
           (error as Error).message || 'Internal Server Error',
           { status: 502 }

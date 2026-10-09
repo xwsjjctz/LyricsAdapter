@@ -52,8 +52,8 @@ const ARTWORK_REQUEST: RequestInit = {
   headers: { Accept: 'image/png,image/jpeg;q=0.9,*/*;q=0.1' },
 };
 
-/** Fetches and decodes an artwork URL into a compact PNG; null when unavailable. */
-export async function loadArtwork(source: string): Promise<Buffer | null> {
+/** Fetches and decodes an artwork URL into a compact square PNG; null when unavailable. */
+export async function loadArtwork(source: string, size = 96): Promise<Buffer | null> {
   const url = new URL(source);
   if (!ALLOWED_ARTWORK_PROTOCOLS.has(url.protocol)) throw new Error('Unsupported artwork protocol');
   const response = await net.fetch(source, ARTWORK_REQUEST);
@@ -64,7 +64,7 @@ export async function loadArtwork(source: string): Promise<Buffer | null> {
   if (data.byteLength > MAX_ARTWORK_BYTES) throw new Error('Artwork is too large');
   const image = nativeImage.createFromBuffer(data);
   if (image.isEmpty()) return null;
-  const resized = image.resize({ width: 96, height: 96, quality: 'best' });
+  const resized = image.resize({ width: size, height: size, quality: 'best' });
   return resized.toPNG();
 }
 

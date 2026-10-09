@@ -7,6 +7,11 @@ NSView* Find(NSView* root, NSString* name) {
  for(NSView* child in root.subviews) { NSView* match=Find(child,name); if(match)return match; }
  return nil;
 }
+// Identifiers of views created per session (e.g. playlist switcher cards), in view order.
+void Collect(NSView* root, NSString* prefix, NSMutableArray<NSString*>* names) {
+ if ([root.accessibilityIdentifier hasPrefix:prefix]) [names addObject:root.accessibilityIdentifier];
+ for(NSView* child in root.subviews) Collect(child,prefix,names);
+}
 void PostMouse(NSWindow* window, NSEventType type, NSPoint point) {
  [NSApp postEvent:[NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:1] atStart:NO];
 }
@@ -50,11 +55,15 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  }
  NSMutableArray* items=[NSMutableArray array];
  NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-highlight",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-controlbar-host",@"player-controlbar-glass",@"player-controlbar-highlight",@"player-controlbar-slider-glass",@"player-controlbar-volume-disclosure",@"player-controlbar-volume-button",@"player-controlbar-volume-value",@"player-controlbar-title",@"player-controlbar-artist",@"player-controlbar-focus",@"player-controlbar-previous",@"player-controlbar-play",@"player-controlbar-next",@"player-controlbar-seek",@"player-controlbar-mode",@"player-controlbar-volume",@"player-controlbar-mute"];
+ names=[names arrayByAddingObjectsFromArray:@[@"native-palette-glass",@"settings-sheet-glass",@"playlist-switcher-host",@"playlist-switcher-glass",@"playlist-switcher-list",@"playlist-switcher-hint"]];
+ NSMutableArray<NSString*>* cards=[NSMutableArray array];Collect(content,@"playlist-switcher-item-",cards);names=[names arrayByAddingObjectsFromArray:cards];
  for(NSString* name in names){NSView* v=Find(content,name);if(!v)continue;
  NSRect frame=[v convertRect:v.bounds toView:content];
  NSString* label=[v isKindOfClass:NSTextField.class]?((NSTextField*)v).stringValue:v.accessibilityLabel;
  NSString* appearance=[v.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]];
- [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"focused":@(v.window.firstResponder==v),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@""}];}
+ id material=[v respondsToSelector:NSSelectorFromString(@"style")]?[v valueForKey:@"style"]:NSNull.null;
+ id radius=[v respondsToSelector:NSSelectorFromString(@"cornerRadius")]?[v valueForKey:@"cornerRadius"]:NSNull.null;
+ [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"focused":@(v.window.firstResponder==v),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@"",@"material":material,@"radius":radius,@"selected":@(v.isAccessibilitySelected)}];}
  NSDictionary* result=@{@"windowNumber":@(content.window.windowNumber),@"items":items};
  NSData* data=[NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
  napi_value value;napi_create_string_utf8(env,(const char*)data.bytes,data.length,&value);return value;

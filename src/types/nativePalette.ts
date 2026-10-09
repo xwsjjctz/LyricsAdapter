@@ -12,6 +12,12 @@ export interface NativePaletteRow {
   cover: string | null;
   /** Enter/Tab opens a nested list. */
   nested: boolean;
+  /** SF Symbol of a trailing button (queue without playing); empty for none. */
+  accessory: string;
+  /** Accessible name of that button. */
+  accessoryLabel: string;
+  /** A right-click on the row asks the page for its context menu. */
+  menu: boolean;
 }
 
 export interface NativePaletteState {
@@ -42,6 +48,8 @@ export type NativePaletteActionType =
   | 'mode'        // value: mode index clicked
   | 'escape'
   | 'backspace'   // Backspace in an empty field
+  | 'accessory'   // value: row index whose trailing button was clicked
+  | 'menu'        // value: row index; text: "x,y" in page coordinates
   | 'shortcut';   // text: DOM key; value: modifier bits (see NATIVE_PALETTE_MODIFIERS)
 
 export interface NativePaletteAction {

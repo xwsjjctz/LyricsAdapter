@@ -14,7 +14,8 @@ import { useMusicPlugins } from '../../stores/musicPluginStore';
 import WebdavSection from './sections/WebdavSection';
 import { useCurrentTheme, useSettingsTheme } from './shared';
 
-export type SettingsSectionId = 'general' | 'plugins' | 'online' | 'cloud' | 'focus' | 'shortcuts';
+import type { SettingsSectionId } from '../../types/settingsPanel';
+export type { SettingsSectionId } from '../../types/settingsPanel';
 
 const SECTIONS: { id: SettingsSectionId; icon: string; labelKey: string }[] = [
   { id: 'general', icon: 'tune', labelKey: 'settings.nav.general' },
@@ -30,13 +31,14 @@ const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 interface SettingsViewProps {
   initialSection?: SettingsSectionId | undefined;
   onClose: () => void;
+  usePaletteMaterial?: boolean;
 }
 
 /**
  * Settings as a glass sheet floating over the poster wall. Sections are tabs;
  * Esc, the close button or a click outside returns to the wall.
  */
-export default function SettingsView({ initialSection = 'general', onClose }: SettingsViewProps) {
+export default function SettingsView({ initialSection = 'general', onClose, usePaletteMaterial = false }: SettingsViewProps) {
   const { t } = useTranslation();
   const themeUtils = useSettingsTheme(useCurrentTheme());
   const { colors } = themeUtils;
@@ -61,7 +63,7 @@ export default function SettingsView({ initialSection = 'general', onClose }: Se
   };
 
   return (
-    <div className="settings-sheet-backdrop" data-controlbar-passthrough onMouseDown={onClose}>
+    <div className="settings-sheet-backdrop" data-settings-material={usePaletteMaterial ? 'palette' : undefined} data-controlbar-passthrough onMouseDown={onClose}>
       <div
         ref={sheetRef}
         className="settings-sheet"

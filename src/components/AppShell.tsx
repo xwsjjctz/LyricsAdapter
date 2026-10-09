@@ -7,15 +7,13 @@ import FocusMode from './FocusMode';
 import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
 import DownloadStatusPill from './wall/DownloadStatusPill';
-import SearchWallView from './search/SearchWallView';
-import SettingsView from './settings/SettingsView';
+import SettingsSurface, { usePrewarmSettingsPanel } from './settings/SettingsSurface';
 import CommandPalette from './palette/CommandPalette';
 import PlaylistSwitcher from './playlist-switcher/PlaylistSwitcher';
 import type { PlaylistSwitchItem } from './playlist-switcher/types';
 import type { PaletteLibrarySources } from './palette/usePaletteItems';
 import { useAppCommands, type AppCommandHandlers } from '../commands/useAppCommands';
 import type { PaletteSourceSlot } from '../commands/buildAppCommands';
-import { commandPalette } from '../hooks/useCommandPalette';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
@@ -99,6 +97,7 @@ const AppShell: React.FC<AppShellProps> = ({
   onPlayLibraryPlaylistTrack,
 }) => {
   const { t } = useTranslation();
+  usePrewarmSettingsPanel();
   const {
     viewMode,
     pageContentRef,
@@ -117,17 +116,7 @@ const AppShell: React.FC<AppShellProps> = ({
     handleLocateRequestHandled,
   } = ui;
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const openSearchResults = useCallback((query: string) => {
-    setSearchQuery(query);
-    handleNavigate(ViewMode.SEARCH);
-  }, [handleNavigate]);
-  const isSearchView = viewMode === ViewMode.SEARCH;
   const openWall = useCallback(() => handleNavigate(ViewMode.WALL), [handleNavigate]);
-  const editSearchQuery = useCallback(() => {
-    commandPalette.open('library');
-    commandPalette.setQuery(searchQuery);
-  }, [searchQuery]);
 
   // A browsed playlist always shows its own (possibly still loading) tracks,
   // never the previously played playlist held in the 'playlist' play slot.
@@ -154,9 +143,8 @@ const AppShell: React.FC<AppShellProps> = ({
 
   const [selectionRequest, setSelectionRequest] = useState(0);
   const selectTracks = useCallback(() => {
-    if (isSearchView) handleNavigate(ViewMode.WALL);
     setSelectionRequest(token => token + 1);
-  }, [handleNavigate, isSearchView]);
+  }, []);
 
   const toggleFocusMode = useCallback(() => {
     setIsFocusMode(current => !current);
@@ -257,9 +245,10 @@ const AppShell: React.FC<AppShellProps> = ({
     playlists: visiblePlaylists,
     playTrack: online.navigateToTrack,
     playOnlineSong: online.playSong,
+    addOnlineSong: online.addSong,
+    downloadOnlineSong: (song, source, quality) => { void online.download(song, quality, source); },
     openPlaylist: openPlaylistInfo,
-    openAllResults: openSearchResults,
-  }), [online.navigateToTrack, online.playSong, openPlaylistInfo, openSearchResults, slots.cloud.tracks, slots.local.tracks, visiblePlaylists]);
+  }), [online.addSong, online.download, online.navigateToTrack, online.playSong, openPlaylistInfo, slots.cloud.tracks, slots.local.tracks, visiblePlaylists]);
 
   return (
     <>
@@ -279,104 +268,84 @@ const AppShell: React.FC<AppShellProps> = ({
             onChange={importVm.onFileInputChange}
           />
           <div ref={pageContentRef} className="flex-1 overflow-hidden">
-            {isSearchView ? (
-              <SearchWallView
-                downloadProgress={online.progress}
-                query={searchQuery}
-                localTracks={slots.local.tracks}
-                cloudTracks={slots.cloud.tracks}
-                currentTrackId={player.currentTrack?.id}
-                onNavigateToTrack={online.navigateToTrack}
-                onOnlineStreamPlay={online.playSong}
-                onDownloadTrack={online.downloadTrack}
-                onEditQuery={editSearchQuery}
-                onClose={openWall}
-              />
-            ) : (
-              <div ref={libraryContentRef} className="h-full">
-                {libraryLayout === 'list' ? (
-                  <div className="h-full px-10 pt-10 pb-2">
-                    <LibraryView
-                      tracks={shownTracks}
-                      currentTrackIndex={slots[viewSlot].currentTrackIndex}
-                      {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
-                      onTrackSelect={playShownTrack}
-                      onRemoveTrack={library.removeTrack}
-                      onRemoveMultipleTracks={library.removeTracks}
-                      onImportClick={importVm.importClick}
-                      importDisabled={importVm.importDisabled}
-                      onOpenSettings={() => openSettings('cloud')}
-                      onDropFiles={importVm.dropFiles}
-                      onDropFilePaths={importVm.dropFilePaths}
-                      onReorderTracks={library.reorder}
-                      onUpdateTrack={library.updateTrack}
-                      onDownloadTrack={online.downloadTrack}
-                      isFocusMode={isFocusMode}
-                      savedScrollPosition={slots[viewSlot].scrollPosition}
-                      onScrollPositionChange={handleLibraryScrollPositionChange}
-                      autoLocateToken={autoLocateToken}
-                      locateRequest={locateRequest}
-                      onLocateRequestHandled={handleLocateRequestHandled}
-                      importProgress={importVm.importProgress}
-                      dataSource={viewSlot}
-                      activeSlotId={library.activeSlotId}
-                      onSwitchSlot={library.switchViewSlot}
-                      pendingLocateSlot={pendingSlotLocate?.slot}
-                      pendingLocateToken={pendingSlotLocate?.token}
-                      onPendingLocatePrepared={handleSlotLocatePrepared}
-                      onSlotContentReady={handleSlotContentReady}
-                      filterType={slots[viewSlot].filterType}
-                      categorySelection={slots[viewSlot].categorySelection}
-                      onCategoryChange={handleCategoryChange}
-                      cloudLoadProgress={cloudLoadProgress}
-                      onRefreshCloud={refreshCloudTracks}
-                      {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playerController.loadMorePlaylistInLibrary } : {})}
-                      playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
-                      playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
-                      playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
-                      {...(viewSlot === 'playlist' && playlistState.title ? { playlistTitle: playlistState.title } : {})}
-                      {...(viewSlot === 'playlist' && playlistState.totalTrackCount != null
-                        ? { playlistTrackCount: playlistState.totalTrackCount }
-                        : {})}
-                      {...(isBrowsingPlaylist && shownTracks.length > 0 ? { onPlayAll: playAll, onShuffleAll: shuffleAll } : {})}
-                    />
-                  </div>
-                ) : (
-                    <LibraryWallView
-                      downloadProgress={online.progress}
-                      tracks={shownTracks}
-                      sourceKey={librarySourceKey}
-                      dataSource={library.viewSlot}
-                      currentTrackId={player.currentTrack?.id}
-                      onTrackSelect={playShownTrack}
-                      onRemoveTrack={library.removeTrack}
-                      onRemoveMultipleTracks={library.removeTracks}
-                      onUpdateTrack={library.updateTrack}
-                      onDownloadTrack={online.downloadTrack}
-                      onSwapTracks={library.swap}
-                      playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
-                      playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
-                      playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
-                      onLoadMorePlaylist={viewSlot === 'playlist' ? playerController.loadMorePlaylistInLibrary : undefined}
-                      pendingLocateSlot={pendingSlotLocate?.slot}
-                      pendingLocateToken={pendingSlotLocate?.token}
-                      onPendingLocatePrepared={handleSlotLocatePrepared}
-                      autoLocateToken={autoLocateToken}
-                      locateRequest={locateRequest}
-                      onLocateRequestHandled={handleLocateRequestHandled}
-                      savedScrollPosition={slots[viewSlot].scrollPosition}
-                      onScrollPositionChange={handleLibraryScrollPositionChange}
-                      importDisabled={importVm.importDisabled}
-                      onImportClick={importVm.importClick}
-                      onDropFiles={importVm.dropFiles}
-                      onDropFilePaths={importVm.dropFilePaths}
-                      importProgress={importVm.importProgress}
-                      loadProgress={cloudLoadProgress}
-                      selectionRequest={selectionRequest}
-                    />
-                )}
-              </div>
-            )}
+            <div ref={libraryContentRef} className="h-full">
+              {libraryLayout === 'list' ? (
+                <div className="h-full">
+                  <LibraryView
+                    tracks={shownTracks}
+                    currentTrackIndex={slots[viewSlot].currentTrackIndex}
+                    {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
+                    onTrackSelect={playShownTrack}
+                    onRemoveTrack={library.removeTrack}
+                    onRemoveMultipleTracks={library.removeTracks}
+                    onImportClick={importVm.importClick}
+                    importDisabled={importVm.importDisabled}
+                    onOpenSettings={() => openSettings('cloud')}
+                    onDropFiles={importVm.dropFiles}
+                    onDropFilePaths={importVm.dropFilePaths}
+                    onReorderTracks={library.reorder}
+                    onUpdateTrack={library.updateTrack}
+                    onDownloadTrack={online.downloadTrack}
+                    isFocusMode={isFocusMode}
+                    savedScrollPosition={slots[viewSlot].scrollPosition}
+                    onScrollPositionChange={handleLibraryScrollPositionChange}
+                    autoLocateToken={autoLocateToken}
+                    locateRequest={locateRequest}
+                    onLocateRequestHandled={handleLocateRequestHandled}
+                    importProgress={importVm.importProgress}
+                    dataSource={viewSlot}
+                    activeSlotId={library.activeSlotId}
+                    onSwitchSlot={library.switchViewSlot}
+                    pendingLocateSlot={pendingSlotLocate?.slot}
+                    pendingLocateToken={pendingSlotLocate?.token}
+                    onPendingLocatePrepared={handleSlotLocatePrepared}
+                    onSlotContentReady={handleSlotContentReady}
+                    filterType={slots[viewSlot].filterType}
+                    categorySelection={slots[viewSlot].categorySelection}
+                    onCategoryChange={handleCategoryChange}
+                    cloudLoadProgress={cloudLoadProgress}
+                    onRefreshCloud={refreshCloudTracks}
+                    {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playerController.loadMorePlaylistInLibrary } : {})}
+                    playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
+                    playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
+                    playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
+                  />
+                </div>
+              ) : (
+                  <LibraryWallView
+                    downloadProgress={online.progress}
+                    tracks={shownTracks}
+                    sourceKey={librarySourceKey}
+                    dataSource={library.viewSlot}
+                    currentTrackId={player.currentTrack?.id}
+                    onTrackSelect={playShownTrack}
+                    onRemoveTrack={library.removeTrack}
+                    onRemoveMultipleTracks={library.removeTracks}
+                    onUpdateTrack={library.updateTrack}
+                    onDownloadTrack={online.downloadTrack}
+                    onSwapTracks={library.swap}
+                    playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
+                    playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
+                    playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
+                    onLoadMorePlaylist={viewSlot === 'playlist' ? playerController.loadMorePlaylistInLibrary : undefined}
+                    pendingLocateSlot={pendingSlotLocate?.slot}
+                    pendingLocateToken={pendingSlotLocate?.token}
+                    onPendingLocatePrepared={handleSlotLocatePrepared}
+                    autoLocateToken={autoLocateToken}
+                    locateRequest={locateRequest}
+                    onLocateRequestHandled={handleLocateRequestHandled}
+                    savedScrollPosition={slots[viewSlot].scrollPosition}
+                    onScrollPositionChange={handleLibraryScrollPositionChange}
+                    importDisabled={importVm.importDisabled}
+                    onImportClick={importVm.importClick}
+                    onDropFiles={importVm.dropFiles}
+                    onDropFilePaths={importVm.dropFilePaths}
+                    importProgress={importVm.importProgress}
+                    loadProgress={cloudLoadProgress}
+                    selectionRequest={selectionRequest}
+                  />
+              )}
+            </div>
           </div>
           <DownloadStatusPill progress={online.progress} />
           <Controls
@@ -397,7 +366,7 @@ const AppShell: React.FC<AppShellProps> = ({
             floating={floatingPanel}
           />
         </main>
-        {settingsSection && <SettingsView initialSection={settingsSection} onClose={closeSettings} />}
+        {settingsSection && <SettingsSurface initialSection={settingsSection} onClose={closeSettings} />}
         <FocusMode
           track={player.currentTrack}
           isVisible={isFocusMode}

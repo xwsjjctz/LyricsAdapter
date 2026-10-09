@@ -18,6 +18,8 @@ interface Props {
   items: TrackMenuItem[];
   onClose: () => void;
   onAction: (id: TrackMenuActionId) => void;
+  /** Draw the web menu above the command palette instead of the page. */
+  abovePalette?: boolean;
 }
 
 /**
@@ -56,7 +58,7 @@ function NativeTrackMenu({ api, position, items, onClose, onAction, onUnavailabl
   return null;
 }
 
-function WebTrackMenu({ position, colors, items, onClose, onAction }: Props) {
+function WebTrackMenu({ position, colors, items, onClose, onAction, abovePalette = false }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState({ x: position.x, y: position.y });
@@ -83,7 +85,7 @@ function WebTrackMenu({ position, colors, items, onClose, onAction }: Props) {
   const choose = (id: TrackMenuActionId) => { onClose(); onAction(id); };
   return createPortal(
     <div ref={ref} role="menu" tabIndex={-1} aria-label={t('library.songActions')}
-      className="library-track-menu fixed z-[100] p-1.5 shadow-2xl"
+      className={`library-track-menu fixed z-[100] p-1.5 shadow-2xl${abovePalette ? ' library-track-menu--above-palette' : ''}`}
       style={{ left: point.x, top: point.y, width: 220, maxWidth: 'calc(100vw - 16px)',
         backgroundColor: colors.backgroundSidebar, color: colors.textPrimary,
         border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-surface-radius)' }}

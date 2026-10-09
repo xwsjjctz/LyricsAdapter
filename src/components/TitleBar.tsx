@@ -1,6 +1,7 @@
 import React, { memo, useState, useEffect } from 'react';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { nativePaletteOwnsKeyboard } from '../hooks/useNativePalette';
+import { nativeSettingsOwnsKeyboard } from '../services/nativeSettingsFocus';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
@@ -91,7 +92,7 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => { if (!nativePaletteOwnsKeyboard()) setIsWindowFocused(false); };
+    const handleBlur = () => { if (!nativePaletteOwnsKeyboard() && !nativeSettingsOwnsKeyboard()) setIsWindowFocused(false); };
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
     return () => {

@@ -198,6 +198,28 @@
   font-size: 18px;
 }
 
+.command-palette__add {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--theme-text-muted);
+  font-size: 18px;
+}
+
+.command-palette__add:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+  color: var(--theme-text-primary);
+}
+
+/* The palette sits above every page layer, so its context menu must too. */
+.library-track-menu.library-track-menu--above-palette {
+  z-index: 330;
+}
+
 .command-palette__empty {
   padding: 24px 12px;
   color: var(--theme-text-muted);

@@ -109,6 +109,4 @@ export interface MetaJson {
 export enum ViewMode {
   /** Full-window poster wall of the current library source. */
   WALL = 'wall',
-  /** Search results shown as a poster wall. */
-  SEARCH = 'search',
 }

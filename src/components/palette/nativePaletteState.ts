@@ -10,11 +10,13 @@ import type { PaletteItem } from './usePaletteItems';
 const SF_SYMBOLS: Readonly<Record<string, string>> = {
   auto_awesome_mosaic: 'square.grid.2x2',
   category: 'square.stack',
+  add: 'plus',
   check: 'checkmark',
   checklist: 'checklist',
   cloud: 'cloud',
   cloud_download: 'icloud.and.arrow.down',
   dark_mode: 'moon',
+  expand_more: 'chevron.down',
   fullscreen: 'arrow.up.left.and.arrow.down.right',
   hard_drive: 'internaldrive',
   history: 'clock.arrow.circlepath',
@@ -59,7 +61,7 @@ export function toSfSymbol(icon: string | undefined): string {
 const clip = (text: string | undefined, max = MAX_TEXT) => (text ?? '').slice(0, max);
 
 /** Only URLs the main process can fetch; anything else keeps the symbol. */
-function nativeCover(url: string | undefined): string | null {
+export function nativeCover(url: string | undefined): string | null {
   if (!url || url.length > MAX_COVER_URL) return null;
   try {
     return COVER_PROTOCOLS.has(new URL(url).protocol) ? url : null;
@@ -68,7 +70,7 @@ function nativeCover(url: string | undefined): string | null {
   }
 }
 
-export function toNativeRows(items: readonly PaletteItem[]): NativePaletteRow[] {
+export function toNativeRows(items: readonly PaletteItem[], addLabel: (done: boolean) => string = () => ''): NativePaletteRow[] {
   let previousSection: string | null = null;
   return items.slice(0, MAX_ROWS).map(item => {
     const section = item.section !== previousSection ? clip(item.section) : '';
@@ -82,6 +84,9 @@ export function toNativeRows(items: readonly PaletteItem[]): NativePaletteRow[] 
       symbol: toSfSymbol(item.icon),
       cover: nativeCover(item.coverUrl),
       nested: !!item.command,
+      accessory: item.add ? toSfSymbol(item.add.done ? 'check' : 'add') : '',
+      accessoryLabel: item.add ? clip(addLabel(item.add.done), MAX_SHORTCUT) : '',
+      menu: !!item.download,
     };
   });
 }
@@ -100,7 +105,7 @@ export interface NativePaletteInput {
 }
 
 export function toNativePaletteState(input: NativePaletteInput): NativePaletteState {
-  const rows = input.open ? toNativeRows(input.items) : [];
+  const rows = input.open ? toNativeRows(input.items, done => input.t(done ? 'palette.addedToOnline' : 'palette.addToOnline')) : [];
   return {
     open: input.open,
     darkMode: input.darkMode,
@@ -131,9 +136,9 @@ function domCode(key: string): string {
  * The native search field owns the keyboard while open, so Cmd chords the
  * menu bar did not handle are replayed where global shortcuts listen.
  */
-export function dispatchForwardedShortcut(key: string, modifiers: number, target: EventTarget = window): void {
+export function dispatchForwardedShortcut(key: string, modifiers: number, target: EventTarget = window): KeyboardEvent | undefined {
   if (!key) return;
-  target.dispatchEvent(new KeyboardEvent('keydown', {
+  const event = new KeyboardEvent('keydown', {
     key,
     code: domCode(key),
     metaKey: (modifiers & NATIVE_PALETTE_MODIFIERS.meta) !== 0,
@@ -142,5 +147,7 @@ export function dispatchForwardedShortcut(key: string, modifiers: number, target
     shiftKey: (modifiers & NATIVE_PALETTE_MODIFIERS.shift) !== 0,
     bubbles: true,
     cancelable: true,
-  }));
+  });
+  target.dispatchEvent(event);
+  return event;
 }

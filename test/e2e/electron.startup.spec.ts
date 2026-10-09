@@ -98,7 +98,7 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
       (globalThis as typeof globalThis & { startupGate?: { release: () => void } }).startupGate?.release());
     await expect(screen).toHaveCount(0);
     await expect(page.locator('#root')).not.toHaveAttribute('inert');
-    await expect(page.locator('html')).toHaveClass(/theme-light/);
+    await expect(page.locator('html')).toHaveClass(/theme-dark/);
     await expect(page.locator('.library-track-row')).toContainText('Restored from cache');
     expect(await page.locator('.app-background').evaluate(element => {
       const style = getComputedStyle(element);

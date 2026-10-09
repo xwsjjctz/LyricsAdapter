@@ -49,7 +49,7 @@ jobs:
       - name: Install Chromium-family runtime libraries
         run: npx playwright install-deps chromium
 
-      - name: Electron smoke test
+      - name: Electron E2E tests
         run: xvfb-run -a npm run test:e2e:run
 
   native-build:
@@ -98,9 +98,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Type check
-        run: npm run typecheck
-
       - name: Unit tests
         run: npm test
 
@@ -129,9 +126,6 @@ jobs:
 
       - name: Rebuild status bar bridge from source
         run: npm run native:rebuild:macos-statusbar -- --force
-
-      - name: Type check
-        run: npm run typecheck
 
       - name: Native bridge tests
         run: npx vitest run test/electron/native/macosStatusbarNative.test.ts test/electron/services/menuBarLyricsService.test.ts

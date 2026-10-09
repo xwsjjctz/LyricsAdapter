@@ -1,5 +1,7 @@
 /** Public plugin API. Keep application Track/React/Electron types out of this contract. */
 import type { MusicPlugin } from './musicPlugin.js';
+import type { PluginUpdateInfo, PluginUpdateSource } from './pluginUpdate.js';
+export type { PluginUpdateInfo, PluginUpdateSource, PluginUpdateChannel, PluginUpdateFeed, PluginUpdateRelease } from './pluginUpdate.js';
 import type { OnlineMusicProvider, PlaylistInfo } from './onlineMusic.js';
 
 export const PLUGIN_CORE_API = '1.0.0';
@@ -20,6 +22,8 @@ export interface PluginManifest {
   version: string;
   main: string;
   homepage?: string;
+  /** Optional initial source hint. Once installed, the host owns the binding. */
+  update?: PluginUpdateSource;
   coreApi: string;
   extensionApis: Partial<Record<ExtensionType, string>>;
   /** Unknown future extension names are allowed here and skipped by older hosts. */
@@ -97,6 +101,11 @@ export interface PluginModule {
 export interface PluginProviderInfo { key: string; pluginId: string; id: string; type: ExtensionType; name: string; version: string }
 export interface PluginTranslationCall { requestId: string; providerKey: string; request: TranslationRequest }
 export interface PluginElectronAPI {
+  pluginUpdateList?: () => Promise<PluginUpdateInfo[]>;
+  pluginCheckUpdates?: () => Promise<PluginUpdateInfo[]>;
+  pluginUpdate?: (id: string) => Promise<import('./musicPlugin.js').MusicPluginInfo[]>;
+  pluginSetUpdateSource?: (id: string, source: PluginUpdateSource | null) => Promise<PluginUpdateInfo[]>;
+  onPluginUpdatesChanged?: (callback: (updates: PluginUpdateInfo[]) => void) => () => void;
   pluginHostInfo?: () => Promise<PluginHostInfo>;
   pluginProviders?: (type: ExtensionType) => Promise<PluginProviderInfo[]>;
   pluginTranslate?: (call: PluginTranslationCall) => Promise<TranslationResult>;

@@ -30,6 +30,15 @@ import {
 } from '../shared/persistencePolicy';
 
 class AppStorage {
+  /** Update a peer renderer's cache without writing these durable values back. */
+  applyExternalChanges(entries: Record<string, string | null>, replaced = false): void {
+    if (replaced) this.cache.clear();
+    for (const [key, value] of Object.entries(entries)) {
+      if (isInternalSettingKey(key) || isReplaceableCacheSettingKey(key) || isRetiredSettingKey(key)) continue;
+      if (value === null) this.cache.delete(key);
+      else this.cache.set(key, value);
+    }
+  }
   /** Synchronous in‑memory cache. Populated by init(). */
   private cache = new Map<string, string>();
   private initialized = false;

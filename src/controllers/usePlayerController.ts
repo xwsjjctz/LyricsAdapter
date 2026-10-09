@@ -438,6 +438,16 @@ export function usePlayerController(options: PlayerControllerOptions) {
     }, sourceOverride);
   }, [handleOnlineStreamPlay]);
 
+  // Queue a search result in the online list without touching playback. The
+  // list is most-recent-first, so the playing row moves down one place.
+  const addOnlineSong = useCallback((song: OnlineSong, source: OnlineSource) => {
+    const track = onlineSongToTrack(song, source);
+    if (onlineTracks.some(existing => existing.id === track.id)) return;
+    addOnlineTrack(track);
+    updateSlot('online', slot => (slot.tracks.length > 1 && slot.currentTrackIndex >= 0
+      ? { ...slot, currentTrackIndex: slot.currentTrackIndex + 1 } : slot));
+  }, [addOnlineTrack, onlineTracks, updateSlot]);
+
   // Persisted online history may predate word-timed lyrics. Upgrade the active
   // item lazily instead of invalidating or rewriting the whole library index.
   const activeOnlineTrack = onlineTracks[onlineCurrentIndex];
@@ -714,6 +724,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     handleSearchNavigate,
     handleOnlineStreamPlay,
     playOnlineSong,
+    addOnlineSong,
     openOnlinePlaylistInLibrary,
     loadMorePlaylistInLibrary,
     libraryPlaylistLoadState,

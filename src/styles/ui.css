@@ -220,12 +220,9 @@
    highlight read the same tokens so they stay aligned in both densities.
    The bleed lets the highlight's shadow extend past the scroll clip. */
 .library-view {
-  --library-max-width: 1120px;
   --library-bleed: 24px;
   --library-row-radius: var(--theme-control-radius);
   --library-cover-radius: var(--theme-media-radius-sm);
-  max-width: var(--library-max-width);
-  margin-inline: auto;
 }
 
 .library-bleed {
@@ -330,18 +327,25 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 56px 24px 120px;
+  /* Same frame as the command palette. */
+  padding: 14vh 16px 16px;
   background: rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(6px);
   animation: settings-sheet-fade 140ms ease-out;
   -webkit-app-region: no-drag;
 }
 
+.settings-sheet-backdrop[data-native-settings='true'],
+.settings-sheet-backdrop[data-settings-material='palette'] {
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: none;
+}
+
 .settings-sheet {
   display: flex;
   flex-direction: column;
-  width: min(720px, 100%);
-  max-height: 100%;
+  width: min(640px, 100%);
+  max-height: min(560px, 72vh);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
   border-radius: var(--theme-surface-radius);
@@ -351,6 +355,12 @@
   backdrop-filter: blur(36px) saturate(170%);
   outline: none;
   animation: settings-sheet-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Older macOS and native failures use the same web material as Cmd+K. */
+.settings-sheet-backdrop[data-settings-material='palette'] .settings-sheet {
+  background: color-mix(in srgb, var(--theme-background-dark) 62%, transparent);
+  backdrop-filter: blur(32px) saturate(170%);
 }
 
 .settings-sheet__header {
@@ -423,6 +433,33 @@
   padding: 20px;
 }
 
+/* The settings child renderer contributes controls only; AppKit draws its
+   Regular Liquid Glass backing with the command palette's 22px radius. */
+html[data-settings-panel='native'],
+html[data-settings-panel='native'] body,
+html[data-settings-panel='native'] #root {
+  background: transparent;
+}
+html[data-settings-panel='native'] .settings-sheet-backdrop {
+  position: static;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  animation: none;
+}
+html[data-settings-panel='native'] .settings-sheet {
+  width: 100%;
+  /* The child window is already sized to the palette's frame. */
+  max-height: 100%;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  animation: none;
+}
+
 @keyframes settings-sheet-fade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -466,4 +503,3 @@
   padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
 }
-

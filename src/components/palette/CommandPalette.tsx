@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PaletteCommand } from '../../commands/paletteCommand';
 import { PALETTE_MODES, commandPalette, useCommandPaletteState, type CommandPaletteStore } from '../../hooks/useCommandPalette';
@@ -7,6 +7,9 @@ import { useDocumentDarkMode, useNativePalette } from '../../hooks/useNativePale
 import type { NativePaletteAction } from '../../types/nativePalette';
 import { dispatchForwardedShortcut, toNativePaletteState } from './nativePaletteState';
 import { usePaletteItems, type PaletteItem, type PaletteLibrarySources } from './usePaletteItems';
+import TrackMenu, { type TrackMenuPosition } from '../TrackMenu';
+import { buildTrackMenuItems, downloadQualityOf } from '../trackMenuItems';
+import { useCurrentTheme } from '../settings/shared';
 
 interface CommandPaletteProps {
   /** Injectable for tests; the app uses the shared store. */
@@ -28,6 +31,12 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { colors } = useCurrentTheme();
+  // Context menu of an online result; `trackId` holds the row key.
+  const [rowMenu, setRowMenu] = useState<TrackMenuPosition | null>(null);
+  const menuItem = rowMenu ? items.find(item => item.key === rowMenu.trackId && item.download) : undefined;
+  useEffect(() => { if (!state.open) setRowMenu(null); }, [state.open]);
 
   useEffect(() => { setSelected(0); }, [state.mode, state.query, state.stack]);
   useEffect(() => { if (state.open) inputRef.current?.focus(); }, [state.open, state.mode, state.stack]);
@@ -67,6 +76,14 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
       case 'mode': if (PALETTE_MODES[action.value] !== state.mode) palette.cycleMode(); return;
       case 'escape': palette.back(); return;
       case 'backspace': backspaceWhenEmpty(); return;
+      case 'accessory': items[action.value]?.add?.run(); return;
+      case 'menu': {
+        const item = items[action.value];
+        const [x, y] = action.text.split(',').map(Number);
+        const trigger = backdropRef.current;
+        if (item?.download && trigger && Number.isFinite(x) && Number.isFinite(y)) setRowMenu({ trackId: item.key, x: x!, y: y!, trigger });
+        return;
+      }
       case 'shortcut': dispatchForwardedShortcut(action.text, action.value); return;
     }
   }, [activate, backspaceWhenEmpty, items, move, palette, selected, state.mode]);
@@ -121,16 +138,33 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
   }, [activate, backspaceWhenEmpty, items, move, palette, selected]);
 
   if (!state.open) return null;
+  // Rendered beside the backdrop: a click inside the menu must not bubble to
+  // it and close the palette. Search results offer download only.
+  const closeRowMenu = () => { setRowMenu(null); inputRef.current?.focus(); };
+  const menu: ReactNode = rowMenu && menuItem && (
+    <TrackMenu
+      abovePalette
+      position={rowMenu}
+      colors={colors}
+      items={buildTrackMenuItems({ dataSource: 'search', canEdit: false, canDownload: true })}
+      onClose={closeRowMenu}
+      onAction={id => { const quality = downloadQualityOf(id); if (quality) menuItem.download?.(quality); }}
+    />
+  );
   // The native glass panel draws above the page; the web layer only dims it
   // and closes the palette on an outside click.
   if (nativeActive) {
-    return <div className="command-palette-backdrop" data-controlbar-passthrough onMouseDown={palette.close} />;
+    return <>
+      <div ref={backdropRef} className="command-palette-backdrop" data-controlbar-passthrough onMouseDown={palette.close} />
+      {menu}
+    </>;
   }
 
   const activeId = items[selected] ? `${listboxId}-${selected}` : undefined;
   let previousSection: string | null = null;
 
   return (
+    <>
     <div className="command-palette-backdrop" data-controlbar-passthrough onMouseDown={palette.close}>
       <div
         className="command-palette"
@@ -196,6 +230,11 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
                   className="command-palette__item"
                   onMouseMove={() => { if (index !== selected) setSelected(index); }}
                   onClick={() => activate(item)}
+                  onContextMenu={event => {
+                    if (!item.download) return;
+                    event.preventDefault();
+                    setRowMenu({ trackId: item.key, x: event.clientX, y: event.clientY, trigger: inputRef.current ?? event.currentTarget });
+                  }}
                 >
                   <span className="command-palette__icon" aria-hidden="true">
                     {item.coverUrl
@@ -209,6 +248,20 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
                   {item.detail && <span className="command-palette__detail">{item.detail}</span>}
                   {item.shortcut && <kbd className="command-palette__kbd">{item.shortcut}</kbd>}
                   {item.command && <span className="material-symbols-rounded command-palette__chevron" aria-hidden="true">chevron_right</span>}
+                  {item.add && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="material-symbols-rounded command-palette__add"
+                      aria-label={t(item.add.done ? 'palette.addedToOnline' : 'palette.addToOnline')}
+                      disabled={item.add.done}
+                      // Keep the search field focused and the row from playing.
+                      onMouseDown={event => event.preventDefault()}
+                      onClick={event => { event.stopPropagation(); item.add?.run(); }}
+                    >
+                      {item.add.done ? 'check' : 'add'}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -216,5 +269,7 @@ export default function CommandPalette({ palette = commandPalette, commands, lib
         </div>
       </div>
     </div>
+    {menu}
+    </>
   );
 }

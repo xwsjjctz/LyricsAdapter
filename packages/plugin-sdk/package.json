@@ -1,6 +1,6 @@
 {
   "name": "@lyrics-adapter/plugin-sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Public LyricsAdapter plugin API types and version constants",
   "license": "GPL-3.0-only",

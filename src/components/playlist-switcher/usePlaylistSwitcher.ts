@@ -4,7 +4,7 @@ import { commandPalette } from '../../hooks/useCommandPalette';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import type { PlaylistSwitchItem } from './types';
 
-interface Session {
+export interface PlaylistSwitcherSession {
   items: readonly PlaylistSwitchItem[];
   selectedId: string;
   modifier: 'Meta' | 'Control' | null;
@@ -15,9 +15,9 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
   const latest = useRef({ items, activeId });
   latest.current = { items, activeId };
   const recentIds = useRef<string[]>([activeId]);
-  const sessionRef = useRef<Session | null>(null);
+  const sessionRef = useRef<PlaylistSwitcherSession | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<PlaylistSwitcherSession | null>(null);
 
   const remember = useCallback((id: string) => {
     const available = new Set(latest.current.items.map(item => item.id));
@@ -27,7 +27,7 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
   // does not change recency, and each held gesture keeps its initial order.
   useLayoutEffect(() => { remember(activeId); }, [activeId, remember]);
 
-  const publish = useCallback((next: Session | null) => {
+  const publish = useCallback((next: PlaylistSwitcherSession | null) => {
     sessionRef.current = next;
     setSession(next);
   }, []);
@@ -53,7 +53,7 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
   }, [publish]);
 
   useEffect(() => {
-    const begin = (reverse: boolean, modifier: Session['modifier']) => {
+    const begin = (reverse: boolean, modifier: PlaylistSwitcherSession['modifier']) => {
       if (sessionRef.current || !latest.current.items.length) return;
       const available = new Map(latest.current.items.map(item => [item.id, item]));
       const ids = new Set([...recentIds.current, ...available.keys()]);

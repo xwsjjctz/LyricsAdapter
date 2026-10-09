@@ -8,7 +8,7 @@ const SOURCES = [{ id: 'qq', name: 'QQ 音乐' }, { id: 'netease', name: '网易
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 interface ReleaseAsset { name: string; browser_download_url: string; digest?: string }
 interface Release { assets: ReleaseAsset[]; tag_name?: string }
-interface Download { id: string; version: string; url: string; sha256?: string; expectedVersion?: string }
+export interface OfficialPluginDownload { id: string; version: string; url: string; sha256?: string; expectedVersion?: string }
 
 async function readLimited(response: Response, limit: number): Promise<Buffer> {
   if (!response.ok) throw new Error(`Plugin download failed: HTTP ${response.status}`);
@@ -32,7 +32,7 @@ async function readLimited(response: Response, limit: number): Promise<Buffer> {
 /** Only the official repository can supply downloadable executable packages. */
 export class MusicPluginCatalog {
   constructor(private readonly fetcher: Fetcher = fetch) {}
-  private async downloads(): Promise<Download[]> {
+  async downloads(): Promise<OfficialPluginDownload[]> {
     const response = await this.fetcher(`${PACKAGE_DIRECTORY}catalog.json`, { signal: AbortSignal.timeout(30_000) });
     if (response.status === 404) {
       const release = await this.release();

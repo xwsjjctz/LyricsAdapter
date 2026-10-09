@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cookieManager } from '../services/cookieManager';
 import { logger } from '../services/logger';
 import { neteaseMusicApi } from '../services/neteaseMusicApi';
@@ -36,6 +36,8 @@ export interface GlobalSearchResults {
   online: OnlineSearchHit[];
   onlineLoading: boolean;
   onlineEnabled: boolean;
+  /** A provider filled its limit, so asking for a higher limit may return more. */
+  onlineHasMore: boolean;
 }
 
 /** Library matching plus debounced QQ/NetEase search; stale responses are dropped. */
@@ -49,6 +51,8 @@ export function useGlobalSearch({
 }: GlobalSearchOptions): GlobalSearchResults {
   const [online, setOnline] = useState<OnlineSearchHit[]>([]);
   const [onlineLoading, setOnlineLoading] = useState(false);
+  const [onlineHasMore, setOnlineHasMore] = useState(false);
+  const shownQuery = useRef('');
   const { sources } = useMusicPlugins();
   const hasQQ = sources.includes('qq');
   const hasNetEase = sources.includes('netease');
@@ -66,13 +70,18 @@ export function useGlobalSearch({
 
   useEffect(() => {
     if (!trimmed || !active || !onlineEnabled) {
+      shownQuery.current = '';
       setOnline([]);
       setOnlineLoading(false);
+      setOnlineHasMore(false);
       return;
     }
 
     let isCurrentSearch = true;
-    setOnline([]);
+    // Raising the limit for the same query keeps the rows already shown; the
+    // provider API has no offset, so "more" re-requests a longer first page.
+    const extending = shownQuery.current === trimmed;
+    if (!extending) { shownQuery.current = ''; setOnline([]); setOnlineHasMore(false); }
     setOnlineLoading(true);
     const debounceTimer = setTimeout(async () => {
       const [qqResult, neteaseResult] = await Promise.allSettled([
@@ -90,8 +99,10 @@ export function useGlobalSearch({
         ...qqSongs.map(song => ({ source: 'qq' as const, song })),
         ...neteaseSongs.map(song => ({ source: 'netease' as const, song })),
       ]);
+      setOnlineHasMore(qqSongs.length >= onlineLimit || neteaseSongs.length >= onlineLimit);
       setOnlineLoading(false);
-    }, ONLINE_SEARCH_DEBOUNCE_MS);
+      shownQuery.current = trimmed;
+    }, extending ? 0 : ONLINE_SEARCH_DEBOUNCE_MS);
 
     return () => {
       isCurrentSearch = false;
@@ -99,5 +110,5 @@ export function useGlobalSearch({
     };
   }, [trimmed, active, onlineEnabled, onlineLimit, hasQQ, hasNetEase]);
 
-  return { local, cloud, online, onlineLoading, onlineEnabled };
+  return { local, cloud, online, onlineLoading, onlineEnabled, onlineHasMore };
 }

@@ -146,20 +146,6 @@ test('poster wall is the home page, plays in place and switches sources from the
     await page.keyboard.press('Escape');
     await expect(page.locator('.command-palette')).toHaveCount(0);
 
-    // Full search results are a poster wall too; Esc returns to the library.
-    await page.keyboard.press('ControlOrMeta+K');
-    await paletteInput.fill('Coral');
-    await page.getByRole('option', { name: /All results for "Coral"/ }).click();
-    await expect(page.locator('.search-wall-view')).toBeVisible();
-    await expect(page.locator('.search-wall-view .wall-tile')).toHaveCount(1);
-    await expect(page.locator('.search-wall-view .wall-tile')).toHaveAttribute('aria-label', 'Coral, Test Artist');
-    await expect(page.locator('aside')).toHaveCount(0);
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: testInfo.outputPath('search-wall.png') });
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.search-wall-view')).toHaveCount(0);
-    await expect(tiles).toHaveCount(3);
-
     // Settings float over the wall as a sheet and close back to it.
     await page.keyboard.press('ControlOrMeta+K');
     await page.keyboard.press('Shift+Tab');
@@ -169,6 +155,11 @@ test('poster wall is the home page, plays in place and switches sources from the
     await expect(tiles).toHaveCount(3);
     // The sheet is frosted glass over the wall (a minifier once dropped the unprefixed blur).
     expect(await page.locator('.settings-sheet').evaluate(node => getComputedStyle(node).backdropFilter)).toContain('blur');
+    if (process.platform === 'darwin') {
+      // Native glass is disabled in this fixture; macOS still matches Cmd+K's web material.
+      expect(await page.locator('.settings-sheet').evaluate(node => getComputedStyle(node).backdropFilter)).toBe('blur(32px) saturate(1.7)');
+      expect(await page.locator('.settings-sheet-backdrop').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0.18)');
+    }
     await page.waitForTimeout(400);
     await page.screenshot({ path: testInfo.outputPath('settings-sheet.png') });
     await page.keyboard.press('Escape');

@@ -5,13 +5,11 @@ import {
   type MacosNativePaletteBridge,
 } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
+import { createCoverQueue } from './coverQueue';
 import { loadArtwork } from './playerControlbarHandlers';
 import { fail, ok, parsePayload } from './typedResult';
 
 const MAX_ROWS = 200;
-/** Covers resolved per surface; the native side keeps a matching cache. */
-const MAX_REQUESTED_COVERS = 300;
-const COVER_CONCURRENCY = 4;
 
 const text = z.string().max(2048);
 const row = z.object({
@@ -23,6 +21,9 @@ const row = z.object({
   symbol: z.string().min(1).max(128),
   cover: z.string().max(8192).nullable(),
   nested: z.boolean(),
+  accessory: z.string().max(128),
+  accessoryLabel: z.string().max(64),
+  menu: z.boolean(),
 });
 export const nativePaletteStateSchema = z.object({
   open: z.boolean(),
@@ -49,42 +50,14 @@ export function registerNativePaletteHandlers(
 ): void {
   let bridge: MacosNativePaletteBridge | null = null;
   let owner: WebContents | null = null;
-  let revision = 0;
-  let requested = new Set<string>();
-  let queue: string[] = [];
-  let inFlight = 0;
+  const covers = createCoverQueue(resolveCover, (url, data) => bridge?.setNativePaletteCover(url, data), 'NativePalette');
 
   const stop = () => {
-    revision++;
-    requested = new Set();
-    queue = [];
+    covers.reset();
     owner?.removeListener('did-start-loading', stop);
     owner?.removeListener('destroyed', stop);
     owner = null;
     bridge?.stopNativePalette();
-  };
-
-  const pump = () => {
-    while (inFlight < COVER_CONCURRENCY && queue.length > 0) {
-      const url = queue.shift()!;
-      const current = revision;
-      inFlight++;
-      resolveCover(url)
-        .then(data => { if (data && current === revision && owner) bridge?.setNativePaletteCover(url, data); })
-        .catch(error => logger.debug('[NativePalette] Cover unavailable:', url, error))
-        .finally(() => { inFlight--; pump(); });
-    }
-  };
-
-  const requestCovers = (urls: Iterable<string>) => {
-    for (const url of urls) {
-      if (requested.has(url)) continue;
-      // Both sides drop their caches together; covers reload on demand.
-      if (requested.size >= MAX_REQUESTED_COVERS) requested = new Set();
-      requested.add(url);
-      queue.push(url);
-    }
-    pump();
   };
 
   ipcMain.handle('ipc:nativePalette:start', event => {
@@ -119,7 +92,7 @@ export function registerNativePaletteHandlers(
     if (!state.ok) return state;
     try {
       bridge!.updateNativePalette(state.data);
-      if (state.data.open) requestCovers(state.data.rows.flatMap(entry => (entry.cover ? [entry.cover] : [])));
+      if (state.data.open) covers.request(state.data.rows.flatMap(entry => (entry.cover ? [entry.cover] : [])));
       return ok(undefined);
     } catch (error) {
       stop();

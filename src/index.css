@@ -315,15 +315,6 @@ textarea.no-scrollbar::-webkit-scrollbar {
   color: var(--theme-text-primary);
 }
 
-.library-toolbar {
-  gap: 1rem;
-}
-
-.library-toolbar-leading,
-.library-toolbar-actions {
-  min-width: 0;
-}
-
 .global-search-box {
   flex: 0 1 22.5rem;
   width: clamp(12rem, 28vw, 22.5rem);
@@ -637,19 +628,6 @@ textarea.no-scrollbar::-webkit-scrollbar {
 }
 
 @container library-view (max-width: 760px) {
-  .library-toolbar {
-    flex-wrap: wrap;
-  }
-
-  .library-toolbar-leading,
-  .library-toolbar-actions {
-    width: 100%;
-  }
-
-  .library-toolbar-actions {
-    justify-content: flex-end;
-  }
-
   .global-search-box {
     flex: 1 1 auto;
     width: auto;

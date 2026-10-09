@@ -226,6 +226,7 @@ SDK 注释生成方法参考，人工文档解释业务约束和完整流程。�
 
 - 实际清单不需要 activationEvents；目前统一按首次提供者请求惰性激活。权限仅含 SDK 精确 HTTPS origin 与自身凭据。
 - 已提供可打包 SDK、声明式普通配置、私有 JSON/凭据接口和自动生命周期清理。
+- 已提供宿主保存来源、兼容版本检查和手动在线更新；更新清单 schemaVersion 1 与运行时 API 独立演进。GitHub/HTTPS 分发规则见[插件更新与分发](../plugins/updates.md)。通用插件市场仍未实现。
 - 已接入两种 Focus 歌词渲染器，提供稳定文档/行身份、请求取消、响应校验和窗口内有界缓存。
 - 新旧包共用安装目录与管理页面，旧包仍由 createPlugin 兼容入口执行。
 - 主应用与新插件目前仍运行于主进程，未实现本文设想的隔离进程/安全沙箱；未开放 player/library/context/events/commands 或任意 UI 注入。

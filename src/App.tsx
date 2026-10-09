@@ -49,6 +49,7 @@ const AppContent: React.FC = () => {
     setIsFocusMode,
     markTrackSwitch,
     openSettings,
+    toggleSettings,
   } = ui;
   const {
     slots,
@@ -340,6 +341,7 @@ const AppContent: React.FC = () => {
   const online = useOnlineViewModel({
     progress: onlineProgress,
     playSong: playerController.playOnlineSong,
+    addSong: playerController.addOnlineSong,
     download: handleOnlineDownload,
     upload: handleOnlineUpload,
     navigateToTrack: playerController.handleSearchNavigate,
@@ -371,7 +373,7 @@ const AppContent: React.FC = () => {
     isFocusMode,
     isPlaying,
     setIsFocusMode,
-    openSettings,
+    openSettings: toggleSettings,
     importMusic,
     showShortcuts,
     togglePlay,
