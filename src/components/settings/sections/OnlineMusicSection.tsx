@@ -8,6 +8,12 @@ import type { OnlineSource } from '@/services/settingsManager';
 import type { QRLoginStatus } from '@/services/qrLogin';
 import Button from '../../ui/Button';
 
+// Panels inside the settings sheet are a faint wash of the text colour, so the
+// sheet's glass shows through instead of an opaque slab.
+const PANEL_FILL = (text: string) => `color-mix(in srgb, ${text} 6%, transparent)`;
+const PANEL_BORDER = (text: string) => `color-mix(in srgb, ${text} 10%, transparent)`;
+const PANEL_SELECTED = (text: string) => `color-mix(in srgb, ${text} 14%, transparent)`;
+
 // Presentational provider settings section used by the application settings panel.
 
 interface OnlineMusicSectionProps {
@@ -95,8 +101,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           <div
             className="h-44 overflow-y-auto no-scrollbar p-2 space-y-1"
             style={{
-              backgroundColor: colors.backgroundDark,
-              border: `1px solid ${colors.borderLight}`,
+              backgroundColor: PANEL_FILL(colors.textPrimary),
+              border: `1px solid ${PANEL_BORDER(colors.textPrimary)}`,
               borderRadius: 'var(--theme-card-radius)',
             }}
           >
@@ -109,14 +115,13 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   onClick={() => setOnlineSource(option.value)}
                   className="w-full px-3 py-2 text-left transition-colors text-xs flex items-center justify-between gap-2"
                   style={{
-                    backgroundColor: active ? `${colors.primary}20` : 'transparent',
-                    border: `1px solid ${active ? colors.primary : 'transparent'}`,
-                    borderRadius: 'var(--theme-card-radius)',
-                    color: active ? colors.primary : colors.textSecondary,
+                    backgroundColor: active ? PANEL_SELECTED(colors.textPrimary) : 'transparent',
+                    borderRadius: 'var(--theme-control-radius)',
+                    color: active ? colors.textPrimary : colors.textSecondary,
                   }}
                   onMouseEnter={e => {
                     if (!active) {
-                      e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
+                      e.currentTarget.style.backgroundColor = PANEL_FILL(colors.textPrimary);
                       e.currentTarget.style.color = colors.textPrimary;
                     }
                   }}
@@ -128,7 +133,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   }}
                 >
                   <span className="truncate">{option.label}</span>
-                  {active && <span className="material-symbols-rounded text-sm flex-shrink-0">check</span>}
+                  {active && <span className="material-symbols-rounded text-sm flex-shrink-0" style={{ color: colors.primary }}>check</span>}
                 </button>
               );
             })}
@@ -153,8 +158,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
           <div
             className="h-44 w-full r-control relative flex flex-col items-center justify-center overflow-hidden"
             style={{
-              backgroundColor: colors.backgroundDark,
-              border: `1px dashed ${colors.borderLight}`,
+              backgroundColor: PANEL_FILL(colors.textPrimary),
+              border: `1px solid ${PANEL_BORDER(colors.textPrimary)}`,
               color: colors.textMuted,
             }}
           >
@@ -202,7 +207,6 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 <div
                   className="absolute bottom-0 inset-x-0 px-2 py-1 text-center text-[11px] truncate"
                   style={{
-                    backgroundColor: colors.backgroundDark,
                     color: qrState === 'confirming' ? colors.primary : colors.textSecondary,
                   }}
                 >

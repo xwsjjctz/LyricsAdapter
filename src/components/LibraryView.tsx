@@ -5,7 +5,8 @@ import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
 import { themeManager } from '../services/themeManager';
 import { toCoverThumb } from '../services/coverUrl';
-import { ThemeConfig } from '../types/theme';
+import { THEME_IDS, ThemeConfig } from '../types/theme';
+import { dayPaletteColors } from '../services/themes/dayPalette';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
 import TrackMenu from './TrackMenu';
@@ -228,8 +229,18 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // 实时记录 scrollTop，cleanup 时读此 ref 而非 DOM（避免 DOM 切换后 scrollTop 被 clamp）
   const lastScrollTopRef = useRef(0);
 
-  // Theme colors
-  const colors = currentTheme.colors;
+  // Theme colors. The list sits directly on the bright app background, so the
+  // night theme borrows the former day palette's dark text and borders here;
+  // menus and bars with their own dark surfaces keep the theme's colours.
+  const themeColors = currentTheme.colors;
+  const colors = useMemo(() => (currentTheme.id === THEME_IDS.DEFAULT ? {
+    ...themeColors,
+    textPrimary: dayPaletteColors.textPrimary,
+    textSecondary: dayPaletteColors.textSecondary,
+    textMuted: dayPaletteColors.textMuted,
+    borderLight: dayPaletteColors.borderLight,
+    borderHover: dayPaletteColors.borderHover,
+  } : themeColors), [currentTheme.id, themeColors]);
   const localImportForeground = readableForeground(colors.primary);
   // 当前播放指示器形态：'inline' 时不渲染浮动跟随滑块，改用行内实色高亮，
   // 彻底规避浮动定位错位，且滚动时无跟随动画。
@@ -753,14 +764,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </div>
       )}
 
-      {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
+      {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={themeColors}
         onToggleAll={toggleSelectAll} onRemove={trackActions.requestBatchDelete} onDone={finishSelection} />}
 
       {filterType === 'default' && (
         <div className="flex-shrink-0">
           <div
             className="library-track-grid grid gap-4 px-4 py-2 mb-2 text-xs font-bold uppercase tracking-widest border-b select-none"
-            style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+            style={{ color: colors.textSecondary, borderColor: colors.borderLight }}
             onDoubleClick={handleScrollToTop}
           >
             <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
@@ -1102,7 +1113,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         </button>
       )}
 
-      {trackMenu && menuTrack && !isSelecting && <TrackMenu position={trackMenu} colors={colors}
+      {trackMenu && menuTrack && !isSelecting && <TrackMenu position={trackMenu} colors={themeColors}
         items={menuItemsFor(menuTrack)} onClose={closeTrackMenu}
         onAction={id => handleTrackMenuAction(menuTrack, id)} />}
 

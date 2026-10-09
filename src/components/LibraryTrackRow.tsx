@@ -102,11 +102,11 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
             {track.title}
             {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{t('library.needReimport')}</span>}
           </p>
-          <p className="text-xs truncate" style={{ color: colors.textMuted }}>{track.artist}</p>
+          <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{track.artist}</p>
         </div>
       </div>
-      <div className="library-track-album text-sm truncate pl-8" style={{ color: colors.textMuted }}>{track.album}</div>
-      <div className="text-sm text-right tabular-nums" style={{ color: progress != null ? colors.primary : colors.textMuted }}>
+      <div className="library-track-album text-sm truncate pl-8" style={{ color: colors.textSecondary }}>{track.album}</div>
+      <div className="text-sm text-right tabular-nums" style={{ color: progress != null ? colors.primary : colors.textSecondary }}>
         {progress != null ? `${Math.round(progress)}%` : formatDuration(track.duration)}
       </div>
     </div>
