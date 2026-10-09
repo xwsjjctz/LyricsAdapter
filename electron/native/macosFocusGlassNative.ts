@@ -2,8 +2,16 @@ import { createRequire } from 'node:module';
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../../src/types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../../src/types/nativePalette';
+import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../../src/types/playlistSwitcher';
 
 const require = createRequire(import.meta.url);
+
+interface MacosSettingsGlassBridge { attachSettingsGlass(handle: Buffer): boolean }
+export function loadMacosSettingsGlassBridge(): MacosSettingsGlassBridge | null {
+  if (process.platform !== 'darwin') return null;
+  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosSettingsGlassBridge>;
+  return typeof native.attachSettingsGlass === 'function' ? native as MacosSettingsGlassBridge : null;
+}
 
 export interface MacosPlayerControlbarBridge {
   startPlayerControlbar(handle: Buffer, onAction: (action: PlayerControlbarAction) => void): boolean;
@@ -52,4 +60,21 @@ export function loadMacosNativePaletteBridge(): MacosNativePaletteBridge | null 
     && typeof native.setNativePaletteCover === 'function'
     && typeof native.stopNativePalette === 'function'
     ? native as MacosNativePaletteBridge : null;
+}
+
+export interface MacosPlaylistSwitcherBridge {
+  startPlaylistSwitcher(handle: Buffer, onAction: (action: PlaylistSwitcherAction) => void): boolean;
+  updatePlaylistSwitcher(state: PlaylistSwitcherState): void;
+  setPlaylistSwitcherCover(url: string, data: Buffer): void;
+  stopPlaylistSwitcher(): void;
+}
+
+export function loadMacosPlaylistSwitcherBridge(): MacosPlaylistSwitcherBridge | null {
+  if (process.platform !== 'darwin') return null;
+  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosPlaylistSwitcherBridge>;
+  return typeof native.startPlaylistSwitcher === 'function'
+    && typeof native.updatePlaylistSwitcher === 'function'
+    && typeof native.setPlaylistSwitcherCover === 'function'
+    && typeof native.stopPlaylistSwitcher === 'function'
+    ? native as MacosPlaylistSwitcherBridge : null;
 }

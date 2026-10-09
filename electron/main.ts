@@ -1,4 +1,4 @@
-import { app, dialog } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import { logger } from './logger';
 import {
   createWindow,
@@ -27,6 +27,9 @@ import { registerSystemLyricsHandlers } from './ipc/systemLyricsHandlers';
 import { registerFocusGlassHandlers } from './ipc/focusGlassHandlers';
 import { registerPlayerControlbarHandlers } from './ipc/playerControlbarHandlers';
 import { registerNativePaletteHandlers } from './ipc/nativePaletteHandlers';
+import { registerPlaylistSwitcherHandlers } from './ipc/playlistSwitcherHandlers';
+import { registerSettingsPanelHandlers } from './ipc/settingsPanelHandlers';
+import { settingsStore } from './services/settingsStore';
 import { registerContextMenuHandlers } from './ipc/contextMenuHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
 import { userStateRepository } from './services/userStateRepository';
@@ -137,8 +140,12 @@ app.whenReady().then(async () => {
   registerDownloadHandlers();
   registerMetadataHandlers();
   registerCleanupHandlers();
-  registerSettingsHandlers(keys => {
+  registerSettingsHandlers((keys, senderId) => {
     if (!keys || keys.some(key => key === 'app-language' || key === 'app-shortcuts')) registerApplicationMenu(getWindow);
+    const entries = keys ? Object.fromEntries(keys.map(key => [key, settingsStore.get(key) ?? null])) : settingsStore.getAll();
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.webContents.id !== senderId) window.webContents.send('settings-changed', entries, keys === null);
+    }
   });
   registerUserDataHandlers();
   // Store initialization and legacy migrations above must finish before the
@@ -149,6 +156,8 @@ app.whenReady().then(async () => {
   registerFocusGlassHandlers();
   registerPlayerControlbarHandlers();
   registerNativePaletteHandlers();
+  registerPlaylistSwitcherHandlers();
+  registerSettingsPanelHandlers();
   registerContextMenuHandlers();
 
   await createWindow();

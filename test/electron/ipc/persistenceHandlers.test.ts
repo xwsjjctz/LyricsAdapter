@@ -43,7 +43,7 @@ import { registerUserDataHandlers } from '../../../electron/ipc/userDataHandlers
 function invoke(channel: string, payload?: unknown): unknown {
   const handler = mocks.handlers.get(channel);
   if (!handler) throw new Error(`Missing handler: ${channel}`);
-  return handler({}, payload);
+  return handler({ sender: { id: 42 } }, payload);
 }
 
 describe('persistence IPC handlers', () => {
@@ -117,15 +117,15 @@ describe('persistence IPC handlers', () => {
     const changed = vi.fn();
     registerSettingsHandlers(changed);
     invoke('ipc:settings:set', { key: 'app-language', value: 'en' });
-    expect(changed).toHaveBeenLastCalledWith(['app-language']);
+    expect(changed).toHaveBeenLastCalledWith(['app-language'], 42);
     invoke('ipc:settings:setMany', { entries: { 'app-language': 'ja', 'app-shortcuts': '{}' } });
-    expect(changed).toHaveBeenLastCalledWith(['app-language', 'app-shortcuts']);
+    expect(changed).toHaveBeenLastCalledWith(['app-language', 'app-shortcuts'], 42);
     invoke('settings:set', 'app-shortcuts');
-    expect(changed).toHaveBeenLastCalledWith(['app-shortcuts']);
+    expect(changed).toHaveBeenLastCalledWith(['app-shortcuts'], 42);
     invoke('ipc:settings:delete', { key: 'app-language' });
-    expect(changed).toHaveBeenLastCalledWith(['app-language']);
+    expect(changed).toHaveBeenLastCalledWith(['app-language'], 42);
     invoke('ipc:settings:replaceAll', { entries: {} });
-    expect(changed).toHaveBeenLastCalledWith(null);
+    expect(changed).toHaveBeenLastCalledWith(null, 42);
     changed.mockClear();
     mocks.settingsStore.set.mockReturnValue(false);
     invoke('ipc:settings:set', { key: 'app-language', value: 'fr' });

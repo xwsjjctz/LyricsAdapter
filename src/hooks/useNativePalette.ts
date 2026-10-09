@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { logger } from '../services/logger';
 import type { NativePaletteAction, NativePaletteState } from '../types/nativePalette';
+import { useNativeSurface } from './useNativeSurface';
 
 let keyboardOwned = false;
 
@@ -20,46 +20,14 @@ export function nativePaletteOwnsKeyboard(): boolean {
  * Returns false (web palette) on other platforms or after any native failure.
  */
 export function useNativePalette(state: NativePaletteState, onAction: (action: NativePaletteAction) => void): boolean {
-  const latest = useRef(onAction);
-  latest.current = onAction;
-  const [active, setActive] = useState(false);
   const desktop = getDesktopAPI();
   const api = desktop?.platform === 'darwin' ? desktop.ipc?.nativePalette : undefined;
-
-  useEffect(() => {
-    if (!api) return;
-    let cancelled = false;
-    const unsubscribe = api.onAction(action => { if (!cancelled) latest.current(action); });
-    void api.start().then(result => {
-      if (!cancelled) setActive(result.ok && result.data);
-    }).catch(error => logger.warn('[NativePalette] Using web palette:', error));
-    return () => {
-      cancelled = true;
-      unsubscribe();
-      void api.stop().catch(error => logger.warn('[NativePalette] Cleanup failed:', error));
-    };
-  }, [api]);
+  const active = useNativeSurface(api, state, onAction, 'NativePalette');
 
   useEffect(() => {
     keyboardOwned = active && state.open;
     return () => { keyboardOwned = false; };
   }, [active, state.open]);
-
-  const serialized = JSON.stringify(state);
-  const failed = useRef(false);
-  useEffect(() => {
-    if (!api || !active || failed.current) return;
-    const fallback = (error?: unknown) => {
-      if (failed.current) return;
-      failed.current = true;
-      logger.warn('[NativePalette] Falling back to web palette:', error);
-      setActive(false);
-      void api.stop().catch(() => undefined);
-    };
-    void api.update(JSON.parse(serialized) as NativePaletteState)
-      .then(result => { if (!result.ok) fallback(result.error); })
-      .catch(fallback);
-  }, [active, api, serialized]);
 
   return active;
 }

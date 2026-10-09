@@ -44,6 +44,27 @@ describe('appStorage persistence boundary', () => {
     appStorage.clearCache();
   });
 
+  it('applies peer renderer changes without persisting them or mirroring secrets', async () => {
+    const api = makeDesktopSettingsApi({
+      [SETTINGS_MIGRATION_VERSION_KEY]: SETTINGS_MIGRATION_VERSION,
+      'app-language': 'en', la_focus_lyrics_font_size: '32',
+    });
+    mocks.isDesktop.mockReturnValue(true);
+    mocks.getDesktopAPIAsync.mockResolvedValue(api);
+    await appStorage.init();
+    appStorage.applyExternalChanges({ 'app-language': 'zh', la_focus_lyrics_font_size: null, qq_music_cookie: 'secret' });
+    expect(appStorage.getItem('app-language')).toBe('zh');
+    expect(appStorage.getItem('la_focus_lyrics_font_size')).toBeNull();
+    expect(appStorage.getItem('qq_music_cookie')).toBe('secret');
+    expect(localStorage.length).toBe(0);
+    appStorage.applyExternalChanges({ 'app-language': 'ja' }, true);
+    expect(appStorage.getItem('qq_music_cookie')).toBeNull();
+    expect(appStorage.getItem('app-language')).toBe('ja');
+    expect(api.settingsSet).not.toHaveBeenCalled();
+    expect(api.settingsSetMany).not.toHaveBeenCalled();
+    expect(api.settingsReplaceAll).not.toHaveBeenCalled();
+  });
+
   it('keeps all desktop settings in memory/main-process storage without localStorage mirrors', async () => {
     const mainSettings = {
       'app-theme': 'default-dark',

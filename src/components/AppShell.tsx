@@ -8,7 +8,7 @@ import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
 import DownloadStatusPill from './wall/DownloadStatusPill';
 import SearchWallView from './search/SearchWallView';
-import SettingsView from './settings/SettingsView';
+import SettingsSurface from './settings/SettingsSurface';
 import CommandPalette from './palette/CommandPalette';
 import PlaylistSwitcher from './playlist-switcher/PlaylistSwitcher';
 import type { PlaylistSwitchItem } from './playlist-switcher/types';
@@ -392,7 +392,7 @@ const AppShell: React.FC<AppShellProps> = ({
             floating={floatingPanel}
           />
         </main>
-        {settingsSection && <SettingsView initialSection={settingsSection} onClose={closeSettings} />}
+        {settingsSection && <SettingsSurface initialSection={settingsSection} onClose={closeSettings} />}
         <FocusMode
           track={player.currentTrack}
           isVisible={isFocusMode}

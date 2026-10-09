@@ -76,7 +76,7 @@ void i18next
 i18next.on('languageChanged', (lng) => {
   if (!LANGUAGES.includes(lng as Language)) return;
   const lang = lng as Language;
-  appStorage.setItem('app-language', lang).catch(() => {});
+  if (appStorage.getItem('app-language') !== lang) appStorage.setItem('app-language', lang).catch(() => {});
 });
 
 export default i18next;

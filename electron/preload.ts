@@ -5,6 +5,7 @@ import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemL
 import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
+import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../src/types/playlistSwitcher';
 import type { NativeContextMenuRequest } from '../src/types/nativeContextMenu';
 import type { ApplicationMenuAction } from '../src/types/applicationMenu';
 import type { DownloadProgressEvent } from '../src/types/onlineProgress';
@@ -18,6 +19,33 @@ function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
 }
 
 const typedIpc = {
+  settingsPanel: {
+    open: async (section: import('../src/types/settingsPanel').SettingsSectionId) => ipcRenderer.invoke('ipc:settingsPanel:open', section),
+    close: async () => ipcRenderer.invoke('ipc:settingsPanel:close'),
+    ready: async (height: number) => ipcRenderer.invoke('ipc:settingsPanel:ready', height),
+    previewOpacity: async (value: number) => ipcRenderer.invoke('ipc:settingsPanel:previewOpacity', value),
+    forwardShortcut: async (key: string, modifiers: number) => ipcRenderer.invoke('ipc:settingsPanel:shortcut', { key, modifiers }),
+    onSection: (callback: (section: import('../src/types/settingsPanel').SettingsSectionId) => void) => {
+      const handler = (_event: unknown, section: import('../src/types/settingsPanel').SettingsSectionId) => callback(section);
+      ipcRenderer.on('settings-panel-section', handler);
+      return () => ipcRenderer.removeListener('settings-panel-section', handler);
+    },
+    onShortcut: (callback: (key: string, modifiers: number) => void) => {
+      const handler = (_event: unknown, key: string, modifiers: number) => callback(key, modifiers);
+      ipcRenderer.on('settings-panel-shortcut', handler);
+      return () => ipcRenderer.removeListener('settings-panel-shortcut', handler);
+    },
+    onPreviewOpacity: (callback: (value: number) => void) => {
+      const handler = (_event: unknown, value: number) => callback(value);
+      ipcRenderer.on('settings-panel-preview-opacity', handler);
+      return () => ipcRenderer.removeListener('settings-panel-preview-opacity', handler);
+    },
+    onClosed: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('settings-panel-closed', handler);
+      return () => ipcRenderer.removeListener('settings-panel-closed', handler);
+    },
+  },
   applicationMenu: {
     onAction: (callback: (action: ApplicationMenuAction) => void) => {
       const handler = (_event: unknown, action: ApplicationMenuAction) => callback(action);
@@ -47,6 +75,16 @@ const typedIpc = {
       const handler = (_event: unknown, action: NativePaletteAction) => callback(action);
       ipcRenderer.on('native-palette-action', handler);
       return () => ipcRenderer.removeListener('native-palette-action', handler);
+    },
+  },
+  playlistSwitcher: {
+    start: async () => ipcRenderer.invoke('ipc:playlistSwitcher:start'),
+    update: async (state: PlaylistSwitcherState) => ipcRenderer.invoke('ipc:playlistSwitcher:update', state),
+    stop: async () => ipcRenderer.invoke('ipc:playlistSwitcher:stop'),
+    onAction: (callback: (action: PlaylistSwitcherAction) => void) => {
+      const handler = (_event: unknown, action: PlaylistSwitcherAction) => callback(action);
+      ipcRenderer.on('playlist-switcher-action', handler);
+      return () => ipcRenderer.removeListener('playlist-switcher-action', handler);
     },
   },
   focusGlass: {
@@ -87,6 +125,11 @@ const typedIpc = {
     audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
   },
   settings: {
+    onChanged: (callback: (entries: Record<string, string | null>, replaced: boolean) => void) => {
+      const handler = (_event: unknown, entries: Record<string, string | null>, replaced: boolean) => callback(entries, replaced);
+      ipcRenderer.on('settings-changed', handler);
+      return () => ipcRenderer.removeListener('settings-changed', handler);
+    },
     get: async (key: string) => ipcRenderer.invoke('ipc:settings:get', { key }),
     getAll: async () => ipcRenderer.invoke('ipc:settings:getAll'),
     set: async (key: string, value: string) => ipcRenderer.invoke('ipc:settings:set', { key, value }),

@@ -87,20 +87,20 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
         {plugins.map(plugin => {
           const update = updates.find(info => info.id === plugin.id);
           return (
-            <div key={plugin.id} className="r-card border p-4 flex flex-wrap items-center justify-between gap-3" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+            <div key={plugin.id} data-testid={`installed-plugin-${plugin.id}`} className="r-card border p-4 flex flex-wrap items-center justify-between gap-3" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
               <div className="min-w-0 text-xs space-y-1" style={{ color: colors.textPrimary }}>
                 <p>{plugin.name} · {plugin.version}</p>
+                <p style={{ color: colors.textSecondary }}>{t(plugin.enabled ? 'musicPlugins.enabled' : 'musicPlugins.disabled')}</p>
                 {plugin.restartRequired && <p role="status">{t('musicPlugins.restart')}</p>}
                 {plugin.error && <p role="alert">{plugin.error}</p>}
               </div>
-              <div className="flex gap-2 items-center">
-                <Button size="sm" disabled={busy || !api} onClick={() => void change(() => api!.musicPluginUninstall!(plugin.id))}>{t('musicPlugins.uninstall')}</Button>
-                <button type="button" role="switch" aria-checked={plugin.enabled} aria-label={`${t('musicPlugins.toggle')} ${plugin.name}`}
-                  disabled={busy || !api} className="px-2 py-1 text-xs rounded border disabled:opacity-50"
-                  style={{ color: colors.textPrimary, borderColor: colors.borderLight }}
+              <div className="flex flex-wrap gap-2 items-center">
+                <Button size="sm" disabled={busy || !api?.musicPluginSetEnabled}
+                  aria-label={t(plugin.enabled ? 'musicPlugins.disablePlugin' : 'musicPlugins.enablePlugin', { name: plugin.name })}
                   onClick={() => void change(() => api!.musicPluginSetEnabled!(plugin.id, !plugin.enabled))}>
-                  {t(plugin.enabled ? 'musicPlugins.enabled' : 'musicPlugins.disabled')}
-                </button>
+                  {t(plugin.enabled ? 'musicPlugins.disable' : 'musicPlugins.enable')}
+                </Button>
+                <Button size="sm" disabled={busy || !api} onClick={() => void change(() => api!.musicPluginUninstall!(plugin.id))}>{t('musicPlugins.uninstall')}</Button>
               </div>
               {plugin.enabled && !plugin.error && plugin.platform?.contributes.configuration && <PluginConfiguration plugin={plugin} theme={theme} />}
               {update && <PluginUpdateControls info={update} theme={theme} busy={busy}

@@ -6,7 +6,9 @@
         "src/addon.mm",
         "src/focusGlass.mm",
         "src/playerControlbar.mm",
-        "src/nativePalette.mm"
+        "src/nativePalette.mm",
+        "src/settingsGlass.mm",
+        "src/playlistSwitcher.mm"
       ],
       "defines": [
         "NAPI_VERSION=8"

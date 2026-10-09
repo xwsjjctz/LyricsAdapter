@@ -59,7 +59,7 @@ export function toSfSymbol(icon: string | undefined): string {
 const clip = (text: string | undefined, max = MAX_TEXT) => (text ?? '').slice(0, max);
 
 /** Only URLs the main process can fetch; anything else keeps the symbol. */
-function nativeCover(url: string | undefined): string | null {
+export function nativeCover(url: string | undefined): string | null {
   if (!url || url.length > MAX_COVER_URL) return null;
   try {
     return COVER_PROTOCOLS.has(new URL(url).protocol) ? url : null;
@@ -131,9 +131,9 @@ function domCode(key: string): string {
  * The native search field owns the keyboard while open, so Cmd chords the
  * menu bar did not handle are replayed where global shortcuts listen.
  */
-export function dispatchForwardedShortcut(key: string, modifiers: number, target: EventTarget = window): void {
+export function dispatchForwardedShortcut(key: string, modifiers: number, target: EventTarget = window): KeyboardEvent | undefined {
   if (!key) return;
-  target.dispatchEvent(new KeyboardEvent('keydown', {
+  const event = new KeyboardEvent('keydown', {
     key,
     code: domCode(key),
     metaKey: (modifiers & NATIVE_PALETTE_MODIFIERS.meta) !== 0,
@@ -142,5 +142,7 @@ export function dispatchForwardedShortcut(key: string, modifiers: number, target
     shiftKey: (modifiers & NATIVE_PALETTE_MODIFIERS.shift) !== 0,
     bubbles: true,
     cancelable: true,
-  }));
+  });
+  target.dispatchEvent(event);
+  return event;
 }

@@ -63,3 +63,13 @@ export function updateNativePalette(state: {
 }): void;
 export function setNativePaletteCover(url: string, data: Buffer): void;
 export function stopNativePalette(): void;
+/** Main-thread-only macOS 26 playlist switcher surface. */
+export function startPlaylistSwitcher(handle: Buffer, onAction: (action: {
+  type: 'hover' | 'activate'; value: number;
+}) => void): boolean;
+export function updatePlaylistSwitcher(state: {
+  open: boolean; darkMode: boolean; label: string; hint: string; selected: number;
+  cards: Array<{ name: string; detail: string; symbol: string; cover: string | null }>;
+}): void;
+export function setPlaylistSwitcherCover(url: string, data: Buffer): void;
+export function stopPlaylistSwitcher(): void;

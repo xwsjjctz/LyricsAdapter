@@ -550,11 +550,15 @@ napi_value StopStatusItem(napi_env env, napi_callback_info info) {
 void InitializeFocusGlass(napi_env env, napi_value exports);
 void InitializePlayerControlbar(napi_env env, napi_value exports);
 void InitializeNativePalette(napi_env env, napi_value exports);
+void InitializeSettingsGlass(napi_env env, napi_value exports);
+void InitializePlaylistSwitcher(napi_env env, napi_value exports);
 
 napi_value Initialize(napi_env env, napi_value exports) {
   InitializeFocusGlass(env, exports);
   InitializePlayerControlbar(env, exports);
   InitializeNativePalette(env, exports);
+  InitializeSettingsGlass(env, exports);
+  InitializePlaylistSwitcher(env, exports);
   gEnv = env;
   napi_add_env_cleanup_hook(env, Cleanup, nullptr);
 

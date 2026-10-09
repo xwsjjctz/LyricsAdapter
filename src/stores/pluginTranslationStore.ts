@@ -8,6 +8,15 @@ let revision = 0;
 const update = (next: typeof state) => { state = next; listeners.forEach(listener => listener()); };
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 const getSnapshot = () => state;
+export function applyExternalTranslationPreference(entries: Record<string, string | null>, replaced = false): void {
+  if (!replaced && !Object.hasOwn(entries, 'plugin_lyrics_provider') && !Object.hasOwn(entries, 'plugin_lyrics_language')) return;
+  revision++;
+  update({
+    provider: Object.hasOwn(entries, 'plugin_lyrics_provider') || replaced ? entries['plugin_lyrics_provider'] ?? '' : state.provider,
+    language: Object.hasOwn(entries, 'plugin_lyrics_language') || replaced ? entries['plugin_lyrics_language'] ?? 'zh' : state.language,
+    loaded: true,
+  });
+}
 async function hydrate() {
   if (state.loaded) return;
   const current = revision;

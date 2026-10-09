@@ -2,6 +2,7 @@ import type { SystemLyricsAction, SystemLyricsState } from './systemLyrics';
 import type { FocusGlassState, FocusGlassAction, PlaybackSymbols } from './focusGlass';
 import type { PlayerControlbarState, PlayerControlbarAction } from './playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from './nativePalette';
+import type { PlaylistSwitcherAction, PlaylistSwitcherState } from './playlistSwitcher';
 import type { NativeContextMenuRequest } from './nativeContextMenu';
 import type { ApplicationMenuAction } from './applicationMenu';
 
@@ -54,6 +55,17 @@ export interface PersistenceCloseCommitResult {
 }
 
 export interface TypedElectronIPC {
+  settingsPanel?: {
+    open: (section: import('./settingsPanel').SettingsSectionId) => Promise<IpcResult<boolean>>;
+    close: () => Promise<IpcResult<void>>;
+    ready: (height: number) => Promise<IpcResult<void>>;
+    previewOpacity: (value: number) => Promise<IpcResult<void>>;
+    forwardShortcut: (key: string, modifiers: number) => Promise<IpcResult<void>>;
+    onClosed: (callback: () => void) => () => void;
+    onPreviewOpacity: (callback: (value: number) => void) => () => void;
+    onShortcut: (callback: (key: string, modifiers: number) => void) => () => void;
+    onSection: (callback: (section: import('./settingsPanel').SettingsSectionId) => void) => () => void;
+  };
   applicationMenu?: {
     onAction: (callback: (action: ApplicationMenuAction) => void) => () => void;
   };
@@ -72,6 +84,12 @@ export interface TypedElectronIPC {
     update: (state: NativePaletteState) => Promise<IpcResult<void>>;
     stop: () => Promise<IpcResult<void>>;
     onAction: (callback: (action: NativePaletteAction) => void) => () => void;
+  };
+  playlistSwitcher?: {
+    start: () => Promise<IpcResult<boolean>>;
+    update: (state: PlaylistSwitcherState) => Promise<IpcResult<void>>;
+    stop: () => Promise<IpcResult<void>>;
+    onAction: (callback: (action: PlaylistSwitcherAction) => void) => () => void;
   };
   focusGlass?: {
     getPlaybackSymbols?: () => Promise<IpcResult<PlaybackSymbols>>;
@@ -103,6 +121,7 @@ export interface TypedElectronIPC {
     audio: (payload: { url: string; cookieString: string }) => Promise<IpcResult<{ data: ArrayBuffer }>>;
   };
   settings: {
+    onChanged?: (callback: (entries: Record<string, string | null>, replaced: boolean) => void) => () => void;
     get: (key: string) => Promise<IpcResult<string | undefined>>;
     getAll: () => Promise<IpcResult<Record<string, string>>>;
     set: (key: string, value: string) => Promise<IpcResult<void>>;
