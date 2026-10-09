@@ -4,6 +4,7 @@ import type { SettingsSectionId } from '../components/settings/SettingsView';
 import { useFloatingPanel } from '../hooks/useFloatingPanel';
 import { useGsapButtonBounce } from '../hooks/useGsapButtonBounce';
 import { useGsapPageTransition } from '../hooks/useGsapPageTransition';
+import { commandPalette } from '../hooks/useCommandPalette';
 import { useWindowFocus } from '../hooks/useWindowFocus';
 import { settingsManager, type LibraryMode } from '../services/settingsManager';
 
@@ -55,11 +56,20 @@ export function useUIStore() {
     setSettingsSection(null);
   }, [transitionToView]);
 
+  // Settings and the command palette replace each other: opening either one
+  // closes the other, whichever shortcut or command asked for it.
   const openSettings = useCallback((section: SettingsSectionId = 'general') => {
+    commandPalette.close();
     setSettingsSection(section);
     setIsFocusMode(false);
   }, []);
   const closeSettings = useCallback(() => setSettingsSection(null), []);
+  /** The settings shortcut: opens the sheet, or closes it when already open. */
+  const toggleSettings = useCallback(() => {
+    commandPalette.close();
+    setSettingsSection(current => (current ? null : 'general'));
+    setIsFocusMode(false);
+  }, []);
 
   return {
     viewMode,
@@ -81,5 +91,6 @@ export function useUIStore() {
     settingsSection,
     openSettings,
     closeSettings,
+    toggleSettings,
   };
 }

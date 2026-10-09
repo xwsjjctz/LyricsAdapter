@@ -58,6 +58,8 @@ export interface TypedElectronIPC {
   settingsPanel?: {
     open: (section: import('./settingsPanel').SettingsSectionId) => Promise<IpcResult<boolean>>;
     close: () => Promise<IpcResult<void>>;
+    /** Builds the hidden settings panel so the first open is immediate. */
+    prewarm: () => Promise<IpcResult<boolean>>;
     ready: (height: number) => Promise<IpcResult<void>>;
     previewOpacity: (value: number) => Promise<IpcResult<void>>;
     forwardShortcut: (key: string, modifiers: number) => Promise<IpcResult<void>>;

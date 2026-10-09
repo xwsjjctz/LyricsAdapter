@@ -7,6 +7,20 @@ import { dispatchForwardedShortcut } from '../palette/nativePaletteState';
 import { shortcutManager } from '../../services/shortcuts';
 import { setNativeSettingsOwnsKeyboard } from '../../services/nativeSettingsFocus';
 
+/** Builds the hidden native settings panel shortly after startup, so opening it is immediate. */
+export function usePrewarmSettingsPanel(): void {
+  useEffect(() => {
+    const desktop = getDesktopAPI();
+    const api = desktop?.platform === 'darwin' ? desktop.ipc?.settingsPanel : undefined;
+    if (!api?.prewarm) return;
+    // Wait out startup work; the first open still builds the panel on demand.
+    const timer = setTimeout(() => {
+      void api.prewarm().catch(error => logger.warn('[SettingsPanel] Prewarm failed:', error));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+}
+
 export default function SettingsSurface({ initialSection, onClose }: { initialSection: SettingsSectionId; onClose: () => void }) {
   const desktop = getDesktopAPI();
   const api = desktop?.platform === 'darwin' ? desktop.ipc?.settingsPanel : undefined;
@@ -51,7 +65,8 @@ export default function SettingsSurface({ initialSection, onClose }: { initialSe
     }
   }, [api, native, initialSection]);
 
-  useEffect(() => { if (native && palette.open) closeRef.current(); }, [native, palette.open]);
+  // Both the web sheet and the native panel give way to the command palette.
+  useEffect(() => { if (palette.open) closeRef.current(); }, [palette.open]);
   useEffect(() => {
     // Also while opening: the panel takes the keyboard before `open` resolves.
     setNativeSettingsOwnsKeyboard(native !== false);

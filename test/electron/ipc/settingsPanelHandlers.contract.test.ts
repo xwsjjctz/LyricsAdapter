@@ -25,6 +25,7 @@ function setup(platform: NodeJS.Platform = 'darwin') {
     webContents: contents, isDestroyed: () => destroyed, isVisible: () => visible,
     setBounds: vi.fn(), getNativeWindowHandle: () => Buffer.alloc(8),
     loadURL: vi.fn().mockResolvedValue(undefined), show: vi.fn(() => { visible = true; }),
+    hide: vi.fn(() => { visible = false; }),
     destroy: vi.fn(() => { destroyed = true; panel.emit('closed'); }),
   });
   mocks.create.mockImplementation(function () { return panel; });
@@ -64,13 +65,16 @@ describe('native settings panel', () => {
     expect(await opening).toEqual({ ok: true, data: true });
     f.invoke('close');
   });
-  it('waits for controls to mount, clamps placement and releases listeners on close', async () => {
+  it('waits for controls to mount, clamps placement, and hides rather than destroys on close', async () => {
     const f = setup(); const opening = f.invoke('open', 'shortcuts');
     expect(f.panel.show).not.toHaveBeenCalled();
     expect(f.panel.loadURL).toHaveBeenCalledWith('app://localhost/index.html?settings-panel=shortcuts');
+    // The handler is still awaiting loadURL; let it start waiting for the controls.
+    await Promise.resolve(); await Promise.resolve();
     f.invoke('ready', 800, f.childEvent);
     expect(await opening).toEqual({ ok: true, data: true });
-    expect(f.panel.setBounds).toHaveBeenLastCalledWith({ x: 190, y: 156, width: 720, height: 474 });
+    expect(f.panel.show).toHaveBeenCalledOnce();
+    expect(f.panel.setBounds).toHaveBeenLastCalledWith({ x: 230, y: 191, width: 640, height: 468 });
     expect(await f.invoke('open', 'general')).toEqual({ ok: true, data: true });
     expect(f.contents.send).toHaveBeenCalledWith('settings-panel-section', 'general');
     expect(mocks.create).toHaveBeenCalledOnce();
@@ -84,8 +88,31 @@ describe('native settings panel', () => {
     expect(f.invoke('shortcut', { key: 'k', modifiers: 1 }).ok).toBe(false);
     f.invoke('close', undefined, f.childEvent);
     expect(f.owner.send).toHaveBeenCalledWith('settings-panel-closed');
+    // The renderer is kept for the next open, which only shows it again.
+    expect(f.panel.hide).toHaveBeenCalledOnce();
+    expect(f.panel.destroy).not.toHaveBeenCalled();
+    expect(await f.invoke('open', 'focus')).toEqual({ ok: true, data: true });
+    expect(f.contents.send).toHaveBeenLastCalledWith('settings-panel-section', 'focus');
+    expect(f.panel.show).toHaveBeenCalledTimes(2);
+    expect(mocks.create).toHaveBeenCalledOnce();
+    // A reload of the player releases the window and every listener.
+    f.owner.emit('did-start-loading');
+    expect(f.panel.destroy).toHaveBeenCalledOnce();
     expect(f.parent.listenerCount('move')).toBe(0); expect(f.parent.listenerCount('resize')).toBe(0);
     expect(f.owner.listenerCount('did-start-loading')).toBe(0);
+  });
+  it('prewarms a hidden panel that the first open only has to show', async () => {
+    const f = setup();
+    expect(f.invoke('prewarm')).toEqual({ ok: true, data: true });
+    expect(f.panel.loadURL).toHaveBeenCalledWith('app://localhost/index.html?settings-panel=general');
+    await Promise.resolve(); await Promise.resolve();
+    f.invoke('ready', 500, f.childEvent);
+    expect(f.panel.show).not.toHaveBeenCalled();
+    expect(f.invoke('prewarm')).toEqual({ ok: true, data: true });
+    expect(await f.invoke('open', 'cloud')).toEqual({ ok: true, data: true });
+    expect(f.contents.send).toHaveBeenCalledWith('settings-panel-section', 'cloud');
+    expect(f.panel.show).toHaveBeenCalledOnce();
+    expect(mocks.create).toHaveBeenCalledOnce();
   });
   it('returns to web settings when AppKit is unavailable without leaking a child window', async () => {
     const f = setup(); f.bridge.attachSettingsGlass.mockReturnValue(false);

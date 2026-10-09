@@ -7,7 +7,7 @@ import FocusMode from './FocusMode';
 import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
 import DownloadStatusPill from './wall/DownloadStatusPill';
-import SettingsSurface from './settings/SettingsSurface';
+import SettingsSurface, { usePrewarmSettingsPanel } from './settings/SettingsSurface';
 import CommandPalette from './palette/CommandPalette';
 import PlaylistSwitcher from './playlist-switcher/PlaylistSwitcher';
 import type { PlaylistSwitchItem } from './playlist-switcher/types';
@@ -97,6 +97,7 @@ const AppShell: React.FC<AppShellProps> = ({
   onPlayLibraryPlaylistTrack,
 }) => {
   const { t } = useTranslation();
+  usePrewarmSettingsPanel();
   const {
     viewMode,
     pageContentRef,

@@ -327,7 +327,8 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 56px 24px 120px;
+  /* Same frame as the command palette. */
+  padding: 14vh 16px 16px;
   background: rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(6px);
   animation: settings-sheet-fade 140ms ease-out;
@@ -343,8 +344,8 @@
 .settings-sheet {
   display: flex;
   flex-direction: column;
-  width: min(720px, 100%);
-  max-height: 100%;
+  width: min(640px, 100%);
+  max-height: min(560px, 72vh);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
   border-radius: var(--theme-surface-radius);
@@ -449,6 +450,8 @@ html[data-settings-panel='native'] .settings-sheet-backdrop {
 }
 html[data-settings-panel='native'] .settings-sheet {
   width: 100%;
+  /* The child window is already sized to the palette's frame. */
+  max-height: 100%;
   border: 0;
   border-radius: 22px;
   background: transparent;

@@ -49,6 +49,7 @@ const AppContent: React.FC = () => {
     setIsFocusMode,
     markTrackSwitch,
     openSettings,
+    toggleSettings,
   } = ui;
   const {
     slots,
@@ -372,7 +373,7 @@ const AppContent: React.FC = () => {
     isFocusMode,
     isPlaying,
     setIsFocusMode,
-    openSettings,
+    openSettings: toggleSettings,
     importMusic,
     showShortcuts,
     togglePlay,

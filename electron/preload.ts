@@ -22,6 +22,7 @@ const typedIpc = {
   settingsPanel: {
     open: async (section: import('../src/types/settingsPanel').SettingsSectionId) => ipcRenderer.invoke('ipc:settingsPanel:open', section),
     close: async () => ipcRenderer.invoke('ipc:settingsPanel:close'),
+    prewarm: async () => ipcRenderer.invoke('ipc:settingsPanel:prewarm'),
     ready: async (height: number) => ipcRenderer.invoke('ipc:settingsPanel:ready', height),
     previewOpacity: async (value: number) => ipcRenderer.invoke('ipc:settingsPanel:previewOpacity', value),
     forwardShortcut: async (key: string, modifiers: number) => ipcRenderer.invoke('ipc:settingsPanel:shortcut', { key, modifiers }),

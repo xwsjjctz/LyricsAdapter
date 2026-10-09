@@ -84,9 +84,9 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
       return { child: child.getBounds(), parent: child.getParentWindow()!.getContentBounds() };
     });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => !win.getParentWindow())!.setSize(900, 650));
-    await expect.poll(async () => { const { child, parent } = await bounds(); return child.x - parent.x; }).toBe(90);
-    const resized = await bounds(); expect(resized.child.y - resized.parent.y).toBe(56);
-    expect(resized.child.height).toBeLessThanOrEqual(474);
+    await expect.poll(async () => { const { child, parent } = await bounds(); return child.x - parent.x; }).toBe(130);
+    const resized = await bounds(); expect(resized.child.y - resized.parent.y).toBe(Math.floor(resized.parent.height * 0.14));
+    expect(resized.child.height).toBeLessThanOrEqual(Math.min(560, Math.floor(resized.parent.height * 0.72)));
     await settings.keyboard.press('Escape').catch(error => { if (!settings.isClosed()) throw error; });
     await expect.poll(() => app!.windows().length).toBe(1);
     await expect(page.locator('.settings-sheet-backdrop')).toHaveCount(0);

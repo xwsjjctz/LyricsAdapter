@@ -10,40 +10,61 @@ const sectionSchema = z.enum(['general', 'plugins', 'online', 'cloud', 'focus', 
 const heightSchema = z.number().finite().min(1).max(10000);
 const shortcutSchema = z.object({ key: z.string().min(1).max(64), modifiers: z.number().int().min(0).max(15) });
 
-/** A transparent settings renderer over the same AppKit material as Cmd+K. */
+/** How long the requested tab gets to render before a hidden panel is shown again. */
+const SECTION_RENDER_MS = 40;
+
+/**
+ * A transparent settings renderer over the same AppKit material as Cmd+K. The
+ * child window is created once, ahead of the first use, and then only shown and
+ * hidden: building a window and loading the renderer on every open is what made
+ * the sheet lag behind the shortcut.
+ */
 export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridge, platform = process.platform): void {
   let panel: BrowserWindow | null = null;
   let parent: BrowserWindow | null = null;
   let owner: WebContents | null = null;
   let contentHeight = 600;
-  let resolveReady: (() => void) | undefined;
+  /** Resolves once the child has mounted its controls; false if it never will. */
+  let ready: Promise<boolean> | null = null;
+  let mounted = false;
+  let waiters: Array<(usable: boolean) => void> = [];
+  /** The owner wants the sheet on screen; a prewarmed panel stays hidden. */
+  let wanted = false;
 
   const layout = () => {
     if (!panel || !parent || panel.isDestroyed() || parent.isDestroyed()) return;
+    // Same frame as the command palette (nativePalette.mm and palette.css):
+    // 640 wide, 14% from the top, at most 560 tall or 72% of the window.
     const bounds = parent.getContentBounds();
-    const width = Math.max(1, Math.min(720, bounds.width - 48));
-    const height = Math.max(1, Math.min(contentHeight, bounds.height - 176));
-    panel.setBounds({ x: bounds.x + Math.floor((bounds.width - width) / 2), y: bounds.y + 56, width, height });
+    const width = Math.max(1, Math.min(640, bounds.width - 32));
+    const maxHeight = Math.min(560, Math.floor(bounds.height * 0.72));
+    const height = Math.max(1, Math.min(contentHeight, maxHeight));
+    panel.setBounds({ x: bounds.x + Math.floor((bounds.width - width) / 2), y: bounds.y + Math.floor(bounds.height * 0.14), width, height });
   };
-  const close = () => { if (panel && !panel.isDestroyed()) panel.destroy(); };
-  const ownerClosed = () => close();
+  const settle = (usable: boolean) => { const pending = waiters; waiters = []; for (const resolve of pending) resolve(usable); };
+  const destroy = () => { if (panel && !panel.isDestroyed()) panel.destroy(); };
+  const reveal = () => {
+    if (!panel || panel.isDestroyed() || !mounted || !wanted) return;
+    layout();
+    if (!panel.isVisible()) { panel.show(); panel.webContents.focus(); }
+  };
+  /** Hides the sheet and keeps its renderer for the next open. */
+  const conceal = () => {
+    wanted = false;
+    if (!panel || panel.isDestroyed() || !panel.isVisible()) return;
+    panel.hide();
+    if (owner && !owner.isDestroyed()) owner.send('settings-panel-closed');
+    if (parent && !parent.isDestroyed() && !parent.webContents.isDestroyed()) parent.webContents.focus();
+  };
 
-  ipcMain.handle('ipc:settingsPanel:open', async (event, payload: unknown) => {
-    if (platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1') return ok(false);
-    const section = sectionSchema.safeParse(payload);
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!section.success || !win || win.getParentWindow() || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings request');
-    if (panel) {
-      if (owner !== event.sender) return fail('Settings panel already owned');
-      panel.webContents.send('settings-panel-section', section.data);
-      return ok(true);
-    }
-    let openedPanel: BrowserWindow | null = null;
+  /** Builds the hidden child for `sender`; resolves false when native settings are unavailable. */
+  const create = async (win: BrowserWindow, sender: WebContents, section: string): Promise<boolean> => {
+    let child: BrowserWindow | null = null;
     try {
       const native = load();
-      if (!native) return ok(false);
-      parent = win; owner = event.sender; contentHeight = 600;
-      const child = new BrowserWindow({
+      if (!native) return false;
+      parent = win; owner = sender; contentHeight = 600; mounted = false;
+      child = new BrowserWindow({
         // A panel can take the keyboard without becoming the main window, so the
         // player keeps its active title bar and the sheet reads as part of it.
         type: 'panel',
@@ -56,50 +77,88 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
           spellcheck: false, sandbox: false,
         },
       });
-      panel = child;
-      openedPanel = child;
-      child.on('closed', () => {
+      const opened = child;
+      panel = opened;
+      opened.on('closed', () => {
+        const wasVisible = wanted && mounted;
         win.removeListener('move', layout); win.removeListener('resize', layout);
-        event.sender.removeListener('did-start-loading', ownerClosed);
-        event.sender.removeListener('destroyed', ownerClosed);
-        panel = null; parent = null; owner = null;
-        resolveReady?.(); resolveReady = undefined;
-        if (!event.sender.isDestroyed()) event.sender.send('settings-panel-closed');
-        if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.focus();
+        sender.removeListener('did-start-loading', destroy);
+        sender.removeListener('destroyed', destroy);
+        panel = null; parent = null; owner = null; ready = null; mounted = false; wanted = false;
+        settle(false);
+        if (!sender.isDestroyed()) sender.send('settings-panel-closed');
+        if (wasVisible && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.focus();
       });
       win.on('move', layout); win.on('resize', layout);
-      event.sender.once('did-start-loading', ownerClosed); event.sender.once('destroyed', ownerClosed);
+      // The panel belongs to one page load of the player; a reload starts over.
+      sender.once('did-start-loading', destroy); sender.once('destroyed', destroy);
       layout();
-      if (!native.attachSettingsGlass(child.getNativeWindowHandle())) { close(); return ok(false); }
-      const ready = new Promise<void>(resolve => { resolveReady = resolve; });
-      const timer = setTimeout(() => { if (!child.isDestroyed()) child.destroy(); }, 10000);
+      if (!native.attachSettingsGlass(opened.getNativeWindowHandle())) { destroy(); return false; }
+      const timer = setTimeout(() => { if (!mounted && !opened.isDestroyed()) opened.destroy(); }, 10000);
       try {
-        child.webContents.setWindowOpenHandler(({ url }) => {
+        opened.webContents.setWindowOpenHandler(({ url }) => {
           if (url.startsWith('https://')) void shell.openExternal(url).catch(error => logger.warn('[SettingsPanel] Open link failed:', error));
           return { action: 'deny' };
         });
-        child.webContents.on('will-navigate', e => e.preventDefault());
-        await child.loadURL(`app://localhost/index.html?settings-panel=${section.data}`);
-        await ready;
-        return ok(!child.isDestroyed());
+        opened.webContents.on('will-navigate', e => e.preventDefault());
+        await opened.loadURL(`app://localhost/index.html?settings-panel=${section}`);
+        if (opened.isDestroyed()) return false;
+        const usable = mounted || await new Promise<boolean>(resolve => { waiters.push(resolve); });
+        return usable && !opened.isDestroyed();
       } finally { clearTimeout(timer); }
     } catch (error) {
       logger.warn('[SettingsPanel] Using web settings:', error);
-      if (openedPanel && !openedPanel.isDestroyed()) openedPanel.destroy();
-      if (!panel) { parent = null; owner = null; }
-      return ok(false);
+      if (child && !child.isDestroyed()) child.destroy();
+      return false;
     }
+  };
+  const playerWindow = (event: Electron.IpcMainInvokeEvent) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win && !win.getParentWindow() && event.senderFrame === event.sender.mainFrame ? win : null;
+  };
+  const nativeDisabled = () => platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1';
+
+  // Builds the hidden panel ahead of the first open, so that open only shows it.
+  ipcMain.handle('ipc:settingsPanel:prewarm', event => {
+    if (nativeDisabled()) return ok(false);
+    const win = playerWindow(event);
+    if (!win) return fail('Invalid settings request');
+    if (panel) return ok(owner === event.sender);
+    ready = create(win, event.sender, 'general');
+    return ok(true);
+  });
+  ipcMain.handle('ipc:settingsPanel:open', async (event, payload: unknown) => {
+    if (nativeDisabled()) return ok(false);
+    const section = sectionSchema.safeParse(payload);
+    const win = playerWindow(event);
+    if (!section.success || !win) return fail('Invalid settings request');
+    if (panel && owner !== event.sender) return fail('Settings panel already owned');
+    wanted = true;
+    const reused = !!panel && !!ready;
+    if (!reused) ready = create(win, event.sender, section.data);
+    if (!await ready) return ok(false);
+    // Closed again while it was loading: stay hidden, but the surface is native.
+    if (!panel || panel.isDestroyed() || !wanted) return ok(true);
+    if (reused) {
+      // A reused panel still shows wherever it was left; reset it to the
+      // requested tab and let that render before a hidden panel appears.
+      panel.webContents.send('settings-panel-section', section.data);
+      if (!panel.isVisible()) await new Promise(resolve => setTimeout(resolve, SECTION_RENDER_MS));
+      if (!panel || panel.isDestroyed() || !wanted) return ok(true);
+    }
+    reveal();
+    return ok(true);
   });
   ipcMain.handle('ipc:settingsPanel:ready', (event, payload: unknown) => {
     const height = heightSchema.safeParse(payload);
     if (!height.success || !panel || event.sender !== panel.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings surface');
     contentHeight = Math.ceil(height.data); layout();
-    if (!panel.isVisible()) { panel.show(); panel.webContents.focus(); }
-    resolveReady?.(); resolveReady = undefined;
+    mounted = true;
+    settle(true);
     return ok(undefined);
   });
   ipcMain.handle('ipc:settingsPanel:close', event => {
-    if (event.senderFrame === event.sender.mainFrame && (event.sender === owner || event.sender === panel?.webContents)) close();
+    if (event.senderFrame === event.sender.mainFrame && (event.sender === owner || event.sender === panel?.webContents)) conceal();
     return ok(undefined);
   });
   ipcMain.handle('ipc:settingsPanel:previewOpacity', (event, payload: unknown) => {
