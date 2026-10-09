@@ -25,3 +25,11 @@ it('generates hashes of complete packages without executing code and retains com
     { version: '1.0.0', sha256: createHash('sha256').update(old).digest('hex') },
   ]);
 });
+it('refuses to publish a version that hosts would reject', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'la-update-feed-')); roots.push(root);
+  const code = 'module.exports = {};';
+  fs.writeFileSync(path.join(root, 'translator.laplugin'), JSON.stringify({ manifest: { id: 'translator', version: '1.0' }, code, sha256: createHash('sha256').update(code).digest('hex') }));
+  const result = spawnSync(process.execPath, ['scripts/generatePluginUpdateFeed.mjs', root, '--base-url', 'https://github.com/example/plugins/releases/download/v1.0/'], { encoding: 'utf8', timeout: 10_000 });
+  expect(result.status).not.toBe(0); expect(result.stderr).toContain('semantic version');
+  expect(fs.existsSync(path.join(root, 'plugins.update.json'))).toBe(false);
+});

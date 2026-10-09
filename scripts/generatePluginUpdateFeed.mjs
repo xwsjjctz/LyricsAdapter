@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, readdir, stat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { isPluginVersion } from '../src/shared/pluginUpdate.ts';
 
 // Reads packages as data; never executes third-party plugin code.
 const args = process.argv.slice(2);
@@ -25,8 +26,10 @@ for (const file of files) {
   const bytes = await readFile(file);
   if (bytes.length > 24 * 1024 * 1024) throw new Error('Plugin package exceeds 24 MiB');
   const pkg = JSON.parse(bytes.toString('utf8')), manifest = pkg.manifest;
-  if (!manifest || !/^[a-z][a-z0-9-]{0,63}$/.test(manifest.id) || typeof manifest.version !== 'string' || typeof pkg.code !== 'string'
+  if (!manifest || !/^[a-z][a-z0-9-]{0,63}$/.test(manifest.id) || typeof pkg.code !== 'string'
     || pkg.sha256 !== createHash('sha256').update(pkg.code).digest('hex')) throw new Error('Invalid plugin package');
+  // Hosts reject a release whose version fails this check, so refuse to publish one.
+  if (!isPluginVersion(manifest.version)) throw new Error(`${path.basename(file)} needs a semantic version such as 1.2.3, not ${JSON.stringify(manifest.version)}`);
   const release = { version: manifest.version, manifest, url: new URL(path.basename(file), url).href,
     sha256: createHash('sha256').update(bytes).digest('hex'), ...(notes ? { notes } : {}) };
   let plugin = feed.plugins.find(item => item.id === manifest.id);

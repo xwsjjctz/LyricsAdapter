@@ -84,28 +84,31 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
             onClick={() => void change(async () => { setUpdates(await api!.pluginCheckUpdates!()); })}>{t('pluginUpdates.check')}</Button>
         </div>
         {!plugins.length && <p className="text-xs" style={{ color: colors.textSecondary }}>{t('musicPlugins.empty')}</p>}
-        {plugins.map(plugin => (
-          <div key={plugin.id} className="r-card border p-4 flex flex-wrap items-center justify-between gap-3" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-            <div className="min-w-0 text-xs space-y-1" style={{ color: colors.textPrimary }}>
-              <p>{plugin.name} · {plugin.version}</p>
-              {plugin.restartRequired && <p role="status">{t('musicPlugins.restart')}</p>}
-              {plugin.error && <p role="alert">{plugin.error}</p>}
+        {plugins.map(plugin => {
+          const update = updates.find(info => info.id === plugin.id);
+          return (
+            <div key={plugin.id} className="r-card border p-4 flex flex-wrap items-center justify-between gap-3" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+              <div className="min-w-0 text-xs space-y-1" style={{ color: colors.textPrimary }}>
+                <p>{plugin.name} · {plugin.version}</p>
+                {plugin.restartRequired && <p role="status">{t('musicPlugins.restart')}</p>}
+                {plugin.error && <p role="alert">{plugin.error}</p>}
+              </div>
+              <div className="flex gap-2 items-center">
+                <Button size="sm" disabled={busy || !api} onClick={() => void change(() => api!.musicPluginUninstall!(plugin.id))}>{t('musicPlugins.uninstall')}</Button>
+                <button type="button" role="switch" aria-checked={plugin.enabled} aria-label={`${t('musicPlugins.toggle')} ${plugin.name}`}
+                  disabled={busy || !api} className="px-2 py-1 text-xs rounded border disabled:opacity-50"
+                  style={{ color: colors.textPrimary, borderColor: colors.borderLight }}
+                  onClick={() => void change(() => api!.musicPluginSetEnabled!(plugin.id, !plugin.enabled))}>
+                  {t(plugin.enabled ? 'musicPlugins.enabled' : 'musicPlugins.disabled')}
+                </button>
+              </div>
+              {plugin.enabled && !plugin.error && plugin.platform?.contributes.configuration && <PluginConfiguration plugin={plugin} theme={theme} />}
+              {update && <PluginUpdateControls info={update} theme={theme} busy={busy}
+                onUpdate={() => void change(() => api!.pluginUpdate!(plugin.id))}
+                onSetSource={source => void change(async () => { setUpdates(await api!.pluginSetUpdateSource!(plugin.id, source)); setUpdates(await api!.pluginCheckUpdates!()); })} />}
             </div>
-            <div className="flex gap-2 items-center">
-              <Button size="sm" disabled={busy || !api} onClick={() => void change(() => api!.musicPluginUninstall!(plugin.id))}>{t('musicPlugins.uninstall')}</Button>
-              <button type="button" role="switch" aria-checked={plugin.enabled} aria-label={`${t('musicPlugins.toggle')} ${plugin.name}`}
-                disabled={busy || !api} className="px-2 py-1 text-xs rounded border disabled:opacity-50"
-                style={{ color: colors.textPrimary, borderColor: colors.borderLight }}
-                onClick={() => void change(() => api!.musicPluginSetEnabled!(plugin.id, !plugin.enabled))}>
-                {t(plugin.enabled ? 'musicPlugins.enabled' : 'musicPlugins.disabled')}
-              </button>
-            </div>
-            {plugin.enabled && !plugin.error && plugin.platform?.contributes.configuration && <PluginConfiguration plugin={plugin} theme={theme} />}
-            {updates.find(info => info.id === plugin.id) && <PluginUpdateControls info={updates.find(info => info.id === plugin.id)!} theme={theme} busy={busy}
-              onUpdate={() => void change(() => api!.pluginUpdate!(plugin.id))}
-              onSetSource={source => void change(async () => { setUpdates(await api!.pluginSetUpdateSource!(plugin.id, source)); setUpdates(await api!.pluginCheckUpdates!()); })} />}
-          </div>
-        ))}
+          );
+        })}
       </section>
       {(error || loadError || updateError) && <p className="text-xs" role="alert" style={{ color: colors.textPrimary }}>{error || loadError || updateError}</p>}
       <a href="https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins" target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: colors.primary }}>{t('musicPlugins.repository')}</a>

@@ -137,6 +137,20 @@ describe('plugin distribution and updates', () => {
     expect((await f.service.check())[0]).toMatchObject({ status: 'error', error: expect.stringContaining('bound GitHub repository') });
     expect(f.fetcher).toHaveBeenCalledTimes(2);
   });
+  it('confines a malformed feed entry to its own plugin', async () => {
+    const f = fixture(['translator', 'other', 'third']), other = release('other'), third = release('third');
+    f.setFeed({ schemaVersion: 1, plugins: [null, { id: 'Not An Id', releases: [] },
+      { id: 'translator', releases: [{ ...release().data, version: '2.0' }] }, { id: 'other', releases: [other.data] },
+      { id: 'third', releases: [third.data] }, { id: 'third', releases: [third.data] }] });
+    const checked = Object.fromEntries((await f.service.check()).map(info => [info.id, info]));
+    expect(checked['translator']).toMatchObject({ status: 'error', error: expect.stringContaining('Invalid plugin update release') });
+    expect(checked['third']).toMatchObject({ status: 'error', error: expect.stringContaining('Invalid plugin update feed entry') });
+    expect(checked['other']).toMatchObject({ status: 'available', targetVersion: '2.0.0' });
+    expect(f.fetcher).toHaveBeenCalledTimes(1);
+    await expect(f.service.update('translator')).rejects.toThrow('Invalid plugin update release');
+    expect(f.registry.list().find(plugin => plugin.id === 'translator')?.version).toBe('1.0.0');
+    expect((await f.service.update('other')).find(plugin => plugin.id === 'other')?.version).toBe('2.0.0');
+  });
   it('does not replace code with the same or an older semantic version', async () => {
     const f = fixture();
     f.setFeed({ schemaVersion: 1, plugins: [{ id: 'translator', releases: [release('translator', '1.0.0+new-build').data, release('translator', '0.9.0').data] }] });

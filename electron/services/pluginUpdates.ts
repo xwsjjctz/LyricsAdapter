@@ -18,6 +18,8 @@ interface Options {
   now?: () => number;
 }
 interface Release extends PluginUpdateRelease { incompatible?: string }
+/** A plugin's usable releases, or the reason its feed entry was rejected. */
+type FeedEntry = Release[] | Error;
 const DAY = 24 * 60 * 60_000;
 const SOURCE_KEY = (id: string) => `plugin-installation:${id}:update-source`;
 const CACHE_KEY = (id: string) => `plugin-installation:${id}:update-cache`;
@@ -145,38 +147,45 @@ export class PluginUpdateService {
     }
     throw new Error('Invalid plugin update redirect');
   }
-  private parseFeed(bytes: Buffer, baseUrl: string, source: PluginUpdateSource): Map<string, Release[]> {
+  private parseReleases(id: string, values: unknown[], baseUrl: string, source: PluginUpdateSource): Release[] {
+    const versions = new Set<string>();
+    const releases: Release[] = values.map(value => {
+      if (!record(value) || !isPluginVersion(value['version']) || versions.has(value['version']) || typeof value['url'] !== 'string'
+        || typeof value['sha256'] !== 'string' || !/^[a-f0-9]{64}$/.test(value['sha256']) || !record(value['manifest'])
+        || value['manifest']['id'] !== id || value['manifest']['version'] !== value['version']
+        || (value['notes'] !== undefined && (typeof value['notes'] !== 'string' || value['notes'].length > 16_384))) throw new Error('Invalid plugin update release');
+      versions.add(value['version']);
+      const url = pluginUpdateUrl(new URL(value['url'], baseUrl).href);
+      if (source.kind === 'github' && (url.origin !== 'https://github.com' || !url.pathname.toLowerCase().startsWith(`/${source.repository.toLowerCase()}/releases/download/`))) throw new Error('Plugin asset must belong to the bound GitHub repository');
+      let incompatible: string | undefined;
+      try { validateMusicPluginManifest(value['manifest']); }
+      catch (error) {
+        const message = (error as Error).message;
+        if (!message.startsWith('Unsupported ')) throw error;
+        incompatible = message;
+      }
+      return { version: value['version'], url: url.href, sha256: value['sha256'], manifest: value['manifest'] as unknown as PluginUpdateRelease['manifest'],
+        ...(typeof value['notes'] === 'string' ? { notes: value['notes'] } : {}), ...(incompatible ? { incompatible } : {}) };
+    });
+    return releases.filter(release => source.channel === 'prerelease' || !release.version.split('+')[0]!.includes('-'))
+      .sort((a, b) => comparePluginVersions(b.version, a.version));
+  }
+  /** A malformed entry fails only its own plugin; the other plugins sharing the feed stay checkable. */
+  private parseFeed(bytes: Buffer, baseUrl: string, source: PluginUpdateSource): Map<string, FeedEntry> {
     const feed: unknown = JSON.parse(bytes.toString('utf8'));
     if (!record(feed) || feed['schemaVersion'] !== 1 || !Array.isArray(feed['plugins']) || feed['plugins'].length > 100) throw new Error('Unsupported or invalid plugin update feed');
-    const result = new Map<string, Release[]>();
+    const result = new Map<string, FeedEntry>();
     for (const item of feed['plugins']) {
-      if (!record(item) || typeof item['id'] !== 'string' || !PLUGIN_ID.test(item['id']) || result.has(item['id'])
-        || !Array.isArray(item['releases']) || item['releases'].length > 100) throw new Error('Invalid plugin update feed entry');
-      const versions = new Set<string>();
-      const releases: Release[] = item['releases'].map((value: unknown) => {
-        if (!record(value) || !isPluginVersion(value['version']) || versions.has(value['version']) || typeof value['url'] !== 'string'
-          || typeof value['sha256'] !== 'string' || !/^[a-f0-9]{64}$/.test(value['sha256']) || !record(value['manifest'])
-          || value['manifest']['id'] !== item['id'] || value['manifest']['version'] !== value['version']
-          || (value['notes'] !== undefined && (typeof value['notes'] !== 'string' || value['notes'].length > 16_384))) throw new Error('Invalid plugin update release');
-        versions.add(value['version']);
-        const url = pluginUpdateUrl(new URL(value['url'], baseUrl).href);
-        if (source.kind === 'github' && (url.origin !== 'https://github.com' || !url.pathname.toLowerCase().startsWith(`/${source.repository.toLowerCase()}/releases/download/`))) throw new Error('Plugin asset must belong to the bound GitHub repository');
-        let incompatible: string | undefined;
-        try { validateMusicPluginManifest(value['manifest']); }
-        catch (error) {
-          const message = (error as Error).message;
-          if (!message.startsWith('Unsupported ')) throw error;
-          incompatible = message;
-        }
-        return { version: value['version'], url: url.href, sha256: value['sha256'], manifest: value['manifest'] as unknown as PluginUpdateRelease['manifest'],
-          ...(typeof value['notes'] === 'string' ? { notes: value['notes'] } : {}), ...(incompatible ? { incompatible } : {}) };
-      });
-      result.set(item['id'], releases.filter(release => source.channel === 'prerelease' || !release.version.split('+')[0]!.includes('-'))
-        .sort((a, b) => comparePluginVersions(b.version, a.version)));
+      if (!record(item) || typeof item['id'] !== 'string' || !PLUGIN_ID.test(item['id'])) { logger.warn('[PluginUpdates] Skipped a feed entry without a valid plugin id', baseUrl); continue; }
+      const id = item['id'];
+      try {
+        if (result.has(id) || !Array.isArray(item['releases']) || item['releases'].length > 100) throw new Error('Invalid plugin update feed entry');
+        result.set(id, this.parseReleases(id, item['releases'], baseUrl, source));
+      } catch (error) { result.set(id, error instanceof Error ? error : new Error(String(error))); }
     }
     return result;
   }
-  private async releases(source: PluginUpdateSource): Promise<Map<string, Release[]>> {
+  private async releases(source: PluginUpdateSource): Promise<Map<string, FeedEntry>> {
     if (source.kind === 'official') {
       const downloads = await this.options.catalog.downloads();
       return new Map(downloads.map(download => {
@@ -215,7 +224,7 @@ export class PluginUpdateService {
     this.lifetime.signal.throwIfAborted();
     const generation = this.generation;
     this.checkGeneration = generation;
-    const feeds = new Map<string, Promise<Map<string, Release[]>>>();
+    const feeds = new Map<string, Promise<Map<string, FeedEntry>>>();
     const queue = [...this.list()];
     const worker = async () => {
       while (queue.length && !this.lifetime.signal.aborted && !this.mutation && generation === this.generation) {
@@ -230,9 +239,10 @@ export class PluginUpdateService {
           const key = JSON.stringify(source);
           let pending = feeds.get(key);
           if (!pending) { pending = this.releases(source); feeds.set(key, pending); }
-          const entries = await pending;
-          if (!entries.has(plugin.id)) throw new Error('Plugin is not listed in its update feed');
-          result = this.select(plugin, source, entries.get(plugin.id)!).info;
+          const entry = (await pending).get(plugin.id);
+          if (!entry) throw new Error('Plugin is not listed in its update feed');
+          if (entry instanceof Error) throw entry;
+          result = this.select(plugin, source, entry).info;
         } catch (error) { result = { ...this.initial(plugin), status: 'error', checkedAt: this.now(), error: (error as Error).message }; }
         if (generation === this.generation && !this.lifetime.signal.aborted) this.set(result, true);
       }
@@ -247,8 +257,9 @@ export class PluginUpdateService {
       this.set({ ...this.initial(plugin), status: 'updating' });
       let targetVersion: string | undefined;
       try {
-        const entries = await this.releases(source);
-        const selection = this.select(plugin, source, entries.get(id) ?? []);
+        const entry = (await this.releases(source)).get(id) ?? [];
+        if (entry instanceof Error) throw entry;
+        const selection = this.select(plugin, source, entry);
         if (!selection.target) throw new Error(selection.info.error ?? 'No compatible newer plugin version');
         const target = selection.target;
         targetVersion = target.version;
