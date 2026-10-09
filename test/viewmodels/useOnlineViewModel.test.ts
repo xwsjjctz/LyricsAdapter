@@ -8,6 +8,7 @@ function setup() {
   const options: OnlineViewModelOptions = {
     progress: {},
     playSong: vi.fn(),
+    addSong: vi.fn(),
     download: vi.fn().mockResolvedValue(undefined),
     upload: vi.fn().mockResolvedValue(undefined),
     navigateToTrack: vi.fn(),

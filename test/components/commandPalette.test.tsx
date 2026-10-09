@@ -31,6 +31,8 @@ function setup(extraCommands: PaletteCommand[] = []) {
     playlists: [{ id: 'p1', name: 'Road Trip', coverUrl: '', songCount: 9, source: 'netease' }],
     playTrack: vi.fn(),
     playOnlineSong: vi.fn(),
+    addOnlineSong: vi.fn(),
+    downloadOnlineSong: vi.fn(),
     openPlaylist: vi.fn(),
   };
   render(<CommandPalette palette={store} commands={commands} library={library} />);
