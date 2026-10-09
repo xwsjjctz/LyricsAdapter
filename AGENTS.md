@@ -2,8 +2,8 @@
 
 ## Scope and autonomy
 
-- Complete the requested work, including appropriate verification, within the user's
-  authorized scope. Reuse prior authorization; resolve routine implementation choices
+- Complete the requested work within the user's authorized scope. Verification by
+  running tests follows the limits in [Navigation and commands](#navigation-and-commands). Reuse prior authorization; resolve routine implementation choices
   and recoverable errors without a new approval round.
 - User instructions take precedence over repository and skill guidelines, subject to
   higher-priority instructions and execution permissions. Ask only when a missing
@@ -41,13 +41,21 @@ npm run test:e2e:run -- <spec> # Reuse a current build for selected Electron tes
 npm run electron:build       # Package current platform; :mac/:win/:linux also exist
 ```
 
-Choose checks for the affected behavior. Documentation-only edits need link, command,
-and consistency checks; UI changes need relevant visual checks; IPC, preload,
-persistence, or native changes need corresponding integration/platform checks.
-Before delivering a code PR, run `npm run check` and affected Electron tests where
-the environment supports them. CI retains its full platform matrix in
-`.github/workflows/pr-check.yml`. Repeat or broaden checks only for new changes,
-failures, or unresolved risks; report checks that could not run.
+Do not run tests, typechecks or builds as routine verification of local edits. Run
+them only in these cases:
+
+- The user asks for them.
+- Before creating a GitHub PR that merges into `master`: run `npm run check` and the
+  affected Electron tests where the environment supports them.
+- Before pushing a release tag that triggers the packaging workflow: run the same
+  checks.
+
+Otherwise make the change, review it by reading the code, and say plainly in the
+report that it was not run. In the cases above, choose checks for the affected
+behavior: IPC, preload, persistence or native changes need the corresponding
+integration/platform checks, and UI changes need relevant visual checks. CI retains
+its full platform matrix in `.github/workflows/pr-check.yml`. Report checks that could
+not run.
 
 ## Architecture and ownership
 
@@ -92,6 +100,6 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
 - When pushing/PR delivery is requested or already authorized, push the focused branch
   with upstream tracking and use a PR for `master`. This convention is not itself a
   request to commit, push, or merge every local edit.
-- Release tags require an explicit user request. Pushing `v*` triggers macOS/Windows
-  release builds; `v0.*` is prerelease and `v1.*` onward is stable. Consult
+- Release tags require an explicit user request. Run the checks above before pushing
+  one. Pushing `v*` triggers macOS/Windows release builds; `v0.*` is prerelease and `v1.*` onward is stable. Consult
   `.github/workflows/release.yml` when release work is requested.
