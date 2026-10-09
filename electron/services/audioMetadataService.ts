@@ -8,13 +8,40 @@
  * Uses the native napi-rs binding (MusicFile) for Node.js — runs in
  * the Electron main process so there is no IPC overhead per file.
  */
-import { MusicFile, MetaPicture } from 'music-tag-native';
+import type { MetaPicture } from 'music-tag-native';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { parseLrc, parseQrc, parseYrc, type LyricLine } from '@applemusic-like-lyrics/lyric';
 import { readWordLyrics, writeWordLyrics } from './wordLyricsTagService';
 import { logger } from '../logger';
+
+// ── Native binding ───────────────────────────────────────────────────────
+
+type NativeBinding = typeof import('music-tag-native');
+let binding: Promise<NativeBinding> | undefined;
+
+/** napi-rs reports a generic "Cannot find native binding"; the actual reasons are chained in `cause`. */
+function loadFailureReasons(error: unknown): string {
+  const reasons: string[] = [];
+  for (let current = error; current instanceof Error && reasons.length < 8; current = current.cause) {
+    reasons.push(current.message);
+  }
+  return reasons.length > 0 ? reasons.join(' <- ') : String(error);
+}
+
+/**
+ * Loaded on first use, so a binding that cannot load costs metadata reading
+ * and writing instead of preventing the app from starting.
+ */
+function loadBinding(): Promise<NativeBinding> {
+  binding ??= import('music-tag-native').catch((error: unknown) => {
+    const reasons = loadFailureReasons(error);
+    logger.error('[AudioMetadata] Native binding failed to load:', reasons);
+    throw new Error(`Audio metadata module failed to load: ${reasons}`, { cause: error });
+  });
+  return binding;
+}
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -213,6 +240,7 @@ export async function readAudioMetadata(filePath: string): Promise<ReadMetadataR
   const stats = fs.statSync(filePath);
   const fileSize = stats.size;
 
+  const { MusicFile } = await loadBinding();
   const file = await MusicFile.load(path.resolve(filePath));
 
   let coverData: string | undefined;
@@ -269,6 +297,7 @@ export async function writeAudioMetadata(
   logger.info('[AudioMetadata] Writing:', filePath, JSON.stringify(metadata));
 
   const resolved = path.resolve(filePath);
+  const { MusicFile } = await loadBinding();
   const file = await MusicFile.load(resolved);
 
   if (metadata.title !== undefined) file.title = metadata.title;
@@ -320,6 +349,7 @@ export function coverFileNameFromUri(uri: string): string | null {
 }
 
 async function resolveCover(uri: string): Promise<MetaPicture | null> {
+  const { MetaPicture } = await loadBinding();
   const dataUriMatch = uri.match(/^data:([^;]+);base64,(.+)$/);
   if (dataUriMatch) {
     const mimeType = dataUriMatch[1]!;
