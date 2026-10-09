@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { isDesktop } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import type { MutableRefObject } from 'react';
@@ -35,7 +35,7 @@ export interface LibraryControllerOptions {
   /** Mutate a slot's state imperatively (from useLibrarySlots). */
   updateSlot: (slotId: SlotId, updater: (slot: any) => any) => void;
   /** Replace the local slot's tracks (from useLibrarySlots). */
-  updateLocalTracks: (tracks: Track[]) => void;
+  updateLocalTracks: (tracks: Track[] | ((prev: Track[]) => Track[])) => void;
   /** Build the persistence payload (from the composition root). */
   getAppPersistenceData: () => LibrarySettings;
 
@@ -181,25 +181,40 @@ export function useLibraryController(options: LibraryControllerOptions) {
     });
   }, [viewSlot, updateSlot]);
 
-  // Add a freshly downloaded track to the local slot. Dedupes by filePath,
-  // appends, persists the metadata cache, and saves the library index
-  // immediately (not debounced). Moved verbatim from the former composition root.
+  // Add a freshly downloaded track to the local slot and save the library index
+  // immediately (not debounced). Several downloads can finish together, and each
+  // holds the callback from the render it started in, so nothing here may read
+  // tracks from a render snapshot: an append built from one would drop the tracks
+  // added by the downloads that finished just before it.
+  const latest = useRef({ slots, getAppPersistenceData });
+  latest.current = { slots, getAppPersistenceData };
+  /** Local tracks including downloads React has not rendered yet. */
+  const localTracksRef = useRef(slots.local.tracks);
+  localTracksRef.current = slots.local.tracks;
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const addDownloadedTrack = useCallback(async (track: Track) => {
     logger.debug('[App] Download complete, adding track to library:', track.title);
-    const existingTrack = slots.local.tracks.find(t => t.filePath === track.filePath);
-    if (existingTrack) {
+    if (localTracksRef.current.some(t => t.filePath === track.filePath)) {
       logger.debug('[App] Track already exists in library, skipping:', track.title);
       return;
     }
-    const newTracks = [...slots.local.tracks, track];
-    updateLocalTracks(newTracks);
+    localTracksRef.current = [...localTracksRef.current, track];
+    updateLocalTracks(prev => (prev.some(t => t.filePath === track.filePath) ? prev : [...prev, track]));
     logger.debug('[App] Track added to library:', track.title);
-    await metadataCacheService.save();
-    const persistData = getAppPersistenceData();
-    const libraryData = buildLibraryIndexDataForSlots(newTracks, slots.cloud.tracks, persistData, slots.online.tracks, slots.playlist.tracks);
-    await libraryStorage.saveLibrary(libraryData);
-    logger.debug('[App] Library saved after download');
-  }, [slots.local.tracks, slots.cloud.tracks, slots.online.tracks, slots.playlist.tracks, updateLocalTracks, getAppPersistenceData]);
+    // One save at a time, each from the newest list, so an earlier save can
+    // never land after a later one and persist fewer tracks.
+    const save = saveQueue.current.then(async () => {
+      await metadataCacheService.save();
+      const { slots: current, getAppPersistenceData: readPersistence } = latest.current;
+      const libraryData = buildLibraryIndexDataForSlots(
+        localTracksRef.current, current.cloud.tracks, readPersistence(), current.online.tracks, current.playlist.tracks,
+      );
+      await libraryStorage.saveLibrary(libraryData);
+      logger.debug('[App] Library saved after download');
+    });
+    saveQueue.current = save.catch(error => logger.error('[App] Saving the library after a download failed:', error));
+    await save;
+  }, [updateLocalTracks]);
 
   return {
     removeTrack,
