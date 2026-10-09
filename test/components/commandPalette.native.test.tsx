@@ -31,7 +31,7 @@ function setup(extraCommands: PaletteCommand[] = []) {
   const library: PaletteLibrarySources = {
     localTracks: [track('t1', 'Blue Moon'), track('t2', 'Yellow')],
     cloudTracks: [], playlists: [],
-    playTrack: vi.fn(), playOnlineSong: vi.fn(), openPlaylist: vi.fn(), openAllResults: vi.fn(),
+    playTrack: vi.fn(), playOnlineSong: vi.fn(), openPlaylist: vi.fn(),
   };
   const view = render(<CommandPalette palette={store} commands={commands} library={library} />);
   const emit = (action: Partial<NativePaletteAction> & Pick<NativePaletteAction, 'type'>) =>

@@ -21,6 +21,9 @@ const row = z.object({
   symbol: z.string().min(1).max(128),
   cover: z.string().max(8192).nullable(),
   nested: z.boolean(),
+  accessory: z.string().max(128),
+  accessoryLabel: z.string().max(64),
+  menu: z.boolean(),
 });
 export const nativePaletteStateSchema = z.object({
   open: z.boolean(),

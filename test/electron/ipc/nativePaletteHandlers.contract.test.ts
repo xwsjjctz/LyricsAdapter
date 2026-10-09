@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
 }));
 
 const row = (cover: string | null) => ({
-  section: '', title: 'Track', subtitle: 'Artist', detail: '', shortcut: '', symbol: 'music.note', cover, nested: false,
+  section: '', title: 'Track', subtitle: 'Artist', detail: '', shortcut: '', symbol: 'music.note', cover, nested: false, accessory: '', accessoryLabel: '', menu: false,
 });
 const state = (rows = [row('cover://a'), row('cover://b'), row(null)]): NativePaletteState => ({
   open: true, darkMode: true, label: 'Palette', modes: ['Library', 'Features'], modeIndex: 0, hint: 'Shift+Tab',

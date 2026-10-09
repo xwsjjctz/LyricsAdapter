@@ -32,7 +32,6 @@ function setup(extraCommands: PaletteCommand[] = []) {
     playTrack: vi.fn(),
     playOnlineSong: vi.fn(),
     openPlaylist: vi.fn(),
-    openAllResults: vi.fn(),
   };
   render(<CommandPalette palette={store} commands={commands} library={library} />);
   act(() => store.open());

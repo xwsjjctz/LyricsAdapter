@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PaletteCommand } from '../../commands/paletteCommand';
 import { resolveCommandLevel, searchCommands } from '../../commands/searchCommands';
 import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
-import type { OnlineSong, OnlineSource, PlaylistInfo } from '../../services/onlineMusicProvider';
+import type { OnlineQuality, OnlineSong, OnlineSource, PlaylistInfo } from '../../services/onlineMusicProvider';
 import { shortcutManager } from '../../services/shortcuts';
 import { textMatchesQuery } from '../../services/trackSearch';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
@@ -13,6 +13,10 @@ import type { Track } from '../../types';
 const LIBRARY_LIMIT = 6;
 const ONLINE_LIMIT = 8;
 const PLAYLIST_LIMIT = 6;
+/** Rows each "show more" adds per group. */
+const MORE_STEP = 20;
+/** The native palette accepts at most 200 rows; keep one for "show more". */
+const MAX_RESULT_ROWS = 199;
 
 /** One row in the palette, whatever it came from. */
 export interface PaletteItem {
@@ -28,6 +32,10 @@ export interface PaletteItem {
   command?: PaletteCommand | undefined;
   keepOpen?: boolean | undefined;
   run: () => void;
+  /** Trailing button: queue an online result without playing it. */
+  add?: { done: boolean; run: () => void } | undefined;
+  /** Offered from the row's context menu. */
+  download?: ((quality: OnlineQuality) => void) | undefined;
 }
 
 export interface PaletteLibrarySources {
@@ -36,8 +44,9 @@ export interface PaletteLibrarySources {
   playlists: readonly PlaylistInfo[];
   playTrack: (track: Track) => void;
   playOnlineSong: (song: OnlineSong, source: OnlineSource) => void;
+  addOnlineSong: (song: OnlineSong, source: OnlineSource) => void;
+  downloadOnlineSong: (song: OnlineSong, source: OnlineSource, quality: OnlineQuality) => void;
   openPlaylist: (playlist: PlaylistInfo) => void;
-  openAllResults: (query: string) => void;
 }
 
 export interface PaletteItemsResult {
@@ -82,13 +91,19 @@ export function usePaletteItems(
 ): PaletteItemsResult {
   const { t } = useTranslation();
   const libraryActive = state.open && state.mode === 'library';
+  const searchQuery = libraryActive ? state.query.trim() : '';
+  // "Show more" pages belong to one query; a new or closed search starts over.
+  const [more, setMore] = useState({ query: '', pages: 0 });
+  const pages = more.query === searchQuery ? more.pages : 0;
+  // Marks the rows queued from this palette; the plus becomes a check.
+  const [added, setAdded] = useState<ReadonlySet<string>>(new Set());
   const search = useGlobalSearch({
-    query: libraryActive ? state.query : '',
+    query: searchQuery,
     active: libraryActive,
     localTracks: library.localTracks,
     cloudTracks: library.cloudTracks,
-    libraryLimit: LIBRARY_LIMIT,
-    onlineLimit: ONLINE_LIMIT,
+    libraryLimit: LIBRARY_LIMIT + pages * MORE_STEP,
+    onlineLimit: ONLINE_LIMIT + pages * MORE_STEP,
   });
 
   return useMemo(() => {
@@ -102,9 +117,9 @@ export function usePaletteItems(
 
     const query = state.query.trim();
     const playlistSection = t('sidebar.playlists');
-    const playlistItems = library.playlists
-      .filter(playlist => !query || textMatchesQuery(playlist.name, query))
-      .slice(0, PLAYLIST_LIMIT)
+    const matchingPlaylists = library.playlists.filter(playlist => !query || textMatchesQuery(playlist.name, query));
+    const playlistItems = matchingPlaylists
+      .slice(0, PLAYLIST_LIMIT + (query ? pages * MORE_STEP : 0))
       .map((playlist): PaletteItem => ({
         key: `playlist:${playlist.source}:${playlist.id}`,
         section: playlistSection,
@@ -124,28 +139,44 @@ export function usePaletteItems(
     const localSection = t('sidebar.local');
     const cloudSection = t('sidebar.cloud');
     const onlineSection = t('sidebar.onlineMusic');
-    const items: PaletteItem[] = [
+    const results: PaletteItem[] = [
       ...search.local.items.map(track => trackItem(track, localSection, () => library.playTrack(track))),
       ...search.cloud.items.map(track => trackItem(track, cloudSection, () => library.playTrack(track))),
       ...playlistItems,
-      ...search.online.map(({ source, song }): PaletteItem => ({
-        key: `online:${source}:${song.songmid}`,
-        section: onlineSection,
-        title: song.songname,
-        subtitle: [song.singer.map(singer => singer.name).join(' / '), t(source === 'qq' ? 'search.sourceQq' : 'search.sourceNetease')]
-          .filter(Boolean).join(' · '),
-        icon: 'cloud_download',
-        coverUrl: resolveCoverUrl(song.coverUrl),
-        run: () => library.playOnlineSong(song, source),
-      })),
-      {
-        key: 'view-all',
-        section: t('search.resultsSubtitle'),
-        title: t('palette.viewAllResults', { query }),
-        icon: 'manage_search',
-        run: () => library.openAllResults(query),
-      },
+      ...search.online.map(({ source, song }): PaletteItem => {
+        const key = `online:${source}:${song.songmid}`;
+        return {
+          key,
+          section: onlineSection,
+          title: song.songname,
+          subtitle: [song.singer.map(singer => singer.name).join(' / '), t(source === 'qq' ? 'search.sourceQq' : 'search.sourceNetease')]
+            .filter(Boolean).join(' · '),
+          icon: 'cloud_download',
+          coverUrl: resolveCoverUrl(song.coverUrl),
+          run: () => library.playOnlineSong(song, source),
+          add: {
+            done: added.has(key),
+            run: () => { library.addOnlineSong(song, source); setAdded(previous => new Set(previous).add(key)); },
+          },
+          download: quality => library.downloadOnlineSong(song, source, quality),
+        };
+      }),
     ];
+    const items = results.slice(0, MAX_RESULT_ROWS);
+    const hasMore = search.local.total > search.local.items.length || search.cloud.total > search.cloud.items.length
+      || matchingPlaylists.length > playlistItems.length || search.onlineHasMore;
+    const last = items.at(-1);
+    // Stays in the list after running, so the next page appears under the selection.
+    if (last && hasMore && results.length <= MAX_RESULT_ROWS && !search.onlineLoading) {
+      items.push({
+        key: 'show-more',
+        section: last.section,
+        title: t('palette.showMore'),
+        icon: 'expand_more',
+        keepOpen: true,
+        run: () => setMore({ query, pages: pages + 1 }),
+      });
+    }
     return { items, trail: [], onlineLoading: search.onlineLoading };
-  }, [commands, library, search.cloud.items, search.local.items, search.online, search.onlineLoading, state.mode, state.query, state.stack, t]);
+  }, [added, commands, library, pages, search.cloud, search.local, search.online, search.onlineHasMore, search.onlineLoading, state.mode, state.query, state.stack, t]);
 }

@@ -10,11 +10,13 @@ import type { PaletteItem } from './usePaletteItems';
 const SF_SYMBOLS: Readonly<Record<string, string>> = {
   auto_awesome_mosaic: 'square.grid.2x2',
   category: 'square.stack',
+  add: 'plus',
   check: 'checkmark',
   checklist: 'checklist',
   cloud: 'cloud',
   cloud_download: 'icloud.and.arrow.down',
   dark_mode: 'moon',
+  expand_more: 'chevron.down',
   fullscreen: 'arrow.up.left.and.arrow.down.right',
   hard_drive: 'internaldrive',
   history: 'clock.arrow.circlepath',
@@ -68,7 +70,7 @@ export function nativeCover(url: string | undefined): string | null {
   }
 }
 
-export function toNativeRows(items: readonly PaletteItem[]): NativePaletteRow[] {
+export function toNativeRows(items: readonly PaletteItem[], addLabel: (done: boolean) => string = () => ''): NativePaletteRow[] {
   let previousSection: string | null = null;
   return items.slice(0, MAX_ROWS).map(item => {
     const section = item.section !== previousSection ? clip(item.section) : '';
@@ -82,6 +84,9 @@ export function toNativeRows(items: readonly PaletteItem[]): NativePaletteRow[] 
       symbol: toSfSymbol(item.icon),
       cover: nativeCover(item.coverUrl),
       nested: !!item.command,
+      accessory: item.add ? toSfSymbol(item.add.done ? 'check' : 'add') : '',
+      accessoryLabel: item.add ? clip(addLabel(item.add.done), MAX_SHORTCUT) : '',
+      menu: !!item.download,
     };
   });
 }
@@ -100,7 +105,7 @@ export interface NativePaletteInput {
 }
 
 export function toNativePaletteState(input: NativePaletteInput): NativePaletteState {
-  const rows = input.open ? toNativeRows(input.items) : [];
+  const rows = input.open ? toNativeRows(input.items, done => input.t(done ? 'palette.addedToOnline' : 'palette.addToOnline')) : [];
   return {
     open: input.open,
     darkMode: input.darkMode,

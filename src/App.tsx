@@ -340,6 +340,7 @@ const AppContent: React.FC = () => {
   const online = useOnlineViewModel({
     progress: onlineProgress,
     playSong: playerController.playOnlineSong,
+    addSong: playerController.addOnlineSong,
     download: handleOnlineDownload,
     upload: handleOnlineUpload,
     navigateToTrack: playerController.handleSearchNavigate,

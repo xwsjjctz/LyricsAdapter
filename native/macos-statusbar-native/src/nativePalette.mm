@@ -83,11 +83,16 @@ NSString* DomKey(NSEvent* event) {
 @property(nonatomic, copy) NSString* symbol;
 @property(nonatomic, copy) NSString* cover;
 @property(nonatomic) BOOL nested;
+@property(nonatomic, copy) NSString* accessory;
+@property(nonatomic, copy) NSString* accessoryLabel;
+@property(nonatomic) BOOL menu;
 @end
 @implementation LAPaletteEntry
 - (BOOL)isEqual:(id)other {
   if (![other isKindOfClass:LAPaletteEntry.class]) return NO; LAPaletteEntry* entry = other;
-  return entry.header == self.header && entry.index == self.index && entry.nested == self.nested
+  return entry.header == self.header && entry.index == self.index && entry.nested == self.nested && entry.menu == self.menu
+    && (entry.accessory == self.accessory || [entry.accessory isEqualToString:self.accessory])
+    && (entry.accessoryLabel == self.accessoryLabel || [entry.accessoryLabel isEqualToString:self.accessoryLabel])
     && [entry.title isEqualToString:self.title] && [entry.subtitle isEqualToString:self.subtitle]
     && [entry.detail isEqualToString:self.detail] && [entry.shortcut isEqualToString:self.shortcut]
     && [entry.symbol isEqualToString:self.symbol] && (entry.cover == self.cover || [entry.cover isEqualToString:self.cover]);
@@ -116,6 +121,7 @@ NSString* DomKey(NSEvent* event) {
 @property(nonatomic, strong) NSTextField* detail;
 @property(nonatomic, strong) NSTextField* shortcut;
 @property(nonatomic, strong) NSImageView* chevron;
+@property(nonatomic, strong) NSImageView* accessory;
 @property(nonatomic) BOOL selected;
 @property(nonatomic) BOOL showsCover;
 @end
@@ -137,6 +143,9 @@ NSString* DomKey(NSEvent* event) {
   _shortcut.alignment = NSTextAlignmentCenter; _shortcut.wantsLayer = YES; _shortcut.layer.cornerRadius = 5;
   _chevron = [[NSImageView alloc] initWithFrame:NSZeroRect];
   _chevron.image = NativePalette::Symbol(@"chevron.right", 11, NSFontWeightSemibold); _chevron.contentTintColor = NSColor.tertiaryLabelColor; [self addSubview:_chevron];
+  // Drawn as an image: the table resolves clicks, so the search field keeps focus.
+  _accessory = [[NSImageView alloc] initWithFrame:NSZeroRect]; _accessory.contentTintColor = NSColor.secondaryLabelColor;
+  _accessory.accessibilityRole = NSAccessibilityButtonRole; [self addSubview:_accessory];
   return self;
 }
 - (void)setSelected:(BOOL)selected {
@@ -155,6 +164,8 @@ NSString* DomKey(NSEvent* event) {
   self.detail.stringValue = entry.detail; self.shortcut.stringValue = entry.shortcut;
   self.subtitle.hidden = entry.subtitle.length == 0; self.detail.hidden = entry.detail.length == 0;
   self.shortcut.hidden = entry.shortcut.length == 0; self.chevron.hidden = !entry.nested;
+  self.accessory.hidden = entry.accessory.length == 0; self.accessory.accessibilityLabel = entry.accessoryLabel;
+  if (!self.accessory.hidden) self.accessory.image = NativePalette::Symbol(entry.accessory, 13, NSFontWeightSemibold);
   self.showsCover = cover != nil;
   self.icon.image = cover ?: NativePalette::Symbol(entry.symbol, 15, NSFontWeightRegular);
   self.icon.contentTintColor = cover ? nil : NSColor.secondaryLabelColor;
@@ -168,6 +179,7 @@ NSString* DomKey(NSEvent* event) {
   self.highlight.frame = NSInsetRect(self.bounds, 6, 2);
   self.icon.frame = NSMakeRect(16, mid - 14, 28, 28);
   CGFloat right = size.width - 16;
+  if (!self.accessory.hidden) { self.accessory.frame = NSMakeRect(right - 20, mid - 10, 20, 20); right -= 30; }
   if (!self.chevron.hidden) { self.chevron.frame = NSMakeRect(right - 12, mid - 7, 12, 14); right -= 20; }
   if (!self.shortcut.hidden) {
     CGFloat width = NativePalette::TextWidth(self.shortcut) + 12;
@@ -188,6 +200,8 @@ NSString* DomKey(NSEvent* event) {
 @property(nonatomic, strong) NSTrackingArea* hoverArea;
 @property(nonatomic, copy) void (^onHover)(NSInteger row);
 @property(nonatomic, copy) void (^onClick)(NSInteger row);
+@property(nonatomic, copy) void (^onAccessory)(NSInteger row);
+@property(nonatomic, copy) void (^onMenu)(NSInteger row, NSPoint windowPoint);
 @end
 @implementation LAPaletteTable
 - (BOOL)acceptsFirstResponder { return NO; }
@@ -201,7 +215,17 @@ NSString* DomKey(NSEvent* event) {
 }
 - (NSInteger)rowForEvent:(NSEvent*)event { return [self rowAtPoint:[self convertPoint:event.locationInWindow fromView:nil]]; }
 - (void)mouseMoved:(NSEvent*)event { if (self.onHover) self.onHover([self rowForEvent:event]); }
-- (void)mouseDown:(NSEvent*)event { if (self.onClick) self.onClick([self rowForEvent:event]); }
+- (void)mouseDown:(NSEvent*)event {
+  NSInteger row = [self rowForEvent:event];
+  LAPaletteItemView* view = row >= 0 ? [self viewAtColumn:0 row:row makeIfNecessary:NO] : nil;
+  if ([view isKindOfClass:LAPaletteItemView.class] && !view.accessory.hidden
+    && NSPointInRect([view convertPoint:event.locationInWindow fromView:nil], NSInsetRect(view.accessory.frame, -8, -8))) {
+    if (self.onAccessory) self.onAccessory(row);
+    return;
+  }
+  if (self.onClick) self.onClick(row);
+}
+- (void)rightMouseDown:(NSEvent*)event { if (self.onMenu) self.onMenu([self rowForEvent:event], event.locationInWindow); }
 @end
 
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
@@ -274,6 +298,8 @@ API_AVAILABLE(macos(26.0))
   __weak LANativePaletteHost* weakSelf = self;
   _table.onHover = ^(NSInteger row) { [weakSelf hoverRow:row]; };
   _table.onClick = ^(NSInteger row) { [weakSelf clickRow:row]; };
+  _table.onAccessory = ^(NSInteger row) { [weakSelf accessoryRow:row]; };
+  _table.onMenu = ^(NSInteger row, NSPoint point) { [weakSelf menuRow:row at:point]; };
   _scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect]; _scroll.drawsBackground = NO; _scroll.hasVerticalScroller = YES;
   _scroll.autohidesScrollers = YES; _scroll.scrollerStyle = NSScrollerStyleOverlay; _scroll.automaticallyAdjustsContentInsets = NO;
   _scroll.contentInsets = NSEdgeInsetsMake(NativePalette::kListInset, 0, NativePalette::kListInset, 0);
@@ -340,7 +366,8 @@ API_AVAILABLE(macos(26.0))
     LAPaletteEntry* entry = [LAPaletteEntry new]; entry.index = i;
     entry.title = String(row, "title"); entry.subtitle = String(row, "subtitle"); entry.detail = String(row, "detail");
     entry.shortcut = String(row, "shortcut"); entry.symbol = String(row, "symbol"); entry.cover = OptionalString(row, "cover");
-    entry.nested = Bool(row, "nested"); [entries addObject:entry];
+    entry.nested = Bool(row, "nested"); entry.accessory = String(row, "accessory"); entry.accessoryLabel = String(row, "accessoryLabel");
+    entry.menu = Bool(row, "menu"); [entries addObject:entry];
   }
   return entries;
 }
@@ -472,6 +499,16 @@ API_AVAILABLE(macos(26.0))
 - (void)clickRow:(NSInteger)row {
   if (row < 0 || row >= (NSInteger)self.entries.count || self.entries[row].header) return;
   NativePalette::Emit("activate", self.entries[row].index);
+}
+- (void)accessoryRow:(NSInteger)row {
+  if (row < 0 || row >= (NSInteger)self.entries.count || self.entries[row].accessory.length == 0) return;
+  NativePalette::Emit("accessory", self.entries[row].index);
+}
+- (void)menuRow:(NSInteger)row at:(NSPoint)windowPoint {
+  if (row < 0 || row >= (NSInteger)self.entries.count || !self.entries[row].menu) return;
+  // The page opens the menu, so report where in page coordinates (top-left origin).
+  NSPoint point = [self convertPoint:windowPoint fromView:nil];
+  NativePalette::Emit("menu", self.entries[row].index, [NSString stringWithFormat:@"%.0f,%.0f", point.x, self.bounds.size.height - point.y]);
 }
 
 // MARK: table

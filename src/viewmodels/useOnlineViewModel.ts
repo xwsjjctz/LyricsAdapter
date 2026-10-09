@@ -23,6 +23,8 @@ export interface OnlineViewModel {
 
   /** Stream-play an OnlineSong immediately (no download). */
   playSong(song: OnlineSong, source?: OnlineSource): void;
+  /** Add an OnlineSong to the online list without playing it. */
+  addSong(song: OnlineSong, source: OnlineSource): void;
   /** Download a song to the local download folder. */
   download(song: OnlineSong, quality: OnlineQuality, source?: OnlineSource): Promise<void>;
   /** Download a list track from its own provider; non-online tracks are ignored. */
@@ -36,6 +38,7 @@ export interface OnlineViewModel {
 export interface OnlineViewModelOptions {
   progress: Record<string, OnlineProgressEntry>;
   playSong: (song: OnlineSong, source?: OnlineSource) => void;
+  addSong: (song: OnlineSong, source: OnlineSource) => void;
   download: (song: OnlineSong, quality: OnlineQuality, source?: OnlineSource) => Promise<void>;
   upload: (song: OnlineSong, quality: OnlineQuality) => Promise<void>;
   navigateToTrack: (track: Track) => void;
@@ -45,6 +48,7 @@ export function useOnlineViewModel(opts: OnlineViewModelOptions): OnlineViewMode
   const {
     progress,
     playSong,
+    addSong,
     download,
     upload,
     navigateToTrack,
@@ -58,6 +62,7 @@ export function useOnlineViewModel(opts: OnlineViewModelOptions): OnlineViewMode
   return {
     progress,
     playSong,
+    addSong,
     download,
     downloadTrack,
     upload,
