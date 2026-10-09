@@ -5,6 +5,7 @@ import { useCommandPaletteState } from '../../hooks/useCommandPalette';
 import SettingsView, { type SettingsSectionId } from './SettingsView';
 import { dispatchForwardedShortcut } from '../palette/nativePaletteState';
 import { shortcutManager } from '../../services/shortcuts';
+import { setNativeSettingsOwnsKeyboard } from '../../services/nativeSettingsFocus';
 
 export default function SettingsSurface({ initialSection, onClose }: { initialSection: SettingsSectionId; onClose: () => void }) {
   const desktop = getDesktopAPI();
@@ -51,6 +52,11 @@ export default function SettingsSurface({ initialSection, onClose }: { initialSe
   }, [api, native, initialSection]);
 
   useEffect(() => { if (native && palette.open) closeRef.current(); }, [native, palette.open]);
+  useEffect(() => {
+    // Also while opening: the panel takes the keyboard before `open` resolves.
+    setNativeSettingsOwnsKeyboard(native !== false);
+    return () => setNativeSettingsOwnsKeyboard(false);
+  }, [native]);
 
   if (native === false) return <SettingsView initialSection={initialSection} onClose={onClose} usePaletteMaterial={desktop?.platform === 'darwin'} />;
   return <div className="settings-sheet-backdrop" data-native-settings="true" data-controlbar-passthrough

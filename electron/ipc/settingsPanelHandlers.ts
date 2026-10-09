@@ -44,6 +44,9 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
       if (!native) return ok(false);
       parent = win; owner = event.sender; contentHeight = 600;
       const child = new BrowserWindow({
+        // A panel can take the keyboard without becoming the main window, so the
+        // player keeps its active title bar and the sheet reads as part of it.
+        type: 'panel',
         parent: win, show: false, frame: false, transparent: true,
         resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
         skipTaskbar: true, hasShadow: true, title: 'LyricsAdapter Settings',

@@ -9,8 +9,9 @@ API_AVAILABLE(macos(26.0))
 @implementation LASettingsGlassView
 - (instancetype)initWithFrame:(NSRect)frame {
   self = [super initWithFrame:frame]; if (!self) return nil;
-  // Match the command palette's material, radius and untinted surface.
+  // The command palette's material and radius, over the playback bar's 30% black tint.
   self.style = NSGlassEffectViewStyleRegular;
+  self.tintColor = [NSColor colorWithWhite:0 alpha:0.3];
   self.cornerRadius = 22;
   self.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
   self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
