@@ -159,6 +159,12 @@ export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallL
     }
   };
 
+  // A library with one track uses a small square instead of a full-width tail.
+  if (count === 1) {
+    place([slot(0, 0, 2, 2)], 0);
+    return { tiles, height: bottom };
+  }
+
   for (let block = 0; cursor < count; block++) {
     const template = compact
       ? (block % 2 === 1 ? mirror(COMPACT_TEMPLATE, columns) : [...COMPACT_TEMPLATE].sort(byReadingOrder))
