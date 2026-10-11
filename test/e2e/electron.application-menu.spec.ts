@@ -30,7 +30,7 @@ test('macOS menus import music, perform app actions and follow live language and
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
     const menuLabels = () => app!.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.slice(1).map(item => item.label));
     const choose = (id: string) => app!.evaluate(({ Menu, BrowserWindow }, action) => {
-      Menu.getApplicationMenu()!.getMenuItemById(action)!.click({}, BrowserWindow.getAllWindows()[0]);
+      Menu.getApplicationMenu()!.getMenuItemById(action)!.click({}, BrowserWindow.getAllWindows().find(w => !w.getParentWindow()));
     }, id);
     const label = (id: string) => app!.evaluate(({ Menu }, action) => Menu.getApplicationMenu()!.getMenuItemById(action)!.label, id);
     expect(await menuLabels()).toEqual(['文件', '编辑', '视图', '窗口']);
@@ -68,7 +68,8 @@ test('macOS menus import music, perform app actions and follow live language and
     await row.getByRole('button', { name: 'Cmd/Ctrl+Enter', exact: true }).click();
     await settings.locator('[data-shortcut-recorder]').press('Meta+Shift+L');
     await expect.poll(() => label('menu-toggleFocusMode')).toContain('⌘⇧L');
-    await page.keyboard.press('Escape');
+    // Recording hands focus back to the sheet, so Escape still closes it.
+    await page.keyboard.press('Escape'); await expect(settings).toHaveCount(0);
     await choose('menu-gotoSettings');
     await page.getByLabel('语言', { exact: true }).selectOption('en');
     await expect.poll(menuLabels).toEqual(['File', 'Edit', 'View', 'Window']);

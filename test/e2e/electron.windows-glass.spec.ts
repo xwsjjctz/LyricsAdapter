@@ -45,7 +45,7 @@ test('Windows glass samples the live page, keeps native proportions and routes b
   try {
     app = await electron.launch({ cwd: root, args: [`--user-data-dir=${userData}`, repo], env });
     const page = await app.firstWindow();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(1200, 800));
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
@@ -222,13 +222,13 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await page.screenshot({ path: testInfo.outputPath('windows-clear-light-cover.png') });
     await focus.getByRole('button', { name: 'Previous Track' }).click();
     await expect(main).toContainText(songs[0]!.title);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1700, 1150));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(1700, 1150));
     await expect.poll(async () => (await focus.boundingBox())!.width).toBeCloseTo(472.5, 0);
     await expect.poll(async () => (await focus.boundingBox())!.height).toBeCloseTo(129.6, 0);
     // Like AppKit's content bounds, the whole layout scales with the bar.
     expect(await focus.evaluate(frames, focusSelectors)).toEqual(focusFrames);
     await expect(page.locator(`[id="${focusFilterId}"] feImage`)).toHaveAttribute('href', focusMap!);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(1200, 800));
     await page.keyboard.press('ControlOrMeta+Enter');
     await expect(main).toHaveClass(/translate-y-0/);
     await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);

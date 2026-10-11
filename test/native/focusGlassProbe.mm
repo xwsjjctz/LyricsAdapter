@@ -48,6 +48,12 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  }
  else if(exit&&[actionName hasPrefix:@"player-controlbar-volume"]) [view mouseExited:nil];
  else if(hover&&[actionName hasPrefix:@"player-controlbar-volume"]) [view mouseEntered:nil];
+ // Tracking areas follow the real cursor, so a posted move never reaches the card grid:
+ // hand its handler a move over the card instead of warping the user's pointer.
+ else if(hover&&[actionName hasPrefix:@"playlist-switcher-item-"]) {
+   NSPoint point=[view convertPoint:NSMakePoint(NSMidX(view.bounds),NSMidY(view.bounds)) toView:nil];
+   [view.superview mouseMoved:[NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:content.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0]];
+ }
  else if(hover&&view) PostMouse(content.window,NSEventTypeMouseMoved,[view convertPoint:NSMakePoint(NSMidX(view.bounds),NSMidY(view.bounds)) toView:nil]);
  else if([view isKindOfClass:NSControl.class]) {NSControl* control=(NSControl*)view;[control sendAction:control.action to:control.target];}
  else if(view && ([actionName isEqualToString:@"focus-glass-host"] || [actionName isEqualToString:@"player-controlbar-volume-disclosure"] || [actionName isEqualToString:@"player-controlbar-volume-button"])) [view mouseExited:nil];
@@ -90,7 +96,8 @@ napi_value StatusHover(napi_env env, napi_callback_info info) {
    [view setValue:@"歌词持续更新" forKey:@"lyricText"];
    NSEvent* click = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:NSMakePoint(80+(i%3)*40,14) modifierFlags:0 timestamp:0 windowNumber:window.windowNumber context:nil eventNumber:i clickCount:1 pressure:1];
    [view mouseDown:click]; [view setNeedsLayout:YES]; [view layoutSubtreeIfNeeded];
-   [view updateTrackingAreas]; [view mouseExited:nil];
+   // Playback, clicks and layout must not drop hover; a delivered exit always ends it.
+   [view updateTrackingAreas];
    stayedInside = stayedInside && [[view valueForKey:@"pointerInside"] boolValue];
  }
  BOOL controlsVisible = !((NSView*)[view valueForKey:@"toggleImageView"]).hidden;

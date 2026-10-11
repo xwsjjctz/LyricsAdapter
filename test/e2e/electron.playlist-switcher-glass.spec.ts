@@ -67,9 +67,11 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
   try {
     app = await electron.launch({ cwd: root, args: [`--user-data-dir=${userData}`, repo], env });
     const page = await app.firstWindow();
+    // The page stays inert under the startup screen, so nothing in it can take focus yet.
+    await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1200, 800));
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
     const audioState = () => page.locator('audio').evaluate((node: HTMLAudioElement) => ({
@@ -83,7 +85,7 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
     const probe = async (action?: string): Promise<NativeSnapshot> => JSON.parse(await app!.evaluate(({ BrowserWindow }, args) => {
       const { createRequire } = process.getBuiltinModule('module');
       const native = createRequire(args.file)(args.file) as { probe: (handle: Buffer, action?: string) => string };
-      const handle = BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle();
+      const handle = BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.getNativeWindowHandle();
       return args.action ? native.probe(handle, args.action) : native.probe(handle);
     }, { file: probePath, action }));
     const find = (snapshot: NativeSnapshot, id: string) => snapshot.items.find(item => item.id === id);
@@ -184,7 +186,7 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
       await page.keyboard.press('Escape'); await page.keyboard.up(modifier);
       return count;
     }).toBe(9);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setMinimumSize(300, 360));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setMinimumSize(300, 360));
     await begin(); await expect.poll(shown).toBe(true);
     expect(await names()).toEqual(['Local', 'Online History', ...Array.from({ length: 7 }, (_, index) => `Journey ${index + 1}`)]);
     const layout = async () => {
@@ -201,7 +203,7 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
       };
     };
     const resize = async (width: number, height: number) => {
-      await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+      await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(size.width, size.height), { width, height });
       await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
       await expect.poll(clearOfControlbar).toBe(true);
     };

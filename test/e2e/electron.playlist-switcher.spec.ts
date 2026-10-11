@@ -1,15 +1,10 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
-const run = promisify(execFile);
-const require = createRequire(import.meta.url);
 
 test('playlist switcher previews, reverses, cancels and commits without changing playback', async ({}, testInfo) => {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-playlist-switcher-')));
@@ -47,19 +42,11 @@ test('playlist switcher previews, reverses, cancels and commits without changing
     activeSlotId: 'local', localSlot: { currentTrackIndex: 0, currentTime: 12, volume: .4,
       playbackMode: 'order', scrollPosition: 0, filterType: 'default', categorySelection: null },
   } }));
-  const native = process.platform === 'darwin' && Number(os.release().split('.')[0]) >= 25;
-  const probePath = path.join(root, 'probe.node');
-  if (native) {
-    const version = require('electron/package.json').version as string;
-    await run('clang++', ['-std=c++17', '-fobjc-arc', '-shared', '-undefined', 'dynamic_lookup',
-      '-I', path.join(os.homedir(), '.electron-gyp', version, 'include/node'), '-framework', 'AppKit',
-      path.join(repo, 'test/native/focusGlassProbe.mm'), '-o', probePath]);
-  }
   const env = Object.fromEntries(Object.entries({ ...process.env,
     HOME: isolatedHome, USERPROFILE: isolatedHome, APPDATA: path.join(root, 'app-data'),
     LOCALAPPDATA: path.join(root, 'local-app-data'), XDG_CONFIG_HOME: path.join(root, 'config'),
     XDG_DATA_HOME: path.join(root, 'data'), XDG_CACHE_HOME: path.join(root, 'cache'),
-    NODE_ENV: 'test', LYRICS_ADAPTER_E2E_STATIC: '1', LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: process.platform === 'darwin' ? '0' : '1',
+    NODE_ENV: 'test', LYRICS_ADAPTER_E2E_STATIC: '1', LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
   }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   delete env['ELECTRON_RUN_AS_NODE'];
   let app: ElectronApplication | undefined;
@@ -68,31 +55,14 @@ test('playlist switcher previews, reverses, cancels and commits without changing
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
     ], env });
     const page = await app.firstWindow();
+    // The gesture is ignored while the page is inert under the startup screen.
+    await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
     const controlbar = page.getByTestId('main-controlbar');
-    const assertControlbarVisible = async () => {
-      await expect(controlbar).toBeVisible();
-      if (!native) return;
-      await expect(controlbar).toHaveAttribute('data-native-controlbar', 'true');
-      // Let the occlusion detector send its update after the overlay/resize;
-      // otherwise inspecting the previous native frame could miss a regression.
-      await page.evaluate(() => new Promise<void>(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      }));
-      // Inspect the actual AppKit glass and host, not just their transparent DOM anchor.
-      await expect.poll(async () => {
-        const snapshot = JSON.parse(await app!.evaluate(({ BrowserWindow }, file) => {
-          const { createRequire } = process.getBuiltinModule('module');
-          const bridge = createRequire(file)(file) as { probe: (handle: Buffer) => string };
-          return bridge.probe(BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle());
-        }, probePath)) as { items: { id: string; alpha: number; hidden: boolean }[] };
-        const host = snapshot.items.find(item => item.id === 'player-controlbar-host');
-        const glass = snapshot.items.find(item => item.id === 'player-controlbar-glass');
-        return !!host && !host.hidden && !!glass && !glass.hidden && glass.alpha > .99;
-      }).toBe(true);
-    };
+    // The web switcher; electron.playlist-switcher-glass covers the AppKit panel and bar.
+    const assertControlbarVisible = () => expect(controlbar).toBeVisible();
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1200, 800));
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
     const audioState = () => page.locator('audio').evaluate((node: HTMLAudioElement) => ({
@@ -131,7 +101,7 @@ test('playlist switcher previews, reverses, cancels and commits without changing
     await expect(dialog).toHaveCount(0); await expect(tiles).toHaveCount(0);
 
     await begin();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(393, 851));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(393, 851));
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(393);
     expect(await dialog.evaluate(node => node.getBoundingClientRect().right)).toBeLessThanOrEqual(393);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(393);
@@ -179,7 +149,7 @@ test('playlist switcher previews, reverses, cancels and commits without changing
       await page.keyboard.press('Escape'); await page.keyboard.up(modifier);
       return count;
     }).toBe(9);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setMinimumSize(300, 360));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setMinimumSize(300, 360));
     await begin();
     await expect(dialog.getByRole('option')).toHaveCount(9);
     const layout = () => dialog.evaluate(node => {
@@ -196,7 +166,7 @@ test('playlist switcher previews, reverses, cancels and commits without changing
       };
     });
     const resize = async (width: number, height: number) => {
-      await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+      await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(size.width, size.height), { width, height });
       await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
       await expect.poll(async () => { const state = await layout(); return state.fits && !state.overflow; }).toBe(true);
       await assertControlbarVisible();

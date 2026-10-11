@@ -70,14 +70,14 @@ for (const native of [false, true]) {
       const probe = async (id?: string, value?: number): Promise<NativeSnapshot> => JSON.parse(await app!.evaluate(({ BrowserWindow }, args) => {
         const { createRequire } = process.getBuiltinModule('module');
         const bridge = createRequire(args.file)(args.file) as { probe: (handle: Buffer, id?: string, value?: number) => string };
-        const handle = BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle();
+        const handle = BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.getNativeWindowHandle();
         return args.id ? (args.value === undefined ? bridge.probe(handle, args.id) : bridge.probe(handle, args.id, args.value)) : bridge.probe(handle);
       }, { file: probePath, id, value }));
       const audioState = () => page.locator('audio').evaluate((node: HTMLAudioElement) => ({
         paused: node.paused, time: node.currentTime, volume: node.volume, src: node.currentSrc,
       }));
       const resize = async (width: number, height = 800) => {
-        await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height), { width, height });
+        await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(size.width, size.height), { width, height });
         await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
       };
       const panel = page.getByTestId('main-controlbar');

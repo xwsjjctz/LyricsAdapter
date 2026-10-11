@@ -42,7 +42,7 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1200, 800));
 
     // Delay the aggregate read in this isolated process, while exercising the
     // real preload, settings hydration, library restoration and renderer.
@@ -86,7 +86,7 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
     expect(Math.abs(bounds!.x + bounds!.width / 2 - viewport.width / 2)).toBeLessThan(1);
     expect(Math.abs(bounds!.y + bounds!.height / 2 - viewport.height / 2)).toBeLessThan(1);
     await page.screenshot({ path: testInfo.outputPath('startup-wide.png') });
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(393, 851));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(393, 851));
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(393);
     await page.screenshot({ path: testInfo.outputPath('startup-portrait.png') });
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'loading');
@@ -100,7 +100,7 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
     await expect(page.locator('.app-library-background')).toHaveCSS('background-image',
       'linear-gradient(135deg, rgb(255, 247, 251), rgb(238, 245, 255))');
     await page.screenshot({ path: testInfo.outputPath('library-portrait.png') });
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1200, 800));
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1200);
     await page.screenshot({ path: testInfo.outputPath('library-wide.png') });
     const samples = await page.evaluate(() =>

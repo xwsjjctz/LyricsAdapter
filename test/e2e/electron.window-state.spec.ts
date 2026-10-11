@@ -38,7 +38,7 @@ test('restores custom window sizes across exits and applies macOS menu presets w
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
     return page;
   };
-  const size = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getSize());
+  const size = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.getSize());
   const fitted = (width: number, height: number) => app!.evaluate(({ screen }, requested) => {
     const area = screen.getPrimaryDisplay().workAreaSize;
     return [Math.min(requested.width, area.width), Math.min(requested.height, area.height)];
@@ -46,7 +46,7 @@ test('restores custom window sizes across exits and applies macOS menu presets w
   try {
     let page = await launch();
     expect(await size()).toEqual(await fitted(1200, 800));
-    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(734, 812));
+    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(734, 812));
     await expect.poll(size).toEqual([734, 812]);
     // Exit within the debounce interval: the native close handler must flush.
     await app!.close(); app = undefined;
@@ -67,7 +67,7 @@ test('restores custom window sizes across exits and applies macOS menu presets w
       expect(options.some(item => item.role === 'minimize')).toBe(true);
       expect(menu.some(item => item.role?.toLowerCase() === 'editmenu')).toBe(true);
       const choose = (preset: string) => app!.evaluate(({ Menu, BrowserWindow }, mode) => {
-        Menu.getApplicationMenu()!.getMenuItemById(`window-preset-${mode}`)!.click({}, BrowserWindow.getAllWindows()[0]);
+        Menu.getApplicationMenu()!.getMenuItemById(`window-preset-${mode}`)!.click({}, BrowserWindow.getAllWindows().find(w => !w.getParentWindow()));
       }, preset);
       await page.keyboard.press('ControlOrMeta+Enter');
       const focus = page.locator('.focus-mode-overlay');
@@ -81,21 +81,23 @@ test('restores custom window sizes across exits and applies macOS menu presets w
       await page.screenshot({ path: testInfo.outputPath('window-landscape.png') });
       await choose('portrait'); await expect.poll(size).toEqual(await fitted(385, 800));
       await expect(focus).toHaveAttribute('data-focus-layout', 'portrait');
-      await page.getByTestId('focus-portrait-controls').hover();
+      // Hidden portrait controls are inert below the lyrics; the pointer reveals them by position.
+      await page.getByTestId('focus-portrait-controls').hover({ force: true });
+      await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
       expect(await audioState()).toEqual(before);
       await page.screenshot({ path: testInfo.outputPath('window-portrait.png') });
       // Native zoom and fullscreen finish asynchronously on macOS.
-      await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.maximize());
-      await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isMaximized())).toBe(true);
+      await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.maximize());
+      await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.isMaximized())).toBe(true);
       await choose('portrait'); await expect.poll(size).toEqual(await fitted(385, 800));
-      await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setFullScreen(true));
-      await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFullScreen())).toBe(true);
+      await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setFullScreen(true));
+      await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.isFullScreen())).toBe(true);
       await choose('landscape'); await choose('portrait');
-      await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFullScreen())).toBe(false);
+      await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.isFullScreen())).toBe(false);
       await expect.poll(size).toEqual(await fitted(385, 800));
       expect(await audioState()).toEqual(before);
     } else {
-      await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(385, 800));
+      await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(385, 800));
     }
     await app!.close(); app = undefined;
     page = await launch(); expect(await size()).toEqual(await fitted(385, 800));
@@ -103,7 +105,7 @@ test('restores custom window sizes across exits and applies macOS menu presets w
     await page.evaluate(async () => {
       await (window as typeof window & { electron: { settingsSet: (key: string, value: string) => Promise<void> } }).electron.settingsSet('la_window_state', 'broken');
     });
-    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.destroy());
+    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.destroy());
     await app!.close().catch(() => {}); app = undefined;
     page = await launch(); expect(await size()).toEqual(await fitted(1200, 800));
   } finally { await app?.close(); await rm(root, { recursive: true, force: true }); }

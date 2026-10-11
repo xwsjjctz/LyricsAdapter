@@ -46,7 +46,7 @@ test('poster wall is the home page, plays in place and switches sources from the
       ], env });
       const window = await app.firstWindow();
       window.on('pageerror', error => errors.push(error.message));
-      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(1200, 800));
       return window;
     };
     let page = await launch();

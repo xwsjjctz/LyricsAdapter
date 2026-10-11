@@ -109,7 +109,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
         }).toBeLessThan(4);
       };
       for (const [width, height] of [[393, 851], [480, 720], [600, 800], [800, 800], [900, 720], [1200, 800], [600, 800]] as const) {
-        await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+        await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(size.width, size.height), { width, height });
         const portrait = width <= height;
         await expect(focus).toHaveAttribute('data-focus-layout', portrait ? 'portrait' : 'landscape');
         await expect(lyricsRoot).toHaveAttribute('data-test-original-renderer', 'true');
@@ -195,7 +195,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
       // controls must release hover protection; playback cannot restart it.
       const content = focus.locator('.focus-mode-content');
       for (const [width, height] of [[600, 800], [1200, 800]] as const) {
-        await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height });
+        await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(size.width, size.height), { width, height });
         await expect(focus).toHaveAttribute('data-focus-layout', width < height ? 'portrait' : 'landscape');
         if (width < height) await hoverPortraitControls();
         await page.mouse.move(20, 180);
@@ -204,7 +204,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
         await expect(content).toHaveAttribute('data-focus-controls-visible', 'true');
         await expect(content).toHaveAttribute('data-focus-controls-visible', 'false', { timeout: 800 });
       }
-      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(600, 800));
       await expect(focus).toHaveAttribute('data-focus-layout', 'portrait');
       const portraitControls = page.getByTestId('focus-portrait-controls');
       await expect(content).toHaveAttribute('data-focus-controls-visible', 'false');

@@ -60,7 +60,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     const probe = async (id?: string, value?: number): Promise<NativeSnapshot> => JSON.parse(await app!.evaluate(async ({ BrowserWindow }, args) => {
       const { createRequire } = process.getBuiltinModule('module');
       const native = createRequire(args.file)(args.file) as { probe: (handle: Buffer, id?: string, value?: number) => string };
-      const handle = BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle();
+      const handle = BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.getNativeWindowHandle();
       return args.id ? (args.value === undefined ? native.probe(handle, args.id) : native.probe(handle, args.id, args.value)) : native.probe(handle);
     }, { file: probePath, id, value })) as NativeSnapshot;
     const bar = async () => (await probe()).items.find(item => item.id === 'focus-glass-bar');
@@ -268,10 +268,10 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await probe('focus-glass-previous');
     await expect(page.locator('.focus-mode-overlay').getByText('Glass Fixture 0', { exact: true })).toBeVisible();
     for (const width of [1080, 1440]) {
-      await app.evaluate(({ BrowserWindow }, w) => { BrowserWindow.getAllWindows()[0]!.setSize(w, 800); }, width);
+      await app.evaluate(({ BrowserWindow }, w) => { BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(w, 800); }, width);
       await expect.poll(async () => { const item = await bar(); return item ? Math.abs(item.x + item.width / 2 - width / 2) : Infinity; }).toBeLessThan(1);
     }
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(600, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(600, 800));
     // Portrait controls start hidden until the pointer enters their bounds.
     await page.getByTestId('focus-portrait-controls').hover({ force: true });
     await expect(page.getByTestId('focus-portrait-controls')).toHaveCSS('opacity', '1');
@@ -281,7 +281,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(!portraitWasPaused);
     await page.getByTestId('focus-play-button').click();
     await expect.poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(portraitWasPaused);
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1440, 800));
     await expect(page.getByTestId('focus-portrait-controls')).toHaveCount(0);
     await expect(page.getByTestId('focus-native-controls')).toBeAttached();
     await expect.poll(async () => (await probe()).items.filter(item => item.id === 'focus-glass-host').length).toBe(1);
@@ -315,7 +315,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     if (process.env['FOCUS_GLASS_SCREENSHOTS'] === '1') {
       // Focus only after pointer/lifecycle assertions: activating a window can
       // legitimately send new native enter events for the real desktop pointer.
-      await app.evaluate(({ app, BrowserWindow }) => { app.focus({ steal: true }); BrowserWindow.getAllWindows()[0]!.focus(); });
+      await app.evaluate(({ app, BrowserWindow }) => { app.focus({ steal: true }); BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.focus(); });
       await page.getByTestId('focus-native-controls').hover();
       await expect.poll(async () => (await bar())?.alpha).toBe(1);
       await page.waitForTimeout(250);
