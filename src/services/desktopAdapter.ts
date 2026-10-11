@@ -141,6 +141,7 @@ export interface DesktopAPI {
   // Auto-updater APIs
   checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall?: () => Promise<{ ok: boolean }>;
+  getUpdaterState?: () => Promise<UpdaterState>;
   getAppVersion?: () => Promise<string>;
   onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
@@ -493,6 +494,13 @@ class ElectronAdapter implements FullDesktopAPI {
       return this.api.quitAndInstall();
     }
     return { ok: false };
+  }
+
+  async getUpdaterState(): Promise<UpdaterState> {
+    if (typeof this.api.getUpdaterState === 'function') {
+      return this.api.getUpdaterState();
+    }
+    return { status: 'idle' };
   }
 
   async getAppVersion(): Promise<string> {

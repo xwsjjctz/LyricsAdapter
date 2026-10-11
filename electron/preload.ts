@@ -495,6 +495,11 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('updater:check');
   },
 
+  // Read the current updater state (events may predate the listener)
+  getUpdaterState: async () => {
+    return ipcRenderer.invoke('updater:state');
+  },
+
   // Quit and install a downloaded update
   quitAndInstall: async () => {
     return ipcRenderer.invoke('updater:quit-and-install');

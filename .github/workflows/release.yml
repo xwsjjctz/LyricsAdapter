@@ -48,8 +48,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # macOS 构建：已移除 Apple 签名 & 公证，走全量下载更新。
-      # Windows 构建：NSIS 安装包，差量更新不签名也可用。
+      # macOS 构建：未签名、未公证，不支持应用内更新，需手动下载 dmg。
+      # Windows 构建：NSIS 安装包，不签名也可应用内更新（全量下载）。
+      # 安装包文件名不能含空格：gh 上传时会把空格改成点，与 latest.yml 对不上。
       - name: Build & package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
