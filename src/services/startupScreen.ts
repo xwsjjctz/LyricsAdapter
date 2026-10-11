@@ -3,6 +3,11 @@ const shownAt = performance.now();
 const MIN_VISIBLE_MS = 350;
 const REVEAL_FALLBACK_MS = 800;
 
+/** The page is inert under the startup screen: nothing in it can take focus yet. */
+export function isStartupScreenShown(): boolean {
+  return !!document.getElementById('root')?.hasAttribute('inert');
+}
+
 export function dismissStartupScreen(): void {
   document.getElementById('app-startup')?.remove();
   const root = document.getElementById('root');
