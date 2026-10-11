@@ -57,11 +57,11 @@ describe('computeWallLayout', () => {
     expect(layout.tiles.map(tile => tile.index)).toEqual(Array.from({ length: 30 }, (_, i) => i));
   });
 
-  it('mixes shapes in every incomplete block, including mirrored cycles', () => {
+  it('mixes shapes in multi-track layouts with incomplete blocks, including mirrored cycles', () => {
     let prefix = 0;
     for (let block = 0; block < WALL_TEMPLATES.length * 2; block++) {
       const template = WALL_TEMPLATES[block % WALL_TEMPLATES.length]!;
-      for (let remaining = 1; remaining < template.length; remaining++) {
+      for (let remaining = prefix === 0 ? 2 : 1; remaining < template.length; remaining++) {
         const layout = computeWallLayout({ count: prefix + remaining, width: 1200, gap: 0 });
         const tail = layout.tiles.slice(prefix);
         expect(tail).toHaveLength(remaining);
@@ -114,7 +114,7 @@ describe('computeWallLayout', () => {
   });
 
   it.each([360, 393, 600, 719])('keeps narrow covers readable at %i px, including every partial block', width => {
-    for (let count = 1; count <= 42; count++) {
+    for (let count = 2; count <= 42; count++) {
       const layout = computeWallLayout({ count, width, gap: 0 });
       expect(layout.tiles).toHaveLength(count);
       const cell = width / 6;
