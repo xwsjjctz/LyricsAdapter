@@ -1,17 +1,15 @@
 import type { ThemeColors } from '../../types/theme';
 
 /**
- * The pink-blue day palette that was the default before the app settled on the
- * night palette everywhere. It is intentionally not registered as a theme and
- * nothing applies it; it is kept as a reference for future colour work.
+ * The original pink-blue day palette, paired with the default night palette.
  */
 export const dayPaletteColors: ThemeColors = {
   primary: '#b6408d',
   primaryHover: '#a83d88',
   primaryLight: 'rgba(238, 166, 217, 0.24)',
-  backgroundDark: '#f5e2f6',
-  backgroundGradientStart: '#ffc5d1',
-  backgroundGradientEnd: '#7cc6fc',
+  backgroundDark: '#fff8fc',
+  backgroundGradientStart: '#fff7fb',
+  backgroundGradientEnd: '#eef5ff',
   backgroundSidebar: '#f7eef9',
   backgroundCard: 'rgba(255, 255, 255, 0.72)',
   backgroundCardHover: 'rgba(255, 255, 255, 0.94)',

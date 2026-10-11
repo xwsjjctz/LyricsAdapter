@@ -235,7 +235,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
     await page.getByTestId('focus-native-controls').hover();
     await expect.poll(async () => (await bar())?.alpha).toBe(1);
     expect((await bar())?.class).toBe('NSGlassEffectView');
-    // The main bar keeps its night palette; immersive controls derive their
+    // The main bar follows the default night palette; immersive controls derive their
     // native appearance independently from the current cover.
     await expect.poll(async () => (await mainSlider('player-controlbar-title'))?.appearance).toBe('NSAppearanceNameDarkAqua');
     expect((await mainSlider('focus-glass-play'))?.appearance).toBe('NSAppearanceNameDarkAqua');

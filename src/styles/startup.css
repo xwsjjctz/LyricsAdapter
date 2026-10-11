@@ -1,6 +1,5 @@
-.app-background,
 .app-startup {
-  /* Share the baked icon colours from the first frame through every layout. */
+  /* The startup illustration fades into the theme-coloured application. */
   background-color: #d1a6f3;
   background-image: url('/wall-background.jpg'), linear-gradient(145deg, #ffc5d1, #d1a6f3 55%, #7cc6fc);
   background-position: center;

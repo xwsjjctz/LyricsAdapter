@@ -23,7 +23,8 @@ const typedIpc = {
     open: async (section: import('../src/types/settingsPanel').SettingsSectionId) => ipcRenderer.invoke('ipc:settingsPanel:open', section),
     close: async () => ipcRenderer.invoke('ipc:settingsPanel:close'),
     prewarm: async () => ipcRenderer.invoke('ipc:settingsPanel:prewarm'),
-    ready: async (height: number) => ipcRenderer.invoke('ipc:settingsPanel:ready', height),
+    ready: async (height: number, darkMode?: boolean) => ipcRenderer.invoke('ipc:settingsPanel:ready',
+      darkMode === undefined ? height : { height, darkMode }),
     previewOpacity: async (value: number) => ipcRenderer.invoke('ipc:settingsPanel:previewOpacity', value),
     forwardShortcut: async (key: string, modifiers: number) => ipcRenderer.invoke('ipc:settingsPanel:shortcut', { key, modifiers }),
     onSection: (callback: (section: import('../src/types/settingsPanel').SettingsSectionId) => void) => {

@@ -171,10 +171,9 @@ class ThemeManagerClass {
   }
 
   private normalizeThemeId(themeId: string | null): ThemeId | null {
-    // Saved day/night variants now share the icon palette, including recovery.
-    if (themeId === 'default-dark' || themeId === 'default-light' || themeId === THEME_IDS.WARM) {
-      return THEME_IDS.DEFAULT;
-    }
+    // Preserve preferences saved before the day/night switch was removed.
+    if (themeId === 'default-dark') return THEME_IDS.DEFAULT;
+    if (themeId === THEME_IDS.WARM) return THEME_IDS.DEFAULT_LIGHT;
     return predefinedThemes.find(theme => theme.id === themeId)?.id ?? null;
   }
 

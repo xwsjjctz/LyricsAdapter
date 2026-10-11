@@ -9,7 +9,7 @@ API_AVAILABLE(macos(26.0))
 @implementation LASettingsGlassView
 - (instancetype)initWithFrame:(NSRect)frame {
   self = [super initWithFrame:frame]; if (!self) return nil;
-  // The command palette's material and radius, over the playback bar's 30% black tint.
+  // The command palette's material and radius; the renderer supplies its theme.
   self.style = NSGlassEffectViewStyleRegular;
   self.tintColor = [NSColor colorWithWhite:0 alpha:0.3];
   self.cornerRadius = 22;
@@ -34,11 +34,15 @@ API_AVAILABLE(macos(26.0))
 #endif
 
 static napi_value AttachSettingsGlass(napi_env env, napi_callback_info info) {
-  size_t argc = 1; napi_value args[1];
+  size_t argc = 2; napi_value args[2];
   void* bytes = nullptr; size_t size = 0;
   if (![NSThread isMainThread] || napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok
-    || argc != 1 || napi_get_buffer_info(env, args[0], &bytes, &size) != napi_ok || size != sizeof(void*)) {
+    || argc < 1 || napi_get_buffer_info(env, args[0], &bytes, &size) != napi_ok || size != sizeof(void*)) {
     napi_throw_error(env, "ERR_SETTINGS_GLASS", "Invalid settings window handle or thread"); return nullptr;
+  }
+  bool dark = true;
+  if (argc > 1 && napi_get_value_bool(env, args[1], &dark) != napi_ok) {
+    napi_throw_error(env, "ERR_SETTINGS_GLASS", "Invalid settings appearance"); return nullptr;
   }
   bool attached = false;
   #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
@@ -48,8 +52,18 @@ static napi_value AttachSettingsGlass(napi_env env, napi_callback_info info) {
     if (content) {
       // The transparent settings renderer stays above this native backing.
       // The child window samples the parent player's live poster wall.
-      LASettingsGlassView* glass = [[LASettingsGlassView alloc] initWithFrame:content.bounds];
-      [content addSubview:glass positioned:NSWindowBelow relativeTo:nil]; attached = true;
+      LASettingsGlassView* glass = nil;
+      for (NSView* view in content.subviews) {
+        if ([view isKindOfClass:LASettingsGlassView.class]) { glass = (LASettingsGlassView*)view; break; }
+      }
+      if (!glass) {
+        glass = [[LASettingsGlassView alloc] initWithFrame:content.bounds];
+        [content addSubview:glass positioned:NSWindowBelow relativeTo:nil];
+      }
+      glass.appearance = [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+      glass.tintColor = [NSColor colorWithWhite:dark ? 0 : 1 alpha:0.3];
+      [glass refreshAccessibility:nil];
+      attached = true;
     }
   }
   #endif

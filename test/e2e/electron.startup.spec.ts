@@ -76,10 +76,7 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
       (globalThis as typeof globalThis & { startupGate?: { requested: boolean } }).startupGate?.requested)).toBe(true);
     const screen = page.locator('#app-startup');
     await expect(screen).toBeVisible();
-    const startupBackground = await screen.evaluate(element => {
-      const style = getComputedStyle(element);
-      return { image: style.backgroundImage, size: style.backgroundSize, position: style.backgroundPosition };
-    });
+    await expect(screen).toHaveCSS('background-image', /wall-background\.jpg/);
     await expect(page.locator('#root')).toHaveAttribute('inert');
     const artwork = screen.locator('img');
     await expect.poll(() => artwork.evaluateAll(nodes => nodes.every(node => (node as HTMLImageElement).naturalWidth > 0))).toBe(true);
@@ -98,12 +95,10 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
       (globalThis as typeof globalThis & { startupGate?: { release: () => void } }).startupGate?.release());
     await expect(screen).toHaveCount(0);
     await expect(page.locator('#root')).not.toHaveAttribute('inert');
-    await expect(page.locator('html')).toHaveClass(/theme-dark/);
+    await expect(page.locator('html')).toHaveClass(/theme-light/);
     await expect(page.locator('.library-track-row')).toContainText('Restored from cache');
-    expect(await page.locator('.app-background').evaluate(element => {
-      const style = getComputedStyle(element);
-      return { image: style.backgroundImage, size: style.backgroundSize, position: style.backgroundPosition };
-    })).toEqual(startupBackground);
+    await expect(page.locator('.app-library-background')).toHaveCSS('background-image',
+      'linear-gradient(135deg, rgb(255, 247, 251), rgb(238, 245, 255))');
     await page.screenshot({ path: testInfo.outputPath('library-portrait.png') });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1200);

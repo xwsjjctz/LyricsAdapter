@@ -8,6 +8,7 @@ import { fail, ok } from './typedResult';
 
 const sectionSchema = z.enum(['general', 'plugins', 'online', 'cloud', 'focus', 'shortcuts']);
 const heightSchema = z.number().finite().min(1).max(10000);
+const surfaceSchema = z.union([heightSchema, z.object({ height: heightSchema, darkMode: z.boolean() })]);
 const shortcutSchema = z.object({ key: z.string().min(1).max(64), modifiers: z.number().int().min(0).max(15) });
 
 /** How long the requested tab gets to render before a hidden panel is shown again. */
@@ -30,6 +31,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
   let waiters: Array<(usable: boolean) => void> = [];
   /** The owner wants the sheet on screen; a prewarmed panel stays hidden. */
   let wanted = false;
+  let glassBridge: ReturnType<typeof load> = null;
 
   const layout = () => {
     if (!panel || !parent || panel.isDestroyed() || parent.isDestroyed()) return;
@@ -84,7 +86,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
         win.removeListener('move', layout); win.removeListener('resize', layout);
         sender.removeListener('did-start-loading', destroy);
         sender.removeListener('destroyed', destroy);
-        panel = null; parent = null; owner = null; ready = null; mounted = false; wanted = false;
+        panel = null; parent = null; owner = null; ready = null; mounted = false; wanted = false; glassBridge = null;
         settle(false);
         if (!sender.isDestroyed()) sender.send('settings-panel-closed');
         if (wasVisible && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.focus();
@@ -94,6 +96,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
       sender.once('did-start-loading', destroy); sender.once('destroyed', destroy);
       layout();
       if (!native.attachSettingsGlass(opened.getNativeWindowHandle())) { destroy(); return false; }
+      glassBridge = native;
       const timer = setTimeout(() => { if (!mounted && !opened.isDestroyed()) opened.destroy(); }, 10000);
       try {
         opened.webContents.setWindowOpenHandler(({ url }) => {
@@ -150,9 +153,17 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     return ok(true);
   });
   ipcMain.handle('ipc:settingsPanel:ready', (event, payload: unknown) => {
-    const height = heightSchema.safeParse(payload);
-    if (!height.success || !panel || event.sender !== panel.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings surface');
-    contentHeight = Math.ceil(height.data); layout();
+    const surface = surfaceSchema.safeParse(payload);
+    if (!surface.success || !panel || event.sender !== panel.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings surface');
+    if (typeof surface.data !== 'number') {
+      try {
+        if (!glassBridge?.attachSettingsGlass(panel.getNativeWindowHandle(), surface.data.darkMode)) return fail('Failed to update settings appearance');
+      } catch (error) {
+        logger.warn('[SettingsPanel] Appearance update failed:', error);
+        return fail('Failed to update settings appearance');
+      }
+    }
+    contentHeight = Math.ceil(typeof surface.data === 'number' ? surface.data : surface.data.height); layout();
     mounted = true;
     settle(true);
     return ok(undefined);

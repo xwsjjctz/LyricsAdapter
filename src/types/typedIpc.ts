@@ -60,7 +60,7 @@ export interface TypedElectronIPC {
     close: () => Promise<IpcResult<void>>;
     /** Builds the hidden settings panel so the first open is immediate. */
     prewarm: () => Promise<IpcResult<boolean>>;
-    ready: (height: number) => Promise<IpcResult<void>>;
+    ready: (height: number, darkMode?: boolean) => Promise<IpcResult<void>>;
     previewOpacity: (value: number) => Promise<IpcResult<void>>;
     forwardShortcut: (key: string, modifiers: number) => Promise<IpcResult<void>>;
     onClosed: (callback: () => void) => () => void;
