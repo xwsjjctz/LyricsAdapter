@@ -5,9 +5,11 @@ import { logger } from '../../services/logger';
 import SettingsView from './SettingsView';
 import type { SettingsSectionId } from '../../types/settingsPanel';
 import { shortcutManager, type ShortcutAction } from '../../services/shortcuts';
+import { useDocumentDarkMode } from '../../hooks/useNativePalette';
 
 export default function SettingsWindow({ section }: { section: SettingsSectionId }) {
   const api = getDesktopAPI()?.ipc?.settingsPanel;
+  const darkMode = useDocumentDarkMode();
   // The window is reused between opens. Each request remounts the sheet, so it
   // starts on the requested tab at the top, whatever was left open last time.
   const [request, setRequest] = useState({ section, token: 0 });
@@ -49,7 +51,7 @@ export default function SettingsWindow({ section }: { section: SettingsSectionId
         const height = header.offsetHeight + content.scrollHeight;
         if (height === lastHeight || !height) return;
         lastHeight = height;
-        void api.ready(height).catch(error => logger.warn('[SettingsPanel] Resize failed:', error));
+        void api.ready(height, darkMode).catch(error => logger.warn('[SettingsPanel] Resize failed:', error));
       });
     };
     const resize = new ResizeObserver(measure);
@@ -58,6 +60,6 @@ export default function SettingsWindow({ section }: { section: SettingsSectionId
     mutations.observe(content, { childList: true, subtree: true, attributes: true, characterData: true });
     measure();
     return () => { cancelAnimationFrame(frame); resize.disconnect(); mutations.disconnect(); };
-  }, [api, request.token]);
+  }, [api, darkMode, request.token]);
   return <SettingsView key={request.token} initialSection={request.section} onClose={() => { void api?.close(); }} />;
 }

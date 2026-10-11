@@ -116,8 +116,6 @@ const AppShell: React.FC<AppShellProps> = ({
     handleLocateRequestHandled,
   } = ui;
 
-  const openWall = useCallback(() => handleNavigate(ViewMode.WALL), [handleNavigate]);
-
   // A browsed playlist always shows its own (possibly still loading) tracks,
   // never the previously played playlist held in the 'playlist' play slot.
   const playlistState = playerController.libraryPlaylistLoadState;
@@ -210,12 +208,11 @@ const AppShell: React.FC<AppShellProps> = ({
     togglePlaybackMode: player.togglePlaybackMode,
     toggleMute: player.toggleMute,
     openSettings,
-    openWall,
     libraryLayout,
     setLibraryLayout: switchLibraryLayout,
   }), [
     canManageShown, currentTrackId, hasUnavailableTracks, locateCurrentTrack, importVm.importClick, importVm.importDisabled, importVm.reloadFiles,
-    libraryLayout, openPlaylistInfo, openSettings, openWall, switchLibraryLayout, playShownTrack, player, refreshCloud, selectTracks,
+    libraryLayout, openPlaylistInfo, openSettings, switchLibraryLayout, playShownTrack, player, refreshCloud, selectTracks,
     shownTracks.length, slots.cloud.tracks.length, slots.local.tracks.length, slots.online.tracks.length,
     switchSource, toggleFocusMode, viewSlot,
   ]);
@@ -253,7 +250,7 @@ const AppShell: React.FC<AppShellProps> = ({
   return (
     <>
       {audioElement}
-      <div className={`app-background flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`}>
+      <div className={`app-background ${libraryLayout === 'wall' ? 'app-wall-background' : 'app-library-background'} flex h-screen w-screen overflow-hidden font-sans relative${isLinux ? ' rounded-lg' : ''}`}>
         <TitleBar
           isFocusMode={isFocusMode}
           onToggleFocusMode={toggleFocusMode}

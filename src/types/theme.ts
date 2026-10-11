@@ -158,6 +158,7 @@ export interface ThemeConfig {
 // Default theme IDs
 export const THEME_IDS = {
   DEFAULT: 'default',
+  DEFAULT_LIGHT: 'default-light',
   CUTE: 'cute',
   OCEAN: 'ocean',
   SUNSET: 'sunset',

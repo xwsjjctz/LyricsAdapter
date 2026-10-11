@@ -19,25 +19,32 @@ describe('getCurrentThemeId', () => {
     expect(themeManager.getCurrentThemeId()).toBe(THEME_IDS.DEFAULT);
   });
 
-  it.each(['default-dark', 'default-light', 'warm'])('restores the unified palette from saved %s settings', async savedTheme => {
+  it.each([
+    ['default-dark', THEME_IDS.DEFAULT, '#fff7fc'],
+    ['default-light', THEME_IDS.DEFAULT_LIGHT, '#31283a'],
+    ['warm', THEME_IDS.DEFAULT_LIGHT, '#31283a'],
+  ] as const)('restores the original mode from saved %s settings', async (savedTheme, expectedTheme, textColor) => {
     themeManager.setTheme(THEME_IDS.BRUTALIST);
     await appStorage.setItem('app-theme', savedTheme);
     themeManager.reload();
 
-    expect(themeManager.getCurrentThemeId()).toBe(THEME_IDS.DEFAULT);
-    expect(themeManager.getCurrentTheme()).toBe(getDefaultTheme());
+    expect(themeManager.getCurrentThemeId()).toBe(expectedTheme);
     expect(appStorage.getItem('app-theme')).toBe(savedTheme);
-    expect(document.documentElement.style.getPropertyValue('--theme-text-primary')).toBe('#fff7fc');
+    expect(document.documentElement.style.getPropertyValue('--theme-text-primary')).toBe(textColor);
   });
 
-  it('applies the night palette by default and keeps the day palette out of the registry', () => {
+  it('applies the night palette by default and restores the original day palette', () => {
     themeManager.setTheme(THEME_IDS.DEFAULT);
 
     expect(getDefaultTheme().isDark).toBe(true);
     expect(document.documentElement.classList.contains('theme-dark')).toBe(true);
     expect(document.documentElement.style.getPropertyValue('--theme-background-sidebar')).toBe('#1d1927');
     expect(dayPaletteColors.textPrimary).toBe('#31283a');
-    expect(themeManager.getAllThemes().some(theme => theme.colors === dayPaletteColors)).toBe(false);
+    expect(themeManager.getAllThemes().some(theme => theme.colors === dayPaletteColors)).toBe(true);
+    themeManager.setTheme(THEME_IDS.DEFAULT_LIGHT);
+    expect(document.documentElement.classList.contains('theme-light')).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--theme-background-gradient-start')).toBe('#fff7fb');
+    expect(document.documentElement.style.getPropertyValue('--theme-background-gradient-end')).toBe('#eef5ff');
   });
 });
 

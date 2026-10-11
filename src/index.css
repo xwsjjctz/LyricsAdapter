@@ -295,6 +295,11 @@ textarea.no-scrollbar::-webkit-scrollbar {
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
 }
 
+/* The album repeated after the artist; shown only once its column is hidden. */
+.library-track-album-inline {
+  display: none;
+}
+
 /* Album/artist rail rows: skip painting (and lazy-cover decoding) for rows
    scrolled out of the 64px-wide rail. contain-intrinsic-size keeps the scroll
    height stable and lets Chromium remember the real row height after first
@@ -633,12 +638,38 @@ textarea.no-scrollbar::-webkit-scrollbar {
     width: auto;
   }
 
+  /* Medium: the album column folds into the artist line instead of vanishing. */
   .library-track-grid {
     grid-template-columns: minmax(0, 1fr) 72px;
   }
 
   .library-track-album {
     display: none;
+  }
+
+  .library-track-album-inline {
+    display: inline;
+  }
+}
+
+/* Narrow: two columns need no labels, and the spacing tightens. Rows keep
+   their height, so the virtual scroller's measurements stay valid. The header
+   stays as a thin strip above its divider: double-clicking it still scrolls
+   the list back to the top. */
+@container library-view (max-width: 480px) {
+  .library-track-header {
+    height: 12px;
+    padding-block: 0;
+  }
+
+  .library-track-header > * {
+    display: none;
+  }
+
+  .library-track-grid {
+    grid-template-columns: minmax(0, 1fr) 52px;
+    column-gap: 0.5rem;
+    padding-inline: 0.75rem;
   }
 }
 

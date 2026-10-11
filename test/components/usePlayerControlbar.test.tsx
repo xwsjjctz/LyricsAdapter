@@ -24,6 +24,8 @@ const options = () => ({
 
 beforeEach(() => {
   vi.clearAllMocks(); mocks.platform = 'darwin';
+  document.documentElement.classList.remove('theme-light');
+  document.documentElement.classList.add('theme-dark');
   mocks.start.mockResolvedValue({ ok: true, data: true }); mocks.update.mockResolvedValue({ ok: true });
   mocks.updateArtwork.mockResolvedValue({ ok: true }); mocks.stop.mockResolvedValue({ ok: true });
   mocks.onAction.mockReturnValue(mocks.unsubscribe);

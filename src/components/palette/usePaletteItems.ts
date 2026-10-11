@@ -12,6 +12,7 @@ import type { Track } from '../../types';
 
 const LIBRARY_LIMIT = 6;
 const ONLINE_LIMIT = 8;
+/** Applies to search results only; the start page lists every playlist. */
 const PLAYLIST_LIMIT = 6;
 /** Rows each "show more" adds per group. */
 const MORE_STEP = 20;
@@ -119,7 +120,7 @@ export function usePaletteItems(
     const playlistSection = t('sidebar.playlists');
     const matchingPlaylists = library.playlists.filter(playlist => !query || textMatchesQuery(playlist.name, query));
     const playlistItems = matchingPlaylists
-      .slice(0, PLAYLIST_LIMIT + (query ? pages * MORE_STEP : 0))
+      .slice(0, query ? PLAYLIST_LIMIT + pages * MORE_STEP : MAX_RESULT_ROWS)
       .map((playlist): PaletteItem => ({
         key: `playlist:${playlist.source}:${playlist.id}`,
         section: playlistSection,
@@ -133,7 +134,7 @@ export function usePaletteItems(
     if (!query) {
       const sources = commands.filter(command => command.id.startsWith('source.'))
         .map(command => commandItem(command, t('sidebar.library'), []));
-      return { items: [...sources, ...playlistItems], trail: [], onlineLoading: false };
+      return { items: [...sources, ...playlistItems].slice(0, MAX_RESULT_ROWS), trail: [], onlineLoading: false };
     }
 
     const localSection = t('sidebar.local');

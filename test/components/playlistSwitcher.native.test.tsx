@@ -34,6 +34,8 @@ async function setup(count = 3) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  document.documentElement.classList.remove('theme-light');
+  document.documentElement.classList.add('theme-dark');
   shortcutManager.resetAllToDefaults();
   commandPalette.close();
   mocks.start.mockResolvedValue({ ok: true, data: true });

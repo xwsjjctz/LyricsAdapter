@@ -80,11 +80,16 @@ test('floating web volume panel supports hover, speaker mute, dragging and keybo
     await page.keyboard.press('Escape');
     await expect(button).toBeFocused();
     await expect(panel).not.toBeVisible();
-    // The unified appearance keeps retired day/night controls out of the palette.
+    // The feature command switches colour mode without closing the palette.
     await page.keyboard.press('ControlOrMeta+K');
     await page.keyboard.press('Tab');
-    await page.locator('.command-palette__input').fill('Night Mode');
-    await expect(page.getByRole('option')).toHaveCount(0);
+    await page.locator('.command-palette__input').fill('Toggle light/dark mode');
+    const colorMode = page.getByRole('option');
+    await expect(colorMode).toHaveCount(1);
+    await colorMode.click();
+    await expect(page.locator('html')).toHaveClass(/theme-light/);
+    await colorMode.click();
+    await expect(page.locator('html')).toHaveClass(/theme-dark/);
     await page.locator('.command-palette-backdrop').click({ position: { x: 5, y: 100 } });
     await expect(page.locator('.command-palette-backdrop')).toHaveCount(0);
     await button.hover();

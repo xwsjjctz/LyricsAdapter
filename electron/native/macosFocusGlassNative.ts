@@ -6,7 +6,7 @@ import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../../src/ty
 
 const require = createRequire(import.meta.url);
 
-interface MacosSettingsGlassBridge { attachSettingsGlass(handle: Buffer): boolean }
+interface MacosSettingsGlassBridge { attachSettingsGlass(handle: Buffer, darkMode?: boolean): boolean }
 export function loadMacosSettingsGlassBridge(): MacosSettingsGlassBridge | null {
   if (process.platform !== 'darwin') return null;
   const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosSettingsGlassBridge>;

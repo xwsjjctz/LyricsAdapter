@@ -4,6 +4,24 @@
  * sinks and pops during a source switch, so the two never share a transform.
  */
 
+.app-background {
+  color: var(--theme-text-primary, #fff7fc);
+}
+
+/* Keep the baked icon blur on the shell, with the original theme tint. */
+.app-wall-background {
+  --wall-background-tint: color-mix(in srgb, var(--theme-background-dark, #15121d) 78%, transparent);
+  background-color: var(--theme-background-dark, #15121d);
+  background-image: linear-gradient(var(--wall-background-tint), var(--wall-background-tint)), url('/wall-background.jpg');
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.app-library-background {
+  background: linear-gradient(135deg, var(--theme-background-gradient-start, #17131f), var(--theme-background-gradient-end, #111b2a));
+}
+
 .poster-wall {
   /* Tiles run flush to every window edge. The floating control bar may cover
      part of the last row for now. */

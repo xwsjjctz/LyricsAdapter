@@ -112,7 +112,7 @@ export function usePlayerControlbar(options: Options): boolean {
       const current = latest.current;
       const payload: PlayerControlbarState = {
         ...current.state,
-        darkMode: true,
+        darkMode: document.documentElement.classList.contains('theme-dark'),
         presentation: controlbarPresentation(current.anchorRef.current, current.visible),
       };
       const serialized = JSON.stringify(payload);
@@ -139,7 +139,7 @@ export function usePlayerControlbar(options: Options): boolean {
       if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element))) follow();
     });
     mutations.observe(document.body, { childList: true, subtree: true });
-    // Fixed night colours still need to follow startup and ancestor transitions.
+    // Follow theme changes, startup and ancestor transitions.
     const page = new MutationObserver(follow);
     page.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-startup'] });
     const transition = (event: Event) => {

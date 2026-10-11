@@ -17,9 +17,14 @@
   -webkit-backdrop-filter: var(--liquid-glass-filter);
   box-shadow: var(--glass-shadow);
 }
-/* No light variant: like the AppKit bar, the player keeps its night palette in
-   every theme and the focus glass follows the cover instead of the theme. The
-   clear material has no dimming of its own. */
+/* Match AppKit's light backing; focus glass still follows the cover. */
+:root.theme-light :is(.windows-glass-player, .windows-glass-player .macos-volume-slider-shell) {
+  --glass-tint: rgba(255, 255, 255, .3);
+  --glass-material: rgba(245, 245, 250, .45);
+  --glass-highlight: rgba(255, 255, 255, .32);
+}
+
+/* The clear material has no dimming of its own. */
 .liquid-glass--clear { --glass-tint: rgba(0, 0, 0, .035); --glass-material: transparent; --glass-blur: 3px; }
 
 /* The rim: LAGlassHighlightView's top-lit gradient over the specular hairline

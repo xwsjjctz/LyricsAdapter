@@ -34,12 +34,12 @@ export interface AppCommandDeps {
   toggleFocusMode: () => void;
   togglePlaybackMode: () => void;
   toggleMute: () => void;
+  isDark: boolean;
+  toggleColorMode: () => void;
   languages: readonly { value: Language; nativeLabel: string }[];
   currentLanguage: string;
   setLanguage: (language: Language) => void;
   openSettings: (section: SettingsSectionId) => void;
-  /** Back to the library page (from search results), in its current layout. */
-  openWall: () => void;
   libraryLayout: 'wall' | 'list';
   setLibraryLayout: (layout: 'wall' | 'list') => void;
 }
@@ -172,6 +172,13 @@ function playbackCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] 
 function appearanceCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
   return [
     {
+      id: 'appearance.colorMode', title: t('palette.command.toggleColorMode'),
+      icon: deps.isDark ? 'light_mode' : 'dark_mode', group: 'appearance',
+      keywords: ['dark', 'light', 'theme', 'night', 'day', '黑白', '深色', '浅色', '夜间', '白天'],
+      detail: t(deps.isDark ? 'palette.state.dark' : 'palette.state.light'),
+      keepOpen: true, run: deps.toggleColorMode,
+    },
+    {
       id: 'appearance.language', title: t('settings.language'), icon: 'translate', group: 'appearance',
       keywords: ['language', 'locale'],
       detail: deps.languages.find(option => option.value === deps.currentLanguage)?.nativeLabel,
@@ -211,22 +218,11 @@ function navigationCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[
   const onList = deps.libraryLayout === 'list';
   return [
     {
-      id: 'navigation.wall', title: t(onList ? 'palette.command.showList' : 'palette.command.showWall'),
-      icon: onList ? 'view_list' : 'auto_awesome_mosaic', group: 'navigation',
-      keywords: ['wall', 'list', 'home', 'library', 'back'], run: deps.openWall,
+      id: 'navigation.layout', title: t(onList ? 'palette.command.useWallLayout' : 'palette.command.useListLayout'),
+      icon: onList ? 'auto_awesome_mosaic' : 'view_list', group: 'navigation',
+      keywords: ['wall', 'list', 'poster', 'cover', 'grid', 'classic', 'legacy', 'traditional', 'rows', 'layout', 'home', 'library', 'back', '瀑布流', '旧版列表'],
+      run: () => deps.setLibraryLayout(onList ? 'wall' : 'list'),
     },
-    // The poster wall is the default; the classic list stays one command away.
-    onList
-      ? {
-        id: 'navigation.useWall', title: t('palette.command.useWallLayout'), icon: 'auto_awesome_mosaic',
-        group: 'navigation', keywords: ['wall', 'poster', 'cover', 'grid', 'layout'],
-        run: () => deps.setLibraryLayout('wall'),
-      }
-      : {
-        id: 'navigation.list', title: t('palette.command.useListLayout'), icon: 'view_list',
-        group: 'navigation', keywords: ['list', 'classic', 'legacy', 'traditional', 'rows', 'layout'],
-        run: () => deps.setLibraryLayout('list'),
-      },
   ];
 }
 

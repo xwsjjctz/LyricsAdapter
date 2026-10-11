@@ -71,10 +71,13 @@ describe('native settings panel', () => {
     expect(f.panel.loadURL).toHaveBeenCalledWith('app://localhost/index.html?settings-panel=shortcuts');
     // The handler is still awaiting loadURL; let it start waiting for the controls.
     await Promise.resolve(); await Promise.resolve();
-    f.invoke('ready', 800, f.childEvent);
+    f.invoke('ready', { height: 800, darkMode: false }, f.childEvent);
+    expect(f.bridge.attachSettingsGlass).toHaveBeenLastCalledWith(f.panel.getNativeWindowHandle(), false);
     expect(await opening).toEqual({ ok: true, data: true });
     expect(f.panel.show).toHaveBeenCalledOnce();
     expect(f.panel.setBounds).toHaveBeenLastCalledWith({ x: 230, y: 191, width: 640, height: 468 });
+    f.invoke('ready', { height: 800, darkMode: true }, f.childEvent);
+    expect(f.bridge.attachSettingsGlass).toHaveBeenLastCalledWith(f.panel.getNativeWindowHandle(), true);
     expect(await f.invoke('open', 'general')).toEqual({ ok: true, data: true });
     expect(f.contents.send).toHaveBeenCalledWith('settings-panel-section', 'general');
     expect(mocks.create).toHaveBeenCalledOnce();

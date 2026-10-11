@@ -8,6 +8,10 @@ const SOURCES = [{ id: 'qq', name: 'QQ 音乐' }, { id: 'netease', name: '网易
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 interface ReleaseAsset { name: string; browser_download_url: string; digest?: string }
 interface Release { assets: ReleaseAsset[]; tag_name?: string }
+const ATTEMPTS = 3;
+/** A dropped or timed-out connection is worth retrying; an HTTP answer or a validation failure is final. */
+const transient = (error: unknown) => error instanceof TypeError
+  || (error instanceof Error && (error.name === 'TimeoutError' || error.message.startsWith('net::ERR_')));
 export interface OfficialPluginDownload { id: string; version: string; url: string; sha256?: string; expectedVersion?: string }
 
 async function readLimited(response: Response, limit: number): Promise<Buffer> {
@@ -31,10 +35,23 @@ async function readLimited(response: Response, limit: number): Promise<Buffer> {
 
 /** Only the official repository can supply downloadable executable packages. */
 export class MusicPluginCatalog {
-  constructor(private readonly fetcher: Fetcher = fetch) {}
+  constructor(private readonly fetcher: Fetcher = fetch, private readonly retryDelay = 1_000) {}
+  /** Resolves to null for a missing resource, so callers can fall back instead of failing. */
+  private async read(url: string, limit: number, milliseconds: number, headers?: Record<string, string>): Promise<Buffer | null> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const response = await this.fetcher(url, { ...(headers ? { headers } : {}), signal: AbortSignal.timeout(milliseconds) });
+        if (response.status === 404) return null;
+        return await readLimited(response, limit);
+      } catch (error) {
+        if (attempt >= ATTEMPTS || !transient(error)) throw error;
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay * attempt));
+      }
+    }
+  }
   async downloads(): Promise<OfficialPluginDownload[]> {
-    const response = await this.fetcher(`${PACKAGE_DIRECTORY}catalog.json`, { signal: AbortSignal.timeout(30_000) });
-    if (response.status === 404) {
+    const catalog = await this.read(`${PACKAGE_DIRECTORY}catalog.json`, 512 * 1024, 30_000);
+    if (!catalog) {
       const release = await this.release();
       return SOURCES.flatMap(source => {
         const asset = release?.assets.find(item => item.name === `${source.id}.laplugin`);
@@ -45,7 +62,7 @@ export class MusicPluginCatalog {
           ...(asset.digest ? { sha256: asset.digest.replace(/^sha256:/, '') } : {}) }];
       });
     }
-    const value = JSON.parse((await readLimited(response, 512 * 1024)).toString('utf8')) as Record<string, unknown>;
+    const value = JSON.parse(catalog.toString('utf8')) as Record<string, unknown>;
     if (value['apiVersion'] !== 1 || !Array.isArray(value['plugins'])) throw new Error('Invalid official plugin catalog');
     const ids = new Set<string>();
     return value['plugins'].map((item: unknown) => {
@@ -61,11 +78,9 @@ export class MusicPluginCatalog {
     });
   }
   private async release(): Promise<Release | null> {
-    const response = await this.fetcher(`https://api.github.com/repos/${REPOSITORY}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(30_000),
-    });
-    if (response.status === 404) return null;
-    const value = JSON.parse((await readLimited(response, 512 * 1024)).toString('utf8')) as Release;
+    const bytes = await this.read(`https://api.github.com/repos/${REPOSITORY}/releases/latest`, 512 * 1024, 30_000, { Accept: 'application/vnd.github+json' });
+    if (!bytes) return null;
+    const value = JSON.parse(bytes.toString('utf8')) as Release;
     if (!Array.isArray(value.assets)) throw new Error('Invalid plugin release');
     return value;
   }
@@ -80,7 +95,8 @@ export class MusicPluginCatalog {
     if (!SOURCES.some(source => source.id === id)) throw new Error('Unknown official plugin');
     const download = (await this.downloads()).find(item => item.id === id);
     if (!download) throw new Error('该插件尚未发布安装包，请稍后重试或安装本地插件。');
-    const bytes = await readLimited(await this.fetcher(download.url, { signal: AbortSignal.timeout(60_000) }), 24 * 1024 * 1024);
+    const bytes = await this.read(download.url, 24 * 1024 * 1024, 60_000);
+    if (!bytes) throw new Error('Plugin download failed: HTTP 404');
     if (download.sha256 && download.sha256 !== createHash('sha256').update(bytes).digest('hex')) throw new Error('Plugin download checksum mismatch');
     return registry.installPackage(bytes, id, download.expectedVersion);
   }

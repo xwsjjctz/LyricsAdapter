@@ -73,3 +73,5 @@ export function updatePlaylistSwitcher(state: {
 }): void;
 export function setPlaylistSwitcherCover(url: string, data: Buffer): void;
 export function stopPlaylistSwitcher(): void;
+/** Attaches or updates the native settings backing; defaults to dark. */
+export function attachSettingsGlass(handle: Buffer, darkMode?: boolean): boolean;

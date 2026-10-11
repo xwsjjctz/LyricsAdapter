@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNativeSurface } from '../../hooks/useNativeSurface';
+import { useDocumentDarkMode } from '../../hooks/useNativePalette';
 import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import type { PlaylistSwitcherAction } from '../../types/playlistSwitcher';
@@ -33,8 +34,8 @@ export default function PlaylistSwitcher({ items, activeId }: { items: readonly 
     else current.activate(item.id);
   }, []);
   const desktop = getDesktopAPI();
-  // Fixed night colours, like the playback bar: its black tint needs light text.
-  const nativeState = toNativeSwitcherState({ session, darkMode: true, label, hint });
+  const darkMode = useDocumentDarkMode();
+  const nativeState = toNativeSwitcherState({ session, darkMode, label, hint });
   const nativeActive = useNativeSurface(
     desktop?.platform === 'darwin' ? desktop.ipc?.playlistSwitcher : undefined,
     nativeState, handleNativeAction, 'PlaylistSwitcher',

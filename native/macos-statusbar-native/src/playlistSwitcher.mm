@@ -203,7 +203,7 @@ API_AVAILABLE(macos(26.0))
   self = [super initWithFrame:frame]; if (!self) return nil;
   self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; self.accessibilityIdentifier = @"playlist-switcher-host";
   _cards = [NSMutableArray array]; _covers = [NSMutableDictionary dictionary]; _selected = -1;
-  // Clear glass over the playback bar's 30% black tint, which holds text contrast.
+  // Clear glass over the playback bar's tint, which follows the app theme.
   _panel = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _panel.style = NSGlassEffectViewStyleClear;
   _panel.cornerRadius = 28; _panel.hidden = YES; _panel.alphaValue = 0; _panel.accessibilityIdentifier = @"playlist-switcher-glass";
   NSView* content = [[LASwitcherContentView alloc] initWithFrame:NSZeroRect]; _panel.contentView = content; [self addSubview:_panel];
@@ -293,7 +293,7 @@ API_AVAILABLE(macos(26.0))
 
   NSAppearance* appearance = [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
   if (![self.panel.appearance.name isEqualToString:appearance.name]) self.panel.appearance = appearance;
-  self.panel.tintColor = [NSColor colorWithWhite:0 alpha:0.3];
+  self.panel.tintColor = [NSColor colorWithWhite:dark ? 0 : 1 alpha:0.3];
   self.panel.accessibilityLabel = label; self.hint.stringValue = hint;
   while (self.cards.count > count) { [self.cards.lastObject removeFromSuperview]; [self.cards removeLastObject]; }
   while (self.cards.count < count) {

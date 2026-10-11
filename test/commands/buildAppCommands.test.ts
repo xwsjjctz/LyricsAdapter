@@ -29,11 +29,12 @@ function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     toggleFocusMode: vi.fn(),
     togglePlaybackMode: vi.fn(),
     toggleMute: vi.fn(),
+    isDark: true,
+    toggleColorMode: vi.fn(),
     languages: [{ value: 'zh', nativeLabel: '中文' }, { value: 'en', nativeLabel: 'English' }],
     currentLanguage: 'zh',
     setLanguage: vi.fn(),
     openSettings: vi.fn(),
-    openWall: vi.fn(),
     libraryLayout: 'wall',
     setLibraryLayout: vi.fn(),
     ...overrides,
@@ -46,9 +47,9 @@ describe('buildAppCommands', () => {
   it('covers every migrated entry point', () => {
     const ids = buildAppCommands(deps(), t).map(command => command.id);
     expect(ids).toEqual(expect.arrayContaining([
-      'navigation.wall', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
+      'navigation.layout', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
       'library.import', 'playback.playAll', 'playback.shuffleAll', 'playback.focusMode', 'playback.mode',
-      'playback.mute', 'appearance.language', 'settings.open', 'settings.general',
+      'playback.mute', 'appearance.colorMode', 'appearance.language', 'settings.open', 'settings.general',
       'settings.online', 'settings.cloud', 'settings.focus', 'settings.shortcuts', 'settings.about',
     ]));
   });
@@ -66,18 +67,18 @@ describe('buildAppCommands', () => {
     expect(refreshCloud).toHaveBeenCalled();
   });
 
-  it('keeps the poster wall as default with a switch to the classic list and back', () => {
+  it('offers one layout command that switches to the other layout', () => {
     const setLibraryLayout = vi.fn();
     const onWall = buildAppCommands(deps({ setLibraryLayout }), t);
-    expect(byId(onWall, 'navigation.wall')?.title).toBe('palette.command.showWall');
-    expect(byId(onWall, 'navigation.useWall')).toBeUndefined();
-    void byId(onWall, 'navigation.list')?.run?.();
+    expect(onWall.filter(command => command.group === 'navigation')).toHaveLength(1);
+    expect(byId(onWall, 'navigation.layout')?.title).toBe('palette.command.useListLayout');
+    void byId(onWall, 'navigation.layout')?.run?.();
     expect(setLibraryLayout).toHaveBeenLastCalledWith('list');
 
     const onList = buildAppCommands(deps({ libraryLayout: 'list', setLibraryLayout }), t);
-    expect(byId(onList, 'navigation.wall')?.title).toBe('palette.command.showList');
-    expect(byId(onList, 'navigation.list')).toBeUndefined();
-    void byId(onList, 'navigation.useWall')?.run?.();
+    expect(onList.filter(command => command.group === 'navigation')).toHaveLength(1);
+    expect(byId(onList, 'navigation.layout')?.title).toBe('palette.command.useWallLayout');
+    void byId(onList, 'navigation.layout')?.run?.();
     expect(setLibraryLayout).toHaveBeenLastCalledWith('wall');
   });
 

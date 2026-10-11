@@ -3,16 +3,16 @@
  */
 
 import { ThemeConfig, THEME_IDS } from '../../types/theme';
+import { dayPaletteColors } from './dayPalette';
 
 export const predefinedThemes: ThemeConfig[] = [
   {
     id: THEME_IDS.DEFAULT,
-    name: '默认',
+    name: '默认深色',
     description: '取色自 App Icon 的粉蓝夜间配色',
-    icon: 'palette',
+    icon: 'dark_mode',
     isDark: true,
-    tags: ['默认', '粉蓝'],
-    // The former day palette lives on, unused, in ./dayPalette.
+    tags: ['默认', '深色', '粉蓝'],
     colors: {
       primary: '#f19bd1',
       primaryHover: '#f6b4dc',
@@ -37,6 +37,26 @@ export const predefinedThemes: ThemeConfig[] = [
       shadowColor: 'rgba(6, 3, 12, 0.42)',
       glowColor: 'rgba(241, 155, 209, 0.24)',
     },
+    fonts: {
+      main: "'Inter', system-ui, -apple-system, sans-serif",
+      display: "'Inter', system-ui, -apple-system, sans-serif",
+    },
+    borderRadius: {
+      sm: '4px',
+      md: '8px',
+      lg: '12px',
+      xl: '16px',
+      full: '9999px',
+    },
+  },
+  {
+    id: THEME_IDS.DEFAULT_LIGHT,
+    name: '默认浅色',
+    description: '取色自 App Icon 的粉蓝渐变浅色主题',
+    icon: 'light_mode',
+    isDark: false,
+    tags: ['默认', '浅色', '粉蓝'],
+    colors: dayPaletteColors,
     fonts: {
       main: "'Inter', system-ui, -apple-system, sans-serif",
       display: "'Inter', system-ui, -apple-system, sans-serif",

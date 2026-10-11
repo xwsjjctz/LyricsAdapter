@@ -6,7 +6,8 @@ import { logger } from './logger';
 /**
  * 主进程自动更新模块（electron-updater + GitHub Releases）。
  *
- * 通过 latest*.yml + *.blockmap 实现差量增量下载。
+ * 目前只在 Windows 上启用：NSIS 安装包不签名也能更新，macOS 的 Squirrel
+ * 需要一致的代码签名，未签名构建无法通过校验。
  * 注意：electron-updater 仅在真打包构建里工作（npm run electron:dev 下会被跳过）。
  */
 
@@ -25,11 +26,18 @@ const UPDATER_CHANNEL = 'updater-event';
 const REPO_OWNER = 'xwsjjctz';
 const REPO_NAME = 'LyricsAdapter';
 
+/** 不可用的原因；null 表示更新可用（Windows 打包构建）。 */
+const unavailableReason: 'dev' | 'unsupported' | null =
+  process.platform !== 'win32' ? 'unsupported' : app.isPackaged ? null : 'dev';
+
 let startupCheckDone = false;
+// 设置页晚于启动检查挂载，需要能读到已经发生的状态。
+let currentState: UpdaterState = { status: 'idle' };
 // download-progress 事件 payload 不含 UpdateInfo，需在 update-available 时缓存。
 let lastInfo: UpdateInfo | null = null;
 
 function send(state: UpdaterState): void {
+  currentState = state;
   const win = getWindow();
   if (win && !win.isDestroyed()) {
     win.webContents.send(UPDATER_CHANNEL, state);
@@ -37,10 +45,12 @@ function send(state: UpdaterState): void {
   logger.info(`[Updater] status=${state.status}`);
 }
 
-function registerUpdaterIpc(devMode: boolean): void {
+function registerUpdaterIpc(): void {
+  ipcMain.handle('updater:state', (): UpdaterState => currentState);
+
   ipcMain.handle('updater:check', async (): Promise<{ ok: boolean; reason?: string }> => {
-    if (devMode) {
-      return { ok: false, reason: 'dev' };
+    if (unavailableReason) {
+      return { ok: false, reason: unavailableReason };
     }
     try {
       await autoUpdater.checkForUpdates();
@@ -52,12 +62,12 @@ function registerUpdaterIpc(devMode: boolean): void {
   });
 
   ipcMain.handle('updater:quit-and-install', async (): Promise<{ ok: boolean }> => {
-    if (devMode) {
+    if (unavailableReason) {
       return { ok: false };
     }
     try {
-      // isSilent=false（用户已确认），isForceRunAfter=true（重启后重新打开）
-      autoUpdater.quitAndInstall(false, true);
+      // isSilent=true（不弹安装向导），isForceRunAfter=true（装完重新打开）
+      autoUpdater.quitAndInstall(true, true);
       return { ok: true };
     } catch (e) {
       logger.error('[Updater] quitAndInstall failed:', e);
@@ -71,11 +81,11 @@ export function registerVersionIpc(): void {
   ipcMain.handle('app:get-version', (): string => app.getVersion());
 }
 
-/** 初始化 autoUpdater 并注册事件转发 / IPC。dev 模式下只注册 IPC。 */
+/** 初始化 autoUpdater 并注册事件转发 / IPC。不可用时只注册 IPC。 */
 export function initUpdater(): void {
-  if (!app.isPackaged) {
-    logger.info('[Updater] Skipped (dev mode — updater only runs in packaged builds).');
-    registerUpdaterIpc(true);
+  registerUpdaterIpc();
+  if (unavailableReason) {
+    logger.info(`[Updater] Skipped (${unavailableReason}).`);
     return;
   }
 
@@ -119,13 +129,12 @@ export function initUpdater(): void {
     send({ status: 'downloaded', info });
   });
 
-  registerUpdaterIpc(false);
   logger.info('[Updater] Initialized.');
 }
 
 /** 启动静默检查：窗口 ready 后延迟几秒检查一次，错误静默吞掉（不打扰用户）。 */
 export function scheduleStartupCheck(delayMs = 5000): void {
-  if (!app.isPackaged || startupCheckDone) {
+  if (unavailableReason || startupCheckDone) {
     return;
   }
   startupCheckDone = true;
