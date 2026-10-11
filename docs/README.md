@@ -4,7 +4,7 @@
 
 ## 架构
 
-- [架构概览](./architecture/overview.md)
+- [架构概览与架构图](./architecture/overview.md)（进程边界、四槽状态、SQLite 持久化与插件宿主）
 - [播放流程](./architecture/playback-flow.md)
 - [持久化现状与 SQLite 迁移边界](./architecture/persistence-current-state.md)
 
