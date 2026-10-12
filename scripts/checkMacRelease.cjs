@@ -13,7 +13,9 @@ function beforePack(context) {
   if (context.electronPlatformName !== 'darwin') return;
   const options = context.packager.platformSpecificBuildOptions;
   const isLocalDirectory = context.targets.length === 0;
-  if (isLocalDirectory && options.forceCodeSigning === false && options.notarize === false) return;
+  const unsigned = options.forceCodeSigning === false && options.notarize === false;
+  // The release workflow opts in to an unsigned DMG while no Developer ID credentials exist.
+  if (unsigned && (isLocalDirectory || process.env.LYRICSADAPTER_UNSIGNED_MAC === '1')) return;
   if (options.forceCodeSigning !== true || options.hardenedRuntime !== true || options.notarize !== true) {
     throw new Error('macOS distribution requires forceCodeSigning, hardenedRuntime and notarize.');
   }

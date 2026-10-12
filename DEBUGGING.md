@@ -160,6 +160,9 @@ npm run release:verify -- mac  # 检查更新元数据、版本、产物完整�
 项目锁定 electron-builder 26，签名选项位于 `build.mac`；不要直接套用 v27 的 `mac.sign` 配置。
 Hardened Runtime 使用打包工具自带的 Electron 权限配置；原生模块、插件及系统歌词仍需在最终签名包中验收。
 
+五项凭证都未配置时，发布工作流改用 `npm run electron:build:mac:unsigned` 生成未签名 DMG，
+不上传 ZIP 和 `latest-mac.yml`，Windows 安装包与更新照常发布；只配置了一部分则直接失败。
+
 正式构建在缺少任一凭证时失败。打包钩子要求签名、公证和 Hardened Runtime，签名后核验 Developer ID、
 整个应用包的签名、公证票据及 Gatekeeper 评估；这些检查通过后才生成分发包。
 更新元数据与文件校验通过后，CI 才上传构建产物。

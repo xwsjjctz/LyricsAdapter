@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const beforePack = require('../../scripts/checkMacRelease.cjs');
@@ -28,6 +28,9 @@ describe('macOS release prerequisites', () => {
     } };
     expect(() => beforePack(context)).not.toThrow();
     expect(() => beforePack({ ...context, targets: [{ name: 'dmg' }] })).toThrow('requires forceCodeSigning');
+    vi.stubEnv('LYRICSADAPTER_UNSIGNED_MAC', '1');
+    expect(() => beforePack({ ...context, targets: [{ name: 'dmg' }] })).not.toThrow();
+    vi.unstubAllEnvs();
     expect(() => beforePack({ electronPlatformName: 'win32' })).not.toThrow();
   });
 

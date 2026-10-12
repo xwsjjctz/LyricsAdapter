@@ -37,15 +37,25 @@ jobs:
         run: |
           node -e 'const version = require("./package.json").version; if (process.env.GITHUB_REF_NAME !== `v${version}`) throw new Error("Release tag must match package.json version")'
 
-      - name: Require macOS release credentials
+      # 五项凭证全空：退回未签名 DMG，不发布 macOS 更新元数据；只配了一部分：直接失败。
+      - name: Detect macOS release credentials
+        id: mac_signing
         if: runner.os == 'macOS'
+        shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: node scripts/checkMacRelease.cjs
+        run: |
+          if [ -z "$CSC_LINK$CSC_KEY_PASSWORD$APPLE_ID$APPLE_APP_SPECIFIC_PASSWORD$APPLE_TEAM_ID" ]; then
+            echo "::warning::No macOS signing credentials; publishing an unsigned DMG without in-app updates."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          else
+            node scripts/checkMacRelease.cjs
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Python for node-gyp
         uses: actions/setup-python@v5
@@ -63,7 +73,7 @@ jobs:
 
       # The macOS hooks reject missing signing/notarization and validate the stapled app.
       - name: Build, sign and notarize macOS
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.mac_signing.outputs.signed == 'true'
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -72,6 +82,13 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run electron:build:mac
 
+      - name: Build unsigned macOS DMG
+        if: runner.os == 'macOS' && steps.mac_signing.outputs.signed != 'true'
+        run: |
+          npm run electron:build:mac:unsigned
+          # 未签名包不能应用内更新，不能让它的元数据进入 Release。
+          rm -f release/latest-mac.yml release/*.zip
+
       - name: Build Windows installer
         if: runner.os == 'Windows'
         env:
@@ -79,6 +96,7 @@ jobs:
         run: npm run electron:build:win -- --publish never
 
       - name: Verify release artifacts and update metadata
+        if: runner.os == 'Windows' || steps.mac_signing.outputs.signed == 'true'
         run: npm run release:verify -- ${{ matrix.artifact }}
 
       - name: Upload build artifacts
@@ -128,8 +146,9 @@ jobs:
           shopt -s nullglob
           FILES=(release/*.dmg release/*.zip release/*.exe)
           test -f release/latest.yml
-          test -f release/latest-mac.yml
-          FILES+=(release/latest.yml release/latest-mac.yml)
+          FILES+=(release/latest.yml)
+          # 未签名的 macOS 构建不带更新元数据。
+          if [ -f release/latest-mac.yml ]; then FILES+=(release/latest-mac.yml); fi
           echo "Uploading: ${FILES[*]}"
           # 创建新的 release（v0.* 自动标记为 Pre-release）
           if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
