@@ -8,6 +8,7 @@ import type { PersistenceCloseCommitRequest } from '../../src/types/typedIpc';
 
 interface ExposedApi {
   closeWindow: (alreadyFlushed?: boolean) => Promise<unknown>;
+  onBeforeWindowClose: (callback: () => Promise<boolean> | boolean) => () => void;
   ipc: {
     persistence: {
       commitClose: (request: PersistenceCloseCommitRequest) => Promise<unknown>;
@@ -19,6 +20,8 @@ function executePreload(): {
   api: ExposedApi;
   invoke: ReturnType<typeof vi.fn>;
   response: object;
+  on: ReturnType<typeof vi.fn>;
+  send: ReturnType<typeof vi.fn>;
 } {
   const preloadPath = path.resolve(process.cwd(), 'electron/preload.ts');
   const compiled = transpileModule(readFileSync(preloadPath, 'utf8'), {
@@ -63,7 +66,7 @@ function executePreload(): {
   }, { filename: preloadPath });
 
   if (!exposed) throw new Error('Preload did not expose window.electron');
-  return { api: exposed, invoke, response };
+  return { api: exposed, invoke, response, on: electron.ipcRenderer.on, send: electron.ipcRenderer.send };
 }
 
 describe('preload close commit contract', () => {
@@ -92,5 +95,18 @@ describe('preload close commit contract', () => {
 
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith('window-close', true);
+  });
+
+  it('acknowledges the matching save request only after the renderer callback settles', async () => {
+    const { api, on, send } = executePreload();
+    let finish!: (saved: boolean) => void;
+    api.onBeforeWindowClose(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const listener = on.mock.calls.find(([channel]) => channel === 'window-before-close-flush')?.[1] as
+      (event: unknown, requestId: number) => Promise<void>;
+    const pending = listener({}, 7);
+    expect(send).not.toHaveBeenCalled();
+    finish(true);
+    await pending;
+    expect(send).toHaveBeenCalledWith('window-before-close-flush-done', true, 7);
   });
 });

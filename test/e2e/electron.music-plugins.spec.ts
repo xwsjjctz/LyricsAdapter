@@ -69,14 +69,18 @@ test('music plugins work through real IPC, stream and download; local updates an
     const digest = createHash('sha256').update(neteasePackage).digest('hex');
     await app.evaluate(({ net }, data) => {
       const directory = 'https://raw.githubusercontent.com/xwsjjctz/LyricsAdapter-Music-Plugins/main/packages/';
-      net.fetch = async input => {
+      // The app:// protocol serves the renderer's own files through net.fetch too;
+      // chunks still loading at this point must keep working.
+      const original = net.fetch.bind(net);
+      net.fetch = async (input, init) => {
+        if (String(input).startsWith('file:')) return original(input, init);
         if (String(input) === `${directory}catalog.json`) return new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'netease', version: '0.1.0', file: 'netease.laplugin', sha256: data.digest }] }));
         if (String(input) === `${directory}netease.laplugin`) return new Response(data.package);
         throw new Error(`Unexpected plugin download: ${input}`);
       };
     }, { package: neteasePackage, digest });
     await expect(page.locator('.poster-wall')).toBeVisible();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus());
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.focus());
     await page.keyboard.press('ControlOrMeta+K');
     const palette = page.locator('.command-palette__input');
     await palette.click(); await expect(palette).toBeFocused();

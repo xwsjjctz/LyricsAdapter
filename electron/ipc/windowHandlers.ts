@@ -1,38 +1,52 @@
-import { ipcMain, BrowserWindow } from "electron";
+import { ipcMain, BrowserWindow, type IpcMainEvent } from "electron";
 import { logger } from "../logger";
-export function registerWindowControls(win: BrowserWindow | null): void {
+
+interface WindowControls {
+  prepareForUpdate: () => Promise<boolean>;
+  cancelUpdatePreparation: () => void;
+}
+
+export function registerWindowControls(win: BrowserWindow | null): WindowControls {
   let closeAllowed = false;
   let closeInProgress = false;
+  let nextFlushId = 0;
 
-  const requestRendererFlushBeforeClose = () => {
-    if (!win || closeAllowed || closeInProgress) return;
+  const requestRendererFlush = (closeAfterFlush: boolean): Promise<boolean> => {
+    if (!win || win.isDestroyed() || closeInProgress) return Promise.resolve(false);
+    if (closeAllowed) return Promise.resolve(true);
     closeInProgress = true;
-
     const targetWindow = win;
-    const timeout = setTimeout(() => {
-      logger.warn('[Window] Renderer close flush timed out; closing window');
-      closeAllowed = true;
-      closeInProgress = false;
-      if (!targetWindow.isDestroyed()) {
-        targetWindow.close();
-      }
-    }, 3000);
-
-    ipcMain.once('window-before-close-flush-done', (_event, saved: boolean) => {
-      clearTimeout(timeout);
-      closeInProgress = false;
-
-      if (saved === false) {
-        logger.warn('[Window] Renderer close flush reported failure; closing anyway');
-      }
-
-      closeAllowed = true;
-      if (!targetWindow.isDestroyed()) {
-        targetWindow.close();
+    const requestId = ++nextFlushId;
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = (saved: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        ipcMain.removeListener('window-before-close-flush-done', onFlushed);
+        closeInProgress = false;
+        // Ordinary close retains its existing best-effort policy. Updates require a successful save.
+        closeAllowed = saved || closeAfterFlush;
+        if (closeAfterFlush && !targetWindow.isDestroyed()) targetWindow.close();
+        resolve(saved && !targetWindow.isDestroyed());
+      };
+      const onFlushed = (event: IpcMainEvent, saved: boolean, responseId: number) => {
+        if (event.sender !== targetWindow.webContents || responseId !== requestId) return;
+        if (saved !== true) logger.warn('[Window] Renderer close flush reported failure');
+        finish(saved === true);
+      };
+      const timeout = setTimeout(() => {
+        logger.warn('[Window] Renderer close flush timed out');
+        finish(false);
+      }, 3000);
+      ipcMain.on('window-before-close-flush-done', onFlushed);
+      try {
+        targetWindow.webContents.send('window-before-close-flush', requestId);
+      } catch (error) {
+        logger.warn('[Window] Failed to request renderer flush:', error);
+        finish(false);
       }
     });
-
-    targetWindow.webContents.send('window-before-close-flush');
   };
 
   ipcMain.handle('window-minimize', async () => {
@@ -78,7 +92,7 @@ export function registerWindowControls(win: BrowserWindow | null): void {
     win.on('close', (event) => {
       if (closeAllowed) return;
       event.preventDefault();
-      requestRendererFlushBeforeClose();
+      void requestRendererFlush(true);
     });
 
     win.on('closed', () => {
@@ -93,4 +107,9 @@ export function registerWindowControls(win: BrowserWindow | null): void {
       win?.webContents.send('fullscreen-changed', false);
     });
   }
+
+  return {
+    prepareForUpdate: () => requestRendererFlush(false),
+    cancelUpdatePreparation: () => { closeAllowed = false; },
+  };
 }

@@ -136,6 +136,8 @@ test('interrupting a Focus Mode track change keeps the backdrop pixels continuou
   delete env['ELECTRON_RUN_AS_NODE'];
   Object.assign(env, {
     NODE_ENV: 'test', LYRICS_ADAPTER_E2E_STATIC: '1',
+    // The web controls drive the track changes; the backdrop is the same under native glass.
+    LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
     HOME: isolatedHome, USERPROFILE: isolatedHome,
     APPDATA: path.join(tempRoot, 'app-data'), LOCALAPPDATA: path.join(tempRoot, 'local-app-data'),
     XDG_CONFIG_HOME: path.join(tempRoot, 'config'), XDG_DATA_HOME: path.join(tempRoot, 'data'),

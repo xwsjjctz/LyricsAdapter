@@ -62,6 +62,10 @@ yarn-error.log*
 /audio
 .env
 
+# Apple signing identities and notarization private keys stay outside Git.
+*.p12
+*.p8
+
 downloads/
 
 .ruff_cache/

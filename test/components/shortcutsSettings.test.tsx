@@ -20,3 +20,16 @@ it('waits for a non-modifier key before saving a multi-modifier shortcut', () =>
   expect(shortcutManager.getShortcut('toggleFocusMode').currentKey).toBe('CmdOrCtrl+Shift+L');
   expect(screen.queryByPlaceholderText('settings.shortcuts.pressKey')).not.toBeInTheDocument();
 });
+
+it('returns focus to the shortcut button when the keyboard ends a recording', () => {
+  render(<ShortcutsSettings />);
+  const row = screen.getByText('shortcut.toggleFocusMode').parentElement!;
+  const edit = () => row.querySelector<HTMLElement>('[data-shortcut-edit="toggleFocusMode"]')!;
+  // Otherwise focus drops to the page body, where Escape no longer closes settings.
+  fireEvent.click(edit());
+  fireEvent.keyDown(screen.getByPlaceholderText('settings.shortcuts.pressKey'), { key: 'Escape' });
+  expect(edit()).toHaveFocus();
+  fireEvent.click(edit());
+  fireEvent.keyDown(screen.getByPlaceholderText('settings.shortcuts.pressKey'), { key: 'L', code: 'KeyL', metaKey: true, shiftKey: true });
+  expect(edit()).toHaveFocus();
+});

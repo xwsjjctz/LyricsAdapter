@@ -1,6 +1,6 @@
 # 播放流程说明
 
-本文只描述当前源码中的播放链路。重点是从用户点击曲目到 `<audio>` 获得可播放 URL，再到播放状态被写回 slot 和持久化的全过程。
+本文描述从用户点击曲目到 `<audio>` 获得可播放 URL，再到播放状态持久化的全过程。桌面端插件与持久化链路于 2026-10-11 核对；总览见[架构说明](./overview.md)。
 
 ## 核心参与者
 
@@ -9,11 +9,12 @@
 | UI | `components/AppShell.tsx`、`components/LibraryView.tsx`、`components/Controls.tsx`、`components/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
 | 应用组合层 | `App.tsx` 中的 `AppContent` | 挂载 `<audio>`，连接 UI、stores、controllers、viewmodels 与生命周期 hooks |
 | 播放意图 | `controllers/usePlayerController.ts` | 处理同/跨 slot 选歌、在线流播放、歌单浏览与播放上下文 |
-| 播放聚合层 | `stores/playerStore.ts` | 包装 `usePlayback`，同步播放时间、音量、播放模式到 active slot |
+| 播放聚合层 | `stores/playerStore.ts` | 包装 `usePlayback`，同步音量、播放模式到 active slot，提供实时播放时钟与恢复入口 |
 | 播放核心 | `hooks/usePlayback.ts` | 控制 `<audio>`，按 track source 解析播放 URL，处理事件与错误恢复 |
 | 曲库状态 | `hooks/useLibrarySlots.ts`、`stores/libraryStore.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
-| 持久化 | `hooks/useLibraryLoad.ts`、`services/libraryStorage.ts` | 启动恢复、运行中防抖保存、关闭前 flush |
+| 持久化 | `hooks/useLibraryLoad.ts`、`repositories/libraryPersistenceRepository.ts`、`repositories/libraryClosePersistenceRepository.ts` | 聚合启动恢复、运行期状态写入、关闭最终快照；展示缓存由 `libraryStorage` 独立维护 |
 | 主进程协议 | `audioProtocol.ts`、`streamProtocol.ts`、`coverProtocol.ts` | 提供本地音频、在线音频、封面自定义协议 |
+| 音乐源插件 | `electron/services/musicPluginRegistry.ts`、`src/services/musicPluginProvider.ts` | 搜索、歌词、歌单、音源 URL 与认证；不持有播放状态 |
 
 ## 顶层流程
 
@@ -26,28 +27,39 @@ sequenceDiagram
   participant P as usePlayback
   participant Audio as HTML audio
   participant Main as Electron main/protocol
+  participant Remote as WebDAV CDN
   participant Store as useLibraryLoad
+  participant DB as Main / SQLite
 
-  U->>UI: 点击曲目或控制按钮
-  UI->>C: selectTrack / playOnlineSong / 播放控制 intent
+  U->>UI: 点击本地、云端或在线曲目
+  UI->>C: selectTrack / playOnlineSong
   C->>LS: 更新 activeSlot 或目标 slot index
   C->>P: selectTrack / shouldAutoPlay / setIsPlaying
   P->>P: 根据 currentTrack.source 解析播放 URL
   P->>Audio: 设置 src 或等待 React src 更新
-  Audio->>Main: 请求 audio:// 或 stream:// 或远端 URL
-  Main-->>Audio: 音频字节流 / Range 响应
+  alt 本地或在线音乐
+    Audio->>Main: 请求 audio:// 或 stream://
+    Main-->>Audio: 磁盘或插件解析的 CDN 音频流
+  else WebDAV 音频
+    Audio->>Remote: 请求已解析的 HTTPS URL
+    Remote-->>Audio: 音频字节流 / Range 响应
+  end
   Audio-->>P: loadedmetadata / timeupdate / ended / error
-  P->>LS: 写回 currentTime / volume / playbackMode
+  P->>P: 更新实时播放时钟
+  P->>LS: 通过 playerStore 同步音量 / 模式
   LS->>Store: slot 状态变化
-  Store->>Store: 防抖保存 library-index.json
+  Store->>P: 捕获快照时读取实时进度
+  Store->>DB: 经写队列提交 tracks + playback 事务
+  Store->>Main: 独立更新 library-index.json 缓存
+  Note over Store,DB: 单独的高频进度按 5 秒节流加入同一队列
 ```
 
 ## 启动恢复
 
-启动后 `AppContent` 调用 `useLibraryLoad()`，流程如下：
+主进程先初始化 `UserStateRepository`，再注册持久化 IPC 和创建窗口。renderer 启动后 `AppContent` 调用 `useLibraryLoad()`，流程如下：
 
-1. `libraryStorage.loadLibrary()` 读取 `userData/library-index.json`，找不到时返回空库。
-2. `useLibraryLoad` 把 `songs/cloudSongs/onlineSongs/playlistSongs` 重建为 `Track[]`。
+1. `libraryPersistenceRepository.loadBootstrap()` 聚合读取 SQLite 设置、曲目归属与播放工作区，以及 `userData/library-index.json` 展示缓存。
+2. `resolveUserDataLibrary()` 以 SQLite 的曲目归属和顺序为准，结合缓存重建四个 slot 的 `Track[]`。已初始化的空库优先于旧缓存，缓存缺失不代表用户曲库为空。
 3. `restoreFromPersistence()` 恢复四个 slot 的 index、time、volume、playbackMode、scroll/filter 状态。
 4. `activeSlotId` 恢复到上次播放上下文；如果是 `playlist`，曲库视图仍回到真实库 slot。
 5. `setIsPlaying(false)`，启动后不自动播放。
@@ -55,6 +67,8 @@ sequenceDiagram
 7. 初始化 metadata cache，后台校验本地文件路径，并运行启动清理。
 
 恢复后的 `<audio>` 元素只有当前曲目时才挂载。真正播放要等用户点击播放或选歌。
+
+浏览器模式不使用主进程 SQLite，设置与曲库分别由 localStorage、IndexedDB 承担；用户状态与缓存的详细边界见[持久化说明](./persistence-current-state.md)。
 
 ## 选歌流程
 
@@ -126,7 +140,7 @@ WebDAV 曲目的 `source === 'webdav'`，播放时不直接用 `webdavPath` 作�
 
 ### 在线搜索结果
 
-在线搜索结果可以立即流式播放，不必下载到本地。
+在线搜索结果可以立即流式播放，不必下载到本地。搜索、歌词和歌单查询由 renderer 的 `createMusicPluginProvider()` 经 IPC 调用主进程音乐源插件；以下播放流程要求对应插件已安装并启用。
 
 流程：
 
@@ -141,9 +155,9 @@ WebDAV 曲目的 `source === 'webdav'`，播放时不直接用 `webdavPath` 作�
 5. 设置 `online.currentTrackIndex = 0`。
 6. 切换 `activeSlotId` 和 `viewSlot` 到 `online`。
 7. `usePlayback` 遇到 `source === 'qq' || 'netease'`，构建 `stream://<source>/<songmid>?q=320`。
-8. `streamProtocol` 在主进程解析真实 CDN URL，补 cookie，转发 Range 请求给 CDN。
+8. `streamProtocol` 在主进程取得已启用的插件，调用 `plugin.provider.getMusicUrl()` 解析真实 CDN URL，并用 `plugin.streamHeaders()` 提供的请求头转发 Range 请求。
 
-QQ 和网易的 cookie 在应用启动时从 renderer cookie store 同步到主进程的 `streamProtocol` 内存 cookie store。
+QQ 和网易凭据从主进程 `settingsStore` 读取，持久化后端是加密的 SQLite 设置。`syncOnlineCookiesToMain()` 调用的兼容 `set-online-cookie` 通道仅清理该来源的 CDN URL 缓存，不保存第二份 cookie。插件认证变更通过事件同步到 renderer 的设置和 cookie 管理器。
 
 ### 在线歌单 playlist slot
 
@@ -221,26 +235,32 @@ actualVolume = linearVolume * linearVolume
 | `canplay` | `handleCanPlay` | 在等待 canplay 的恢复场景中重试 play |
 | `error` | `handleAudioError` | 记录错误，WebDAV fresh URL 恢复，其他来源清空 audioUrl 后重载 |
 
-`playerStore` 把播放状态写回 slot：
+`playerStore` 把音量和播放模式写回 active slot：
 
-- `currentTime > 0` 时写入 active slot 的 `currentTime`。
 - `volume` 变化时写入 active slot 的 `volume`。
 - `playbackMode` 变化时写入 active slot 的 `playbackMode`。
 
-`useLibraryLoad` 监听 slot 状态变化，构建 library index 并防抖保存。
+进度由 `usePlayback` 的实时播放时钟维护，不在每次 `timeupdate` 时复制进 slot。`AppContent.getAppPersistenceData()` 捕获快照时读取 active slot 的实时进度，非 active slot 使用已保存的进度；跨 slot 切换由 player controller 保存旧上下文时间。
+
+`useLibraryLoad` 监听 slot 状态变化，并独立节流保存高频进度。SQLite 保存用户状态，library index 保存展示缓存。
 
 ## 持久化时机
 
 运行中：
 
-- slot tracks/index/time/volume/mode 变化会触发 `saveLibraryDebounced()`，延迟约 1 秒写入。
-- 某些动作会立即保存，例如导入完成、重排、下载完成加入本地库。
+- slot tracks/index/volume/mode 变化后，经 `LatestWriteQueue` 合并写入最小曲目记录和对应 playback；`userDataSaveLibraryState` 在一个 SQLite 事务中提交它们。
+- `currentPlaybackTime` 独立按 5 秒 leading + trailing 节流，读取最新快照后加入同一串行队列，避免旧曲库写入覆盖新进度。
+- `saveLibraryDebounced()` 独立保存展示缓存；导入或重排等操作也可能直接更新该缓存，但缓存成功不等于 SQLite 用户状态提交成功。
+- 主题、语言等普通设置通过 `AppStorage` 在各自变更时独立保存，插件配置由插件宿主写入；这些设置不随曲库快照全量替换。
 
 关闭前：
 
-- `useLibraryLoad` 注册 `addLibraryFlushListener()`。
-- preload 的 `onBeforeWindowClose` 会等待 renderer flush。
-- 主进程最多等 3 秒，flush 成功后继续关闭。
+- `useLibraryLoad` 注册 `addLibraryFlushListener()`，窗口关闭握手等待 renderer 返回最终提交结果。
+- 先排空运行期状态队列和展示缓存写入，再从同一份最新四槽状态构建关闭快照。
+- `libraryClosePersistenceRepository` 将快照交给主进程 `PersistenceCommitService`，先尝试 SQLite tracks + playback 事务，再单独写 `library-index.json`。
+- 返回各部分结果与 `fullyPersisted`；缓存失败不会回滚已提交的 SQLite 状态，任一必要部分失败都不会被报告为完整保存成功。
+
+事务、读取失败时禁写曲目归属的行为，以及关闭结果中的兼容字段详见[持久化说明](./persistence-current-state.md#启动运行期与关闭提交)。
 
 ## 当前边界问题
 

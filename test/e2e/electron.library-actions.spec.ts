@@ -62,7 +62,7 @@ test('wall song menus, selection, swap and removal preserve original files acros
     const page = await app.firstWindow();
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(1200, 800));
     const tiles = page.locator('.wall-tile');
     await expect(tiles).toHaveCount(3);
     const tile = (title: string) => page.locator(`.wall-tile[aria-label="${title}, Test Artist"]`);
@@ -89,9 +89,9 @@ test('wall song menus, selection, swap and removal preserve original files acros
     await expect(tile('Blue')).toHaveAttribute('aria-checked', 'true');
     expect(await page.locator('audio').evaluateAll(nodes => nodes.every(node => (node as HTMLAudioElement).paused))).toBe(true);
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('selection.png') });
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(820, 650));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(820, 650));
     await expect(page.getByRole('button', { name: 'Remove selected', exact: true })).toBeInViewport();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(1200, 800));
     await page.getByRole('button', { name: 'Select All', exact: true }).click();
     await expect(tile('Coral')).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('Escape');

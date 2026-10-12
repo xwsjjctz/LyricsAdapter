@@ -18,6 +18,10 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const inputRef = useRef<HTMLInputElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  // Set when the keyboard ends a recording: the recorder unmounts, and without
+  // this focus would drop to the page body, where Escape no longer closes settings.
+  const restoreFocusTo = useRef<ShortcutAction | null>(null);
 
   useEffect(() => {
     const unsubscribe = themeManager.subscribe(() => {
@@ -35,8 +39,18 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   useEffect(() => {
     if (editingAction && inputRef.current) {
       inputRef.current.focus();
+      return;
     }
+    const action = restoreFocusTo.current;
+    restoreFocusTo.current = null;
+    if (action) sectionRef.current?.querySelector<HTMLElement>(`[data-shortcut-edit="${action}"]`)?.focus();
   }, [editingAction]);
+
+  const finishRecording = useCallback((action: ShortcutAction) => {
+    restoreFocusTo.current = action;
+    setEditingAction(null);
+    setConflictAction(null);
+  }, []);
 
   const formatKey = useCallback((event: React.KeyboardEvent): string => {
     const parts: string[] = [];
@@ -69,8 +83,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
 
     // Escape cancels editing
     if (event.key === 'Escape') {
-      setEditingAction(null);
-      setConflictAction(null);
+      finishRecording(action);
       return;
     }
 
@@ -78,8 +91,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
     if (event.key === 'Backspace' || event.key === 'Delete') {
       shortcutManager.updateShortcut(action, '');
       setShortcuts(shortcutManager.getAllShortcuts());
-      setEditingAction(null);
-      setConflictAction(null);
+      finishRecording(action);
       return;
     }
 
@@ -105,10 +117,9 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
     const success = shortcutManager.updateShortcut(action, newKey);
     if (success) {
       setShortcuts(shortcutManager.getAllShortcuts());
-      setEditingAction(null);
-      setConflictAction(null);
+      finishRecording(action);
     }
-  }, [formatKey]);
+  }, [finishRecording, formatKey]);
 
   const handleReset = useCallback((action: ShortcutAction) => {
     shortcutManager.resetToDefault(action);
@@ -168,6 +179,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
           </div>
         ) : (
           <button
+            data-shortcut-edit={action}
             onClick={() => setEditingAction(action)}
             className="min-w-[50px] px-2 py-1 r-sm text-xs font-mono transition-colors"
             style={{
@@ -212,7 +224,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   );
 
   return (
-    <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+    <section ref={sectionRef} className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       {/* Header with Reset All button */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>

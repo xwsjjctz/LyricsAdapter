@@ -36,7 +36,7 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     const page = await app.firstWindow();
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1200, 800));
     const choose = (id: string) => app!.evaluate(({ Menu, BrowserWindow }, action) => {
       const parent = BrowserWindow.getAllWindows().find(win => !win.getParentWindow())!;
       Menu.getApplicationMenu()!.getMenuItemById(action)!.click({}, parent);
@@ -48,6 +48,8 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
         const win = BrowserWindow.getAllWindows().find(window => Boolean(window.getParentWindow()) === args.settings)!;
         return native.probe(win.getNativeWindowHandle());
       }, { file: probePath, settings }));
+    // The panel is prewarmed and reused: closing hides it instead of destroying the window.
+    const panelVisible = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(win => win.getParentWindow() && win.isVisible()));
     await choose('menu-toggleCommandPalette');
     await expect(page.locator('.command-palette-backdrop')).toBeVisible();
     await expect.poll(async () => (await probe()).items.find(item => item.id === 'native-palette-glass')?.material).toBe(0);
@@ -88,28 +90,28 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     const resized = await bounds(); expect(resized.child.y - resized.parent.y).toBe(Math.floor(resized.parent.height * 0.14));
     expect(resized.child.height).toBeLessThanOrEqual(Math.min(560, Math.floor(resized.parent.height * 0.72)));
     await settings.keyboard.press('Escape').catch(error => { if (!settings.isClosed()) throw error; });
-    await expect.poll(() => app!.windows().length).toBe(1);
+    await expect.poll(panelVisible).toBe(false);
     await expect(page.locator('.settings-sheet-backdrop')).toHaveCount(0);
     // Reopening starts at the requested tab and can close from either surface.
     await choose('menu-showShortcuts');
-    await expect.poll(() => app!.windows().length).toBe(2);
+    await expect.poll(panelVisible).toBe(true);
     settings = app.windows().find(window => window.url().includes('settings-panel='))!;
     await expect(settings.getByRole('tabpanel', { name: '快捷键', exact: true })).toBeVisible();
     await settings.getByRole('button', { name: '关闭', exact: true }).click().catch(error => { if (!settings.isClosed()) throw error; });
-    await expect.poll(() => app!.windows().length).toBe(1);
+    await expect.poll(panelVisible).toBe(false);
     await choose('menu-gotoSettings');
-    await expect.poll(() => app!.windows().length).toBe(2);
+    await expect.poll(panelVisible).toBe(true);
     await page.locator('.settings-sheet-backdrop').click({ position: { x: 10, y: 10 } });
-    await expect.poll(() => app!.windows().length).toBe(1);
+    await expect.poll(panelVisible).toBe(false);
     await choose('menu-gotoSettings');
-    await expect.poll(() => app!.windows().length).toBe(2);
+    await expect.poll(panelVisible).toBe(true);
     settings = app.windows().find(window => window.url().includes('settings-panel='))!;
     await expect(settings.getByRole('dialog', { name: '设置', exact: true })).toBeVisible();
     await choose('menu-showShortcuts');
     await expect(settings.getByRole('tabpanel', { name: '快捷键', exact: true })).toBeVisible();
-    expect(app.windows()).toHaveLength(2);
+    expect(await panelVisible()).toBe(true);
     await settings.keyboard.press('Meta+K').catch(error => { if (!settings.isClosed()) throw error; });
-    await expect.poll(() => app!.windows().length).toBe(1);
+    await expect.poll(panelVisible).toBe(false);
     await expect(page.locator('.command-palette-backdrop')).toBeVisible();
     await choose('menu-toggleCommandPalette');
     expect(errors).toEqual([]);

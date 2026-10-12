@@ -161,7 +161,15 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await sample('default-paused');
     // The masked viewport already isolates the player. Removing its redundant
     // blend must retain the rendered lyric appearance, including edge fades.
-    const optimizedPixels = await lyrics.screenshot();
+    // Lyric springs can still be settling after the pause: compare only once frames repeat,
+    // so a difference below comes from the blend mode and not from motion.
+    let optimizedPixels = await lyrics.screenshot();
+    await expect.poll(async () => {
+      const next = await lyrics.screenshot();
+      const settled = next.equals(optimizedPixels);
+      optimizedPixels = next;
+      return settled;
+    }).toBe(true);
     const referenceStyle = await page.addStyleTag({ content:
       '.focus-amll-lyrics > .amll-lyric-player { mix-blend-mode: plus-lighter !important; }',
     });
@@ -235,7 +243,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await expect(focus.getByText(songs[2]!.title, { exact: true })).toBeVisible();
     for (const width of [1080, 1200]) {
       await app.evaluate(({ BrowserWindow }, nextWidth) => {
-        BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 800);
+        BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(nextWidth, 800);
       }, width);
       await expect.poll(() => lyrics.locator('[class*="_lyricMainLine"] br').count()).toBeGreaterThan(0);
       const staysUnfiltered = await lyrics.evaluate(async el => {
@@ -282,7 +290,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
       await fontSwitch.click();
       await expect(fontSwitch).toHaveAttribute('aria-checked', 'true');
       await expect.poll(() => app!.evaluate(async ({ BrowserWindow }) => {
-        return BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(
+        return BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.webContents.executeJavaScript(
           'window.electron.settingsGetAll().then(settings => settings.la_focus_enhanced_font_enabled)',
         );
       })).toBe('true');

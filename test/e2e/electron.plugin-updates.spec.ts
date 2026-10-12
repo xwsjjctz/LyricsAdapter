@@ -34,7 +34,7 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
     app = await launch(); const page = await app.firstWindow();
     await page.waitForFunction(() => Boolean((window as unknown as { electron?: Bridge }).electron?.pluginUpdate));
     await app.evaluate(({ BrowserWindow, net }, fixture) => {
-      BrowserWindow.getAllWindows()[0]?.focus();
+      BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.focus();
       const state = globalThis as unknown as { failPluginDownload: boolean }; state.failPluginDownload = true;
       const original = net.fetch.bind(net);
       net.fetch = async (input, init) => {

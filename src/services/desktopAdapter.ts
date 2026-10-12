@@ -76,6 +76,7 @@ interface UpdateProgress {
 
 /** 自动更新状态机（与 electron/updater.ts 保持一致）。 */
 export type UpdaterState =
+  | { status: 'unavailable'; reason: 'dev' | 'unsupported' | 'unsigned' | 'unconfigured' }
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'not-available' }

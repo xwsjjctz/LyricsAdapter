@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { shortcutManager } from '../../services/shortcuts';
 import { commandPalette } from '../../hooks/useCommandPalette';
 import { getDesktopAPI } from '../../services/desktopAdapter';
+import { isStartupScreenShown } from '../../services/startupScreen';
 import type { PlaylistSwitchItem } from './types';
 
 export interface PlaylistSwitcherSession {
@@ -54,7 +55,8 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
 
   useEffect(() => {
     const begin = (reverse: boolean, modifier: PlaylistSwitcherSession['modifier']) => {
-      if (sessionRef.current || !latest.current.items.length) return;
+      // The switcher cannot hold focus (and so the gesture) under the startup screen.
+      if (sessionRef.current || !latest.current.items.length || isStartupScreenShown()) return;
       const available = new Map(latest.current.items.map(item => [item.id, item]));
       const ids = new Set([...recentIds.current, ...available.keys()]);
       const ordered = [...ids].flatMap(id => {
@@ -82,7 +84,7 @@ export function usePlaylistSwitcher(items: readonly PlaylistSwitchItem[], active
       if (event.isComposing || (event.target instanceof Element && event.target.closest('[data-shortcut-recorder]'))) return;
       const trigger = shortcutManager.matchesShortcut('cyclePlaylists', event, true);
       if (!sessionRef.current && !trigger) return;
-      if (!sessionRef.current && (!latest.current.items.length || event.repeat)) return;
+      if (!sessionRef.current && (!latest.current.items.length || event.repeat || isStartupScreenShown())) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!sessionRef.current) {

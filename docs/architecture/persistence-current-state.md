@@ -1,6 +1,6 @@
 # 持久化当前架构：SQLite 权威与缓存边界
 
-> 状态：已落地架构，更新至 2026-08-13。
+> 状态：已落地架构；插件凭据和运行期写入说明于 2026-10-11 按源码更新。
 >
 > 范围：桌面端 `~/.la/state.sqlite3`、首次升级使用的 legacy JSON、Electron `userData` 下的缓存、renderer `localStorage` / IndexedDB，以及 WebDAV 远端元数据投影。
 >
@@ -57,6 +57,8 @@ flowchart LR
 | 数据 | 位置 | 桌面端角色 | 可否重建 / 清理 |
 | --- | --- | --- | --- |
 | 设置与用户偏好 | `~/.la/state.sqlite3` / `settings` | 权威；包括主题、语言、快捷键、下载偏好、侧栏布局、歌单覆盖和在线服务配置 | 不可当缓存删除 |
+| 插件启用状态、配置、私有存储与更新设置 | SQLite `settings` | 用户状态，经插件宿主访问；secret 值加密存储 | 不可当缓存删除 |
+| 已安装插件代码 | `~/.la/plugin/<plugin-id>/` | 用户安装的插件文件；与 SQLite 中的插件状态分开保存 | 通过插件安装、更新和卸载流程管理 |
 | 曲库初始化状态与播放工作区 | `~/.la/state.sqlite3` / `workspace_state` | 权威；表达明确空库并保存 playback JSON | 不可当缓存删除 |
 | 四 slot 曲目归属与顺序 | `~/.la/state.sqlite3` / `tracks` | 权威；保存最小用户记录和透传字段 | 不可当缓存删除 |
 | schema 迁移历史 | `~/.la/state.sqlite3` / `schema_migrations` | 权威；配合 `PRAGMA user_version` 校验数据库版本 | 不可手工清理 |
@@ -125,15 +127,21 @@ PRIMARY KEY (slot_id, position)
 
 ## 敏感设置
 
-以下三个键在写入 SQLite 前必须经过 Electron `safeStorage` 加密：
+敏感键由 [`src/shared/persistencePolicy.ts`](../../src/shared/persistencePolicy.ts) 统一判定，在写入 SQLite 前必须经过 Electron `safeStorage` 加密：
 
 1. `webdav-config`
 2. `qq_music_cookie`
-3. `netease_cookie`
+3. `qq_music_credential`
+4. `netease_cookie`
+5. `music-plugin:<plugin-id>:secret:<name>` 匹配的插件凭据键
+
+QQ/网易插件继续使用对应的兼容键，新插件 secret 使用独立命名空间。插件普通配置与私有存储经宿主写入 `settings`，秘密值必须使用 secret 接口。
 
 磁盘值使用 `enc:` 前缀加十六进制密文。Repository 读取时解密，调用方仍看到原有字符串接口，因此不需要改变现有设置 UI 或 provider 交互。
 
 若 `safeStorage` 不可用，敏感值写入会失败，而不会降级成明文。Linux 的 `basic_text` backend 也按不可用处理，因为 Electron 明确将其标为未受保护。已有密文无法解密时，数据库的逻辑校验同样失败，应用不会把该状态当作空配置继续启动。
+
+上述失败指仓库层拒绝落盘。运行期 `SettingsStore.setMany()` 会将写入失败的敏感值保留在 `sessionSecrets` 内存中，并继续尝试独立保存普通设置；它仍返回持久化失败，secret 只供当前进程使用，重启后不会保留。这不改变首次迁移和数据库校验失败时中止启动的规则。
 
 `safeStorage` 密文依赖生成它的操作系统用户凭据存储，可视为机器/用户环境绑定。直接把 `state.sqlite3` 复制到另一台机器并不保证这些敏感值可解密；非敏感状态仍可检查，但跨机器恢复通常需要重新输入 WebDAV 密码和在线 cookie，或未来提供显式的可移植 export。
 
@@ -196,7 +204,7 @@ Repository 按 schema 验证以下来源：
 
 它们可用于人工核对或回退到旧版本，但只包含迁移时刻的数据。SQLite 生效后的新增曲目、播放进度和设置不会同步回这些文件，因此它们不是当前备份。
 
-旧版本曾允许部分凭据以明文落在 JSON 中，所以被冻结的 `settings.json`、`users.json` 或 `.bak` 仍可能保留历史 WebDAV 密码、cookie 或签名 URL。SQLite 迁移会加密导入的三个权威敏感键，但不会回写或清洗 legacy 文件。保留它们有助于人工回退，也意味着文件权限、复制和备份都必须按含敏感信息处理；确认不再需要旧版本回退后，应由用户通过明确流程处置，而不是由应用静默删除。
+旧版本曾允许部分凭据以明文落在 JSON 中，所以被冻结的 `settings.json`、`users.json` 或 `.bak` 仍可能保留历史 WebDAV 密码、cookie 或签名 URL。SQLite 迁移会按统一敏感键策略加密导入值，但不会回写或清洗 legacy 文件。保留它们有助于人工回退，也意味着文件权限、复制和备份都必须按含敏感信息处理；确认不再需要旧版本回退后，应由用户通过明确流程处置，而不是由应用静默删除。
 
 ## 启动、运行期与关闭提交
 
@@ -212,7 +220,7 @@ SQLite 决定用户拥有哪些曲目及其 slot；缓存只负责 title、artis
 
 ### 运行期
 
-桌面端的 slot 归属变化和对应 playback 通过 `userDataSaveLibraryState` 在一个 SQLite transaction 中更新。高频 currentTime 仍按 5 秒 leading + trailing 节流写 `workspace_state`，避免每次 `<audio timeupdate>` 都触发磁盘写入。
+桌面端的 slot 归属变化和对应 playback 通过 `userDataSaveLibraryState` 在一个 SQLite transaction 中更新。`useLibraryLoad` 用 `LatestWriteQueue` 合并运行期曲库提交；高频 currentTime 按 5 秒 leading + trailing 节流，从最新实时播放时钟捕获快照后加入同一串行队列，最终写 `workspace_state`。这样既避免每次 `<audio timeupdate>` 都写盘，也避免较旧的曲库事务覆盖较新的进度。
 
 普通 settings 保持独立写入边界：主题、语言、快捷键、WebDAV 配置等在各自变更时通过 `AppStorage` / settings IPC 写入 SQLite，不随每次曲库快照或关闭事务做全量替换。这避免旧的曲库快照覆盖刚保存的用户配置。
 
@@ -220,7 +228,7 @@ SQLite 决定用户拥有哪些曲目及其 slot；缓存只负责 title、artis
 
 ### 关闭
 
-关闭时 renderer 从同一份最新四槽快照生成最终提交，main `PersistenceCommitService` 使用固定顺序：
+关闭时 renderer 先排空运行期状态队列与展示缓存写入，再从同一份最新四槽快照生成最终提交，main `PersistenceCommitService` 使用固定顺序：
 
 1. 在一个 SQLite transaction 中提交 tracks、`libraryInitialized` 和 playback；
 2. SQLite transaction 尝试结束后，最后写 `library-index.json` 缓存；

@@ -164,9 +164,9 @@ app.whenReady().then(async () => {
   registerApplicationMenu(getWindow);
 
   const win = getWindow();
-  registerWindowControls(win);  // needs window object
+  const windowControls = registerWindowControls(win);  // needs window object
 
-  initUpdater();
+  initUpdater(windowControls.prepareForUpdate, windowControls.cancelUpdatePreparation);
   registerVersionIpc();
   scheduleStartupCheck(5000);
 

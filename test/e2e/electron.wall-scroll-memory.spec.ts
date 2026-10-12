@@ -43,7 +43,7 @@ test('the poster wall reopens where it was left instead of locating the playing 
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${userData}`, repo,
     ], env });
     const window = await app.firstWindow();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(1200, 800));
     await expect(window.locator('.wall-tile').first()).toBeVisible();
     return window;
   };
@@ -80,7 +80,7 @@ test('the poster wall reopens where it was left instead of locating the playing 
     expect(before).not.toBeNull();
     const widthOf = () => page.locator('.poster-wall').evaluate(node => node.clientWidth);
     const oldWidth = await widthOf();
-    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(900, 800));
+    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(900, 800));
     await expect.poll(widthOf).toBeLessThan(oldWidth);
     await page.waitForTimeout(400);
     expect(await centreSong()).toBe(before);

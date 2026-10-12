@@ -20,6 +20,17 @@ beforeEach(() => { shortcutManager.resetAllToDefaults(); commandPalette.close();
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('Playlist switcher gesture', () => {
+  it('ignores the gesture while the page is inert under the startup screen', () => {
+    const root = document.createElement('div');
+    root.id = 'root'; root.setAttribute('inert', '');
+    document.body.appendChild(root);
+    try {
+      setup(); cycle();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      root.removeAttribute('inert'); release(); cycle();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    } finally { release(); root.remove(); }
+  });
   it('keeps the native controlbar visible through the background without treating the panel as transparent', () => {
     setup(); cycle();
     const anchor = document.createElement('div');
