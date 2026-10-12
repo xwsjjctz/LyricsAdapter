@@ -53,6 +53,19 @@ describe('macOS release prerequisites', () => {
     expect(() => verifyReleaseArtifacts(artifacts(['dmg']).directory, 'mac')).toThrow('missing .zip');
   });
 
+  it('requires the Windows installer blockmap used by differential updates', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'la-release-'));
+    roots.push(directory);
+    const name = `LyricsAdapter-Setup-${version}.exe`;
+    const bytes = Buffer.from('fixture exe');
+    fs.writeFileSync(path.join(directory, name), bytes);
+    const files = [{ url: name, sha512: createHash('sha512').update(bytes).digest('base64'), size: bytes.length }];
+    fs.writeFileSync(path.join(directory, 'latest.yml'), JSON.stringify({ version, files }));
+    expect(() => verifyReleaseArtifacts(directory, 'win')).toThrow('.exe.blockmap');
+    fs.writeFileSync(path.join(directory, `${name}.blockmap`), 'blockmap');
+    expect(() => verifyReleaseArtifacts(directory, 'win')).not.toThrow();
+  });
+
   it('rejects modified artifacts and missing metadata before upload', () => {
     const { directory, files } = artifacts();
     fs.appendFileSync(path.join(directory, files[0]!.url), 'changed');

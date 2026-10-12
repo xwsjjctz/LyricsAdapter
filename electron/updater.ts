@@ -114,7 +114,8 @@ export function initUpdater(prepareToInstall: () => Promise<boolean>, cancelInst
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = app.getVersion().startsWith('0.') || app.getVersion().includes('-');
-  autoUpdater.disableDifferentialDownload = true; // 首轮使用全量下载。
+  // Windows 按 blockmap 增量下载，失败时 electron-updater 自动退回全量；macOS 仍用全量。
+  autoUpdater.disableDifferentialDownload = process.platform !== 'win32';
   autoUpdater.logger = logger;
   // Read the provider from electron-builder's app-update.yml, including isolated test feeds.
 
