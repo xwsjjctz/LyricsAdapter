@@ -279,14 +279,14 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   onBeforeWindowClose: (callback: () => Promise<boolean> | boolean) => {
-    const handler = async () => {
+    const handler = async (_event: unknown, requestId: number) => {
       let saved = false;
       try {
         saved = await callback();
       } catch {
         saved = false;
       }
-      ipcRenderer.send('window-before-close-flush-done', saved);
+      ipcRenderer.send('window-before-close-flush-done', saved, requestId);
     };
     ipcRenderer.on('window-before-close-flush', handler);
     return () => ipcRenderer.removeListener('window-before-close-flush', handler);

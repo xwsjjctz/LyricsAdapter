@@ -14,10 +14,8 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            build_cmd: npm run electron:build:mac -- --publish never
             artifact: mac
           - os: windows-latest
-            build_cmd: npm run electron:build:win -- --publish never
             artifact: win
 
     runs-on: ${{ matrix.os }}
@@ -34,6 +32,21 @@ jobs:
           node-version: 24.19.0
           cache: npm
 
+      - name: Validate release version
+        shell: bash
+        run: |
+          node -e 'const version = require("./package.json").version; if (process.env.GITHUB_REF_NAME !== `v${version}`) throw new Error("Release tag must match package.json version")'
+
+      - name: Require macOS release credentials
+        if: runner.os == 'macOS'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node scripts/checkMacRelease.cjs
+
       - name: Setup Python for node-gyp
         uses: actions/setup-python@v5
         with:
@@ -48,18 +61,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # macOS 构建：未签名、未公证，不支持应用内更新，需手动下载 dmg。
-      # Windows 构建：NSIS 安装包，不签名也可应用内更新（全量下载）。
-      # 安装包文件名不能含空格：gh 上传时会把空格改成点，与 latest.yml 对不上。
-      - name: Build & package
+      # The macOS hooks reject missing signing/notarization and validate the stapled app.
+      - name: Build, sign and notarize macOS
+        if: runner.os == 'macOS'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run electron:build:mac
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: ${{ matrix.build_cmd }}
+        run: npm run electron:build:win -- --publish never
+
+      - name: Verify release artifacts and update metadata
+        run: npm run release:verify -- ${{ matrix.artifact }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.artifact }}
+          if-no-files-found: error
           path: |
             release/*.dmg
             release/*.zip
@@ -97,22 +123,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          # 清理该 tag 下所有残留的 release / draft（含无 v 前缀的重复 draft）
-          for r in $(gh release list --limit 50 | awk -v t="$TAG" '$3==t {print $1}'); do
-            echo "Deleting existing release: $r"
-            gh release delete "$r" --yes --cleanup-tag=false || true
-          done
-          # 构建存在的 release artifacts 列表
+          # Never replace an already published version: clients may have cached its metadata.
+          # Keep the release a draft until all installers and metadata have uploaded.
           shopt -s nullglob
           FILES=(release/*.dmg release/*.zip release/*.exe)
-          # 始终包含更新元数据（如果存在）
-          for f in release/latest.yml release/latest-mac.yml; do
-            [ -f "$f" ] && FILES+=("$f")
-          done
+          test -f release/latest.yml
+          test -f release/latest-mac.yml
+          FILES+=(release/latest.yml release/latest-mac.yml)
           echo "Uploading: ${FILES[*]}"
           # 创建新的 release（v0.* 自动标记为 Pre-release）
           if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
           gh release create "$TAG" "${FILES[@]}" \
+            --draft --verify-tag \
             --title "$TAG" \
             --generate-notes \
             $PRE
+          gh release edit "$TAG" --draft=false

@@ -1,19 +1,20 @@
-import { app, ipcMain } from 'electron';
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater, type UpdateInfo, type ProgressInfo } from 'electron-updater';
-import { getWindow } from './windowManager';
 import { logger } from './logger';
+import { getUpdaterUnavailableReason, type UpdaterUnavailableReason } from './services/updaterAvailability';
 
 /**
  * 主进程自动更新模块（electron-updater + GitHub Releases）。
  *
- * 目前只在 Windows 上启用：NSIS 安装包不签名也能更新，macOS 的 Squirrel
- * 需要一致的代码签名，未签名构建无法通过校验。
+ * 支持 Windows NSIS 和 Developer ID 签名的 macOS 包。
+ * 开发版、未签名/临时签名包及没有更新配置的包均不检查更新。
  * 注意：electron-updater 仅在真打包构建里工作（npm run electron:dev 下会被跳过）。
  */
 
 // 镜像渲染侧 services/desktopAdapter.ts 的 UpdaterState。
 // 主进程发送、渲染进程接收，两边结构需手动保持一致。
 export type UpdaterState =
+  | { status: 'unavailable'; reason: UpdaterUnavailableReason }
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'not-available' }
@@ -23,54 +24,68 @@ export type UpdaterState =
   | { status: 'error'; message: string };
 
 const UPDATER_CHANNEL = 'updater-event';
-const REPO_OWNER = 'xwsjjctz';
-const REPO_NAME = 'LyricsAdapter';
-
-/** 不可用的原因；null 表示更新可用（Windows 打包构建）。 */
-const unavailableReason: 'dev' | 'unsupported' | null =
-  process.platform !== 'win32' ? 'unsupported' : app.isPackaged ? null : 'dev';
+let unavailableReason: UpdaterUnavailableReason | null = 'dev';
 
 let startupCheckDone = false;
 // 设置页晚于启动检查挂载，需要能读到已经发生的状态。
-let currentState: UpdaterState = { status: 'idle' };
+let currentState: UpdaterState = { status: 'unavailable', reason: 'dev' };
 // download-progress 事件 payload 不含 UpdateInfo，需在 update-available 时缓存。
 let lastInfo: UpdateInfo | null = null;
+let pendingMacInfo: UpdateInfo | null = null;
+let installInProgress = false;
 
 function send(state: UpdaterState): void {
   currentState = state;
-  const win = getWindow();
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(UPDATER_CHANNEL, state);
+  // macOS settings live in a separate renderer, which needs the same live progress.
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+      win.webContents.send(UPDATER_CHANNEL, state);
+    }
   }
   logger.info(`[Updater] status=${state.status}`);
 }
 
-function registerUpdaterIpc(): void {
+function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInstall: () => void): void {
   ipcMain.handle('updater:state', (): UpdaterState => currentState);
 
   ipcMain.handle('updater:check', async (): Promise<{ ok: boolean; reason?: string }> => {
-    if (unavailableReason) {
-      return { ok: false, reason: unavailableReason };
+    if (unavailableReason || installInProgress) {
+      return { ok: false, reason: unavailableReason ?? 'installing' };
     }
     try {
       await autoUpdater.checkForUpdates();
       return { ok: true };
     } catch (e) {
       logger.error('[Updater] check failed:', e);
-      return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+      const message = e instanceof Error ? e.message : String(e);
+      send({ status: 'error', message });
+      return { ok: false, reason: message };
     }
   });
 
   ipcMain.handle('updater:quit-and-install', async (): Promise<{ ok: boolean }> => {
-    if (unavailableReason) {
+    if (unavailableReason || currentState.status !== 'downloaded' || installInProgress) {
       return { ok: false };
     }
+    installInProgress = true;
     try {
-      // isSilent=true（不弹安装向导），isForceRunAfter=true（装完重新打开）
+      // Squirrel closes windows before before-quit. Finish the renderer save handshake first.
+      if (!await prepareToInstall()) {
+        throw new Error('Could not save application state before installing the update. Please retry.');
+      }
+      if (!installInProgress || currentState.status !== 'downloaded') {
+        installInProgress = false;
+        cancelInstall();
+        return { ok: false };
+      }
+      // These arguments apply to NSIS; macOS uses Squirrel's relaunch flow.
       autoUpdater.quitAndInstall(true, true);
       return { ok: true };
     } catch (e) {
+      installInProgress = false;
+      cancelInstall();
       logger.error('[Updater] quitAndInstall failed:', e);
+      send({ status: 'error', message: e instanceof Error ? e.message : String(e) });
       return { ok: false };
     }
   });
@@ -82,8 +97,15 @@ export function registerVersionIpc(): void {
 }
 
 /** 初始化 autoUpdater 并注册事件转发 / IPC。不可用时只注册 IPC。 */
-export function initUpdater(): void {
-  registerUpdaterIpc();
+export function initUpdater(prepareToInstall: () => Promise<boolean>, cancelInstall: () => void): void {
+  unavailableReason = getUpdaterUnavailableReason({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    executablePath: process.execPath,
+  });
+  currentState = unavailableReason ? { status: 'unavailable', reason: unavailableReason } : { status: 'idle' };
+  registerUpdaterIpc(prepareToInstall, cancelInstall);
   if (unavailableReason) {
     logger.info(`[Updater] Skipped (${unavailableReason}).`);
     return;
@@ -91,20 +113,10 @@ export function initUpdater(): void {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.allowPrerelease = true; // 0.x 阶段所有 release 都是 pre-release
-  autoUpdater.disableDifferentialDownload = true; // 走全量下载，避免生成 blockmap 拖慢打包
-
-  try {
-    // publish 配置已被 electron-builder 写入 app-update.yml，autoUpdater 会自动读取；
-    // 这里显式 setFeedURL 锁定 owner/repo，确保与 app-update.yml 一致。
-    autoUpdater.setFeedURL({
-      provider: 'github',
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-    });
-  } catch (e) {
-    logger.error('[Updater] setFeedURL failed:', e);
-  }
+  autoUpdater.allowPrerelease = app.getVersion().startsWith('0.') || app.getVersion().includes('-');
+  autoUpdater.disableDifferentialDownload = true; // 首轮使用全量下载。
+  autoUpdater.logger = logger;
+  // Read the provider from electron-builder's app-update.yml, including isolated test feeds.
 
   autoUpdater.on('checking-for-update', () => {
     send({ status: 'checking' });
@@ -117,6 +129,11 @@ export function initUpdater(): void {
     send({ status: 'not-available' });
   });
   autoUpdater.on('error', (err: Error) => {
+    pendingMacInfo = null;
+    if (installInProgress) {
+      installInProgress = false;
+      cancelInstall();
+    }
     send({ status: 'error', message: err.message });
   });
   autoUpdater.on('download-progress', (progress: ProgressInfo) => {
@@ -126,8 +143,23 @@ export function initUpdater(): void {
   });
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     lastInfo = info;
-    send({ status: 'downloaded', info });
+    if (process.platform === 'darwin') {
+      // electron-updater has the ZIP, but Squirrel still needs to unpack and verify it.
+      // Do not prepare the final save until native quitAndInstall can quit immediately.
+      pendingMacInfo = info;
+      send({ status: 'downloading', info, progress: null });
+    } else {
+      send({ status: 'downloaded', info });
+    }
   });
+  if (process.platform === 'darwin') {
+    nativeAutoUpdater.on('update-downloaded', () => {
+      if (!pendingMacInfo) return;
+      const info = pendingMacInfo;
+      pendingMacInfo = null;
+      send({ status: 'downloaded', info });
+    });
+  }
 
   logger.info('[Updater] Initialized.');
 }
@@ -139,6 +171,8 @@ export function scheduleStartupCheck(delayMs = 5000): void {
   }
   startupCheckDone = true;
   setTimeout(async () => {
+    // A manual check may already have started or finished while this timer was pending.
+    if (currentState.status !== 'idle' || installInProgress) return;
     try {
       await autoUpdater.checkForUpdates();
     } catch (e) {

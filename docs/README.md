@@ -10,6 +10,7 @@
 
 ## 开发与维护
 
+- [macOS 签名、公证与应用内更新](../DEBUGGING.md#macos-签名公证与应用内更新)（凭证配置、构建边界与首次升级验收）
 - [插件 API 与开发文档](./plugins/README.md)（核心 1.0.0、音乐源与歌词翻译、旧 API 兼容和版本迭代）
 - [应用插件平台设计与后续方向](./development/plugin-platform-design.md)（区分已实现能力和未来扩展）
 - [音乐源插件开发指南（API v1）](./development/music-plugin-development.md)（第三方接入边界、合同、示例与后续改造）

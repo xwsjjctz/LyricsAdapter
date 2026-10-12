@@ -126,6 +126,67 @@ npx cross-env MEMORY_BENCHMARK_CYCLES=8 MEMORY_BENCHMARK_SETTLE_MS=5000 npm run 
 
 构建产物没有变化时可执行 `npm run test:memory:run` 跳过重新构建。
 
+## macOS 签名、公证与应用内更新
+
+仓库已预留 Developer ID 分发流程；证书与凭证配置完成、真实安装包验收通过后，才能发布首个签名版本。
+现有未签名下载包不会因为代码改动而自动获得更新能力。分发继续使用 GitHub Releases，当前目标为 Apple Silicon。
+
+### 账号开通后配置
+
+创建 **Developer ID Application** 证书，在钥匙串中导出包含私钥的 `.p12`，设置导出密码。
+当前流程使用 Apple 账号、App 专用密码和 Team ID 向苹果公证，不使用账号登录密码。
+在 GitHub 仓库的 Actions Secrets 中配置以下五项；本机构建时使用同名环境变量：
+
+| Secret / 环境变量 | 内容 |
+| --- | --- |
+| `CSC_LINK` | `.p12` 的 Base64 内容；本机也可使用证书文件绝对路径 |
+| `CSC_KEY_PASSWORD` | `.p12` 导出密码 |
+| `APPLE_ID` | Apple 账号邮箱 |
+| `APPLE_APP_SPECIFIC_PASSWORD` | Apple 账号生成的 App 专用密码 |
+| `APPLE_TEAM_ID` | 开发者团队 ID |
+
+证书、私钥和密码不要写进源码或提交到 Git。`.p12`、`.p8` 已加入忽略规则。
+后续若改用 App Store Connect API Key，需要同时调整凭证检查脚本及工作流的环境变量映射。
+
+### 构建与发布边界
+
+```bash
+npm run electron:build:mac:dev  # 无需证书，只生成本机调试用 .app，不公证、不启用更新
+npm run electron:build:mac      # 正式签名、公证、附加票据，生成 DMG + ZIP；不上传、不发布
+npm run release:verify -- mac  # 检查更新元数据、版本、产物完整性与 SHA-512
+```
+
+`electron:build:mac:adhoc` 与 `:dev` 使用相同的临时签名目录构建。普通开发仍用 `npm run electron:dev`。
+项目锁定 electron-builder 26，签名选项位于 `build.mac`；不要直接套用 v27 的 `mac.sign` 配置。
+Hardened Runtime 使用打包工具自带的 Electron 权限配置；原生模块、插件及系统歌词仍需在最终签名包中验收。
+
+正式构建在缺少任一凭证时失败。打包钩子要求签名、公证和 Hardened Runtime，签名后核验 Developer ID、
+整个应用包的签名、公证票据及 Gatekeeper 评估；这些检查通过后才生成分发包。
+更新元数据与文件校验通过后，CI 才上传构建产物。
+
+发布工作流仍仅由推送 `v*` 标签触发，且标签必须等于 `v` 加 `package.json` 版本。
+修改配置或本机构建不会触发发布。只有用户明确要求发布后才推标签；此前按 AGENTS.md 运行
+`npm run check` 和相关 Electron 测试。GitHub Release 先作为草稿上传全部产物，再公开；
+已有同名 Release 不会被删除或覆盖。上传失败留下的草稿需核对后另行处理，不能替换已公开版本的文件。
+
+### 首次验收与用户迁移
+
+1. 使用独立测试更新源构建两个递增版本 A、B，保持应用 ID `com.lyricsadapter.app` 和开发者签名身份连续。
+   可通过 electron-builder 的 `publish` 配置覆盖更新源；应用直接读取生成的 `app-update.yml`，代码不再固定 GitHub 地址。
+2. 浏览器下载 A 的 DMG，安装到“应用程序”。检查正常首次启动、断网启动、菜单栏歌词、元数据读写、插件与登录状态。
+3. 向测试源提供 B 的 DMG、ZIP 及对应更新元数据。在 A 内检查更新，确认独立设置窗口的进度变化、重启安装和 B 的版本号。
+4. 确认曲库、播放进度、音量、设置、插件与凭证保留；覆盖断网、下载失败、保存失败与重试。
+   手动“重启并安装”会先等待主窗口保存并停止音频；保存失败或超时会取消这次安装请求。
+5. 现有未签名用户需手动安装首个签名 DMG，之后才进入应用内升级路径。
+
+0.x 构建继续接收预发布，稳定 1.x 及以后默认只接收正式版，带预发布后缀的构建接收预发布。
+**现有 0.x 用户会接收 GitHub 预发布，不能用同一仓库的 Pre-release 标记隔离内部更新测试。**
+首次仍使用全量下载；无需上传额外 blockmap。正式升级测试必须使用安装包，开发模式或普通 E2E 不等同于签名升级验收。
+
+官方参考：[Developer ID 证书](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/)、
+[electron-builder 26 公证](https://www.electron.build/v26/docs/notarization/)、
+[electron-builder 26 自动更新](https://www.electron.build/v26/docs/features/auto-update/)。
+
 ## 常见问题
 
 - **9222 没有目标**：确认运行的是 `npm run electron:debug`，而不是 `electron:dev` 或 `dev`。
