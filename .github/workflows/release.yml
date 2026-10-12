@@ -108,6 +108,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.exe
+            release/*.exe.blockmap
             release/latest.yml
             release/latest-mac.yml
 
@@ -147,6 +148,10 @@ jobs:
           FILES=(release/*.dmg release/*.zip release/*.exe)
           test -f release/latest.yml
           FILES+=(release/latest.yml)
+          # Windows 增量更新需要新旧两个版本的 blockmap 都在各自的 Release 里。
+          BLOCKMAPS=(release/*.exe.blockmap)
+          test "${#BLOCKMAPS[@]}" -gt 0
+          FILES+=("${BLOCKMAPS[@]}")
           # 未签名的 macOS 构建不带更新元数据。
           if [ -f release/latest-mac.yml ]; then FILES+=(release/latest-mac.yml); fi
           echo "Uploading: ${FILES[*]}"
