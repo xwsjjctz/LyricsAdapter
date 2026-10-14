@@ -8,6 +8,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import type { Track } from '../../types';
+import { sourcePrependsLyricsTitle } from '../../services/musicSources';
 import FocusLyricRow from './FocusLyricRow';
 
 const PRE_SCROLL_TIME_SECONDS = 0.2;
@@ -74,7 +75,7 @@ export default function FocusLegacyLyrics({
   // Match the lyric source preparation used immediately before the AMLL migration.
   const lyricsLines = useMemo(() => {
     if (track.syncedLyrics?.length) {
-      if (track.source === 'netease' && (track.title || track.artist)) {
+      if (sourcePrependsLyricsTitle(track.source) && (track.title || track.artist)) {
         const titleText = [track.title, track.artist].filter(Boolean).join(' - ');
         if (titleText) return [{ time: 0, text: titleText, lineId: '' }, ...track.syncedLyrics.map((line, index) => ({ ...line, lineId: `line-${index}` }))];
       }

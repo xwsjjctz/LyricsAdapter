@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '@/services/cookieManager';
 import { settingsManager, type OnlineSource } from '@/services/settingsManager';
 import { qqCredentialManager } from '@/services/qqCredentialManager';
+import { cookieStoreFor, sourceLogin, syncOnlineCookiesToMain, type MusicSourceLogin } from '@/services/musicSources';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
 
@@ -24,11 +24,11 @@ interface UseOnlineMusicSettingsOptions {
 
 interface UseOnlineMusicSettingsResult {
   onlineSource: OnlineSource;
+  /** How the selected source signs in; QR scanning exists only for the official sources. */
+  login: MusicSourceLogin;
+  /** Cookie draft for the selected source. */
   cookie: string;
-  neteaseCookie: string;
   downloadPath: string;
-  qqLoggedIn: boolean;
-  neteaseLoggedIn: boolean;
   qrState: 'idle' | 'loading' | QRLoginStatus;
   qrImage: string | null;
   qrMsg: string;
@@ -39,28 +39,30 @@ interface UseOnlineMusicSettingsResult {
   messageType: 'success' | 'error' | null;
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
-  setNeteaseCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
   handleSave: () => Promise<void>;
   startQr: (source: OnlineSource) => Promise<void>;
   handleQrLogout: () => Promise<void>;
 }
 
+const supportsQr = (login: MusicSourceLogin) => login === 'qq-qr' || login === 'netease-qr';
+
+const QR_FLOWS = {
+  'qq-qr': { start: startQQLogin, poll: pollQQLogin },
+  'netease-qr': { start: startNetEaseQR, poll: pollNetEaseQR },
+} as const;
+
 /**
- * Owns third-party online music settings: cookie storage, QR scan-login
- * lifecycle, and source/download-path persistence. This was by far the most
- * state-heavy part of the monolithic SettingsPanel (~15 useState + 3 refs + a
- * polling timer); isolating it keeps the QR polling lifecycle explicit and
- * scoped to the section that renders it.
+ * Owns online music settings: the selected source, its cookie, the QR
+ * scan-login lifecycle for sources that support it, and the download path.
+ * Each source's cookie lives in its own store (musicSources.cookieStoreFor).
  */
 export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSettingsOptions): UseOnlineMusicSettingsResult {
   const { t } = useTranslation();
-  const [onlineSource, setOnlineSourceState] = useState<OnlineSource>('qq');
+  const [onlineSource, setOnlineSourceState] = useState<OnlineSource>(() => settingsManager.getOnlineSource());
   const [cookie, setCookie] = useState('');
-  const [neteaseCookie, setNeteaseCookie] = useState('');
+  const [loggedIn, setLoggedIn] = useState(false);
   const [downloadPath, setDownloadPath] = useState('');
-  const [qqLoggedIn, setQqLoggedIn] = useState(false);
-  const [neteaseLoggedIn, setNeteaseLoggedIn] = useState(false);
   const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string>('');
@@ -71,19 +73,14 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
   const sessionRef = useRef<{ source: OnlineSource; key: string } | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
+  const login = sourceLogin(onlineSource);
 
   // Initial load of persisted values.
   useEffect(() => {
     (async () => {
-      await cookieManager.ensureLoaded();
-      await neteaseCookieManager.ensureLoaded();
       await settingsManager.ensureLoaded();
-      setCookie(cookieManager.getCookie());
-      setNeteaseCookie(neteaseCookieManager.getCookie());
       const selected = settingsManager.getOnlineSource();
       setOnlineSourceState(sources?.length && !sources.includes(selected) ? sources[0]! : selected);
-      setQqLoggedIn(cookieManager.hasCookie());
-      setNeteaseLoggedIn(neteaseCookieManager.hasCookie());
       setDownloadPath(settingsManager.getDownloadPath());
     })();
   }, []);
@@ -92,12 +89,21 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     if (availableSource && availableSource !== onlineSource) setOnlineSourceState(availableSource);
   }, [availableSource, onlineSource]);
 
-  // A silent musickey refresh rewrites the QQ cookie; keep the field in step so
-  // a later Save does not write the stale value back.
-  useEffect(() => cookieManager.subscribe(() => {
-    setCookie(cookieManager.getCookie());
-    setQqLoggedIn(cookieManager.hasCookie());
-  }), []);
+  // Follow the selected source's cookie store. A silent QQ musickey refresh
+  // rewrites the cookie, so the draft must stay in step or Save would write
+  // the stale value back.
+  useEffect(() => {
+    const store = cookieStoreFor(onlineSource);
+    let active = true;
+    const read = () => {
+      if (!active) return;
+      setCookie(store.getCookie());
+      setLoggedIn(store.hasCookie());
+    };
+    void store.ensureLoaded().then(read);
+    const unsubscribe = store.subscribe(read);
+    return () => { active = false; unsubscribe(); };
+  }, [onlineSource]);
 
   const showMessage = useCallback((msg: string, type: 'success' | 'error') => {
     setMessage(msg);
@@ -134,19 +140,12 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
       stopQrPolling();
       setQrImage(null);
       if (res.cookie) {
-        if (source === 'qq') {
+        if (sourceLogin(source) === 'qq-qr') {
           if (res.credential) await qqCredentialManager.setCredential(res.credential);
           else await qqCredentialManager.clearCredential();
-          await cookieManager.setCookie(res.cookie);
-          setCookie(cookieManager.getCookie());
-          setQqLoggedIn(true);
-          void syncOnlineCookiesToMain('qq');
-        } else if (source === 'netease') {
-          await neteaseCookieManager.setCookie(res.cookie);
-          setNeteaseCookie(neteaseCookieManager.getCookie());
-          setNeteaseLoggedIn(true);
-          void syncOnlineCookiesToMain('netease');
         }
+        await cookieStoreFor(source).setCookie(res.cookie);
+        void syncOnlineCookiesToMain(source);
         showMessage(t('settingsDialog.qrLoggedIn'), 'success');
       }
     } else if (res.status === 'expired') {
@@ -156,17 +155,16 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     // 'waiting' | 'confirming' | 'error' → keep polling (error is treated as soft)
   }, [showMessage, stopQrPolling]);
 
-  // beginQrPolling/startQr reference the latest handleQrPollResult via ref-free
-  // closure: they are recreated whenever their deps change, and the effect below
-  // restarts the scan when enabled/source changes.
   const beginQrPolling = useCallback((source: OnlineSource, key: string): void => {
     stopQrPolling();
+    const flow = sourceLogin(source);
+    if (!supportsQr(flow)) return;
     const tick = async (): Promise<void> => {
       if (!mountedRef.current) return;
       const sess = sessionRef.current;
       if (!sess || sess.key !== key) return; // superseded by a newer session
       try {
-        const res = source === 'qq' ? await pollQQLogin(key) : await pollNetEaseQR(key);
+        const res = await QR_FLOWS[flow].poll(key);
         if (!mountedRef.current) return;
         if (!sessionRef.current || sessionRef.current.key !== key) return;
         await handleQrPollResult(source, res);
@@ -185,9 +183,14 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     sessionRef.current = null;
     setQrImage(null);
     setQrMsg('');
+    const flow = sourceLogin(source);
+    if (!supportsQr(flow)) {
+      setQrState('idle');
+      return;
+    }
     setQrState('loading');
     try {
-      const res = source === 'qq' ? await startQQLogin() : await startNetEaseQR();
+      const res = await QR_FLOWS[flow].start();
       if (!mountedRef.current) return;
       sessionRef.current = { source, key: res.sessionKey };
       setQrImage(res.qrcode);
@@ -203,19 +206,11 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
   }, [beginQrPolling, stopQrPolling]);
 
   const handleQrLogout = useCallback(async (): Promise<void> => {
-    if (onlineSource === 'qq') {
-      await qqCredentialManager.clearCredential();
-      await cookieManager.clearCookie();
-      setCookie('');
-      setQqLoggedIn(false);
-    } else {
-      await neteaseCookieManager.clearCookie();
-      setNeteaseCookie('');
-      setNeteaseLoggedIn(false);
-    }
+    if (login === 'qq-qr') await qqCredentialManager.clearCredential();
+    await cookieStoreFor(onlineSource).clearCookie();
     resetQr();
     await startQr(onlineSource);
-  }, [onlineSource, resetQr, startQr]);
+  }, [login, onlineSource, resetQr, startQr]);
 
   // Mark mounted; tear down polling on unmount.
   useEffect(() => {
@@ -229,23 +224,21 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
 
   // (Re)start QR whenever the section is shown or the source changes.
   useEffect(() => {
-    if (!enabled || (sources && !sources.includes(onlineSource))) {
-      resetQr();
-      return;
-    }
     resetQr();
-    const loggedIn =
-      onlineSource === 'qq' ? cookieManager.hasCookie() : neteaseCookieManager.hasCookie();
-    if (!loggedIn) {
-      void startQr(onlineSource);
-    }
+    if (!enabled || (sources && !sources.includes(onlineSource)) || !supportsQr(login)) return;
+    const store = cookieStoreFor(onlineSource);
+    let cancelled = false;
+    void store.ensureLoaded().then(() => {
+      if (!cancelled && !store.hasCookie()) void startQr(onlineSource);
+    });
     return () => {
+      cancelled = true;
       stopQrPolling();
       sessionRef.current = null;
     };
     // startQr/resetQr are stable in behavior (only refs + setters); omit from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, onlineSource, availableSource]);
+  }, [enabled, onlineSource, availableSource, login]);
 
   const setOnlineSource = useCallback((source: OnlineSource) => {
     setOnlineSourceState(source);
@@ -261,14 +254,10 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
       if (!await settingsManager.setOnlineSource(onlineSource)) {
         throw new Error('Failed to persist online music source');
       }
-      const cookieStore = onlineSource === 'netease'
-        ? neteaseCookieManager
-        : cookieManager;
-      const cookieValue = (onlineSource === 'netease'
-        ? neteaseCookie
-        : cookie).trim();
+      const cookieStore = cookieStoreFor(onlineSource);
+      const cookieValue = cookie.trim();
       // A hand-edited QQ cookie no longer matches the stored refresh credential.
-      if (onlineSource === 'qq' && cookieValue !== cookieManager.getCookie()) {
+      if (login === 'qq-qr' && cookieValue !== cookieStore.getCookie()) {
         await qqCredentialManager.clearCredential();
       }
       if (cookieValue) {
@@ -293,31 +282,25 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     } finally {
       setIsSaving(false);
     }
-  }, [cookie, downloadPath, neteaseCookie, onlineSource, showMessage]);
+  }, [cookie, downloadPath, login, onlineSource, showMessage]);
 
-  const isQrLoggedIn = onlineSource === 'qq'
-    ? qqLoggedIn
-    : neteaseLoggedIn;
   const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
 
   return {
     onlineSource,
+    login,
     cookie,
-    neteaseCookie,
     downloadPath,
-    qqLoggedIn,
-    neteaseLoggedIn,
     qrState,
     qrImage,
     qrMsg,
-    isQrLoggedIn,
+    isQrLoggedIn: loggedIn,
     qrScanning,
     isSaving,
     message,
     messageType,
     setOnlineSource,
     setCookie,
-    setNeteaseCookie,
     setDownloadPath,
     handleSave,
     startQr,

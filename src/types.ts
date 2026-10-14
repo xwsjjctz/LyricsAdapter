@@ -1,3 +1,5 @@
+import type { OnlineSource } from './shared/onlineMusic';
+
 
 export interface Track {
   id: string;
@@ -30,7 +32,8 @@ export interface Track {
 
   // Source: local file, WebDAV, or a third-party online stream.
   // Online tracks carry `songmid` so their `stream://` audioUrl can be rebuilt.
-  source?: 'local' | 'webdav' | 'qq' | 'netease' | undefined;
+  /** 'local', 'webdav', or the id of the music-source plugin that streams it. */
+  source?: 'local' | 'webdav' | OnlineSource | undefined;
   webdavPath?: string | undefined;
   /** Third-party song id — used by `stream://`. */
   songmid?: string | undefined;

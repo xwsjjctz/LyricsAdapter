@@ -399,5 +399,7 @@
   "pluginTrust.bindDetail": "소스: {{source}}\n\n앞으로의 플러그인 업데이트는 여기에서 다운로드되며 이 앱의 권한으로 실행됩니다. 신뢰하는 소스인 경우에만 계속하세요.",
   "pluginTrust.confirmUpdate": "신뢰하고 업데이트",
   "pluginTrust.confirmBind": "이 소스 신뢰",
-  "pluginTrust.cancel": "취소"
+  "pluginTrust.cancel": "취소",
+  "settingsDialog.cookieLoginHint": "이 소스는 QR 로그인을 지원하지 않습니다. 아래에 쿠키를 붙여 넣고 저장하세요.",
+  "settingsDialog.noLoginHint": "이 소스는 로그인 없이 검색하고 재생할 수 있습니다. 플러그인이 지원하면 아래에 쿠키를 입력할 수도 있습니다."
 }

@@ -1,6 +1,7 @@
 import { logger } from './logger';
 import { appStorage } from './appStorage';
 import type { OnlineSource as OnlineMusicSource } from './onlineMusicProvider';
+import { MUSIC_SOURCE_ID } from '../shared/onlineMusic';
 
 const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
@@ -86,7 +87,8 @@ class SettingsManager {
       this.qqMusicEnabled = appStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
 
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
-      this.onlineSource = storedSource === 'netease' ? storedSource : 'qq';
+      // Any installed plugin id is valid; the plugin store falls back to an enabled source.
+      this.onlineSource = storedSource && MUSIC_SOURCE_ID.test(storedSource) ? storedSource : 'qq';
 
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';

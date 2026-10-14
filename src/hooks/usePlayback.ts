@@ -1,3 +1,4 @@
+import { isOnlineTrackSource } from '../shared/onlineMusic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Track } from '../types';
 import { metadataCacheService } from '../services/metadataCacheService';
@@ -558,11 +559,8 @@ export function usePlayback({
       return;
     }
 
-    // Online streaming (QQ / NetEase) via the stream:// protocol proxy.
-    if (
-      currentTrack.source === 'qq'
-      || currentTrack.source === 'netease'
-    ) {
+    // Online streaming (any music-source plugin) via the stream:// protocol proxy.
+    if (isOnlineTrackSource(currentTrack.source)) {
       const capturedTrackId = currentTrack.id;
       const capturedAudio = audioRef.current;
       const shouldPlay = shouldAutoPlayRef.current;

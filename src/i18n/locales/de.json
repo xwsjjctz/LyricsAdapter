@@ -399,5 +399,7 @@
   "pluginTrust.bindDetail": "Quelle: {{source}}\n\nKünftige Plugin-Updates werden von hier geladen und laufen mit den Rechten dieser App. Fahren Sie nur fort, wenn Sie dieser Quelle vertrauen.",
   "pluginTrust.confirmUpdate": "Vertrauen und aktualisieren",
   "pluginTrust.confirmBind": "Dieser Quelle vertrauen",
-  "pluginTrust.cancel": "Abbrechen"
+  "pluginTrust.cancel": "Abbrechen",
+  "settingsDialog.cookieLoginHint": "Diese Quelle bietet keine QR-Anmeldung. Fügen Sie unten ihr Cookie ein und speichern Sie.",
+  "settingsDialog.noLoginHint": "Diese Quelle sucht und spielt ohne Anmeldung. Unterstützt das Plugin es, können Sie unten trotzdem ein Cookie eintragen."
 }

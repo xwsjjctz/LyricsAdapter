@@ -1,4 +1,5 @@
 import type { SlotId } from '../../types';
+import { isOnlineTrackSource } from '../../shared/onlineMusic';
 import type {
   PersistedLibrarySettings as LibrarySettings,
   PersistedLibrarySnapshot as LibraryIndexData,
@@ -88,7 +89,7 @@ export function getUserTrackRecords(userData: UserDataSnapshot): UserTrackRecord
 function inferSlotId(record: UserTrackRecord): SlotId {
   if (isSlotId(record.slotId)) return record.slotId;
   if (record.source === 'webdav') return 'cloud';
-  if (record.source === 'qq' || record.source === 'netease') return 'online';
+  if (isOnlineTrackSource(record.source)) return 'online';
   return 'local';
 }
 

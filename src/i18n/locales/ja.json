@@ -399,5 +399,7 @@
   "pluginTrust.bindDetail": "ソース：{{source}}\n\n今後のプラグイン更新はここからダウンロードされ、このアプリの権限で動作します。信頼できるソースの場合のみ続行してください。",
   "pluginTrust.confirmUpdate": "信頼して更新",
   "pluginTrust.confirmBind": "このソースを信頼",
-  "pluginTrust.cancel": "キャンセル"
+  "pluginTrust.cancel": "キャンセル",
+  "settingsDialog.cookieLoginHint": "このソースは QR ログインに対応していません。下に Cookie を貼り付けて保存してください。",
+  "settingsDialog.noLoginHint": "このソースはログインなしで検索・再生できます。プラグインが対応していれば、下に Cookie を入力することもできます。"
 }

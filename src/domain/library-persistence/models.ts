@@ -24,7 +24,8 @@ export interface PersistedLibrarySong {
   playCount?: number;
   lastPlayed?: string | null;
   available?: boolean;
-  source?: 'local' | 'webdav' | 'qq' | 'netease';
+  /** 'local', 'webdav', or a music-source plugin id. */
+  source?: string;
   webdavPath?: string;
   songmid?: string;
 }

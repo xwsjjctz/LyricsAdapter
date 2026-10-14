@@ -445,5 +445,7 @@
   "pluginTrust.bindDetail": "来源：{{source}}\n\n以后的插件更新都会从这里下载，并以本应用的权限运行。只在信任该来源时继续。",
   "pluginTrust.confirmUpdate": "信任并更新",
   "pluginTrust.confirmBind": "信任该来源",
-  "pluginTrust.cancel": "取消"
+  "pluginTrust.cancel": "取消",
+  "settingsDialog.cookieLoginHint": "该音乐源不支持扫码登录，请在下方粘贴 Cookie 后保存。",
+  "settingsDialog.noLoginHint": "该音乐源无需登录即可搜索和播放；如插件支持，也可在下方填写 Cookie。"
 }

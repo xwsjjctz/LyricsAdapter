@@ -5,7 +5,7 @@ import { themeManager } from './themeManager';
 import { shortcutManager } from './shortcuts';
 import { webdavClient } from './webdavClient';
 import i18next, { LANGUAGES, type Language } from '../i18n';
-import { cookieManager, neteaseCookieManager } from './cookieManager';
+import { reloadCookieStores } from './musicSources';
 import { applyExternalTranslationPreference } from './pluginTranslationPreference';
 
 /** Keep the player and the native settings renderer on the same preferences. */
@@ -17,8 +17,7 @@ export function installSettingsSync(): (() => void) | undefined {
     if (changed('app-theme')) themeManager.reload();
     if (changed('app-shortcuts')) shortcutManager.reload();
     if (replaced || Object.keys(entries).some(key => key.startsWith('webdav'))) webdavClient.reloadConfig();
-    if (changed('qq_music_cookie') || changed('qq_music_cookie_last_check')) cookieManager.reload();
-    if (changed('netease_cookie') || changed('netease_cookie_last_check')) neteaseCookieManager.reload();
+    reloadCookieStores(changed);
     if (changed('plugin_lyrics_provider') || changed('plugin_lyrics_language')) {
       applyExternalTranslationPreference({
         plugin_lyrics_provider: appStorage.getItem('plugin_lyrics_provider'),

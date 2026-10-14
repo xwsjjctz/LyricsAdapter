@@ -35,7 +35,19 @@ export interface OnlineLyricsResult {
   wordLyricsFormat?: 'qrc' | 'yrc' | undefined;
 }
 
-export type OnlineSource = 'qq' | 'netease';
+/**
+ * Id of the music-source plugin a song comes from: the official 'qq' and
+ * 'netease' plugins or any installed third-party plugin id.
+ */
+export type OnlineSource = string;
+
+/** Music-source ids share the plugin id format. */
+export const MUSIC_SOURCE_ID = /^[a-z][a-z0-9-]{0,63}$/;
+
+/** True for tracks streamed from a music-source plugin (not local files or WebDAV). */
+export function isOnlineTrackSource(source: string | undefined | null): source is OnlineSource {
+  return typeof source === 'string' && source !== 'local' && source !== 'webdav' && MUSIC_SOURCE_ID.test(source);
+}
 
 export interface PlaylistInfo {
   id: string;

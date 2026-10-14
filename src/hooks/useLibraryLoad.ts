@@ -1,3 +1,4 @@
+import { isOnlineTrackSource } from '../shared/onlineMusic';
 import { useEffect, useRef, useState } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
@@ -11,7 +12,7 @@ import { sanitizePersistedCoverUrl } from '../services/coverUrl';
 import { appStorage } from '../services/appStorage';
 import { webdavClient } from '../services/webdavClient';
 import { settingsManager } from '../services/settingsManager';
-import { cookieManager, neteaseCookieManager, syncOnlineCookiesToMain } from '../services/cookieManager';
+import { reloadCookieStores, syncOnlineCookiesToMain } from '../services/musicSources';
 import type { UserDataSnapshot } from '../types/typedIpc';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
@@ -181,7 +182,7 @@ export function useLibraryLoad({
     let restoredOnlineTracks: Track[] = [];
     if (libraryData.onlineSongs && libraryData.onlineSongs.length > 0) {
       restoredOnlineTracks = libraryData.onlineSongs
-        .filter((song: any) => song.source === 'qq' || song.source === 'netease')
+        .filter((song: any) => isOnlineTrackSource(song.source))
         .map((song: any) => ({
         id: song.id,
         title: song.title || 'Unknown',
@@ -194,7 +195,7 @@ export function useLibraryLoad({
         ...(song.wordLyricsFormat != null ? { wordLyricsFormat: song.wordLyricsFormat } : {}),
         coverUrl: sanitizePersistedCoverUrl(song.coverUrl),
         audioUrl: '',
-        source: (song.source as 'qq' | 'netease') ?? undefined,
+        source: song.source,
         songmid: song.songmid,
       } as Track));
       loadOnlineTracks(restoredOnlineTracks);
@@ -204,7 +205,7 @@ export function useLibraryLoad({
     let restoredPlaylistTracks: Track[] = [];
     if (libraryData.playlistSongs && libraryData.playlistSongs.length > 0) {
       restoredPlaylistTracks = libraryData.playlistSongs
-        .filter((song: any) => song.source === 'qq' || song.source === 'netease')
+        .filter((song: any) => isOnlineTrackSource(song.source))
         .map((song: any) => ({
         id: song.id,
         title: song.title || 'Unknown',
@@ -217,7 +218,7 @@ export function useLibraryLoad({
         ...(song.wordLyricsFormat != null ? { wordLyricsFormat: song.wordLyricsFormat } : {}),
         coverUrl: sanitizePersistedCoverUrl(song.coverUrl),
         audioUrl: '',
-        source: (song.source as 'qq' | 'netease') ?? undefined,
+        source: song.source,
         songmid: song.songmid,
       } as Track));
       loadPlaylistTracks(restoredPlaylistTracks);
@@ -595,8 +596,7 @@ export function useLibraryLoad({
               }
               // cookieManager 构造期 loadFromStorage 同样可能读到空，需重新加载
               // 后再把 cookie 同步到主进程 stream:// 代理。
-              cookieManager.reload();
-              neteaseCookieManager.reload();
+              reloadCookieStores();
               void syncOnlineCookiesToMain();
             } catch (e) {
               logger.warn('[LibraryLoad] Failed to notify settings consumers to reload:', e);

@@ -399,5 +399,7 @@
   "pluginTrust.bindDetail": "Source : {{source}}\n\nLes futures mises à jour du plugin seront téléchargées depuis cette source et s'exécuteront avec les droits de cette application. Ne continuez que si vous faites confiance à cette source.",
   "pluginTrust.confirmUpdate": "Faire confiance et mettre à jour",
   "pluginTrust.confirmBind": "Faire confiance à cette source",
-  "pluginTrust.cancel": "Annuler"
+  "pluginTrust.cancel": "Annuler",
+  "settingsDialog.cookieLoginHint": "Cette source ne propose pas de connexion par QR code. Collez son cookie ci-dessous puis enregistrez.",
+  "settingsDialog.noLoginHint": "Cette source permet de rechercher et d'écouter sans connexion. Si le plugin le prend en charge, vous pouvez quand même saisir un cookie ci-dessous."
 }

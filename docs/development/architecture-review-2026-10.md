@@ -108,7 +108,10 @@
 
 ### 6. 后续，视产品方向而定
 
-- [ ] 音乐源 ID 去硬编码，能力由插件 manifest 声明。
+- [x] 音乐源 ID 去硬编码：`OnlineSource` 改为插件 ID 字符串，`isOnlineTrackSource` 取代散落的 `'qq' | 'netease'` 判断（renderer、domain、主进程持久化）。
+  - 新增 `src/services/musicSources.ts` 注册表：每个源的 Cookie 存储、provider、登录方式、能力与显示名；官方 QQ、网易云的旧凭据键、扫码登录、歌词标题行等兼容规则集中在一张表里。
+  - 搜索、歌单（含缓存格式）、设置页登录、命令面板来源标签全部按注册表遍历；第三方源可通过粘贴 Cookie 登录。
+  - 插件列表状态下沉为 `services/musicPlugins.ts`，store 只负责 React 订阅。
 - [x] 拆分 `useWebDAV`：1203 行拆为 hook（408 行，状态与加载顺序）和 `services/webdav/` 下的 `trackMapping`、`metadataReader`、`coverStore`、`metadataCache`、`manifestSync`、`chunkDetails`；新增 `trackMapping`、`manifestSync` 单测和 `useWebDAV` 加载流程测试。
 - [x] 浏览器模式保留，平台差异收进 adapter 层（services / repositories）：
   - `libraryStorage` 在浏览器模式读写 IndexedDB（补上了此前缺失的 `indexedDBStorage.loadLibrary`，浏览器曲库原先只写不读）。

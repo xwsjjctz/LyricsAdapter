@@ -4,49 +4,39 @@ import { musicPluginStore } from '@/stores/musicPluginStore';
 import { settingsManager } from '@/services/settingsManager';
 
 const mocks = vi.hoisted(() => {
-  const state = { qqLoggedIn: false, neteaseLoggedIn: false };
-  const qqListeners = new Set<() => void>();
-  const neteaseListeners = new Set<() => void>();
+  const loggedIn = new Map<string, boolean>();
+  const listeners = new Map<string, Set<() => void>>();
+  const validate = new Map<string, ReturnType<typeof vi.fn>>();
+  const getPlaylists = new Map<string, ReturnType<typeof vi.fn>>();
+  const forSource = <T,>(map: Map<string, T>, id: string, create: () => T) => {
+    if (!map.has(id)) map.set(id, create());
+    return map.get(id)!;
+  };
   return {
-    state,
-    qqListeners,
-    neteaseListeners,
-    qqValidate: vi.fn(async () => ({ valid: true })),
-    neteaseValidate: vi.fn(async () => ({ valid: true })),
-    getQQPlaylists: vi.fn(),
-    getNetEasePlaylists: vi.fn(),
+    loggedIn,
+    listeners,
+    validateFor: (id: string) => forSource(validate, id, () => vi.fn(async () => ({ valid: true }))),
+    playlistsFor: (id: string) => forSource(getPlaylists, id, () => vi.fn(async (): Promise<unknown[]> => [])),
+    listenersFor: (id: string) => forSource(listeners, id, () => new Set<() => void>()),
+    playlistSources: new Set(['qq', 'netease']),
     loadPlaylistCache: vi.fn(),
     savePlaylistCache: vi.fn(),
+    reset() { loggedIn.clear(); listeners.clear(); validate.clear(); getPlaylists.clear(); },
   };
 });
 
-vi.mock('@/services/cookieManager', () => ({
-  cookieManager: {
-    ensureLoaded: vi.fn(async () => undefined),
-    hasCookie: () => mocks.state.qqLoggedIn,
-    validateCookie: mocks.qqValidate,
+vi.mock('@/services/musicSources', () => ({
+  cookieStoreFor: (id: string) => ({
+    ensureLoaded: async () => undefined,
+    hasCookie: () => mocks.loggedIn.get(id) ?? false,
+    validateCookie: mocks.validateFor(id),
     subscribe: (listener: () => void) => {
-      mocks.qqListeners.add(listener);
-      return () => mocks.qqListeners.delete(listener);
+      mocks.listenersFor(id).add(listener);
+      return () => mocks.listenersFor(id).delete(listener);
     },
-  },
-  neteaseCookieManager: {
-    ensureLoaded: vi.fn(async () => undefined),
-    hasCookie: () => mocks.state.neteaseLoggedIn,
-    validateCookie: mocks.neteaseValidate,
-    subscribe: (listener: () => void) => {
-      mocks.neteaseListeners.add(listener);
-      return () => mocks.neteaseListeners.delete(listener);
-    },
-  },
-}));
-
-vi.mock('@/services/qqMusicApi', () => ({
-  qqMusicApi: { getPlaylists: mocks.getQQPlaylists },
-}));
-
-vi.mock('@/services/neteaseMusicApi', () => ({
-  neteaseMusicApi: { getPlaylists: mocks.getNetEasePlaylists },
+  }),
+  providerFor: (id: string) => ({ getPlaylists: mocks.playlistsFor(id) }),
+  sourceHasCapability: (id: string, capability: string) => capability === 'playlists' && mocks.playlistSources.has(id),
 }));
 
 vi.mock('@/services/playlistCache', () => ({
@@ -60,20 +50,17 @@ vi.mock('@/services/logger', () => ({
 
 import { useOnlinePlaylists } from '@/hooks/useOnlinePlaylists';
 
+const plugin = (id: string) => ({
+  id, name: id, version: '1.0.0', apiVersion: 1, main: 'index.cjs', requiresCookie: false, capabilities: ['search'], enabled: true, origin: 'installed' as const,
+});
+const notify = (id: string) => act(() => mocks.listenersFor(id).forEach(listener => listener()));
+
 describe('useOnlinePlaylists', () => {
   beforeEach(() => {
     vi.spyOn(settingsManager, 'getQqMusicEnabled').mockReturnValue(true);
-    musicPluginStore.setState({ loaded: true, error: '', plugins: ['qq', 'netease'].map(id => ({
-      id, name: id, version: '1.0.0', apiVersion: 1, main: 'index.cjs', requiresCookie: false, capabilities: ['search'], enabled: true, origin: 'installed' as const,
-    })) });
-    mocks.state.qqLoggedIn = false;
-    mocks.state.neteaseLoggedIn = false;
-    mocks.qqListeners.clear();
-    mocks.neteaseListeners.clear();
-    mocks.qqValidate.mockClear();
-    mocks.neteaseValidate.mockClear();
-    mocks.getQQPlaylists.mockReset();
-    mocks.getNetEasePlaylists.mockReset();
+    musicPluginStore.setState({ loaded: true, error: '', plugins: ['qq', 'netease'].map(plugin) });
+    mocks.reset();
+    mocks.playlistSources = new Set(['qq', 'netease']);
     mocks.loadPlaylistCache.mockReset();
     mocks.loadPlaylistCache.mockResolvedValue(null);
     mocks.savePlaylistCache.mockReset();
@@ -83,48 +70,59 @@ describe('useOnlinePlaylists', () => {
 
   it('makes no provider calls without plugins even when saved login credentials exist', async () => {
     musicPluginStore.setState({ plugins: [] });
-    mocks.state.qqLoggedIn = true;
-    mocks.state.neteaseLoggedIn = true;
+    mocks.loggedIn.set('qq', true);
+    mocks.loggedIn.set('netease', true);
     const { result } = renderHook(() => useOnlinePlaylists());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.playlists).toEqual([]);
-    expect(mocks.qqValidate).not.toHaveBeenCalled();
-    expect(mocks.neteaseValidate).not.toHaveBeenCalled();
+    expect(mocks.validateFor('qq')).not.toHaveBeenCalled();
+    expect(mocks.validateFor('netease')).not.toHaveBeenCalled();
   });
 
   it('does not request a disabled provider and hides cached data when a plugin is removed', async () => {
     const [qq, netease] = musicPluginStore.getSnapshot().plugins;
     musicPluginStore.setState({ plugins: [{ ...qq!, enabled: false }, netease!] });
-    mocks.state.qqLoggedIn = true;
-    mocks.state.neteaseLoggedIn = true;
-    mocks.getNetEasePlaylists.mockResolvedValue([{ id: 'net-list', name: 'Net list', songCount: 1 }]);
+    mocks.loggedIn.set('qq', true);
+    mocks.loggedIn.set('netease', true);
+    mocks.playlistsFor('netease').mockResolvedValue([{ id: 'net-list', name: 'Net list', songCount: 1 }]);
     const { result } = renderHook(() => useOnlinePlaylists());
     await waitFor(() => expect(result.current.playlists).toHaveLength(1));
-    expect(mocks.qqValidate).not.toHaveBeenCalled();
+    expect(mocks.validateFor('qq')).not.toHaveBeenCalled();
     act(() => musicPluginStore.setState({ plugins: [] }));
     expect(result.current.playlists).toEqual([]);
   });
 
-  it('refreshes Sidebar playlists when a provider login changes', async () => {
+  it('refreshes playlists when a provider login changes', async () => {
     const qqPlaylist = { id: 'qq-list', name: 'QQ Playlist', songCount: 3 };
-    mocks.getQQPlaylists.mockResolvedValue([qqPlaylist]);
+    mocks.playlistsFor('qq').mockResolvedValue([qqPlaylist]);
     const { result } = renderHook(() => useOnlinePlaylists());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.playlists).toEqual([]);
 
-    mocks.state.qqLoggedIn = true;
-    act(() => mocks.qqListeners.forEach(listener => listener()));
+    mocks.loggedIn.set('qq', true);
+    notify('qq');
 
-    await waitFor(() => expect(result.current.playlists).toEqual([
-      { ...qqPlaylist, source: 'qq' },
-    ]));
-    expect(mocks.qqValidate).toHaveBeenCalledTimes(1);
-    expect(mocks.getQQPlaylists).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.playlists).toEqual([{ ...qqPlaylist, source: 'qq' }]));
+    expect(mocks.validateFor('qq')).toHaveBeenCalledTimes(1);
+    expect(mocks.playlistsFor('qq')).toHaveBeenCalledTimes(1);
+    expect(mocks.savePlaylistCache).toHaveBeenLastCalledWith({ qq: [{ ...qqPlaylist, source: 'qq' }] });
 
-    mocks.state.qqLoggedIn = false;
-    act(() => mocks.qqListeners.forEach(listener => listener()));
+    mocks.loggedIn.set('qq', false);
+    notify('qq');
 
     await waitFor(() => expect(result.current.playlists).toEqual([]));
+  });
+
+  it('lists playlists from a third-party source that declares the capability', async () => {
+    musicPluginStore.setState({ plugins: [plugin('indie'), plugin('search-only')] });
+    mocks.playlistSources = new Set(['indie']);
+    mocks.loggedIn.set('indie', true);
+    mocks.loggedIn.set('search-only', true);
+    mocks.playlistsFor('indie').mockResolvedValue([{ id: 'p', name: 'Indie list', songCount: 2 }]);
+    const { result } = renderHook(() => useOnlinePlaylists());
+
+    await waitFor(() => expect(result.current.playlists).toEqual([{ id: 'p', name: 'Indie list', songCount: 2, source: 'indie' }]));
+    expect(mocks.playlistsFor('search-only')).not.toHaveBeenCalled();
   });
 });

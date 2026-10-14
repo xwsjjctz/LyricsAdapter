@@ -445,5 +445,7 @@
   "pluginTrust.bindDetail": "Source: {{source}}\n\nFuture plugin updates will be downloaded from here and run with this app's permissions. Continue only if you trust this source.",
   "pluginTrust.confirmUpdate": "Trust and update",
   "pluginTrust.confirmBind": "Trust this source",
-  "pluginTrust.cancel": "Cancel"
+  "pluginTrust.cancel": "Cancel",
+  "settingsDialog.cookieLoginHint": "This source has no QR sign-in. Paste its cookie below and save.",
+  "settingsDialog.noLoginHint": "This source can search and play without signing in. If the plugin supports it, you can still add a cookie below."
 }

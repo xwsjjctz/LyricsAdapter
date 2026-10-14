@@ -130,29 +130,31 @@ describe('buildLibraryIndexData', () => {
     expect(s.available).toBe(true);
   });
 
-  it('normalizes records from removed providers to local files', () => {
-    const result = minimalTrackToLibrarySong({
+  it('keeps the plugin id of tracks from an uninstalled source and normalizes malformed sources to local', () => {
+    const record = {
       id: 'removed-provider-track',
       filePath: '/music/legacy-download.flac',
       addedAt: '2026-01-01T00:00:00.000Z',
-      source: 'removed-provider',
       playCount: 0,
       lastPlayed: null,
       available: false,
+    };
+    // A source plugin can be reinstalled later; its tracks keep their source.
+    expect(minimalTrackToLibrarySong({ ...record, source: 'removed-provider' })).toMatchObject({
+      id: 'removed-provider-track',
+      filePath: '/music/legacy-download.flac',
+      source: 'removed-provider',
+      available: false,
     });
-
-    expect(result).toMatchObject({
+    expect(minimalTrackToLibrarySong({ ...record, source: 'Not A Source!' })).toMatchObject({
       id: 'removed-provider-track',
       title: '',
       artist: '',
       album: '',
       duration: 0,
-      filePath: '/music/legacy-download.flac',
-      addedAt: '2026-01-01T00:00:00.000Z',
       source: 'local',
       playCount: 0,
       lastPlayed: null,
-      available: false,
     });
   });
 });

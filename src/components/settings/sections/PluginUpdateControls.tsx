@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PluginUpdateInfo, PluginUpdateSource, PluginUpdateChannel } from '@/shared/pluginUpdate';
+import { isOfficialMusicSource, type PluginUpdateInfo, type PluginUpdateSource, type PluginUpdateChannel } from '@/shared/pluginUpdate';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
 
@@ -45,7 +45,7 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
             <option value="none">{t('pluginUpdates.none')}</option>
             <option value="github">GitHub Releases</option>
             <option value="manifest">{t('pluginUpdates.feed')}</option>
-            {(info.id === 'qq' || info.id === 'netease') && <option value="official">{t('pluginUpdates.official')}</option>}
+            {isOfficialMusicSource(info.id) && <option value="official">{t('pluginUpdates.official')}</option>}
           </select>
         </label>
         {(kind === 'github' || kind === 'manifest') && <>

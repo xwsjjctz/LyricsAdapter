@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { cookieManager } from '../services/cookieManager';
 import { logger } from '../services/logger';
-import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
-import { qqMusicApi } from '../services/qqMusicApi';
+import { providerFor, sourceIsReady } from '../services/musicSources';
 import { settingsManager } from '../services/settingsManager';
 import { useMusicPlugins } from '../stores/musicPluginStore';
 import { useSettingValue } from './useSettingValue';
@@ -40,7 +38,7 @@ export interface GlobalSearchResults {
   onlineHasMore: boolean;
 }
 
-/** Library matching plus debounced QQ/NetEase search; stale responses are dropped. */
+/** Library matching plus debounced search across every enabled music source; stale responses are dropped. */
 export function useGlobalSearch({
   query,
   active,
@@ -54,9 +52,9 @@ export function useGlobalSearch({
   const [onlineHasMore, setOnlineHasMore] = useState(false);
   const shownQuery = useRef('');
   const { sources } = useMusicPlugins();
-  const hasQQ = sources.includes('qq');
-  const hasNetEase = sources.includes('netease');
-  const onlineEnabled = useSettingValue(readOnlineEnabled) && (hasQQ || hasNetEase);
+  const onlineEnabled = useSettingValue(readOnlineEnabled) && sources.length > 0;
+  // Stable across renders while the source list is unchanged.
+  const sourceKey = sources.join('|');
   const trimmed = query.trim();
 
   const local = useMemo(
@@ -84,22 +82,18 @@ export function useGlobalSearch({
     if (!extending) { shownQuery.current = ''; setOnline([]); setOnlineHasMore(false); }
     setOnlineLoading(true);
     const debounceTimer = setTimeout(async () => {
-      const [qqResult, neteaseResult] = await Promise.allSettled([
-        hasQQ && cookieManager.hasCookie() ? qqMusicApi.searchMusic(trimmed, onlineLimit) : Promise.resolve([] as OnlineSong[]),
-        hasNetEase ? neteaseMusicApi.searchMusic(trimmed, onlineLimit) : Promise.resolve([] as OnlineSong[]),
-      ]);
+      // Sources that need a sign-in are only searched once signed in.
+      const searched = sourceKey.split('|').filter(sourceIsReady);
+      const results = await Promise.allSettled(searched.map(source => providerFor(source).searchMusic(trimmed, onlineLimit)));
       if (!isCurrentSearch) return;
 
-      if (qqResult.status === 'rejected') logger.warn('[GlobalSearch] QQ search failed:', qqResult.reason);
-      if (neteaseResult.status === 'rejected') logger.warn('[GlobalSearch] NetEase search failed:', neteaseResult.reason);
-
-      const qqSongs = qqResult.status === 'fulfilled' ? qqResult.value : [];
-      const neteaseSongs = neteaseResult.status === 'fulfilled' ? neteaseResult.value : [];
-      setOnline([
-        ...qqSongs.map(song => ({ source: 'qq' as const, song })),
-        ...neteaseSongs.map(song => ({ source: 'netease' as const, song })),
-      ]);
-      setOnlineHasMore(qqSongs.length >= onlineLimit || neteaseSongs.length >= onlineLimit);
+      const songsBySource = results.map((result, index) => {
+        if (result.status === 'fulfilled') return result.value;
+        logger.warn(`[GlobalSearch] ${searched[index]} search failed:`, result.reason);
+        return [] as OnlineSong[];
+      });
+      setOnline(songsBySource.flatMap((songs, index) => songs.map(song => ({ source: searched[index]!, song }))));
+      setOnlineHasMore(songsBySource.some(songs => songs.length >= onlineLimit));
       setOnlineLoading(false);
       shownQuery.current = trimmed;
     }, extending ? 0 : ONLINE_SEARCH_DEBOUNCE_MS);
@@ -108,7 +102,7 @@ export function useGlobalSearch({
       isCurrentSearch = false;
       clearTimeout(debounceTimer);
     };
-  }, [trimmed, active, onlineEnabled, onlineLimit, hasQQ, hasNetEase]);
+  }, [trimmed, active, onlineEnabled, onlineLimit, sourceKey]);
 
   return { local, cloud, online, onlineLoading, onlineEnabled, onlineHasMore };
 }

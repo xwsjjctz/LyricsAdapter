@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { logger } from '../logger';
 import type { MusicPluginInfo } from '../../src/shared/musicPlugin';
 import type { PluginUpdateInfo, PluginUpdateRelease, PluginUpdateSource } from '../../src/shared/pluginUpdate';
-import { comparePluginVersions, isPluginVersion, pluginUpdateUrl, validatePluginUpdateSource } from '../../src/shared/pluginUpdate';
+import { comparePluginVersions, isOfficialMusicSource, isPluginVersion, pluginUpdateUrl, validatePluginUpdateSource } from '../../src/shared/pluginUpdate';
 import { MusicPluginCatalog } from './musicPluginCatalog';
 import { MusicPluginRegistry, validateMusicPluginManifest } from './musicPluginRegistry';
 import { PLUGIN_ID } from './pluginManifest';
@@ -74,7 +74,7 @@ export class PluginUpdateService {
   installed(): void {
     for (const plugin of this.options.registry.list()) {
       if (this.options.read(SOURCE_KEY(plugin.id)) === undefined) {
-        const source = plugin.update ?? ((plugin.id === 'qq' || plugin.id === 'netease') ? { kind: 'official', channel: 'stable' } as const : null);
+        const source = plugin.update ?? (isOfficialMusicSource(plugin.id) ? { kind: 'official', channel: 'stable' } as const : null);
         this.options.write(SOURCE_KEY(plugin.id), JSON.stringify(source));
       }
     }

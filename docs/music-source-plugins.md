@@ -16,7 +16,7 @@ QQ 和网易云音乐协议实现维护在独立公开仓库 [LyricsAdapter-Musi
 
 ## 插件开发
 
-第三方作者请先阅读[通用插件 API](plugins/README.md)和兼容接口的[音乐源插件开发指南](development/music-plugin-development.md)：其中说明 API v1 的接入边界、provider 合同、可运行示例和安装包格式。当前自定义 ID 可以安装和被主进程调用，但还不能自动成为界面中的新音乐源。
+第三方作者请先阅读[通用插件 API](plugins/README.md)和兼容接口的[音乐源插件开发指南](development/music-plugin-development.md)：其中说明 API v1 的接入边界、provider 合同、可运行示例和安装包格式。启用且声明 `search` 能力的自定义 ID 插件会成为新的音乐源。
 
 在单独克隆的插件仓库中开发和打包，例如本机的 `../LyricsAdapter-Music-Plugins`：
 
@@ -41,7 +41,7 @@ QQ 登录续期只在插件内执行：宿主的定时续期与请求过期触�
 
 第一版继续保留 `qq` / `netease` 来源、旧歌曲 ID、Cookie 和凭据持久化键，因此不需要重写现有用户数据。新插件凭据使用 `music-plugin:<id>:secret:<name>`，按敏感数据策略加密。
 
-第一版的界面、Cookie 管理和来源类型仍只认识 `qq` 与 `netease`：其他 ID 的插件可以安装并出现在列表中，但还没有入口使用它。
+音乐源 ID 即插件 ID。界面按 manifest 渲染：`search` 决定是否成为音乐源，`requiresCookie` 决定是否需要先登录，`playlists` 决定是否读取歌单；其他 ID 通过设置页粘贴 Cookie 登录，凭据键为 `music-plugin:<id>:secret:cookie`。官方 QQ、网易云沿用旧的凭据键、扫码登录与歌词习惯，这些兼容规则集中在 `src/services/musicSources.ts`。
 
 插件以宿主 Node 权限运行，当前机制面向可信官方插件，不提供第三方代码沙箱。第三方市场仍需额外的信任机制与必要的运行隔离。
 

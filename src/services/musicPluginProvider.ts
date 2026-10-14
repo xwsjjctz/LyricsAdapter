@@ -1,13 +1,17 @@
-import { appStorage } from './appStorage';
-import { logger } from './logger';
 import { getDesktopAPI } from './desktopAdapter';
-import { cookieManager, neteaseCookieManager } from './cookieManager';
+import type { CookieStore } from './cookieManager';
 import { providerLyricsCache } from './providerLyricsCache';
 import type { OnlineMusicProvider, OnlineSource, OnlineSong, OnlineQuality, OnlineLyricsResult, OnlineUrlResult, PlaylistInfo } from './onlineMusicProvider';
 
+interface MusicPluginProviderOptions {
+  cookies: CookieStore;
+  requiresCookie: () => boolean;
+  /** The plugin implements getSongDetails (batch metadata lookup). */
+  songDetails: boolean;
+}
+
 /** Renderer facade: platform protocols run exclusively in the Node plugin. */
-export function createMusicPluginProvider(id: OnlineSource): OnlineMusicProvider {
-  const cookies = id === 'qq' ? cookieManager : neteaseCookieManager;
+export function createMusicPluginProvider(id: OnlineSource, { cookies, requiresCookie, songDetails }: MusicPluginProviderOptions): OnlineMusicProvider {
   const call = async <T>(method: string, args: unknown[] = []): Promise<T> => {
     const api = getDesktopAPI();
     if (!api?.musicPluginCall) throw new Error('Online music requires the desktop music plugin host');
@@ -18,7 +22,7 @@ export function createMusicPluginProvider(id: OnlineSource): OnlineMusicProvider
     id,
     searchMusic: (query, limit) => call<OnlineSong[]>('searchMusic', [query, limit]),
     getRecommendedSongs: () => call<OnlineSong[]>('getRecommendedSongs'),
-    ...(id === 'netease' ? { getSongDetails: (ids: string[]) => call<OnlineSong[]>('getSongDetails', [ids]) } : {}),
+    ...(songDetails ? { getSongDetails: (ids: string[]) => call<OnlineSong[]>('getSongDetails', [ids]) } : {}),
     getMusicUrl: (songmid: string, quality: OnlineQuality, mediaMid?: string) => call<OnlineUrlResult>('getMusicUrl', [songmid, quality, mediaMid]),
     getLyrics: songmid => providerLyricsCache.getOrLoad(id, songmid, () => call<OnlineLyricsResult | null>('getLyrics', [songmid])),
     getPlaylists: () => call<PlaylistInfo[]>('getPlaylists'),
@@ -26,21 +30,6 @@ export function createMusicPluginProvider(id: OnlineSource): OnlineMusicProvider
     getCoverUrl: song => song.coverUrlFullSize || song.coverUrl || '',
     getRawCookie: () => cookies.getCookie(),
     hasCookie: () => cookies.hasCookie(),
-    requiresCookie: () => id === 'qq',
+    requiresCookie,
   };
-}
-
-export function subscribeMusicPluginSecrets(): () => void {
-  return getDesktopAPI()?.onMusicPluginSecretsChanged?.(id => {
-    const api = getDesktopAPI();
-    if (!api?.settingsGet) return;
-    const read = api.settingsGet.bind(api);
-    const keys = id === 'qq' ? ['qq_music_cookie', 'qq_music_credential'] : id === 'netease' ? ['netease_cookie'] : [];
-    void Promise.all(keys.map(async key => [key, await read(key) ?? ''] as const)).then(async entries => {
-      const values = Object.fromEntries(entries);
-      await appStorage.setMany(values);
-      if (id === 'qq') await cookieManager.setCookie(values['qq_music_cookie'] ?? '');
-      if (id === 'netease') await neteaseCookieManager.setCookie(values['netease_cookie'] ?? '');
-    }).catch(error => logger.warn('[MusicPlugins] Failed to synchronize credentials:', error));
-  }) ?? (() => {});
 }

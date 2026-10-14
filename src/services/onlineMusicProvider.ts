@@ -1,15 +1,14 @@
 /**
- * Shared abstraction over online music sources (QQ Music, NetEase Cloud Music).
+ * Shared abstraction over online music sources (any enabled music plugin).
  *
- * The renderer talks to whichever provider the user selected in settings; both
- * implementations normalize their results into the same `OnlineSong` shape so
- * the UI, download/upload flow, and progress tracking stay source-agnostic.
+ * The renderer talks to whichever provider the user selected in settings; every
+ * plugin normalizes its results into the same `OnlineSong` shape so the UI,
+ * download/upload flow, and progress tracking stay source-agnostic.
  */
 import type { MusicPluginElectronAPI } from '../shared/musicPlugin';
 import { settingsManager } from './settingsManager';
-import { qqMusicApi } from './qqMusicApi';
-import { neteaseMusicApi } from './neteaseMusicApi';
-import { cookieManager, neteaseCookieManager, type CookieStore } from './cookieManager';
+import type { CookieStore } from './cookieManager';
+import { cookieStoreFor, providerFor } from './musicSources';
 import type { QQCredential } from '../shared/qqCredential';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 
@@ -100,25 +99,12 @@ export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
 
 // ---- Provider selector ----------------------------------------------------
 
-/**
- * Returns the active provider based on the user's online-source setting.
- * Static value imports here are safe because each implementation only has a
- * *type-only* dependency back on this module (erased at runtime), so there is
- * no runtime import cycle.
- */
+/** The provider for a source, or for the source selected in settings. */
 export function getOnlineProvider(source?: OnlineSource): OnlineMusicProvider {
-  const active: OnlineSource = source ?? settingsManager.getOnlineSource();
-  if (active === 'netease') return neteaseMusicApi;
-  return qqMusicApi;
+  return providerFor(source ?? settingsManager.getOnlineSource());
 }
 
-/**
- * Cookie store for the active source. Used by the settings UI to read/write the
- * source-specific cookie. (NetEase search works without a cookie; this is only
- * needed for the optional login that unlocks VIP/high-quality playback.)
- */
+/** Cookie store for a source, or for the source selected in settings. */
 export function getActiveCookieManager(source?: OnlineSource): CookieStore {
-  const active: OnlineSource = source ?? settingsManager.getOnlineSource();
-  if (active === 'netease') return neteaseCookieManager;
-  return cookieManager;
+  return cookieStoreFor(source ?? settingsManager.getOnlineSource());
 }

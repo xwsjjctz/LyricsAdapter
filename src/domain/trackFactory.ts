@@ -1,5 +1,5 @@
 import type { Track } from '../types';
-import type { OnlineSong, OnlineSource } from '../shared/onlineMusic';
+import { isOnlineTrackSource, type OnlineSong, type OnlineSource } from '../shared/onlineMusic';
 
 /**
  * Convert an {@link OnlineSong} (QQ / NetEase provider shape) into the unified
@@ -38,7 +38,7 @@ export function trackToOnlineSong(
   track: Track,
 ): { song: OnlineSong; source: OnlineSource } | null {
   const { source, songmid } = track;
-  if ((source !== 'qq' && source !== 'netease') || !songmid) return null;
+  if (!isOnlineTrackSource(source) || !songmid) return null;
   return {
     source,
     song: {

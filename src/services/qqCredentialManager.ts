@@ -1,7 +1,8 @@
 import { logger } from './logger';
 import { appStorage } from './appStorage';
 import { getDesktopAPIAsync } from './desktopAdapter';
-import { cookieManager, syncOnlineCookiesToMain } from './cookieManager';
+import { cookieManager } from './cookieManager';
+import { syncOnlineCookiesToMain } from './musicSources';
 import { credentialExpiresAt, isQQCredential, type QQCredential } from '../shared/qqCredential';
 
 /**

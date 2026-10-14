@@ -1,7 +1,7 @@
 import { logger } from './logger';
 import { indexedDBStorage } from './indexedDBStorage';
 import { appStorage } from './appStorage';
-import { getDesktopAPI, getDesktopAPIAsync } from './desktopAdapter';
+import { getDesktopAPI } from './desktopAdapter';
 
 const COOKIE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
@@ -199,9 +199,15 @@ export class CookieStore {
   reload(): void {
     this.initPromise = this.loadFromStorage().then(() => this.notify());
   }
+
+  /** Settings keys backing this store; a change to any of them requires a reload. */
+  storageKeys(): string[] {
+    return [this.opts.storageKey, this.opts.checkTimeKey];
+  }
 }
 
-const pluginCookieValidator = (source: 'qq' | 'netease'): CookieValidator => async cookie => {
+/** Validates a cookie with the source's plugin. */
+export const pluginCookieValidator = (source: string): CookieValidator => async cookie => {
   const api = getDesktopAPI();
   if (!api?.musicPluginCall) return { valid: false, message: 'Music plugin host unavailable' };
   return await api.musicPluginCall(source, 'validateCookie', [cookie]) as CookieStatus;
@@ -222,30 +228,3 @@ export const neteaseCookieManager = new CookieStore({
   scope: 'NetEase',
   validate: pluginCookieValidator('netease'),
 });
-
-/**
- * Push the current QQ and NetEase cookies from the renderer stores into the
- * main-process `stream://` proxy. Ensures both stores are loaded first.
- *
- * Single source of truth for the cookie-sync side effect that was previously
- * duplicated in the renderer composition root (startup sync) and online settings
- * flow (post-login push). Callers may pass a `source` to
- * sync only one provider (used after a single-provider login); omit it to sync
- * both.
- */
-export async function syncOnlineCookiesToMain(source?: 'qq' | 'netease'): Promise<void> {
-  const api = await getDesktopAPIAsync();
-  if (!api?.setOnlineCookie) return;
-  await Promise.all([
-    (source === undefined || source === 'qq') ? cookieManager.ensureLoaded() : Promise.resolve(),
-    (source === undefined || source === 'netease') ? neteaseCookieManager.ensureLoaded() : Promise.resolve(),
-  ]);
-  const updates: Promise<void>[] = [];
-  if (source === undefined || source === 'qq') {
-    updates.push(api.setOnlineCookie('qq', cookieManager.getCookie()));
-  }
-  if (source === undefined || source === 'netease') {
-    updates.push(api.setOnlineCookie('netease', neteaseCookieManager.getCookie()));
-  }
-  await Promise.all(updates);
-}

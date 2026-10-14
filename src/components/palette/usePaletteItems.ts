@@ -9,6 +9,7 @@ import { textMatchesQuery } from '../../services/trackSearch';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import type { CommandPaletteState } from '../../hooks/useCommandPalette';
 import type { Track } from '../../types';
+import { sourceLabel } from '../../services/musicSources';
 
 const LIBRARY_LIMIT = 6;
 const ONLINE_LIMIT = 8;
@@ -150,7 +151,7 @@ export function usePaletteItems(
           key,
           section: onlineSection,
           title: song.songname,
-          subtitle: [song.singer.map(singer => singer.name).join(' / '), t(source === 'qq' ? 'search.sourceQq' : 'search.sourceNetease')]
+          subtitle: [song.singer.map(singer => singer.name).join(' / '), sourceLabel(source)]
             .filter(Boolean).join(' · '),
           icon: 'cloud_download',
           coverUrl: resolveCoverUrl(song.coverUrl),

@@ -20,6 +20,7 @@ import {
 } from '../../src/shared/persistencePolicy';
 import { buildUserTracksFromLibraryCache } from '../../src/domain/library-persistence/trackRecords';
 import type { PersistedLibrarySnapshot } from '../../src/domain/library-persistence/models';
+import { isOnlineTrackSource } from '../../src/shared/onlineMusic';
 import {
   ENCRYPTED_VALUE_PREFIX,
   userStateCrypto,
@@ -93,7 +94,7 @@ function inferSlotId(record: UserTrackRecord): 'local' | 'cloud' | 'online' | 'p
   if (record.slotId === 'local' || record.slotId === 'cloud'
     || record.slotId === 'online' || record.slotId === 'playlist') return record.slotId;
   if (record.source === 'webdav') return 'cloud';
-  if (record.source === 'qq' || record.source === 'netease') return 'online';
+  if (isOnlineTrackSource(record.source)) return 'online';
   return 'local';
 }
 
