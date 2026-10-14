@@ -25,7 +25,7 @@ import type { AppNotificationOptions } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 import type { UpdaterState } from '../shared/updater';
 import type { ElectronBridge } from '../shared/electronBridge';
-import type { PathValidationRequest, PathValidationResult } from '../shared/ipcContract';
+import type { PathValidationRequest, PathValidationResult, WebdavAccountProbe, WebdavCredentialMode } from '../shared/ipcContract';
 
 declare global {
   interface Window {
@@ -92,14 +92,16 @@ export interface DesktopAPI {
   // Shortcut API
   onShortcut?: Bridge['onShortcut'];
   // WebDAV APIs — implemented by ElectronAdapter over the typed ipc.webdav.*
-  // channels (not exposed by preload directly). webdavClient consumes these.
-  webdavPropfind: (url: string, authHeader: string, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
-  webdavGetRedirect: (url: string, authHeader: string) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
-  webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
-  webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
-  webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
+  // channels. The main process attaches the stored account ('stored') itself.
+  webdavPropfind: (url: string, credentials: WebdavCredentialMode, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
+  webdavGetRedirect: (url: string, credentials: WebdavCredentialMode) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
+  webdavGetRange: (url: string, credentials: WebdavCredentialMode, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
+  webdavPut: (url: string, credentials: WebdavCredentialMode, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
+  webdavDelete: (url: string, credentials: WebdavCredentialMode) => Promise<{ success: boolean; error?: string }>;
   /** MKCOL 创建集合（目录），幂等。返回 success 与 HTTP status（201/2xx/405 视为已就绪）。 */
-  webdavMkcol: (url: string, authHeader: string) => Promise<{ success: boolean; status?: number; error?: string }>;
+  webdavMkcol: (url: string, credentials: WebdavCredentialMode) => Promise<{ success: boolean; status?: number; error?: string }>;
+  /** Probes an unsaved account (settings "test connection"). */
+  webdavTest: (account: WebdavAccountProbe) => Promise<{ success: boolean; error?: string }>;
   runStartupCleanup?: Bridge['runStartupCleanup'];
   // Auto-updater APIs
   checkForUpdates?: Bridge['checkForUpdates'];
@@ -330,37 +332,42 @@ class ElectronAdapter implements FullDesktopAPI {
     throw new Error('getPathForFile not available');
   }
 
-  async webdavPropfind(url: string, authHeader: string, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
-    const result = await this.api.ipc!.webdav.propfind({ url, authHeader, depth });
+  async webdavPropfind(url: string, credentials: WebdavCredentialMode, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
+    const result = await this.api.ipc!.webdav.propfind({ url, credentials, depth });
     return result.ok ? { success: true, xml: result.data.xml } : { success: false, error: result.error };
   }
 
-  async webdavGetRedirect(url: string, authHeader: string): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
-    const result = await this.api.ipc!.webdav.getRedirect({ url, authHeader });
+  async webdavGetRedirect(url: string, credentials: WebdavCredentialMode): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
+    const result = await this.api.ipc!.webdav.getRedirect({ url, credentials });
     if (!result.ok) return { success: false, error: result.error };
     const data: { success: boolean; redirectUrl?: string } = { success: true };
     if (result.data.redirectUrl) data.redirectUrl = result.data.redirectUrl;
     return data;
   }
 
-  async webdavGetRange(url: string, authHeader: string, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
-    const result = await this.api.ipc!.webdav.getRange({ url, authHeader, start, end });
+  async webdavGetRange(url: string, credentials: WebdavCredentialMode, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
+    const result = await this.api.ipc!.webdav.getRange({ url, credentials, start, end });
     return result.ok ? { success: true, data: result.data.data } : { success: false, error: result.error };
   }
 
-  async webdavPut(url: string, authHeader: string, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
-    const result = await this.api.ipc!.webdav.put({ url, authHeader, data, contentType });
+  async webdavPut(url: string, credentials: WebdavCredentialMode, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
+    const result = await this.api.ipc!.webdav.put({ url, credentials, data, contentType });
     return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
-  async webdavDelete(url: string, authHeader: string): Promise<{ success: boolean; error?: string }> {
-    const result = await this.api.ipc!.webdav.delete({ url, authHeader });
+  async webdavDelete(url: string, credentials: WebdavCredentialMode): Promise<{ success: boolean; error?: string }> {
+    const result = await this.api.ipc!.webdav.delete({ url, credentials });
     return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
-  async webdavMkcol(url: string, authHeader: string): Promise<{ success: boolean; status?: number; error?: string }> {
-    const result = await this.api.ipc!.webdav.mkcol({ url, authHeader });
+  async webdavMkcol(url: string, credentials: WebdavCredentialMode): Promise<{ success: boolean; status?: number; error?: string }> {
+    const result = await this.api.ipc!.webdav.mkcol({ url, credentials });
     return result.ok ? { success: true, status: result.data.status } : { success: false, error: result.error };
+  }
+
+  async webdavTest(account: WebdavAccountProbe): Promise<{ success: boolean; error?: string }> {
+    const result = await this.api.ipc.webdav.test(account);
+    return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
   async runStartupCleanup(activeTrackIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> {

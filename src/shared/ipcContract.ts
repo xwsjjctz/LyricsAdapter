@@ -44,7 +44,10 @@ import type { UpdaterState } from './updater';
 
 // ---- Payload and result shapes of the positional channels -----------------
 
-export interface WebdavRequest { url: string; authHeader: string }
+/** 'stored' attaches the saved WebDAV account in the main process; 'none' sends no credentials (e.g. a CDN redirect). */
+export type WebdavCredentialMode = 'stored' | 'none';
+export interface WebdavRequest { url: string; credentials: WebdavCredentialMode }
+export interface WebdavAccountProbe { serverUrl: string; username: string; password: string }
 export type PluginConfigurationValue = string | boolean | number;
 
 export interface PathValidationRequest { id: string; filePath?: string | undefined }
@@ -146,6 +149,8 @@ export interface IpcInvokeContract {
   'ipc:webdav:delete': [[payload: WebdavRequest], IpcResult<void>];
   'ipc:webdav:getRedirect': [[payload: WebdavRequest], IpcResult<{ redirectUrl?: string; status: number }>];
   'ipc:webdav:mkcol': [[payload: WebdavRequest], IpcResult<{ status: number }>];
+  /** Checks an account the user has typed but not saved yet. */
+  'ipc:webdav:test': [[payload: WebdavAccountProbe], IpcResult<void>];
   'ipc:settings:get': [[payload: { key: string }], IpcResult<string | undefined>];
   'ipc:settings:getAll': [[], IpcResult<Record<string, string>>];
   'ipc:settings:set': [[payload: { key: string; value: string }], IpcResult<void>];

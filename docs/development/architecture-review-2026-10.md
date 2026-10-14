@@ -100,11 +100,11 @@
 - [x] 组合 hook（原 `stores/libraryStore`、`playerStore`、`importStore`、`uiStore`）移到 `src/hooks/`；新增依赖规则 `stores-hold-state-only`。
 - [ ] 后续可继续：player 状态（`usePlayback`）同样移入外部 store，进一步减少 `Controls` / `FocusMode` 的 props。
 
-### 5. 沙箱
+### 5. 沙箱与凭据（已完成，需在 macOS 与 Windows 实测）
 
-- [ ] 主进程把 Darwin 版本传给 preload，删除 preload 中的 `require('node:os')`。
-- [ ] 主窗口和设置面板开启 `sandbox: true`，更正注释，在 macOS 和 Windows 上实测。
-- [ ] 评估把 WebDAV 凭据拼装（`authHeader`）移到主进程。
+- [x] 主进程通过 `webPreferences.additionalArguments` 把 `os.release()` 传给 preload（`src/shared/preloadArguments.ts`），preload 不再 `require('node:os')`；保留 Darwin 内核版本语义，标题栏与原生菜单的版本判断不变。
+- [x] 主窗口和设置面板统一使用 `electron/services/preloadOptions.ts`：`sandbox: true`、`contextIsolation: true`、`nodeIntegration: false`。删除“protocol.handle 与沙箱不兼容”的错误注释。preload 单测的 vm 环境只允许 `electron`，等同沙箱限制。
+- [x] WebDAV 凭据改由主进程从加密存储读取并拼装 `Authorization`；renderer 只传 `credentials: 'stored' | 'none'`。保存的账户只会发往配置的服务器 origin，代理不能把凭据带到其他地址。“测试连接”走独立的 `ipc:webdav:test`，用于尚未保存的账户。
 
 ### 6. 后续，视产品方向而定
 

@@ -5,6 +5,7 @@ import type { NativePaletteAction, NativePaletteState } from './nativePalette';
 import type { PlaylistSwitcherAction, PlaylistSwitcherState } from './playlistSwitcher';
 import type { NativeContextMenuRequest } from './nativeContextMenu';
 import type { ApplicationMenuAction } from './applicationMenu';
+import type { IpcInvoker } from '../shared/ipcContract';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -111,13 +112,15 @@ export interface TypedElectronIPC {
     loadIndex: () => Promise<IpcResult<unknown>>;
     saveIndex: (library: unknown) => Promise<IpcResult<void>>;
   };
+  /** Credentials are resolved in the main process; see ipcContract's WebdavCredentialMode. */
   webdav: {
-    propfind: (payload: { url: string; authHeader: string; depth: string }) => Promise<IpcResult<{ xml: string }>>;
-    getRange: (payload: { url: string; authHeader: string; start: number; end: number }) => Promise<IpcResult<{ data: ArrayBuffer }>>;
-    put: (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => Promise<IpcResult<void>>;
-    delete: (payload: { url: string; authHeader: string }) => Promise<IpcResult<void>>;
-    getRedirect: (payload: { url: string; authHeader: string }) => Promise<IpcResult<{ redirectUrl?: string; status: number }>>;
-    mkcol: (payload: { url: string; authHeader: string }) => Promise<IpcResult<{ status: number }>>;
+    propfind: IpcInvoker<'ipc:webdav:propfind'>;
+    getRange: IpcInvoker<'ipc:webdav:getRange'>;
+    put: IpcInvoker<'ipc:webdav:put'>;
+    delete: IpcInvoker<'ipc:webdav:delete'>;
+    getRedirect: IpcInvoker<'ipc:webdav:getRedirect'>;
+    mkcol: IpcInvoker<'ipc:webdav:mkcol'>;
+    test: IpcInvoker<'ipc:webdav:test'>;
   };
   settings: {
     onChanged?: (callback: (entries: Record<string, string | null>, replaced: boolean) => void) => () => void;

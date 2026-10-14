@@ -6,6 +6,7 @@ import { loadMacosSettingsGlassBridge } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { fail, ok } from './typedResult';
 import { handleIpc, sendIpc } from './ipcMainTyped';
+import { sandboxedPreloadPreferences } from '../services/preloadOptions';
 
 const sectionSchema = z.enum(['general', 'plugins', 'online', 'cloud', 'focus', 'shortcuts']);
 const heightSchema = z.number().finite().min(1).max(10000);
@@ -75,9 +76,9 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
         resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
         skipTaskbar: true, hasShadow: true, title: 'LyricsAdapter Settings',
         webPreferences: {
-          preload: path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs'),
-          nodeIntegration: false, contextIsolation: true, webSecurity: true,
-          spellcheck: false, sandbox: false,
+          ...sandboxedPreloadPreferences(path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs')),
+          webSecurity: true,
+          spellcheck: false,
         },
       });
       const opened = child;

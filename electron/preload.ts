@@ -15,6 +15,7 @@ import type {
   IpcSendChannel,
 } from '../src/shared/ipcContract';
 import type { UpdaterState } from '../src/shared/updater';
+import { readOsReleaseArgument } from '../src/shared/preloadArguments';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof import('electron');
 
@@ -123,6 +124,7 @@ const typedIpc = {
     delete: invoker('ipc:webdav:delete'),
     getRedirect: invoker('ipc:webdav:getRedirect'),
     mkcol: invoker('ipc:webdav:mkcol'),
+    test: invoker('ipc:webdav:test'),
   },
   settings: {
     onChanged: callback => listen('settings-changed', callback),
@@ -153,7 +155,7 @@ const typedIpc = {
 
 const bridge = {
   platform: process.platform,
-  osRelease: require('node:os').release() as string,
+  osRelease: readOsReleaseArgument(process.argv),
   ipc: typedIpc,
 
   onDownloadProgress: downloadProgress.on,

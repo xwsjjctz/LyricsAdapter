@@ -2,11 +2,9 @@ import { logger } from '../../logger';
 import type { IpcResult } from '../../../src/types/typedIpc';
 import { readArrayBufferWithLimit, validateWebDAVRangeResponse } from '../../utils/webdavRange';
 
-// Shared WebDAV business logic. Both the typed (`ipc:webdav:*`) and the legacy
-// positional (`webdav-*`) IPC layers delegate here, so the fetch/validation/
-// logging is defined exactly once. Each function returns an IpcResult; the
-// legacy adapter merely reshapes it into `{ success, ... }` before returning
-// to its callers.
+// WebDAV HTTP operations behind the typed `ipc:webdav:*` handlers. The
+// Authorization header is resolved in the main process (services/
+// webdavCredentials.ts); each function returns an IpcResult.
 
 /** Default timeout for metadata/listing requests (PROPFIND, GET-redirect). */
 const WEBDAV_TIMEOUT_MS = 30_000;

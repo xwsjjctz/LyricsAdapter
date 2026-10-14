@@ -121,12 +121,6 @@ class WebDAVClient {
     }
   }
 
-  private buildAuthHeader(config = this.config): string {
-    if (!config) return '';
-    const credentials = btoa(`${config.username}:${config.password}`);
-    return `Basic ${credentials}`;
-  }
-
   private buildUrl(path: string): string {
     if (!this.config) return '';
     return buildWebDAVUrl(this.config.serverUrl, path);
@@ -194,7 +188,8 @@ class WebDAVClient {
       const api = await getDesktopAPI();
       if (!api) return { success: false, message: 'Desktop API not available' };
 
-      const result = await api.webdavPropfind(config.serverUrl, this.buildAuthHeader(config), '0');
+      // The saved account may differ from the one being tested, so pass it explicitly.
+      const result = await api.webdavTest({ serverUrl: config.serverUrl, username: config.username, password: config.password });
       if (result.success) {
         return { success: true, message: 'Connection successful' };
       }
@@ -235,13 +230,13 @@ class WebDAVClient {
     const url = this.buildUrl(probePath);
     const probeData = new TextEncoder().encode('probe').buffer as ArrayBuffer;
 
-    const putRes = await api.webdavPut(url, this.buildAuthHeader(), probeData, 'text/plain');
+    const putRes = await api.webdavPut(url, 'stored', probeData, 'text/plain');
     if (!putRes.success) {
       return { writable: false, reason: 'write-denied', error: putRes.error };
     }
 
     // 清理探针文件（best-effort）；失败仅告警——扫描按音频扩展名过滤，非音频探针不进列表。
-    const delRes = await api.webdavDelete(url, this.buildAuthHeader());
+    const delRes = await api.webdavDelete(url, 'stored');
     if (!delRes.success) {
       logger.warn('[WebDAV] Writable probe cleanup (DELETE) failed:', delRes.error, '- stray probe may remain at', probePath);
     }
@@ -259,7 +254,7 @@ class WebDAVClient {
     }
 
     const url = this.buildUrl(dirPath);
-    const result = await api.webdavPropfind(url, this.buildAuthHeader(), '1');
+    const result = await api.webdavPropfind(url, 'stored', '1');
 
     if (!result.success || !result.xml) {
       const message = result.error || 'PROPFIND returned an empty response';
@@ -333,7 +328,7 @@ class WebDAVClient {
 
     const url = this.buildUrl(filePath);
     logger.info('[WebDAV] Getting CDN URL for:', url);
-    const result = await api.webdavGetRedirect(url, this.buildAuthHeader());
+    const result = await api.webdavGetRedirect(url, 'stored');
     logger.info('[WebDAV] GET redirect result:', JSON.stringify(result));
 
     if (!result.success || !result.redirectUrl) {
@@ -354,7 +349,7 @@ class WebDAVClient {
     const api = await getDesktopAPI();
     if (!api) return { success: false, error: 'Desktop API not available' };
     const url = this.buildUrl(filePath);
-    return api.webdavPut(url, this.buildAuthHeader(), data, contentType);
+    return api.webdavPut(url, 'stored', data, contentType);
   }
 
   async uploadTextFile(filePath: string, content: string): Promise<{ success: boolean; error?: string }> {
@@ -377,7 +372,7 @@ class WebDAVClient {
     }
     const url = this.buildUrl(folderPath);
     try {
-      const res = await api.webdavMkcol(url, this.buildAuthHeader());
+      const res = await api.webdavMkcol(url, 'stored');
       if (!res?.success) {
         logger.warn(`[WebDAV] MKCOL ${folderPath} → status ${res?.status ?? 'n/a'} (${res?.error ?? 'unknown'})`);
       }
@@ -397,7 +392,7 @@ class WebDAVClient {
     // only redirect known media types: audio/video/images).
     const url = this.buildUrl(filePath);
     // Use auth header, pass -1,-1 to omit Range header → full file download
-    const result = await api.webdavGetRange(url, this.buildAuthHeader(), -1, -1);
+    const result = await api.webdavGetRange(url, 'stored', -1, -1);
     if (!result.success || !result.data) return null;
     const decoder = new TextDecoder();
     return decoder.decode(result.data);
@@ -437,7 +432,7 @@ class WebDAVClient {
       return null;
     }
 
-    const result = await api.webdavGetRange(cdnUrl, '', start, end);
+    const result = await api.webdavGetRange(cdnUrl, 'none', start, end);
 
     if (!result.success) {
       logger.error('[WebDAV] Range fetch failed:', result.error, 'path:', filePath, 'range:', `${start}-${end}`);
@@ -457,7 +452,7 @@ class WebDAVClient {
     if (!api) return null;
 
     const url = this.buildUrl(filePath);
-    const result = await api.webdavGetRange(url, this.buildAuthHeader(), start, end);
+    const result = await api.webdavGetRange(url, 'stored', start, end);
 
     if (!result.success) {
       logger.warn('[WebDAV] Direct range fetch failed for', filePath, 'falling back to CDN path');

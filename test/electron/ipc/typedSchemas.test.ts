@@ -88,7 +88,7 @@ describe('typedIpcSchemas', () => {
   it('accepts valid WebDAV range payloads', () => {
     const result = typedIpcSchemas.webdavRange.safeParse({
       url: 'https://example.com/music/song.flac',
-      authHeader: 'Basic token',
+      credentials: 'stored',
       start: 0,
       end: 1023,
     });
@@ -99,7 +99,7 @@ describe('typedIpcSchemas', () => {
   it('rejects non-http WebDAV URLs', () => {
     const result = typedIpcSchemas.webdavRange.safeParse({
       url: 'file:///etc/passwd',
-      authHeader: '',
+      credentials: 'none',
       start: 0,
       end: 1023,
     });
@@ -107,10 +107,15 @@ describe('typedIpcSchemas', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts only a credential mode, never a raw Authorization header', () => {
+    expect(typedIpcSchemas.webdavDelete.safeParse({ url: 'https://example.com/a', credentials: 'Basic token' }).success).toBe(false);
+    expect(typedIpcSchemas.webdavDelete.safeParse({ url: 'https://example.com/a', authHeader: 'Basic token' }).success).toBe(false);
+  });
+
   it('rejects invalid PROPFIND depth values', () => {
     const result = typedIpcSchemas.webdavPropfind.safeParse({
       url: 'https://example.com/webdav',
-      authHeader: 'Basic token',
+      credentials: 'stored',
       depth: 'infinity',
     });
 

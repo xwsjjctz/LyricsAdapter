@@ -5,6 +5,7 @@ import { APP } from '../src/constants/config';
 import { logger } from './logger';
 import { getInitialWindowState, rememberWindowState } from './services/windowState';
 import { sendIpc } from './ipc/ipcMainTyped';
+import { sandboxedPreloadPreferences } from './services/preloadOptions';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,9 +86,7 @@ export async function createWindow(): Promise<BrowserWindow> {
     // renderer root (index.css `[data-window-effect='translucent']`).
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      nodeIntegration: false,
-      contextIsolation: true,
+      ...sandboxedPreloadPreferences(path.join(__dirname, 'preload.cjs')),
       webSecurity: true,
       // Chromium enables spell checking by default and asks Windows to create
       // its per-user dictionary directories. The player's inputs do not need
@@ -98,10 +97,6 @@ export async function createWindow(): Promise<BrowserWindow> {
       // macOS menu-bar lyrics sample the track-owned media clock in the renderer.
       // Keep that timer accurate while the window is minimized or occluded.
       backgroundThrottling: shouldThrottleRendererInBackground(process.platform),
-      // sandbox disabled: custom app:// protocol (protocol.handle) is
-      // incompatible with OS-level renderer sandbox. contextIsolation
-      // provides the security boundary instead.
-      sandbox: false
     },
   });
 
