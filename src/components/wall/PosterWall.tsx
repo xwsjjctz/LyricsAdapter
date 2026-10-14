@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { Track } from '../../types';
 import type { OnlineProgress } from '../../types/onlineProgress';
 import PosterTile from './PosterTile';
-import { computeWallLayout, WALL_COMPACT_BREAKPOINT } from './wallLayout';
+import { computeWallLayout, wallColumnsFor, type WallLayout, type WallTile } from './wallLayout';
 import { autoLocateScrollTop, centerLocateScrollTop, type WallLocateInput } from './wallLocate';
 
 // Covers sit flush against each other.
@@ -50,6 +50,45 @@ interface PosterWallProps {
   /** Overlay heights the playing tile must stay clear of. */
   topInset?: number;
   bottomInset?: number;
+}
+
+interface ScrollAnchorInput {
+  scrollTop: number;
+  viewportHeight: number;
+  previousWidth: number;
+  width: number;
+  previousLayout: WallLayout;
+  layout: WallLayout;
+  columnsChanged: boolean;
+}
+
+/**
+ * Scroll offset after a width change that keeps the viewport centre in place:
+ * proportional within one column count, otherwise anchored on the song that
+ * sat at the centre. A wall resting at the top stays there.
+ */
+function anchoredScrollTop({
+  scrollTop, viewportHeight, previousWidth, width, previousLayout, layout, columnsChanged,
+}: ScrollAnchorInput): number {
+  const half = viewportHeight / 2;
+  const maxTop = Math.max(0, layout.height - viewportHeight);
+  let target = (scrollTop + half) * (width / previousWidth) - half;
+  if (columnsChanged) {
+    const centreY = scrollTop + half;
+    const centreX = previousWidth / 2;
+    const distance = (tile: WallTile) =>
+      Math.max(tile.y - centreY, centreY - tile.y - tile.height, 0) ** 2 +
+      Math.max(tile.x - centreX, centreX - tile.x - tile.width, 0) ** 2;
+    const anchor = previousLayout.tiles.reduce<WallTile | undefined>(
+      (best, tile) => !best || distance(tile) < distance(best) ? tile : best, undefined,
+    );
+    const next = anchor && layout.tiles[anchor.index];
+    if (anchor && next) {
+      const fraction = Math.max(0, Math.min(1, (centreY - anchor.y) / anchor.height));
+      target = next.y + fraction * next.height - half;
+    }
+  }
+  return scrollTop === 0 ? 0 : Math.max(0, Math.min(target, maxTop));
 }
 
 /** Marks an internal tile drag so external file drops are told apart. */
@@ -111,9 +150,14 @@ const PosterWall: React.FC<PosterWallProps> = ({
     () => computeWallLayout({ count: tracks.length, width, gap: WALL_GAP }),
     [tracks.length, width],
   );
+  const currentIndex = useMemo(
+    () => (currentTrackId ? tracks.findIndex(track => track.id === currentTrackId) : -1),
+    [currentTrackId, tracks],
+  );
 
-  // Preserve the song at the viewport centre when changing density; within
-  // one density, the existing proportional scroll anchoring still applies.
+  // A new column count moves every tile: centre the playing song again, or
+  // keep the song at the viewport centre when nothing from this list plays.
+  // Within one column count, proportional scroll anchoring still applies.
   const lastScrollTopRef = useRef(0);
   const measuredWidthRef = useRef(width);
   const previousLayoutRef = useRef(layout);
@@ -124,29 +168,21 @@ const PosterWall: React.FC<PosterWallProps> = ({
     previousLayoutRef.current = layout;
     const container = containerRef.current;
     if (!container || previous <= 0 || width <= 0 || previous === width || restorePendingRef.current) return;
-    const half = container.clientHeight / 2;
-    const maxTop = Math.max(0, layout.height - container.clientHeight);
-    let target = (lastScrollTopRef.current + half) * (width / previous) - half;
-    if ((previous < WALL_COMPACT_BREAKPOINT) !== (width < WALL_COMPACT_BREAKPOINT)) {
-      const centreY = lastScrollTopRef.current + half;
-      const centreX = previous / 2;
-      const distance = (tile: typeof layout.tiles[number]) =>
-        Math.max(tile.y - centreY, centreY - tile.y - tile.height, 0) ** 2 +
-        Math.max(tile.x - centreX, centreX - tile.x - tile.width, 0) ** 2;
-      const anchor = previousLayout.tiles.reduce<typeof layout.tiles[number] | undefined>(
-        (best, tile) => !best || distance(tile) < distance(best) ? tile : best, undefined,
-      );
-      const next = anchor && layout.tiles[anchor.index];
-      if (anchor && next) {
-        const fraction = Math.max(0, Math.min(1, (centreY - anchor.y) / anchor.height));
-        target = next.y + fraction * next.height - half;
-      }
-    }
-    const top = lastScrollTopRef.current === 0 ? 0 : Math.max(0, Math.min(target, maxTop));
+    const columnsChanged = wallColumnsFor(previous) !== wallColumnsFor(width);
+    const playing = columnsChanged && currentIndex >= 0 ? layout.tiles[currentIndex] : undefined;
+    const top = playing
+      ? centerLocateScrollTop({
+        tileTop: playing.y, tileBottom: playing.y + playing.height, scrollTop: lastScrollTopRef.current,
+        viewportHeight: container.clientHeight, contentHeight: layout.height, topInset, bottomInset,
+      })
+      : anchoredScrollTop({
+        scrollTop: lastScrollTopRef.current, viewportHeight: container.clientHeight,
+        previousWidth: previous, width, previousLayout, layout, columnsChanged,
+      });
     container.scrollTop = top;
     lastScrollTopRef.current = top;
     setScrollTop(top);
-  }, [width, layout]);
+  }, [bottomInset, currentIndex, layout, topInset, width]);
 
   const overscan = viewportHeight * OVERSCAN_VIEWPORTS;
   const visibleTiles = useMemo(() => {
@@ -214,10 +250,6 @@ const PosterWall: React.FC<PosterWallProps> = ({
   reportScrollRef.current = onScrollPositionChange;
 
   // Locating the playing tile (ported from the list view).
-  const currentIndex = useMemo(
-    () => (currentTrackId ? tracks.findIndex(track => track.id === currentTrackId) : -1),
-    [currentTrackId, tracks],
-  );
   const locateInput = useCallback((index: number): WallLocateInput | null => {
     const container = containerRef.current;
     const tile = layout.tiles[index]?.index === index ? layout.tiles[index] : layout.tiles.find(t => t.index === index);
