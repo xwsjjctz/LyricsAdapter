@@ -4,7 +4,7 @@ import { settingsManager } from '../../services/settingsManager';
 import ShortcutsSettings from '../ShortcutsSettings';
 import { Switch } from '../ui';
 import { useOnlineMusicSettings } from './hooks/useOnlineMusicSettings';
-import { useSettingValue } from './hooks/useSettingValue';
+import { useSettingValue } from '../../hooks/useSettingValue';
 import { useWebdavSettings } from './hooks/useWebdavSettings';
 import FocusModeSection from './sections/FocusModeSection';
 import GeneralSection from './sections/GeneralSection';

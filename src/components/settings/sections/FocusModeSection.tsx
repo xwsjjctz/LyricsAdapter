@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getDesktopAPI } from '../../../services/desktopAdapter';
 import { settingsManager } from '../../../services/settingsManager';
 import { Switch } from '../../ui';
-import { useSettingValue } from '../hooks/useSettingValue';
+import { useSettingValue } from '../../../hooks/useSettingValue';
 import type { SettingsTheme } from '../shared';
 
 const BG_OPACITY_PERSIST_DELAY_MS = 500;

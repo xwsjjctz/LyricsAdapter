@@ -50,16 +50,14 @@
   - `streamProtocol.ts` 和 `domain/trackFactory.ts` 的在线音乐类型改从 `src/shared/onlineMusic` 引入。
   - `src/i18n/index.ts` 是 renderer 初始化代码，不属于共享层；主进程只引用 locale JSON，规则按此收窄。
 
-基线中剩余的 11 条，按处理顺序：
+基线中剩余的 11 条已全部修复，基线清空：
 
-- [ ] `services/nativeContextMenu.ts → components/trackMenuItems.ts`：把菜单项定义移到 `src/shared` 或 `src/domain`。
-- [ ] `services/settingsSync.ts → stores/pluginTranslationStore.ts`：把翻译设置的持久化部分下沉到 service。
-- [ ] `hooks/useOnlinePlaylists.ts`、`hooks/useGlobalSearch.ts → components/settings/hooks/useSettingValue.ts`：把 `useSettingValue` 移到 `src/hooks`。
-- [ ] `hooks/useOnlineMusicIntegration.ts`、`stores/uiStore.ts → components/settings/SettingsView.tsx`：把引用的类型或常量抽到 `src/types` 或 `src/constants`。
-- [ ] `hooks/useLibraryTrackActions.ts → components/trackMenuItems.ts`、`components/TrackMenu.tsx`：与第一条一起处理。
-- [ ] `hooks/usePlayerControlbarLayout.ts → components/playerLayout.ts`：把布局计算移到 `src/shared` 或 hooks 同层。
-- [ ] `hooks/usePlayerControlbar.ts → components/focus-mode/useFocusGlassControls.ts`：把该 hook 移到 `src/hooks`。
-- [ ] `hooks/useCommandPalette.ts → commands/paletteCommand.ts`：确认 commands 的层级。如果它只是数据定义，就从 UI 层规则中移出。
+- [x] `trackMenuItems.ts` 与 `TrackMenuPosition` 移到 `src/domain/trackMenuItems.ts`（同时解决 nativeContextMenu、useLibraryTrackActions 的三条）。
+- [x] 翻译偏好的外部状态下沉到 `src/services/pluginTranslationPreference.ts`，`stores/pluginTranslationStore.ts` 只保留 React 订阅；读写改走 typed `ipc.settings`。
+- [x] `useSettingValue` 移到 `src/hooks`，`useFocusGlassControls` 移到 `src/hooks`。
+- [x] `playerLayout.ts` 移到 `src/constants/playerLayout.ts`。
+- [x] `SettingsSectionId` 统一从 `src/types/settingsPanel` 引用。
+- [x] `PaletteCommand` 类型移到 `src/types/paletteCommand.ts`；`commands/` 仍属于 UI 组合层。
 
 暂未写成规则：
 

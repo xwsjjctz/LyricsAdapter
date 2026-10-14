@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { PaletteCommand } from '../commands/paletteCommand';
+import type { PaletteCommand } from '../types/paletteCommand';
 
 export type PaletteMode = 'library' | 'commands';
 

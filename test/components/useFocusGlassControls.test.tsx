@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFocusGlassPresentation, useFocusGlassControls } from '@/components/focus-mode/useFocusGlassControls';
+import { readFocusGlassPresentation, useFocusGlassControls } from '@/hooks/useFocusGlassControls';
 import type { FocusGlassAction } from '@/types/focusGlass';
 const mocks = vi.hoisted(() => ({ platform: 'darwin', start: vi.fn(), update: vi.fn(), stop: vi.fn(), onAction: vi.fn(), unsubscribe: vi.fn() }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: () => ({ platform: mocks.platform, ipc: { focusGlass: mocks } }) }));

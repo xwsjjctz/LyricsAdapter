@@ -6,7 +6,7 @@ import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { qqMusicApi } from '../services/qqMusicApi';
 import { settingsManager } from '../services/settingsManager';
 import { useMusicPlugins } from '../stores/musicPluginStore';
-import { useSettingValue } from '../components/settings/hooks/useSettingValue';
+import { useSettingValue } from './useSettingValue';
 import { searchTracks, type TrackSearchResult } from '../services/trackSearch';
 import type { Track } from '../types';
 

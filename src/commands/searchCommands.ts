@@ -1,5 +1,5 @@
 import { textMatchesQuery } from '../services/trackSearch';
-import type { PaletteCommand } from './paletteCommand';
+import type { PaletteCommand } from '../types/paletteCommand';
 
 /** A runnable search hit; nested hits carry their parent's title as a path. */
 export interface CommandHit {

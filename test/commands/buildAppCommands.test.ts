@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 import { describe, expect, it, vi } from 'vitest';
 import { buildAppCommands, type AppCommandDeps } from '@/commands/buildAppCommands';
 import { resolveCommandLevel, searchCommands } from '@/commands/searchCommands';
-import type { PaletteCommand } from '@/commands/paletteCommand';
+import type { PaletteCommand } from '@/types/paletteCommand';
 import type { PlaylistInfo } from '@/services/onlineMusicProvider';
 
 const t = ((key: string, options?: Record<string, unknown>) =>

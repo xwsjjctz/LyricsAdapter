@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ViewMode } from '../types';
-import type { SettingsSectionId } from '../components/settings/SettingsView';
+import type { SettingsSectionId } from '../types/settingsPanel';
 import { useFloatingPanel } from '../hooks/useFloatingPanel';
 import { useGsapButtonBounce } from '../hooks/useGsapButtonBounce';
 import { useGsapPageTransition } from '../hooks/useGsapPageTransition';

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
 import { toCoverThumb } from '../services/coverUrl';
-import { readFocusGlassPresentation } from '../components/focus-mode/useFocusGlassControls';
+import { readFocusGlassPresentation } from './useFocusGlassControls';
 import type { PlayerControlbarAction, PlayerControlbarState } from '../types/playerControlbar';
 
 interface Options {

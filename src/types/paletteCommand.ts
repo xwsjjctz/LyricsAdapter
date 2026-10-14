@@ -1,4 +1,4 @@
-import type { ShortcutAction } from '../services/shortcuts';
+import type { ShortcutAction } from '../constants/shortcuts';
 
 export type PaletteCommandGroup = 'navigation' | 'library' | 'playback' | 'appearance' | 'settings';
 

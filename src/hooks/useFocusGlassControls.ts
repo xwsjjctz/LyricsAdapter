@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDesktopAPI } from '../../services/desktopAdapter';
-import { logger } from '../../services/logger';
-import type { FocusGlassAction, FocusGlassState, FocusGlassPresentation } from '../../types/focusGlass';
+import { getDesktopAPI } from '../services/desktopAdapter';
+import { logger } from '../services/logger';
+import type { FocusGlassAction, FocusGlassState, FocusGlassPresentation } from '../types/focusGlass';
 
 interface Options {
   anchorRef: RefObject<HTMLElement | null>;

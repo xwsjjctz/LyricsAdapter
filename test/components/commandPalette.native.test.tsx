@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/palette/CommandPalette';
 import type { PaletteLibrarySources } from '@/components/palette/usePaletteItems';
-import type { PaletteCommand } from '@/commands/paletteCommand';
+import type { PaletteCommand } from '@/types/paletteCommand';
 import { createCommandPaletteStore } from '@/hooks/useCommandPalette';
 import { settingsManager } from '@/services/settingsManager';
 import type { NativePaletteAction, NativePaletteState } from '@/types/nativePalette';

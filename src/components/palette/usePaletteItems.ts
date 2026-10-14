@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PaletteCommand } from '../../commands/paletteCommand';
+import type { PaletteCommand } from '../../types/paletteCommand';
 import { resolveCommandLevel, searchCommands } from '../../commands/searchCommands';
 import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
 import type { OnlineQuality, OnlineSong, OnlineSource, PlaylistInfo } from '../../services/onlineMusicProvider';

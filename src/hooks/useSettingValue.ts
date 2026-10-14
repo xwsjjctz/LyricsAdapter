@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { settingsManager } from '../../../services/settingsManager';
+import { settingsManager } from '../services/settingsManager';
 
 /**
  * Reads one setting and re-renders when settings change. `read` must be

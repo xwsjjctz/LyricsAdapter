@@ -6,7 +6,7 @@ import { shortcutManager } from './shortcuts';
 import { webdavClient } from './webdavClient';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { cookieManager, neteaseCookieManager } from './cookieManager';
-import { applyExternalTranslationPreference } from '../stores/pluginTranslationStore';
+import { applyExternalTranslationPreference } from './pluginTranslationPreference';
 
 /** Keep the player and the native settings renderer on the same preferences. */
 export function installSettingsSync(): (() => void) | undefined {

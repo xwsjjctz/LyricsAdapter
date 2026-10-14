@@ -1,5 +1,5 @@
 import type { SlotId } from '../types';
-import type { OnlineQuality } from '../services/onlineMusicProvider';
+import type { OnlineQuality } from '../shared/onlineMusic';
 
 export const TRACK_DOWNLOAD_QUALITIES = ['128', '320', 'flac'] as const satisfies readonly OnlineQuality[];
 export type TrackDownloadQuality = typeof TRACK_DOWNLOAD_QUALITIES[number];
@@ -22,6 +22,14 @@ export type TrackMenuItem =
   }
   | { kind: 'label'; labelKey: string }
   | { kind: 'separator' };
+
+/** Anchor of an open track menu; `trigger` regains focus on close. */
+export interface TrackMenuPosition {
+  trackId: string;
+  x: number;
+  y: number;
+  trigger: HTMLElement;
+}
 
 /** Where the list lives: a library slot, or the global search results. */
 export type TrackMenuSource = SlotId | 'search';

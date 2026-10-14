@@ -9,7 +9,7 @@ import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
 import TrackMenu from './TrackMenu';
-import type { TrackDownloadQuality } from './trackMenuItems';
+import type { TrackDownloadQuality } from '../domain/trackMenuItems';
 import LibrarySelectionBar from './LibrarySelectionBar';
 import MetadataEditorPopup from './MetadataEditorPopup';
 import ConfirmDialog from './ConfirmDialog';
@@ -18,7 +18,7 @@ import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
 import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
-import { FLOATING_PLAYER_BOTTOM_INSET } from './playerLayout';
+import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
 
 interface LibraryViewProps {

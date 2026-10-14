@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/palette/CommandPalette';
 import type { PaletteLibrarySources } from '@/components/palette/usePaletteItems';
-import type { PaletteCommand } from '@/commands/paletteCommand';
+import type { PaletteCommand } from '@/types/paletteCommand';
 import { createCommandPaletteStore, type CommandPaletteStore } from '@/hooks/useCommandPalette';
 import { settingsManager } from '@/services/settingsManager';
 import type { Track } from '@/types';

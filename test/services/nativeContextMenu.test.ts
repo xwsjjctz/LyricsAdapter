@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getNativeContextMenu, toNativeMenuItems } from '@/services/nativeContextMenu';
-import { buildTrackMenuItems } from '@/components/trackMenuItems';
+import { buildTrackMenuItems } from '@/domain/trackMenuItems';
 
 const desktop = vi.hoisted(() => ({ value: undefined as unknown }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: () => desktop.value }));

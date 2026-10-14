@@ -1,7 +1,7 @@
 import React, { useCallback, useRef } from 'react';
 import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
-import { useFocusGlassControls } from './useFocusGlassControls';
+import { useFocusGlassControls } from '../../hooks/useFocusGlassControls';
 import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
 import { resolveCoverUrl } from '../../services/coverUrl';
 import FocusPortraitControls from './FocusPortraitControls';

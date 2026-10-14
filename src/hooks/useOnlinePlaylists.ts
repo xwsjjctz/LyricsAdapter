@@ -7,7 +7,7 @@ import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache'
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import { useMusicPlugins } from '../stores/musicPluginStore';
 import { settingsManager } from '../services/settingsManager';
-import { useSettingValue } from '../components/settings/hooks/useSettingValue';
+import { useSettingValue } from './useSettingValue';
 
 const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
