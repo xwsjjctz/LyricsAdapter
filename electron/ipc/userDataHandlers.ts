@@ -4,17 +4,17 @@
  * Separates non-rebuildable user data (track membership, play count, settings)
  * from rebuildable cache (metadata from audio file headers).
  */
-import { ipcMain } from 'electron';
 import { userDataStore } from '../services/userDataStore';
 import { logger } from '../logger';
 import { typedIpcSchemas, userDataSnapshotSchema } from './typedSchemas';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';
+import { handleIpc } from './ipcMainTyped';
 
 export function registerUserDataHandlers(): void {
   // Idempotently ensure the SQLite store and its one-time legacy import exist.
   userDataStore.migrateFromLegacy();
 
-  ipcMain.handle('ipc:userData:load', () => {
+  handleIpc('ipc:userData:load', () => {
     try {
       const parsed = userDataSnapshotSchema.safeParse(userDataStore.load());
       return parsed.success ? ok(parsed.data) : fail(parsed.error.message);
@@ -23,7 +23,7 @@ export function registerUserDataHandlers(): void {
     }
   });
 
-  ipcMain.handle('ipc:userData:saveLibraryState', (_event, payload: unknown) => {
+  handleIpc('ipc:userData:saveLibraryState', (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.userDataLibraryState, payload);
     if (!parsed.ok) return parsed;
     try {

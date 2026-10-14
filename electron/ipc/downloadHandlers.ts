@@ -1,12 +1,13 @@
-import { ipcMain, dialog } from "electron";
+import { dialog } from "electron";
 import fs from "fs";
 import path from "path";
 import { logger } from "../logger";
 import { expandHomeDir } from "../utils/fileUtils";
 import { getMusicDownloadHeaders } from './musicPluginHandlers';
 import { allowAudioPath } from "./typedHandlers";
+import { handleIpc, sendIpc } from './ipcMainTyped';
 export function registerDownloadHandlers(): void {
-  ipcMain.handle('download-and-save', async (event, url: string, cookieString: string, filePath: string, requestId?: string) => {
+  handleIpc('download-and-save', async (event, url: string, cookieString: string, filePath: string, requestId?: string) => {
     try {
       const expandedPath = expandHomeDir(filePath);
       logger.info('[Main] Starting download to:', expandedPath);
@@ -42,7 +43,7 @@ export function registerDownloadHandlers(): void {
         downloaded += value.length;
 
         if (total > 0) {
-          event.sender.send('download-progress', {
+          sendIpc(event.sender, 'download-progress', {
             requestId,
             downloaded,
             total,
@@ -65,7 +66,7 @@ export function registerDownloadHandlers(): void {
     }
   });
 
-  ipcMain.handle('select-download-folder', async () => {
+  handleIpc('select-download-folder', async () => {
     try {
       const result = await dialog.showOpenDialog({
         properties: ['openDirectory', 'createDirectory'],

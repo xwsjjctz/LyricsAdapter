@@ -92,9 +92,9 @@ flowchart TB
 | `electron/protocols/coverProtocol.ts` | 注册 `cover://`，从 `userData/covers` 读取封面并按 `?size=N` 降采样 |
 | `electron/protocols/streamProtocol.ts` | 注册 `stream://`，调用已启用的音乐源插件解析 CDN URL、取得请求头并转发 Range 请求 |
 | `electron/protocols/appProtocol.ts` | 注册应用资源协议 |
-| `electron/ipc/typedHandlers.ts` | typed IPC: 文件选择/读取、library index、WebDAV、下载等，带 payload 校验 |
-| `electron/ipc/fileHandlers.ts`、`libraryHandlers.ts`、`coverHandlers.ts` 等 | 文件、曲库、封面、窗口、下载等兼容 IPC，按领域分别注册 |
-| `electron/ipc/webdavHandlers.ts` | legacy WebDAV HTTP 代理 |
+| `src/shared/ipcContract.ts`、`electron/ipc/ipcMainTyped.ts` | 全部 IPC 通道的唯一契约（通道名、参数、结果、事件）；主进程只通过 `handleIpc` / `onIpc` / `sendIpc` 注册和发送 |
+| `electron/ipc/typedHandlers.ts` | typed IPC: 文件选择/读取、library index、WebDAV，带 payload 校验 |
+| `electron/ipc/fileHandlers.ts`、`coverHandlers.ts`、`windowHandlers.ts` 等 | 文件校验、封面、窗口、下载等位置参数通道，按领域分别注册 |
 | `electron/ipc/musicPluginHandlers.ts` | 音乐源与翻译调用、安装/启停/更新、凭据变更事件，以及 QQ/网易登录的兼容通道 |
 | `electron/services/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
 | `electron/services/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
@@ -108,10 +108,12 @@ flowchart TB
 
 `electron/preload.ts` 通过 `contextBridge.exposeInMainWorld('electron', ...)` 暴露受控 API。它同时包含：
 
-- typed IPC 命名空间：文件、曲库、WebDAV、下载、设置、用户状态及聚合持久化接口。
-- 旧的扁平 API：`readFile`、`selectFiles`、`loadLibraryIndex`、`webdavGetRange`、`downloadAndSave` 等。
+- typed IPC 命名空间（`ipc.*`）：文件、曲库、WebDAV、设置、用户状态、聚合持久化及原生窗口组件。
+- 扁平 API：窗口控制、封面、下载、元数据读写、更新器等，每个能力只有一条通道。
 - 插件能力：音乐源调用、翻译请求与取消、插件配置和安装更新管理。
 - 事件订阅：下载进度、窗口关闭前 flush、快捷键、更新器及插件状态/凭据变更。
+
+暴露对象的类型是 `src/shared/electronBridge.ts` 的 `ElectronBridge`，preload 以 `satisfies` 声明，`desktopAdapter` 也基于该类型实现；preload 的 `invoke` / `listen` / `send` 与主进程的注册都从 `ipcContract.ts` 取类型，任何一侧与契约不一致都无法通过编译。`test/electron/ipc/ipcContract.test.ts` 另外检查没有绕过类型化 helper 的原始调用，且每个契约通道都有主进程实现。
 
 renderer 业务代码通过 `services/desktopAdapter.ts` 使用这些能力，避免直接读写 `window.electron`。在线音乐凭据由主进程 `settingsStore` 提供；`syncOnlineCookiesToMain()` 保留兼容通知，`stream://` 对应通道只清除已解析的 CDN URL 缓存，不再维护另一份 cookie store。
 
@@ -427,5 +429,4 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
 - `useWebDAV` 很复杂，且 `useLibraryCloudSync` 当前从 `LibraryView` 内触发云同步，UI 组件仍承载业务副作用入口。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
-- typed IPC 与 legacy IPC 并存，短期利于兼容，长期会带来重复维护成本。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。

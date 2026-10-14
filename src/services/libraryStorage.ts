@@ -221,8 +221,8 @@ class LibraryStorageService {
 
       const result = await api.validateAllPaths(songs);
 
-      if (result.success) {
-        return result.results as ValidationResult[];
+      if (result.success && result.results) {
+        return result.results;
       } else {
         logger.error('[LibraryStorage] Failed to validate paths:', result.error);
         return songs.map(song => ({ id: song.id, exists: false }));

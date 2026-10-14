@@ -1,7 +1,8 @@
-import { BrowserWindow, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
+import { BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
 import { z } from 'zod';
 import type { NativeContextMenuItem } from '../../src/types/nativeContextMenu';
 import { fail, ok, parsePayload } from './typedResult';
+import { handleIpc } from './ipcMainTyped';
 
 const label = z.string().min(1).max(256);
 export const nativeContextMenuSchema = z.object({
@@ -29,7 +30,7 @@ function toTemplate(items: readonly NativeContextMenuItem[], choose: (id: string
  * id, or null when dismissed. The renderer keeps deciding what each id does.
  */
 export function registerContextMenuHandlers(platform = process.platform): void {
-  ipcMain.handle('ipc:contextMenu:popup', async (event, payload: unknown) => {
+  handleIpc('ipc:contextMenu:popup', async (event, payload: unknown) => {
     // Tests that drive the web menu opt out, like the other native surfaces.
     if (platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1') return fail('Unsupported platform');
     const win = BrowserWindow.fromWebContents(event.sender);

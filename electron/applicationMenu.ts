@@ -9,6 +9,7 @@ import de from '../src/i18n/locales/de.json';
 import fr from '../src/i18n/locales/fr.json';
 import { settingsStore } from './services/settingsStore';
 import { applyWindowPreset, type WindowPreset } from './services/windowState';
+import { sendIpc } from './ipc/ipcMainTyped';
 
 const resources: Record<string, Record<string, string>> = { zh, en, ja, ko, de, fr };
 
@@ -45,7 +46,7 @@ export function registerApplicationMenu(getWindow: () => BrowserWindow | null, p
       // the held Ctrl/Cmd+` gesture and the user's configurable shortcuts.
       click: () => {
         const window = getWindow();
-        if (window && !window.isDestroyed()) window.webContents.send('application-menu-action', id);
+        if (window && !window.isDestroyed()) sendIpc(window.webContents, 'application-menu-action', id);
       },
     };
   };

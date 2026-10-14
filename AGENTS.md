@@ -63,7 +63,9 @@ not run.
 LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`.
 
 - `electron/` owns windows, IPC, file I/O, protocols, native integrations and proxies.
-  `electron/preload.ts` exposes the typed bridge. Renderer application code uses
+  `electron/preload.ts` exposes the typed bridge. Every IPC channel is declared once in
+  `src/shared/ipcContract.ts`; the preload uses its `invoke`/`listen`/`send` helpers and the
+  main process registers only through `electron/ipc/ipcMainTyped.ts`. Renderer application code uses
   `src/services/desktopAdapter.ts` (`getDesktopAPI`, `getDesktopAPIAsync`, `isDesktop`);
   direct `window.electron` access belongs to the bridge or tests verifying it.
 - Keep `App.tsx` and extracted composition roots focused on wiring. Put domain behavior

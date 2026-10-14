@@ -1,15 +1,15 @@
-import { ipcMain } from 'electron';
 import type { SystemLyricsState } from '../../src/types/systemLyrics';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
 import { fail, ok, parsePayload } from './typedResult';
+import { handleIpc } from './ipcMainTyped';
 
 export interface SystemLyricsStateTarget {
   update(state: SystemLyricsState): void | Promise<void>;
 }
 
 export function registerSystemLyricsHandlers(target: SystemLyricsStateTarget): void {
-  ipcMain.handle('ipc:systemLyrics:update', async (_event, payload: unknown) => {
+  handleIpc('ipc:systemLyrics:update', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.systemLyricsState, payload);
     if (!parsed.ok) return parsed;
 

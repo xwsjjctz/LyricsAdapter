@@ -23,6 +23,16 @@ import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
 import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
+import type { UpdaterState } from '../shared/updater';
+import type { ElectronBridge } from '../shared/electronBridge';
+import type { PathValidationRequest, PathValidationResult } from '../shared/ipcContract';
+
+declare global {
+  interface Window {
+    /** Exposed by electron/preload.ts; absent in browser mode. */
+    electron?: ElectronBridge;
+  }
+}
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
 type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
@@ -43,32 +53,9 @@ function isStringRecord(value: unknown): value is Record<string, string> {
     && Object.values(value).every(entry => typeof entry === 'string');
 }
 
-/** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
-export interface UpdateInfo {
-  version: string;
-  releaseName?: string;
-  releaseDate?: string;
-}
+export type { UpdateInfo, UpdaterState } from '../shared/updater';
 
-/** 下载进度信息。 */
-interface UpdateProgress {
-  total: number;
-  delta: number;
-  transferred: number;
-  percent: number;
-  bytesPerSecond: number;
-}
-
-/** 自动更新状态机（与 electron/updater.ts 保持一致）。 */
-export type UpdaterState =
-  | { status: 'unavailable'; reason: 'dev' | 'unsupported' | 'unsigned' | 'unconfigured' }
-  | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'not-available' }
-  | { status: 'available'; info: UpdateInfo }
-  | { status: 'downloading'; info: UpdateInfo; progress: UpdateProgress | null }
-  | { status: 'downloaded'; info: UpdateInfo }
-  | { status: 'error'; message: string };
+type Bridge = ElectronBridge;
 
 export interface DesktopAPI {
   platform: string;
@@ -80,30 +67,30 @@ export interface DesktopAPI {
   loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibraryIndex: (library: unknown) => Promise<{ success: boolean; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
-  validateAllPaths: (songs: unknown[]) => Promise<{ success: boolean; results: unknown[]; error?: string }>;
-  saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
-  deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+  validateAllPaths: Bridge['validateAllPaths'];
+  saveCoverThumbnail?: Bridge['saveCoverThumbnail'];
+  deleteCoverThumbnail?: Bridge['deleteCoverThumbnail'];
   getAppDataPath: () => Promise<string | null>;
   loadMetadataCache: () => Promise<{ entries: Record<string, unknown> }>;
   saveMetadataCache: (cache: { entries: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
   /** Read audio metadata using music-tag-native (main process). */
-  readAudioMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
+  readAudioMetadata?: Bridge['readAudioMetadata'];
   /** Legacy renderer-side audio metadata parsing. */
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
-  writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined; wordLyrics?: string | undefined; wordLyricsFormat?: 'qrc' | 'yrc' | undefined }) => Promise<{ success: boolean; error?: string }>;
+  writeAudioMetadata?: Bridge['writeAudioMetadata'];
   getPathForFile?: (file: File) => string;
   // Window control APIs
-  minimizeWindow?: () => void;
-  maximizeWindow?: () => void;
-  closeWindow?: (alreadyFlushed?: boolean) => void;
-  isMaximized?: () => Promise<boolean>;
-  isFullScreen?: () => Promise<boolean>;
-  onFullScreenChange?: (callback: (isFullScreen: boolean) => void) => () => void;
-  onBeforeWindowClose?: (callback: () => Promise<boolean> | boolean) => () => void;
+  minimizeWindow?: Bridge['minimizeWindow'];
+  maximizeWindow?: Bridge['maximizeWindow'];
+  closeWindow?: Bridge['closeWindow'];
+  isMaximized?: Bridge['isMaximized'];
+  isFullScreen?: Bridge['isFullScreen'];
+  onFullScreenChange?: Bridge['onFullScreenChange'];
+  onBeforeWindowClose?: Bridge['onBeforeWindowClose'];
   // Settings APIs
-  selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  selectDownloadFolder?: Bridge['selectDownloadFolder'];
   // Shortcut API
-  onShortcut?: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => (() => void) | void;
+  onShortcut?: Bridge['onShortcut'];
   // WebDAV APIs — implemented by ElectronAdapter over the typed ipc.webdav.*
   // channels (not exposed by preload directly). webdavClient consumes these.
   webdavPropfind: (url: string, authHeader: string, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
@@ -113,18 +100,18 @@ export interface DesktopAPI {
   webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
   /** MKCOL 创建集合（目录），幂等。返回 success 与 HTTP status（201/2xx/405 视为已就绪）。 */
   webdavMkcol: (url: string, authHeader: string) => Promise<{ success: boolean; status?: number; error?: string }>;
-  runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
+  runStartupCleanup?: Bridge['runStartupCleanup'];
   // Auto-updater APIs
-  checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
-  quitAndInstall?: () => Promise<{ ok: boolean }>;
-  getUpdaterState?: () => Promise<UpdaterState>;
-  getAppVersion?: () => Promise<string>;
+  checkForUpdates?: Bridge['checkForUpdates'];
+  quitAndInstall?: Bridge['quitAndInstall'];
+  getUpdaterState?: Bridge['getUpdaterState'];
+  getAppVersion?: Bridge['getAppVersion'];
   onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
-  showNotification?: (title: string, body: string, options?: AppNotificationOptions) => Promise<{ ok: boolean; reason?: string }>;
+  showNotification?: Bridge['showNotification'];
   // Online music: push a provider cookie to the main-process stream:// proxy.
-  setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
+  setOnlineCookie?: Bridge['setOnlineCookie'];
   // Settings store (SQLite-backed main-process facade)
   settingsGet?: (key: string) => Promise<string | undefined>;
   settingsGetAll?: () => Promise<Record<string, string>>;
@@ -163,7 +150,7 @@ class ElectronAdapter implements FullDesktopAPI {
     return this.api.ipc!;
   }
 
-  constructor(private api: FullDesktopAPI) {
+  constructor(private api: ElectronBridge) {
     // Initialize with empty cache, will be loaded from IndexedDB if needed
     this.metadataCache = {};
   }
@@ -194,7 +181,7 @@ class ElectronAdapter implements FullDesktopAPI {
     return this.api.validateFilePath(filePath);
   }
 
-  async validateAllPaths(songs: any[]): Promise<{ success: boolean; results: any[]; error?: string }> {
+  async validateAllPaths(songs: PathValidationRequest[]): Promise<PathValidationResult> {
     return this.api.validateAllPaths(songs);
   }
 
@@ -293,7 +280,7 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  async selectDownloadFolder(): Promise<{ success: boolean; path?: string; error?: string }> {
+  async selectDownloadFolder(): ReturnType<Bridge['selectDownloadFolder']> {
     if (typeof this.api.selectDownloadFolder === 'function') {
       return this.api.selectDownloadFolder();
     }
@@ -308,50 +295,32 @@ class ElectronAdapter implements FullDesktopAPI {
   }
 
   // Window control methods
-  minimizeWindow(): void {
-    if (typeof this.api.minimizeWindow === 'function') {
-      this.api.minimizeWindow();
-    }
+  async minimizeWindow(): Promise<void> {
+    return this.api.minimizeWindow();
   }
 
-  maximizeWindow(): void {
-    if (typeof this.api.maximizeWindow === 'function') {
-      this.api.maximizeWindow();
-    }
+  async maximizeWindow(): Promise<void> {
+    return this.api.maximizeWindow();
   }
 
-  closeWindow(alreadyFlushed = false): void {
-    if (typeof this.api.closeWindow === 'function') {
-      this.api.closeWindow(alreadyFlushed);
-    }
+  async closeWindow(alreadyFlushed = false): Promise<void> {
+    return this.api.closeWindow(alreadyFlushed);
   }
 
   async isMaximized(): Promise<boolean> {
-    if (typeof this.api.isMaximized === 'function') {
-      return this.api.isMaximized();
-    }
-    return false;
+    return this.api.isMaximized();
   }
 
   async isFullScreen(): Promise<boolean> {
-    if (typeof this.api.isFullScreen === 'function') {
-      return this.api.isFullScreen();
-    }
-    return false;
+    return this.api.isFullScreen();
   }
 
   onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {
-    if (typeof this.api.onFullScreenChange === 'function') {
-      return this.api.onFullScreenChange(callback);
-    }
-    return () => {};
+    return this.api.onFullScreenChange(callback);
   }
 
   onBeforeWindowClose(callback: () => Promise<boolean> | boolean): () => void {
-    if (typeof this.api.onBeforeWindowClose === 'function') {
-      return this.api.onBeforeWindowClose(callback);
-    }
-    return () => {};
+    return this.api.onBeforeWindowClose(callback);
   }
 
   getPathForFile(file: File): string {

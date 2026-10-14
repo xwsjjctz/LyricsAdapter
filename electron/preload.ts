@@ -1,421 +1,249 @@
-// Secure preload script using contextBridge
+// Secure preload script using contextBridge. Every channel goes through the
+// typed helpers below, which take their channel names, arguments and results
+// from src/shared/ipcContract.ts; the exposed object satisfies ElectronBridge.
 import type { TypedElectronIPC } from '../src/types/typedIpc';
-import type { AppNotificationOptions } from '../src/types/notification';
-import type { SystemLyricsAction, SystemLyricsState } from '../src/types/systemLyrics';
-import type { FocusGlassState, FocusGlassAction } from '../src/types/focusGlass';
-import type { PlayerControlbarState, PlayerControlbarAction } from '../src/types/playerControlbar';
-import type { NativePaletteAction, NativePaletteState } from '../src/types/nativePalette';
-import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../src/types/playlistSwitcher';
-import type { NativeContextMenuRequest } from '../src/types/nativeContextMenu';
-import type { ApplicationMenuAction } from '../src/types/applicationMenu';
+import type { SystemLyricsAction } from '../src/types/systemLyrics';
 import type { DownloadProgressEvent } from '../src/types/onlineProgress';
+import type { ElectronBridge } from '../src/shared/electronBridge';
+import type {
+  IpcEventArgs,
+  IpcEventChannel,
+  IpcInvokeArgs,
+  IpcInvokeChannel,
+  IpcInvokeResult,
+  IpcSendArgs,
+  IpcSendChannel,
+} from '../src/shared/ipcContract';
+import type { UpdaterState } from '../src/shared/updater';
 
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
-const downloadProgressListenerMap = new Map();
-const updaterEventListenerMap = new Map();
+const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof import('electron');
+
+function invoke<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeArgs<C>): Promise<IpcInvokeResult<C>> {
+  return ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeResult<C>>;
+}
+
+/** Bridge method that forwards its arguments unchanged to one invoke channel. */
+function invoker<C extends IpcInvokeChannel>(channel: C): (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeResult<C>> {
+  return (...args) => invoke(channel, ...args);
+}
+
+function listen<C extends IpcEventChannel>(channel: C, callback: (...args: IpcEventArgs<C>) => void): () => void {
+  const handler = (_event: unknown, ...args: unknown[]) => callback(...(args as IpcEventArgs<C>));
+  ipcRenderer.on(channel, handler);
+  return () => { ipcRenderer.removeListener(channel, handler); };
+}
+
+function send<C extends IpcSendChannel>(channel: C, ...args: IpcSendArgs<C>): void {
+  ipcRenderer.send(channel, ...args);
+}
+
+/** Registers at most one listener per callback, so repeated `on` calls do not stack. */
+function keyedListener<C extends IpcEventChannel, T extends (...args: IpcEventArgs<C>) => void>(channel: C) {
+  const active = new Map<T, () => void>();
+  return {
+    on(callback: T): void {
+      active.get(callback)?.();
+      active.set(callback, listen(channel, callback));
+    },
+    off(callback: T): void {
+      active.get(callback)?.();
+      active.delete(callback);
+    },
+  };
+}
 
 function isSystemLyricsAction(action: unknown): action is SystemLyricsAction {
   return action === 'toggle-play' || action === 'previous' || action === 'next';
 }
 
+const downloadProgress = keyedListener<'download-progress', (progress: DownloadProgressEvent) => void>('download-progress');
+const updaterEvents = keyedListener<'updater-event', (state: UpdaterState) => void>('updater-event');
+
 const typedIpc = {
   settingsPanel: {
-    open: async (section: import('../src/types/settingsPanel').SettingsSectionId) => ipcRenderer.invoke('ipc:settingsPanel:open', section),
-    close: async () => ipcRenderer.invoke('ipc:settingsPanel:close'),
-    prewarm: async () => ipcRenderer.invoke('ipc:settingsPanel:prewarm'),
-    ready: async (height: number, darkMode?: boolean) => ipcRenderer.invoke('ipc:settingsPanel:ready',
+    open: invoker('ipc:settingsPanel:open'),
+    close: invoker('ipc:settingsPanel:close'),
+    prewarm: invoker('ipc:settingsPanel:prewarm'),
+    ready: async (height: number, darkMode?: boolean) => invoke('ipc:settingsPanel:ready',
       darkMode === undefined ? height : { height, darkMode }),
-    previewOpacity: async (value: number) => ipcRenderer.invoke('ipc:settingsPanel:previewOpacity', value),
-    forwardShortcut: async (key: string, modifiers: number) => ipcRenderer.invoke('ipc:settingsPanel:shortcut', { key, modifiers }),
-    onSection: (callback: (section: import('../src/types/settingsPanel').SettingsSectionId) => void) => {
-      const handler = (_event: unknown, section: import('../src/types/settingsPanel').SettingsSectionId) => callback(section);
-      ipcRenderer.on('settings-panel-section', handler);
-      return () => ipcRenderer.removeListener('settings-panel-section', handler);
-    },
-    onShortcut: (callback: (key: string, modifiers: number) => void) => {
-      const handler = (_event: unknown, key: string, modifiers: number) => callback(key, modifiers);
-      ipcRenderer.on('settings-panel-shortcut', handler);
-      return () => ipcRenderer.removeListener('settings-panel-shortcut', handler);
-    },
-    onPreviewOpacity: (callback: (value: number) => void) => {
-      const handler = (_event: unknown, value: number) => callback(value);
-      ipcRenderer.on('settings-panel-preview-opacity', handler);
-      return () => ipcRenderer.removeListener('settings-panel-preview-opacity', handler);
-    },
-    onClosed: (callback: () => void) => {
-      const handler = () => callback();
-      ipcRenderer.on('settings-panel-closed', handler);
-      return () => ipcRenderer.removeListener('settings-panel-closed', handler);
-    },
+    previewOpacity: invoker('ipc:settingsPanel:previewOpacity'),
+    forwardShortcut: async (key: string, modifiers: number) => invoke('ipc:settingsPanel:shortcut', { key, modifiers }),
+    onSection: callback => listen('settings-panel-section', callback),
+    onShortcut: callback => listen('settings-panel-shortcut', callback),
+    onPreviewOpacity: callback => listen('settings-panel-preview-opacity', callback),
+    onClosed: callback => listen('settings-panel-closed', callback),
   },
   applicationMenu: {
-    onAction: (callback: (action: ApplicationMenuAction) => void) => {
-      const handler = (_event: unknown, action: ApplicationMenuAction) => callback(action);
-      ipcRenderer.on('application-menu-action', handler);
-      return () => ipcRenderer.removeListener('application-menu-action', handler);
-    },
+    onAction: callback => listen('application-menu-action', callback),
   },
   contextMenu: {
-    popup: async (request: NativeContextMenuRequest) => ipcRenderer.invoke('ipc:contextMenu:popup', request),
+    popup: invoker('ipc:contextMenu:popup'),
   },
   playerControlbar: {
-    start: async () => ipcRenderer.invoke('ipc:playerControlbar:start'),
-    update: async (state: PlayerControlbarState) => ipcRenderer.invoke('ipc:playerControlbar:update', state),
-    updateArtwork: async (url: string | null) => ipcRenderer.invoke('ipc:playerControlbar:artwork', url),
-    stop: async () => ipcRenderer.invoke('ipc:playerControlbar:stop'),
-    onAction: (callback: (action: PlayerControlbarAction) => void) => {
-      const handler = (_event: unknown, action: PlayerControlbarAction) => callback(action);
-      ipcRenderer.on('player-controlbar-action', handler);
-      return () => ipcRenderer.removeListener('player-controlbar-action', handler);
-    },
+    start: invoker('ipc:playerControlbar:start'),
+    update: invoker('ipc:playerControlbar:update'),
+    updateArtwork: invoker('ipc:playerControlbar:artwork'),
+    stop: invoker('ipc:playerControlbar:stop'),
+    onAction: callback => listen('player-controlbar-action', callback),
   },
   nativePalette: {
-    start: async () => ipcRenderer.invoke('ipc:nativePalette:start'),
-    update: async (state: NativePaletteState) => ipcRenderer.invoke('ipc:nativePalette:update', state),
-    stop: async () => ipcRenderer.invoke('ipc:nativePalette:stop'),
-    onAction: (callback: (action: NativePaletteAction) => void) => {
-      const handler = (_event: unknown, action: NativePaletteAction) => callback(action);
-      ipcRenderer.on('native-palette-action', handler);
-      return () => ipcRenderer.removeListener('native-palette-action', handler);
-    },
+    start: invoker('ipc:nativePalette:start'),
+    update: invoker('ipc:nativePalette:update'),
+    stop: invoker('ipc:nativePalette:stop'),
+    onAction: callback => listen('native-palette-action', callback),
   },
   playlistSwitcher: {
-    start: async () => ipcRenderer.invoke('ipc:playlistSwitcher:start'),
-    update: async (state: PlaylistSwitcherState) => ipcRenderer.invoke('ipc:playlistSwitcher:update', state),
-    stop: async () => ipcRenderer.invoke('ipc:playlistSwitcher:stop'),
-    onAction: (callback: (action: PlaylistSwitcherAction) => void) => {
-      const handler = (_event: unknown, action: PlaylistSwitcherAction) => callback(action);
-      ipcRenderer.on('playlist-switcher-action', handler);
-      return () => ipcRenderer.removeListener('playlist-switcher-action', handler);
-    },
+    start: invoker('ipc:playlistSwitcher:start'),
+    update: invoker('ipc:playlistSwitcher:update'),
+    stop: invoker('ipc:playlistSwitcher:stop'),
+    onAction: callback => listen('playlist-switcher-action', callback),
   },
   focusGlass: {
-    getPlaybackSymbols: async () => ipcRenderer.invoke('ipc:focusGlass:playbackSymbols'),
-    start: async () => ipcRenderer.invoke('ipc:focusGlass:start'),
-    update: async (state: FocusGlassState) => ipcRenderer.invoke('ipc:focusGlass:update', state),
-    setBackdrop: async (source: string | null) => ipcRenderer.invoke('ipc:focusGlass:backdrop', { source }),
-    stop: async () => ipcRenderer.invoke('ipc:focusGlass:stop'),
-    onAction: (callback: (action: FocusGlassAction) => void) => {
-      const handler = (_event: unknown, action: FocusGlassAction) => callback(action);
-      ipcRenderer.on('focus-glass-action', handler);
-      return () => ipcRenderer.removeListener('focus-glass-action', handler);
-    },
-    onBackdropLuminance: (callback: (luminance: number | null) => void) => {
-      const handler = (_event: unknown, payload: { luminance: number | null }) => callback(payload.luminance);
-      ipcRenderer.on('focus-glass-backdrop', handler);
-      return () => ipcRenderer.removeListener('focus-glass-backdrop', handler);
-    },
+    getPlaybackSymbols: invoker('ipc:focusGlass:playbackSymbols'),
+    start: invoker('ipc:focusGlass:start'),
+    update: invoker('ipc:focusGlass:update'),
+    setBackdrop: async (source: string | null) => invoke('ipc:focusGlass:backdrop', { source }),
+    stop: invoker('ipc:focusGlass:stop'),
+    onAction: callback => listen('focus-glass-action', callback),
+    onBackdropLuminance: callback => listen('focus-glass-backdrop', payload => callback(payload.luminance)),
   },
   file: {
-    selectAudio: async () => ipcRenderer.invoke('ipc:file:selectAudio'),
-    readAudio: async (filePath: string) => ipcRenderer.invoke('ipc:file:readAudio', { filePath }),
-    allowAudioPath: async (filePath: string) => ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }),
+    selectAudio: invoker('ipc:file:selectAudio'),
+    readAudio: async (filePath: string) => invoke('ipc:file:readAudio', { filePath }),
+    allowAudioPath: async (filePath: string) => invoke('ipc:file:allowAudioPath', { filePath }),
   },
   library: {
-    loadIndex: async () => ipcRenderer.invoke('ipc:library:loadIndex'),
-    saveIndex: async (library: unknown) => ipcRenderer.invoke('ipc:library:saveIndex', library),
+    loadIndex: invoker('ipc:library:loadIndex'),
+    saveIndex: invoker('ipc:library:saveIndex'),
   },
   webdav: {
-    propfind: async (payload: { url: string; authHeader: string; depth: string }) => ipcRenderer.invoke('ipc:webdav:propfind', payload),
-    getRange: async (payload: { url: string; authHeader: string; start: number; end: number }) => ipcRenderer.invoke('ipc:webdav:getRange', payload),
-    put: async (payload: { url: string; authHeader: string; data: ArrayBuffer; contentType: string }) => ipcRenderer.invoke('ipc:webdav:put', payload),
-    delete: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:delete', payload),
-    getRedirect: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:getRedirect', payload),
-    mkcol: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:mkcol', payload),
+    propfind: invoker('ipc:webdav:propfind'),
+    getRange: invoker('ipc:webdav:getRange'),
+    put: invoker('ipc:webdav:put'),
+    delete: invoker('ipc:webdav:delete'),
+    getRedirect: invoker('ipc:webdav:getRedirect'),
+    mkcol: invoker('ipc:webdav:mkcol'),
   },
   settings: {
-    onChanged: (callback: (entries: Record<string, string | null>, replaced: boolean) => void) => {
-      const handler = (_event: unknown, entries: Record<string, string | null>, replaced: boolean) => callback(entries, replaced);
-      ipcRenderer.on('settings-changed', handler);
-      return () => ipcRenderer.removeListener('settings-changed', handler);
-    },
-    get: async (key: string) => ipcRenderer.invoke('ipc:settings:get', { key }),
-    getAll: async () => ipcRenderer.invoke('ipc:settings:getAll'),
-    set: async (key: string, value: string) => ipcRenderer.invoke('ipc:settings:set', { key, value }),
-    setMany: async (entries: Record<string, string>) => ipcRenderer.invoke('ipc:settings:setMany', { entries }),
-    delete: async (key: string) => ipcRenderer.invoke('ipc:settings:delete', { key }),
-    replaceAll: async (entries: Record<string, string>) => ipcRenderer.invoke('ipc:settings:replaceAll', { entries }),
+    onChanged: callback => listen('settings-changed', callback),
+    get: async (key: string) => invoke('ipc:settings:get', { key }),
+    getAll: invoker('ipc:settings:getAll'),
+    set: async (key: string, value: string) => invoke('ipc:settings:set', { key, value }),
+    setMany: async (entries: Record<string, string>) => invoke('ipc:settings:setMany', { entries }),
+    delete: async (key: string) => invoke('ipc:settings:delete', { key }),
+    replaceAll: async (entries: Record<string, string>) => invoke('ipc:settings:replaceAll', { entries }),
   },
   userData: {
-    load: async () => ipcRenderer.invoke('ipc:userData:load'),
+    load: invoker('ipc:userData:load'),
     saveLibraryState: async (tracks: unknown[], playback: Record<string, string>) => (
-      ipcRenderer.invoke('ipc:userData:saveLibraryState', { tracks, playback })
+      invoke('ipc:userData:saveLibraryState', { tracks, playback })
     ),
   },
   persistence: {
-    loadBootstrap: async () => ipcRenderer.invoke('ipc:persistence:loadBootstrap'),
-    commitClose: async (request) => ipcRenderer.invoke('ipc:persistence:commitClose', request),
+    loadBootstrap: invoker('ipc:persistence:loadBootstrap'),
+    commitClose: invoker('ipc:persistence:commitClose'),
   },
   systemLyrics: {
-    update: async (state: SystemLyricsState) => ipcRenderer.invoke('ipc:systemLyrics:update', state),
-    onAction: (callback: (action: SystemLyricsAction) => void) => {
-      const handler = (_event: unknown, action: unknown) => {
-        if (isSystemLyricsAction(action)) callback(action);
-      };
-      ipcRenderer.on('system-lyrics-action', handler);
-      return () => ipcRenderer.removeListener('system-lyrics-action', handler);
-    },
+    update: invoker('ipc:systemLyrics:update'),
+    onAction: callback => listen('system-lyrics-action', action => {
+      if (isSystemLyricsAction(action)) callback(action);
+    }),
   },
 } satisfies TypedElectronIPC;
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
-contextBridge.exposeInMainWorld('electron', {
-  // Listen for download progress updates
-  onDownloadProgress: (callback: (data: DownloadProgressEvent) => void) => {
-    const existing = downloadProgressListenerMap.get(callback);
-    if (existing) {
-      ipcRenderer.removeListener('download-progress', existing);
-    }
-    const wrapped = (_event: unknown, data: DownloadProgressEvent) => callback(data);
-    downloadProgressListenerMap.set(callback, wrapped);
-    ipcRenderer.on('download-progress', wrapped);
-  },
-  
-  // Remove download progress listener
-  offDownloadProgress: (callback: (data: DownloadProgressEvent) => void) => {
-    const wrapped = downloadProgressListenerMap.get(callback);
-    if (wrapped) {
-      ipcRenderer.removeListener('download-progress', wrapped);
-      downloadProgressListenerMap.delete(callback);
-    }
-  },
+const bridge = {
   platform: process.platform,
-  osRelease: require('node:os').release(),
-
+  osRelease: require('node:os').release() as string,
   ipc: typedIpc,
 
-  // Get app data directory path
-  getAppDataPath: async () => {
-    return ipcRenderer.invoke('get-app-data-path');
-  },
+  onDownloadProgress: downloadProgress.on,
+  offDownloadProgress: downloadProgress.off,
 
-  // Validate single file path
-  validateFilePath: async (filePath: string) => {
-    return ipcRenderer.invoke('validate-file-path', filePath);
-  },
+  getAppDataPath: invoker('get-app-data-path'),
+  validateFilePath: invoker('validate-file-path'),
+  validateAllPaths: invoker('validate-all-paths'),
+  saveCoverThumbnail: invoker('save-cover-thumbnail'),
+  deleteCoverThumbnail: invoker('delete-cover-thumbnail'),
 
-  // Validate all file paths
-  validateAllPaths: async (songs: any[]) => {
-    return ipcRenderer.invoke('validate-all-paths', songs);
-  },
-
-  // Save cover thumbnail to disk
-  saveCoverThumbnail: async (payload: { id: string; data: string; mime: string }) => {
-    return ipcRenderer.invoke('save-cover-thumbnail', payload);
-  },
-
-  // Delete cover thumbnail from disk
-  deleteCoverThumbnail: async (trackId: string) => {
-    return ipcRenderer.invoke('delete-cover-thumbnail', trackId);
-  },
-
-  // Window control APIs - using IPC
-  minimizeWindow: async () => {
-    return ipcRenderer.invoke('window-minimize');
-  },
-
-  maximizeWindow: async () => {
-    return ipcRenderer.invoke('window-maximize');
-  },
-
-  closeWindow: async (alreadyFlushed = false) => {
-    return ipcRenderer.invoke('window-close', alreadyFlushed);
-  },
-
-  isMaximized: async () => {
-    return ipcRenderer.invoke('window-is-maximized');
-  },
-
-  isFullScreen: async () => {
-    return ipcRenderer.invoke('window-is-fullscreen');
-  },
-
-  onFullScreenChange: (callback: (isFullScreen: boolean) => void) => {
-    const handler = (_event: unknown, isFullScreen: boolean) => callback(isFullScreen);
-    ipcRenderer.on('fullscreen-changed', handler);
-    return () => ipcRenderer.removeListener('fullscreen-changed', handler);
-  },
-
-  onBeforeWindowClose: (callback: () => Promise<boolean> | boolean) => {
-    const handler = async (_event: unknown, requestId: number) => {
-      let saved = false;
-      try {
-        saved = await callback();
-      } catch {
-        saved = false;
-      }
-      ipcRenderer.send('window-before-close-flush-done', saved, requestId);
-    };
-    ipcRenderer.on('window-before-close-flush', handler);
-    return () => ipcRenderer.removeListener('window-before-close-flush', handler);
-  },
-
-  // Get real file path from File object (for drag-and-drop)
+  minimizeWindow: invoker('window-minimize'),
+  maximizeWindow: invoker('window-maximize'),
+  closeWindow: async (alreadyFlushed = false) => invoke('window-close', alreadyFlushed),
+  isMaximized: invoker('window-is-maximized'),
+  isFullScreen: invoker('window-is-fullscreen'),
+  onFullScreenChange: callback => listen('fullscreen-changed', callback),
+  onBeforeWindowClose: callback => listen('window-before-close-flush', async requestId => {
+    let saved = false;
+    try {
+      saved = await callback();
+    } catch {
+      saved = false;
+    }
+    send('window-before-close-flush-done', saved, requestId);
+  }),
+  // Real path of a dropped File (drag-and-drop), admitted to the audio allowlist.
   getPathForFile: (file: File) => {
     const filePath = webUtils.getPathForFile(file);
-    ipcRenderer.invoke('ipc:file:allowAudioPath', { filePath }).catch(() => {});
+    invoke('ipc:file:allowAudioPath', { filePath }).catch(() => {});
     return filePath;
   },
 
-  musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
-  pluginHostInfo: () => ipcRenderer.invoke('plugin-host-info'),
-  pluginUpdateList: () => ipcRenderer.invoke('plugin-update-list'),
-  pluginCheckUpdates: () => ipcRenderer.invoke('plugin-check-updates'),
-  pluginUpdate: (id: string) => ipcRenderer.invoke('plugin-update', id),
-  pluginSetUpdateSource: (id: string, source: import('../src/shared/pluginUpdate').PluginUpdateSource | null) => ipcRenderer.invoke('plugin-set-update-source', id, source),
-  onPluginUpdatesChanged: (callback: (updates: import('../src/shared/pluginUpdate').PluginUpdateInfo[]) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, updates: import('../src/shared/pluginUpdate').PluginUpdateInfo[]) => callback(updates);
-    ipcRenderer.on('plugin-updates-changed', listener);
-    return () => ipcRenderer.removeListener('plugin-updates-changed', listener);
-  },
-  pluginProviders: (type: import('../src/shared/plugin').ExtensionType) => ipcRenderer.invoke('plugin-providers', type),
-  pluginTranslate: (call: import('../src/shared/plugin').PluginTranslationCall) => ipcRenderer.invoke('plugin-translate', call),
-  pluginCancel: (requestId: string) => ipcRenderer.send('plugin-cancel', requestId),
-  pluginConfiguration: (id: string) => ipcRenderer.invoke('plugin-configuration', id),
-  pluginSetConfiguration: (id: string, key: string, value: string | boolean | number) => ipcRenderer.invoke('plugin-set-configuration', id, key, value),
-  musicPluginList: () => ipcRenderer.invoke('music-plugin-list'),
-  musicPluginCatalog: () => ipcRenderer.invoke('music-plugin-catalog'),
-  musicPluginDownload: (id: string) => ipcRenderer.invoke('music-plugin-download', id),
-  musicPluginDirectory: () => ipcRenderer.invoke('music-plugin-directory'),
-  musicPluginOpenDirectory: () => ipcRenderer.invoke('music-plugin-open-directory'),
-  onMusicPluginsChanged: (callback: (plugins: import('../src/shared/musicPlugin').MusicPluginInfo[]) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, plugins: import('../src/shared/musicPlugin').MusicPluginInfo[]) => callback(plugins);
-    ipcRenderer.on('music-plugins-changed', listener);
-    return () => ipcRenderer.removeListener('music-plugins-changed', listener);
-  },
-  musicPluginInstall: () => ipcRenderer.invoke('music-plugin-install'),
-  musicPluginUninstall: (id: string) => ipcRenderer.invoke('music-plugin-uninstall', id),
-  musicPluginSetEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke('music-plugin-set-enabled', id, enabled),
-  onMusicPluginSecretsChanged: (callback: (id: string) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id);
-    ipcRenderer.on('music-plugin-secrets-changed', listener);
-    return () => ipcRenderer.removeListener('music-plugin-secrets-changed', listener);
-  },
+  musicPluginCall: invoker('music-plugin-call'),
+  pluginHostInfo: invoker('plugin-host-info'),
+  pluginUpdateList: invoker('plugin-update-list'),
+  pluginCheckUpdates: invoker('plugin-check-updates'),
+  pluginUpdate: invoker('plugin-update'),
+  pluginSetUpdateSource: invoker('plugin-set-update-source'),
+  onPluginUpdatesChanged: callback => listen('plugin-updates-changed', callback),
+  pluginProviders: invoker('plugin-providers'),
+  pluginTranslate: invoker('plugin-translate'),
+  pluginCancel: (requestId: string) => send('plugin-cancel', requestId),
+  pluginConfiguration: invoker('plugin-configuration'),
+  pluginSetConfiguration: invoker('plugin-set-configuration'),
+  musicPluginList: invoker('music-plugin-list'),
+  musicPluginCatalog: invoker('music-plugin-catalog'),
+  musicPluginDownload: invoker('music-plugin-download'),
+  musicPluginDirectory: invoker('music-plugin-directory'),
+  musicPluginOpenDirectory: invoker('music-plugin-open-directory'),
+  onMusicPluginsChanged: callback => listen('music-plugins-changed', callback),
+  musicPluginInstall: invoker('music-plugin-install'),
+  musicPluginUninstall: invoker('music-plugin-uninstall'),
+  musicPluginSetEnabled: invoker('music-plugin-set-enabled'),
+  onMusicPluginSecretsChanged: callback => listen('music-plugin-secrets-changed', callback),
 
-  // QQ Music QR scan login (start session + poll)
-  qqLoginQrStart: async () => {
-    return ipcRenderer.invoke('qq-login-qr-start');
-  },
-  qqLoginQrPoll: async (token: string) => {
-    return ipcRenderer.invoke('qq-login-qr-poll', token);
-  },
-  // Silent musickey refresh using the refresh key/token from the QR login
-  qqLoginRefresh: async (credential: unknown, cookieString: string) => {
-    return ipcRenderer.invoke('qq-login-refresh', credential, cookieString);
-  },
-
-  // NetEase Cloud Music QR scan login (key → create → check)
-  neteaseQrKey: async () => {
-    return ipcRenderer.invoke('netease-qr-key');
-  },
-  neteaseQrCreate: async (key: string) => {
-    return ipcRenderer.invoke('netease-qr-create', key);
-  },
-  neteaseQrCheck: async (key: string) => {
-    return ipcRenderer.invoke('netease-qr-check', key);
-  },
-
+  // QR login and musickey refresh, implemented by the qq / netease plugins
+  qqLoginQrStart: invoker('qq-login-qr-start'),
+  qqLoginQrPoll: invoker('qq-login-qr-poll'),
+  qqLoginRefresh: invoker('qq-login-refresh'),
+  neteaseQrKey: invoker('netease-qr-key'),
+  neteaseQrCreate: invoker('netease-qr-create'),
+  neteaseQrCheck: invoker('netease-qr-check'),
   // Sync an online-source cookie to the main process for the stream:// protocol
-  setOnlineCookie: async (source: string, cookie: string) => {
-    return ipcRenderer.invoke('set-online-cookie', source, cookie);
-  },
+  setOnlineCookie: invoker('set-online-cookie'),
+  fetchCoverBase64: invoker('fetch-cover-base64'),
 
-  fetchCoverBase64: async (coverUrl: string) => {
-    return ipcRenderer.invoke('fetch-cover-base64', coverUrl);
-  },
-
-  // Select download folder
-  selectDownloadFolder: async () => {
-    return ipcRenderer.invoke('select-download-folder');
-  },
-
-  // Download and save audio file directly to path (non-blocking)
-  downloadAndSave: async (url: string, cookieString: string, filePath: string, requestId?: string) => {
-    return ipcRenderer.invoke('download-and-save', url, cookieString, filePath, requestId);
-  },
-
-  // Read audio file metadata (music-tag-native)
-  readAudioMetadata: async (filePath: string) => {
-    return ipcRenderer.invoke('read-audio-metadata', filePath);
-  },
-
-  // Write metadata to audio file (music-tag-native + custom QRC/YRC fields)
-  writeAudioMetadata: async (filePath: string, metadata: {
-    title?: string;
-    artist?: string;
-    album?: string;
-    lyrics?: string;
-    coverUrl?: string;
-    wordLyrics?: string;
-    wordLyricsFormat?: 'qrc' | 'yrc';
-  }) => {
-    return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
-  },
-
-  // Shortcut events - listen for shortcuts from main process
-  onShortcut: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => {
-    const wrapped = (_event: unknown, data: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => callback(data);
-    ipcRenderer.on('shortcut-triggered', wrapped);
-    // Return cleanup function
-    return () => {
-      ipcRenderer.removeListener('shortcut-triggered', wrapped);
-    };
-  },
-
-  // Run startup resource cleanup
-  runStartupCleanup: async (activeTrackIds: string[]) => {
-    return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);
-  },
+  selectDownloadFolder: invoker('select-download-folder'),
+  // Download straight to a path in the main process (non-blocking)
+  downloadAndSave: invoker('download-and-save'),
+  // music-tag-native metadata read / write (with custom QRC/YRC fields)
+  readAudioMetadata: invoker('read-audio-metadata'),
+  writeAudioMetadata: invoker('write-audio-metadata'),
+  onShortcut: callback => listen('shortcut-triggered', callback),
+  runStartupCleanup: invoker('run-startup-cleanup'),
 
   // ---- Auto-updater (electron-updater) ----
-  // Check for updates manually
-  checkForUpdates: async () => {
-    return ipcRenderer.invoke('updater:check');
-  },
+  checkForUpdates: invoker('updater:check'),
+  // Events may predate the listener, so the current state is also readable.
+  getUpdaterState: invoker('updater:state'),
+  quitAndInstall: invoker('updater:quit-and-install'),
+  getAppVersion: invoker('app:get-version'),
+  showNotification: async (title, body, options) => invoke('notification:show', {
+    title,
+    body,
+    ...(options?.silent !== undefined ? { silent: options.silent } : {}),
+    ...(options?.artworkUrls ? { artworkUrls: options.artworkUrls } : {}),
+  }),
+  onUpdaterEvent: updaterEvents.on,
+  offUpdaterEvent: updaterEvents.off,
+} satisfies ElectronBridge;
 
-  // Read the current updater state (events may predate the listener)
-  getUpdaterState: async () => {
-    return ipcRenderer.invoke('updater:state');
-  },
-
-  // Quit and install a downloaded update
-  quitAndInstall: async () => {
-    return ipcRenderer.invoke('updater:quit-and-install');
-  },
-
-  // Get current app version
-  getAppVersion: async () => {
-    return ipcRenderer.invoke('app:get-version');
-  },
-
-  // Show a system notification via main process (Notification API)
-  showNotification: async (title: string, body: string, options?: AppNotificationOptions) => {
-    return ipcRenderer.invoke('notification:show', {
-      title,
-      body,
-      silent: options?.silent,
-      artworkUrls: options?.artworkUrls,
-    });
-  },
-
-  // Listen for updater state changes
-  onUpdaterEvent: (callback: (state: unknown) => void) => {
-    const existing = updaterEventListenerMap.get(callback);
-    if (existing) {
-      ipcRenderer.removeListener('updater-event', existing);
-    }
-    const wrapped = (_event: unknown, state: unknown) => callback(state);
-    updaterEventListenerMap.set(callback, wrapped);
-    ipcRenderer.on('updater-event', wrapped);
-  },
-
-  // Remove updater state listener
-  offUpdaterEvent: (callback: (state: unknown) => void) => {
-    const wrapped = updaterEventListenerMap.get(callback);
-    if (wrapped) {
-      ipcRenderer.removeListener('updater-event', wrapped);
-      updaterEventListenerMap.delete(callback);
-    }
-  }
-});
+contextBridge.exposeInMainWorld('electron', bridge);

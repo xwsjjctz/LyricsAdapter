@@ -1,4 +1,3 @@
-import { ipcMain } from "electron";
 import fs from "fs";
 import path from "path";
 import { createHash } from "crypto";
@@ -10,8 +9,9 @@ import {
   pruneOrphanCoverThumbnails,
   writeFileAtomically,
 } from "../protocols/coverProtocol";
+import { handleIpc } from './ipcMainTyped';
 export function registerCoverHandlers(): void {
-  ipcMain.handle('save-cover-thumbnail', async (_event, payload: { id: string; data: string; mime: string }) => {
+  handleIpc('save-cover-thumbnail', async (_event, payload: { id: string; data: string; mime: string }) => {
     try {
       if (!payload?.id || !payload?.data) {
         return { success: false, error: 'Missing cover data' };
@@ -46,7 +46,7 @@ export function registerCoverHandlers(): void {
     }
   });
 
-  ipcMain.handle('delete-cover-thumbnail', async (_event, trackId: string) => {
+  handleIpc('delete-cover-thumbnail', async (_event, trackId: string) => {
     try {
       if (!trackId) {
         return { success: false, error: 'Missing trackId' };

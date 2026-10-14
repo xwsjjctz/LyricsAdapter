@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, type WebContents } from 'electron';
+import { BrowserWindow, type WebContents } from 'electron';
 import { z } from 'zod';
 import {
   loadMacosNativePaletteBridge,
@@ -8,6 +8,7 @@ import { logger } from '../logger';
 import { createCoverQueue } from './coverQueue';
 import { loadArtwork } from './playerControlbarHandlers';
 import { fail, ok, parsePayload } from './typedResult';
+import { handleIpc, sendIpc } from './ipcMainTyped';
 
 const MAX_ROWS = 200;
 
@@ -60,7 +61,7 @@ export function registerNativePaletteHandlers(
     bridge?.stopNativePalette();
   };
 
-  ipcMain.handle('ipc:nativePalette:start', event => {
+  handleIpc('ipc:nativePalette:start', event => {
     if (platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1') return ok(false);
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
@@ -71,7 +72,7 @@ export function registerNativePaletteHandlers(
       stop();
       const sender = event.sender;
       const started = bridge.startNativePalette(win.getNativeWindowHandle(), action => {
-        if (owner === sender && !sender.isDestroyed()) sender.send('native-palette-action', action);
+        if (owner === sender && !sender.isDestroyed()) sendIpc(sender, 'native-palette-action', action);
       });
       if (started) {
         owner = sender;
@@ -86,7 +87,7 @@ export function registerNativePaletteHandlers(
     }
   });
 
-  ipcMain.handle('ipc:nativePalette:update', (event, payload: unknown) => {
+  handleIpc('ipc:nativePalette:update', (event, payload: unknown) => {
     if (owner !== event.sender || event.senderFrame !== event.sender.mainFrame) return fail('Inactive surface');
     const state = parsePayload(nativePaletteStateSchema, payload);
     if (!state.ok) return state;
@@ -101,7 +102,7 @@ export function registerNativePaletteHandlers(
     }
   });
 
-  ipcMain.handle('ipc:nativePalette:stop', event => {
+  handleIpc('ipc:nativePalette:stop', event => {
     if (owner === event.sender && event.senderFrame === event.sender.mainFrame) stop();
     return ok(undefined);
   });

@@ -1,5 +1,6 @@
-import { ipcMain, BrowserWindow, type IpcMainEvent } from "electron";
+import { BrowserWindow, type IpcMainEvent } from "electron";
 import { logger } from "../logger";
+import { handleIpc, onIpc, sendIpc } from './ipcMainTyped';
 
 interface WindowControls {
   prepareForUpdate: () => Promise<boolean>;
@@ -19,11 +20,12 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
     const requestId = ++nextFlushId;
     return new Promise(resolve => {
       let settled = false;
+      let unsubscribe = () => {};
       const finish = (saved: boolean) => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
-        ipcMain.removeListener('window-before-close-flush-done', onFlushed);
+        unsubscribe();
         closeInProgress = false;
         // Ordinary close retains its existing best-effort policy. Updates require a successful save.
         closeAllowed = saved || closeAfterFlush;
@@ -39,9 +41,9 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
         logger.warn('[Window] Renderer close flush timed out');
         finish(false);
       }, 3000);
-      ipcMain.on('window-before-close-flush-done', onFlushed);
+      unsubscribe = onIpc('window-before-close-flush-done', onFlushed);
       try {
-        targetWindow.webContents.send('window-before-close-flush', requestId);
+        sendIpc(targetWindow.webContents, 'window-before-close-flush', requestId);
       } catch (error) {
         logger.warn('[Window] Failed to request renderer flush:', error);
         finish(false);
@@ -49,13 +51,13 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
     });
   };
 
-  ipcMain.handle('window-minimize', async () => {
+  handleIpc('window-minimize', async () => {
     if (win) {
       win.minimize();
     }
   });
 
-  ipcMain.handle('window-maximize', async () => {
+  handleIpc('window-maximize', async () => {
     if (win) {
       if (win.isMaximized()) {
         win.unmaximize();
@@ -65,7 +67,7 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
     }
   });
 
-  ipcMain.handle('window-close', async (_event, alreadyFlushed = false) => {
+  handleIpc('window-close', async (_event, alreadyFlushed = false) => {
     if (win) {
       if (alreadyFlushed === true) {
         closeAllowed = true;
@@ -74,14 +76,14 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
     }
   });
 
-  ipcMain.handle('window-is-maximized', async () => {
+  handleIpc('window-is-maximized', async () => {
     if (win) {
       return win.isMaximized();
     }
     return false;
   });
 
-  ipcMain.handle('window-is-fullscreen', async () => {
+  handleIpc('window-is-fullscreen', async () => {
     if (win) {
       return win.isFullScreen();
     }
@@ -101,10 +103,10 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
     });
 
     win.on('enter-full-screen', () => {
-      win?.webContents.send('fullscreen-changed', true);
+      if (win) sendIpc(win.webContents, 'fullscreen-changed', true);
     });
     win.on('leave-full-screen', () => {
-      win?.webContents.send('fullscreen-changed', false);
+      if (win) sendIpc(win.webContents, 'fullscreen-changed', false);
     });
   }
 

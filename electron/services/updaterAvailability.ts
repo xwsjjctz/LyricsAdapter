@@ -2,7 +2,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-export type UpdaterUnavailableReason = 'dev' | 'unsupported' | 'unsigned' | 'unconfigured';
+import type { UpdaterUnavailableReason } from '../../src/shared/updater';
+
+export type { UpdaterUnavailableReason };
 
 /** Inspect the installed app once; development and ad-hoc packages never poll releases. */
 export function getUpdaterUnavailableReason(context: {

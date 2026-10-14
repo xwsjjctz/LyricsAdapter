@@ -1,10 +1,11 @@
-import { BrowserWindow, ipcMain, nativeImage, type WebContents } from 'electron';
+import { BrowserWindow, nativeImage, type WebContents } from 'electron';
 import { z } from 'zod';
 import { loadMacosFocusGlassBridge, type MacosFocusGlassBridge } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { fail, ok, parsePayload } from './typedResult';
 import { loadArtwork } from './playerControlbarHandlers';
 import type { PlaybackSymbols } from '../../src/types/focusGlass';
+import { handleIpc, sendIpc } from './ipcMainTyped';
 
 const label = z.string().min(1).max(128);
 export const focusGlassStateSchema = z.object({
@@ -74,7 +75,7 @@ export function registerFocusGlassHandlers(load = loadMacosFocusGlassBridge, pla
   // Latest analyzed backdrop luminance for the active surface; -1 when unknown
   // (no cover yet, undecodable image, or analysis still in flight).
   let lastBackdropLuminance = -1;
-  ipcMain.handle('ipc:focusGlass:playbackSymbols', event => {
+  handleIpc('ipc:focusGlass:playbackSymbols', event => {
     if (platform !== 'darwin') return ok({});
     if (!BrowserWindow.fromWebContents(event.sender) || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
     try {
@@ -97,7 +98,7 @@ export function registerFocusGlassHandlers(load = loadMacosFocusGlassBridge, pla
     bridge?.stopFocusGlass();
   };
 
-  ipcMain.handle('ipc:focusGlass:start', event => {
+  handleIpc('ipc:focusGlass:start', event => {
     if (platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1') return ok(false);
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
@@ -108,7 +109,7 @@ export function registerFocusGlassHandlers(load = loadMacosFocusGlassBridge, pla
       stop();
       const sender = event.sender;
       const started = bridge.startFocusGlass(win.getNativeWindowHandle(), action => {
-        if (owner === sender && !sender.isDestroyed()) sender.send('focus-glass-action', action);
+        if (owner === sender && !sender.isDestroyed()) sendIpc(sender, 'focus-glass-action', action);
       });
       if (started) {
         owner = sender;
@@ -125,18 +126,18 @@ export function registerFocusGlassHandlers(load = loadMacosFocusGlassBridge, pla
 
   // Runs regardless of the native surface so the CSS fallback controls receive
   // the same backdrop-derived contrast signal the native bar computes with.
-  ipcMain.handle('ipc:focusGlass:backdrop', async (event, payload: unknown) => {
+  handleIpc('ipc:focusGlass:backdrop', async (event, payload: unknown) => {
     if (!BrowserWindow.fromWebContents(event.sender) || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
     const parsed = parsePayload(backdropSourceSchema, payload);
     if (!parsed.ok) return parsed;
     const luminance = parsed.data.source ? await analyzeBackdropLuminance(parsed.data.source) : null;
     lastBackdropLuminance = luminance ?? -1;
     if (event.sender.isDestroyed()) return ok(undefined);
-    event.sender.send('focus-glass-backdrop', { luminance });
+    sendIpc(event.sender, 'focus-glass-backdrop', { luminance });
     return ok(undefined);
   });
 
-  ipcMain.handle('ipc:focusGlass:update', (event, payload: unknown) => {
+  handleIpc('ipc:focusGlass:update', (event, payload: unknown) => {
     if (owner !== event.sender || event.senderFrame !== event.sender.mainFrame) return fail('Inactive surface');
     const parsed = parsePayload(focusGlassStateSchema, payload);
     if (!parsed.ok) return parsed;
@@ -150,7 +151,7 @@ export function registerFocusGlassHandlers(load = loadMacosFocusGlassBridge, pla
       return fail('Native surface update failed');
     }
   });
-  ipcMain.handle('ipc:focusGlass:stop', event => {
+  handleIpc('ipc:focusGlass:stop', event => {
     if (owner === event.sender && event.senderFrame === event.sender.mainFrame) stop();
     return ok(undefined);
   });

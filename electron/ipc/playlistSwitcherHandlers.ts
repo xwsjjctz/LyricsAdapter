@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, type WebContents } from 'electron';
+import { BrowserWindow, type WebContents } from 'electron';
 import { z } from 'zod';
 import {
   loadMacosPlaylistSwitcherBridge,
@@ -9,6 +9,7 @@ import { logger } from '../logger';
 import { createCoverQueue } from './coverQueue';
 import { loadArtwork } from './playerControlbarHandlers';
 import { fail, ok, parsePayload } from './typedResult';
+import { handleIpc, sendIpc } from './ipcMainTyped';
 
 /** Card artwork is drawn at up to 96 pt, so decode for a 2x display. */
 const COVER_SIZE = 192;
@@ -47,7 +48,7 @@ export function registerPlaylistSwitcherHandlers(
     bridge?.stopPlaylistSwitcher();
   };
 
-  ipcMain.handle('ipc:playlistSwitcher:start', event => {
+  handleIpc('ipc:playlistSwitcher:start', event => {
     if (platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1') return ok(false);
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
@@ -58,7 +59,7 @@ export function registerPlaylistSwitcherHandlers(
       stop();
       const sender = event.sender;
       const started = bridge.startPlaylistSwitcher(win.getNativeWindowHandle(), action => {
-        if (owner === sender && !sender.isDestroyed()) sender.send('playlist-switcher-action', action);
+        if (owner === sender && !sender.isDestroyed()) sendIpc(sender, 'playlist-switcher-action', action);
       });
       if (started) {
         owner = sender;
@@ -73,7 +74,7 @@ export function registerPlaylistSwitcherHandlers(
     }
   });
 
-  ipcMain.handle('ipc:playlistSwitcher:update', (event, payload: unknown) => {
+  handleIpc('ipc:playlistSwitcher:update', (event, payload: unknown) => {
     if (owner !== event.sender || event.senderFrame !== event.sender.mainFrame) return fail('Inactive surface');
     const state = parsePayload(playlistSwitcherStateSchema, payload);
     if (!state.ok) return state;
@@ -88,7 +89,7 @@ export function registerPlaylistSwitcherHandlers(
     }
   });
 
-  ipcMain.handle('ipc:playlistSwitcher:stop', event => {
+  handleIpc('ipc:playlistSwitcher:stop', event => {
     if (owner === event.sender && event.senderFrame === event.sender.mainFrame) stop();
     return ok(undefined);
   });

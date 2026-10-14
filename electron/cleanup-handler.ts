@@ -1,12 +1,13 @@
-import { ipcMain, app } from 'electron';
+import { app } from 'electron';
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
 import { logger } from './logger';
+import { handleIpc } from './ipc/ipcMainTyped';
 
 let cleanupProcess: ChildProcess | null = null;
 
 export function registerCleanupHandlers(): void {
-  ipcMain.handle('run-startup-cleanup', async (_event, activeTrackIds: string[]) => {
+  handleIpc('run-startup-cleanup', async (_event, activeTrackIds: string[]) => {
     if (cleanupProcess) {
       logger.debug('[Cleanup] Cleanup already running, skipping');
       return { success: true, message: 'already_running' };

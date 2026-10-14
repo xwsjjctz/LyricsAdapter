@@ -1,6 +1,7 @@
-import { protocol, app, ipcMain } from 'electron';
+import { protocol, app } from 'electron';
 import { logger } from '../logger';
 import { getMusicPlugin, getMusicPluginCookie } from '../ipc/musicPluginHandlers';
+import { handleIpc } from '../ipc/ipcMainTyped';
 
 /**
  * `stream://` custom protocol — proxies third-party music CDN audio streams
@@ -79,7 +80,7 @@ async function resolveCdnUrl(
 
 export function registerStreamProtocol(): void {
   // IPC: receive cookies from the renderer
-  ipcMain.handle(
+  handleIpc(
     'set-online-cookie',
     (_event, source: string, _cookie: string) => {
       if (/^[a-z][a-z0-9-]{0,63}$/.test(source)) {

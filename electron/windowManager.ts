@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { APP } from '../src/constants/config';
 import { logger } from './logger';
 import { getInitialWindowState, rememberWindowState } from './services/windowState';
+import { sendIpc } from './ipc/ipcMainTyped';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -221,7 +222,7 @@ export async function createWindow(): Promise<BrowserWindow> {
 
     accelerator += key;
 
-    win?.webContents.send('shortcut-triggered', {
+    if (win) sendIpc(win.webContents, 'shortcut-triggered', {
       accelerator,
       key: input.key,
       code: input.code,

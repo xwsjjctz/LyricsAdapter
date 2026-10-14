@@ -6,7 +6,6 @@
  * the UI, download/upload flow, and progress tracking stay source-agnostic.
  */
 import type { MusicPluginElectronAPI } from '../shared/musicPlugin';
-import type { DesktopAPI } from './desktopAdapter';
 import { settingsManager } from './settingsManager';
 import { qqMusicApi } from './qqMusicApi';
 import { neteaseMusicApi } from './neteaseMusicApi';
@@ -98,11 +97,6 @@ export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
   ) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
 }
 
-declare global {
-  interface Window {
-    electron?: DesktopAPI & OnlineMusicElectronAPI;
-  }
-}
 
 // ---- Provider selector ----------------------------------------------------
 

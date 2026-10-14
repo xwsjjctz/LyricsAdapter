@@ -1,9 +1,10 @@
-import { app, ipcMain, nativeImage, Notification, type NativeImage } from 'electron';
+import { app, nativeImage, Notification, type NativeImage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getWindow } from '../windowManager';
 import { logger } from '../logger';
 import type { AppNotificationPayload } from '../../src/types/notification';
+import { handleIpc } from './ipcMainTyped';
 
 /**
  * 系统通知：通过 Electron 主进程的 Notification 模块发送。
@@ -142,7 +143,7 @@ function retainNotification(notification: Notification): void {
 }
 
 export function registerNotificationHandlers(): void {
-  ipcMain.handle('notification:show', async (_event, payload: AppNotificationPayload) => {
+  handleIpc('notification:show', async (_event, payload: AppNotificationPayload) => {
     if (!Notification.isSupported()) {
       logger.warn('[Notification] System notifications not supported on this platform.');
       return { ok: false, reason: 'unsupported' };

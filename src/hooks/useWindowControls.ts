@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DesktopAPI } from '../services/desktopAdapter';
+import { getDesktopAPI } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import { requestPlaybackShutdown } from '../services/playbackShutdown';
 
@@ -18,11 +18,9 @@ export const useWindowControls = (): WindowControls => {
   const [canControl, setCanControl] = useState(false);
 
   useEffect(() => {
-    const isElectron = typeof window !== 'undefined' && !!(window as Window & { electron?: DesktopAPI }).electron;
-    setCanControl(isElectron);
-    if (!isElectron) return;
-
-    const api = (window as Window & { electron?: DesktopAPI }).electron!;
+    const api = getDesktopAPI();
+    setCanControl(api !== null);
+    if (!api) return;
 
     api.isMaximized?.().then(setIsMaximized).catch(() => {});
     api.isFullScreen?.().then(setIsFullScreen).catch(() => {});
@@ -33,29 +31,26 @@ export const useWindowControls = (): WindowControls => {
   }, []);
 
   const minimize = useCallback(() => {
-    if ((window as Window & { electron?: DesktopAPI }).electron?.minimizeWindow) {
-      (window as Window & { electron?: DesktopAPI }).electron!.minimizeWindow!();
-    }
+    void getDesktopAPI()?.minimizeWindow?.();
   }, []);
 
   const maximize = useCallback(async () => {
-    if ((window as Window & { electron?: DesktopAPI }).electron?.maximizeWindow) {
-      await (window as Window & { electron?: DesktopAPI }).electron!.maximizeWindow!();
-      // 更新状态
-      const newState = await (window as Window & { electron?: DesktopAPI }).electron!.isMaximized!();
-      setIsMaximized(newState);
-    }
+    const api = getDesktopAPI();
+    if (!api?.maximizeWindow) return;
+    await api.maximizeWindow();
+    const newState = await api.isMaximized?.();
+    if (newState !== undefined) setIsMaximized(newState);
   }, []);
 
   const close = useCallback(() => {
-    if ((window as Window & { electron?: DesktopAPI }).electron?.closeWindow) {
-      void requestLibraryFlush().then(async (saved) => {
-        if (saved) {
-          await requestPlaybackShutdown();
-          (window as Window & { electron?: DesktopAPI }).electron!.closeWindow!(true);
-        }
-      });
-    }
+    const api = getDesktopAPI();
+    if (!api?.closeWindow) return;
+    void requestLibraryFlush().then(async (saved) => {
+      if (saved) {
+        await requestPlaybackShutdown();
+        await api.closeWindow?.(true);
+      }
+    });
   }, []);
 
   return {

@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from 'electron';
+import { app, dialog } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
@@ -13,6 +13,7 @@ import {
   doWebdavPropfind,
   doWebdavPut,
 } from './core/webdavCore';
+import { handleIpc } from './ipcMainTyped';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac']);
 const selectedAudioPaths = new Set<string>();
@@ -47,7 +48,7 @@ export function canReadAudioPath(filePath: string): boolean {
 }
 
 export function registerTypedIpcHandlers(): void {
-  ipcMain.handle('ipc:file:selectAudio', async () => {
+  handleIpc('ipc:file:selectAudio', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
       filters: [
@@ -64,7 +65,7 @@ export function registerTypedIpcHandlers(): void {
     return ok({ canceled: result.canceled, filePaths: result.filePaths.filter(isAudioPath) });
   });
 
-  ipcMain.handle('ipc:file:readAudio', async (_event, payload: unknown) => {
+  handleIpc('ipc:file:readAudio', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.filePath, payload);
     if (!parsed.ok) return parsed;
 
@@ -87,7 +88,7 @@ export function registerTypedIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle('ipc:file:allowAudioPath', async (_event, payload: unknown) => {
+  handleIpc('ipc:file:allowAudioPath', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.filePath, payload);
     if (!parsed.ok) return parsed;
 
@@ -98,47 +99,47 @@ export function registerTypedIpcHandlers(): void {
     return ok(undefined);
   });
 
-  ipcMain.handle('ipc:library:loadIndex', async () => {
+  handleIpc('ipc:library:loadIndex', async () => {
     return doLoadLibraryIndex();
   });
 
-  ipcMain.handle('ipc:library:saveIndex', async (_event, payload: unknown) => {
+  handleIpc('ipc:library:saveIndex', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.library, payload);
     if (!parsed.ok) return parsed;
     return doSaveLibraryIndex(parsed.data);
   });
 
-  ipcMain.handle('ipc:webdav:propfind', async (_event, payload: unknown) => {
+  handleIpc('ipc:webdav:propfind', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavPropfind, payload);
     if (!parsed.ok) return parsed;
     return doWebdavPropfind(parsed.data.url, parsed.data.authHeader, parsed.data.depth);
   });
 
-  ipcMain.handle('ipc:webdav:getRange', async (_event, payload: unknown) => {
+  handleIpc('ipc:webdav:getRange', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavRange, payload);
     if (!parsed.ok) return parsed;
     return doWebdavGetRange(parsed.data.url, parsed.data.authHeader, parsed.data.start, parsed.data.end);
   });
 
-  ipcMain.handle('ipc:webdav:put', async (_event, payload: unknown) => {
+  handleIpc('ipc:webdav:put', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavPut, payload);
     if (!parsed.ok) return parsed;
     return doWebdavPut(parsed.data.url, parsed.data.authHeader, parsed.data.data, parsed.data.contentType);
   });
 
-  ipcMain.handle('ipc:webdav:delete', async (_event, payload: unknown) => {
+  handleIpc('ipc:webdav:delete', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavDelete, payload);
     if (!parsed.ok) return parsed;
     return doWebdavDelete(parsed.data.url, parsed.data.authHeader);
   });
 
-  ipcMain.handle('ipc:webdav:getRedirect', async (_event, payload: unknown) => {
+  handleIpc('ipc:webdav:getRedirect', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavGetRedirect, payload);
     if (!parsed.ok) return parsed;
     return doWebdavGetRedirect(parsed.data.url, parsed.data.authHeader);
   });
 
-  ipcMain.handle('ipc:webdav:mkcol', async (_event, payload: unknown) => {
+  handleIpc('ipc:webdav:mkcol', async (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.webdavMkcol, payload);
     if (!parsed.ok) return parsed;
     return doWebdavMkcol(parsed.data.url, parsed.data.authHeader);

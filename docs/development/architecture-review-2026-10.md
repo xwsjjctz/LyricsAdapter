@@ -75,10 +75,14 @@
 
 剩余的非 typed 通道（窗口控制、插件管理、扫码登录、元数据读写、封面、下载、更新）每个能力只有一条通道，不再是“双轨”。统一契约的工作见第 2b 步。
 
-### 2b. 单一 IPC 契约
+### 2b. 单一 IPC 契约（已完成）
 
-- [ ] 在 `src/shared` 定义通道契约表（通道名 → 请求、响应类型），preload 的 `invoke` 与主进程的 `handle` 都从同一张表取类型，消除手工对齐。
-- [ ] `updater.ts` 与 adapter 的 `UpdaterState` 改为共享同一个类型。
+- [x] `src/shared/ipcContract.ts` 声明全部 invoke、send 和事件通道的参数与结果类型。
+- [x] 主进程只通过 `electron/ipc/ipcMainTyped.ts` 的 `handleIpc` / `onIpc` / `sendIpc` 注册和发送；preload 只通过内部的 `invoke` / `listen` / `send` helper 调用 `ipcRenderer`。
+- [x] `window.electron` 的形状由 `src/shared/electronBridge.ts` 的 `ElectronBridge` 定义，preload `satisfies ElectronBridge`，`ElectronAdapter` 基于它实现，透传方法的类型直接引用它。编译器随即暴露两处已有漂移：`validateAllPaths` 被假定一定返回 `results`，`selectDownloadFolder` 漏了 `canceled`。
+- [x] `UpdaterState` 移到 `src/shared/updater.ts`，主进程与 renderer 共用。
+- [x] `useWindowControls` 改走 adapter，不再直接读 `window.electron`。
+- [x] `test/electron/ipc/ipcContract.test.ts` 检查没有绕过 helper 的原始 IPC 调用，并确认每个契约通道都有主进程实现和 preload 出口。
 
 ### 3. 插件更新安全
 

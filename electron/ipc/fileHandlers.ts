@@ -1,13 +1,13 @@
-import { ipcMain } from "electron";
 import fs from "fs";
 import { app } from "electron";
 import { logger } from "../logger";
+import { handleIpc } from './ipcMainTyped';
 export function registerFileHandlers(): void {
-  ipcMain.handle('get-app-data-path', async () => {
+  handleIpc('get-app-data-path', async () => {
     return app.getPath('userData');
   });
 
-  ipcMain.handle('validate-file-path', async (_event, filePath) => {
+  handleIpc('validate-file-path', async (_event, filePath) => {
     try {
       return fs.existsSync(filePath);
     } catch {
@@ -15,7 +15,7 @@ export function registerFileHandlers(): void {
     }
   });
 
-  ipcMain.handle('validate-all-paths', async (_event, songs) => {
+  handleIpc('validate-all-paths', async (_event, songs) => {
     try {
       const results = songs.map((song: any) => ({
         id: song.id,
