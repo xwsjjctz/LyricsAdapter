@@ -45,6 +45,10 @@ export function usePlayback({
   const persistedTimeRef = useRef<number>(initialCurrentTime);
   const lastNonZeroVolumeRef = useRef<number>(0.5);
   const volumeRef = useRef<number>(volume);
+  // Latest global volume / mode for persistence snapshots taken outside render.
+  const playbackSettingsRef = useRef({ volume, playbackMode });
+  playbackSettingsRef.current = { volume, playbackMode };
+  const getPlaybackSettings = useCallback(() => playbackSettingsRef.current, []);
   const currentTrackIndexRef = useRef<number>(currentTrackIndex);
   const restoredTimeRef = useRef<number>(0);
   const hasRestoredRef = useRef<boolean>(false);
@@ -943,6 +947,7 @@ export function usePlayback({
     audioUrlReadyRef,
     persistedTimeRef,
     getCurrentPlaybackTime,
+    getPlaybackSettings,
     shouldAutoPlayRef,
   };
 }

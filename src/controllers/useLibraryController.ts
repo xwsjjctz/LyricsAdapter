@@ -30,8 +30,8 @@ export interface LibraryControllerOptions {
   activeSlotId: SlotId;
   /** All slots (read by reorder for persist serialization). */
   slots: Record<SlotId, LibrarySlot>;
-  /** Live snapshot ref of all slots (avoids stale closures without re-renders). */
-  slotsRef: MutableRefObject<Record<SlotId, LibrarySlot>>;
+  /** Latest slots from the library store, including updates not rendered yet. */
+  getSlots: () => Record<SlotId, LibrarySlot>;
   /** Mutate a slot's state imperatively (from useLibrarySlots). */
   updateSlot: (slotId: SlotId, updater: (slot: any) => any) => void;
   /** Replace the local slot's tracks (from useLibrarySlots). */
@@ -51,7 +51,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
     viewSlot,
     activeSlotId,
     slots,
-    slotsRef,
+    getSlots,
     updateSlot,
     updateLocalTracks,
     getAppPersistenceData,
@@ -63,7 +63,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
 
   const removeTracks = useCallback(async (trackIds: string[]) => {
     const ids = new Set(trackIds);
-    const snapshot = slotsRef.current;
+    const snapshot = getSlots();
     const source = snapshot[viewSlot];
     const removed = source.tracks.filter(track => ids.has(track.id));
     if (removed.length === 0) return;
@@ -96,7 +96,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
       throw new Error('Could not save library removal');
     }
 
-    const live = slotsRef.current[viewSlot];
+    const live = getSlots()[viewSlot];
     const current = live.tracks[live.currentTrackIndex];
     if (viewSlot === activeSlotId && current && ids.has(current.id)) {
       if (pausePlayback) pausePlayback();
@@ -104,9 +104,8 @@ export function useLibraryController(options: LibraryControllerOptions) {
       if (audioRef.current) audioRef.current.src = '';
       setIsPlaying(false);
     }
+    // The store applies this immediately, so a sequential removal sees it.
     updateSlot(viewSlot, removeFromSlot);
-    // Keep sequential removals correct before the next React render.
-    slotsRef.current = { ...slotsRef.current, [viewSlot]: removeFromSlot(live) };
 
     // The existing persistence owner also updates durable user records in SQLite.
     // Keep caches if that flush fails; runtime/close persistence can retry safely.
@@ -114,7 +113,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
       logger.warn('[Library] User-state flush failed after removal; retaining caches for retry');
       return;
     }
-    const remaining = Object.values(slotsRef.current).flatMap(slot => slot.tracks);
+    const remaining = Object.values(getSlots()).flatMap(slot => slot.tracks);
     const referencedIds = new Set(remaining.map(track => track.id));
     const referencedUrls = new Set(remaining.flatMap(track => [track.audioUrl, track.coverUrl]));
     const referencedCovers = new Set(remaining.map(track => track.coverUrl?.split('?')[0]));
@@ -132,7 +131,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
         logger.warn('[Library] Failed to clean unused track cache:', error);
       }
     }
-  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying, slotsRef, getAppPersistenceData, pausePlayback]);
+  }, [viewSlot, activeSlotId, updateSlot, audioRef, revokeBlobUrl, setIsPlaying, getSlots, getAppPersistenceData, pausePlayback]);
 
   const removeTrack = useCallback((trackId: string) => removeTracks([trackId]), [removeTracks]);
 

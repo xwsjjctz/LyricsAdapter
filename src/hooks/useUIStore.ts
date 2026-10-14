@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ViewMode } from '../types';
 import type { SettingsSectionId } from '../types/settingsPanel';
-import { useFloatingPanel } from '../hooks/useFloatingPanel';
-import { useGsapButtonBounce } from '../hooks/useGsapButtonBounce';
-import { useGsapPageTransition } from '../hooks/useGsapPageTransition';
-import { commandPalette } from '../hooks/useCommandPalette';
-import { useWindowFocus } from '../hooks/useWindowFocus';
+import { useFloatingPanel } from './useFloatingPanel';
+import { useGsapButtonBounce } from './useGsapButtonBounce';
+import { useGsapPageTransition } from './useGsapPageTransition';
+import { commandPalette } from './useCommandPalette';
+import { useWindowFocus } from './useWindowFocus';
 import { settingsManager, type LibraryMode } from '../services/settingsManager';
 
 export function useUIStore() {

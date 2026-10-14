@@ -41,6 +41,9 @@ interface UseLibraryLoadOptions {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setVolume: (volume: number) => void;
   setPlaybackMode: (mode: 'order' | 'shuffle' | 'repeat-one') => void;
+  /** Live global volume / mode; a change schedules a save of the active slot. */
+  volume: number;
+  playbackMode: 'order' | 'shuffle' | 'repeat-one';
   currentPlaybackTime: number;
   onLibrarySettingsRestored?: (settings: { activeSlotId?: SlotId; currentTime?: number }) => void;
   updateSlot: (slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => void;
@@ -94,6 +97,8 @@ export function useLibraryLoad({
   setIsPlaying,
   setVolume,
   setPlaybackMode,
+  volume,
+  playbackMode,
   currentPlaybackTime,
   onLibrarySettingsRestored,
   updateSlot,
@@ -673,7 +678,8 @@ export function useLibraryLoad({
     // 引起的进度变化由下方 savePlaybackThrottled 独立节流（5s）落盘，避免每秒
     // 4 次同步磁盘写。persistData 会从 ref-backed playback clock 读取 active slot
     // 的最新时间，因此不需要把每个 tick 复制进 slots。
-  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.local.volume, slots.local.playbackMode, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.cloud.volume, slots.cloud.playbackMode, slots.online.tracks, slots.online.currentTrackIndex, slots.online.volume, slots.online.playbackMode, slots.playlist.tracks, slots.playlist.currentTrackIndex, slots.playlist.volume, slots.playlist.playbackMode]);
+    // 音量与播放模式是全局状态，由 persistData 写到 active slot，因此以实时值触发保存。
+  }, [slots.local.tracks, slots.local.currentTrackIndex, slots.cloud.tracks, slots.cloud.currentTrackIndex, slots.online.tracks, slots.online.currentTrackIndex, slots.playlist.tracks, slots.playlist.currentTrackIndex, volume, playbackMode]);
 
   /**
    * 播放进度节流落盘。

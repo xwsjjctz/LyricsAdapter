@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useGsapSlotTransition } from '../hooks/useGsapSlotTransition';
-import { useLibrarySlots } from '../hooks/useLibrarySlots';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useGsapSlotTransition } from './useGsapSlotTransition';
+import { useLibrarySlots } from './useLibrarySlots';
 import { webdavClient } from '../services/webdavClient';
+import { useStoreSelector } from '../stores/createStore';
+import type { LibraryStateStore } from '../stores/libraryState';
 import type { SlotId } from '../types';
 
 // Aligned with SlotId so the play context (which may be the 'playlist' slot) can
@@ -14,9 +16,17 @@ export type LibrarySlotId = SlotId;
 // settles; slot switches and the close flush read the ref so nothing is lost.
 const SCROLL_COMMIT_DELAY_MS = 250;
 
-export function useLibraryStore() {
-  const library = useLibrarySlots();
-  const [viewSlot, setViewSlot] = useState<LibrarySlotId>('local');
+export function useLibraryStore(store: LibraryStateStore) {
+  const library = useLibrarySlots(store);
+  const viewSlot = useStoreSelector(store, state => state.viewSlot);
+  const setViewSlot = useCallback<Dispatch<SetStateAction<LibrarySlotId>>>(value => {
+    store.setState(state => {
+      const next = typeof value === 'function' ? value(state.viewSlot) : value;
+      return next === state.viewSlot ? state : { ...state, viewSlot: next };
+    });
+  }, [store]);
+  /** Latest slots, including updates not rendered yet. */
+  const getSlots = useCallback(() => store.getState().slots, [store]);
   const { containerRef: libraryContentRef, switchSlot: transitionToSlot, completeEnter: completeSlotEnter } = useGsapSlotTransition(viewSlot, setViewSlot);
   const [pendingSlotLocate, setPendingSlotLocate] = useState<{ token: number; slot: LibrarySlotId } | null>(null);
   const [cloudWritable, setCloudWritable] = useState<boolean | null>(null);
@@ -26,8 +36,6 @@ export function useLibraryStore() {
   // switch must not overwrite the newly selected slot's position.
   const liveScrollRef = useRef<{ slot: LibrarySlotId; position: number }>({ slot: 'local', position: 0 });
   const scrollCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const slotsRef = useRef(library.slots);
-  slotsRef.current = library.slots;
 
   const cancelPendingScrollCommit = useCallback(() => {
     if (scrollCommitTimerRef.current !== null) {
@@ -43,8 +51,8 @@ export function useLibraryStore() {
   // and never saved.
   useEffect(() => {
     if (liveScrollRef.current.slot === viewSlot) return;
-    liveScrollRef.current = { slot: viewSlot, position: slotsRef.current[viewSlot].scrollPosition };
-  }, [viewSlot]);
+    liveScrollRef.current = { slot: viewSlot, position: getSlots()[viewSlot].scrollPosition };
+  }, [getSlots, viewSlot]);
 
   // Restored settings replace the saved offsets after mount; keep the live
   // offset in step until the user has scrolled the restored source.
@@ -82,13 +90,13 @@ export function useLibraryStore() {
     // unmount callback from the outgoing LibraryView cannot overwrite it.
     liveScrollRef.current = {
       slot: targetSlot,
-      position: slotsRef.current[targetSlot].scrollPosition,
+      position: getSlots()[targetSlot].scrollPosition,
     };
     if (options?.locateCurrentTrack) {
       setPendingSlotLocate({ token: ++slotLocateTokenRef.current, slot: targetSlot });
     }
     await transitionToSlot(targetSlot);
-  }, [viewSlot, library.updateSlot, transitionToSlot, cancelPendingScrollCommit]);
+  }, [viewSlot, library.updateSlot, transitionToSlot, cancelPendingScrollCommit, getSlots]);
 
   const handleSlotContentReady = useCallback((slot: LibrarySlotId) => {
     completeSlotEnter(slot);
@@ -135,7 +143,7 @@ export function useLibraryStore() {
     ...library,
     viewSlot,
     setViewSlot,
-    slotsRef,
+    getSlots,
     libraryContentRef,
     pendingSlotLocate,
     cloudWritable,

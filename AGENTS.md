@@ -74,6 +74,8 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
   the library controller owns imports, removals, metadata changes and slot mutations.
   UI and online providers do not bypass those owners or call `updateSlot` directly.
   Providers fetch/normalize data and resolve streams/downloads for the controllers.
+- Slot state lives in the `src/stores/libraryState.ts` store; components read it with
+  `useLibraryState(selector)`, and only `useLibrarySlots` and the controllers write it.
 - `useLibrarySlots.ts` maintains `local`, `cloud`, `online`, and play-only `playlist`
   contexts. Preserve per-slot tracks, selection, time, volume, mode, filters and scroll
   state; switching contexts restores state paused unless the requested feature changes

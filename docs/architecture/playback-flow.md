@@ -9,9 +9,9 @@
 | UI | `components/AppShell.tsx`、`components/LibraryView.tsx`、`components/Controls.tsx`、`components/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
 | 应用组合层 | `App.tsx` 中的 `AppContent` | 挂载 `<audio>`，连接 UI、stores、controllers、viewmodels 与生命周期 hooks |
 | 播放意图 | `controllers/usePlayerController.ts` | 处理同/跨 slot 选歌、在线流播放、歌单浏览与播放上下文 |
-| 播放聚合层 | `stores/playerStore.ts` | 包装 `usePlayback`，同步音量、播放模式到 active slot，提供实时播放时钟与恢复入口 |
+| 播放聚合层 | `hooks/usePlayerStore.ts` | 包装 `usePlayback`，提供实时播放时钟、音量/模式读取与恢复入口 |
 | 播放核心 | `hooks/usePlayback.ts` | 控制 `<audio>`，按 track source 解析播放 URL，处理事件与错误恢复 |
-| 曲库状态 | `hooks/useLibrarySlots.ts`、`stores/libraryStore.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
+| 曲库状态 | `stores/libraryState.ts`、`hooks/useLibrarySlots.ts`、`hooks/useLibraryStore.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
 | 持久化 | `hooks/useLibraryLoad.ts`、`repositories/libraryPersistenceRepository.ts`、`repositories/libraryClosePersistenceRepository.ts` | 聚合启动恢复、运行期状态写入、关闭最终快照；展示缓存由 `libraryStorage` 独立维护 |
 | 主进程协议 | `audioProtocol.ts`、`streamProtocol.ts`、`coverProtocol.ts` | 提供本地音频、在线音频、封面自定义协议 |
 | 音乐源插件 | `electron/services/musicPluginRegistry.ts`、`src/services/musicPluginProvider.ts` | 搜索、歌词、歌单、音源 URL 与认证；不持有播放状态 |
@@ -46,7 +46,7 @@ sequenceDiagram
   end
   Audio-->>P: loadedmetadata / timeupdate / ended / error
   P->>P: 更新实时播放时钟
-  P->>LS: 通过 playerStore 同步音量 / 模式
+  P->>Store: 音量 / 模式变化触发保存
   LS->>Store: slot 状态变化
   Store->>P: 捕获快照时读取实时进度
   Store->>DB: 经写队列提交 tracks + playback 事务
@@ -235,10 +235,11 @@ actualVolume = linearVolume * linearVolume
 | `canplay` | `handleCanPlay` | 在等待 canplay 的恢复场景中重试 play |
 | `error` | `handleAudioError` | 记录错误，WebDAV fresh URL 恢复，其他来源清空 audioUrl 后重载 |
 
-`playerStore` 把音量和播放模式写回 active slot：
+音量和播放模式是全局状态，由 `usePlayback` 持有，不再在每次变化时镜像进 slot：
 
-- `volume` 变化时写入 active slot 的 `volume`。
-- `playbackMode` 变化时写入 active slot 的 `playbackMode`。
+- `AppContent.getAppPersistenceData()` 通过 `getPlaybackSettings()` 读取实时值，写到 active slot 的 `volume` / `playbackMode`；非 active slot 保留已保存的值。
+- `useLibraryLoad` 以实时 `volume` / `playbackMode` 作为保存触发条件，变化后照常排队落盘。
+- 启动恢复时仍按 active slot 保存的值调用 `setVolume` / `setPlaybackMode`。
 
 进度由 `usePlayback` 的实时播放时钟维护，不在每次 `timeupdate` 时复制进 slot。`AppContent.getAppPersistenceData()` 捕获快照时读取 active slot 的实时进度，非 active slot 使用已保存的进度；跨 slot 切换由 player controller 保存旧上下文时间。
 

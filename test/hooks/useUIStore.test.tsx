@@ -24,7 +24,7 @@ vi.mock('@/hooks/useGsapPageTransition', () => ({
 }));
 vi.mock('@/hooks/useFloatingPanel', () => ({ useFloatingPanel: () => false }));
 
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore } from '@/hooks/useUIStore';
 
 describe('useUIStore home page', () => {
   beforeEach(() => {

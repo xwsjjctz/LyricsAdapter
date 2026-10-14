@@ -91,12 +91,14 @@
 - [x] 文档说明第三方插件以宿主权限运行（`docs/plugins/updates.md`、`docs/music-source-plugins.md`）。
 - [ ] 每个插件放进独立 `utilityProcess`，通过 MessagePort 做 RPC，SDK 接口保持不变。见第 7 步。
 
-### 4. 渲染层状态
+### 4. 渲染层状态（已完成）
 
-- [ ] 引入 store（zustand 或基于 `useSyncExternalStore` 自建），先承接 slot 和 player 的读取，减少 `AppShell`、`LibraryView` 的 props。
-- [ ] 写入仍只经 player 和 library controller，保持 AGENTS.md 的所有权约定。
-- [ ] 去掉 `playerStore.ts` 中用 effect 回写 volume/playbackMode 的写法，改为在 setter 中同步写入 slot。
-- [ ] 补上 `stores → hooks` 的层级规则。
+- [x] `src/stores/createStore.ts`：基于 `useSyncExternalStore` 的最小外部 store，相同值不通知订阅者。
+- [x] `src/stores/libraryState.ts`：曲库领域状态（四个 slot、`activeSlotId`、`viewSlot`）移出组件树，经 `LibraryStateProvider` 提供；`AppShell` 不再接收 `slots` / `activeTracks` / `viewSlot`，`LibraryView` 的选中项、滚动位置、过滤、数据源等 6 个 props 改为从 store 读取。
+- [x] 写入仍只经 `useLibrarySlots` 与 controllers，保持 AGENTS.md 的所有权约定。`slotsRef` 及“下一次渲染前手动改 ref”的写法由 `getSlots()` 取代。
+- [x] 删除 `playerStore` 用 effect 回写 volume / playbackMode 的写法：二者是全局状态，持久化快照把实时值写到 active slot，保存触发改为实时值。
+- [x] 组合 hook（原 `stores/libraryStore`、`playerStore`、`importStore`、`uiStore`）移到 `src/hooks/`；新增依赖规则 `stores-hold-state-only`。
+- [ ] 后续可继续：player 状态（`usePlayback`）同样移入外部 store，进一步减少 `Controls` / `FocusMode` 的 props。
 
 ### 5. 沙箱
 

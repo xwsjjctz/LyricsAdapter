@@ -20,10 +20,11 @@ import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
 import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
+import { useLibraryState } from '../stores/libraryState';
 
+/** The browsed slot's selection, scroll offset and filters come from the library store. */
 interface LibraryViewProps {
   tracks: Track[];
-  currentTrackIndex: number;
   currentTrackId?: string;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void | Promise<void>;
@@ -38,18 +39,13 @@ interface LibraryViewProps {
   /** Download an online-provider track to the local library. */
   onDownloadTrack?: (track: Track, quality: TrackDownloadQuality) => void;
   isFocusMode?: boolean;
-  savedScrollPosition?: number;
   onScrollPositionChange?: (position: number) => void;
   autoLocateToken?: number;
   /** Pending palette "locate now playing" request, acknowledged once handled. */
   locateRequest?: number | null | undefined;
   onLocateRequestHandled?: ((token: number) => void) | undefined;
   importProgress?: { loaded: number; total: number } | null;
-  dataSource: SlotId;
-  activeSlotId: SlotId;
   onSwitchSlot: (slotId: SlotId, options?: { locateCurrentTrack?: boolean }) => Promise<void>;
-  filterType: 'default' | 'album' | 'artist';
-  categorySelection: string | null;
   onCategoryChange: (selection: string | null) => void;
   /** Cloud sync is owned by the shell; the list shows its progress and can refresh it. */
   cloudLoadProgress?: { loaded: number; total: number } | null | undefined;
@@ -82,7 +78,6 @@ interface LibraryEmptyState {
 
 const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
-  currentTrackIndex,
   currentTrackId,
   onTrackSelect,
   onRemoveTrack,
@@ -96,17 +91,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onUpdateTrack,
   onDownloadTrack,
   isFocusMode = false,
-  savedScrollPosition = 0,
   onScrollPositionChange,
   autoLocateToken = 0,
   locateRequest,
   onLocateRequestHandled,
   importProgress,
-  dataSource,
-  activeSlotId,
   onSwitchSlot,
-  filterType,
-  categorySelection,
   onCategoryChange,
   cloudLoadProgress: loadProgress,
   onRefreshCloud: refreshCloudTracks,
@@ -120,6 +110,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   onSlotContentReady,
 }) => {
   const { t } = useTranslation();
+  const dataSource = useLibraryState(state => state.viewSlot);
+  const activeSlotId = useLibraryState(state => state.activeSlotId);
+  const currentTrackIndex = useLibraryState(state => state.slots[state.viewSlot].currentTrackIndex);
+  const savedScrollPosition = useLibraryState(state => state.slots[state.viewSlot].scrollPosition);
+  const filterType = useLibraryState(state => state.slots[state.viewSlot].filterType);
+  const categorySelection = useLibraryState(state => state.slots[state.viewSlot].categorySelection);
   const desktopAPI = getDesktopAPI();
   const titleBarHeight = desktopAPI
     ? desktopAPI.platform === 'darwin' ? getMacTitleBarLayout(desktopAPI.osRelease).height : 36

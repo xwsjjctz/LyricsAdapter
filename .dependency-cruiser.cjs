@@ -51,6 +51,13 @@ module.exports = {
       to: { path: [RENDERER_STATE, RENDERER_UI] },
     },
     {
+      name: 'stores-hold-state-only',
+      severity: 'error',
+      comment: 'src/stores holds external state containers; composition hooks that wire hooks together live in src/hooks.',
+      from: { path: '^src/stores/' },
+      to: { path: ['^src/(hooks|controllers|viewmodels)/', RENDERER_UI] },
+    },
+    {
       name: 'state-not-to-components',
       severity: 'error',
       comment: 'Hooks, stores, controllers and view models must not depend on UI components.',

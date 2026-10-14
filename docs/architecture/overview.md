@@ -213,21 +213,28 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 | 概念 | 所属 | 含义 |
 | --- | --- | --- |
-| `activeSlotId` | `useLibrarySlots` | 当前真正的播放上下文，`usePlayback` 使用 `slots[activeSlotId]` |
-| `viewSlot` | `useLibraryStore` | 当前曲库面板正在浏览的 slot |
+| `activeSlotId` | `stores/libraryState.ts`（由 `useLibrarySlots` 写入） | 当前真正的播放上下文，`usePlayback` 使用 `slots[activeSlotId]` |
+| `viewSlot` | `stores/libraryState.ts`（由 `useLibraryStore` 写入） | 当前曲库面板正在浏览的 slot |
 
 这两个值可以不同。例如用户正在播放 `playlist` slot 中的在线歌单，同时曲库面板仍显示 `local` 或 Playlists 视图。删除、重排、导入这类库操作应面向 `viewSlot`，播放控制应面向 `activeSlotId`。
 
-### Hook 聚合层
+### 状态存储与组合 hook
 
-`stores/` 目录里的文件不是 Redux/Zustand 式全局 store，而是 React hook 聚合层。
+`src/stores/` 只放外部状态容器（`createStore` + `useSyncExternalStore`），不依赖 hooks、controllers 或组件（依赖检查规则 `stores-hold-state-only`）。
 
 | 文件 | 作用 |
 | --- | --- |
-| `stores/libraryStore.ts` | 包装 `useLibrarySlots`，增加 `viewSlot`、slot 切换动画、云端可写性检测、滚动位置和分类选择 |
-| `stores/playerStore.ts` | 包装 `usePlayback` 与 `useBlobUrls`，把音量、播放模式同步回 active slot；持久化快照通过实时播放时钟取得当前进度 |
-| `stores/importStore.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
-| `stores/uiStore.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
+| `stores/libraryState.ts` | 曲库领域状态：四个 slot、`activeSlotId`、`viewSlot`。实例由 `AppContent` 创建并经 `LibraryStateProvider` 提供；组件用 `useLibraryState(selector)` 读取所需切片，写入只经 `useLibrarySlots` 与 controllers。更新立即生效，`getSlots()` 能读到尚未渲染的最新值 |
+| `stores/musicPluginStore.ts`、`stores/pluginTranslationStore.ts` | 插件列表与歌词翻译偏好的订阅 |
+
+组合 hook 位于 `src/hooks/`：
+
+| 文件 | 作用 |
+| --- | --- |
+| `hooks/useLibraryStore.ts` | 包装 `useLibrarySlots`，增加 slot 切换动画、云端可写性检测、滚动位置和分类选择 |
+| `hooks/usePlayerStore.ts` | 包装 `usePlayback` 与 `useBlobUrls`。音量和播放模式是全局状态，不再镜像进 slot；持久化快照把实时值写到 active slot |
+| `hooks/useImportStore.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
+| `hooks/useUIStore.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
 
 ## 数据持久化
 
@@ -303,7 +310,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ### 本地导入
 
-本地导入入口在 `useImport`，通过 `importStore` 由 `viewSlot` 路由。
+本地导入入口在 `useImport`，通过 `useImportStore` 由 `viewSlot` 路由。
 
 桌面模式流程：
 

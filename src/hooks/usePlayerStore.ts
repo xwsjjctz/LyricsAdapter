@@ -1,26 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Track } from '../types';
-import { useBlobUrls } from '../hooks/useBlobUrls';
-import { usePlayback } from '../hooks/usePlayback';
-import type { LibrarySlotId } from './libraryStore';
+import { useBlobUrls } from './useBlobUrls';
+import { usePlayback } from './usePlayback';
 
 interface PlayerStoreOptions {
   activeTracks: Track[];
   activeTrackIndex: number;
-  activeSlotId: LibrarySlotId;
   setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   setActiveTrackIndex: (index: number | ((prev: number) => number)) => void;
-  updateSlot: (slotId: LibrarySlotId, updater: (slot: any) => any) => void;
   onTrackSwitch: () => void;
 }
 
 export function usePlayerStore({
   activeTracks,
   activeTrackIndex,
-  activeSlotId,
   setActiveTracks,
   setActiveTrackIndex,
-  updateSlot,
   onTrackSwitch,
 }: PlayerStoreOptions) {
   const [restoreTime, setRestoreTime] = useState(0);
@@ -35,14 +30,9 @@ export function usePlayerStore({
     initialCurrentTime: restoreTime,
   });
 
-  useEffect(() => {
-    updateSlot(activeSlotId, slot => slot.volume !== playback.volume ? { ...slot, volume: playback.volume } : slot);
-  }, [playback.volume, activeSlotId, updateSlot]);
-
-  useEffect(() => {
-    updateSlot(activeSlotId, slot => slot.playbackMode !== playback.playbackMode ? { ...slot, playbackMode: playback.playbackMode } : slot);
-  }, [playback.playbackMode, activeSlotId, updateSlot]);
-
+  // Volume and playback mode are global while playing. The persistence
+  // snapshot stores them on the active slot (see AppContent), so they are not
+  // mirrored into slot state on every change.
   useEffect(() => {
     if (restoreTime > 0) {
       setRestoreTime(0);

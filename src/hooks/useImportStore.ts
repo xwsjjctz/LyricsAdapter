@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import type { Track } from '../types';
-import { useImport } from '../hooks/useImport';
+import { useImport } from './useImport';
 import { isDesktop } from '../services/desktopAdapter';
-import type { LibrarySlotId } from './libraryStore';
+import type { LibrarySlotId } from './useLibraryStore';
 import type { LibrarySettings } from '../services/libraryStorage';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LibrarySlot, Track, ViewMode } from './types';
 import { getDesktopAPI } from './services/desktopAdapter';
@@ -14,11 +14,12 @@ import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useAppClosePreparation } from './hooks/useAppClosePreparation';
-import { useImportStore } from './stores/importStore';
-import { useLibraryStore } from './stores/libraryStore';
+import { useImportStore } from './hooks/useImportStore';
+import { useLibraryStore } from './hooks/useLibraryStore';
+import { createLibraryState, LibraryStateProvider } from './stores/libraryState';
 import type { OnlineSource } from './services/onlineMusicProvider';
-import { usePlayerStore } from './stores/playerStore';
-import { useUIStore } from './stores/uiStore';
+import { usePlayerStore } from './hooks/usePlayerStore';
+import { useUIStore } from './hooks/useUIStore';
 import { useMusicPlugins } from './stores/musicPluginStore';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
@@ -51,9 +52,10 @@ const AppContent: React.FC = () => {
     openSettings,
     toggleSettings,
   } = ui;
+  const [libraryState] = useState(createLibraryState);
   const {
     slots,
-    slotsRef,
+    getSlots,
     activeSlotId,
     activeTracks,
     activeTrackIndex,
@@ -81,9 +83,7 @@ const AppContent: React.FC = () => {
     handleLibraryScrollPositionChange,
     handleCategoryChange,
     getLiveScrollPosition,
-  } = useLibraryStore();
-  const activeSlotIdRef = useRef(activeSlotId);
-  activeSlotIdRef.current = activeSlotId;
+  } = useLibraryStore(libraryState);
   const {
     audioRef,
     setAudioRef,
@@ -111,6 +111,7 @@ const AppContent: React.FC = () => {
     selectTrack,
     persistedTimeRef,
     getCurrentPlaybackTime,
+    getPlaybackSettings,
     shouldAutoPlayRef,
     setRestoreTime,
     activeBlobUrlsRef,
@@ -119,16 +120,15 @@ const AppContent: React.FC = () => {
   } = usePlayerStore({
     activeTracks,
     activeTrackIndex,
-    activeSlotId,
     setActiveTracks,
     setActiveTrackIndex,
-    updateSlot,
     onTrackSwitch: markTrackSwitch,
   });
   const getAppPersistenceData = useCallback((): LibrarySettings => {
-    const snapshot = slotsRef.current;
-    const activeId = activeSlotIdRef.current;
+    const { slots: snapshot, activeSlotId: activeId } = libraryState.getState();
     const activePlaybackTime = getCurrentPlaybackTime();
+    // Volume and mode are global while playing; they are saved on the active slot.
+    const activeSettings = getPlaybackSettings();
     // The viewed slot's scroll position lives in a ref until scrolling pauses,
     // so read it live here instead of persisting a value up to one debounce
     // window old.
@@ -138,8 +138,8 @@ const AppContent: React.FC = () => {
       // Inactive slots are committed explicitly when playback crosses slot
       // boundaries. Only the active slot reads the ref-backed live clock.
       currentTime: slot.id === activeId ? activePlaybackTime : slot.currentTime,
-      volume: slot.volume,
-      playbackMode: slot.playbackMode,
+      volume: slot.id === activeId ? activeSettings.volume : slot.volume,
+      playbackMode: slot.id === activeId ? activeSettings.playbackMode : slot.playbackMode,
       scrollPosition: slot.id === liveScroll.slot ? liveScroll.position : slot.scrollPosition,
       filterType: slot.filterType,
       categorySelection: slot.categorySelection,
@@ -152,7 +152,7 @@ const AppContent: React.FC = () => {
       playlistSlot: extractSlotData(snapshot.playlist),
       activeSlotId: activeId,
     };
-  }, [getCurrentPlaybackTime, getLiveScrollPosition, slotsRef]);
+  }, [getCurrentPlaybackTime, getLiveScrollPosition, getPlaybackSettings, libraryState]);
   const player = usePlayerViewModel({
     currentTrack,
     isPlaying,
@@ -254,7 +254,7 @@ const AppContent: React.FC = () => {
     viewSlot,
     activeSlotId,
     slots,
-    slotsRef,
+    getSlots,
     updateSlot,
     updateLocalTracks,
     getAppPersistenceData,
@@ -284,7 +284,7 @@ const AppContent: React.FC = () => {
   const libraryReady = useLibraryLoad({
     restoreFromPersistence,
     getPersistenceData: getAppPersistenceData,
-    getSlotsSnapshot: () => slotsRef.current,
+    getSlotsSnapshot: getSlots,
     slots,
     setLocalTracks: updateLocalTracks,
     loadCloudTracks,
@@ -293,6 +293,8 @@ const AppContent: React.FC = () => {
     setIsPlaying,
     setVolume,
     setPlaybackMode,
+    volume,
+    playbackMode,
     currentPlaybackTime: currentTime,
     updateSlot,
     onLibrarySettingsRestored: ({ activeSlotId: restoredSlotId, currentTime: restoredTime }) => {
@@ -409,6 +411,7 @@ const AppContent: React.FC = () => {
   ) : null;
 
   return (
+    <LibraryStateProvider value={libraryState}>
     <AppShell
       ui={ui}
       library={library}
@@ -416,9 +419,6 @@ const AppContent: React.FC = () => {
       importVm={importVm}
       online={online}
       playerController={playerController}
-      slots={slots}
-      activeTracks={activeTracks}
-      viewSlot={viewSlot}
       handleSwitchSlot={handleSwitchSlot}
       pendingSlotLocate={pendingSlotLocate}
       loadCloudTracks={loadCloudTracks}
@@ -434,6 +434,7 @@ const AppContent: React.FC = () => {
       libraryBrowsingTracks={playerController.libraryBrowsingTracks}
       onPlayLibraryPlaylistTrack={playerController.playLibraryPlaylistTrack}
     />
+    </LibraryStateProvider>
   );
 };
 
