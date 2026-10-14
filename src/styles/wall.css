@@ -58,33 +58,10 @@
   transform-origin: 50% 100%;
 }
 
-/* Drawn above the cover and scrim so it stays visible without a gap: a solid
-   accent ring, a thin light keyline so it reads on accent-coloured covers,
-   and an inner glow that lifts the tile out of the mosaic. */
+/* The playing tile rises above its neighbours so its glow can spill onto them. */
 .wall-tile--current {
   --wall-current-accent: var(--theme-control-current-track-band-tint, var(--theme-primary));
   z-index: 1;
-}
-
-.wall-tile--current .wall-tile__inner::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  box-shadow:
-    inset 0 0 0 4px var(--wall-current-accent),
-    inset 0 0 0 5px rgba(255, 255, 255, 0.55),
-    inset 0 0 36px 4px color-mix(in srgb, var(--wall-current-accent) 55%, transparent);
-  pointer-events: none;
-  animation: wall-current-glow 2.4s ease-in-out infinite;
-}
-
-@keyframes wall-current-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wall-tile--current .wall-tile__inner::after { animation: none; }
 }
 
 .wall-tile--unavailable .wall-tile__inner {
@@ -109,44 +86,6 @@
   inset: 0;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.18) 42%, transparent 65%);
   pointer-events: none;
-}
-
-.wall-tile__badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 2px 6px;
-  border-radius: var(--theme-small-radius);
-  background: rgba(0, 0, 0, 0.45);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  font-variant-numeric: tabular-nums;
-  backdrop-filter: blur(6px);
-}
-
-/* The now-playing badge takes the accent colour so it reads at a glance. */
-.wall-tile--current .wall-tile__badge {
-  top: 12px;
-  left: 12px;
-  padding: 3px 8px;
-  background: var(--wall-current-accent);
-  color: #fff;
-  font-size: 11px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
-}
-
-.wall-tile__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.wall-tile__badge-icon {
-  font-size: 14px;
-  line-height: 1;
 }
 
 .wall-tile__text {
@@ -275,6 +214,116 @@
   .wall-tile__cover {
     transition: none;
   }
+}
+
+/* ---- Now-playing glow (NowPlayingGlow.tsx) ----
+   Layers, bottom to top: a blurred halo that spills onto neighbouring covers,
+   the beat shockwave, a crisp cover-coloured ring with a sweeping highlight,
+   and a white flash on each kick. The script only changes opacity, scale and
+   rotate; these defaults are also the resting look under reduced motion. */
+
+.wall-glow {
+  /* Theme fallbacks until (or unless) the cover's own colours are sampled. */
+  --glow-c1: var(--wall-current-accent);
+  --glow-c2: color-mix(in srgb, var(--wall-current-accent) 55%, #ffffff);
+  --glow-c3: color-mix(in srgb, var(--wall-current-accent) 65%, #ff4f9a);
+  --glow-c4: color-mix(in srgb, var(--wall-current-accent) 65%, #4fc3ff);
+  --glow-ring: 3px;
+  --glow-reach: 22px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: wall-glow-in 560ms 120ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* A thin keyline inside the ring keeps it legible on covers of the same hue. */
+.wall-glow::after {
+  content: '';
+  position: absolute;
+  inset: var(--glow-ring);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+/* A square larger than the tile's diagonal, so rotating never shows a corner. */
+.wall-glow__spin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--glow-diagonal);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: conic-gradient(var(--glow-c1), var(--glow-c2), var(--glow-c3), var(--glow-c4), var(--glow-c1));
+  will-change: rotate;
+}
+
+/* Hollow rectangles: the padding band is all that remains visible. */
+.wall-glow__frame,
+.wall-glow__ring {
+  position: absolute;
+  overflow: hidden;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.wall-glow__halo {
+  position: absolute;
+  inset: calc(-1 * var(--glow-reach));
+  opacity: 0.42;
+  filter: blur(16px) saturate(1.15);
+  will-change: opacity, scale;
+}
+
+/* A band from 12px outside the tile edge to 4px inside it. The blur turns it
+   into a wide outer glow and a short inner one that stays clear of the title. */
+.wall-glow__frame {
+  inset: calc(var(--glow-reach) - 12px);
+  padding: 16px;
+}
+
+.wall-glow__ring {
+  inset: 0;
+  padding: var(--glow-ring);
+}
+
+.wall-glow__comet {
+  background: conic-gradient(
+    transparent 0deg 240deg,
+    rgba(255, 255, 255, 0) 240deg,
+    rgba(255, 255, 255, 0.95) 352deg,
+    transparent 360deg
+  );
+  opacity: 0.22;
+  mix-blend-mode: screen;
+}
+
+.wall-glow__flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 var(--glow-ring) rgba(255, 255, 255, 0.85),
+    inset 0 0 22px 2px color-mix(in srgb, var(--glow-c1) 65%, #ffffff);
+  will-change: opacity;
+}
+
+.wall-glow__wave {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--glow-c1) 80%, #ffffff),
+    0 0 24px 4px color-mix(in srgb, var(--glow-c2) 70%, transparent);
+  will-change: transform, opacity;
+}
+
+@keyframes wall-glow-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-glow { animation: none; }
+  .wall-glow__wave { display: none; }
 }
 
 /* ---- Selection and drag-to-swap ---- */

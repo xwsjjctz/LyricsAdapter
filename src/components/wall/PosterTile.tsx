@@ -6,6 +6,7 @@ import type { WallTile } from './wallLayout';
 import { isPlainEnter } from '../../shared/keyboard';
 import type { OnlineProgressEntry } from '../../types/onlineProgress';
 import PosterDownloadProgress from './PosterDownloadProgress';
+import NowPlayingGlow from './NowPlayingGlow';
 
 interface PosterTileProps {
   download?: OnlineProgressEntry | undefined;
@@ -13,6 +14,8 @@ interface PosterTileProps {
   tile: WallTile;
   /** Playing now: marked in place, never moved. */
   isCurrent: boolean;
+  /** The current tile's glow moves with the music (playing and on screen). */
+  nowPlayingAnimated?: boolean;
   hasMenu: boolean;
   onSelect: (index: number) => void;
   onOpenMenu: (track: Track, x: number, y: number, trigger: HTMLElement) => void;
@@ -39,7 +42,7 @@ const thumbSizeFor = (width: number): number => {
 
 /** One poster on the wall. Position comes from the layout; GSAP animates the inner element. */
 const PosterTile: React.FC<PosterTileProps> = memo(({
-  track, tile, isCurrent, hasMenu, onSelect, onOpenMenu, download,
+  track, tile, isCurrent, nowPlayingAnimated = false, hasMenu, onSelect, onOpenMenu, download,
   selecting = false, selected = false, onToggleSelect,
   draggable = false, dragState, onDragStartTile, onDragOverTile, onDropTile, onDragEndTile,
 }) => {
@@ -117,12 +120,6 @@ const PosterTile: React.FC<PosterTileProps> = memo(({
         />
         <div className="wall-tile__scrim" aria-hidden="true" />
         {download && <PosterDownloadProgress entry={download} title={track.title} compact={tile.height < 160} />}
-        {isCurrent && (
-          <span className="wall-tile__badge">
-            <span className="material-symbols-rounded wall-tile__badge-icon" aria-hidden="true">graphic_eq</span>
-            {t('library.nowPlaying')}
-          </span>
-        )}
         {selecting && (
           <span className="wall-tile__check" aria-hidden="true">
             <span className="material-symbols-rounded">{selected ? 'check_circle' : 'radio_button_unchecked'}</span>
@@ -135,6 +132,14 @@ const PosterTile: React.FC<PosterTileProps> = memo(({
           </p>
         </div>
       </div>
+      {isCurrent && (
+        <NowPlayingGlow
+          coverUrl={track.coverUrl}
+          width={snappedWidth}
+          height={snappedHeight}
+          animated={nowPlayingAnimated}
+        />
+      )}
     </div>
   );
 });

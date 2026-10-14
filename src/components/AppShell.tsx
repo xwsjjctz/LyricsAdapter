@@ -315,6 +315,8 @@ const AppShell: React.FC<AppShellProps> = ({
                     sourceKey={librarySourceKey}
                     dataSource={library.viewSlot}
                     currentTrackId={player.currentTrack?.id}
+                    // FocusMode covers the wall, so its glow rests there.
+                    nowPlayingAnimated={player.isPlaying && !isFocusMode}
                     onTrackSelect={playShownTrack}
                     onRemoveTrack={library.removeTrack}
                     onRemoveMultipleTracks={library.removeTracks}

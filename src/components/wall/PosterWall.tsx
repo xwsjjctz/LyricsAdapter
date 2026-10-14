@@ -16,6 +16,8 @@ interface PosterWallProps {
   /** Identity of the source being shown; changing it restores its saved scroll offset. */
   sourceKey: string;
   currentTrackId?: string | undefined;
+  /** The playing tile's glow moves with the music; false lets it rest. */
+  nowPlayingAnimated?: boolean;
   loading?: boolean;
   emptyLabel: string;
   loadingLabel: string;
@@ -58,7 +60,7 @@ const TILE_DRAG_TYPE = 'application/x-lyricsadapter-tile';
  * playing track is marked where it is rather than moved.
  */
 const PosterWall: React.FC<PosterWallProps> = ({
-  tracks, sourceKey, currentTrackId, loading = false, emptyLabel, loadingLabel, downloadProgress,
+  tracks, sourceKey, currentTrackId, nowPlayingAnimated = false, loading = false, emptyLabel, loadingLabel, downloadProgress,
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
   emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
   autoLocateToken = 0, locateRequest, onLocateRequestHandled,
@@ -316,6 +318,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
                 download={progress?.type === 'download' ? progress : undefined}
                 tile={tile}
                 isCurrent={track.id === currentTrackId}
+                nowPlayingAnimated={nowPlayingAnimated && track.id === currentTrackId}
                 hasMenu={hasMenu(track)}
                 onSelect={onTrackSelect}
                 onOpenMenu={onOpenMenu}

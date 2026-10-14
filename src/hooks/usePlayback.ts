@@ -6,6 +6,7 @@ import { webdavClient } from '../services/webdavClient';
 import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playbackSource';
 import { UI } from '../constants/config';
 import { addPlaybackShutdownListener, pauseAudioBeforeShutdown } from '../services/playbackShutdown';
+import { attachAudioPulse, isAnalysableAudioUrl } from '../services/audioPulse';
 
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 
@@ -167,6 +168,9 @@ export function usePlayback({
     }
     if (currentUrl || audio.srcObject) releaseAudioElement(audio);
     if (nextUrl) {
+      // CORS mode lets the now-playing visuals read the app's own sources;
+      // third-party URLs (WebDAV CDNs) keep loading without it.
+      audio.crossOrigin = isAnalysableAudioUrl(nextUrl) ? 'anonymous' : null;
       audio.src = nextUrl;
       timeOwnerTrackIdRef.current = ownerTrackId;
       clockReadyTrackIdRef.current = undefined;
@@ -187,6 +191,7 @@ export function usePlayback({
       waitingForCanPlayRef.current = false;
     }
     audioRef.current = node;
+    attachAudioPulse(node);
     if (node) {
       const currentVolume = volumeRef.current;
       const actualVolume = linearToExponentialVolume(currentVolume);

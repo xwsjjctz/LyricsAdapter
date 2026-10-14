@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createHash } from 'crypto';
 import { logger } from '../logger';
+import { RENDERER_CORS_HEADERS } from './rendererOrigin';
 
 // 缩略图尺寸上限（按最长边）。请求 ?size=N 时，若原图超过该尺寸则缩小后再返回，
 // 避免把大尺寸原图解码成巨大的 GPU 纹理（FocusMode 背景经 blur 后分辨率差异不可见）。
@@ -305,6 +306,7 @@ export function registerCoverProtocol(): void {
           if (thumbnailPath) {
             return new Response(fs.readFileSync(thumbnailPath), {
               headers: {
+                ...RENDERER_CORS_HEADERS,
                 'Content-Type': 'image/jpeg',
                 'Cache-Control': cacheControl,
               },
@@ -318,6 +320,8 @@ export function registerCoverProtocol(): void {
       const fileData = fs.readFileSync(realCoverPath);
       return new Response(fileData, {
         headers: {
+          // Lets the now-playing glow sample cover colours on a canvas.
+          ...RENDERER_CORS_HEADERS,
           'Content-Type': mimeType,
           'Cache-Control': cacheControl,
         }
