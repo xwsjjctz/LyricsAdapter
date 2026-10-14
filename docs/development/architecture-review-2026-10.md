@@ -89,7 +89,9 @@
 - [x] 第三方来源（`github`、`manifest`）：绑定新来源、以及每次安装更新前，都由主进程弹出系统确认框，显示来源地址、版本变化和 SHA-256；默认取消，取消后不做任何改变。renderer 无法绕过。
 - [x] 来源锁定：清单里的 `update` 只在首次安装时生效（原有行为），之后只有经用户确认的显式绑定能改变来源。
 - [x] 文档说明第三方插件以宿主权限运行（`docs/plugins/updates.md`、`docs/music-source-plugins.md`）。
-- [ ] 每个插件放进独立 `utilityProcess`，通过 MessagePort 做 RPC，SDK 接口保持不变。见第 7 步。
+- [ ] 每个插件放进独立 `utilityProcess`，通过 MessagePort 做 RPC，SDK 接口保持不变（进行中）。
+  - [x] 配置读取与校验抽为 `readPluginConfiguration` / `pluginConfigurationWrite`，主进程不加载插件代码即可读写配置。
+  - [ ] 待做：`PluginHandle` 接口（inline / process 两种实现）、子进程 guest（基于快照的同步读、异步写回主进程）、主进程 RPC 客户端（超时、卡死检测、崩溃重启）、vite 新增 `pluginHost` 入口、`streamHeaders` / `invoke` 调用点改为异步、内存通道测试与 Electron e2e 验证。
 
 ### 4. 渲染层状态（已完成）
 
