@@ -27,6 +27,12 @@ vi.mock('@/services/desktopAdapter', () => ({
   getDesktopAPI: () => null,
   getDesktopAPIAsync: () => Promise.resolve(null),
 }));
+// The spectrum tap needs real media elements; this suite drives plain fakes.
+const audioPulseMocks = vi.hoisted(() => ({ attachAudioPulse: vi.fn() }));
+vi.mock('@/services/audioPulse', async () => ({
+  ...(await vi.importActual<typeof import('@/services/audioPulse')>('@/services/audioPulse')),
+  attachAudioPulse: audioPulseMocks.attachAudioPulse,
+}));
 vi.mock('@/services/cookieManager', () => ({
   cookieManager: { ensureLoaded: vi.fn(), getCookie: () => '' },
   neteaseCookieManager: { ensureLoaded: vi.fn(), getCookie: () => '' },
@@ -563,6 +569,35 @@ describe('usePlayback', () => {
     rerender({ tracks: [{ ...one }, { ...two }], index: 1 });
 
     expect(remountedAudio.getAttribute('src')).toBe('audio://localhost/two.flac');
+  });
+
+  it('loads app-served sources in CORS mode and leaves third-party CDNs without it', async () => {
+    webdavMocks.getCdnUrl.mockResolvedValueOnce('https://cdn.example/cloud.flac');
+    const local = makeTrack({ id: 'local', audioUrl: 'audio://localhost/local.flac' });
+    const cloud = makeTrack({ id: 'cloud', source: 'webdav', webdavPath: '/cloud.flac' });
+    const audio = makeAudioElement();
+    const { result, rerender } = renderHook(
+      ({ tracks, index }: { tracks: Track[]; index: number }) => usePlayback({
+        tracks,
+        setTracks: vi.fn(),
+        currentTrackIndex: index,
+        setCurrentTrackIndex: vi.fn(),
+        revokeBlobUrl: vi.fn(),
+      }),
+      { initialProps: { tracks: [] as Track[], index: -1 } },
+    );
+
+    act(() => result.current.setAudioRef(audio));
+    expect(audioPulseMocks.attachAudioPulse).toHaveBeenLastCalledWith(audio);
+
+    rerender({ tracks: [local, cloud], index: 0 });
+    expect(audio.getAttribute('src')).toBe('audio://localhost/local.flac');
+    expect(audio.crossOrigin).toBe('anonymous');
+
+    rerender({ tracks: [local, cloud], index: 1 });
+    await act(async () => { await Promise.resolve(); });
+    expect(audio.getAttribute('src')).toBe('https://cdn.example/cloud.flac');
+    expect(audio.crossOrigin).toBeNull();
   });
 
   it('ignores a stale WebDAV URL when the playlist changes at the same index', async () => {
