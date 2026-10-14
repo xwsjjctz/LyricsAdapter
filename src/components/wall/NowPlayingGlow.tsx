@@ -3,7 +3,7 @@ import { gsap } from 'gsap';
 import { realCoverUrl, toCoverThumb } from '../../services/coverUrl';
 import { getCoverPalette, type CoverPalette } from '../../services/coverPalette';
 import { retainAudioPulse, sampleAudioPulse } from '../../services/audioPulse';
-import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState, type Spring } from './nowPlayingPulse';
+import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState, type Spring } from '../../services/audioPulseEnvelope';
 
 interface NowPlayingGlowProps {
   coverUrl?: string | undefined;

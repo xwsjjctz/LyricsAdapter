@@ -204,6 +204,8 @@
   "common.unknownAlbum": "Unknown Album",
   "settings.qqMusicEnabled": "Add Third-Party Music Source",
   "settings.focusBgBlurRadius": "Focus Mode Background Blur",
+  "settings.focusAmllBackground": "Flowing Background",
+  "settings.focusAmllBackgroundDesc": "Use an Apple Music–style flowing gradient that pulses with the beat. Turn off to use the original blurred cover.",
   "settings.focusLyricsFontSize": "Focus Mode Lyric Font Size",
   "settings.focusLyricLineSpacing": "Scrolling Lyric Line Spacing",
   "settings.focusEnhancedFontEnabled": "New FocusMode Font",

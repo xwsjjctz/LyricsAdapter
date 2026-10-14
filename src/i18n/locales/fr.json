@@ -204,6 +204,8 @@
   "common.unknownAlbum": "Album inconnu",
   "settings.qqMusicEnabled": "Ajouter une source musicale tierce",
   "settings.focusBgBlurRadius": "Flou d’arrière-plan du mode Focus",
+  "settings.focusAmllBackground": "Arrière-plan fluide",
+  "settings.focusAmllBackgroundDesc": "Utilise un dégradé fluide façon Apple Music qui pulse au rythme de la musique. Désactivez pour retrouver la pochette floutée d'origine.",
   "settings.focusLyricsFontSize": "Taille des paroles du mode Focus",
   "settings.focusLyricLineSpacing": "Espacement des lignes de paroles défilantes",
   "settings.focusEnhancedFontEnabled": "Nouvelle police FocusMode",

@@ -1,5 +1,5 @@
 /**
- * Turns raw band energies into the signals the now-playing glow draws:
+ * Turns raw band energies into the signals music-reactive visuals draw:
  *
  * - `beat`: bass transients above the song's running average, with a fast
  *   attack and slower release, so a kick snaps in and breathes out.
@@ -11,7 +11,7 @@
  * Every time constant is in seconds and applied per frame with `dt`, so the
  * motion is independent of the display refresh rate.
  */
-import type { AudioPulseBands } from '../../services/audioPulse';
+import type { AudioPulseBands } from './audioPulse';
 
 export interface PulseState {
   readonly beat: number;

@@ -17,6 +17,7 @@ const FOCUS_LYRIC_LINE_SPACING_KEY = 'la_focus_lyric_line_spacing';
 const FOCUS_INACTIVE_LYRIC_BLUR_KEY = 'la_focus_inactive_lyric_blur';
 const FOCUS_AMLL_LYRICS_ENABLED_KEY = 'la_focus_amll_lyrics_enabled';
 const FOCUS_ENHANCED_FONT_ENABLED_KEY = 'la_focus_enhanced_font_enabled';
+const FOCUS_AMLL_BACKGROUND_ENABLED_KEY = 'la_focus_amll_background_enabled';
 
 /** Which online music source is active in Browse/Search. Mirrors `OnlineSource` in onlineMusicProvider. */
 export type OnlineSource = OnlineMusicSource;
@@ -41,6 +42,7 @@ class SettingsManager {
   private focusInactiveLyricBlur: number = 2;
   private focusAmlLyricsEnabled: boolean = true;
   private focusEnhancedFontEnabled = false;
+  private focusAmllBackgroundEnabled = false;
   private focusAmlLyricsDurableValue: boolean = true;
   private focusAmlLyricsPersistenceQueue: Promise<void> = Promise.resolve();
   private listeners: Set<Listener> = new Set();
@@ -66,6 +68,7 @@ class SettingsManager {
       this.focusInactiveLyricBlur = 2;
       this.focusAmlLyricsEnabled = true;
       this.focusEnhancedFontEnabled = false;
+      this.focusAmllBackgroundEnabled = false;
       this.focusAmlLyricsDurableValue = true;
 
       this.downloadPath = appStorage.getItem(DOWNLOAD_PATH_KEY) || '';
@@ -127,6 +130,7 @@ class SettingsManager {
       }
       this.focusAmlLyricsDurableValue = this.focusAmlLyricsEnabled;
       this.focusEnhancedFontEnabled = appStorage.getItem(FOCUS_ENHANCED_FONT_ENABLED_KEY) === 'true';
+      this.focusAmllBackgroundEnabled = appStorage.getItem(FOCUS_AMLL_BACKGROUND_ENABLED_KEY) === 'true';
     } catch (error) {
       logger.error('[SettingsManager] Failed to load from settings store:', error);
     }
@@ -319,6 +323,22 @@ class SettingsManager {
     this.focusEnhancedFontEnabled = enabled;
     const persisted = this.persistSetting(FOCUS_ENHANCED_FONT_ENABLED_KEY, String(enabled), () => {
       this.focusEnhancedFontEnabled = previous;
+    });
+    this.notify();
+    return persisted;
+  }
+
+  // --- Focus Mode Background: the classic blurred cover, or AMLL's flowing mesh gradient ---
+
+  getFocusAmllBackgroundEnabled(): boolean {
+    return this.focusAmllBackgroundEnabled;
+  }
+
+  setFocusAmllBackgroundEnabled(enabled: boolean): Promise<boolean> {
+    const previous = this.focusAmllBackgroundEnabled;
+    this.focusAmllBackgroundEnabled = enabled;
+    const persisted = this.persistSetting(FOCUS_AMLL_BACKGROUND_ENABLED_KEY, String(enabled), () => {
+      this.focusAmllBackgroundEnabled = previous;
     });
     this.notify();
     return persisted;

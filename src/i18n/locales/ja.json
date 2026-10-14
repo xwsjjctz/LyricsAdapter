@@ -204,6 +204,8 @@
   "common.unknownAlbum": "不明なアルバム",
   "settings.qqMusicEnabled": "サードパーティ音源を追加",
   "settings.focusBgBlurRadius": "Focus Mode の背景ぼかし",
+  "settings.focusAmllBackground": "流れる背景",
+  "settings.focusAmllBackgroundDesc": "Apple Music 風の流れるグラデーション背景を使い、ビートに合わせて脈動させます。オフにすると従来のぼかしたカバー背景に戻ります。",
   "settings.focusLyricsFontSize": "Focus Mode の歌詞サイズ",
   "settings.focusLyricLineSpacing": "スクロール歌詞の行間",
   "settings.focusEnhancedFontEnabled": "新しい FocusMode フォント",

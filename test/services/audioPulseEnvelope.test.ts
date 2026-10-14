@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState } from '@/components/wall/nowPlayingPulse';
-import { paletteFromPixels } from '@/services/coverPalette';
+import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState } from '@/services/audioPulseEnvelope';
 
 const FRAME = 1 / 60;
 
@@ -44,20 +43,5 @@ describe('stepSpring', () => {
     expect(peak).toBeGreaterThan(1.05);
     expect(peak).toBeLessThan(1.4);
     expect(spring.value).toBeCloseTo(1, 2);
-  });
-});
-
-describe('paletteFromPixels', () => {
-  const pixels = (rgb: [number, number, number], count = 16) =>
-    new Uint8ClampedArray(Array.from({ length: count }, () => [...rgb, 255]).flat());
-
-  it('lifts a single cover hue into a four-colour glow', () => {
-    const palette = paletteFromPixels(pixels([200, 20, 20]));
-    expect(palette).toHaveLength(4);
-    expect(palette?.[0]).toBe('hsl(0 88% 64%)');
-  });
-
-  it('returns null for a greyscale cover so the theme accent is used', () => {
-    expect(paletteFromPixels(pixels([128, 128, 128]))).toBeNull();
   });
 });

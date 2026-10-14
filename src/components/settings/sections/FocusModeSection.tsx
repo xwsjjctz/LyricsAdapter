@@ -10,6 +10,7 @@ const BG_OPACITY_PERSIST_DELAY_MS = 500;
 
 const readBgBlurTrans = () => settingsManager.getBgBlurTrans();
 const readBlurRadius = () => settingsManager.getFocusBgBlurRadius();
+const readAmllBackground = () => settingsManager.getFocusAmllBackgroundEnabled();
 const readFontSize = () => settingsManager.getFocusLyricsFontSize();
 const readLineSpacing = () => settingsManager.getFocusLyricLineSpacing();
 const readEnhancedFont = () => settingsManager.getFocusEnhancedFontEnabled();
@@ -54,6 +55,7 @@ export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
   const { colors } = theme;
   const storedOpacity = useSettingValue(readBgBlurTrans);
   const blurRadius = useSettingValue(readBlurRadius);
+  const amllBackground = useSettingValue(readAmllBackground);
   const fontSize = useSettingValue(readFontSize);
   const lineSpacing = useSettingValue(readLineSpacing);
   const enhancedFont = useSettingValue(readEnhancedFont);
@@ -70,6 +72,17 @@ export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
 
   return (
     <div className="settings-card r-card border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
+      <div className="settings-row" style={{ borderColor: colors.borderLight }}>
+        <div className="min-w-0">
+          <div className="settings-row__label" style={{ color: colors.textSecondary }}>{t('settings.focusAmllBackground')}</div>
+          <div id="focus-amll-background-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>
+            {t('settings.focusAmllBackgroundDesc')}
+          </div>
+        </div>
+        <Switch checked={amllBackground} label={t('settings.focusAmllBackground')}
+          describedBy="focus-amll-background-description"
+          onChange={enabled => { void settingsManager.setFocusAmllBackgroundEnabled(enabled); }} />
+      </div>
       <RangeRow theme={theme} label={t('settings.bgBlurTrans')} value={opacity} min={0} max={1} step={0.01}
         display={opacity.toFixed(2)}
         onChange={value => {
@@ -77,8 +90,11 @@ export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
           const preview = (window as unknown as { bg_blur_trans?: (value: number) => void }).bg_blur_trans;
           if (typeof preview === 'function') preview(value);
         }} />
-      <RangeRow theme={theme} label={t('settings.focusBgBlurRadius')} value={blurRadius} min={40} max={80} step={1}
-        display={`${blurRadius}px`} onChange={value => { void settingsManager.setFocusBgBlurRadius(value); }} />
+      {/* The mesh gradient has no blur radius; it only applies to the classic cover. */}
+      {!amllBackground && (
+        <RangeRow theme={theme} label={t('settings.focusBgBlurRadius')} value={blurRadius} min={40} max={80} step={1}
+          display={`${blurRadius}px`} onChange={value => { void settingsManager.setFocusBgBlurRadius(value); }} />
+      )}
       <RangeRow theme={theme} label={t('settings.focusLyricsFontSize')} value={fontSize} min={24} max={40} step={1}
         display={`${fontSize}px`} onChange={value => { void settingsManager.setFocusLyricsFontSize(value); }} />
       <RangeRow theme={theme} label={t('settings.focusLyricLineSpacing')} value={lineSpacing} min={12} max={48} step={1}

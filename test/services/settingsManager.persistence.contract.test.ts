@@ -98,6 +98,21 @@ describe('SettingsManager persistence contract', () => {
     expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_enhanced_font_enabled', 'false');
   });
 
+  it('defaults the Focus background to the classic cover and restores saved values', async () => {
+    settingsManager.reload();
+    expect(settingsManager.getFocusAmllBackgroundEnabled()).toBe(false);
+    for (const value of ['true', 'false', 'invalid']) {
+      storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_background_enabled' ? value : null);
+      settingsManager.reload();
+      expect(settingsManager.getFocusAmllBackgroundEnabled()).toBe(value === 'true');
+    }
+    await expect(settingsManager.setFocusAmllBackgroundEnabled(true)).resolves.toBe(true);
+    expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_amll_background_enabled', 'true');
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+    await expect(settingsManager.setFocusAmllBackgroundEnabled(false)).resolves.toBe(false);
+    expect(settingsManager.getFocusAmllBackgroundEnabled()).toBe(true);
+  });
+
   it('restores the displayed font preference when saving fails', async () => {
     settingsManager.reload();
     storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));

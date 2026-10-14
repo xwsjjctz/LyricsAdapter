@@ -204,6 +204,8 @@
   "common.unknownAlbum": "未知专辑",
   "settings.qqMusicEnabled": "添加第三方音源",
   "settings.focusBgBlurRadius": "Focus Mode 背景模糊",
+  "settings.focusAmllBackground": "动态流光背景",
+  "settings.focusAmllBackgroundDesc": "使用 Apple Music 风格的流动渐变背景，并随音乐鼓点律动；关闭则使用原有的模糊封面背景。",
   "settings.focusLyricsFontSize": "Focus Mode 滚动歌词字号",
   "settings.focusLyricLineSpacing": "滚动歌词行间距",
   "settings.focusEnhancedFontEnabled": "新版 FocusMode 字体",
