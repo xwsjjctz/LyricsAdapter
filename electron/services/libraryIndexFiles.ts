@@ -22,10 +22,6 @@ export function legacyLibraryPath(): string {
   return resolveUserDataPath('library.json');
 }
 
-export function localBackupPath(): string {
-  return resolveUserDataPath('library-local-backup.json');
-}
-
 // Migrate the legacy `library.json` shape into the `library-index.json` shape:
 // normalises each song record, drops blob:/data: cover URLs, and ensures
 // settings exist. Defined once here so both IPC layers agree on the mapping.
@@ -77,32 +73,6 @@ export async function doSaveLibraryIndex(library: unknown): Promise<IpcResult<vo
     return { ok: true, data: undefined };
   } catch (error) {
     logger.error('[Library] save library index failed:', error);
-    return { ok: false, error: (error as Error).message };
-  }
-}
-
-export async function doSaveLocalBackup(library: unknown): Promise<IpcResult<void>> {
-  try {
-    writeJsonAtomic(localBackupPath(), library);
-    logger.info('[IPC] Local library backup saved');
-    return { ok: true, data: undefined };
-  } catch (error) {
-    logger.error('[Library] save local backup failed:', error);
-    return { ok: false, error: (error as Error).message };
-  }
-}
-
-export async function doLoadLocalBackup(): Promise<IpcResult<unknown>> {
-  try {
-    const backupPath = localBackupPath();
-    if (fs.existsSync(backupPath)) {
-      const library = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
-      logger.info('[IPC] Local library backup loaded');
-      return { ok: true, data: library };
-    }
-    return { ok: true, data: null };
-  } catch (error) {
-    logger.error('[Library] load local backup failed:', error);
     return { ok: false, error: (error as Error).message };
   }
 }

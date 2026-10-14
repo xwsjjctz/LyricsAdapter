@@ -11,7 +11,6 @@ import { registerAudioProtocol } from './protocols/audioProtocol';
 import { registerStreamProtocol } from './protocols/streamProtocol';
 import { registerAllSchemes, registerAppProtocolHandler } from './protocols/appProtocol';
 import { registerFileHandlers } from './ipc/fileHandlers';
-import { registerLibraryHandlers } from './ipc/libraryHandlers';
 import { registerCoverHandlers } from './ipc/coverHandlers';
 import { registerWindowControls } from './ipc/windowHandlers';
 import { registerMusicPluginHandlers } from './ipc/musicPluginHandlers';
@@ -135,7 +134,6 @@ app.whenReady().then(async () => {
   // at module import time in index.tsx).
   registerTypedIpcHandlers();
   registerFileHandlers();
-  registerLibraryHandlers();
   registerCoverHandlers();
   registerDownloadHandlers();
   registerMetadataHandlers();

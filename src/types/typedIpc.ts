@@ -119,9 +119,6 @@ export interface TypedElectronIPC {
     getRedirect: (payload: { url: string; authHeader: string }) => Promise<IpcResult<{ redirectUrl?: string; status: number }>>;
     mkcol: (payload: { url: string; authHeader: string }) => Promise<IpcResult<{ status: number }>>;
   };
-  download: {
-    audio: (payload: { url: string; cookieString: string }) => Promise<IpcResult<{ data: ArrayBuffer }>>;
-  };
   settings: {
     onChanged?: (callback: (entries: Record<string, string | null>, replaced: boolean) => void) => () => void;
     get: (key: string) => Promise<IpcResult<string | undefined>>;
@@ -133,10 +130,7 @@ export interface TypedElectronIPC {
   };
   userData: {
     load: () => Promise<IpcResult<UserDataSnapshot>>;
-    save: (data: UserDataSnapshot) => Promise<IpcResult<void>>;
-    saveTracks: (tracks: unknown[]) => Promise<IpcResult<void>>;
     saveLibraryState: (tracks: unknown[], playback: Record<string, string>) => Promise<IpcResult<void>>;
-    getFilePath: () => Promise<IpcResult<string>>;
   };
   persistence: {
     loadBootstrap: () => Promise<IpcResult<PersistenceBootstrap>>;

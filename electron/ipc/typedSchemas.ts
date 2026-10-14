@@ -83,10 +83,6 @@ export const typedIpcSchemas = {
     url: httpUrlSchema,
     authHeader: z.string(),
   }),
-  downloadAudio: z.object({
-    url: httpUrlSchema,
-    cookieString: z.string(),
-  }),
   systemLyricsState: z.object({
     trackId: z.string().max(4096).nullable(),
     coverUrl: systemLyricsCoverUrlSchema,
@@ -107,12 +103,6 @@ export const typedIpcSchemas = {
   }),
   settingsEntries: z.object({
     entries: stringRecordSchema,
-  }),
-  userDataSave: z.object({
-    data: userDataSnapshotSchema,
-  }),
-  userDataTracks: z.object({
-    tracks: z.array(userTrackRecordSchema),
   }),
   userDataLibraryState: z.object({
     tracks: z.array(userTrackRecordSchema),

@@ -15,7 +15,6 @@ interface TestBridge {
   qqLoginRefresh(credential: QQCredential, cookie: string): Promise<{
     success: boolean; error?: string; credential?: QQCredential; cookie?: string;
   }>;
-  settingsGet(key: string): Promise<string | undefined>;
   ipc: Pick<TypedElectronIPC, 'settings'>;
 }
 
@@ -114,10 +113,11 @@ test('QQ refresh rotates OAuth fields through IPC and respects encrypted persist
     await app.close(); app = undefined;
     app = await launch();
     page = await app.firstWindow();
-    await page.waitForFunction(() => Boolean((window as unknown as { electron?: TestBridge }).electron?.settingsGet));
+    await page.waitForFunction(() => Boolean((window as unknown as { electron?: TestBridge }).electron?.ipc?.settings?.get));
     const persisted = await page.evaluate(async ({ credentialKey, cookieKey }) => {
       const api = (window as unknown as { electron: TestBridge }).electron;
-      return { credential: await api.settingsGet(credentialKey), cookie: await api.settingsGet(cookieKey) };
+      const read = async (key: string) => { const result = await api.ipc.settings.get(key); return result.ok ? result.data : undefined; };
+      return { credential: await read(credentialKey), cookie: await read(cookieKey) };
     }, { credentialKey, cookieKey });
     expect(persisted).toEqual(encryptionAvailable
       ? { credential: entries[credentialKey], cookie: entries[cookieKey] }

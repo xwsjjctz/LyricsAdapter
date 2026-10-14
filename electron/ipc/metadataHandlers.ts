@@ -40,17 +40,6 @@ export function registerMetadataHandlers(): void {
       return { success: false, error: (error as Error).message };
     }
   });
-
-  // ── Refresh metadata (now uses music-tag-native, same as read-audio-metadata) ──
-  ipcMain.handle('refresh-track-metadata', async (_event, filePath: string) => {
-    try {
-      const metadata = await readAudioMetadata(filePath);
-      return { success: true, metadata };
-    } catch (error) {
-      logger.error('[Main] Refresh metadata failed:', error);
-      return { success: false, error: (error as Error).message };
-    }
-  });
 }
 
 /**

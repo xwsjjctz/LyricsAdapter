@@ -64,12 +64,21 @@
 - `components → services` 共 82 处。其中 logger、i18n 等调用是合理的，一刀切禁止会误伤。等 store 引入后再细化为“components 不得调用会修改状态的 service”。
 - `stores → hooks`。现在的 store 本质上是组合 hook，等第 4 步引入真正的 store 后再定规则。
 
-### 2. 下线旧 IPC
+### 2. 下线旧 IPC（已完成）
 
-- [ ] `libraryPersistenceRepository.ts` 改用 `ipc.settings.getAll` 和 `ipc.userData.load`。
-- [ ] `pluginTranslationStore.ts` 改用 `ipc.settings.get` 和 `ipc.settings.set`。
-- [ ] 删除 `preload.ts` 中的 `settings*` 和 `userData*` 旧方法，以及 `settingsHandlers.ts`、`userDataHandlers.ts` 中对应的旧 handler，同步更新 `DesktopAPI` 类型和测试。
-- [ ] 盘点下载、WebDAV 的旧通道，按同样方式处理。
+- [x] adapter 的 `settings*`、`userData*`、`persistence*` 只走 typed `ipc.*`，删除对旧 preload 的回退和“原始值兼容”分支；收到非 `IpcResult` 的回复直接拒绝。`libraryPersistenceRepository` 通过 adapter 调用，无需改动。
+- [x] `pluginTranslationStore` 已在第 1 步改走 `ipc.settings`。
+- [x] 删除 preload 的 `settings*`、`userData*` 平铺方法，以及主进程 `settings:*`、`userData:*` 原始通道。
+- [x] 删除无调用方的 typed 通道：`ipc:userData:save`、`ipc:userData:saveTracks`、`ipc:userData:getFilePath`、`ipc:download:audio`。
+- [x] 删除无调用方的旧通道：`check-file-exists`、`save-local-library-backup`/`load-local-library-backup`（连同 `libraryHandlers.ts`）、`save-audio-file`、`save-audio-file-from-buffer`、`delete-audio-file`、`cleanup-orphan-audio`、`refresh-track-metadata`、`cleanup-orphan-covers`、`download-audio-file`、`save-file-to-path`，以及插件兼容别名 `qq-music-request`、`get-qq-music-url`、`get-qq-music-lyrics`、`netease-request`。其中多个是可写任意路径或删除文件的通道，删除同时缩小了攻击面。
+- [x] 同步更新 `DesktopAPI`、`OnlineMusicElectronAPI`、`TypedElectronIPC` 类型、单元测试和 e2e 用例。
+
+剩余的非 typed 通道（窗口控制、插件管理、扫码登录、元数据读写、封面、下载、更新）每个能力只有一条通道，不再是“双轨”。统一契约的工作见第 2b 步。
+
+### 2b. 单一 IPC 契约
+
+- [ ] 在 `src/shared` 定义通道契约表（通道名 → 请求、响应类型），preload 的 `invoke` 与主进程的 `handle` 都从同一张表取类型，消除手工对齐。
+- [ ] `updater.ts` 与 adapter 的 `UpdaterState` 改为共享同一个类型。
 
 ### 3. 插件更新安全
 

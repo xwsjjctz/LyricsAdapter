@@ -26,30 +26,6 @@ import type { OnlineSource, OnlineMusicProvider } from '../shared/onlineMusic';
  * and NetEase renderer clients share one declaration.
  */
 export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
-  getQQMusicUrl?: (reqData: Record<string, unknown>, cookie: string) => Promise<unknown>;
-  qqMusicRequest?: (options: {
-    url: string;
-    method?: 'GET' | 'POST';
-    headers?: Record<string, string>;
-    body?: string;
-    cookie?: string;
-  }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-  getQQMusicLyrics?: (
-    songmid: string,
-    cookie: string
-  ) => Promise<{
-    success: boolean;
-    lyrics?: string;
-    wordLyrics?: string;
-    wordLyricsFormat?: 'qrc';
-    error?: string;
-  }>;
-  /** Generic NetEase weapi request (encryption handled in main process). */
-  neteaseRequest?: (
-    channel: string,
-    params: Record<string, unknown>,
-    cookie?: string
-  ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
   /** QQ Music QR login — start a session, returns a PNG data URL + session token. */
   qqLoginQrStart?: () => Promise<{
     success: boolean;
@@ -95,21 +71,12 @@ export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
   }>;
   /** Push a QQ / NetEase cookie to main-process memory for the streaming proxy. */
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
-  downloadAudioFile?: (
-    url: string,
-    cookie: string
-  ) => Promise<{ success: boolean; data?: number[] | ArrayBuffer; error?: string }>;
   downloadAndSave?: (
     url: string,
     cookie: string,
     filePath: string,
     requestId?: string
   ) => Promise<{ success: boolean; filePath?: string; size?: number; error?: string }>;
-  saveFileToPath?: (
-    dirPath: string,
-    fileName: string,
-    fileData: ArrayBuffer
-  ) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   writeAudioMetadata?: (
     filePath: string,
     metadata: {

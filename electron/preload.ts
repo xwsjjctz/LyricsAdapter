@@ -123,9 +123,6 @@ const typedIpc = {
     getRedirect: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:getRedirect', payload),
     mkcol: async (payload: { url: string; authHeader: string }) => ipcRenderer.invoke('ipc:webdav:mkcol', payload),
   },
-  download: {
-    audio: async (payload: { url: string; cookieString: string }) => ipcRenderer.invoke('ipc:download:audio', payload),
-  },
   settings: {
     onChanged: (callback: (entries: Record<string, string | null>, replaced: boolean) => void) => {
       const handler = (_event: unknown, entries: Record<string, string | null>, replaced: boolean) => callback(entries, replaced);
@@ -141,12 +138,9 @@ const typedIpc = {
   },
   userData: {
     load: async () => ipcRenderer.invoke('ipc:userData:load'),
-    save: async (data) => ipcRenderer.invoke('ipc:userData:save', { data }),
-    saveTracks: async (tracks: unknown[]) => ipcRenderer.invoke('ipc:userData:saveTracks', { tracks }),
     saveLibraryState: async (tracks: unknown[], playback: Record<string, string>) => (
       ipcRenderer.invoke('ipc:userData:saveLibraryState', { tracks, playback })
     ),
-    getFilePath: async () => ipcRenderer.invoke('ipc:userData:getFilePath'),
   },
   persistence: {
     loadBootstrap: async () => ipcRenderer.invoke('ipc:persistence:loadBootstrap'),
@@ -191,24 +185,9 @@ contextBridge.exposeInMainWorld('electron', {
 
   ipc: typedIpc,
 
-  // Check if file exists
-  checkFileExists: async (filePath: string) => {
-    return ipcRenderer.invoke('check-file-exists', filePath);
-  },
-
   // Get app data directory path
   getAppDataPath: async () => {
     return ipcRenderer.invoke('get-app-data-path');
-  },
-
-  // Save local library backup (before switching to cloud)
-  saveLocalLibraryBackup: async (library: any) => {
-    return ipcRenderer.invoke('save-local-library-backup', library);
-  },
-
-  // Load local library backup (when switching back to local)
-  loadLocalLibraryBackup: async () => {
-    return ipcRenderer.invoke('load-local-library-backup');
   },
 
   // Validate single file path
@@ -219,26 +198,6 @@ contextBridge.exposeInMainWorld('electron', {
   // Validate all file paths
   validateAllPaths: async (songs: any[]) => {
     return ipcRenderer.invoke('validate-all-paths', songs);
-  },
-
-  // Save audio file to userData directory (using hard link)
-  saveAudioFile: async (sourcePath: string, fileName: string) => {
-    return ipcRenderer.invoke('save-audio-file', sourcePath, fileName);
-  },
-
-  // Save audio file from buffer (for web input imports)
-  saveAudioFileFromBuffer: async (fileName: string, fileData: ArrayBuffer) => {
-    return ipcRenderer.invoke('save-audio-file-from-buffer', fileName, fileData);
-  },
-
-  // Delete audio file (symlink) from userData directory
-  deleteAudioFile: async (filePath: string) => {
-    return ipcRenderer.invoke('delete-audio-file', filePath);
-  },
-
-  // Cleanup orphaned audio files (Electron only)
-  cleanupOrphanAudio: async (keepPaths: string[]) => {
-    return ipcRenderer.invoke('cleanup-orphan-audio', keepPaths);
   },
 
   // Save cover thumbnail to disk
@@ -299,11 +258,6 @@ contextBridge.exposeInMainWorld('electron', {
     return filePath;
   },
 
-  // Download audio file from URL with cookies (for QQ Music download)
-  downloadAudioFile: async (url: string, cookieString: string) => {
-    return ipcRenderer.invoke('download-audio-file', url, cookieString);
-  },
-
   musicPluginCall: (id: string, method: string, args: unknown[]) => ipcRenderer.invoke('music-plugin-call', id, method, args),
   pluginHostInfo: () => ipcRenderer.invoke('plugin-host-info'),
   pluginUpdateList: () => ipcRenderer.invoke('plugin-update-list'),
@@ -337,32 +291,6 @@ contextBridge.exposeInMainWorld('electron', {
     const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id);
     ipcRenderer.on('music-plugin-secrets-changed', listener);
     return () => ipcRenderer.removeListener('music-plugin-secrets-changed', listener);
-  },
-
-  // Get music URL from QQ Music API (via main process)
-  getQQMusicUrl: async (requestData: any, cookieString: string) => {
-    return ipcRenderer.invoke('get-qq-music-url', requestData, cookieString);
-  },
-
-  // Generic QQ Music API request (via main process, avoids renderer CORS/cookie limits)
-  qqMusicRequest: async (options: {
-    url: string;
-    method?: 'GET' | 'POST';
-    headers?: Record<string, string>;
-    body?: string;
-    cookie?: string;
-  }) => {
-    return ipcRenderer.invoke('qq-music-request', options);
-  },
-
-  // Get lyrics from QQ Music API (via main process, avoids CORS)
-  getQQMusicLyrics: async (songmid: string, cookieString: string) => {
-    return ipcRenderer.invoke('get-qq-music-lyrics', songmid, cookieString);
-  },
-
-  // NetEase Cloud Music generic weapi request (encryption runs in main process)
-  neteaseRequest: async (channel: string, params: any, cookieString?: string) => {
-    return ipcRenderer.invoke('netease-request', channel, params, cookieString);
   },
 
   // QQ Music QR scan login (start session + poll)
@@ -407,11 +335,6 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('download-and-save', url, cookieString, filePath, requestId);
   },
 
-  // Save file to specified path
-  saveFileToPath: async (dirPath: string, fileName: string, fileData: ArrayBuffer) => {
-    return ipcRenderer.invoke('save-file-to-path', dirPath, fileName, fileData);
-  },
-
   // Read audio file metadata (music-tag-native)
   readAudioMetadata: async (filePath: string) => {
     return ipcRenderer.invoke('read-audio-metadata', filePath);
@@ -430,11 +353,6 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('write-audio-metadata', filePath, metadata);
   },
 
-  // Refresh metadata for a single track (legacy, use readAudioMetadata instead)
-  refreshTrackMetadata: async (filePath: string) => {
-    return ipcRenderer.invoke('refresh-track-metadata', filePath);
-  },
-
   // Shortcut events - listen for shortcuts from main process
   onShortcut: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => {
     const wrapped = (_event: unknown, data: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => callback(data);
@@ -448,45 +366,6 @@ contextBridge.exposeInMainWorld('electron', {
   // Run startup resource cleanup
   runStartupCleanup: async (activeTrackIds: string[]) => {
     return ipcRenderer.invoke('run-startup-cleanup', activeTrackIds);
-  },
-
-  // Cleanup orphan cover files (covers for tracks no longer in library)
-  cleanupOrphanCovers: async (activeTrackIds: string[]) => {
-    return ipcRenderer.invoke('cleanup-orphan-covers', activeTrackIds);
-  },
-
-  // ---- Settings store (IPC to main-process SQLite facade) ----
-  settingsGet: async (key: string) => {
-    return ipcRenderer.invoke('settings:get', key);
-  },
-  settingsGetAll: async () => {
-    return ipcRenderer.invoke('settings:getAll');
-  },
-  settingsSet: async (key: string, value: string) => {
-    return ipcRenderer.invoke('settings:set', key, value);
-  },
-  settingsSetMany: async (entries: Record<string, string>) => {
-    return ipcRenderer.invoke('settings:setMany', entries);
-  },
-  settingsDelete: async (key: string) => {
-    return ipcRenderer.invoke('settings:delete', key);
-  },
-  settingsReplaceAll: async (entries: Record<string, string>) => {
-    return ipcRenderer.invoke('settings:replaceAll', entries);
-  },
-
-  // ---- User Data Store (IPC to ~/.la/state.sqlite3) ----
-  userDataLoad: async () => {
-    return ipcRenderer.invoke('userData:load');
-  },
-  userDataSave: async (data: unknown) => {
-    return ipcRenderer.invoke('userData:save', data);
-  },
-  userDataSaveTracks: async (tracks: unknown[]) => {
-    return ipcRenderer.invoke('userData:saveTracks', tracks);
-  },
-  userDataGetFilePath: async () => {
-    return ipcRenderer.invoke('userData:getFilePath');
   },
 
   // ---- Auto-updater (electron-updater) ----

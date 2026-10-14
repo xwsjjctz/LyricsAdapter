@@ -26,8 +26,6 @@ export function registerSettingsHandlers(onChanged?: (keys: string[] | null, sen
     }
   };
 
-  // Versioned typed surface. Keep the raw settings:* channels below during the
-  // preload migration so older renderer bundles and dev HMR remain compatible.
   ipcMain.handle('ipc:settings:get', (_event, payload: unknown) => {
     const parsed = parsePayload(typedIpcSchemas.settingsGet, payload);
     if (!parsed.ok) return parsed;
@@ -70,29 +68,5 @@ export function registerSettingsHandlers(onChanged?: (keys: string[] | null, sen
     return persist(() => settingsStore.replaceAll(parsed.data.entries), null, _event.sender.id);
   });
 
-  ipcMain.handle('settings:get', (_event, key: string): string | undefined => {
-    return settingsStore.get(key);
-  });
-
-  ipcMain.handle('settings:getAll', (): Record<string, string> => {
-    return settingsStore.getAll();
-  });
-
-  ipcMain.handle('settings:set', (_event, key: string, value: string): void => {
-    if (settingsStore.set(key, value)) onChanged?.([key], _event.sender.id);
-  });
-
-  ipcMain.handle('settings:setMany', (_event, entries: Record<string, string>): void => {
-    if (settingsStore.setMany(entries)) onChanged?.(Object.keys(entries), _event.sender.id);
-  });
-
-  ipcMain.handle('settings:delete', (_event, key: string): void => {
-    if (settingsStore.delete(key)) onChanged?.([key], _event.sender.id);
-  });
-
-  ipcMain.handle('settings:replaceAll', (_event, entries: Record<string, string>): void => {
-    if (settingsStore.replaceAll(entries)) onChanged?.(null, _event.sender.id);
-  });
-
-  logger.info('[SettingsHandlers] Registered typed + legacy channels (store path: ' + settingsStore.getDirectoryPath() + ')');
+  logger.info('[SettingsHandlers] Registered typed channels (store path: ' + settingsStore.getDirectoryPath() + ')');
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { persistenceBootstrapSchema, typedIpcSchemas } from '../../../electron/ipc/typedSchemas';
+import { persistenceBootstrapSchema, typedIpcSchemas, userDataSnapshotSchema } from '../../../electron/ipc/typedSchemas';
 
 describe('typedIpcSchemas', () => {
   it('bounds system lyrics payloads passed to system surfaces', () => {
@@ -123,38 +123,33 @@ describe('typedIpcSchemas', () => {
     expect(typedIpcSchemas.settingsEntries.safeParse({ entries: { valid: 'string', invalid: 3 } }).success).toBe(false);
   });
 
-  it('validates the user-data persistence envelope', () => {
-    const valid = typedIpcSchemas.userDataSave.safeParse({
-      data: {
-        schemaVersion: 1,
-        libraryInitialized: true,
-        tracks: [{ id: 'track-1', slotId: 'local', filePath: '/music/song.flac' }],
-        settings: { 'app-theme': 'default-dark' },
-        playback: { _json: '{}' },
-      },
+  it('validates the user-data snapshot and library-state envelope', () => {
+    const valid = userDataSnapshotSchema.safeParse({
+      schemaVersion: 1,
+      libraryInitialized: true,
+      tracks: [{ id: 'track-1', slotId: 'local', filePath: '/music/song.flac' }],
+      settings: { 'app-theme': 'default-dark' },
+      playback: { _json: '{}' },
     });
-    const invalid = typedIpcSchemas.userDataSave.safeParse({
-      data: {
-        schemaVersion: 1,
-        libraryInitialized: true,
-        tracks: [{ slotId: 'local' }],
-        settings: {},
-        playback: {},
-      },
+    const invalid = userDataSnapshotSchema.safeParse({
+      schemaVersion: 1,
+      libraryInitialized: true,
+      tracks: [{ slotId: 'local' }],
+      settings: {},
+      playback: {},
     });
 
     expect(valid.success).toBe(true);
     expect(invalid.success).toBe(false);
-    expect(typedIpcSchemas.userDataSave.safeParse({ data: {} }).success).toBe(false);
-    expect(typedIpcSchemas.userDataSave.safeParse({
-      data: {
-        schemaVersion: 2,
-        libraryInitialized: true,
-        tracks: [],
-        settings: {},
-        playback: {},
-      },
+    expect(userDataSnapshotSchema.safeParse({}).success).toBe(false);
+    expect(userDataSnapshotSchema.safeParse({
+      schemaVersion: 2,
+      libraryInitialized: true,
+      tracks: [],
+      settings: {},
+      playback: {},
     }).success).toBe(false);
+    expect(typedIpcSchemas.userDataLibraryState.safeParse({ tracks: [{ slotId: 'local' }], playback: {} }).success).toBe(false);
   });
 
   it('validates each persistence bootstrap source independently', () => {

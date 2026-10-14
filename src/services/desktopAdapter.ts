@@ -19,7 +19,6 @@ import type { MusicPluginInfo, MusicPluginCatalogEntry } from '../shared/musicPl
 import type { ExtensionType, PluginHostInfo, PluginProviderInfo, PluginTranslationCall, TranslationResult } from '../shared/plugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '../shared/pluginUpdate';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
-import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
 import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';
@@ -28,23 +27,13 @@ import type { DownloadProgressEvent } from '../types/onlineProgress';
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
 type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
 
-function isIpcResult<T>(value: unknown): value is IpcResult<T> {
-  return typeof value === 'object'
-    && value !== null
-    && typeof (value as { ok?: unknown }).ok === 'boolean';
-}
-
-/** Transitional unwrap for one release while stale preload bundles may return raw values. */
-function unwrapIpcRead<T>(value: unknown): T {
-  if (!isIpcResult<T>(value)) return value as T;
-  if (!value.ok) throw new Error(value.error);
-  return value.data;
-}
-
-function assertIpcWrite(value: unknown, operation: string): void {
-  if (isIpcResult<void>(value) && !value.ok) {
-    throw new Error(`${operation}: ${value.error}`);
+/** Unwraps a typed IPC result; a failed result or a malformed reply rejects. */
+function unwrapIpcResult<T>(value: IpcResult<T>, operation: string): T {
+  if (typeof value !== 'object' || value === null || typeof value.ok !== 'boolean') {
+    throw new Error(`${operation}: malformed IPC response`);
   }
+  if (!value.ok) throw new Error(`${operation}: ${value.error}`);
+  return value.data;
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -52,10 +41,6 @@ function isStringRecord(value: unknown): value is Record<string, string> {
     && value !== null
     && !Array.isArray(value)
     && Object.values(value).every(entry => typeof entry === 'string');
-}
-
-function normalizeUserDataSnapshot(value: unknown): UserDataSnapshot | null {
-  return normalizeStoredUserDataSnapshot(value);
 }
 
 /** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
@@ -94,27 +79,18 @@ export interface DesktopAPI {
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
   loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibraryIndex: (library: unknown) => Promise<{ success: boolean; error?: string }>;
-  saveLocalLibraryBackup?: (library: unknown) => Promise<{ success: boolean; error?: string }>;
-  loadLocalLibraryBackup?: () => Promise<{ success: boolean; library: unknown | null; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
   validateAllPaths: (songs: unknown[]) => Promise<{ success: boolean; results: unknown[]; error?: string }>;
-  saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-  saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-  deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
-  cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
   saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
   deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
   getAppDataPath: () => Promise<string | null>;
   loadMetadataCache: () => Promise<{ entries: Record<string, unknown> }>;
   saveMetadataCache: (cache: { entries: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
-  getMetadataForSong: (songId: string) => Promise<unknown>;
   /** Read audio metadata using music-tag-native (main process). */
   readAudioMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   /** Legacy renderer-side audio metadata parsing. */
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined; wordLyrics?: string | undefined; wordLyricsFormat?: 'qrc' | 'yrc' | undefined }) => Promise<{ success: boolean; error?: string }>;
-  /** @deprecated use readAudioMetadata */
-  refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
   getPathForFile?: (file: File) => string;
   // Window control APIs
   minimizeWindow?: () => void;
@@ -138,7 +114,6 @@ export interface DesktopAPI {
   /** MKCOL 创建集合（目录），幂等。返回 success 与 HTTP status（201/2xx/405 视为已就绪）。 */
   webdavMkcol: (url: string, authHeader: string) => Promise<{ success: boolean; status?: number; error?: string }>;
   runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
-  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }>;
   // Auto-updater APIs
   checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall?: () => Promise<{ ok: boolean }>;
@@ -157,17 +132,14 @@ export interface DesktopAPI {
   settingsSetMany?: (entries: Record<string, string>) => Promise<void>;
   settingsDelete?: (key: string) => Promise<void>;
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
-  // Aggregate persistence bootstrap (new typed IPC; optional for stale preload compatibility)
+  // Aggregate persistence bootstrap and close commit (typed IPC)
   persistenceLoadBootstrap?: () => Promise<PersistenceBootstrap>;
   persistenceCommitClose?: (
     request: PersistenceCloseCommitRequest,
   ) => Promise<PersistenceCloseCommitResult>;
   // User data store (~/.la/state.sqlite3)
   userDataLoad?: () => Promise<UserDataSnapshot>;
-  userDataSave?: (data: UserDataSnapshot) => Promise<void>;
-  userDataSaveTracks?: (tracks: unknown[]) => Promise<void>;
   userDataSaveLibraryState?: (tracks: unknown[], playback: Record<string, string>) => Promise<void>;
-  userDataGetFilePath?: () => Promise<string>;
 }
 
 class ElectronAdapter implements FullDesktopAPI {
@@ -218,44 +190,12 @@ class ElectronAdapter implements FullDesktopAPI {
     return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
-  async saveLocalLibraryBackup(library: any): Promise<{ success: boolean; error?: string }> {
-    if (typeof this.api.saveLocalLibraryBackup === 'function') {
-      return this.api.saveLocalLibraryBackup(library);
-    }
-    logger.warn('[DesktopAPI] saveLocalLibraryBackup not available');
-    return { success: false, error: 'Not available' };
-  }
-
-  async loadLocalLibraryBackup(): Promise<{ success: boolean; library: any; error?: string }> {
-    if (typeof this.api.loadLocalLibraryBackup === 'function') {
-      return this.api.loadLocalLibraryBackup();
-    }
-    logger.warn('[DesktopAPI] loadLocalLibraryBackup not available');
-    return { success: false, library: null, error: 'Not available' };
-  }
-
   async validateFilePath(filePath: string): Promise<boolean> {
     return this.api.validateFilePath(filePath);
   }
 
   async validateAllPaths(songs: any[]): Promise<{ success: boolean; results: any[]; error?: string }> {
     return this.api.validateAllPaths(songs);
-  }
-
-  async saveAudioFile(sourcePath: string, fileName: string): Promise<{ success: boolean; filePath?: string; method?: string; error?: string }> {
-    return this.api.saveAudioFile(sourcePath, fileName);
-  }
-
-  async saveAudioFileFromBuffer(fileName: string, fileData: ArrayBuffer): Promise<{ success: boolean; filePath?: string; method?: string; error?: string }> {
-    return this.api.saveAudioFileFromBuffer(fileName, fileData);
-  }
-
-  async deleteAudioFile(filePath: string): Promise<{ success: boolean; deleted?: boolean; error?: string }> {
-    return this.api.deleteAudioFile(filePath);
-  }
-
-  async cleanupOrphanAudio(keepPaths: string[]): Promise<{ success: boolean; removed?: number; error?: string }> {
-    return this.api.cleanupOrphanAudio(keepPaths);
   }
 
   async saveCoverThumbnail(payload: { id: string; data: string; mime: string }): Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }> {
@@ -285,11 +225,6 @@ class ElectronAdapter implements FullDesktopAPI {
     // Update local cache only (persistence is handled by metadataCacheService via IndexedDB)
     this.metadataCache = validateMetadataMap(cache.entries);
     return { success: true };
-  }
-
-  async getMetadataForSong(songId: string): Promise<unknown> {
-    // Return from in-memory cache
-    return this.metadataCache[songId] || null;
   }
 
   async parseAudioMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
@@ -370,13 +305,6 @@ class ElectronAdapter implements FullDesktopAPI {
       return this.api.writeAudioMetadata(filePath, metadata);
     }
     return { success: false, error: 'writeAudioMetadata not available' };
-  }
-
-  async refreshTrackMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
-    if (typeof this.api.refreshTrackMetadata === 'function') {
-      return this.api.refreshTrackMetadata(filePath);
-    }
-    return { success: false, error: 'refreshTrackMetadata not available' };
   }
 
   // Window control methods
@@ -474,14 +402,6 @@ class ElectronAdapter implements FullDesktopAPI {
     return { success: false, error: 'Not available' };
   }
 
-  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }> {
-    if (typeof this.api.cleanupOrphanCovers === 'function') {
-      return this.api.cleanupOrphanCovers(activeTrackIds);
-    }
-    logger.warn('[DesktopAPI] cleanupOrphanCovers not available');
-    return { success: false, error: 'Not available', removed: 0, errors: 0, existingCoverIds: [] };
-  }
-
   async checkForUpdates(): Promise<{ ok: boolean; reason?: string }> {
     if (typeof this.api.checkForUpdates === 'function') {
       return this.api.checkForUpdates();
@@ -539,179 +459,64 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  // ---- Settings store (passthrough to main-process SQLite facade) ----
+  // ---- Settings store (typed IPC to the main-process SQLite facade) ----
+  private typed<K extends keyof TypedElectronIPC>(namespace: K, operation: string): NonNullable<TypedElectronIPC[K]> {
+    const surface = this.api.ipc?.[namespace];
+    if (!surface) throw new Error(`Desktop ${String(namespace)}.${operation} API is unavailable`);
+    return surface as NonNullable<TypedElectronIPC[K]>;
+  }
+
   async settingsGet(key: string): Promise<string | undefined> {
-    // Prefer typed IPC path, fall back to legacy top-level method
-    if (this.api.ipc?.settings?.get) {
-      const value = unwrapIpcRead<string | undefined>(await this.api.ipc.settings.get(key));
-      return typeof value === 'string' ? value : undefined;
-    }
-    if (typeof this.api.settingsGet === 'function') {
-      return this.api.settingsGet(key);
-    }
-    throw new Error('Desktop settings.get API is unavailable');
+    const value = unwrapIpcResult(await this.typed('settings', 'get').get(key), 'settings.get failed');
+    return typeof value === 'string' ? value : undefined;
   }
 
   async settingsGetAll(): Promise<Record<string, string>> {
-    if (this.api.ipc?.settings?.getAll) {
-      const value = unwrapIpcRead<unknown>(await this.api.ipc.settings.getAll());
-      if (!isStringRecord(value)) throw new Error('Invalid settings.getAll response');
-      return value;
-    }
-    if (typeof this.api.settingsGetAll === 'function') {
-      return this.api.settingsGetAll();
-    }
-    throw new Error('Desktop settings.getAll API is unavailable');
+    const value: unknown = unwrapIpcResult(await this.typed('settings', 'getAll').getAll(), 'settings.getAll failed');
+    if (!isStringRecord(value)) throw new Error('Invalid settings.getAll response');
+    return value;
   }
 
   async settingsSet(key: string, value: string): Promise<void> {
-    if (this.api.ipc?.settings?.set) {
-      assertIpcWrite(await this.api.ipc.settings.set(key, value), 'settings.set failed');
-      return;
-    }
-    if (typeof this.api.settingsSet === 'function') {
-      return this.api.settingsSet(key, value);
-    }
-    throw new Error('Desktop settings.set API is unavailable');
+    unwrapIpcResult(await this.typed('settings', 'set').set(key, value), 'settings.set failed');
   }
 
   async settingsDelete(key: string): Promise<void> {
-    if (this.api.ipc?.settings?.delete) {
-      assertIpcWrite(await this.api.ipc.settings.delete(key), 'settings.delete failed');
-      return;
-    }
-    if (typeof this.api.settingsDelete === 'function') {
-      return this.api.settingsDelete(key);
-    }
-    throw new Error('Desktop settings.delete API is unavailable');
+    unwrapIpcResult(await this.typed('settings', 'delete').delete(key), 'settings.delete failed');
   }
 
   async settingsSetMany(entries: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.settings?.setMany) {
-      assertIpcWrite(await this.api.ipc.settings.setMany(entries), 'settings.setMany failed');
-      return;
-    }
-    if (typeof this.api.settingsSetMany === 'function') {
-      return this.api.settingsSetMany(entries);
-    }
-    // Fallback: set individually
-    for (const [key, value] of Object.entries(entries)) {
-      await this.settingsSet(key, value);
-    }
+    unwrapIpcResult(await this.typed('settings', 'setMany').setMany(entries), 'settings.setMany failed');
   }
 
   async settingsReplaceAll(entries: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.settings?.replaceAll) {
-      assertIpcWrite(await this.api.ipc.settings.replaceAll(entries), 'settings.replaceAll failed');
-      return;
-    }
-    if (typeof this.api.settingsReplaceAll === 'function') {
-      return this.api.settingsReplaceAll(entries);
-    }
-    throw new Error('Desktop settings.replaceAll API is unavailable');
+    unwrapIpcResult(await this.typed('settings', 'replaceAll').replaceAll(entries), 'settings.replaceAll failed');
   }
 
   async persistenceLoadBootstrap(): Promise<PersistenceBootstrap> {
-    if (this.api.ipc?.persistence?.loadBootstrap) {
-      return unwrapIpcRead<PersistenceBootstrap>(await this.api.ipc.persistence.loadBootstrap());
-    }
-    if (typeof this.api.persistenceLoadBootstrap === 'function') {
-      return this.api.persistenceLoadBootstrap();
-    }
-    throw new Error('Desktop persistence.loadBootstrap API is unavailable');
+    return unwrapIpcResult(await this.typed('persistence', 'loadBootstrap').loadBootstrap(), 'persistence.loadBootstrap failed');
   }
 
   async persistenceCommitClose(
     request: PersistenceCloseCommitRequest,
   ): Promise<PersistenceCloseCommitResult> {
-    if (this.api.ipc?.persistence?.commitClose) {
-      return unwrapIpcRead<PersistenceCloseCommitResult>(
-        await this.api.ipc.persistence.commitClose(request),
-      );
-    }
-    if (typeof this.api.persistenceCommitClose === 'function') {
-      return this.api.persistenceCommitClose(request);
-    }
-    throw new Error('Desktop persistence.commitClose API is unavailable');
+    return unwrapIpcResult(await this.typed('persistence', 'commitClose').commitClose(request), 'persistence.commitClose failed');
   }
 
   // ---- User Data Store (~/.la/state.sqlite3) ----
 
   async userDataLoad(): Promise<UserDataSnapshot> {
-    if (this.api.ipc?.userData?.load) {
-      const value = unwrapIpcRead<unknown>(await this.api.ipc.userData.load());
-      const normalized = normalizeUserDataSnapshot(value);
-      if (!normalized) throw new Error('Invalid userData.load response');
-      return normalized;
-    }
-    if (typeof this.api.userDataLoad === 'function') {
-      const normalized = normalizeUserDataSnapshot(await this.api.userDataLoad());
-      if (!normalized) throw new Error('Invalid legacy userData.load response');
-      return normalized;
-    }
-    throw new Error('Desktop userData.load API is unavailable');
-  }
-
-  async userDataSave(data: UserDataSnapshot): Promise<void> {
-    if (this.api.ipc?.userData?.save) {
-      assertIpcWrite(await this.api.ipc.userData.save(data), 'userData.save failed');
-      return;
-    }
-    if (typeof this.api.userDataSave === 'function') {
-      return this.api.userDataSave(data);
-    }
-    throw new Error('Desktop userData.save API is unavailable');
-  }
-
-  async userDataSaveTracks(tracks: unknown[]): Promise<void> {
-    if (this.api.ipc?.userData?.saveTracks) {
-      assertIpcWrite(await this.api.ipc.userData.saveTracks(tracks), 'userData.saveTracks failed');
-      return;
-    }
-    if (typeof this.api.userDataSaveTracks === 'function') {
-      return this.api.userDataSaveTracks(tracks);
-    }
-    throw new Error('Desktop userData.saveTracks API is unavailable');
+    const value: unknown = unwrapIpcResult(await this.typed('userData', 'load').load(), 'userData.load failed');
+    const normalized = normalizeStoredUserDataSnapshot(value);
+    if (!normalized) throw new Error('Invalid userData.load response');
+    return normalized;
   }
 
   async userDataSaveLibraryState(tracks: unknown[], playback: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.userData?.saveLibraryState) {
-      assertIpcWrite(
-        await this.api.ipc.userData.saveLibraryState(tracks, playback),
-        'userData.saveLibraryState failed',
-      );
-      return;
-    }
-    if (typeof this.api.userDataSaveLibraryState === 'function') {
-      return this.api.userDataSaveLibraryState(tracks, playback);
-    }
-    // One-release compatibility with stale preloads: preserve settings by
-    // loading the existing snapshot before using the legacy full-save API.
-    if (typeof this.api.userDataLoad === 'function' && typeof this.api.userDataSave === 'function') {
-      const existing = normalizeUserDataSnapshot(await this.api.userDataLoad());
-      if (!existing) throw new Error('Invalid legacy userData.load response');
-      await this.api.userDataSave({
-        ...existing,
-        schemaVersion: USER_DATA_SCHEMA_VERSION,
-        libraryInitialized: true,
-        tracks,
-        playback,
-      });
-      return;
-    }
-    throw new Error('Desktop userData.saveLibraryState API is unavailable');
-  }
-
-  async userDataGetFilePath(): Promise<string> {
-    if (this.api.ipc?.userData?.getFilePath) {
-      const value = unwrapIpcRead<unknown>(await this.api.ipc.userData.getFilePath());
-      if (typeof value !== 'string') throw new Error('Invalid userData.getFilePath response');
-      return value;
-    }
-    if (typeof this.api.userDataGetFilePath === 'function') {
-      return this.api.userDataGetFilePath();
-    }
-    throw new Error('Desktop userData.getFilePath API is unavailable');
+    unwrapIpcResult(
+      await this.typed('userData', 'saveLibraryState').saveLibraryState(tracks, playback),
+      'userData.saveLibraryState failed',
+    );
   }
 
   async musicPluginCall(id: string, method: string, args: unknown[]): Promise<unknown> {
@@ -775,25 +580,8 @@ class ElectronAdapter implements FullDesktopAPI {
   // assertions. Moving these through the adapter lets renderer code stop
   // touching window.electron directly (RF-008).
 
-  async getQQMusicUrl(reqData: Record<string, unknown>, cookie: string) {
-    return this.api.getQQMusicUrl!(reqData, cookie);
-  }
-  async qqMusicRequest(options: {
-    url: string; method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; cookie?: string;
-  }) {
-    return this.api.qqMusicRequest!(options);
-  }
-  async getQQMusicLyrics(songmid: string, cookie: string) {
-    return this.api.getQQMusicLyrics!(songmid, cookie);
-  }
-  async neteaseRequest(channel: string, params: Record<string, unknown>, cookie?: string) {
-    return this.api.neteaseRequest!(channel, params, cookie);
-  }
   async downloadAndSave(url: string, cookie: string, filePath: string, requestId?: string) {
     return this.api.downloadAndSave!(url, cookie, filePath, requestId);
-  }
-  async downloadAudioFile(url: string, cookie: string) {
-    return this.api.downloadAudioFile!(url, cookie);
   }
   async fetchCoverBase64(coverUrl: string) {
     return this.api.fetchCoverBase64!(coverUrl);

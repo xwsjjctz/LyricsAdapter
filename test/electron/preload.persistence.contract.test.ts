@@ -129,19 +129,14 @@ describe('preload persistence typed IPC contract', () => {
     };
 
     await expect(api.ipc.userData.load()).resolves.toBe(response);
-    await expect(api.ipc.userData.save(snapshot)).resolves.toBe(response);
-    await expect(api.ipc.userData.saveTracks(tracks)).resolves.toBe(response);
     await expect(api.ipc.userData.saveLibraryState(tracks, snapshot.playback)).resolves.toBe(response);
-    await expect(api.ipc.userData.getFilePath()).resolves.toBe(response);
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'ipc:userData:load');
-    expect(invoke).toHaveBeenNthCalledWith(2, 'ipc:userData:save', { data: snapshot });
-    expect(invoke).toHaveBeenNthCalledWith(3, 'ipc:userData:saveTracks', { tracks });
-    expect(invoke).toHaveBeenNthCalledWith(4, 'ipc:userData:saveLibraryState', {
+    expect(invoke).toHaveBeenNthCalledWith(2, 'ipc:userData:saveLibraryState', {
       tracks,
       playback: snapshot.playback,
     });
-    expect(invoke).toHaveBeenNthCalledWith(5, 'ipc:userData:getFilePath');
+    expect(invoke).toHaveBeenCalledTimes(2);
   });
 
   it('routes the aggregate persistence bootstrap through the typed channel', async () => {

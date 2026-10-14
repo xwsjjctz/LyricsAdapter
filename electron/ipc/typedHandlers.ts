@@ -4,7 +4,6 @@ import path from 'path';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
 import { doLoadLibraryIndex, doSaveLibraryIndex } from '../services/libraryIndexFiles';
-import { getMusicDownloadHeaders } from './musicPluginHandlers';
 import { fail, ok, parsePayload } from './typedResult';
 import {
   doWebdavDelete,
@@ -143,22 +142,6 @@ export function registerTypedIpcHandlers(): void {
     const parsed = parsePayload(typedIpcSchemas.webdavMkcol, payload);
     if (!parsed.ok) return parsed;
     return doWebdavMkcol(parsed.data.url, parsed.data.authHeader);
-  });
-
-  ipcMain.handle('ipc:download:audio', async (_event, payload: unknown) => {
-    const parsed = parsePayload(typedIpcSchemas.downloadAudio, payload);
-    if (!parsed.ok) return parsed;
-
-    try {
-      const response = await fetch(parsed.data.url, {
-        headers: getMusicDownloadHeaders(parsed.data.url, parsed.data.cookieString),
-      });
-      if (!response.ok) return fail(`HTTP error: ${response.status}`);
-      return ok({ data: await response.arrayBuffer() });
-    } catch (error) {
-      logger.error('[TypedIPC] download audio failed:', error);
-      return fail((error as Error).message);
-    }
   });
 
   logger.info('[TypedIPC] handlers registered');

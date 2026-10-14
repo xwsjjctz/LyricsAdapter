@@ -103,7 +103,7 @@ test('restores custom window sizes across exits and applies macOS menu presets w
     page = await launch(); expect(await size()).toEqual(await fitted(385, 800));
     // Corrupted imported state cannot prevent launch or create an invisible window.
     await page.evaluate(async () => {
-      await (window as typeof window & { electron: { settingsSet: (key: string, value: string) => Promise<void> } }).electron.settingsSet('la_window_state', 'broken');
+      await (window as typeof window & { electron: { ipc: { settings: { set: (key: string, value: string) => Promise<unknown> } } } }).electron.ipc.settings.set('la_window_state', 'broken');
     });
     await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.destroy());
     await app!.close().catch(() => {}); app = undefined;

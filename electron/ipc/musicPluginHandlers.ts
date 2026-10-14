@@ -128,11 +128,11 @@ export function registerMusicPluginHandlers(): void {
     if (result.canceled || !result.filePaths[0]) return null;
     return updates.mutate(() => { registry.install(result.filePaths[0]!); return changed(); });
   });
-  // Compatibility aliases keep login UI / stored credentials stable. All protocol
+  // Login aliases keep the QR login UI / stored credentials stable. All protocol
   // implementations live inside the selected plugin and obey its enabled state.
   const actions: Record<string, string[]> = {
-    qq: ['qq-music-request', 'get-qq-music-url', 'get-qq-music-lyrics', 'qq-login-qr-start', 'qq-login-qr-poll', 'qq-login-refresh'],
-    netease: ['netease-request', 'netease-qr-key', 'netease-qr-create', 'netease-qr-check'],
+    qq: ['qq-login-qr-start', 'qq-login-qr-poll', 'qq-login-refresh'],
+    netease: ['netease-qr-key', 'netease-qr-create', 'netease-qr-check'],
   };
   for (const [id, channels] of Object.entries(actions)) {
     for (const channel of channels) ipcMain.handle(channel, (_event, ...args: unknown[]) => registry.get(id).invoke(channel, args));
