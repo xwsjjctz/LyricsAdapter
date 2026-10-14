@@ -109,7 +109,7 @@
 ### 6. 后续，视产品方向而定
 
 - [ ] 音乐源 ID 去硬编码，能力由插件 manifest 声明。
-- [ ] 拆分 `useWebDAV`（HTTP、缓存、同步、UI 状态），并补测试。
+- [x] 拆分 `useWebDAV`：1203 行拆为 hook（408 行，状态与加载顺序）和 `services/webdav/` 下的 `trackMapping`、`metadataReader`、`coverStore`、`metadataCache`、`manifestSync`、`chunkDetails`；新增 `trackMapping`、`manifestSync` 单测和 `useWebDAV` 加载流程测试。
 - [x] 浏览器模式保留，平台差异收进 adapter 层（services / repositories）：
   - `libraryStorage` 在浏览器模式读写 IndexedDB（补上了此前缺失的 `indexedDBStorage.loadLibrary`，浏览器曲库原先只写不读）。
   - 新增 `repositories/runtimeLibraryStateWriter.ts`：桌面端走 SQLite 串行队列与原生关闭握手，浏览器走 AppStorage 与 `beforeunload`。

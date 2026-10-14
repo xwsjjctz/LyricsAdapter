@@ -404,6 +404,17 @@ WebDAV 客户端在 `services/webdavClient.ts`，配置通过 `AppStorage` 的 `
 5. 首次或缓存不完整时进入 full mode。
 6. 可写且 provider 支持时，把 metadata 写回 WebDAV `/Metadata/`。
 
+hook 只负责 React 状态和上述加载顺序，具体实现位于 `services/webdav/`：
+
+| 文件 | 作用 |
+| --- | --- |
+| `trackMapping.ts` | 纯函数：列表 diff、占位曲目、元数据合并、listing 快照 |
+| `metadataReader.ts` | 按 provider 策略读取 meta.json 或文件头（带重试），解析标签、歌词和封面 |
+| `coverStore.ts` | 封面在 blob: / data: / 本地 cover:// 之间转换与保存 |
+| `metadataCache.ts` | IndexedDB 中的逐文件元数据缓存 |
+| `manifestSync.ts` | 串行合并并上传 `/Metadata/` manifest 与 chunks |
+| `chunkDetails.ts` | 后台从 chunks 补全封面和歌词，并回写 manifest 修正 |
+
 WebDAV `/Metadata/` 当前是 v3 manifest + chunks：
 
 - `_manifest.json` 保存轻量字段、文件指纹、chunkId 和是否有封面/歌词。
@@ -434,6 +445,6 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 - `AppContent` 仍直接编排持久化快照和孤儿缓存清理；若继续增长，应按领域边界下沉，而不是按行数机械拆文件。
 - `useLibraryActions` 目前仍保留文件重载入口，曲库 mutation 则由 `useLibraryController` 统一持有。
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
-- `useWebDAV` 很复杂，且 `useLibraryCloudSync` 当前从 `LibraryView` 内触发云同步，UI 组件仍承载业务副作用入口。
+- `useLibraryCloudSync` 由 `AppShell` 触发云同步，UI 组件仍承载这一业务副作用入口。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。
