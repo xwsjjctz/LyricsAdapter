@@ -539,20 +539,37 @@ class IndexedDBStorageService {
   // ========== Library Operations ==========
 
   /**
-   * Browser mode only - Electron uses libraryStorage.saveLibrary() (via IPC → file system).
-   * Called only from useImport under `if (!isDesktop())` branches.
+   * Browser-mode library index. Desktop keeps it on disk through the main
+   * process; libraryStorage picks the backend, so callers never branch.
    */
-  async saveLibrary(library: LibraryData | LibraryIndexData): Promise<void> {
+  async saveLibrary(library: LibraryData | LibraryIndexData): Promise<boolean> {
     await this.ensureInitialized();
-    if (!this.db) return;
+    if (!this.db) return false;
 
     try {
       // Store with key for retrieval - use unknown to avoid type conflicts
       const libraryEntry = { ...library, key: 'main' } as unknown as LibraryData | LibraryIndexData;
       await this.db.put('library', libraryEntry);
       logger.debug('[IndexedDB] ✓ Saved library to IndexedDB');
+      return true;
     } catch (error) {
       logger.error('[IndexedDB] Failed to save library:', error);
+      return false;
+    }
+  }
+
+  async loadLibrary(): Promise<LibraryIndexData | null> {
+    await this.ensureInitialized();
+    if (!this.db) return null;
+
+    try {
+      const entry = await this.db.get('library', 'main') as (LibraryIndexData & { key?: string }) | undefined;
+      if (!entry) return null;
+      const { key: _key, ...library } = entry;
+      return library as LibraryIndexData;
+    } catch (error) {
+      logger.error('[IndexedDB] Failed to load library:', error);
+      return null;
     }
   }
 

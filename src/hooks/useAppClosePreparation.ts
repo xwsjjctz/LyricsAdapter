@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
-import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import { logger } from '../services/logger';
 import { requestPlaybackShutdown } from '../services/playbackShutdown';
 
 export function useAppClosePreparation(): void {
   useEffect(() => {
-    if (!isDesktop()) return;
-
+    // Browser mode has no native close handshake; its unload trigger lives in
+    // the runtime state writer.
     let mounted = true;
     let removeWindowCloseListener: (() => void) | undefined;
 

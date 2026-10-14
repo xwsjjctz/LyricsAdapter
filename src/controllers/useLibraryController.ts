@@ -1,5 +1,4 @@
 import { useCallback, useRef } from 'react';
-import { isDesktop } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import type { MutableRefObject } from 'react';
 import type { LibrarySlot, SlotId, Track } from '../types';
@@ -92,7 +91,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
     );
     // Use the serialized writer and replace any pending pre-removal snapshot.
     // A failed write leaves both the visible library and caches intact.
-    if (isDesktop() && !await libraryStorage.flushPendingSave(libraryData)) {
+    if (!await libraryStorage.flushPendingSave(libraryData)) {
       throw new Error('Could not save library removal');
     }
 
@@ -109,7 +108,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
 
     // The existing persistence owner also updates durable user records in SQLite.
     // Keep caches if that flush fails; runtime/close persistence can retry safely.
-    if (isDesktop() && !await requestLibraryFlush()) {
+    if (!await requestLibraryFlush()) {
       logger.warn('[Library] User-state flush failed after removal; retaining caches for retry');
       return;
     }

@@ -1,11 +1,12 @@
 /**
  * 音乐库持久化存储服务
- * 处理与 Electron 主进程的通信，实现数据的读写和验证
+ * 桌面端经主进程写入磁盘，浏览器模式写入 IndexedDB；调用方无需区分平台。
  */
 
 import { Track } from '../types';
 import { getDesktopAPIAsync } from './desktopAdapter';
 import { logger } from './logger';
+import { indexedDBStorage } from './indexedDBStorage';
 import type {
   PersistedLibrarySettings as LibrarySettings,
   PersistedLibrarySnapshot as LibraryIndexData,
@@ -68,8 +69,7 @@ class LibraryStorageService {
     try {
       const api = await getDesktopAPIAsync();
       if (!api) {
-        logger.warn('[LibraryStorage] Desktop API not available');
-        return { songs: [], settings: {} };
+        return await indexedDBStorage.loadLibrary() ?? { songs: [], settings: {} };
       }
 
       logger.debug('[LibraryStorage] Loading library from disk...');
@@ -95,10 +95,7 @@ class LibraryStorageService {
   async saveLibrary(library: LibraryIndexData): Promise<boolean> {
     try {
       const api = await getDesktopAPIAsync();
-      if (!api) {
-        logger.warn('[LibraryStorage] Desktop API not available');
-        return false;
-      }
+      if (!api) return indexedDBStorage.saveLibrary(library);
 
       logger.debug('[LibraryStorage] Saving library to disk, songs:', library.songs.length);
       const result = await api.saveLibraryIndex(library);

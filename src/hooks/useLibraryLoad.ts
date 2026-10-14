@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Track, LibrarySlot, SlotId } from '../types';
-import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
+import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { libraryStorage } from '../services/libraryStorage';
 import type { LibraryIndexData, LibrarySettings } from '../services/libraryStorage';
 import { metadataCacheService } from '../services/metadataCacheService';
@@ -16,7 +16,7 @@ import type { UserDataSnapshot } from '../types/typedIpc';
 import i18next, { LANGUAGES, type Language } from '../i18n';
 import { themeManager } from '../services/themeManager';
 import { shortcutManager } from '../services/shortcuts';
-import { LatestWriteQueue } from '../services/latestWriteQueue';
+import { createRuntimeLibraryStateWriter, type RuntimeLibraryStateWriter } from '../repositories/runtimeLibraryStateWriter';
 import { libraryPersistenceRepository } from '../repositories/libraryPersistenceRepository';
 import { libraryClosePersistenceRepository } from '../repositories/libraryClosePersistenceRepository';
 import {
@@ -108,31 +108,8 @@ export function useLibraryLoad({
   const userDataWritableRef = useRef(false);
   const closeSnapshotSourcesRef = useRef({ slots, getPersistenceData, getSlotsSnapshot });
   const closeFlushInFlightRef = useRef<Promise<boolean> | null>(null);
-  type RuntimeUserStateWrite =
-    | {
-        kind: 'library';
-        tracks: ReturnType<typeof buildMinimalTracks>;
-        playback: Record<string, string>;
-      }
-    | { kind: 'playback'; playbackJson: string };
-  const runtimeUserStateQueueRef = useRef<LatestWriteQueue<RuntimeUserStateWrite> | null>(null);
-  if (!runtimeUserStateQueueRef.current) {
-    runtimeUserStateQueueRef.current = new LatestWriteQueue(
-      async snapshot => {
-        if (snapshot.kind === 'playback') {
-          await appStorage.setItem('playback', snapshot.playbackJson);
-          return;
-        }
-        const api = await getDesktopAPIAsync();
-        if (!api?.userDataSaveLibraryState) {
-          throw new Error('Desktop user-state API is unavailable');
-        }
-        await api.userDataSaveLibraryState(snapshot.tracks, snapshot.playback);
-      },
-      1000,
-      error => logger.warn('[LibraryLoad] Failed to persist runtime user state:', error),
-    );
-  }
+  const runtimeStateRef = useRef<RuntimeLibraryStateWriter | null>(null);
+  runtimeStateRef.current ??= createRuntimeLibraryStateWriter();
   // The close listeners are registered once. Keep their mutable inputs current
   // without tearing down the native-window handshake on every slot update.
   closeSnapshotSourcesRef.current = { slots, getPersistenceData, getSlotsSnapshot };
@@ -657,23 +634,13 @@ export function useLibraryLoad({
 
     logger.debug('[LibraryLoad] Saving library, songs:', libraryData.songs.length, 'cloud songs:', libraryData.cloudSongs?.length || 0);
     libraryStorage.saveLibraryDebounced(libraryData);
-    // 桌面端把曲目归属 + playback 放进同一个 SQLite 事务；浏览器模式
-    // 仍由 AppStorage 写 localStorage。不要在桌面端再额外写一次 playback。
-    if (isDesktop() && userDataWritableRef.current) {
-      const allMinimal = [
-        ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
-        ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
-        ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
-        ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
-      ];
-      runtimeUserStateQueueRef.current!.schedule({
-        kind: 'library',
-        tracks: allMinimal,
-        playback: { _json: JSON.stringify(persistData) },
-      });
-    } else if (!isDesktop()) {
-      appStorage.setItem('playback', JSON.stringify(persistData)).catch(() => {});
-    }
+    // 曲目归属与 playback 的落盘方式由平台决定（见 runtimeLibraryStateWriter）。
+    runtimeStateRef.current!.saveLibrary([
+      ...buildMinimalTracks(slotsSnapshot.local.tracks, 'local'),
+      ...buildMinimalTracks(slotsSnapshot.cloud.tracks, 'cloud'),
+      ...buildMinimalTracks(slotsSnapshot.online.tracks, 'online'),
+      ...buildMinimalTracks(slotsSnapshot.playlist.tracks, 'playlist'),
+    ], JSON.stringify(persistData), userDataWritableRef.current);
     // 注意：currentTime 不在本依赖数组中 —— 播放期间 timeupdate（~250ms/次）
     // 引起的进度变化由下方 savePlaybackThrottled 独立节流（5s）落盘，避免每秒
     // 4 次同步磁盘写。persistData 会从 ref-backed playback clock 读取 active slot
@@ -708,17 +675,9 @@ export function useLibraryLoad({
       // the always-current close source ref so a later slot switch/index change
       // cannot be overwritten by that stale closure.
       const persistData = closeSnapshotSourcesRef.current.getPersistenceData();
-      const playbackJson = JSON.stringify(persistData);
-      if (isDesktop()) {
-        // An older delayed library transaction also contains playback. Put the
-        // lightweight progress update on the same serial queue so it always
-        // lands afterwards and can never be overwritten by that stale snapshot.
-        runtimeUserStateQueueRef.current!
-          .enqueue({ kind: 'playback', playbackJson })
-          .catch(error => logger.warn('[LibraryLoad] Failed to persist playback progress:', error));
-      } else {
-        appStorage.setItem('playback', playbackJson).catch(() => {});
-      }
+      runtimeStateRef.current!
+        .savePlayback(JSON.stringify(persistData))
+        .catch(error => logger.warn('[LibraryLoad] Failed to persist playback progress:', error));
     };
 
     if (elapsed >= THROTTLE_MS) {
@@ -737,21 +696,18 @@ export function useLibraryLoad({
   ]);
 
   useEffect(() => {
-    const desktop = isDesktop();
     const runCloseFlush = async (): Promise<boolean> => {
       try {
         // Runtime saves may still contain an older snapshot. They must finish
         // before the final snapshot is captured and handed to the main process.
-        if (desktop) {
-          try {
-            await runtimeUserStateQueueRef.current?.drain();
-          } catch (error) {
-            logger.warn('[LibraryLoad] A runtime SQLite save failed before close; committing final snapshot:', error);
-          }
-          const drained = await libraryStorage.drainBeforeClose();
-          if (!drained) {
-            logger.warn('[LibraryLoad] A runtime library save failed before close; committing final snapshot');
-          }
+        try {
+          await runtimeStateRef.current?.drain();
+        } catch (error) {
+          logger.warn('[LibraryLoad] A runtime user-state save failed before close; committing final snapshot:', error);
+        }
+        const drained = await libraryStorage.drainBeforeClose();
+        if (!drained) {
+          logger.warn('[LibraryLoad] A runtime library save failed before close; committing final snapshot');
         }
 
         // No await inside this block: the four slot arrays and playback settings
@@ -801,28 +757,20 @@ export function useLibraryLoad({
 
     const removeFlushListener = addLibraryFlushListener(flushCurrentLibrary);
 
-    const handleBeforeUnload = () => {
-      void flushCurrentLibrary();
-    };
-
-    // Electron uses the awaited native close handshake. Retain beforeunload only
-    // for browser mode, where it remains a best-effort compatibility fallback.
-    if (!desktop) {
-      window.addEventListener('beforeunload', handleBeforeUnload);
-    }
+    // Desktop closes through the awaited native handshake; the browser uses
+    // beforeunload as a best-effort trigger.
+    const removeUnloadListener = runtimeStateRef.current!.onUnload(() => { void flushCurrentLibrary(); });
 
     return () => {
       removeFlushListener();
-      if (!desktop) {
-        window.removeEventListener('beforeunload', handleBeforeUnload);
-      }
+      removeUnloadListener();
     };
   }, []);
 
   // 组件卸载时清理进度节流的 trailing timer（见上方 playbackSaveTimerRef 注释）
   useEffect(() => {
     return () => {
-      runtimeUserStateQueueRef.current?.cancel();
+      runtimeStateRef.current?.cancel();
       if (playbackSaveTimerRef.current) {
         clearTimeout(playbackSaveTimerRef.current);
         playbackSaveTimerRef.current = null;

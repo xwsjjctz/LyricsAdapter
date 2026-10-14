@@ -19,10 +19,9 @@ interface ParsedAudioMetadata {
   coverMime?: string;
   fileSize?: number;
 }
-import { getDesktopAPIAsync, isDesktop, type DesktopAPI } from '../services/desktopAdapter';
+import { getDesktopAPI, getDesktopAPIAsync, type DesktopAPI } from '../services/desktopAdapter';
 import { metadataCacheService } from '../services/metadataCacheService';
 import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
-import { indexedDBStorage } from '../services/indexedDBStorage';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
@@ -314,11 +313,12 @@ export function useImport({
     return results;
   }, []);
 
-  const handleDesktopImport = useCallback(async () => {
-    logger.debug('[Import] Desktop import triggered');
-    const desktopAPI = await getDesktopAPIAsync();
+  /** Native file dialog on desktop; the hidden file input in the browser. */
+  const handleLocalImport = useCallback(async () => {
+    // Decide synchronously so the browser click keeps its user activation.
+    const desktopAPI = getDesktopAPI();
     if (!desktopAPI) {
-      logger.error('[Import] Desktop API not available');
+      fileInputRef.current?.click();
       return;
     }
 
@@ -622,10 +622,8 @@ export function useImport({
   const handleDropFiles = useCallback(async (files: File[]) => {
     logger.debug('[Import] Drop files triggered (File objects)');
     logger.debug(`[Import] Processing ${files.length} file(s)...`);
-    logger.debug(`[Import] Platform: ${isDesktop() ? 'Electron' : 'Web'}`);
 
-    // Web mode: use File object processing
-    logger.warn('[Import] Web mode drop import - with persistence');
+    // File objects (browser drop, or a desktop drop without paths)
     const tracksMap = createTracksMap();
 
     const BATCH_SIZE = 10;
@@ -670,16 +668,9 @@ export function useImport({
     const finalTracks = Array.from(trackMap.values());
     setTracks(finalTracks);
     
-    // Save library - use disk storage in Electron, IndexedDB in web
+    // libraryStorage writes to disk on desktop and to IndexedDB in the browser.
     const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
-    
-    if (isDesktop()) {
-      await libraryStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to disk');
-    } else {
-      await indexedDBStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to IndexedDB');
-    }
+    await libraryStorage.saveLibrary(libraryData);
 
     logger.debug('[Import] ✓ All files imported successfully');
     if (importedTracksAll.length > 0) notifyTrackResult('import', importedTracksAll);
@@ -701,7 +692,7 @@ export function useImport({
 
   const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
-    logger.debug('[Import] File input changed - platform:', isDesktop() ? 'Electron' : 'Web');
+    logger.debug('[Import] File input changed');
     logger.debug(`[Import] Processing ${files.length} file(s)...`);
 
     const tracksMap = createTracksMap();
@@ -765,16 +756,11 @@ export function useImport({
       setTracks(prev => [...prev, ...allNewTracks]);
     }
 
-    // Save to IndexedDB in browser mode
-    if (!isDesktop()) {
-      const trackMap = new Map<string, Track>();
-      for (const track of tracks) trackMap.set(track.id, track);
-      for (const track of importedTracksAll) trackMap.set(track.id, track);
-      const finalTracks = Array.from(trackMap.values());
-      const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
-      await indexedDBStorage.saveLibrary(libraryData);
-      logger.debug('[Import] ✓ Library saved to IndexedDB');
-    }
+    const trackMap = new Map<string, Track>();
+    for (const track of tracks) trackMap.set(track.id, track);
+    for (const track of importedTracksAll) trackMap.set(track.id, track);
+    const libraryData = buildLibraryIndexDataForSlots(Array.from(trackMap.values()), cloudTracks, buildImportSettings());
+    await libraryStorage.saveLibrary(libraryData);
 
     logger.debug('[Import] ✓ All files imported successfully');
     if (importedTracksAll.length > 0) notifyTrackResult('import', importedTracksAll);
@@ -934,7 +920,7 @@ export function useImport({
 
   return {
     fileInputRef,
-    handleDesktopImport,
+    handleLocalImport,
     handleCloudImport,
     handleCloudDropFilePaths,
     handleDropFiles,

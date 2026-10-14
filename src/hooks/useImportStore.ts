@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import type { Track } from '../types';
 import { useImport } from './useImport';
-import { isDesktop } from '../services/desktopAdapter';
 import type { LibrarySlotId } from './useLibraryStore';
 import type { LibrarySettings } from '../services/libraryStorage';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
@@ -40,12 +39,10 @@ export function useImportStore(options: ImportStoreOptions) {
   const handleImportClick = useCallback(() => {
     if (options.viewSlot === 'cloud') {
       importApi.handleCloudImport();
-    } else if (isDesktop()) {
-      importApi.handleDesktopImport();
     } else {
-      importApi.fileInputRef.current?.click();
+      void importApi.handleLocalImport();
     }
-  }, [importApi.handleCloudImport, importApi.handleDesktopImport, importApi.fileInputRef, options.viewSlot]);
+  }, [importApi.handleCloudImport, importApi.handleLocalImport, options.viewSlot]);
 
   const handleViewDropFilePaths = useCallback((filePaths: { path: string; name: string }[]) => {
     if (options.viewSlot === 'cloud') {
