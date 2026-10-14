@@ -390,5 +390,14 @@
   "musicPlugins.enabled": "Activé",
   "musicPlugins.disabled": "Désactivé",
   "musicPlugins.empty": "Aucun plugin de source musicale",
-  "musicPlugins.repository": "Dépôt officiel des plugins"
+  "musicPlugins.repository": "Dépôt officiel des plugins",
+  "pluginTrust.updateTitle": "Mettre à jour un plugin tiers",
+  "pluginTrust.updateMessage": "Mettre à jour « {{name}} » depuis une source tierce ?",
+  "pluginTrust.updateDetail": "Source : {{source}}\nVersion : {{current}} → {{next}}\nSHA-256 : {{sha256}}\n\nLes plugins s'exécutent avec les droits de cette application et peuvent lire ses données et accéder au réseau. Ne continuez que si vous faites confiance à cette source.",
+  "pluginTrust.bindTitle": "Changer la source de mise à jour du plugin",
+  "pluginTrust.bindMessage": "Autoriser « {{name}} » à recevoir des mises à jour depuis cette source ?",
+  "pluginTrust.bindDetail": "Source : {{source}}\n\nLes futures mises à jour du plugin seront téléchargées depuis cette source et s'exécuteront avec les droits de cette application. Ne continuez que si vous faites confiance à cette source.",
+  "pluginTrust.confirmUpdate": "Faire confiance et mettre à jour",
+  "pluginTrust.confirmBind": "Faire confiance à cette source",
+  "pluginTrust.cancel": "Annuler"
 }

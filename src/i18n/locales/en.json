@@ -436,5 +436,14 @@
   "pluginUpdates.prerelease": "Include prereleases",
   "pluginUpdates.sourceHint": "Choose a publisher you trust. Updates preserve configuration and credentials.",
   "pluginUpdates.saveSource": "Save source and check",
-  "pluginUpdates.retry": "Retry update"
+  "pluginUpdates.retry": "Retry update",
+  "pluginTrust.updateTitle": "Update third-party plugin",
+  "pluginTrust.updateMessage": "Update “{{name}}” from a third-party source?",
+  "pluginTrust.updateDetail": "Source: {{source}}\nVersion: {{current}} → {{next}}\nSHA-256: {{sha256}}\n\nPlugins run with this app's permissions and can read app data and access the network. Continue only if you trust this source.",
+  "pluginTrust.bindTitle": "Change plugin update source",
+  "pluginTrust.bindMessage": "Let “{{name}}” receive updates from this source?",
+  "pluginTrust.bindDetail": "Source: {{source}}\n\nFuture plugin updates will be downloaded from here and run with this app's permissions. Continue only if you trust this source.",
+  "pluginTrust.confirmUpdate": "Trust and update",
+  "pluginTrust.confirmBind": "Trust this source",
+  "pluginTrust.cancel": "Cancel"
 }

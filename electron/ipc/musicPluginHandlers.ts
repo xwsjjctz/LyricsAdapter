@@ -6,6 +6,7 @@ import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import { PluginUpdateService } from '../services/pluginUpdates';
+import { confirmPluginTrust } from '../services/pluginTrustDialog';
 import type { PluginUpdateSource } from '../../src/shared/pluginUpdate';
 import type { MusicPlugin } from '../../src/shared/musicPlugin';
 import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type PluginTranslationCall } from '../../src/shared/plugin';
@@ -68,6 +69,7 @@ export function registerMusicPluginHandlers(): void {
   const updates = new PluginUpdateService({ registry, catalog, fetcher: (url, init) => net.fetch(url, init),
     read: key => userStateRepository.getSetting(key), write: (key, value) => userStateRepository.setSetting(key, value),
     changed: value => { for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'plugin-updates-changed', value); },
+    confirm: confirmPluginTrust,
   });
   updates.start();
   app.once('before-quit', () => { updates.dispose(); registry.dispose(); });

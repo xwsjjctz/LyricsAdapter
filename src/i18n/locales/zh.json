@@ -436,5 +436,14 @@
   "pluginUpdates.prerelease": "包含预发布版本",
   "pluginUpdates.sourceHint": "选择你信任的发布来源；更新后配置和凭据会保留。",
   "pluginUpdates.saveSource": "保存来源并检查",
-  "pluginUpdates.retry": "重试更新"
+  "pluginUpdates.retry": "重试更新",
+  "pluginTrust.updateTitle": "更新第三方插件",
+  "pluginTrust.updateMessage": "确认从第三方来源更新“{{name}}”？",
+  "pluginTrust.updateDetail": "来源：{{source}}\n版本：{{current}} → {{next}}\nSHA-256：{{sha256}}\n\n插件以本应用的权限运行，可以读取应用数据并访问网络。只在信任该来源时继续。",
+  "pluginTrust.bindTitle": "更改插件更新来源",
+  "pluginTrust.bindMessage": "确认让“{{name}}”从这个来源获取更新？",
+  "pluginTrust.bindDetail": "来源：{{source}}\n\n以后的插件更新都会从这里下载，并以本应用的权限运行。只在信任该来源时继续。",
+  "pluginTrust.confirmUpdate": "信任并更新",
+  "pluginTrust.confirmBind": "信任该来源",
+  "pluginTrust.cancel": "取消"
 }

@@ -390,5 +390,14 @@
   "musicPlugins.enabled": "활성화됨",
   "musicPlugins.disabled": "비활성화됨",
   "musicPlugins.empty": "음악 소스 플러그인이 없습니다",
-  "musicPlugins.repository": "공식 플러그인 저장소"
+  "musicPlugins.repository": "공식 플러그인 저장소",
+  "pluginTrust.updateTitle": "타사 플러그인 업데이트",
+  "pluginTrust.updateMessage": "타사 소스에서 “{{name}}”을(를) 업데이트할까요?",
+  "pluginTrust.updateDetail": "소스: {{source}}\n버전: {{current}} → {{next}}\nSHA-256: {{sha256}}\n\n플러그인은 이 앱의 권한으로 실행되며 앱 데이터를 읽고 네트워크에 접근할 수 있습니다. 신뢰하는 소스인 경우에만 계속하세요.",
+  "pluginTrust.bindTitle": "플러그인 업데이트 소스 변경",
+  "pluginTrust.bindMessage": "“{{name}}”이(가) 이 소스에서 업데이트를 받도록 할까요?",
+  "pluginTrust.bindDetail": "소스: {{source}}\n\n앞으로의 플러그인 업데이트는 여기에서 다운로드되며 이 앱의 권한으로 실행됩니다. 신뢰하는 소스인 경우에만 계속하세요.",
+  "pluginTrust.confirmUpdate": "신뢰하고 업데이트",
+  "pluginTrust.confirmBind": "이 소스 신뢰",
+  "pluginTrust.cancel": "취소"
 }

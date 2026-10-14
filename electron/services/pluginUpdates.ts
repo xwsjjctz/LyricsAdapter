@@ -8,6 +8,16 @@ import { MusicPluginRegistry, validateMusicPluginManifest } from './musicPluginR
 import { PLUGIN_ID } from './pluginManifest';
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
+
+/**
+ * A trust decision the user must make in the main process. Third-party
+ * plugins run with the host's privileges, so binding a non-official source and
+ * installing code from one both require explicit consent outside the renderer.
+ */
+export type PluginTrustRequest =
+  | { kind: 'bind'; id: string; name: string; source: PluginUpdateSource }
+  | { kind: 'update'; id: string; name: string; source: PluginUpdateSource; currentVersion: string; targetVersion: string; sha256: string };
+
 interface Options {
   registry: MusicPluginRegistry;
   catalog: MusicPluginCatalog;
@@ -15,6 +25,8 @@ interface Options {
   read(key: string): string | undefined;
   write(key: string, value: string): void;
   changed(updates: PluginUpdateInfo[]): void;
+  /** Resolves true only when the user accepts; declining leaves everything unchanged. */
+  confirm(request: PluginTrustRequest): Promise<boolean>;
   now?: () => number;
 }
 interface Release extends PluginUpdateRelease { incompatible?: string }
@@ -94,9 +106,14 @@ export class PluginUpdateService {
     if (persist) this.options.write(CACHE_KEY(result.id), JSON.stringify({ schemaVersion: 1, result }));
     this.publish();
   }
-  setSource(id: string, value: PluginUpdateSource | null): PluginUpdateInfo[] {
-    this.assertIdle(); this.plugin(id);
+  async setSource(id: string, value: PluginUpdateSource | null): Promise<PluginUpdateInfo[]> {
+    this.assertIdle();
+    const plugin = this.plugin(id);
     const source = value === null ? null : validatePluginUpdateSource(value, id);
+    if (source && source.kind !== 'official' && !sameSource(source, this.source(plugin))) {
+      if (!await this.options.confirm({ kind: 'bind', id, name: plugin.name, source })) return this.list();
+      this.assertIdle(); this.plugin(id);
+    }
     this.options.write(SOURCE_KEY(id), JSON.stringify(source));
     this.options.write(CACHE_KEY(id), 'null');
     this.results.delete(id); this.invalidateChecks(); this.publish();
@@ -263,6 +280,11 @@ export class PluginUpdateService {
         if (!selection.target) throw new Error(selection.info.error ?? 'No compatible newer plugin version');
         const target = selection.target;
         targetVersion = target.version;
+        if (source.kind !== 'official' && !await this.options.confirm({ kind: 'update', id, name: plugin.name, source,
+          currentVersion: plugin.version, targetVersion: target.version, sha256: target.sha256 })) {
+          this.results.delete(id); this.publish();
+          return this.options.registry.list();
+        }
         const bytes = await this.read(target.url, 24 * 1024 * 1024, 60_000);
         if (createHash('sha256').update(bytes).digest('hex') !== target.sha256) throw new Error('Plugin download checksum mismatch');
         this.lifetime.signal.throwIfAborted();
