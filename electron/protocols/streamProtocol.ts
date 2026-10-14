@@ -62,7 +62,7 @@ async function resolveCdnUrl(
     }
 
     try {
-      const { url } = await plugin.provider.getMusicUrl(songmid, candidate as import('../../src/services/onlineMusicProvider').OnlineQuality);
+      const { url } = await plugin.provider.getMusicUrl(songmid, candidate as import('../../src/shared/onlineMusic').OnlineQuality);
       cdnCache.set(cacheKey, { url, expiry: Date.now() + CACHE_TTL });
       if (candidate !== quality) {
         logger.info(`[StreamProtocol] ${source}:${songmid} fell back ${quality} -> ${candidate}`);

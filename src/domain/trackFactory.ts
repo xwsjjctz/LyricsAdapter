@@ -1,5 +1,5 @@
 import type { Track } from '../types';
-import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from '../shared/onlineMusic';
 
 /**
  * Convert an {@link OnlineSong} (QQ / NetEase provider shape) into the unified

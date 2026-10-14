@@ -4,7 +4,7 @@ import type {
   StoreRead,
   UserDataSnapshot,
 } from '../../src/types/typedIpc';
-import { doLoadLibraryIndex } from '../ipc/core/libraryCore';
+import { doLoadLibraryIndex } from './libraryIndexFiles';
 import { settingsStore } from './settingsStore';
 import { userDataStore } from './userDataStore';
 import { libraryIndexSnapshotSchema } from '../../src/shared/libraryIndexSchema';

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
-import { doLoadLibraryIndex, doSaveLibraryIndex } from './core/libraryCore';
+import { doLoadLibraryIndex, doSaveLibraryIndex } from '../services/libraryIndexFiles';
 import { getMusicDownloadHeaders } from './musicPluginHandlers';
 import { fail, ok, parsePayload } from './typedResult';
 import {

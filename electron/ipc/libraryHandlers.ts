@@ -2,7 +2,7 @@ import { ipcMain } from "electron";
 import {
   doLoadLocalBackup,
   doSaveLocalBackup,
-} from "./core/libraryCore";
+} from "../services/libraryIndexFiles";
 
 // Legacy positional library IPC channels still in use. load/save index moved
 // to the typed `ipc:library:*` layer; only the local-backup channels remain

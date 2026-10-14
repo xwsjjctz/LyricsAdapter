@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { logger } from '../../logger';
-import { writeJsonAtomic } from '../../utils/atomicWrite';
-import type { IpcResult } from '../../../src/types/typedIpc';
+import { logger } from '../logger';
+import { writeJsonAtomic } from '../utils/atomicWrite';
+import type { IpcResult } from '../../src/types/typedIpc';
 
 // Shared library persistence logic. Both the typed (`ipc:library:*`) and the
 // legacy positional (`load-library*` / `save-library*`) IPC layers delegate

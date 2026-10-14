@@ -31,6 +31,7 @@ of truth. Common entry points:
 npm run dev                   # Browser-only Vite
 npm run electron:dev          # Normal desktop development
 npm run electron:debug        # Renderer CDP :9222; main inspector :9229 (loopback)
+npm run deps:check            # Dependency boundary rules (known violations baselined)
 npm run typecheck             # Application TypeScript
 npm run typecheck:test        # Unit-test TypeScript
 npm run typecheck:e2e         # Playwright/Electron TypeScript

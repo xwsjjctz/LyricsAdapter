@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track, type SyncedLyricLine } from '../types';
-import { parseAudioFile, parseLRCLyrics, libraryStorage } from '../services/metadataService';
+import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
+import { libraryStorage } from '../services/libraryStorage';
 import { webdavClient, webdavCoverId } from '../services/webdavClient';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
