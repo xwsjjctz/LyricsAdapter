@@ -285,11 +285,12 @@ describe('PosterWall locating the playing tile', () => {
     expect(onLocateRequestHandled).toHaveBeenCalledWith(3);
   });
 
-  it('marks the playing tile with an accent badge', () => {
+  it('marks only the playing tile with the now-playing glow', () => {
     setup({ currentTrackId: 't0' });
     const current = document.querySelector('[aria-current="true"]');
     expect(current).toHaveClass('wall-tile--current');
-    expect(current?.querySelector('.wall-tile__badge')).toHaveTextContent('library.nowPlaying');
+    expect(current?.querySelector('.wall-glow')).toBeInTheDocument();
+    expect(document.querySelectorAll('.wall-glow')).toHaveLength(1);
   });
 });
 

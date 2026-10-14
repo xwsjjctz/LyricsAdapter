@@ -25,6 +25,8 @@ interface LibraryWallViewProps {
   sourceKey: string;
   dataSource: SlotId;
   currentTrackId?: string | undefined;
+  /** The playing tile's glow moves with the music; false lets it rest. */
+  nowPlayingAnimated?: boolean;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void | Promise<void>;
   onRemoveMultipleTracks?: ((trackIds: string[]) => void | Promise<void>) | undefined;
@@ -63,7 +65,7 @@ interface LibraryWallViewProps {
  * song list: clicking plays in place. Mutations use the list's callbacks.
  */
 const LibraryWallView: React.FC<LibraryWallViewProps> = ({
-  tracks, sourceKey, dataSource, currentTrackId, onTrackSelect, downloadProgress,
+  tracks, sourceKey, dataSource, currentTrackId, nowPlayingAnimated = false, onTrackSelect, downloadProgress,
   onRemoveTrack, onRemoveMultipleTracks, onUpdateTrack, onDownloadTrack,
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
   pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, autoLocateToken, locateRequest, onLocateRequestHandled,
@@ -149,6 +151,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         tracks={tracks}
         sourceKey={sourceKey}
         currentTrackId={currentTrackId}
+        nowPlayingAnimated={nowPlayingAnimated}
         loading={playlistLoading}
         emptyLabel={dataSource === 'online' ? t('library.noOnlineTracks') : t('library.noTracksImported')}
         loadingLabel={t('common.loading')}

@@ -204,6 +204,8 @@
   "common.unknownAlbum": "Unbekanntes Album",
   "settings.qqMusicEnabled": "Drittanbieter-Musikquelle hinzufügen",
   "settings.focusBgBlurRadius": "Focus-Mode-Hintergrundunschärfe",
+  "settings.focusAmllBackground": "Fließender Hintergrund",
+  "settings.focusAmllBackgroundDesc": "Einen fließenden Farbverlauf im Stil von Apple Music verwenden, der im Takt pulsiert. Ausschalten stellt das ursprüngliche unscharfe Cover wieder her.",
   "settings.focusLyricsFontSize": "Schriftgröße der Focus-Mode-Texte",
   "settings.focusLyricLineSpacing": "Zeilenabstand für scrollende Liedtexte",
   "settings.focusEnhancedFontEnabled": "Neue FocusMode-Schrift",

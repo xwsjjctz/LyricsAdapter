@@ -4,6 +4,7 @@ import fs from 'fs';
 import rangeParser from 'range-parser';
 import { logger } from '../logger';
 import { nodeReadableToWeb } from '../utils/nodeReadableToWeb';
+import { RENDERER_CORS_HEADERS } from './rendererOrigin';
 
 const MIME_TYPES: Record<string, string> = {
   '.flac': 'audio/flac',
@@ -42,6 +43,12 @@ export function registerAudioProtocol(): void {
   app.whenReady().then(() => {
     protocol.handle('audio', async (request) => {
       try {
+        // The player loads local files in CORS mode so the now-playing visuals
+        // can analyse them; answer a preflight should Chromium send one.
+        if (request.method === 'OPTIONS') {
+          return new Response(null, { status: 204, headers: RENDERER_CORS_HEADERS });
+        }
+
         // Parse URL to extract path: audio://localhost/absolute/path
         const parsedUrl = new URL(request.url);
         let decodedPath = decodeURIComponent(parsedUrl.pathname);
@@ -87,6 +94,7 @@ export function registerAudioProtocol(): void {
             return new Response('Requested Range Not Satisfiable', {
               status: 416,
               headers: {
+                ...RENDERER_CORS_HEADERS,
                 'Content-Range': `bytes */${fileSize}`,
                 'Accept-Ranges': 'bytes',
               },
@@ -105,6 +113,7 @@ export function registerAudioProtocol(): void {
           return new Response(nodeReadableToWeb(stream, request.signal), {
             status: 206,
             headers: {
+              ...RENDERER_CORS_HEADERS,
               'Content-Type': contentType,
               'Content-Range': `bytes ${start}-${end}/${fileSize}`,
               'Content-Length': String(chunkSize),
@@ -121,6 +130,7 @@ export function registerAudioProtocol(): void {
         return new Response(nodeReadableToWeb(stream, request.signal), {
           status: 200,
           headers: {
+            ...RENDERER_CORS_HEADERS,
             'Content-Type': contentType,
             'Content-Length': String(fileSize),
             'Accept-Ranges': 'bytes',
