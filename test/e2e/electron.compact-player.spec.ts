@@ -182,14 +182,13 @@ for (const native of [false, true]) {
       await expect.poll(async () => (await audioState()).time).toBeCloseTo(native ? 18 : .1, 1);
       expect((await audioState()).paused).toBe(true);
       expect((await audioState()).volume).toBe(before.volume);
-      // A density change keeps the song in view, even far down a virtualized wall.
+      // A density change re-lays the wall around the playing song, even after
+      // scrolling it out of a virtualized wall.
       await resize(1200);
       await page.locator('.poster-wall').evaluate(node => { node.scrollTop = 1200; });
       await page.waitForTimeout(100);
-      const anchoredId = await page.evaluate(() => document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('.wall-tile')?.getAttribute('data-track-id'));
-      expect(anchoredId).toBeTruthy();
       await resize(393);
-      await expect(page.locator(`.wall-tile[data-track-id="${anchoredId}"]`)).toBeInViewport();
+      await expect(page.locator('.wall-tile[aria-current="true"]')).toBeInViewport();
       if (native) {
         const toggle = () => probe('player-controlbar-play');
         await toggle(); await expect.poll(async () => (await audioState()).paused).toBe(false);

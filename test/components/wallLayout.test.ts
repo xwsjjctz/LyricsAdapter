@@ -116,11 +116,14 @@ describe('computeWallLayout', () => {
       expect(inBand).toHaveLength(1);
       expect(Math.round(inBand[0]!.y / cell) % 4).toBe(0);
     }
+    // Edges must overlap by more than rounding; corner contact between bands is allowed.
+    const overlaps = (start: number, end: number, otherStart: number, otherEnd: number) =>
+      start < otherEnd - 0.001 && otherStart < end - 0.001;
     for (const a of large) {
       for (const b of large) {
         if (a === b) continue;
-        const touchX = Math.abs(a.x + a.width - b.x) < 0.001 && a.y < b.y + b.height && b.y < a.y + a.height;
-        const touchY = Math.abs(a.y + a.height - b.y) < 0.001 && a.x < b.x + b.width && b.x < a.x + a.width;
+        const touchX = Math.abs(a.x + a.width - b.x) < 0.001 && overlaps(a.y, a.y + a.height, b.y, b.y + b.height);
+        const touchY = Math.abs(a.y + a.height - b.y) < 0.001 && overlaps(a.x, a.x + a.width, b.x, b.x + b.width);
         expect(touchX || touchY).toBe(false);
       }
     }

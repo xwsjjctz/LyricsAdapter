@@ -11,7 +11,8 @@
  * filled, and earlier tiles never move as tracks are appended.
  *
  * Small covers never gather: a third one in a row, or one that would close a
- * 2x2 square of them, becomes wide or tall instead whenever that fits.
+ * 2x2 square of them or start the bottom row under two of them, becomes wide
+ * or tall instead whenever that fits.
  *
  * Only tall covers cross into the next band, and never under its planned large
  * slot. Tall shapes are only used while at least two rows' worth of tracks
@@ -116,9 +117,14 @@ export function packWall(count: number, units: number): WallSlot[] {
     return true;
   };
   const small = (x: number, y: number): boolean => cellAt(x, y) === TAKEN_SMALL;
-  /** A small cover here would be the third in a row or close a 2x2 of them. */
+  /**
+   * A small cover here would be the third in a row or close a 2x2 of them, or
+   * would sit under two small covers and leave closing that square to the next
+   * cell, which may have no room to break it.
+   */
   const crowded = (x: number, y: number): boolean =>
-    small(x - 1, y) && (small(x - 2, y) || (small(x - 1, y - 1) && small(x, y - 1)));
+    (small(x - 1, y) && (small(x - 2, y) || (small(x - 1, y - 1) && small(x, y - 1))))
+    || (small(x, y - 1) && small(x + 1, y - 1));
   const largeColumnFor = largeColumns(units);
   const bandsWithLarge = new Set<number>();
 

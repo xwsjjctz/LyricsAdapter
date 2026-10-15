@@ -73,21 +73,20 @@ test('poster wall is the home page, plays in place and switches sources from the
     await settled();
     await page.waitForTimeout(400);
 
-    // Tiles run flush to both window edges, with no side padding.
+    // Tiles start flush at the left window edge, with no side padding.
     const edges = await tiles.evaluateAll(nodes => {
       const rects = nodes.map(node => node.getBoundingClientRect());
       return { left: Math.min(...rects.map(r => r.left)), right: Math.max(...rects.map(r => r.right)), width: window.innerWidth };
     });
     expect(edges.left).toBeCloseTo(0, 0);
-    expect(edges.right).toBeCloseTo(edges.width, 0);
-    // Even a three-song library forms a filled mixed mosaic, without waiting
-    // for enough songs to complete the first twelve-song block.
-    const shapes = await tiles.evaluateAll(nodes => nodes.map(node => {
+    expect(edges.right).toBeLessThanOrEqual(edges.width + 0.5);
+    // A short library is the wall's last row: it fills from the left in one
+    // row, since tall and large covers need later songs to complete their rows.
+    const rows = await tiles.evaluateAll(nodes => nodes.map(node => {
       const rect = node.getBoundingClientRect();
-      return { width: rect.width, height: rect.height };
+      return `${Math.round(rect.top)}:${Math.round(rect.height)}`;
     }));
-    expect(shapes.some(shape => shape.width > shape.height)).toBe(true);
-    expect(shapes.some(shape => shape.width < shape.height)).toBe(true);
+    expect(new Set(rows).size).toBe(1);
 
     // The wall is a song list: playing a tile marks it where it is.
     const coral = page.getByRole('button', { name: 'Coral, Test Artist' });

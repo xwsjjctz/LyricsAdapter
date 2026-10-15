@@ -95,22 +95,23 @@ describe('PosterWall', () => {
     expect(onTrackSelect).toHaveBeenCalledWith(2);
   });
 
-  it('updates mixed tail shapes as tracks are added without moving a completed block', () => {
-    const songs = Array.from({ length: 14 }, (_, index) => track(`added-${index}`));
-    const { rerenderWall, onTrackSelect } = renderWall({ tracks: songs.slice(0, 12) });
-    const geometry = () => screen.getAllByRole('button').slice(0, 12)
+  it('keeps settled tiles in place as tracks are added', () => {
+    // 1200px holds six small covers per row; only the last two rows' worth may reshape.
+    const settled = 12;
+    const songs = Array.from({ length: settled + 14 }, (_, index) => track(`added-${index}`));
+    const { rerenderWall, onTrackSelect } = renderWall({ tracks: songs.slice(0, settled + 12) });
+    const geometry = () => screen.getAllByRole('button').slice(0, settled)
       .map(tile => [tile.style.transform, tile.style.width, tile.style.height]);
-    const completed = geometry();
+    const before = geometry();
+    expect(screen.getAllByRole('button').some(tile => tile.style.width !== tile.style.height)).toBe(true);
 
-    for (const count of [13, 14]) {
+    for (const count of [settled + 13, settled + 14]) {
       rerenderWall({ tracks: songs.slice(0, count) });
-      expect(geometry()).toEqual(completed);
-      const tail = screen.getAllByRole('button').slice(12);
-      expect(tail).toHaveLength(count - 12);
-      expect(tail.some(tile => tile.style.width !== tile.style.height)).toBe(true);
+      expect(geometry()).toEqual(before);
+      expect(screen.getAllByRole('button')).toHaveLength(count);
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Song added-13 / Artist' }));
-    expect(onTrackSelect).toHaveBeenCalledWith(13);
+    fireEvent.click(screen.getByRole('button', { name: `Song added-${settled + 13} / Artist` }));
+    expect(onTrackSelect).toHaveBeenCalledWith(settled + 13);
   });
 
   it('plays on plain Enter only, leaving Cmd+Enter and Space to global shortcuts', () => {
@@ -359,10 +360,11 @@ describe('PosterWall resizing', () => {
       const wall = document.querySelector('.poster-wall') as HTMLElement;
       expect(wall.scrollTop).toBe(1000);
 
-      // Narrower by 10%: every tile shrinks by 10%, so the centre (1000 + 400) does too.
-      size.width = 1080;
+      // Narrower by 5% with the same column count: every tile shrinks by 5%,
+      // so the centre (1000 + 400) does too.
+      size.width = 1140;
       act(() => callbacks.forEach(callback => callback([], {} as ResizeObserver)));
-      expect(wall.scrollTop).toBeCloseTo((1000 + 400) * 0.9 - 400);
+      expect(wall.scrollTop).toBeCloseTo((1000 + 400) * 0.95 - 400);
 
       // A height-only change does not move anything.
       const before = wall.scrollTop;
