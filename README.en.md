@@ -6,11 +6,13 @@
 
 **A desktop player built around local music and synchronized lyrics.**
 
-Listen to your own collection, connect a WebDAV library, or add QQ Music and NetEase Cloud Music.
+Listen to your own collection, connect a WebDAV library, or add QQ Music and NetEase Cloud Music through plugins.
 
 [Download](https://github.com/xwsjjctz/LyricsAdapter/releases) · [简体中文](README.md)
 
 </div>
+
+![Poster wall library](docs/images/wall.webp)
 
 ## Get started
 
@@ -20,107 +22,141 @@ Download the installer for your device from [Releases](https://github.com/xwsjjc
 >
 > **First launch on macOS**: The app is not notarized by Apple yet, so macOS may say it cannot verify the developer. Drag the app into **Applications** and try to open it once, then go to **System Settings → Privacy & Security**, select **Open Anyway** near the bottom, and confirm. If macOS says the app **is damaged and can't be opened**, run `xattr -dr com.apple.quarantine /Applications/LyricsAdapter.app` in Terminal and open it again.
 
-1. Open the app and select **Local** in the sidebar.
-2. Use the import button at the top right of the library to select **MP3 or FLAC** files, or drag multiple audio files into the library area.
-3. Click a track to play it, then use **Focus Mode** in the bottom controls to view synchronized lyrics.
+1. Open the app and press `⌘ / Ctrl` + `I` to select **MP3 or FLAC** files, or drag audio files into the window. While the library is empty, you can also use **Import Files** in the middle of the window.
+2. Click a cover to play it, and use the floating player at the bottom to control playback.
+3. Use the Focus Mode button, or press `⌘ / Ctrl` + `Enter`, to view synchronized lyrics. On macOS the button is the blue dot next to the window controls at the top left; on Windows it sits on the right of the title bar.
 
 Local playback requires no login. Importing reads the title, artist, album, artwork, and embedded lyrics from your files.
 
 ## Library and playback
 
+### Poster wall
+
+The library opens as a poster wall. Covers are laid out automatically for the window width in a mix of sizes, and narrow windows switch to a more compact layout. The playing cover glows with the music, and the wall scrolls to the current song when the track changes.
+
+If you prefer a traditional list, choose **Switch to classic list view** in the command palette's **Features** mode; choose **Switch to poster wall view** to go back.
+
+![Classic list](docs/images/list.webp)
+
+### Portrait
+
+Resize the window to a tall shape to get the portrait layout. On macOS you can also choose **Window → Portrait** in the menu bar to switch to a narrow 385 × 800 window, and **Landscape** to switch back. In portrait, the poster wall uses its compact layout, and Focus Mode moves the artwork and song details to the top with lyrics filling the rest; the playback controls appear only while you interact.
+
+<table>
+  <tr>
+    <td><img src="docs/images/portrait-wall.webp" width="300" alt="Portrait poster wall"></td>
+    <td><img src="docs/images/portrait-focus.webp" width="300" alt="Portrait Focus Mode"></td>
+  </tr>
+</table>
+
 ### Playback controls
 
-The bottom bar provides play/pause, previous/next track, seeking, volume, and mute controls. Sequential playback, shuffle, and repeat-one modes are available.
+The floating player provides play/pause, previous/next track, seeking, volume, and mute controls. Sequential playback, shuffle, and repeat-one modes are available.
 
-The app remembers your library, current track, playback position, volume, and other state, and restores playback paused when reopened. You can browse another library or open a playlist while the current song continues playing.
+The app remembers the current library, track, playback position, volume, and related state, then restores them paused when reopened. You can keep listening while you browse another library or open a playlist.
 
-### Find music
+### Command palette
 
-The search box at the top of the library searches both local tracks and loaded cloud tracks. It matches titles, artists, albums, and filenames, including Chinese pinyin. With third-party sources enabled, it also shows online songs.
+Press `⌘ / Ctrl` + `K` to open the command palette, and press `Tab` to switch between its **Library** and **Features** modes.
 
-Click a local or cloud result to locate and play it. Use the arrow keys to select a result, `Enter` to confirm, and `Esc` to dismiss search. The locate-current-track button takes you back to the song playing in the list.
+- **Library** searches songs, artists, albums, and playlists across your local tracks and loaded cloud tracks, with support for Chinese pinyin and pinyin initials. With a music source plugin enabled, online songs appear too: click one to play it, click `+` to add it to your online history, or right-click to download it at a chosen quality.
+- **Features** switches libraries, opens or manages playlists, imports files, starts multi-select, refreshes the cloud library, plays all or shuffles, locates the current song, changes the appearance and language, and opens each settings page.
+
+![Command palette: search](docs/images/palette.webp)
+
+![Command palette: commands](docs/images/commands.webp)
+
+### Switch libraries and playlists
+
+**Local**, **Cloud**, **Online History**, and the playlists of signed-in platforms all work as libraries you can switch between. Pick one in the command palette, or use the playlist switcher: hold `⌘ / Ctrl` and press the key left of `1` (`` ` ``) repeatedly to cycle, then release `⌘ / Ctrl` to confirm. Add `Shift` to go backwards, or press `Esc` to cancel.
 
 ### Organize your local library
 
-Turn on **Edit Mode** at the top of the library to:
+Right-click a cover (or press the keyboard's menu key) to:
 
-- Drag tracks to change their order.
-- Select several tracks, or select all, for bulk removal.
-- Remove an individual track using its delete button.
-- Open a track's metadata editor to change its title, artist, album, or lyrics, or import new artwork.
+- **Edit song information**: change the title, artist, album, or lyrics, or import new artwork. This is available for local tracks only, and saving writes the changes back to the audio file.
+- **Select multiple songs**: start multi-select, with select-all, remove-selected, and done buttons at the bottom.
+- **Remove from library**: take the song out of the library while keeping the original audio file.
 
-Saving metadata for a local track writes the changes back to its audio file. Removal only removes the library entry by default; the original file is deleted only if you select the option to delete the local audio file as well.
+In **Local** and **Online History**, drag covers to reorder them.
 
 ## Lyrics and Focus Mode
 
-Focus Mode displays album artwork, an artwork-based background, and scrolling lyrics alongside playback controls. Click a timed lyric to jump to that point and play.
+Focus Mode shows album artwork, an artwork-based background, and scrolling lyrics, with the main playback controls still available. Click a timed lyric line to jump to that part of the song.
 
-- **Line-synchronized lyrics:** Embedded LRC lyrics scroll with playback.
-- **Word-synchronized lyrics:** Songs with word timing, such as QRC or YRC lyrics, support karaoke highlighting.
-- **Display settings:** Adjust background opacity, background blur, lyric font size, and line spacing in Settings.
+![Focus Mode](docs/images/focus.webp)
 
-When lyrics are unavailable, the app shows a corresponding message. You can add lyrics through a local track's metadata editor; synchronized scrolling requires timestamps in the lyrics.
+- **Line-synced lyrics**: Embedded LRC lyrics scroll with playback.
+- **Word-synced lyrics**: Songs with QRC/YRC or similar word timing highlight each word.
+- **Display options**: In **Settings → Focus Mode**, turn on the Apple Music–style **Flowing Background**, or adjust background opacity, background blur, lyric font size, and line spacing. Windows also offers a **New FocusMode Font** switch.
+
+A message appears when no lyrics are available. You can add lyrics with **Edit song information** on a local track; synchronized scrolling requires timestamps.
+
+![Focus Mode settings](docs/images/settings.webp)
 
 ### System lyrics and media controls
 
 | Platform | System lyrics |
 | --- | --- |
-| macOS | Current lyrics in the menu bar, with previous, play/pause, and next controls. |
-| Windows | Taskbar lyrics with karaoke highlighting and playback controls on hover. |
+| macOS | Shows the current lyric in the menu bar, with previous, play/pause, and next controls. |
+| Windows | Shows lyrics in the taskbar, with word-by-word highlighting and hover playback controls. |
 
 Playback information is also shared with system media controls so you can view the current song and control playback.
 
 ## WebDAV library
 
-Open **Settings** at the bottom of the sidebar. Enter your server URL, account, and app password in the WebDAV section, test the connection, and save. Then select **Cloud** in the sidebar.
+Press `⌘ / Ctrl` + `,` to open Settings. Under **Cloud Library**, enter the server address, account, and app password, test the connection, and save. Then choose **Switch to Cloud** in the command palette.
 
-- Load music from your server into a track list and stream it.
-- Refresh the cloud library using its refresh button.
-- Find loaded cloud tracks through the search box at the top.
+- Load music from the server, browse it as a poster wall or list, and stream it.
+- Choose **Refresh cloud library** in the command palette's **Features** mode to update it.
+- Search loaded cloud songs from the command palette.
 
-Cloud playback requires a working network connection. Uploading local files or online songs to WebDAV is currently disabled. Cloud library loading, playback, refresh, and existing metadata caching remain unchanged.
+Cloud playback requires a working network connection. Uploading local files and online songs to WebDAV is currently disabled; reading, playback, refresh, and metadata caching for existing cloud libraries remain unchanged.
 
 ## Online music and playlists
 
-### Enable sources and sign in
+### Install a music source plugin
 
-1. Open **Settings → Online Music** and enable **Add Third-Party Music Source**.
-2. Select QQ Music or NetEase Cloud Music in the third-party source section that appears below.
-3. Scan the QR code with the provider's mobile app and confirm login, or enter a Cookie manually and save.
+The QQ Music and NetEase Cloud Music integrations are maintained separately in [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins). The main app starts without any plugins:
 
-QQ Music requires valid login credentials to appear in online search. NetEase supports anonymous search and preview playback. Personal playlists require login to the corresponding provider. Playback, downloads, and available quality depend on the resources returned by the provider and your account permissions.
+1. Open **Settings → Plugins** and download the QQ Music or NetEase Cloud Music plugin under **Official plugins**, or use **Install local plugin** to import a `.laplugin` file.
+2. Once a plugin is enabled, an **Online Music** page appears in Settings.
 
-### Search, listen, and download
+A first install takes effect immediately; updating an installed plugin requires restarting the app. Each plugin runs in its own process, and the app asks you to confirm the source before installing or updating a third-party plugin. Disabling a plugin keeps its songs, playlists, and sign-in data.
 
-Return to the library and enter keywords in the top search box. Online results identify their QQ or NetEase source. Click a song to listen; preview history is available in the sidebar's **Online Queue**.
+Plugins are stored in `~/.la/plugin/<plugin ID>/`; the Plugins page shows the actual path and can open the folder. Third-party developers can read the [plugin API documentation](docs/plugins/README.md) to register music sources or lyric translation through the general API; any music source plugin can join the online music interface through its manifest. Translation plugins can be selected on the Plugins page to show side-by-side translations in Focus Mode. See [music source plugins](docs/music-source-plugins.md) for the contract and build notes.
 
-The download button on result cards offers three quality choices:
+### Sign in
+
+In **Settings → Online Music**, choose a source, then scan the QR code with that platform's mobile app and confirm, or paste a cookie and save.
+
+QQ Music requires valid sign-in credentials for online search. NetEase Cloud Music supports anonymous search and previews. Personal playlists require signing in to the platform. Playback, downloads, and available audio quality depend on the resources and account permissions returned by each platform.
+
+### Search, preview, and download
+
+Type in the command palette's **Library** mode; online results are labeled QQ or NetEase. Click a song to preview it, and it will appear in **Online History**.
+
+Before downloading, choose a destination in **Settings → Online Music**, or enter a path such as `~/Music`. Right-click an online result in the command palette, or a cover in **Online History** or a playlist, and choose a quality:
 
 | Quality | Option |
 | --- | --- |
 | Standard | 128 kbps |
-| High quality | 320 kbps |
+| High | 320 kbps |
 | Lossless | FLAC |
 
-Before downloading, choose a destination folder in the third-party source settings, or enter a path such as `~/Music`. Completed downloads are added to the local library with available song information, artwork, and lyrics written to the file.
+Download progress appears on the cover. Finished downloads are added to the local library with available song details, artwork, and lyrics.
 
 ### Browse playlists
 
-After login, the sidebar's playlist section loads playlists from the corresponding providers. Open a playlist to view its tracks, then click a song to play it. Longer playlists load more tracks as you scroll down.
+After you sign in, the command palette's **Library** mode lists that platform's playlists. You can also choose **Open playlist** in **Features** mode, or switch with the playlist switcher. Long playlists load more songs as you scroll.
 
-Use the playlist section's edit button to hide or show playlists. This only changes their visibility in the app's sidebar; it does not delete playlists from the provider.
-
-### Music source plugins
-
-QQ Music and NetEase implementations are maintained in the independent [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins) repository. Both plugins ship with the app. In Settings → Online Music → Music source plugins, you can install a local plugin folder, inspect versions, and enable or disable each plugin. Restart after installing or updating a plugin.
-
-Disabling a plugin preserves tracks, playlists, and credentials. Online marketplace and automatic updates are not implemented yet.
+Choose **Manage playlist visibility** in **Features** mode to hide or show playlists. This only changes what the app shows; it does not delete playlists from the platform.
 
 ## Appearance and shortcuts
 
-Use the light/dark button at the bottom of the sidebar to switch appearance. The button at the top left collapses or expands the sidebar, and dragging its right edge adjusts its width.
+Choose **Toggle light/dark mode** in the command palette's **Features** mode to switch between dark and light appearances.
 
-Settings offers Chinese, English, Japanese, Korean, German, and French interfaces. Windows also includes a toggle for the updated Focus Mode font.
+The **General** settings page offers Chinese, English, Japanese, Korean, German, and French, and lets you check for app updates.
 
 Common default shortcuts use `⌘` on macOS and `Ctrl` on Windows:
 
@@ -128,29 +164,32 @@ Common default shortcuts use `⌘` on macOS and `Ctrl` on Windows:
 | --- | --- |
 | Play/pause | `Space` |
 | Previous/next track | `⌘ / Ctrl` + `← / →` |
-| Seek backward/forward 5 seconds | `← / →` |
-| Seek backward/forward 30 seconds | `Alt` + `← / →` |
-| Decrease/increase volume | `↓ / ↑` |
+| Back/forward 5 seconds | `← / →` |
+| Back/forward 30 seconds | `Alt` + `← / →` |
+| Volume down/up | `↓ / ↑` |
+| Volume down/up 10% | `Alt` + `↓ / ↑` |
 | Mute/unmute | `M` |
-| Cycle playback mode | `Tab` |
+| Change playback mode | `Tab` |
 | Enter/exit Focus Mode | `⌘ / Ctrl` + `Enter` |
-| Focus search | `⌘ / Ctrl` + `F` |
+| Command palette | `⌘ / Ctrl` + `K` |
+| Switch playlist | `⌘ / Ctrl` + `` ` `` |
+| Search music | `⌘ / Ctrl` + `F` |
+| Import files | `⌘ / Ctrl` + `I` |
 | Open Settings | `⌘ / Ctrl` + `,` |
 
 In **Settings → Shortcuts**, click a key combination to change it. Press `Esc` to cancel, or `Backspace` or `Delete` to clear the binding. You can also restore the defaults.
 
 ## Development
 
-Use Node 24.19.0 or a later 24.x version. Initialize the plugin submodule before installing dependencies:
+Use Node 24.19.0 or a later 24.x version. The main app starts without any plugins or plugin sources:
 
 ```sh
-git submodule update --init --recursive
 npm ci
 npm run electron:dev
 ```
 
-`npm run check` validates both the application and its music plugins. See [music source plugins](docs/music-source-plugins.md) for plugin installation and the runtime contract, and [DEBUGGING.md](DEBUGGING.md) for isolated test data.
+`npm run check` lints, tests, and builds the main app. See [music source plugins](docs/music-source-plugins.md) for plugin development and standalone validation, and [DEBUGGING.md](DEBUGGING.md) for debugging and isolated test data.
 
 ## License and credits
 
-The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](app-icon-LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits.
+The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](app-icon-LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.
