@@ -90,7 +90,7 @@ interface SmokeElectronAPI {
   platform?: unknown;
   getAppVersion?: () => Promise<unknown>;
   isMaximized?: () => Promise<unknown>;
-  settingsGetAll?: () => Promise<unknown>;
+  ipc?: { settings?: { getAll?: () => Promise<{ ok: boolean; data?: unknown }> } };
 }
 
 interface FocusEntranceProbe {
@@ -265,14 +265,16 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
 
     await expect.poll(() => page!.evaluate(async () => {
       const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      if (!api?.getAppVersion || !api.isMaximized || !api.settingsGetAll) return false;
+      const getAllSettings = api?.ipc?.settings?.getAll;
+      if (!api?.getAppVersion || !api.isMaximized || !getAllSettings) return false;
 
       try {
-        const [version, maximized, settings] = await Promise.all([
+        const [version, maximized, result] = await Promise.all([
           api.getAppVersion(),
           api.isMaximized(),
-          api.settingsGetAll(),
+          getAllSettings(),
         ]);
+        const settings = result.ok ? result.data : null;
         return typeof version === 'string'
           && version.length > 0
           && typeof maximized === 'boolean'

@@ -137,8 +137,8 @@ test('playlist switcher previews, reverses, cancels and commits without changing
     // Sign in to the fixture plugin so its seven playlists load through the real
     // provider/preload path; wrapping and vertical scrolling then exercise nine items.
     await page.evaluate(async () => {
-      const api = (window as typeof window & { electron: { settingsSet: (key: string, value: string) => Promise<void> } }).electron;
-      await api.settingsSet('netease_cookie', 'MUSIC_U=switcher-layout-fixture;');
+      const api = (window as typeof window & { electron: { ipc: { settings: { set: (key: string, value: string) => Promise<unknown> } } } }).electron;
+      await api.ipc.settings.set('netease_cookie', 'MUSIC_U=switcher-layout-fixture;');
     });
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');

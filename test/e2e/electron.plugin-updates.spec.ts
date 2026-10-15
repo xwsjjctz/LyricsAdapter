@@ -49,7 +49,16 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
     await expect(page.locator('.poster-wall')).toBeVisible();
     await page.keyboard.press('ControlOrMeta+K'); const palette = page.locator('.command-palette__input'); await palette.click(); await page.keyboard.press('Shift+Tab'); await palette.fill('settings'); await page.keyboard.press('Enter');
     await page.getByRole('tab', { name: 'Plugins' }).click();
-    await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, oldFile);
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+      // Approve the main-process trust prompts for the third-party source and record them.
+      const host = globalThis as unknown as { trustPrompts: string[] };
+      host.trustPrompts = [];
+      dialog.showMessageBox = (async (...args: unknown[]) => {
+        host.trustPrompts.push((args.at(-1) as { title?: string }).title ?? '');
+        return { response: 1, checkboxChecked: false };
+      }) as typeof dialog.showMessageBox;
+    }, oldFile);
     await page.getByRole('button', { name: 'Install local plugin' }).click();
     const row = page.getByTestId('plugin-update-update-translator');
     await expect(row).toContainText('No update source');
@@ -67,6 +76,8 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
     await app.evaluate(() => { (globalThis as unknown as { failPluginDownload: boolean }).failPluginDownload = false; });
     await row.getByRole('button', { name: 'Retry update' }).click();
     await expect(row).toContainText('Latest compatible version');
+    // Binding the source and installing its update each asked for confirmation.
+    expect(await app.evaluate(() => (globalThis as unknown as { trustPrompts: string[] }).trustPrompts.length)).toBeGreaterThanOrEqual(2);
     expect(await page.evaluate(() => ((window as unknown as { electron: Bridge }).electron).pluginConfiguration('update-translator'))).toEqual({ prefix: 'Saved' });
     const translation = await page.evaluate(() => ((window as unknown as { electron: Bridge }).electron).pluginTranslate({ requestId: 'new-code', providerKey: 'update-translator:default', request: {
       targetLanguage: 'zh', document: { id: 'doc', revision: 'rev', trackId: 'track', lines: [{ id: 'line', text: 'Original' }] } } }));
