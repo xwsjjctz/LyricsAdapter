@@ -89,9 +89,13 @@
 - [x] 第三方来源（`github`、`manifest`）：绑定新来源、以及每次安装更新前，都由主进程弹出系统确认框，显示来源地址、版本变化和 SHA-256；默认取消，取消后不做任何改变。renderer 无法绕过。
 - [x] 来源锁定：清单里的 `update` 只在首次安装时生效（原有行为），之后只有经用户确认的显式绑定能改变来源。
 - [x] 文档说明第三方插件以宿主权限运行（`docs/plugins/updates.md`、`docs/music-source-plugins.md`）。
-- [ ] 每个插件放进独立 `utilityProcess`，通过 MessagePort 做 RPC，SDK 接口保持不变（进行中）。
-  - [x] 配置读取与校验抽为 `readPluginConfiguration` / `pluginConfigurationWrite`，主进程不加载插件代码即可读写配置。
-  - [ ] 待做：`PluginHandle` 接口（inline / process 两种实现）、子进程 guest（基于快照的同步读、异步写回主进程）、主进程 RPC 客户端（超时、卡死检测、崩溃重启）、vite 新增 `pluginHost` 入口、`streamHeaders` / `invoke` 调用点改为异步、内存通道测试与 Electron e2e 验证。
+- [x] 每个插件放进独立 `utilityProcess`，SDK 接口不变：
+  - `PluginHandle` 统一 inline（测试与工具）与 process（应用）两种实现；registry 只经由它调用插件。
+  - 子进程侧 `electron/plugin-host/pluginGuest.ts` 原样运行现有 `PluginRuntime` 与旧格式加载逻辑；同步的 `readSecret` / `storage.get` 等读取主进程随每次请求附带的快照，写入异步回传，主进程只接受插件自身命名空间内的写入。
+  - 主进程侧 `ProcessPluginHandle`：请求超时后发 ping，无响应即结束进程并在下次调用时重启；一分钟内崩溃三次标记为失败；翻译请求的取消跨进程传递。
+  - `stream://` 与下载请求头、扫码登录别名改为异步调用；配置读取与校验留在主进程。
+  - 测试：内存通道运行真实 guest 的进程模式测试、监管逻辑测试，并让整套 registry 测试同时在 inline 与隔离两种模式下运行。
+  - 仍需在打包后的应用中实测（`electron.music-plugins.spec.ts`、`electron.plugin-platform.spec.ts`）。
 
 ### 4. 渲染层状态（已完成）
 

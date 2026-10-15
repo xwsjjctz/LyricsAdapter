@@ -1,6 +1,6 @@
 import { protocol, app } from 'electron';
 import { logger } from '../logger';
-import { getMusicPlugin, getMusicPluginCookie } from '../ipc/musicPluginHandlers';
+import { getMusicPluginCookie, getMusicStreamHeaders, musicPluginRequiresCookie, resolveMusicPluginUrl } from '../ipc/musicPluginHandlers';
 import { handleIpc } from '../ipc/ipcMainTyped';
 
 /**
@@ -48,9 +48,7 @@ async function resolveCdnUrl(
   songmid: string,
   quality: string
 ): Promise<string> {
-  const cookie = getMusicPluginCookie(source);
-  const plugin = getMusicPlugin(source);
-  if (plugin.provider.requiresCookie() && !cookie) throw new Error('请先登录音乐源');
+  if (!getMusicPluginCookie(source) && await musicPluginRequiresCookie(source)) throw new Error('请先登录音乐源');
 
   const qualities = QUALITY_FALLBACKS[quality] ?? [quality, '128'];
   let lastError: unknown;
@@ -63,7 +61,7 @@ async function resolveCdnUrl(
     }
 
     try {
-      const { url } = await plugin.provider.getMusicUrl(songmid, candidate as import('../../src/shared/onlineMusic').OnlineQuality);
+      const url = await resolveMusicPluginUrl(source, songmid, candidate as import('../../src/shared/onlineMusic').OnlineQuality);
       cdnCache.set(cacheKey, { url, expiry: Date.now() + CACHE_TTL });
       if (candidate !== quality) {
         logger.info(`[StreamProtocol] ${source}:${songmid} fell back ${quality} -> ${candidate}`);
@@ -119,7 +117,7 @@ export function registerStreamProtocol(): void {
         const cdnUrl = await resolveCdnUrl(source, songmid, quality);
 
         // Build headers for the CDN fetch — User-Agent + Referer + (cookie)
-        const cdnHeaders = getMusicPlugin(source).streamHeaders(getMusicPluginCookie(source));
+        const cdnHeaders = await getMusicStreamHeaders(source);
 
         const cdnRes = await fetch(cdnUrl, {
           headers: rangeHeader

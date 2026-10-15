@@ -1,16 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { MUSIC_PLUGIN_API_VERSION, type MusicPlugin, type MusicPluginHost, type MusicPluginInfo, type MusicPluginManifest } from '../../src/shared/musicPlugin';
+import { MUSIC_PLUGIN_API_VERSION, type MusicPluginHost, type MusicPluginInfo, type MusicPluginManifest } from '../../src/shared/musicPlugin';
 import { PLUGIN_ID, validatePlatformManifest, negotiateExtensions } from './pluginManifest';
-import { PluginRuntime, validateMusicSource } from './pluginRuntime';
+import { pluginConfigurationWrite, readPluginConfiguration } from './pluginRuntime';
+import { createInlineHandle, PROVIDER_METHODS, type PluginHandle } from './pluginHandle';
+import { ProcessPluginHandle, type SpawnPluginProcess } from './pluginProcess';
+import type { PluginDataSnapshot } from '../plugin-host/protocol';
 import type { ExtensionType, PluginProviderInfo, TranslationRequest, TranslationResult } from '../../src/shared/plugin';
 import { isPluginVersion, comparePluginVersions, validatePluginUpdateSource } from '../../src/shared/pluginUpdate';
 import { Script } from 'node:vm';
-
-const requirePlugin = createRequire(import.meta.url);
-const PROVIDER_METHODS = new Set(['searchMusic', 'getRecommendedSongs', 'getSongDetails', 'getMusicUrl', 'getLyrics', 'getPlaylists', 'getPlaylistSongs']);
 
 export function validateMusicPluginManifest(value: unknown): MusicPluginManifest {
   if (!value || typeof value !== 'object') throw new Error('Invalid plugin manifest');
@@ -42,16 +41,28 @@ function inspectDirectory(directory: string): MusicPluginManifest {
 const compareVersions = comparePluginVersions;
 
 /** `blocked` explains why the package in `directory` must not be loaded in this session. */
-interface PluginRecord { info: MusicPluginInfo; directory: string; plugin?: MusicPlugin; runtime?: PluginRuntime; blocked?: string }
+interface PluginRecord { info: MusicPluginInfo; directory: string; handle?: PluginHandle; blocked?: string }
 interface RegistryOptions {
   bundledDirectory?: string;
   installedDirectory: string;
   host(id: string): MusicPluginHost;
   isEnabled(id: string): boolean;
   setEnabled(id: string, enabled: boolean): void;
+  /**
+   * Runs each plugin in its own process. Without it, plugin code runs in the
+   * current process (tests and tooling). `snapshot` must accompany it.
+   */
+  spawn?: SpawnPluginProcess;
+  /** The plugin's own secrets and settings, handed to its process with each request. */
+  snapshot?(id: string): PluginDataSnapshot;
 }
 
-/** Loads explicitly installed, trusted Node plugins. This is not a code sandbox. */
+/**
+ * Discovers, installs and calls music and platform plugins. In the app each
+ * plugin runs in a separate utility process (see pluginProcess.ts), so a
+ * blocking or crashing plugin cannot stall the main process; plugins still
+ * hold the permissions of the app's user account.
+ */
 export class MusicPluginRegistry {
   private records = new Map<string, PluginRecord>();
   constructor(private readonly options: RegistryOptions) { this.discover(); }
@@ -93,10 +104,44 @@ export class MusicPluginRegistry {
     if (record.blocked) throw new Error(record.blocked);
     return record;
   }
-  private runtime(id: string): PluginRuntime {
+  private createHandle(id: string, record: PluginRecord): PluginHandle {
+    // Recheck the entry at load time; no renderer-provided path reaches the loader.
+    const entry = path.join(record.directory, inspectDirectory(record.directory).main);
+    const spec = { id, kind: record.info.platform ? 'platform' as const : 'legacy' as const, manifest: record.info.platform ?? record.info, entry };
+    const host = this.options.host(id);
+    if (!this.options.spawn) return createInlineHandle(spec, host);
+    const snapshot = this.options.snapshot ?? (() => ({ secrets: {}, settings: {} }));
+    return new ProcessPluginHandle({ spec, host, spawn: this.options.spawn, snapshot: () => snapshot(id) });
+  }
+  private handle(id: string): PluginHandle {
     const record = this.record(id);
-    if (!record.info.platform) throw new Error('This operation requires the platform API');
-    return record.runtime ??= new PluginRuntime(record.info.platform, path.join(record.directory, inspectDirectory(record.directory).main), this.options.host(id));
+    if (record.handle) return record.handle;
+    try { return record.handle = this.createHandle(id, record); }
+    catch (error) { if (!record.info.platform) record.info.error = (error as Error).message; throw error; }
+  }
+  /** Runs work on a plugin, recording load/activation failures on its info. */
+  private async run<T>(id: string, work: (handle: PluginHandle) => Promise<T>): Promise<T> {
+    const record = this.record(id);
+    const handle = this.handle(id);
+    try {
+      const result = await work(handle);
+      if (!record.info.platform && !handle.failure) delete record.info.error;
+      return result;
+    } catch (error) {
+      if (handle.failure) record.info.error = handle.failure;
+      throw error;
+    }
+  }
+  /** Starts loading in the background; an inline load failure is recorded before this returns. */
+  private preload(id: string): void {
+    const record = this.records.get(id);
+    if (!record) return;
+    try {
+      const handle = this.handle(id);
+      const loading = handle.load();
+      if (handle.failure) record.info.error = handle.failure;
+      loading.then(() => { if (!record.info.platform) delete record.info.error; }, () => { if (handle.failure) record.info.error = handle.failure; });
+    } catch { /* handle() records the error. */ }
   }
   providers(type: ExtensionType): PluginProviderInfo[] {
     return this.list().flatMap(info => {
@@ -110,60 +155,44 @@ export class MusicPluginRegistry {
   async translate(key: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult> {
     const provider = this.providers('lyrics.translation').find(p => p.key === key);
     if (!provider) throw new Error('Translation provider is unavailable');
-    const record = this.record(provider.pluginId);
-    try { return await this.runtime(provider.pluginId).translate(provider.id, request, signal, requestId); }
-    catch (error) {
-      // Request failures do not disable a provider; an activation failure does.
-      if (record.runtime?.failure) record.info.error = record.runtime.failure;
-      throw error;
-    }
+    // Request failures do not disable a provider; an activation failure does.
+    return this.run(provider.pluginId, handle => handle.translate(provider.id, request, signal, requestId));
   }
-  configuration(id: string): Record<string, string | boolean | number> { return this.runtime(id).configuration(); }
+  private platformManifest(id: string) {
+    const platform = this.record(id).info.platform;
+    if (!platform) throw new Error('This operation requires the platform API');
+    return platform;
+  }
+  configuration(id: string): Record<string, string | boolean | number> {
+    const host = this.options.host(id);
+    return readPluginConfiguration(this.platformManifest(id), key => host.readSetting?.(key));
+  }
   markChanged(id: string): void { const record = this.records.get(id); if (record) record.info.revision = (record.info.revision ?? 0) + 1; }
-  setConfiguration(id: string, key: string, value: string | boolean | number): void { this.runtime(id).setConfiguration(key, value); this.markChanged(id); }
-  dispose(): void { for (const record of this.records.values()) record.runtime?.dispose(); }
-  get(id: string): MusicPlugin {
-    const record = this.record(id);
-    if (record.info.platform) return this.runtime(id).music();
-    if (!record.plugin) {
-      try {
-        // Recheck the entry at load time; no renderer-provided path reaches require().
-        const entry = path.join(record.directory, inspectDirectory(record.directory).main);
-        const exported = requirePlugin(entry) as { createPlugin?: (host: MusicPluginHost) => MusicPlugin };
-        if (typeof exported.createPlugin !== 'function') throw new Error('Plugin must export createPlugin');
-        const plugin = exported.createPlugin(this.options.host(id));
-        validateMusicSource(plugin, id);
-        record.plugin = plugin;
-        delete record.info.error;
-      } catch (error) {
-        record.info.error = (error as Error).message;
-        throw error;
-      }
-    }
-    return record.plugin;
+  /** Validated and stored by the host; a running plugin is then notified. */
+  setConfiguration(id: string, key: string, value: string | boolean | number): void {
+    const { settingKey, json } = pluginConfigurationWrite(this.platformManifest(id), key, value);
+    const host = this.options.host(id);
+    if (!host.writeSetting) throw new Error('Plugin settings storage is unavailable');
+    host.writeSetting(settingKey, json);
+    this.records.get(id)?.handle?.configurationChanged();
+    this.markChanged(id);
   }
+  dispose(): void { for (const record of this.records.values()) record.handle?.dispose(); }
   async call(id: string, method: string, args: unknown[]): Promise<unknown> {
     if ((!PROVIDER_METHODS.has(method) && method !== 'validateCookie') || !Array.isArray(args) || args.length > 5) throw new Error('Invalid music plugin call');
-    if (this.record(id).info.platform) {
-      try { return await this.runtime(id).callMusic(plugin => this.callProvider(plugin, method, args)); }
-      catch (error) { const record = this.records.get(id); if (record?.runtime?.failure) record.info.error = record.runtime.failure; throw error; }
-    }
-    return this.callProvider(this.get(id), method, args);
+    return this.run(id, handle => handle.call(method, args));
   }
-  private async callProvider(plugin: MusicPlugin, method: string, args: unknown[]): Promise<unknown> {
-    if (method === 'validateCookie') {
-      if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('Invalid cookie validation call');
-      return plugin.validateCookie(args[0]);
-    }
-    const provider = plugin.provider;
-    const fn = provider[method as keyof typeof provider];
-    if (typeof fn !== 'function') throw new Error(`Unsupported provider method: ${method}`);
-    const result: unknown = await Reflect.apply(fn, provider, args);
-    if (['searchMusic', 'getRecommendedSongs', 'getSongDetails', 'getPlaylistSongs'].includes(method) && Array.isArray(result)) {
-      return result.map(song => song && typeof song === 'object' && typeof provider.getCoverUrl === 'function'
-        ? { ...song, coverUrlFullSize: provider.getCoverUrl(song) } : song);
-    }
-    return result;
+  /** Asked of the provider itself; not part of the renderer's call allowlist. */
+  async requiresCookie(id: string): Promise<boolean> {
+    return await this.run(id, handle => handle.call('requiresCookie', [])) === true;
+  }
+  /** A plugin action such as a QR login alias. */
+  invoke(id: string, action: string, args: unknown[]): Promise<unknown> {
+    return this.run(id, handle => handle.invoke(action, args));
+  }
+  /** Request headers for streaming or downloading this plugin's audio. */
+  streamHeaders(id: string, cookie: string): Promise<Record<string, string>> {
+    return this.run(id, handle => handle.streamHeaders(cookie));
   }
   setEnabled(id: string, enabled: boolean): MusicPluginInfo[] {
     const record = this.records.get(id);
@@ -171,8 +200,8 @@ export class MusicPluginRegistry {
     this.options.setEnabled(id, enabled);
     record.info.enabled = enabled;
     this.markChanged(id);
-    if (!enabled) { record.runtime?.dispose(); delete record.runtime; }
-    else { if (record.runtime?.failure) { record.runtime.dispose(); delete record.runtime; } delete record.info.error; }
+    if (!enabled) { record.handle?.dispose(); delete record.handle; }
+    else { if (record.handle?.failure) { record.handle.dispose(); delete record.handle; } delete record.info.error; }
     return this.list();
   }
   private inspectBundled(id: string): MusicPluginManifest | undefined {
@@ -211,18 +240,15 @@ export class MusicPluginRegistry {
       } else fs.renameSync(staging, target);
       // Updates retain working code until restart. First installations can load now.
       const previous = this.records.get(manifest.id);
-      if (manifest.platform || previous?.info.platform) previous?.runtime?.dispose();
+      if (manifest.platform || previous?.info.platform) previous?.handle?.dispose();
       const working = previous && !previous.blocked && !previous.info.platform && !manifest.platform ? previous : undefined;
       this.records.set(manifest.id, {
         directory: working?.directory ?? target,
-        ...(working?.plugin ? { plugin: working.plugin } : {}),
+        ...(working?.handle ? { handle: working.handle } : {}),
         info: { ...manifest, origin: 'installed', enabled: this.options.isEnabled(manifest.id), revision: (previous?.info.revision ?? 0) + 1, ...(working ? { restartRequired: true } : {}) },
       });
-      if (!working && !manifest.platform && this.options.isEnabled(manifest.id)) {
-        delete requirePlugin.cache[requirePlugin.resolve(path.join(target, manifest.main))];
-        // Keep incompatible packages visible with their error, but unavailable to UI.
-        try { this.get(manifest.id); } catch { /* get() records the load error. */ }
-      }
+      // Keep incompatible packages visible with their error, but unavailable to UI.
+      if (!working && !manifest.platform && this.options.isEnabled(manifest.id)) this.preload(manifest.id);
       return this.list();
     } finally { fs.rmSync(staging, { recursive: true, force: true }); }
   }
@@ -268,17 +294,17 @@ export class MusicPluginRegistry {
       this.installPackage(bytes, id, version);
       replaced = true;
       const next = this.records.get(id)!;
-      if (next.info.platform && next.info.enabled) await this.runtime(id).activate();
+      if (next.info.enabled && !next.info.restartRequired) await this.run(id, handle => handle.load());
       if (next.info.error) throw new Error(next.info.error);
       return this.list();
     } catch (error) {
       if (replaced) {
         const replacement = this.records.get(id);
-        replacement?.runtime?.dispose();
+        replacement?.handle?.dispose();
         fs.rmSync(target, { recursive: true, force: true });
         if (hadInstalled) fs.renameSync(path.join(backup, id), target);
-        // The old platform runtime was cancelled during replacement; recreate it lazily.
-        if (previous.info.platform) delete previous.runtime;
+        // The old platform handle was disposed during replacement; recreate it lazily.
+        if (previous.info.platform) delete previous.handle;
         previous.info = { ...previous.info, revision: Math.max(previous.info.revision ?? 0, replacement?.info.revision ?? 0) + 1 };
         this.records.set(id, previous);
       }
@@ -289,15 +315,17 @@ export class MusicPluginRegistry {
   uninstall(id: string): MusicPluginInfo[] {
     const record = this.records.get(id);
     if (!record || record.info.origin !== 'installed' || !PLUGIN_ID.test(id)) throw new Error('Music plugin is not locally installed');
-    record.runtime?.dispose();
+    // Loaded legacy code keeps serving until restart; platform code stops now.
+    const keep = !record.info.platform && record.handle;
+    if (!keep) record.handle?.dispose();
     fs.rmSync(path.join(this.options.installedDirectory, id), { recursive: true, force: true });
     const bundled = this.inspectBundled(id);
-    if (!bundled) this.records.delete(id);
+    if (!bundled) { record.handle?.dispose(); this.records.delete(id); }
     else {
       const info: MusicPluginInfo = { ...bundled, origin: 'bundled', enabled: record.info.enabled };
       // Code that is already loaded keeps serving until restart; otherwise the bundled plugin loads on demand.
-      this.records.set(id, record.plugin
-        ? { directory: record.directory, plugin: record.plugin, info: { ...info, restartRequired: true } }
+      this.records.set(id, keep
+        ? { directory: record.directory, handle: keep, info: { ...info, restartRequired: true } }
         : { directory: path.join(this.options.bundledDirectory!, id), info });
     }
     return this.list();

@@ -13,7 +13,7 @@ export function registerDownloadHandlers(): void {
       logger.info('[Main] Starting download to:', expandedPath);
 
       const response = await fetch(url, {
-        headers: getMusicDownloadHeaders(url, cookieString),
+        headers: await getMusicDownloadHeaders(url, cookieString),
       });
 
       if (!response.ok) {

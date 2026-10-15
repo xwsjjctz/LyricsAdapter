@@ -97,6 +97,7 @@ flowchart TB
 | `electron/ipc/fileHandlers.ts`、`coverHandlers.ts`、`windowHandlers.ts` 等 | 文件校验、封面、窗口、下载等位置参数通道，按领域分别注册 |
 | `electron/ipc/musicPluginHandlers.ts` | 音乐源与翻译调用、安装/启停/更新、凭据变更事件，以及 QQ/网易登录的兼容通道 |
 | `electron/services/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
+| `electron/services/pluginProcess.ts`、`electron/plugin-host/`、`electron/pluginHost.ts` | 每个插件一个 utilityProcess：主进程侧 RPC 与监管（超时、卡死检测、崩溃重启），子进程侧以快照提供同步 host 接口 |
 | `electron/services/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
 | `electron/services/persistenceRepository.ts`、`persistenceCommitService.ts` | 聚合启动读取与关闭最终提交；区分用户状态和缓存结果 |
 | `electron/ipc/metadataHandlers.ts`、`services/audioMetadataService.ts` | 通过 `music-tag-native` 读取、刷新和写入音频标签 |
@@ -158,7 +159,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 插件启用状态、配置、私有存储和更新设置通过宿主写入 SQLite。凭据统一经 `settingsStore` 读取；QQ/网易沿用兼容键，新插件使用 `music-plugin:<id>:secret:<name>`。这些 secret 键与 WebDAV 配置、QQ credential 等均受敏感设置策略保护，持久化时使用 `safeStorage` 加密。
 
-插件运行在主进程的 Node 环境，当前宿主没有进程隔离或不可信代码沙箱。SDK 网络和凭据权限约束适用于 SDK 调用，不能阻止可信 Node 插件直接使用 Node API。
+每个插件运行在独立的 Electron utilityProcess 中：插件阻塞事件循环或崩溃不会卡住主进程，请求会超时，无响应的进程会被结束并在下次调用时重启，连续崩溃的插件会被标记为失败。这不是不可信代码沙箱：SDK 网络和凭据权限约束适用于 SDK 调用，不能阻止插件直接使用 Node API。
 
 清单、SDK、版本兼容与分发细节见[插件 API 文档](../plugins/README.md)。
 

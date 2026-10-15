@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MusicPluginRegistry, validateMusicPluginManifest } from '../../../electron/services/musicPluginRegistry';
 import { isSensitiveSettingKey } from '../../../src/shared/persistencePolicy';
+import { inMemorySpawn } from './inMemoryPluginProcess';
+
+/** Every behaviour must hold both in-process and with each plugin in its own (in-memory) process. */
+let isolated = false;
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -26,12 +30,14 @@ function fixture() {
     host: () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, readSecret: () => '', writeSecrets: vi.fn() }),
     isEnabled: (id: string) => enabled.get(id) !== false,
     setEnabled: (id: string, value: boolean) => { enabled.set(id, value); },
+    ...(isolated ? { spawn: inMemorySpawn().spawn, snapshot: () => ({ secrets: {}, settings: {} }) } : {}),
   };
   packageAt(path.join(options.bundledDirectory, 'netease'));
   return { root, options, registry: new MusicPluginRegistry(options) };
 }
 
-describe('music plugin runtime', () => {
+describe.each(['inline', 'isolated'])('music plugin runtime (%s)', mode => {
+  beforeEach(() => { isolated = mode === 'isolated'; });
   it('rejects incompatible manifests and escaping entry paths before executing code', () => {
     expect(() => validateMusicPluginManifest({ ...manifest, apiVersion: 2 })).toThrow(/API version/);
     for (const main of ['../evil.cjs', '/tmp/evil.cjs', 'nested/evil.cjs', 'entry.js']) {
@@ -113,18 +119,18 @@ describe('music plugin runtime', () => {
     expect(() => restarted.uninstall('netease')).toThrow(/not locally installed/);
     await expect(new MusicPluginRegistry(options).call('netease', 'searchMusic', [])).resolves.toEqual(['1.0.0']);
   });
-  it('rejects a plugin whose provider omits a method the host calls', () => {
+  it('rejects a plugin whose provider omits a method the host calls', async () => {
     const { root, options } = fixture();
     const directory = path.join(root, 'installed/netease'); packageAt(directory, '2.0.0');
     const entry = path.join(directory, 'index.cjs');
     fs.writeFileSync(entry, fs.readFileSync(entry, 'utf8').replace(', requiresCookie: () => false', ''));
-    expect(() => new MusicPluginRegistry(options).get('netease')).toThrow('Missing provider method: requiresCookie');
+    await expect(new MusicPluginRegistry(options).call('netease', 'searchMusic', [])).rejects.toThrow('Missing provider method: requiresCookie');
   });
-  it('isolates a plugin load failure without preventing the registry from listing sources', () => {
+  it('isolates a plugin load failure without preventing the registry from listing sources', async () => {
     const { root, options } = fixture();
     packageAt(path.join(root, 'installed/netease'), '2.0.0', true);
     const registry = new MusicPluginRegistry(options);
-    expect(() => registry.get('netease')).toThrow('broken plugin');
+    await expect(registry.call('netease', 'searchMusic', [])).rejects.toThrow('broken plugin');
     expect(registry.list()[0]?.error).toBe('broken plugin');
   });
   it('treats plugin secrets as encrypted data while ordinary plugin settings remain ordinary settings', () => {

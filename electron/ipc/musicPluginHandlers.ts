@@ -6,9 +6,11 @@ import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import { PluginUpdateService } from '../services/pluginUpdates';
+import { spawnPluginProcess } from '../services/pluginProcessSpawn';
+import type { PluginDataSnapshot } from '../plugin-host/protocol';
 import { confirmPluginTrust } from '../services/pluginTrustDialog';
 import type { PluginUpdateSource } from '../../src/shared/pluginUpdate';
-import type { MusicPlugin } from '../../src/shared/musicPlugin';
+import type { OnlineQuality } from '../../src/shared/onlineMusic';
 import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type PluginTranslationCall } from '../../src/shared/plugin';
 import { handleIpc, onIpc, sendIpc } from './ipcMainTyped';
 import type { IpcInvokeChannel, IpcInvokeResult } from '../../src/shared/ipcContract';
@@ -19,9 +21,9 @@ let registry: MusicPluginRegistry;
 const RESOLVED_AUDIO_TTL_MS = 30 * 60_000;
 const RESOLVED_AUDIO_LIMIT = 512;
 const resolvedAudio = new Map<string, { id: string; expires: number }>();
-export function getMusicDownloadHeaders(url: string, cookie: string): Record<string, string> {
+export async function getMusicDownloadHeaders(url: string, cookie: string): Promise<Record<string, string>> {
   const resolved = resolvedAudio.get(url);
-  if (resolved && resolved.expires > Date.now()) return registry.get(resolved.id).streamHeaders(getMusicPluginCookie(resolved.id));
+  if (resolved && resolved.expires > Date.now()) return registry.streamHeaders(resolved.id, getMusicPluginCookie(resolved.id));
   return { 'User-Agent': 'Mozilla/5.0', ...(cookie ? { Cookie: cookie } : {}) };
 }
 const LEGACY_SECRET_KEYS: Record<string, Record<string, string>> = {
@@ -33,14 +35,43 @@ const secretKey = (id: string, name: string) => {
   const legacy = Object.hasOwn(LEGACY_SECRET_KEYS, id) ? LEGACY_SECRET_KEYS[id]! : {};
   return Object.hasOwn(legacy, name) ? legacy[name]! : `music-plugin:${id}:secret:${name}`;
 };
-export function getMusicPlugin(id: string): MusicPlugin { return registry.get(id); }
+/** The plugin's own secrets (by name) and data-area settings, for its isolated process. */
+function pluginDataSnapshot(id: string): PluginDataSnapshot {
+  const all = settingsStore.getAll();
+  const legacy = Object.hasOwn(LEGACY_SECRET_KEYS, id) ? LEGACY_SECRET_KEYS[id]! : {};
+  const secrets: Record<string, string> = {};
+  for (const [name, key] of Object.entries(legacy)) if (all[key] !== undefined) secrets[name] = all[key];
+  const secretPrefix = `music-plugin:${id}:secret:`;
+  const settingPrefix = `plugin:${id}:`;
+  const settings: Record<string, string> = {};
+  for (const [key, value] of Object.entries(all)) {
+    if (key.startsWith(secretPrefix)) {
+      const name = key.slice(secretPrefix.length);
+      if (!Object.hasOwn(legacy, name)) secrets[name] = value;
+    } else if (key.startsWith(settingPrefix)) settings[key] = value;
+  }
+  return { secrets, settings };
+}
 export function getMusicPluginCookie(id: string): string { return settingsStore.get(secretKey(id, 'cookie')) ?? ''; }
+export function musicPluginRequiresCookie(id: string): Promise<boolean> { return registry.requiresCookie(id); }
+export async function resolveMusicPluginUrl(id: string, songmid: string, quality: OnlineQuality): Promise<string> {
+  const result = await registry.call(id, 'getMusicUrl', [songmid, quality]);
+  const url = (result as { url?: unknown } | null)?.url;
+  if (typeof url !== 'string' || !url) throw new Error('Music plugin returned no stream URL');
+  return url;
+}
+export function getMusicStreamHeaders(id: string): Promise<Record<string, string>> {
+  return registry.streamHeaders(id, getMusicPluginCookie(id));
+}
 
 export function registerMusicPluginHandlers(): void {
   const directory = prepareMusicPluginDirectory(userStateRepository.directoryPath);
   const catalog = new MusicPluginCatalog((url, init) => net.fetch(url, init));
   registry = new MusicPluginRegistry({
     installedDirectory: directory,
+    // Each plugin runs in its own utility process.
+    spawn: spawnPluginProcess,
+    snapshot: pluginDataSnapshot,
     isEnabled: id => userStateRepository.getSetting(`music-plugin:${id}:enabled`) !== 'false',
     setEnabled: (id, enabled) => userStateRepository.setSetting(`music-plugin:${id}:enabled`, String(enabled)),
     host: id => ({ logger: {
@@ -141,7 +172,7 @@ export function registerMusicPluginHandlers(): void {
   for (const [id, channels] of Object.entries(actions)) {
     // The plugin owns the protocol; its reply is forwarded as the contract's result shape.
     for (const channel of channels) {
-      handleIpc(channel, (_event, ...args: unknown[]) => registry.get(id).invoke(channel, args) as Promise<IpcInvokeResult<typeof channel>>);
+      handleIpc(channel, (_event, ...args: unknown[]) => registry.invoke(id, channel, args) as Promise<IpcInvokeResult<typeof channel>>);
     }
   }
   handleIpc('fetch-cover-base64', async (_event, url: string) => {

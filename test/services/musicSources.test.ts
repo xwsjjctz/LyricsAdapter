@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ setOnlineCookie: vi.fn(async () => undefined) }));
+const mocks = vi.hoisted(() => ({ setOnlineCookie: vi.fn(async (_id: string, _cookie: string) => undefined) }));
 
 vi.mock('@/services/desktopAdapter', () => ({
   getDesktopAPI: () => null,
