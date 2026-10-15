@@ -10,9 +10,13 @@
  * wanted one does not fit. Every unit before the newest tile is therefore
  * filled, and earlier tiles never move as tracks are appended.
  *
- * Shapes never cross a band boundary, and tall shapes are only used while at
- * least two rows' worth of tracks follow, so the rows they reach into are
- * always completed and the wall ends in one left-aligned partial row.
+ * Small covers never gather: a third one in a row, or one that would close a
+ * 2x2 square of them, becomes wide or tall instead whenever that fits.
+ *
+ * Only tall covers cross into the next band, and never under its planned large
+ * slot. Tall shapes are only used while at least two rows' worth of tracks
+ * follow, so the rows they reach into are always completed and the wall ends
+ * in one left-aligned partial row.
  */
 import type { WallSlot } from './wallLayout';
 
@@ -31,10 +35,13 @@ const BAND_ROWS = 2;
 
 /** Wanted shape by hash bucket for covers outside the planned large slot. */
 const SHAPE_BUCKETS: readonly { upTo: number; options: readonly Shape[] }[] = [
-  { upTo: 0.16, options: [WIDE, UNIT] },
-  { upTo: 0.34, options: [TALL, UNIT] },
+  { upTo: 0.2, options: [WIDE, UNIT] },
+  { upTo: 0.4, options: [TALL, UNIT] },
   { upTo: 1, options: [UNIT] },
 ];
+
+/** Shapes that break up a cluster of small covers, in either preference. */
+const BREAKERS: readonly (readonly Shape[])[] = [[WIDE, TALL], [TALL, WIDE]];
 
 /**
  * Where each band's large cover sits, as a fraction of the free range;
@@ -60,6 +67,12 @@ const optionsFor = (index: number): readonly Shape[] => {
   const value = hashIndex(index);
   return SHAPE_BUCKETS.find(bucket => value < bucket.upTo)!.options;
 };
+
+const breakersFor = (index: number): readonly Shape[] => BREAKERS[hashIndex(~index) < 0.5 ? 0 : 1]!;
+
+const FREE = 0;
+const TAKEN = 1;
+const TAKEN_SMALL = 2;
 
 /** Planned large-cover column for each band, at least two columns from the previous one. */
 const largeColumns = (units: number) => {
@@ -94,13 +107,18 @@ export function packWall(count: number, units: number): WallSlot[] {
     while (grid.length <= y) grid.push(new Uint8Array(units));
     return grid[y]!;
   };
-  const free = (x: number, y: number): boolean => x >= 0 && x < units && row(y)[x] === 0;
+  const cellAt = (x: number, y: number): number =>
+    x < 0 || y < 0 || x >= units ? TAKEN : row(y)[x]!;
   const fits = (x: number, y: number, shape: Shape): boolean => {
     for (let dy = 0; dy < shape.h; dy++) {
-      for (let dx = 0; dx < shape.w; dx++) if (!free(x + dx, y + dy)) return false;
+      for (let dx = 0; dx < shape.w; dx++) if (cellAt(x + dx, y + dy) !== FREE) return false;
     }
     return true;
   };
+  const small = (x: number, y: number): boolean => cellAt(x, y) === TAKEN_SMALL;
+  /** A small cover here would be the third in a row or close a 2x2 of them. */
+  const crowded = (x: number, y: number): boolean =>
+    small(x - 1, y) && (small(x - 2, y) || (small(x - 1, y - 1) && small(x, y - 1)));
   const largeColumnFor = largeColumns(units);
   const bandsWithLarge = new Set<number>();
 
@@ -108,7 +126,7 @@ export function packWall(count: number, units: number): WallSlot[] {
   let cx = 0;
   let cy = 0;
   for (let index = 0; index < count; index++) {
-    while (!free(cx, cy)) {
+    while (cellAt(cx, cy) !== FREE) {
       cx++;
       if (cx === units) { cx = 0; cy++; }
     }
@@ -117,20 +135,27 @@ export function packWall(count: number, units: number): WallSlot[] {
     const bandTop = cy % BAND_ROWS === 0;
     const plannedX = largeColumnFor(band);
     const largePending = canGrowDown && bandTop && !bandsWithLarge.has(band);
+    // From a band's last row, a tall cover reaches into the next band; it
+    // must stay clear of that band's planned large slot.
+    const nextPlannedX = largeColumnFor(band + 1);
+    const tallAllowed = canGrowDown
+      && (bandTop || cx < nextPlannedX || cx >= nextPlannedX + LARGE.w);
+    const allowed = (option: Shape): boolean =>
+      (option.h === 1 || tallAllowed)
+      // Keep the planned large slot clear for this band's large cover.
+      && !(largePending && cx < plannedX && cx + option.w > plannedX)
+      && fits(cx, cy, option);
 
     let shape: Shape;
     if (largePending && cx >= plannedX && fits(cx, cy, LARGE)) {
       shape = LARGE;
       bandsWithLarge.add(band);
     } else {
-      shape = optionsFor(index).find(option =>
-        (option.h === 1 || (canGrowDown && bandTop))
-        // Keep the planned large slot clear for this band's large cover.
-        && !(largePending && cx < plannedX && cx + option.w > plannedX)
-        && fits(cx, cy, option),
-      ) ?? UNIT;
+      shape = optionsFor(index).find(allowed) ?? UNIT;
+      if (shape === UNIT && crowded(cx, cy)) shape = breakersFor(index).find(allowed) ?? UNIT;
     }
-    for (let dy = 0; dy < shape.h; dy++) row(cy + dy).fill(1, cx, cx + shape.w);
+    const mark = shape === UNIT ? TAKEN_SMALL : TAKEN;
+    for (let dy = 0; dy < shape.h; dy++) row(cy + dy).fill(mark, cx, cx + shape.w);
     slots.push({
       x: cx * CELLS_PER_UNIT,
       y: cy * CELLS_PER_UNIT,

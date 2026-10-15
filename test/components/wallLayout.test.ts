@@ -72,12 +72,33 @@ describe('computeWallLayout', () => {
     }
   });
 
-  it('mixes shapes while keeping most covers small', () => {
+  it('mixes all shapes, with small covers the most common', () => {
     const layout = computeWallLayout({ count: 600, width: 1440, gap: 0 });
-    const kinds = new Set(layout.tiles.map(tile => `${tile.cols}x${tile.rows}`));
-    expect(kinds).toEqual(new Set(['2x2', '4x2', '2x4', '4x4']));
-    expect(layout.tiles.filter(tile => tile.cols === 2 && tile.rows === 2).length / layout.tiles.length)
-      .toBeGreaterThan(0.5);
+    const counts = new Map<string, number>();
+    for (const tile of layout.tiles) {
+      const kind = `${tile.cols}x${tile.rows}`;
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+    expect(new Set(counts.keys())).toEqual(new Set(['2x2', '4x2', '2x4', '4x4']));
+    expect(Math.max(...counts.values())).toBe(counts.get('2x2'));
+  });
+
+  it.each([720, 1200, 1440, 1920, 2560])('rarely lets small covers cluster at %i px', width => {
+    const count = 400;
+    const units = wallColumnsFor(width) / 2;
+    const cell = width / (units * 2);
+    const layout = computeWallLayout({ count, width, gap: 0 });
+    const smallAt = new Set(layout.tiles
+      .filter(tile => tile.cols === 2 && tile.rows === 2)
+      .map(tile => `${Math.round(tile.x / cell / 2)},${Math.round(tile.y / cell / 2)}`));
+    const small = (x: number, y: number) => smallAt.has(`${x},${y}`);
+    let clusters = 0;
+    for (const key of smallAt) {
+      const [x, y] = key.split(',').map(Number) as [number, number];
+      if (small(x - 1, y) && small(x - 2, y)) clusters++;
+      if (small(x - 1, y) && small(x - 1, y - 1) && small(x, y - 1)) clusters++;
+    }
+    expect(clusters / count).toBeLessThan(0.03);
   });
 
   it.each([720, 1200, 1440, 1920, 2560])('gives every two-row band one large cover at %i px, never touching', width => {
