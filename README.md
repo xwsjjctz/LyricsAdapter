@@ -16,6 +16,10 @@
 
 从 [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases) 下载适合设备的安装包。当前发布配置提供 macOS Apple Silicon 的 `.dmg` 和 Windows x64 的 `.exe` 安装包。
 
+> **Windows 首次安装提示**：安装包暂未进行代码签名，运行时 Microsoft Defender SmartScreen 可能会显示「Windows 已保护你的电脑」，发布者为「未知发布者」。确认安装包来自本仓库的 Releases 后，点击「更多信息」，再点击「仍要运行」即可继续安装。
+>
+> **macOS 首次打开提示**：应用暂未进行 Apple 公证，首次打开时 macOS 可能提示无法验证开发者。将应用拖入「应用程序」文件夹并尝试打开一次后，前往「系统设置 → 隐私与安全性」，在页面下方点击「仍要打开」并确认。如果提示应用「已损坏，无法打开」，请在终端运行 `xattr -dr com.apple.quarantine /Applications/LyricsAdapter.app` 后重新打开。
+
 1. 打开应用，在侧边栏选择「本地」。
 2. 点击曲库右上方的导入按钮，选择 **MP3 或 FLAC** 文件；也可以将多个音频文件拖入曲库区域。
 3. 点击曲目开始播放，再点击底部控制栏的「专注模式」按钮查看同步歌词。

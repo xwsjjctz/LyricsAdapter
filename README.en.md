@@ -16,6 +16,10 @@ Listen to your own collection, connect a WebDAV library, or add QQ Music and Net
 
 Download the installer for your device from [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases). The current release configuration provides a `.dmg` for Apple Silicon Macs and an `.exe` installer for Windows x64.
 
+> **First install on Windows**: The installer is not code-signed yet, so Microsoft Defender SmartScreen may show **Windows protected your PC** with an unknown publisher. After confirming the installer came from this repository's Releases, select **More info**, then **Run anyway** to continue.
+>
+> **First launch on macOS**: The app is not notarized by Apple yet, so macOS may say it cannot verify the developer. Drag the app into **Applications** and try to open it once, then go to **System Settings → Privacy & Security**, select **Open Anyway** near the bottom, and confirm. If macOS says the app **is damaged and can't be opened**, run `xattr -dr com.apple.quarantine /Applications/LyricsAdapter.app` in Terminal and open it again.
+
 1. Open the app and select **Local** in the sidebar.
 2. Use the import button at the top right of the library to select **MP3 or FLAC** files, or drag multiple audio files into the library area.
 3. Click a track to play it, then use **Focus Mode** in the bottom controls to view synchronized lyrics.
