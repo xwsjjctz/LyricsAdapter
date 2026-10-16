@@ -53,10 +53,10 @@ internal static class TaskbarInterop
     private const int SwShowNoActivate = 4;
     private static readonly IntPtr HwndTop = IntPtr.Zero;
     private static readonly IntPtr HwndTopMost = new(-1);
-    private static readonly TimeSpan AutomationCacheDuration = TimeSpan.FromSeconds(3);
-    private static IntPtr _automationCacheTaskbar;
-    private static DateTime _automationCacheExpiresUtc = DateTime.MinValue;
-    private static List<HorizontalInterval> _automationCache = [];
+    private static readonly TimeSpan AutomationCacheDuration = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan AutomationFailureRetryDuration = TimeSpan.FromSeconds(5);
+    private static volatile AutomationSnapshot? _automationSnapshot;
+    private static int _automationRefreshInFlight;
 
     /// <summary>
     /// Establishes the topmost band while the WPF HWND is still top-level.
@@ -150,6 +150,13 @@ internal static class TaskbarInterop
             taskbar,
             hostWindow,
             taskbarRect);
+        if (!HasAutomationSnapshot(taskbar))
+        {
+            // The first UI Automation read is still running in the background. Attaching
+            // before it lands could cover Explorer buttons that have not been measured.
+            reason = "automation-pending";
+            return false;
+        }
         var taskbarCenter = taskbarRect.Left + taskbarWidth / 2;
         var preferEnd = true;
         var tray = FindDescendantByClass(taskbar, TrayNotifyClass);
@@ -297,104 +304,147 @@ internal static class TaskbarInterop
         return occupied;
     }
 
+    /// <summary>
+    /// Projects the newest UI Automation snapshot onto the current taskbar. Explorer's
+    /// XAML taskbar is read on a worker thread: a synchronous cross-process call from
+    /// the presentation thread can stall while Explorer resumes, and that thread must
+    /// keep answering Explorer's messages to this child window.
+    /// </summary>
     private static IReadOnlyList<HorizontalInterval> GetAutomationOccupiedIntervals(
         IntPtr taskbar,
         Rect taskbarRect)
     {
-        var now = DateTime.UtcNow;
-        if (_automationCacheTaskbar == taskbar && now < _automationCacheExpiresUtc)
+        var snapshot = _automationSnapshot;
+        if (snapshot is null
+            || snapshot.Taskbar != taskbar
+            || DateTime.UtcNow >= snapshot.ExpiresUtc)
         {
-            return _automationCache;
+            BeginAutomationRefresh(taskbar, taskbarRect);
         }
 
         var occupied = new List<HorizontalInterval>();
+        if (snapshot is not null && snapshot.Taskbar == taskbar)
+        {
+            foreach (var bounds in snapshot.Rects)
+            {
+                AddProjectedInterval(occupied, bounds, taskbarRect);
+            }
+        }
+        return occupied;
+    }
+
+    private static bool HasAutomationSnapshot(IntPtr taskbar)
+    {
+        var snapshot = _automationSnapshot;
+        return snapshot is not null && snapshot.Taskbar == taskbar;
+    }
+
+    private static void BeginAutomationRefresh(IntPtr taskbar, Rect taskbarRect)
+    {
+        // At most one read is in flight. A hung Explorer provider then leaves the
+        // last good snapshot in place instead of queueing more blocked calls.
+        if (Interlocked.CompareExchange(ref _automationRefreshInFlight, 1, 0) != 0) return;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var rects = TryReadAutomationRects(taskbar, taskbarRect);
+                var previous = _automationSnapshot;
+                IReadOnlyList<Rect> keptRects = previous is not null && previous.Taskbar == taskbar
+                    ? previous.Rects
+                    : [];
+                _automationSnapshot = rects is null
+                    ? new AutomationSnapshot(taskbar, keptRects, DateTime.UtcNow + AutomationFailureRetryDuration)
+                    : new AutomationSnapshot(taskbar, rects, DateTime.UtcNow + AutomationCacheDuration);
+            }
+            finally
+            {
+                Volatile.Write(ref _automationRefreshInFlight, 0);
+            }
+        });
+    }
+
+    /// <summary>Reads taskbar element bounds through UI Automation; null when the provider fails.</summary>
+    private static List<Rect>? TryReadAutomationRects(IntPtr taskbar, Rect taskbarRect)
+    {
+        var rects = new List<Rect>();
         try
         {
             var root = AutomationElement.FromHandle(taskbar);
-            if (root is not null)
+            if (root is null) return rects;
+
+            var condition = new OrCondition(
+                new PropertyCondition(
+                    AutomationElement.ControlTypeProperty,
+                    ControlType.Button),
+                new PropertyCondition(
+                    AutomationElement.ControlTypeProperty,
+                    ControlType.Pane));
+            var elements = root.FindAll(TreeScope.Descendants, condition);
+            var taskbarWidth = taskbarRect.Right - taskbarRect.Left;
+            for (var index = 0; index < elements.Count; index++)
             {
-                var condition = new OrCondition(
-                    new PropertyCondition(
-                        AutomationElement.ControlTypeProperty,
-                        ControlType.Button),
-                    new PropertyCondition(
-                        AutomationElement.ControlTypeProperty,
-                        ControlType.Pane));
-                var elements = root.FindAll(TreeScope.Descendants, condition);
-                var taskbarWidth = taskbarRect.Right - taskbarRect.Left;
-                for (var index = 0; index < elements.Count; index++)
+                try
                 {
-                    try
+                    var current = elements[index].Current;
+                    var bounds = current.BoundingRectangle;
+                    if (bounds.IsEmpty
+                        || !double.IsFinite(bounds.Left)
+                        || !double.IsFinite(bounds.Top)
+                        || !double.IsFinite(bounds.Right)
+                        || !double.IsFinite(bounds.Bottom))
                     {
-                        var current = elements[index].Current;
-                        var bounds = current.BoundingRectangle;
-                        if (bounds.IsEmpty
-                            || !double.IsFinite(bounds.Left)
-                            || !double.IsFinite(bounds.Top)
-                            || !double.IsFinite(bounds.Right)
-                            || !double.IsFinite(bounds.Bottom))
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        var isButton = current.ControlType == ControlType.Button;
-                        var width = bounds.Right - bounds.Left;
-                        var className = current.ClassName;
-                        var isTaskbarContainer = string.Equals(
-                                className,
-                                "Windows.UI.Input.InputSite.WindowClass",
-                                StringComparison.Ordinal)
-                            || string.Equals(
-                                className,
-                                "Taskbar.TaskbarFrameAutomationPeer",
-                                StringComparison.Ordinal);
-                        if (!isButton && (isTaskbarContainer || width >= taskbarWidth * 0.8))
-                        {
-                            // TaskbarFrame and InputSite span the whole bar and
-                            // are containers rather than occupied visual slots.
-                            continue;
-                        }
+                    var isButton = current.ControlType == ControlType.Button;
+                    var width = bounds.Right - bounds.Left;
+                    var className = current.ClassName;
+                    var isTaskbarContainer = string.Equals(
+                            className,
+                            "Windows.UI.Input.InputSite.WindowClass",
+                            StringComparison.Ordinal)
+                        || string.Equals(
+                            className,
+                            "Taskbar.TaskbarFrameAutomationPeer",
+                            StringComparison.Ordinal);
+                    if (!isButton && (isTaskbarContainer || width >= taskbarWidth * 0.8))
+                    {
+                        // TaskbarFrame and InputSite span the whole bar and
+                        // are containers rather than occupied visual slots.
+                        continue;
+                    }
 
-                        AddProjectedInterval(occupied, new Rect
-                        {
-                            Left = (int)Math.Floor(bounds.Left),
-                            Top = (int)Math.Floor(bounds.Top),
-                            Right = (int)Math.Ceiling(bounds.Right),
-                            Bottom = (int)Math.Ceiling(bounds.Bottom),
-                        }, taskbarRect);
-                    }
-                    catch (ElementNotAvailableException)
+                    rects.Add(new Rect
                     {
-                        // Explorer rebuilt this automation element mid-query.
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // A third-party taskbar provider returned stale data.
-                    }
-                    catch (COMException)
-                    {
-                        // An out-of-process automation provider disappeared.
-                    }
+                        Left = (int)Math.Floor(bounds.Left),
+                        Top = (int)Math.Floor(bounds.Top),
+                        Right = (int)Math.Ceiling(bounds.Right),
+                        Bottom = (int)Math.Ceiling(bounds.Bottom),
+                    });
+                }
+                catch (ElementNotAvailableException)
+                {
+                    // Explorer rebuilt this automation element mid-query.
+                }
+                catch (InvalidOperationException)
+                {
+                    // A third-party taskbar provider returned stale data.
+                }
+                catch (COMException)
+                {
+                    // An out-of-process automation provider disappeared.
                 }
             }
-
-            _automationCacheTaskbar = taskbar;
-            _automationCache = occupied;
-            _automationCacheExpiresUtc = now + AutomationCacheDuration;
+            return rects;
         }
         catch (Exception)
         {
             // UI Automation is advisory. Native taskbar and third-party HWNDs
             // still provide a collision-safe fallback on customized shells.
-            if (_automationCacheTaskbar != taskbar)
-            {
-                _automationCacheTaskbar = taskbar;
-                _automationCache = [];
-            }
-            _automationCacheExpiresUtc = now + TimeSpan.FromSeconds(1);
+            return null;
         }
-
-        return _automationCache;
     }
 
     private static void AddProjectedInterval(
@@ -712,6 +762,11 @@ internal static class TaskbarInterop
     {
         internal int Length => End - Start;
     }
+
+    private sealed record AutomationSnapshot(
+        IntPtr Taskbar,
+        IReadOnlyList<Rect> Rects,
+        DateTime ExpiresUtc);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect

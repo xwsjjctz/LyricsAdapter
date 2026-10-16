@@ -22,6 +22,13 @@ export type WindowsTaskbarLyricsActionHandler = (
 
 type DisposeSubscription = () => void;
 
+export interface WindowsTaskbarSessionListener {
+  onLock: () => void;
+  onUnlock: () => void;
+  onSuspend: () => void;
+  onResume: () => void;
+}
+
 export interface WindowsTaskbarLyricsServiceDependencies {
   platform: NodeJS.Platform;
   hostExecutablePath: string;
@@ -30,14 +37,13 @@ export interface WindowsTaskbarLyricsServiceDependencies {
   resolveArtworkSource: (coverUrl: string) => string;
   loadPlacement: () => WindowsTaskbarHostPlacement;
   savePlacement: (placement: WindowsTaskbarHostPlacement) => boolean;
-  subscribeSessionChanges: (
-    onLock: () => void,
-    onUnlock: () => void,
-  ) => DisposeSubscription;
+  subscribeSessionChanges: (listener: WindowsTaskbarSessionListener) => DisposeSubscription;
 }
 
 const RESTART_BASE_DELAY_MS = 500;
 const RESTART_MAX_DELAY_MS = 30_000;
+/** Gives Explorer time to finish rebuilding the taskbar after wake or unlock. */
+const SESSION_REVEAL_DELAY_MS = 5_000;
 const TASKBAR_PLACEMENT_SETTING_KEY = 'la_windows_taskbar_lyrics_placement';
 const EMPTY_ACTION_HANDLER: WindowsTaskbarLyricsActionHandler = () => {};
 const AUTO_PLACEMENT: WindowsTaskbarHostPlacement = {
@@ -88,16 +94,16 @@ function defaultDependencies(): WindowsTaskbarLyricsServiceDependencies {
       TASKBAR_PLACEMENT_SETTING_KEY,
       JSON.stringify(placement),
     ),
-    subscribeSessionChanges: (onLock, onUnlock) => {
+    subscribeSessionChanges: ({ onLock, onUnlock, onSuspend, onResume }) => {
       powerMonitor.on('lock-screen', onLock);
-      powerMonitor.on('suspend', onLock);
       powerMonitor.on('unlock-screen', onUnlock);
-      powerMonitor.on('resume', onUnlock);
+      powerMonitor.on('suspend', onSuspend);
+      powerMonitor.on('resume', onResume);
       return () => {
         powerMonitor.removeListener('lock-screen', onLock);
-        powerMonitor.removeListener('suspend', onLock);
         powerMonitor.removeListener('unlock-screen', onUnlock);
-        powerMonitor.removeListener('resume', onUnlock);
+        powerMonitor.removeListener('suspend', onSuspend);
+        powerMonitor.removeListener('resume', onResume);
       };
     },
   };
@@ -119,7 +125,11 @@ export class WindowsTaskbarLyricsService {
   private state: SystemLyricsState | null = null;
   private onAction: WindowsTaskbarLyricsActionHandler = EMPTY_ACTION_HANDLER;
   private enabled = false;
+  /** Set by lock-screen and cleared only by unlock-screen. */
   private sessionLocked = false;
+  /** Set by suspend and cleared by resume; resume alone does not unlock the session. */
+  private systemSuspended = false;
+  private revealTimer: NodeJS.Timeout | null = null;
   private restartAttempt = 0;
   private restartTimer: NodeJS.Timeout | null = null;
   private subscriptions: DisposeSubscription[] = [];
@@ -157,17 +167,29 @@ export class WindowsTaskbarLyricsService {
 
     this.enabled = true;
     this.subscriptions = [
-      this.dependencies.subscribeSessionChanges(
-        () => {
+      this.dependencies.subscribeSessionChanges({
+        onLock: () => {
           this.sessionLocked = true;
-          this.setHostVisible(false);
+          this.hideForSessionChange();
         },
-        () => {
+        onUnlock: () => {
           this.sessionLocked = false;
-          this.ensureHost()?.refresh();
-          this.renderState();
+          this.hideForSessionChange();
+          this.scheduleReveal();
         },
-      ),
+        onSuspend: () => {
+          this.systemSuspended = true;
+          this.hideForSessionChange();
+        },
+        onResume: () => {
+          // Modern Standby also resumes for background maintenance while the lock
+          // screen is still up. Resume only ends the suspension; scheduleReveal()
+          // keeps the widget hidden until the session is unlocked.
+          this.systemSuspended = false;
+          this.hideForSessionChange();
+          this.scheduleReveal();
+        },
+      }),
     ];
     return true;
   }
@@ -193,12 +215,14 @@ export class WindowsTaskbarLyricsService {
     this.enabled = false;
     this.state = null;
     this.sessionLocked = false;
+    this.systemSuspended = false;
     this.restartAttempt = 0;
     this.lastCoverUrl = '';
     this.lastArtworkSource = '';
     this.lastStatusKey = '';
     this.onAction = EMPTY_ACTION_HANDLER;
     this.clearRestartTimer();
+    this.clearRevealTimer();
 
     for (const dispose of this.subscriptions.splice(0)) dispose();
 
@@ -216,7 +240,7 @@ export class WindowsTaskbarLyricsService {
 
   private ensureHost(): WindowsTaskbarHostBridge | null {
     if (this.host || !this.enabled || !this.state?.trackId) return this.host;
-    if (this.restartTimer || this.sessionLocked) return null;
+    if (this.restartTimer || this.isSessionBlocked()) return null;
 
     try {
       let launchedHost: WindowsTaskbarHostBridge;
@@ -273,7 +297,7 @@ export class WindowsTaskbarLyricsService {
   private renderState(): void {
     const state = this.state;
     const host = this.host;
-    if (!state?.trackId || !host || this.sessionLocked) return;
+    if (!state?.trackId || !host || this.isSessionBlocked()) return;
 
     if (state.coverUrl !== this.lastCoverUrl) {
       this.lastCoverUrl = state.coverUrl;
@@ -352,7 +376,7 @@ export class WindowsTaskbarLyricsService {
     this.restartAttempt += 1;
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
-      if (!this.enabled || !this.state?.trackId || this.sessionLocked) return;
+      if (!this.enabled || !this.state?.trackId || this.isSessionBlocked()) return;
       this.ensureHost();
       this.renderState();
     }, delay);
@@ -362,6 +386,34 @@ export class WindowsTaskbarLyricsService {
   private clearRestartTimer(): void {
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = null;
+  }
+
+  private isSessionBlocked(): boolean {
+    return this.sessionLocked || this.systemSuspended || this.revealTimer !== null;
+  }
+
+  /** Hides before a lock or sleep transition, so Explorer never sees a stale child window. */
+  private hideForSessionChange(): void {
+    this.clearRevealTimer();
+    this.setHostVisible(false);
+  }
+
+  /** Re-attaches once the taskbar has settled, and only if the session is usable. */
+  private scheduleReveal(): void {
+    if (!this.enabled || this.sessionLocked || this.systemSuspended) return;
+    this.clearRevealTimer();
+    this.revealTimer = setTimeout(() => {
+      this.revealTimer = null;
+      if (!this.enabled || this.isSessionBlocked()) return;
+      this.ensureHost()?.refresh();
+      this.renderState();
+    }, SESSION_REVEAL_DELAY_MS);
+    this.revealTimer.unref();
+  }
+
+  private clearRevealTimer(): void {
+    if (this.revealTimer) clearTimeout(this.revealTimer);
+    this.revealTimer = null;
   }
 }
 
