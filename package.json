@@ -90,7 +90,7 @@
     "cross-env": "^7.0.3",
     "dependency-cruiser": "^17.4.3",
     "electron": "^42.10.0",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.17.0",
     "i18next": "^26.3.5",
     "jsdom": "^25.0.1",
     "node-gyp": "^12.4.0",
