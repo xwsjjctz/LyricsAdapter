@@ -12,6 +12,14 @@ export interface PluginUpdateFeed {
   schemaVersion: 1;
   plugins: { id: string; releases: PluginUpdateRelease[] }[];
 }
+/** Official plugins served by the bundled catalog and its 'official' update source. */
+export const OFFICIAL_MUSIC_SOURCES = ['qq', 'netease'] as const;
+export type OfficialMusicSource = typeof OFFICIAL_MUSIC_SOURCES[number];
+
+export function isOfficialMusicSource(id: string): id is OfficialMusicSource {
+  return (OFFICIAL_MUSIC_SOURCES as readonly string[]).includes(id);
+}
+
 export type PluginUpdateChannel = 'stable' | 'prerelease';
 export type PluginUpdateSource =
   | { kind: 'official'; channel: 'stable' }
@@ -65,7 +73,7 @@ export function pluginUpdateUrl(value: string): URL {
 export function validatePluginUpdateSource(value: unknown, id: string): PluginUpdateSource {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid plugin update source');
   const source = value as Record<string, unknown>;
-  if (source['kind'] === 'official' && (id === 'qq' || id === 'netease')) return { kind: 'official', channel: 'stable' };
+  if (source['kind'] === 'official' && isOfficialMusicSource(id)) return { kind: 'official', channel: 'stable' };
   const channel = source['channel'] ?? 'stable';
   if (channel !== 'stable' && channel !== 'prerelease') throw new Error('Invalid plugin update channel');
   if (source['kind'] === 'github' && typeof source['repository'] === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}\/[a-zA-Z0-9_.-]{1,100}$/.test(source['repository'])

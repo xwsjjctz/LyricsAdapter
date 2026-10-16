@@ -55,11 +55,14 @@ describe('SettingsManager persistence contract', () => {
     expect(settingsManager.getOnlineSource()).toBe('qq');
   });
 
-  it('falls back to QQ Music when a removed provider was stored', () => {
+  it('keeps any stored plugin id and falls back to QQ Music only for malformed values', () => {
+    // The plugin list later switches to an enabled source if this one is not installed.
     storageMocks.getItem.mockImplementation(key => key === 'la_online_source' ? 'soda' : null);
-
     (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getOnlineSource()).toBe('soda');
 
+    storageMocks.getItem.mockImplementation(key => key === 'la_online_source' ? 'Not A Source!' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
     expect(settingsManager.getOnlineSource()).toBe('qq');
   });
 

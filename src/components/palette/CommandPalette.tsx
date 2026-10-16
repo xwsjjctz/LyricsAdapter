@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PaletteCommand } from '../../commands/paletteCommand';
+import type { PaletteCommand } from '../../types/paletteCommand';
 import { PALETTE_MODES, commandPalette, useCommandPaletteState, type CommandPaletteStore } from '../../hooks/useCommandPalette';
 import { useDocumentDarkMode, useNativePalette } from '../../hooks/useNativePalette';
 import type { NativePaletteAction } from '../../types/nativePalette';
 import { dispatchForwardedShortcut, toNativePaletteState } from './nativePaletteState';
 import { usePaletteItems, type PaletteItem, type PaletteLibrarySources } from './usePaletteItems';
 import TrackMenu, { type TrackMenuPosition } from '../TrackMenu';
-import { buildTrackMenuItems, downloadQualityOf } from '../trackMenuItems';
+import { buildTrackMenuItems, downloadQualityOf } from '../../domain/trackMenuItems';
 import { themeManager } from '../../services/themeManager';
 
 interface CommandPaletteProps {

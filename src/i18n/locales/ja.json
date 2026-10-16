@@ -390,5 +390,16 @@
   "musicPlugins.enabled": "有効",
   "musicPlugins.disabled": "無効",
   "musicPlugins.empty": "音楽ソースプラグインはありません",
-  "musicPlugins.repository": "公式プラグインリポジトリ"
+  "musicPlugins.repository": "公式プラグインリポジトリ",
+  "pluginTrust.updateTitle": "サードパーティ製プラグインの更新",
+  "pluginTrust.updateMessage": "サードパーティのソースから「{{name}}」を更新しますか？",
+  "pluginTrust.updateDetail": "ソース：{{source}}\nバージョン：{{current}} → {{next}}\nSHA-256：{{sha256}}\n\nプラグインはこのアプリの権限で動作し、アプリのデータを読み取り、ネットワークにアクセスできます。信頼できるソースの場合のみ続行してください。",
+  "pluginTrust.bindTitle": "プラグインの更新元を変更",
+  "pluginTrust.bindMessage": "「{{name}}」をこのソースから更新しますか？",
+  "pluginTrust.bindDetail": "ソース：{{source}}\n\n今後のプラグイン更新はここからダウンロードされ、このアプリの権限で動作します。信頼できるソースの場合のみ続行してください。",
+  "pluginTrust.confirmUpdate": "信頼して更新",
+  "pluginTrust.confirmBind": "このソースを信頼",
+  "pluginTrust.cancel": "キャンセル",
+  "settingsDialog.cookieLoginHint": "このソースは QR ログインに対応していません。下に Cookie を貼り付けて保存してください。",
+  "settingsDialog.noLoginHint": "このソースはログインなしで検索・再生できます。プラグインが対応していれば、下に Cookie を入力することもできます。"
 }

@@ -9,8 +9,6 @@ import {
   backdropAlphaFactorAtExitProgress,
   backdropAlphaFactorAtPhase,
   backdropAlphaPhaseFromFactor,
-  backdropTrackChangeAlpha,
-  backdropTrackChangeBrightness,
 } from './focusBackdropAlpha';
 import { drawEdgeExtendedCover, isBackdropSourceReady, type BackdropSource } from './focusCanvasBackdropDraw';
 
@@ -21,8 +19,7 @@ import { drawEdgeExtendedCover, isBackdropSourceReady, type BackdropSource } fro
 const BACKDROP_RENDER_SCALE = 0.5;
 const BACKDROP_OVERSCAN_PX = 100;
 const BACKDROP_SATURATION = 1.5;
-const BACKDROP_RESTING_BRIGHTNESS = 0.55;
-const BACKDROP_DIM_BRIGHTNESS = 0.3;
+const BACKDROP_BRIGHTNESS = 0.55;
 const BACKDROP_TRANSITION_DURATION_MS = 1000;
 // Canvas2D blur samples transparent pixels outside its backing store. Prepare
 // an edge-extended source with enough filter padding, then crop the centre, so
@@ -52,8 +49,9 @@ interface FocusCanvasBackdropProps {
 
 /**
  * Classic FocusMode backdrop: the cover blurred and saturated on a Canvas2D,
- * fading in over a blurred Library View, with a breathing cross-fade between
- * covers. Steady state is a static bitmap with no per-frame work.
+ * fading in over a blurred Library View, with a cross-fade between covers
+ * that keeps the layer's alpha and brightness steady. Steady state is a static
+ * bitmap with no per-frame work.
  */
 const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
   trackId, coverUrl, isVisible, isLinux, opacity, blurRadius,
@@ -62,13 +60,11 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasBackground, setHasBackground] = useState(false);
   const [blurUnderlyingView, setBlurUnderlyingView] = useState(true);
-  const [blurUnderlyingViewForTrackChange, setBlurUnderlyingViewForTrackChange] = useState(false);
   const currentBackgroundRef = useRef<BackdropSource | null>(null);
   const incomingBackgroundRef = useRef<BackdropSource | null>(null);
   const currentBackgroundTrackIdRef = useRef<string | null>(null);
   const incomingBackgroundTrackIdRef = useRef<string | null>(null);
   const transitionProgressRef = useRef(1);
-  const backdropBrightnessRef = useRef(BACKDROP_RESTING_BRIGHTNESS);
   const animationFrameRef = useRef<number | null>(null);
   const backgroundLoadGenerationRef = useRef(0);
   // Backing size of the visible canvas, so an interrupted cross-fade can be
@@ -230,9 +226,8 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     return baked;
   }, [prepareBackdrop]);
 
-  // Render the complete backdrop frame directly. Transition progress and the
-  // brightness "breathing" value live in refs so a cover cross-fade does not
-  // cause a React commit on every animation frame.
+  // Render the complete backdrop frame directly. Transition progress lives in
+  // a ref so a cover cross-fade does not cause a React commit on every frame.
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -252,7 +247,7 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     const preparedCurrent = prepareBackdrop(currentBackground, width, height);
     if (!preparedCurrent) return;
 
-    // Effective backdrop alpha: 0.3 at the dim end (factor 0) up to bgBlurTrans
+    // Effective backdrop alpha: 0.5 at the dim end (factor 0) up to bgBlurTrans
     // at full visibility (factor 1). canvasOpacityRef is animated on enter/exit.
     const alpha = BACKDROP_ALPHA_EDGE_OPACITY
       + (bgBlurTransRef.current - BACKDROP_ALPHA_EDGE_OPACITY) * canvasOpacityRef.current;
@@ -279,7 +274,7 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     frameCtx.imageSmoothingQuality = 'high';
     // Blur and saturation are cached per decoded cover. Animation frames only
     // apply the inexpensive brightness matrix and alpha blend.
-    frameCtx.filter = `brightness(${backdropBrightnessRef.current})`;
+    frameCtx.filter = `brightness(${BACKDROP_BRIGHTNESS})`;
     frameCtx.drawImage(preparedCurrent, 0, 0);
 
     // Paint the old image opaquely, then fade the new one over it. This keeps
@@ -297,14 +292,9 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     ctx.clearRect(0, 0, width, height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    // Keep a subtle track-change opacity pulse. The legacy two-draw source-over
-    // path produced Aout = A * (1 - A * p * (1 - p)), which dipped to 0.75 at
-    // p = 0.5 when A = 1 and let the library view wash out the cover colour
-    // cross-fade; backdropTrackChangeAlpha halves that dip.
-    const transitionAlpha = preparedIncoming
-      ? backdropTrackChangeAlpha(alpha, transitionProgress)
-      : alpha;
-    ctx.globalAlpha = transitionAlpha;
+    // A track change only cross-fades the covers inside the frame; the layer
+    // alpha stays put so the library view never shows through mid-change.
+    ctx.globalAlpha = alpha;
     ctx.drawImage(frameCanvas, 0, 0);
 
     ctx.globalAlpha = 1.0;
@@ -314,7 +304,7 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
    * Drive `transitionProgressRef` from wherever the cross-fade currently is to
    * `targetProgress` (0 = the base cover, 1 = the incoming cover). Used both for
    * a fresh fade and for reversing/continuing an interrupted one, so the pixels
-   * never jump. Brightness continues from its live value and settles on resting.
+   * never jump.
    */
   const animateTransitionTo = useCallback((
     targetProgress: number,
@@ -332,7 +322,6 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
       return;
     }
 
-    const startBrightness = backdropBrightnessRef.current;
     const duration = Math.max(1, BACKDROP_TRANSITION_DURATION_MS * distance);
     // Anchor the timeline on the first painted frame. Capturing
     // performance.now() here would count any scheduling delay (a busy main
@@ -343,19 +332,12 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
       if (startTime === null) startTime = now;
       const elapsed = Math.max(0, Math.min((now - startTime) / duration, 1));
       transitionProgressRef.current = fromProgress + (targetProgress - fromProgress) * elapsed;
-      backdropBrightnessRef.current = backdropTrackChangeBrightness(
-        startBrightness,
-        BACKDROP_RESTING_BRIGHTNESS,
-        BACKDROP_DIM_BRIGHTNESS,
-        elapsed,
-      );
       renderCanvas();
       if (elapsed < 1) {
         animationFrameRef.current = requestAnimationFrame(animate);
       } else {
         animationFrameRef.current = null;
         transitionProgressRef.current = targetProgress;
-        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
         onComplete();
       }
     };
@@ -384,8 +366,8 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     return () => window.clearTimeout(timer);
   }, [isVisible]);
 
-  // The page slide still lasts 600ms. The backdrop uses a delayed 1000ms reveal:
-  // alpha 0.3 → ~0.58 while the page enters, then ~0.58 → bgBlurTrans afterwards.
+  // The page slide lasts 600ms. The backdrop uses a delayed 700ms reveal:
+  // alpha 0.5 → ~0.94 while the page enters, then → bgBlurTrans just after.
 
   // Animate the backdrop alpha on enter/exit. canvasOpacityRef is a 0..1 factor
   // baked into the draw alpha by renderCanvas; we redraw each frame so the fade
@@ -469,10 +451,7 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
   // the canvas, decoded images and lyric DOM while ordinary playback continues.
   // Tracks without artwork use the app-icon default cover as their backdrop too.
   useEffect(() => {
-    if (!isVisible || !trackId || !coverUrl) {
-      setBlurUnderlyingViewForTrackChange(false);
-      return;
-    }
+    if (!isVisible || !trackId || !coverUrl) return;
     const inFlightIncoming = incomingBackgroundRef.current;
     const inFlightIncomingTrackId = incomingBackgroundTrackIdRef.current;
 
@@ -480,15 +459,12 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     // cross-fade instead of snapping straight back to it.
     if (currentBackgroundRef.current && currentBackgroundTrackIdRef.current === trackId) {
       if (inFlightIncoming) {
-        setBlurUnderlyingViewForTrackChange(true);
         animateTransitionTo(0, () => {
           incomingBackgroundRef.current = null;
           incomingBackgroundTrackIdRef.current = null;
           currentBackgroundTrackIdRef.current = trackId;
           transitionProgressRef.current = 1;
-          backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
           setHasBackground(true);
-          setBlurUnderlyingViewForTrackChange(false);
           renderCanvas();
         });
         return;
@@ -496,10 +472,8 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
 
       // A quick exit/re-entry keeps this component mounted. Reuse the prepared
       // cover for the same track instead of mistaking visibility reversal for a
-      // new track and replaying the 1000ms cover breathing transition.
+      // new track and replaying the 1000ms cover cross-fade.
       transitionProgressRef.current = 1;
-      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
-      setBlurUnderlyingViewForTrackChange(false);
       setHasBackground(true);
       renderCanvas();
       return;
@@ -507,26 +481,16 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     // The requested track is the one already fading in: continue that fade
     // instead of restarting it over the other cover.
     if (inFlightIncoming && inFlightIncomingTrackId === trackId) {
-      setBlurUnderlyingViewForTrackChange(true);
       animateTransitionTo(1, () => {
         currentBackgroundRef.current = inFlightIncoming;
         currentBackgroundTrackIdRef.current = trackId;
         incomingBackgroundRef.current = null;
         incomingBackgroundTrackIdRef.current = null;
         transitionProgressRef.current = 1;
-        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
         setHasBackground(true);
-        setBlurUnderlyingViewForTrackChange(false);
         renderCanvas();
       });
       return;
-    }
-
-    // Activate the Library View blur as soon as a replacement cover starts
-    // loading. It will already be in the compositor before the Canvas cross-fade
-    // reveals the view underneath.
-    if (currentBackgroundRef.current || incomingBackgroundRef.current) {
-      setBlurUnderlyingViewForTrackChange(true);
     }
 
     const generation = backgroundLoadGenerationRef.current + 1;
@@ -565,11 +529,6 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
         incomingBackgroundRef.current = null;
         incomingBackgroundTrackIdRef.current = null;
         transitionProgressRef.current = 1;
-        // The original first-load brightness animation was scheduled before its
-        // conditional Canvas existed, so the actually observed entrance used
-        // the resting brightness and only the page/alpha fades. Keep that visual
-        // contract while retaining the new pre-filtered Canvas pipeline.
-        backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
         setHasBackground(true);
         renderCanvas();
         return;
@@ -602,7 +561,6 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
         incomingBackgroundRef.current = null;
         incomingBackgroundTrackIdRef.current = null;
         renderCanvas();
-        setBlurUnderlyingViewForTrackChange(false);
       });
     };
 
@@ -614,9 +572,7 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
       incomingBackgroundRef.current = null;
       incomingBackgroundTrackIdRef.current = null;
       transitionProgressRef.current = 1;
-      backdropBrightnessRef.current = BACKDROP_RESTING_BRIGHTNESS;
       renderCanvas();
-      setBlurUnderlyingViewForTrackChange(false);
     };
 
     // 背景经 40–80px 的重度模糊，分辨率不可见，用 256px 缩略图即可，大幅减小 GPU 纹理。
@@ -679,10 +635,9 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     if (hasBackground) renderCanvas();
   }, [hasBackground, renderCanvas]);
 
-  const blurUnderlying = blurUnderlyingView || blurUnderlyingViewForTrackChange;
   return (
     <>
-      {blurUnderlying && (
+      {blurUnderlyingView && (
         <div
           data-focus-library-backdrop-blur
           className={`fixed inset-0 pointer-events-none backdrop-blur-sm${isLinux ? ' rounded-lg overflow-hidden' : ''}`}

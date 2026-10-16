@@ -268,14 +268,15 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     await focusToggle.click();
     await expect(focus).toHaveCount(0);
     expect(await page.evaluate(async () => {
-      const api = (window as typeof window & {
-        electron?: {
-          settingsSet: (key: string, value: string) => Promise<void>;
-          settingsGetAll: () => Promise<Record<string, string>>;
-        };
-      }).electron;
-      await api?.settingsSet('la_focus_amll_memory_enabled', 'false');
-      return (await api?.settingsGetAll())?.['la_focus_amll_memory_enabled'];
+      const settings = (window as typeof window & {
+        electron?: { ipc: { settings: {
+          set: (key: string, value: string) => Promise<unknown>;
+          getAll: () => Promise<{ ok: true; data: Record<string, string> } | { ok: false; error: string }>;
+        } } };
+      }).electron?.ipc.settings;
+      await settings?.set('la_focus_amll_memory_enabled', 'false');
+      const result = await settings?.getAll();
+      return result?.ok ? result.data['la_focus_amll_memory_enabled'] : undefined;
     })).toBe('false');
     await page.reload();
     await expect(page.getByText(songs[0]!.title).first()).toBeVisible();
@@ -291,7 +292,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
       await expect(fontSwitch).toHaveAttribute('aria-checked', 'true');
       await expect.poll(() => app!.evaluate(async ({ BrowserWindow }) => {
         return BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.webContents.executeJavaScript(
-          'window.electron.settingsGetAll().then(settings => settings.la_focus_enhanced_font_enabled)',
+          'window.electron.ipc.settings.getAll().then(result => result.data?.la_focus_enhanced_font_enabled)',
         );
       })).toBe('true');
       await leaveSettings();

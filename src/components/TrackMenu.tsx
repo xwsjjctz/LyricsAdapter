@@ -2,16 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { ThemeColors } from '../types/theme';
-import type { TrackMenuActionId, TrackMenuItem } from './trackMenuItems';
+import type { TrackMenuActionId, TrackMenuItem, TrackMenuPosition } from '../domain/trackMenuItems';
 import { lastInputWasKeyboard } from '../services/inputModality';
 import { getNativeContextMenu, markNativeContextMenuUnavailable, toNativeMenuItems, type NativeContextMenuApi } from '../services/nativeContextMenu';
 
-export interface TrackMenuPosition {
-  trackId: string;
-  x: number;
-  y: number;
-  trigger: HTMLElement;
-}
+export type { TrackMenuPosition } from '../domain/trackMenuItems';
 interface Props {
   position: TrackMenuPosition;
   colors: ThemeColors;

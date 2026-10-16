@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell } from 'electron';
+import { app, BrowserWindow, dialog, net, shell } from 'electron';
 import { logger } from '../logger';
 import { userStateRepository } from '../services/userStateRepository';
 import { settingsStore } from '../services/settingsStore';
@@ -6,9 +6,14 @@ import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import { PluginUpdateService } from '../services/pluginUpdates';
+import { spawnPluginProcess } from '../services/pluginProcessSpawn';
+import type { PluginDataSnapshot } from '../plugin-host/protocol';
+import { confirmPluginTrust } from '../services/pluginTrustDialog';
 import type { PluginUpdateSource } from '../../src/shared/pluginUpdate';
-import type { MusicPlugin } from '../../src/shared/musicPlugin';
+import type { OnlineQuality } from '../../src/shared/onlineMusic';
 import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type PluginTranslationCall } from '../../src/shared/plugin';
+import { handleIpc, onIpc, sendIpc } from './ipcMainTyped';
+import type { IpcInvokeChannel, IpcInvokeResult } from '../../src/shared/ipcContract';
 
 let registry: MusicPluginRegistry;
 // Downloads carry only a URL, so the resolving plugin is remembered for as long as
@@ -16,9 +21,9 @@ let registry: MusicPluginRegistry;
 const RESOLVED_AUDIO_TTL_MS = 30 * 60_000;
 const RESOLVED_AUDIO_LIMIT = 512;
 const resolvedAudio = new Map<string, { id: string; expires: number }>();
-export function getMusicDownloadHeaders(url: string, cookie: string): Record<string, string> {
+export async function getMusicDownloadHeaders(url: string, cookie: string): Promise<Record<string, string>> {
   const resolved = resolvedAudio.get(url);
-  if (resolved && resolved.expires > Date.now()) return registry.get(resolved.id).streamHeaders(getMusicPluginCookie(resolved.id));
+  if (resolved && resolved.expires > Date.now()) return registry.streamHeaders(resolved.id, getMusicPluginCookie(resolved.id));
   return { 'User-Agent': 'Mozilla/5.0', ...(cookie ? { Cookie: cookie } : {}) };
 }
 const LEGACY_SECRET_KEYS: Record<string, Record<string, string>> = {
@@ -30,14 +35,43 @@ const secretKey = (id: string, name: string) => {
   const legacy = Object.hasOwn(LEGACY_SECRET_KEYS, id) ? LEGACY_SECRET_KEYS[id]! : {};
   return Object.hasOwn(legacy, name) ? legacy[name]! : `music-plugin:${id}:secret:${name}`;
 };
-export function getMusicPlugin(id: string): MusicPlugin { return registry.get(id); }
+/** The plugin's own secrets (by name) and data-area settings, for its isolated process. */
+function pluginDataSnapshot(id: string): PluginDataSnapshot {
+  const all = settingsStore.getAll();
+  const legacy = Object.hasOwn(LEGACY_SECRET_KEYS, id) ? LEGACY_SECRET_KEYS[id]! : {};
+  const secrets: Record<string, string> = {};
+  for (const [name, key] of Object.entries(legacy)) if (all[key] !== undefined) secrets[name] = all[key];
+  const secretPrefix = `music-plugin:${id}:secret:`;
+  const settingPrefix = `plugin:${id}:`;
+  const settings: Record<string, string> = {};
+  for (const [key, value] of Object.entries(all)) {
+    if (key.startsWith(secretPrefix)) {
+      const name = key.slice(secretPrefix.length);
+      if (!Object.hasOwn(legacy, name)) secrets[name] = value;
+    } else if (key.startsWith(settingPrefix)) settings[key] = value;
+  }
+  return { secrets, settings };
+}
 export function getMusicPluginCookie(id: string): string { return settingsStore.get(secretKey(id, 'cookie')) ?? ''; }
+export function musicPluginRequiresCookie(id: string): Promise<boolean> { return registry.requiresCookie(id); }
+export async function resolveMusicPluginUrl(id: string, songmid: string, quality: OnlineQuality): Promise<string> {
+  const result = await registry.call(id, 'getMusicUrl', [songmid, quality]);
+  const url = (result as { url?: unknown } | null)?.url;
+  if (typeof url !== 'string' || !url) throw new Error('Music plugin returned no stream URL');
+  return url;
+}
+export function getMusicStreamHeaders(id: string): Promise<Record<string, string>> {
+  return registry.streamHeaders(id, getMusicPluginCookie(id));
+}
 
 export function registerMusicPluginHandlers(): void {
   const directory = prepareMusicPluginDirectory(userStateRepository.directoryPath);
   const catalog = new MusicPluginCatalog((url, init) => net.fetch(url, init));
   registry = new MusicPluginRegistry({
     installedDirectory: directory,
+    // Each plugin runs in its own utility process.
+    spawn: spawnPluginProcess,
+    snapshot: pluginDataSnapshot,
     isEnabled: id => userStateRepository.getSetting(`music-plugin:${id}:enabled`) !== 'false',
     setEnabled: (id, enabled) => userStateRepository.setSetting(`music-plugin:${id}:enabled`, String(enabled)),
     host: id => ({ logger: {
@@ -53,40 +87,41 @@ export function registerMusicPluginHandlers(): void {
       writeSecrets: entries => {
         settingsStore.setMany(Object.fromEntries(Object.entries(entries).map(([name, value]) => [secretKey(id, name), value])));
         registry.markChanged(id);
-        for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugin-secrets-changed', id);
-        for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugins-changed', registry.list());
+        for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'music-plugin-secrets-changed', id);
+        for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'music-plugins-changed', registry.list());
       },
     }),
   });
   const changed = () => {
     const plugins = registry.list();
-    for (const window of BrowserWindow.getAllWindows()) window.webContents.send('music-plugins-changed', plugins);
+    for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'music-plugins-changed', plugins);
     return plugins;
   };
   const updates = new PluginUpdateService({ registry, catalog, fetcher: (url, init) => net.fetch(url, init),
     read: key => userStateRepository.getSetting(key), write: (key, value) => userStateRepository.setSetting(key, value),
-    changed: value => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('plugin-updates-changed', value); },
+    changed: value => { for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'plugin-updates-changed', value); },
+    confirm: confirmPluginTrust,
   });
   updates.start();
   app.once('before-quit', () => { updates.dispose(); registry.dispose(); });
-  ipcMain.handle('plugin-update-list', () => {
+  handleIpc('plugin-update-list', () => {
     const value = updates.list();
     void updates.check(false).catch(error => logger.warn('[PluginUpdates] Check failed', error));
     return value;
   });
-  ipcMain.handle('plugin-check-updates', () => updates.check());
-  ipcMain.handle('plugin-set-update-source', (_event, id: string, source: PluginUpdateSource | null) => updates.setSource(id, source));
-  ipcMain.handle('plugin-update', async (_event, id: string) => { try { await updates.update(id); return changed(); } catch (error) { changed(); throw error; } });
-  ipcMain.handle('plugin-host-info', () => ({ coreApi: PLUGIN_CORE_API, extensionApis: PLUGIN_EXTENSION_APIS, legacyMusicApi: 1 }));
-  ipcMain.handle('plugin-providers', (_event, type: string) => {
+  handleIpc('plugin-check-updates', () => updates.check());
+  handleIpc('plugin-set-update-source', (_event, id: string, source: PluginUpdateSource | null) => updates.setSource(id, source));
+  handleIpc('plugin-update', async (_event, id: string) => { try { await updates.update(id); return changed(); } catch (error) { changed(); throw error; } });
+  handleIpc('plugin-host-info', () => ({ coreApi: PLUGIN_CORE_API, extensionApis: PLUGIN_EXTENSION_APIS, legacyMusicApi: 1 as const }));
+  handleIpc('plugin-providers', (_event, type: string) => {
     if (!Object.hasOwn(PLUGIN_EXTENSION_APIS, type)) throw new Error('Unknown extension type');
     return registry.providers(type as keyof typeof PLUGIN_EXTENSION_APIS);
   });
-  ipcMain.handle('plugin-configuration', (_event, id: string) => registry.configuration(id));
-  ipcMain.handle('plugin-set-configuration', (_event, id: string, key: string, value: string | boolean | number) => { registry.setConfiguration(id, key, value); changed(); });
+  handleIpc('plugin-configuration', (_event, id: string) => registry.configuration(id));
+  handleIpc('plugin-set-configuration', (_event, id: string, key: string, value: string | boolean | number) => { registry.setConfiguration(id, key, value); changed(); });
   const requests = new Map<string, AbortController>();
   const watched = new Set<number>();
-  ipcMain.handle('plugin-translate', async (event, call: PluginTranslationCall) => {
+  handleIpc('plugin-translate', async (event, call: PluginTranslationCall) => {
     if (!call || typeof call.requestId !== 'string' || !/^[\w-]{1,128}$/.test(call.requestId) || typeof call.providerKey !== 'string') throw new Error('Invalid plugin request');
     const key = `${event.sender.id}:${call.requestId}`;
     if (requests.has(key) || requests.size >= 64) throw new Error('Duplicate or excessive plugin request');
@@ -102,8 +137,8 @@ export function registerMusicPluginHandlers(): void {
     catch (error) { changed(); throw error; }
     finally { requests.delete(key); }
   });
-  ipcMain.on('plugin-cancel', (event, requestId: string) => requests.get(`${event.sender.id}:${requestId}`)?.abort(new Error('Plugin request cancelled')));
-  ipcMain.handle('music-plugin-call', async (_event, id: string, method: string, args: unknown[]) => {
+  onIpc('plugin-cancel', (event, requestId: string) => requests.get(`${event.sender.id}:${requestId}`)?.abort(new Error('Plugin request cancelled')));
+  handleIpc('music-plugin-call', async (_event, id: string, method: string, args: unknown[]) => {
     const result = await registry.call(id, method, args);
     if (method === 'getMusicUrl' && result && typeof result === 'object' && typeof (result as { url?: unknown }).url === 'string') {
       const url = (result as { url: string }).url;
@@ -113,31 +148,34 @@ export function registerMusicPluginHandlers(): void {
     }
     return result;
   });
-  ipcMain.handle('music-plugin-list', () => registry.list());
-  ipcMain.handle('music-plugin-set-enabled', (_event, id: string, enabled: boolean) => { updates.assertIdle(); registry.setEnabled(id, enabled); return changed(); });
-  ipcMain.handle('music-plugin-uninstall', async (_event, id: string) => updates.mutate(() => { registry.uninstall(id); return changed(); }));
-  ipcMain.handle('music-plugin-catalog', () => catalog.list());
-  ipcMain.handle('music-plugin-directory', () => directory);
-  ipcMain.handle('music-plugin-open-directory', async () => {
+  handleIpc('music-plugin-list', () => registry.list());
+  handleIpc('music-plugin-set-enabled', (_event, id: string, enabled: boolean) => { updates.assertIdle(); registry.setEnabled(id, enabled); return changed(); });
+  handleIpc('music-plugin-uninstall', async (_event, id: string) => updates.mutate(() => { registry.uninstall(id); return changed(); }));
+  handleIpc('music-plugin-catalog', () => catalog.list());
+  handleIpc('music-plugin-directory', () => directory);
+  handleIpc('music-plugin-open-directory', async () => {
     const error = await shell.openPath(directory);
     if (error) throw new Error(error);
   });
-  ipcMain.handle('music-plugin-download', async (_event, id: string) => updates.mutate(async () => { await catalog.install(id, registry); return changed(); }));
-  ipcMain.handle('music-plugin-install', async () => {
+  handleIpc('music-plugin-download', async (_event, id: string) => updates.mutate(async () => { await catalog.install(id, registry); return changed(); }));
+  handleIpc('music-plugin-install', async () => {
     const result = await dialog.showOpenDialog({ title: 'Install plugin', properties: ['openFile'], filters: [{ name: 'LyricsAdapter Plugin', extensions: ['laplugin'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     return updates.mutate(() => { registry.install(result.filePaths[0]!); return changed(); });
   });
-  // Compatibility aliases keep login UI / stored credentials stable. All protocol
+  // Login aliases keep the QR login UI / stored credentials stable. All protocol
   // implementations live inside the selected plugin and obey its enabled state.
-  const actions: Record<string, string[]> = {
-    qq: ['qq-music-request', 'get-qq-music-url', 'get-qq-music-lyrics', 'qq-login-qr-start', 'qq-login-qr-poll', 'qq-login-refresh'],
-    netease: ['netease-request', 'netease-qr-key', 'netease-qr-create', 'netease-qr-check'],
-  };
+  const actions = {
+    qq: ['qq-login-qr-start', 'qq-login-qr-poll', 'qq-login-refresh'],
+    netease: ['netease-qr-key', 'netease-qr-create', 'netease-qr-check'],
+  } as const satisfies Record<string, readonly IpcInvokeChannel[]>;
   for (const [id, channels] of Object.entries(actions)) {
-    for (const channel of channels) ipcMain.handle(channel, (_event, ...args: unknown[]) => registry.get(id).invoke(channel, args));
+    // The plugin owns the protocol; its reply is forwarded as the contract's result shape.
+    for (const channel of channels) {
+      handleIpc(channel, (_event, ...args: unknown[]) => registry.invoke(id, channel, args) as Promise<IpcInvokeResult<typeof channel>>);
+    }
   }
-  ipcMain.handle('fetch-cover-base64', async (_event, url: string) => {
+  handleIpc('fetch-cover-base64', async (_event, url: string) => {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

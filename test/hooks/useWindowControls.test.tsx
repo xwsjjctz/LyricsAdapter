@@ -4,6 +4,11 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 const mocks = vi.hoisted(() => ({
   requestLibraryFlush: vi.fn(),
   requestPlaybackShutdown: vi.fn(),
+  desktopAPI: null as Record<string, unknown> | null,
+}));
+
+vi.mock('@/services/desktopAdapter', () => ({
+  getDesktopAPI: () => mocks.desktopAPI,
 }));
 
 vi.mock('@/services/libraryFlushEvent', () => ({
@@ -24,21 +29,17 @@ describe('useWindowControls close handshake', () => {
   });
 
   afterEach(() => {
-    Reflect.deleteProperty(window, 'electron');
+    mocks.desktopAPI = null;
   });
 
   it('marks the native close as already flushed after the renderer commit succeeds', async () => {
     const closeWindow = vi.fn();
-    Object.defineProperty(window, 'electron', {
-      configurable: true,
-      writable: true,
-      value: {
-        closeWindow,
-        isMaximized: vi.fn().mockResolvedValue(false),
-        isFullScreen: vi.fn().mockResolvedValue(false),
-        onFullScreenChange: vi.fn().mockReturnValue(() => {}),
-      },
-    });
+    mocks.desktopAPI = {
+      closeWindow,
+      isMaximized: vi.fn().mockResolvedValue(false),
+      isFullScreen: vi.fn().mockResolvedValue(false),
+      onFullScreenChange: vi.fn().mockReturnValue(() => {}),
+    };
     const { result } = renderHook(() => useWindowControls());
 
     act(() => result.current.close());
@@ -51,16 +52,12 @@ describe('useWindowControls close handshake', () => {
   it('keeps the title-bar window open when the renderer commit reports failure', async () => {
     mocks.requestLibraryFlush.mockResolvedValue(false);
     const closeWindow = vi.fn();
-    Object.defineProperty(window, 'electron', {
-      configurable: true,
-      writable: true,
-      value: {
-        closeWindow,
-        isMaximized: vi.fn().mockResolvedValue(false),
-        isFullScreen: vi.fn().mockResolvedValue(false),
-        onFullScreenChange: vi.fn().mockReturnValue(() => {}),
-      },
-    });
+    mocks.desktopAPI = {
+      closeWindow,
+      isMaximized: vi.fn().mockResolvedValue(false),
+      isFullScreen: vi.fn().mockResolvedValue(false),
+      onFullScreenChange: vi.fn().mockReturnValue(() => {}),
+    };
     const { result } = renderHook(() => useWindowControls());
 
     act(() => result.current.close());

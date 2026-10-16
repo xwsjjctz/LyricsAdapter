@@ -1,13 +1,13 @@
-import { ipcMain } from 'electron';
 import { logger } from '../logger';
 import { persistenceRepository } from '../services/persistenceRepository';
 import { persistenceCommitService } from '../services/persistenceCommitService';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';
 import { persistenceBootstrapSchema, persistenceCloseCommitSchema } from './typedSchemas';
+import { handleIpc } from './ipcMainTyped';
 
 /** Register the typed read-only bootstrap facade after store migrations run. */
 export function registerPersistenceHandlers(): void {
-  ipcMain.handle('ipc:persistence:loadBootstrap', async () => {
+  handleIpc('ipc:persistence:loadBootstrap', async () => {
     try {
       const bootstrap = await persistenceRepository.loadBootstrap();
       const parsed = persistenceBootstrapSchema.safeParse(bootstrap);
@@ -19,7 +19,7 @@ export function registerPersistenceHandlers(): void {
     }
   });
 
-  ipcMain.handle('ipc:persistence:commitClose', async (_event, payload: unknown) => {
+  handleIpc('ipc:persistence:commitClose', async (_event, payload: unknown) => {
     const parsed = parsePayload(persistenceCloseCommitSchema, payload);
     if (!parsed.ok) return parsed;
 

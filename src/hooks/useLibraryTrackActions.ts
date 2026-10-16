@@ -2,14 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SlotId, Track } from '../types';
 import { logger } from '../services/logger';
 import { trackToOnlineSong } from '../domain/trackFactory';
-import type { TrackMenuPosition } from '../components/TrackMenu';
 import {
   buildTrackMenuItems,
   downloadQualityOf,
   type TrackDownloadQuality,
   type TrackMenuActionId,
   type TrackMenuItem,
-} from '../components/trackMenuItems';
+  type TrackMenuPosition,
+} from '../domain/trackMenuItems';
 
 interface UseLibraryTrackActionsOptions {
   /** Every track in the current slot; menu lookups resolve against it. */

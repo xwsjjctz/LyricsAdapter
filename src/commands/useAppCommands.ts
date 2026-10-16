@@ -12,7 +12,7 @@ import {
   type PlaylistOverride,
 } from '../services/playlistOverrides';
 import { buildAppCommands, type AppCommandDeps, type PlaylistEntry } from './buildAppCommands';
-import type { PaletteCommand } from './paletteCommand';
+import type { PaletteCommand } from '../types/paletteCommand';
 import { themeManager } from '../services/themeManager';
 import { THEME_IDS } from '../types/theme';
 

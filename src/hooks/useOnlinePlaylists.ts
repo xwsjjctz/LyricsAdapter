@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react';
-import { cookieManager, neteaseCookieManager } from '../services/cookieManager';
-import { qqMusicApi } from '../services/qqMusicApi';
-import { neteaseMusicApi } from '../services/neteaseMusicApi';
 import { logger } from '../services/logger';
 import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache';
-import type { PlaylistInfo } from '../services/onlineMusicProvider';
+import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
+import { cookieStoreFor, providerFor, sourceHasCapability } from '../services/musicSources';
 import { useMusicPlugins } from '../stores/musicPluginStore';
 import { settingsManager } from '../services/settingsManager';
-import { useSettingValue } from '../components/settings/hooks/useSettingValue';
+import { useSettingValue } from './useSettingValue';
 
 const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
 /**
- * Fetch the user's third-party playlists with a
- * two-phase loading strategy:
+ * Fetch the user's playlists from every signed-in source that offers them,
+ * with a two-phase loading strategy:
  *
  *   Phase 1 (sync-like): Load cached playlists from IndexedDB and return
  *   them immediately so the sidebar renders useful content on startup.
@@ -27,24 +25,22 @@ const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: boolean } {
   const { sources } = useMusicPlugins();
   const onlineEnabled = useSettingValue(readOnlineEnabled);
-  const hasQQ = onlineEnabled && sources.includes('qq');
-  const hasNetEase = onlineEnabled && sources.includes('netease');
+  const playlistSources = onlineEnabled ? sources.filter(source => sourceHasCapability(source, 'playlists')) : [];
+  // Stable while the set of sources is unchanged.
+  const sourceKey = playlistSources.join('|');
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [cookieRevision, setCookieRevision] = useState(0);
 
   useEffect(() => {
     const refresh = () => setCookieRevision(revision => revision + 1);
-    const unsubscribeQQ = cookieManager.subscribe(refresh);
-    const unsubscribeNetEase = neteaseCookieManager.subscribe(refresh);
-    return () => {
-      unsubscribeQQ();
-      unsubscribeNetEase();
-    };
-  }, []);
+    const unsubscribes = sourceKey ? sourceKey.split('|').map(source => cookieStoreFor(source).subscribe(refresh)) : [];
+    return () => unsubscribes.forEach(unsubscribe => unsubscribe());
+  }, [sourceKey]);
 
   useEffect(() => {
-    if (!hasQQ && !hasNetEase) {
+    const active: OnlineSource[] = sourceKey ? sourceKey.split('|') : [];
+    if (active.length === 0) {
       setPlaylists([]); setLoading(false);
       return;
     }
@@ -55,25 +51,12 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
     // cookie. This prevents an old cache from making logged-out sources look
     // available in the sidebar while the fresh validation request is pending.
     const loadCachedForAuthenticatedSources = async () => {
-      await Promise.all([
-        cookieManager.ensureLoaded(),
-        neteaseCookieManager.ensureLoaded(),
-      ]);
+      await Promise.all(active.map(source => cookieStoreFor(source).ensureLoaded()));
       if (cancelled) return;
-
-      const authenticatedSources = new Set<PlaylistInfo['source']>();
-      if (hasQQ && cookieManager.hasCookie()) authenticatedSources.add('qq');
-      if (hasNetEase && neteaseCookieManager.hasCookie()) authenticatedSources.add('netease');
-
+      const authenticated = active.filter(source => cookieStoreFor(source).hasCookie());
       const cached = await loadPlaylistCache();
       if (cancelled || !cached) return;
-      const fromCache: PlaylistInfo[] = [];
-      if (cached.qq && authenticatedSources.has('qq')) {
-        fromCache.push(...cached.qq.map(p => ({ ...p, source: 'qq' as const })));
-      }
-      if (cached.netease && authenticatedSources.has('netease')) {
-        fromCache.push(...cached.netease.map(p => ({ ...p, source: 'netease' as const })));
-      }
+      const fromCache = authenticated.flatMap(source => (cached.sources[source] ?? []).map(p => ({ ...p, source })));
       if (fromCache.length > 0) {
         setPlaylists(fromCache);
         setLoading(false); // Show authenticated cache immediately
@@ -84,56 +67,33 @@ export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: bool
 
     // Phase 2: validate cookies + fetch fresh
     const fetchFresh = async () => {
-      const results: PlaylistInfo[] = [];
-
-      // QQ Music
-      try {
-        await cookieManager.ensureLoaded();
-        if (hasQQ && !cancelled && cookieManager.hasCookie()) {
-          const status = await cookieManager.validateCookie();
-          if (status.valid) {
-            const qq = await qqMusicApi.getPlaylists();
-            results.push(...qq.map(p => ({ ...p, source: 'qq' as const })));
-          }
+      const fresh: Record<OnlineSource, PlaylistInfo[]> = {};
+      for (const source of active) {
+        try {
+          const cookies = cookieStoreFor(source);
+          await cookies.ensureLoaded();
+          if (cancelled || !cookies.hasCookie()) continue;
+          if (!(await cookies.validateCookie()).valid) continue;
+          const lists = await providerFor(source).getPlaylists();
+          if (lists.length > 0) fresh[source] = lists.map(p => ({ ...p, source }));
+        } catch (e) {
+          logger.warn(`[useOnlinePlaylists] ${source} playlists failed:`, e);
         }
-      } catch (e) {
-        logger.warn('[useOnlinePlaylists] QQ playlists failed:', e);
-      }
-
-      // NetEase
-      try {
-        await neteaseCookieManager.ensureLoaded();
-        if (hasNetEase && !cancelled && neteaseCookieManager.hasCookie()) {
-          const status = await neteaseCookieManager.validateCookie();
-          if (status.valid) {
-            const netease = await neteaseMusicApi.getPlaylists();
-            results.push(...netease.map(p => ({ ...p, source: 'netease' as const })));
-          }
-        }
-      } catch (e) {
-        logger.warn('[useOnlinePlaylists] NetEase playlists failed:', e);
       }
 
       if (!cancelled) {
-        setPlaylists(results);
+        setPlaylists(Object.values(fresh).flat());
         setLoading(false);
-
-        // Update cache with fresh data
-        const qqResults = results.filter(p => p.source === 'qq');
-        const neteaseResults = results.filter(p => p.source === 'netease');
-        savePlaylistCache(
-          qqResults.length > 0 ? qqResults : undefined,
-          neteaseResults.length > 0 ? neteaseResults : undefined,
-        );
+        void savePlaylistCache(fresh);
       }
     };
 
-    fetchFresh();
+    void fetchFresh();
 
     return () => {
       cancelled = true;
     };
-  }, [cookieRevision, hasQQ, hasNetEase]);
+  }, [cookieRevision, sourceKey]);
 
-  return { playlists: playlists.filter(playlist => playlist.source === 'qq' ? hasQQ : hasNetEase), loading };
+  return { playlists: playlists.filter(playlist => playlistSources.includes(playlist.source)), loading };
 }

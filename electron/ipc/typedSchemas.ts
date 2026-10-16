@@ -49,6 +49,8 @@ const systemLyricsCoverUrlSchema = z.string().max(8192).refine(value => {
   }
 }, 'Only cover and https artwork URLs are allowed');
 
+const webdavCredentialsSchema = z.enum(['stored', 'none']);
+
 export const typedIpcSchemas = {
   filePath: z.object({
     filePath: z.string().min(1),
@@ -56,36 +58,37 @@ export const typedIpcSchemas = {
   library: z.unknown(),
   webdavPropfind: z.object({
     url: httpUrlSchema,
-    authHeader: z.string(),
+    credentials: webdavCredentialsSchema,
     depth: z.enum(['0', '1']),
   }),
   webdavRange: z.object({
     url: httpUrlSchema,
-    authHeader: z.string(),
+    credentials: webdavCredentialsSchema,
     start: z.number().int(),
     end: z.number().int(),
   }),
   webdavPut: z.object({
     url: httpUrlSchema,
-    authHeader: z.string(),
+    credentials: webdavCredentialsSchema,
     data: z.instanceof(ArrayBuffer),
     contentType: z.string().min(1),
   }),
   webdavDelete: z.object({
     url: httpUrlSchema,
-    authHeader: z.string(),
+    credentials: webdavCredentialsSchema,
   }),
   webdavGetRedirect: z.object({
     url: httpUrlSchema,
-    authHeader: z.string(),
+    credentials: webdavCredentialsSchema,
   }),
   webdavMkcol: z.object({
     url: httpUrlSchema,
-    authHeader: z.string(),
+    credentials: webdavCredentialsSchema,
   }),
-  downloadAudio: z.object({
-    url: httpUrlSchema,
-    cookieString: z.string(),
+  webdavTest: z.object({
+    serverUrl: httpUrlSchema,
+    username: z.string().min(1),
+    password: z.string(),
   }),
   systemLyricsState: z.object({
     trackId: z.string().max(4096).nullable(),
@@ -107,12 +110,6 @@ export const typedIpcSchemas = {
   }),
   settingsEntries: z.object({
     entries: stringRecordSchema,
-  }),
-  userDataSave: z.object({
-    data: userDataSnapshotSchema,
-  }),
-  userDataTracks: z.object({
-    tracks: z.array(userTrackRecordSchema),
   }),
   userDataLibraryState: z.object({
     tracks: z.array(userTrackRecordSchema),

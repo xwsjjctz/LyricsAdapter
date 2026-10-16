@@ -31,6 +31,7 @@ of truth. Common entry points:
 npm run dev                   # Browser-only Vite
 npm run electron:dev          # Normal desktop development
 npm run electron:debug        # Renderer CDP :9222; main inspector :9229 (loopback)
+npm run deps:check            # Dependency boundary rules (known violations baselined)
 npm run typecheck             # Application TypeScript
 npm run typecheck:test        # Unit-test TypeScript
 npm run typecheck:e2e         # Playwright/Electron TypeScript
@@ -62,7 +63,9 @@ not run.
 LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`.
 
 - `electron/` owns windows, IPC, file I/O, protocols, native integrations and proxies.
-  `electron/preload.ts` exposes the typed bridge. Renderer application code uses
+  `electron/preload.ts` exposes the typed bridge. Every IPC channel is declared once in
+  `src/shared/ipcContract.ts`; the preload uses its `invoke`/`listen`/`send` helpers and the
+  main process registers only through `electron/ipc/ipcMainTyped.ts`. Renderer application code uses
   `src/services/desktopAdapter.ts` (`getDesktopAPI`, `getDesktopAPIAsync`, `isDesktop`);
   direct `window.electron` access belongs to the bridge or tests verifying it.
 - Keep `App.tsx` and extracted composition roots focused on wiring. Put domain behavior
@@ -71,6 +74,8 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
   the library controller owns imports, removals, metadata changes and slot mutations.
   UI and online providers do not bypass those owners or call `updateSlot` directly.
   Providers fetch/normalize data and resolve streams/downloads for the controllers.
+- Slot state lives in the `src/stores/libraryState.ts` store; components read it with
+  `useLibraryState(selector)`, and only `useLibrarySlots` and the controllers write it.
 - `useLibrarySlots.ts` maintains `local`, `cloud`, `online`, and play-only `playlist`
   contexts. Preserve per-slot tracks, selection, time, volume, mode, filters and scroll
   state; switching contexts restores state paused unless the requested feature changes

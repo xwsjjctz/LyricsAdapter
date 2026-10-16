@@ -1,4 +1,5 @@
 import type { SlotId } from '../../types';
+import { isOnlineTrackSource } from '../../shared/onlineMusic';
 import type {
   PersistedLibrarySnapshot,
   PersistedLibrarySong,
@@ -24,13 +25,7 @@ export function minimalTrackToPersistedSong(
     playCount: record.playCount || 0,
     lastPlayed: record.lastPlayed ?? null,
     available: record.available ?? true,
-    source: record.source === 'webdav'
-      ? 'webdav'
-      : record.source === 'qq'
-        ? 'qq'
-        : record.source === 'netease'
-          ? 'netease'
-          : 'local',
+    source: record.source === 'webdav' || isOnlineTrackSource(record.source) ? record.source : 'local',
     webdavPath: record.webdavPath || '',
     songmid: record.songmid || '',
   };

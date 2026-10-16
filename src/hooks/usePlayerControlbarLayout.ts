@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PLAYER_COMPACT_BREAKPOINT, PLAYER_REDUCED_BREAKPOINT } from '../components/playerLayout';
+import { PLAYER_COMPACT_BREAKPOINT, PLAYER_REDUCED_BREAKPOINT } from '../constants/playerLayout';
 import type { PlayerControlbarLayout } from '../types/playerControlbar';
 
 const reducedQuery = `(max-width: ${PLAYER_REDUCED_BREAKPOINT - 1}px)`;

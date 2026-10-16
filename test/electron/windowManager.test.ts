@@ -98,6 +98,10 @@ describe('windowManager', () => {
         preload: path.join(electronDirectory, 'preload.cjs'),
         backgroundThrottling: shouldThrottleRendererInBackground(process.platform),
         spellcheck: false,
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        additionalArguments: [expect.stringMatching(/^--lyrics-adapter-os-release=\S+$/)],
       }),
     }));
     expect(windowStateMocks.rememberWindowState).toHaveBeenCalledWith(electronMocks.BrowserWindow.mock.results[0]!.value);

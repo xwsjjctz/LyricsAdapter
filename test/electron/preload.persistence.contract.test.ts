@@ -4,6 +4,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import { bundledPreloadModule, SANDBOXED_PRELOAD_ARGV } from './preloadSharedModules';
 
 interface ExposedPersistenceApi {
   ipc: {
@@ -76,10 +77,11 @@ function executePreload(): {
     exports: module.exports,
     require: (specifier: string) => {
       if (specifier === 'electron') return electron;
-      if (specifier === 'node:os') return { release: () => '25.0.0' };
+      const bundled = bundledPreloadModule(specifier);
+      if (bundled) return bundled;
       throw new Error(`Unexpected preload dependency: ${specifier}`);
     },
-    process: { platform: 'test' },
+    process: { platform: 'test', argv: SANDBOXED_PRELOAD_ARGV },
     console,
     Buffer,
     ArrayBuffer,
@@ -95,6 +97,11 @@ function executePreload(): {
 }
 
 describe('preload persistence typed IPC contract', () => {
+  it('runs without Node modules and reads the kernel release from the main-process argument', () => {
+    const { api } = executePreload();
+    expect((api as unknown as { osRelease: string }).osRelease).toBe('25.0.0');
+  });
+
   it('routes nested settings methods to typed channels with envelope payloads', async () => {
     const { api, invoke, response } = executePreload();
     const entries = { 'app-theme': 'default-dark', qq_music_cookie: 'secret' };
@@ -129,19 +136,14 @@ describe('preload persistence typed IPC contract', () => {
     };
 
     await expect(api.ipc.userData.load()).resolves.toBe(response);
-    await expect(api.ipc.userData.save(snapshot)).resolves.toBe(response);
-    await expect(api.ipc.userData.saveTracks(tracks)).resolves.toBe(response);
     await expect(api.ipc.userData.saveLibraryState(tracks, snapshot.playback)).resolves.toBe(response);
-    await expect(api.ipc.userData.getFilePath()).resolves.toBe(response);
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'ipc:userData:load');
-    expect(invoke).toHaveBeenNthCalledWith(2, 'ipc:userData:save', { data: snapshot });
-    expect(invoke).toHaveBeenNthCalledWith(3, 'ipc:userData:saveTracks', { tracks });
-    expect(invoke).toHaveBeenNthCalledWith(4, 'ipc:userData:saveLibraryState', {
+    expect(invoke).toHaveBeenNthCalledWith(2, 'ipc:userData:saveLibraryState', {
       tracks,
       playback: snapshot.playback,
     });
-    expect(invoke).toHaveBeenNthCalledWith(5, 'ipc:userData:getFilePath');
+    expect(invoke).toHaveBeenCalledTimes(2);
   });
 
   it('routes the aggregate persistence bootstrap through the typed channel', async () => {

@@ -1,3 +1,4 @@
+import { isOnlineTrackSource } from '../shared/onlineMusic';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
@@ -62,10 +63,7 @@ function hasWordTimedLyrics(track: Track): boolean {
 }
 
 function isProviderTrack(track: Track): track is Track & { source: OnlineSource; songmid: string } {
-  return Boolean(
-    track.songmid
-    && (track.source === 'qq' || track.source === 'netease')
-  );
+  return Boolean(track.songmid && isOnlineTrackSource(track.source));
 }
 
 function providerTrackKey(track: Track): string | null {
@@ -702,7 +700,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
     const hasUpgradeableLineLyrics = playlistLyricsWindow.some(entry => {
       const track = playlistTracks[entry.index];
       return Boolean(entry.providerKey)
-        && (track?.source === 'qq' || track?.source === 'netease')
+        && isOnlineTrackSource(track?.source)
         && trackLyricsState(track) === 'line';
     });
     const partialRetryTimer = hasUpgradeableLineLyrics

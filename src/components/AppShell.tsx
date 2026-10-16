@@ -1,5 +1,6 @@
 import React, { type ReactElement, useCallback, useMemo, useState } from 'react';
-import { LibrarySlot, SlotId, Track, ViewMode } from '../types';
+import { SlotId, Track, ViewMode } from '../types';
+import { useLibraryState } from '../stores/libraryState';
 import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
 import TitleBar from './TitleBar';
 import Controls from './Controls';
@@ -18,7 +19,7 @@ import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
-import type { useUIStore } from '../stores/uiStore';
+import type { useUIStore } from '../hooks/useUIStore';
 import type { useLibraryViewModel } from '../viewmodels/useLibraryViewModel';
 import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
 import type { useImportViewModel } from '../viewmodels/useImportViewModel';
@@ -39,12 +40,8 @@ interface AppShellProps {
   importVm: ReturnType<typeof useImportViewModel>;
   online: ReturnType<typeof useOnlineViewModel>;
   playerController: ReturnType<typeof usePlayerController>;
-  // Library-store fields consumed directly by the shell (not funnelled
-  // through a viewmodel). Kept as explicit props to avoid coupling this
-  // component to the store hook internals.
-  slots: Record<SlotId, LibrarySlot>;
-  activeTracks: Track[];
-  viewSlot: SlotId;
+  // Slot state (slots, the play context and the browsed source) is read from
+  // the library store; the props below are intents and view wiring.
   handleSwitchSlot: (slotId: SlotId) => Promise<void> | void;
   pendingSlotLocate: { slot: SlotId; token: number } | null | undefined;
   loadCloudTracks: (tracks: Track[]) => void;
@@ -78,9 +75,6 @@ const AppShell: React.FC<AppShellProps> = ({
   importVm,
   online,
   playerController,
-  slots,
-  activeTracks,
-  viewSlot,
   handleSwitchSlot,
   pendingSlotLocate,
   loadCloudTracks,
@@ -98,6 +92,9 @@ const AppShell: React.FC<AppShellProps> = ({
 }) => {
   const { t } = useTranslation();
   usePrewarmSettingsPanel();
+  const slots = useLibraryState(state => state.slots);
+  const viewSlot = useLibraryState(state => state.viewSlot);
+  const activeTracks = useLibraryState(state => state.slots[state.activeSlotId].tracks);
   const {
     viewMode,
     pageContentRef,
@@ -270,7 +267,6 @@ const AppShell: React.FC<AppShellProps> = ({
                 <div className="h-full">
                   <LibraryView
                     tracks={shownTracks}
-                    currentTrackIndex={slots[viewSlot].currentTrackIndex}
                     {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
                     onTrackSelect={playShownTrack}
                     onRemoveTrack={library.removeTrack}
@@ -284,21 +280,16 @@ const AppShell: React.FC<AppShellProps> = ({
                     onUpdateTrack={library.updateTrack}
                     onDownloadTrack={online.downloadTrack}
                     isFocusMode={isFocusMode}
-                    savedScrollPosition={slots[viewSlot].scrollPosition}
                     onScrollPositionChange={handleLibraryScrollPositionChange}
                     autoLocateToken={autoLocateToken}
                     locateRequest={locateRequest}
                     onLocateRequestHandled={handleLocateRequestHandled}
                     importProgress={importVm.importProgress}
-                    dataSource={viewSlot}
-                    activeSlotId={library.activeSlotId}
                     onSwitchSlot={library.switchViewSlot}
                     pendingLocateSlot={pendingSlotLocate?.slot}
                     pendingLocateToken={pendingSlotLocate?.token}
                     onPendingLocatePrepared={handleSlotLocatePrepared}
                     onSlotContentReady={handleSlotContentReady}
-                    filterType={slots[viewSlot].filterType}
-                    categorySelection={slots[viewSlot].categorySelection}
                     onCategoryChange={handleCategoryChange}
                     cloudLoadProgress={cloudLoadProgress}
                     onRefreshCloud={refreshCloudTracks}

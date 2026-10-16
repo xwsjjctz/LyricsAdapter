@@ -49,10 +49,12 @@ const PosterTile: React.FC<PosterTileProps> = memo(({
   const { t } = useTranslation();
   const unavailable = track.available === false;
   const large = tile.cols >= 4 && tile.rows >= 3;
+  const small = tile.cols <= 2 && tile.rows <= 2;
   const classes = [
     'wall-tile',
     isCurrent ? 'wall-tile--current' : '',
     large ? 'wall-tile--lg' : '',
+    small ? 'wall-tile--sm' : '',
     unavailable ? 'wall-tile--unavailable' : '',
     selecting ? 'wall-tile--selecting' : '',
     selected ? 'wall-tile--selected' : '',

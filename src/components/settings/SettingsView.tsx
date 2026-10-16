@@ -4,7 +4,7 @@ import { settingsManager } from '../../services/settingsManager';
 import ShortcutsSettings from '../ShortcutsSettings';
 import { Switch } from '../ui';
 import { useOnlineMusicSettings } from './hooks/useOnlineMusicSettings';
-import { useSettingValue } from './hooks/useSettingValue';
+import { useSettingValue } from '../../hooks/useSettingValue';
 import { useWebdavSettings } from './hooks/useWebdavSettings';
 import FocusModeSection from './sections/FocusModeSection';
 import GeneralSection from './sections/GeneralSection';
@@ -119,8 +119,8 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
                   theme={themeUtils}
                   sources={sources}
                   onlineSource={onlineMusic.onlineSource}
+                  login={onlineMusic.login}
                   cookie={onlineMusic.cookie}
-                  neteaseCookie={onlineMusic.neteaseCookie}
                   downloadPath={onlineMusic.downloadPath}
                   isQrLoggedIn={onlineMusic.isQrLoggedIn}
                   qrScanning={onlineMusic.qrScanning}
@@ -132,7 +132,6 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
                   messageType={onlineMusic.messageType}
                   setOnlineSource={onlineMusic.setOnlineSource}
                   setCookie={onlineMusic.setCookie}
-                  setNeteaseCookie={onlineMusic.setNeteaseCookie}
                   setDownloadPath={onlineMusic.setDownloadPath}
                   onSave={onlineMusic.handleSave}
                   startQr={onlineMusic.startQr}

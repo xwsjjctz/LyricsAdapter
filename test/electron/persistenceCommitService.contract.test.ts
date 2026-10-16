@@ -10,7 +10,7 @@ vi.mock('../../electron/services/settingsStore', () => ({
 vi.mock('../../electron/services/userDataStore', () => ({
   userDataStore: { saveLibraryState: vi.fn() },
 }));
-vi.mock('../../electron/ipc/core/libraryCore', () => ({
+vi.mock('../../electron/services/libraryIndexFiles', () => ({
   doSaveLibraryIndex: vi.fn(),
 }));
 

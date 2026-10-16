@@ -173,8 +173,8 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
 
     // Sign in so nine cards wrap, shrink and scroll with the window.
     await page.evaluate(async () => {
-      const api = (window as typeof window & { electron: { settingsSet: (key: string, value: string) => Promise<void> } }).electron;
-      await api.settingsSet('netease_cookie', 'MUSIC_U=switcher-glass-fixture;');
+      const api = (window as typeof window & { electron: { ipc: { settings: { set: (key: string, value: string) => Promise<unknown> } } } }).electron;
+      await api.ipc.settings.set('netease_cookie', 'MUSIC_U=switcher-glass-fixture;');
     });
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');

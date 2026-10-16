@@ -390,5 +390,16 @@
   "musicPlugins.enabled": "Aktiviert",
   "musicPlugins.disabled": "Deaktiviert",
   "musicPlugins.empty": "Keine Musikquellen-Plugins",
-  "musicPlugins.repository": "Offizielles Plugin-Repository"
+  "musicPlugins.repository": "Offizielles Plugin-Repository",
+  "pluginTrust.updateTitle": "Plugin eines Drittanbieters aktualisieren",
+  "pluginTrust.updateMessage": "„{{name}}“ aus einer Drittanbieterquelle aktualisieren?",
+  "pluginTrust.updateDetail": "Quelle: {{source}}\nVersion: {{current}} → {{next}}\nSHA-256: {{sha256}}\n\nPlugins laufen mit den Rechten dieser App und können App-Daten lesen und auf das Netzwerk zugreifen. Fahren Sie nur fort, wenn Sie dieser Quelle vertrauen.",
+  "pluginTrust.bindTitle": "Update-Quelle des Plugins ändern",
+  "pluginTrust.bindMessage": "Soll „{{name}}“ Updates aus dieser Quelle erhalten?",
+  "pluginTrust.bindDetail": "Quelle: {{source}}\n\nKünftige Plugin-Updates werden von hier geladen und laufen mit den Rechten dieser App. Fahren Sie nur fort, wenn Sie dieser Quelle vertrauen.",
+  "pluginTrust.confirmUpdate": "Vertrauen und aktualisieren",
+  "pluginTrust.confirmBind": "Dieser Quelle vertrauen",
+  "pluginTrust.cancel": "Abbrechen",
+  "settingsDialog.cookieLoginHint": "Diese Quelle bietet keine QR-Anmeldung. Fügen Sie unten ihr Cookie ein und speichern Sie.",
+  "settingsDialog.noLoginHint": "Diese Quelle sucht und spielt ohne Anmeldung. Unterstützt das Plugin es, können Sie unten trotzdem ein Cookie eintragen."
 }

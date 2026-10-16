@@ -1,6 +1,7 @@
-import { protocol, app, ipcMain } from 'electron';
+import { protocol, app } from 'electron';
 import { logger } from '../logger';
-import { getMusicPlugin, getMusicPluginCookie } from '../ipc/musicPluginHandlers';
+import { getMusicPluginCookie, getMusicStreamHeaders, musicPluginRequiresCookie, resolveMusicPluginUrl } from '../ipc/musicPluginHandlers';
+import { handleIpc } from '../ipc/ipcMainTyped';
 
 /**
  * `stream://` custom protocol — proxies third-party music CDN audio streams
@@ -47,9 +48,7 @@ async function resolveCdnUrl(
   songmid: string,
   quality: string
 ): Promise<string> {
-  const cookie = getMusicPluginCookie(source);
-  const plugin = getMusicPlugin(source);
-  if (plugin.provider.requiresCookie() && !cookie) throw new Error('请先登录音乐源');
+  if (!getMusicPluginCookie(source) && await musicPluginRequiresCookie(source)) throw new Error('请先登录音乐源');
 
   const qualities = QUALITY_FALLBACKS[quality] ?? [quality, '128'];
   let lastError: unknown;
@@ -62,7 +61,7 @@ async function resolveCdnUrl(
     }
 
     try {
-      const { url } = await plugin.provider.getMusicUrl(songmid, candidate as import('../../src/services/onlineMusicProvider').OnlineQuality);
+      const url = await resolveMusicPluginUrl(source, songmid, candidate as import('../../src/shared/onlineMusic').OnlineQuality);
       cdnCache.set(cacheKey, { url, expiry: Date.now() + CACHE_TTL });
       if (candidate !== quality) {
         logger.info(`[StreamProtocol] ${source}:${songmid} fell back ${quality} -> ${candidate}`);
@@ -79,7 +78,7 @@ async function resolveCdnUrl(
 
 export function registerStreamProtocol(): void {
   // IPC: receive cookies from the renderer
-  ipcMain.handle(
+  handleIpc(
     'set-online-cookie',
     (_event, source: string, _cookie: string) => {
       if (/^[a-z][a-z0-9-]{0,63}$/.test(source)) {
@@ -118,7 +117,7 @@ export function registerStreamProtocol(): void {
         const cdnUrl = await resolveCdnUrl(source, songmid, quality);
 
         // Build headers for the CDN fetch — User-Agent + Referer + (cookie)
-        const cdnHeaders = getMusicPlugin(source).streamHeaders(getMusicPluginCookie(source));
+        const cdnHeaders = await getMusicStreamHeaders(source);
 
         const cdnRes = await fetch(cdnUrl, {
           headers: rangeHeader

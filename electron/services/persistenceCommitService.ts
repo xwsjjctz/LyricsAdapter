@@ -4,7 +4,7 @@ import type {
   PersistenceCloseCommitResult,
   PersistenceWriteOutcome,
 } from '../../src/types/typedIpc';
-import { doSaveLibraryIndex } from '../ipc/core/libraryCore';
+import { doSaveLibraryIndex } from './libraryIndexFiles';
 import { settingsStore } from './settingsStore';
 import { userDataStore, type UserTrackRecord } from './userDataStore';
 

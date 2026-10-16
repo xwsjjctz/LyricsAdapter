@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MusicPluginRegistry } from '../../../electron/services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../../../electron/services/musicPluginCatalog';
-import { PluginUpdateService } from '../../../electron/services/pluginUpdates';
+import { PluginUpdateService, type PluginTrustRequest } from '../../../electron/services/pluginUpdates';
 import { comparePluginVersions, isPluginVersion } from '../../../src/shared/pluginUpdate';
 
 const roots: string[] = [], services: PluginUpdateService[] = [], registries: MusicPluginRegistry[] = [];
@@ -38,9 +38,10 @@ function fixture(ids = ['translator']) {
   let feed: unknown = { schemaVersion: 1, plugins: updates.map(update => ({ id: update.pkg.manifest.id, releases: [update.data] })) };
   const fetcher = vi.fn(async (url: string) => url === feedUrl ? new Response(JSON.stringify(feed)) : new Response(updates.find(update => update.data.url === url)?.pkg.bytes ?? '', { status: updates.some(update => update.data.url === url) ? 200 : 404 }));
   const changed = vi.fn(); let now = 1000;
-  const createService = () => { const service = new PluginUpdateService({ registry, catalog: new MusicPluginCatalog(fetcher), fetcher, read: key => settings.get(key), write: (key, value) => { settings.set(key, value); }, changed, now: () => now }); services.push(service); return service; };
+  const confirm = vi.fn<(request: PluginTrustRequest) => Promise<boolean>>(async () => true);
+  const createService = () => { const service = new PluginUpdateService({ registry, catalog: new MusicPluginCatalog(fetcher), fetcher, read: key => settings.get(key), write: (key, value) => { settings.set(key, value); }, changed, confirm, now: () => now }); services.push(service); return service; };
   const service = createService();
-  return { root, registry, settings, enabled, fetcher, changed, service, createService, updates, setFeed: (value: unknown) => { feed = value; }, advance: (milliseconds: number) => { now += milliseconds; } };
+  return { root, registry, settings, enabled, fetcher, changed, confirm, service, createService, updates, setFeed: (value: unknown) => { feed = value; }, advance: (milliseconds: number) => { now += milliseconds; } };
 }
 
 describe('plugin distribution and updates', () => {
@@ -59,7 +60,7 @@ describe('plugin distribution and updates', () => {
     const f = fixture(), stable = release(), next = release('translator', '3.0.0'), preview = release('translator', '4.0.0-beta.1');
     f.setFeed({ schemaVersion: 1, plugins: [{ id: 'translator', releases: [preview.data, { ...next.data, manifest: { ...next.data.manifest, coreApi: '^2.0.0' } }, stable.data] }] });
     expect((await f.service.check())[0]).toMatchObject({ latestVersion: '3.0.0', targetVersion: '2.0.0', status: 'available' });
-    f.service.setSource('translator', { ...source, channel: 'prerelease' });
+    await f.service.setSource('translator', { ...source, channel: 'prerelease' });
     expect((await f.service.check())[0]).toMatchObject({ latestVersion: '4.0.0-beta.1', targetVersion: '4.0.0-beta.1' });
   });
   it('reports incompatibility without downloading or loading code', async () => {
@@ -128,7 +129,7 @@ describe('plugin distribution and updates', () => {
   });
   it('loads a GitHub Release feed and refuses packages from another repository', async () => {
     const f = fixture(), githubSource = { kind: 'github', repository: 'author/plugins', channel: 'stable' } as const;
-    f.service.setSource('translator', githubSource);
+    await f.service.setSource('translator', githubSource);
     const feed = 'https://github.com/author/plugins/releases/download/v2/plugins.update.json';
     const next = release();
     f.fetcher.mockImplementation(async url => url.startsWith('https://api.github.com')
@@ -159,8 +160,8 @@ describe('plugin distribution and updates', () => {
   });
   it('can turn off update checks and rejects invalid source bindings before fetching', async () => {
     const f = fixture();
-    for (const url of ['http://example.com/feed', 'https://user:password@example.com/feed', 'https://example.com/feed#secret']) expect(() => f.service.setSource('translator', { ...source, url })).toThrow();
-    f.service.setSource('translator', null);
+    for (const url of ['http://example.com/feed', 'https://user:password@example.com/feed', 'https://example.com/feed#secret']) await expect(f.service.setSource('translator', { ...source, url })).rejects.toThrow();
+    await f.service.setSource('translator', null);
     expect((await f.service.check())[0]?.status).toBe('no-source'); expect(f.fetcher).not.toHaveBeenCalled();
     await expect(f.service.update('translator')).rejects.toThrow('Bind an update source');
   });
@@ -175,13 +176,13 @@ describe('plugin distribution and updates', () => {
     const f = fixture(); let resolve!: (value: Response) => void;
     f.fetcher.mockImplementationOnce(() => new Promise<Response>(done => { resolve = done; }));
     const pending = f.service.check();
-    f.service.setSource('translator', null);
+    await f.service.setSource('translator', null);
     resolve(new Response(JSON.stringify({ schemaVersion: 1, plugins: [{ id: 'translator', releases: [f.updates[0]!.data] }] })));
     await pending; expect(f.service.list()[0]?.status).toBe('no-source');
-    f.service.setSource('translator', source);
+    await f.service.setSource('translator', source);
     f.fetcher.mockImplementationOnce(() => new Promise<Response>(done => { resolve = done; }));
     const installing = f.service.update('translator');
-    expect(() => f.service.setSource('translator', null)).toThrow('in progress');
+    await expect(f.service.setSource('translator', null)).rejects.toThrow('in progress');
     await expect(f.service.update('translator')).rejects.toThrow('in progress');
     resolve(new Response(JSON.stringify({ schemaVersion: 1, plugins: [{ id: 'translator', releases: [f.updates[0]!.data] }] })));
     await installing;
@@ -196,5 +197,38 @@ describe('semantic plugin versions', () => {
     expect(comparePluginVersions('10.0.0', '2.0.0')).toBe(1);
     expect(isPluginVersion('1.0.0-beta.01')).toBe(false);
     expect(isPluginVersion('01.0.0')).toBe(false);
+  });
+  it('asks the user before binding a third-party source and keeps the old binding when declined', async () => {
+    const f = fixture();
+    await f.service.setSource('translator', null);
+    f.confirm.mockResolvedValueOnce(false);
+    await f.service.setSource('translator', source);
+    expect(f.confirm).toHaveBeenCalledWith({ kind: 'bind', id: 'translator', name: 'translator', source });
+    expect(f.service.list()[0]?.source).toBeNull();
+    await f.service.setSource('translator', source);
+    expect(f.service.list()[0]?.source).toEqual(source);
+    f.confirm.mockClear();
+    await f.service.setSource('translator', source);
+    expect(f.confirm).not.toHaveBeenCalled();
+  });
+  it('asks before installing third-party code and leaves the plugin untouched when declined', async () => {
+    const f = fixture();
+    f.confirm.mockResolvedValueOnce(false);
+    expect(await f.service.update('translator')).toMatchObject([{ version: '1.0.0' }]);
+    expect(f.confirm).toHaveBeenCalledWith(expect.objectContaining({ kind: 'update', id: 'translator', source, currentVersion: '1.0.0', targetVersion: '2.0.0', sha256: f.updates[0]!.data.sha256 }));
+    expect(f.fetcher.mock.calls.every(([url]) => url === feedUrl)).toBe(true);
+    expect(f.registry.list()[0]?.version).toBe('1.0.0');
+    expect(f.service.list()[0]?.status).not.toBe('error');
+  });
+  it('installs official packages without a third-party trust prompt', async () => {
+    const f = fixture([]);
+    const manifest = { id: 'qq', name: 'QQ', version: '1.0.0', apiVersion: 1, main: 'index.cjs', requiresCookie: false, capabilities: ['search'] };
+    const code = `exports.createPlugin=()=>({provider:{id:'qq',searchMusic:async()=>[],getRecommendedSongs:async()=>[],getMusicUrl:async()=>({}),getLyrics:async()=>null,getPlaylists:async()=>[],getPlaylistSongs:async()=>[],requiresCookie:()=>false},invoke:async()=>null,streamHeaders:()=>({}),validateCookie:async()=>({valid:true})});`;
+    const pack = (version: string) => Buffer.from(JSON.stringify({ manifest: { ...manifest, version }, code, sha256: createHash('sha256').update(code).digest('hex') }));
+    f.registry.installPackage(pack('1.0.0')); f.service.installed();
+    const bytes = pack('2.0.0');
+    f.fetcher.mockImplementation(async url => url.endsWith('catalog.json') ? new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'qq', version: '2.0.0', file: 'qq.laplugin', sha256: createHash('sha256').update(bytes).digest('hex') }] })) : new Response(bytes));
+    await f.service.update('qq');
+    expect(f.confirm).not.toHaveBeenCalled();
   });
 });

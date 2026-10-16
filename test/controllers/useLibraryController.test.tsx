@@ -34,7 +34,7 @@ function setup(tracks: Track[], index = 0, activeSlotId: SlotId = 'local', cloud
   const setIsPlaying = vi.fn();
   const revokeBlobUrl = vi.fn();
   const { result } = renderHook(() => useLibraryController({
-    viewSlot: 'local', activeSlotId, slots, slotsRef, updateSlot, updateLocalTracks: vi.fn(),
+    viewSlot: 'local', activeSlotId, slots, getSlots: () => slotsRef.current, updateSlot, updateLocalTracks: vi.fn(),
     getAppPersistenceData: () => ({}), audioRef, setIsPlaying, revokeBlobUrl,
   }));
   return { controller: result.current, slotsRef, updateSlot, pause, setIsPlaying, revokeBlobUrl };

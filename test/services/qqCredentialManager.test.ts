@@ -20,8 +20,8 @@ vi.mock('@/services/desktopAdapter', () => ({
 }));
 vi.mock('@/services/cookieManager', () => ({
   cookieManager: { ensureLoaded: vi.fn(async () => {}), getCookie: () => 'qm_keyst=old', setCookie: mocks.setCookie },
-  syncOnlineCookiesToMain: mocks.sync,
 }));
+vi.mock('@/services/musicSources', () => ({ syncOnlineCookiesToMain: mocks.sync }));
 vi.mock('@/services/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 import { QQ_CREDENTIAL_STORAGE_KEY, qqCredentialManager } from '@/services/qqCredentialManager';

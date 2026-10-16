@@ -1,8 +1,8 @@
 import type { TFunction } from 'i18next';
-import type { SettingsSectionId } from '../components/settings/SettingsView';
+import type { SettingsSectionId } from '../types/settingsPanel';
 import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import type { Language } from '../i18n';
-import type { PaletteCommand } from './paletteCommand';
+import type { PaletteCommand } from '../types/paletteCommand';
 
 export type PaletteSourceSlot = 'local' | 'cloud' | 'online';
 

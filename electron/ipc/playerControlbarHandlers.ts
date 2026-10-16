@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, nativeImage, net, type WebContents } from 'electron';
+import { BrowserWindow, nativeImage, net, type WebContents } from 'electron';
 import { z } from 'zod';
 import {
   loadMacosPlayerControlbarBridge,
@@ -6,6 +6,7 @@ import {
 } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { fail, ok, parsePayload } from './typedResult';
+import { handleIpc, sendIpc } from './ipcMainTyped';
 
 const presentation = z.object({
   x: z.number().finite().min(-4).max(4),
@@ -84,7 +85,7 @@ export function registerPlayerControlbarHandlers(
     bridge?.stopPlayerControlbar();
   };
 
-  ipcMain.handle('ipc:playerControlbar:start', event => {
+  handleIpc('ipc:playerControlbar:start', event => {
     if (platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1') return ok(false);
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || event.senderFrame !== event.sender.mainFrame) return fail('Invalid window');
@@ -95,7 +96,7 @@ export function registerPlayerControlbarHandlers(
       stop();
       const sender = event.sender;
       const started = bridge.startPlayerControlbar(win.getNativeWindowHandle(), action => {
-        if (owner === sender && !sender.isDestroyed()) sender.send('player-controlbar-action', action);
+        if (owner === sender && !sender.isDestroyed()) sendIpc(sender, 'player-controlbar-action', action);
       });
       if (started) {
         owner = sender;
@@ -110,7 +111,7 @@ export function registerPlayerControlbarHandlers(
     }
   });
 
-  ipcMain.handle('ipc:playerControlbar:update', (event, payload: unknown) => {
+  handleIpc('ipc:playerControlbar:update', (event, payload: unknown) => {
     if (owner !== event.sender || event.senderFrame !== event.sender.mainFrame) return fail('Inactive surface');
     const state = parsePayload(playerControlbarStateSchema, payload);
     if (!state.ok) return state;
@@ -124,7 +125,7 @@ export function registerPlayerControlbarHandlers(
     }
   });
 
-  ipcMain.handle('ipc:playerControlbar:artwork', async (event, payload: unknown) => {
+  handleIpc('ipc:playerControlbar:artwork', async (event, payload: unknown) => {
     if (owner !== event.sender || event.senderFrame !== event.sender.mainFrame) return fail('Inactive surface');
     const source = parsePayload(artworkSchema, payload);
     if (!source.ok) return source;
@@ -142,7 +143,7 @@ export function registerPlayerControlbarHandlers(
     }
   });
 
-  ipcMain.handle('ipc:playerControlbar:stop', event => {
+  handleIpc('ipc:playerControlbar:stop', event => {
     if (owner === event.sender && event.senderFrame === event.sender.mainFrame) stop();
     return ok(undefined);
   });

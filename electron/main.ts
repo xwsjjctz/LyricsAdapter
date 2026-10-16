@@ -11,7 +11,6 @@ import { registerAudioProtocol } from './protocols/audioProtocol';
 import { registerStreamProtocol } from './protocols/streamProtocol';
 import { registerAllSchemes, registerAppProtocolHandler } from './protocols/appProtocol';
 import { registerFileHandlers } from './ipc/fileHandlers';
-import { registerLibraryHandlers } from './ipc/libraryHandlers';
 import { registerCoverHandlers } from './ipc/coverHandlers';
 import { registerWindowControls } from './ipc/windowHandlers';
 import { registerMusicPluginHandlers } from './ipc/musicPluginHandlers';
@@ -37,6 +36,7 @@ import { SystemLyricsCoordinator } from './services/systemLyricsCoordinator';
 import { configureDevelopmentProfile } from './developmentProfile';
 import { repairWindowsShellIdentity } from './services/windowsShellIdentity';
 import { registerApplicationMenu } from './applicationMenu';
+import { sendIpc } from './ipc/ipcMainTyped';
 
 const WINDOWS_SHELL_IDENTITY_SETTLE_MS = 1_000;
 
@@ -84,7 +84,7 @@ if (!hasSingleInstanceLock) {
 const systemLyricsCoordinator = new SystemLyricsCoordinator(action => {
   const window = getWindow();
   if (!window || window.isDestroyed()) return;
-  window.webContents.send('system-lyrics-action', action);
+  sendIpc(window.webContents, 'system-lyrics-action', action);
 });
 
 app.whenReady().then(async () => {
@@ -135,7 +135,6 @@ app.whenReady().then(async () => {
   // at module import time in index.tsx).
   registerTypedIpcHandlers();
   registerFileHandlers();
-  registerLibraryHandlers();
   registerCoverHandlers();
   registerDownloadHandlers();
   registerMetadataHandlers();
@@ -144,7 +143,7 @@ app.whenReady().then(async () => {
     if (!keys || keys.some(key => key === 'app-language' || key === 'app-shortcuts')) registerApplicationMenu(getWindow);
     const entries = keys ? Object.fromEntries(keys.map(key => [key, settingsStore.get(key) ?? null])) : settingsStore.getAll();
     for (const window of BrowserWindow.getAllWindows()) {
-      if (window.webContents.id !== senderId) window.webContents.send('settings-changed', entries, keys === null);
+      if (window.webContents.id !== senderId) sendIpc(window.webContents, 'settings-changed', entries, keys === null);
     }
   });
   registerUserDataHandlers();

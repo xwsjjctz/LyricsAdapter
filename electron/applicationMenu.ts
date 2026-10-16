@@ -1,16 +1,10 @@
 import { app, Menu, type MenuItemConstructorOptions, type BrowserWindow } from 'electron';
 import { DEFAULT_SHORTCUTS, resolveShortcutKey, type ShortcutAction } from '../src/constants/shortcuts';
 import type { ApplicationMenuAction } from '../src/types/applicationMenu';
-import zh from '../src/i18n/locales/zh.json';
-import en from '../src/i18n/locales/en.json';
-import ja from '../src/i18n/locales/ja.json';
-import ko from '../src/i18n/locales/ko.json';
-import de from '../src/i18n/locales/de.json';
-import fr from '../src/i18n/locales/fr.json';
 import { settingsStore } from './services/settingsStore';
+import { mainTranslator } from './services/mainI18n';
 import { applyWindowPreset, type WindowPreset } from './services/windowState';
-
-const resources: Record<string, Record<string, string>> = { zh, en, ja, ko, de, fr };
+import { sendIpc } from './ipc/ipcMainTyped';
 
 function shortcutHint(action: ShortcutAction): string {
   let key = DEFAULT_SHORTCUTS[action].currentKey;
@@ -30,8 +24,7 @@ function shortcutHint(action: ShortcutAction): string {
 /** Rebuild the entire menu when language or shortcut settings change. */
 export function registerApplicationMenu(getWindow: () => BrowserWindow | null, platform = process.platform): void {
   if (platform !== 'darwin') return;
-  const labels: Record<string, string> = resources[settingsStore.get('app-language') ?? 'zh'] ?? zh;
-  const t = (key: string) => labels[key] ?? (zh as Record<string, string>)[key] ?? key;
+  const t = mainTranslator();
   const role = (name: NonNullable<MenuItemConstructorOptions['role']>, key: string): MenuItemConstructorOptions => ({
     role: name, label: t(`menu.${key}`),
   });
@@ -45,7 +38,7 @@ export function registerApplicationMenu(getWindow: () => BrowserWindow | null, p
       // the held Ctrl/Cmd+` gesture and the user's configurable shortcuts.
       click: () => {
         const window = getWindow();
-        if (window && !window.isDestroyed()) window.webContents.send('application-menu-action', id);
+        if (window && !window.isDestroyed()) sendIpc(window.webContents, 'application-menu-action', id);
       },
     };
   };

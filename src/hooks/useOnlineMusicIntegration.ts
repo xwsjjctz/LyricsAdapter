@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Track } from '../types';
-import type { SettingsSectionId } from '../components/settings/SettingsView';
+import type { SettingsSectionId } from '../types/settingsPanel';
 import {
   getOnlineProvider,
   type OnlineMusicProvider,

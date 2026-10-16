@@ -19,32 +19,31 @@ import type { MusicPluginInfo, MusicPluginCatalogEntry } from '../shared/musicPl
 import type { ExtensionType, PluginHostInfo, PluginProviderInfo, PluginTranslationCall, TranslationResult } from '../shared/plugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '../shared/pluginUpdate';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
-import { USER_DATA_SCHEMA_VERSION } from '../shared/persistencePolicy';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
 import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
+import type { UpdaterState } from '../shared/updater';
+import type { ElectronBridge } from '../shared/electronBridge';
+import type { PathValidationRequest, PathValidationResult, WebdavAccountProbe, WebdavCredentialMode } from '../shared/ipcContract';
+
+declare global {
+  interface Window {
+    /** Exposed by electron/preload.ts; absent in browser mode. */
+    electron?: ElectronBridge;
+  }
+}
 
 /** The full Electron surface the renderer may use: core DesktopAPI + online-music channels. */
 type FullDesktopAPI = DesktopAPI & OnlineMusicElectronAPI;
 
-function isIpcResult<T>(value: unknown): value is IpcResult<T> {
-  return typeof value === 'object'
-    && value !== null
-    && typeof (value as { ok?: unknown }).ok === 'boolean';
-}
-
-/** Transitional unwrap for one release while stale preload bundles may return raw values. */
-function unwrapIpcRead<T>(value: unknown): T {
-  if (!isIpcResult<T>(value)) return value as T;
-  if (!value.ok) throw new Error(value.error);
-  return value.data;
-}
-
-function assertIpcWrite(value: unknown, operation: string): void {
-  if (isIpcResult<void>(value) && !value.ok) {
-    throw new Error(`${operation}: ${value.error}`);
+/** Unwraps a typed IPC result; a failed result or a malformed reply rejects. */
+function unwrapIpcResult<T>(value: IpcResult<T>, operation: string): T {
+  if (typeof value !== 'object' || value === null || typeof value.ok !== 'boolean') {
+    throw new Error(`${operation}: malformed IPC response`);
   }
+  if (!value.ok) throw new Error(`${operation}: ${value.error}`);
+  return value.data;
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -54,36 +53,9 @@ function isStringRecord(value: unknown): value is Record<string, string> {
     && Object.values(value).every(entry => typeof entry === 'string');
 }
 
-function normalizeUserDataSnapshot(value: unknown): UserDataSnapshot | null {
-  return normalizeStoredUserDataSnapshot(value);
-}
+export type { UpdateInfo, UpdaterState } from '../shared/updater';
 
-/** 更新信息（渲染侧宽松版，仅取必要字段；主进程发送完整 UpdateInfo）。 */
-export interface UpdateInfo {
-  version: string;
-  releaseName?: string;
-  releaseDate?: string;
-}
-
-/** 下载进度信息。 */
-interface UpdateProgress {
-  total: number;
-  delta: number;
-  transferred: number;
-  percent: number;
-  bytesPerSecond: number;
-}
-
-/** 自动更新状态机（与 electron/updater.ts 保持一致）。 */
-export type UpdaterState =
-  | { status: 'unavailable'; reason: 'dev' | 'unsupported' | 'unsigned' | 'unconfigured' }
-  | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'not-available' }
-  | { status: 'available'; info: UpdateInfo }
-  | { status: 'downloading'; info: UpdateInfo; progress: UpdateProgress | null }
-  | { status: 'downloaded'; info: UpdateInfo }
-  | { status: 'error'; message: string };
+type Bridge = ElectronBridge;
 
 export interface DesktopAPI {
   platform: string;
@@ -94,62 +66,54 @@ export interface DesktopAPI {
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
   loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibraryIndex: (library: unknown) => Promise<{ success: boolean; error?: string }>;
-  saveLocalLibraryBackup?: (library: unknown) => Promise<{ success: boolean; error?: string }>;
-  loadLocalLibraryBackup?: () => Promise<{ success: boolean; library: unknown | null; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
-  validateAllPaths: (songs: unknown[]) => Promise<{ success: boolean; results: unknown[]; error?: string }>;
-  saveAudioFile: (sourcePath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-  saveAudioFileFromBuffer: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; filePath?: string; method?: string; error?: string }>;
-  deleteAudioFile: (filePath: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
-  cleanupOrphanAudio: (keepPaths: string[]) => Promise<{ success: boolean; removed?: number; error?: string }>;
-  saveCoverThumbnail?: (payload: { id: string; data: string; mime: string }) => Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }>;
-  deleteCoverThumbnail?: (trackId: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+  validateAllPaths: Bridge['validateAllPaths'];
+  saveCoverThumbnail?: Bridge['saveCoverThumbnail'];
+  deleteCoverThumbnail?: Bridge['deleteCoverThumbnail'];
   getAppDataPath: () => Promise<string | null>;
   loadMetadataCache: () => Promise<{ entries: Record<string, unknown> }>;
   saveMetadataCache: (cache: { entries: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
-  getMetadataForSong: (songId: string) => Promise<unknown>;
   /** Read audio metadata using music-tag-native (main process). */
-  readAudioMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
+  readAudioMetadata?: Bridge['readAudioMetadata'];
   /** Legacy renderer-side audio metadata parsing. */
   parseAudioMetadata: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
-  writeAudioMetadata?: (filePath: string, metadata: { title?: string | undefined; artist?: string | undefined; album?: string | undefined; lyrics?: string | undefined; coverUrl?: string | undefined; wordLyrics?: string | undefined; wordLyricsFormat?: 'qrc' | 'yrc' | undefined }) => Promise<{ success: boolean; error?: string }>;
-  /** @deprecated use readAudioMetadata */
-  refreshTrackMetadata?: (filePath: string) => Promise<{ success: boolean; metadata?: unknown; error?: string }>;
+  writeAudioMetadata?: Bridge['writeAudioMetadata'];
   getPathForFile?: (file: File) => string;
   // Window control APIs
-  minimizeWindow?: () => void;
-  maximizeWindow?: () => void;
-  closeWindow?: (alreadyFlushed?: boolean) => void;
-  isMaximized?: () => Promise<boolean>;
-  isFullScreen?: () => Promise<boolean>;
-  onFullScreenChange?: (callback: (isFullScreen: boolean) => void) => () => void;
-  onBeforeWindowClose?: (callback: () => Promise<boolean> | boolean) => () => void;
+  minimizeWindow?: Bridge['minimizeWindow'];
+  maximizeWindow?: Bridge['maximizeWindow'];
+  closeWindow?: Bridge['closeWindow'];
+  isMaximized?: Bridge['isMaximized'];
+  isFullScreen?: Bridge['isFullScreen'];
+  onFullScreenChange?: Bridge['onFullScreenChange'];
+  onBeforeWindowClose?: Bridge['onBeforeWindowClose'];
   // Settings APIs
-  selectDownloadFolder?: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  selectDownloadFolder?: Bridge['selectDownloadFolder'];
   // Shortcut API
-  onShortcut?: (callback: (event: { accelerator: string; key: string; code: string; control: boolean; meta: boolean; alt: boolean; shift: boolean }) => void) => (() => void) | void;
+  onShortcut?: Bridge['onShortcut'];
   // WebDAV APIs — implemented by ElectronAdapter over the typed ipc.webdav.*
-  // channels (not exposed by preload directly). webdavClient consumes these.
-  webdavPropfind: (url: string, authHeader: string, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
-  webdavGetRedirect: (url: string, authHeader: string) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
-  webdavGetRange: (url: string, authHeader: string, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
-  webdavPut: (url: string, authHeader: string, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
-  webdavDelete: (url: string, authHeader: string) => Promise<{ success: boolean; error?: string }>;
+  // channels. The main process attaches the stored account ('stored') itself.
+  webdavPropfind: (url: string, credentials: WebdavCredentialMode, depth: string) => Promise<{ success: boolean; xml?: string; error?: string }>;
+  webdavGetRedirect: (url: string, credentials: WebdavCredentialMode) => Promise<{ success: boolean; redirectUrl?: string; error?: string }>;
+  webdavGetRange: (url: string, credentials: WebdavCredentialMode, start: number, end: number) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>;
+  webdavPut: (url: string, credentials: WebdavCredentialMode, data: ArrayBuffer, contentType: string) => Promise<{ success: boolean; error?: string }>;
+  webdavDelete: (url: string, credentials: WebdavCredentialMode) => Promise<{ success: boolean; error?: string }>;
   /** MKCOL 创建集合（目录），幂等。返回 success 与 HTTP status（201/2xx/405 视为已就绪）。 */
-  webdavMkcol: (url: string, authHeader: string) => Promise<{ success: boolean; status?: number; error?: string }>;
-  runStartupCleanup?: (activeTrackIds: string[]) => Promise<{ success: boolean; message?: string; error?: string }>;
-  cleanupOrphanCovers?: (activeTrackIds: string[]) => Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }>;
+  webdavMkcol: (url: string, credentials: WebdavCredentialMode) => Promise<{ success: boolean; status?: number; error?: string }>;
+  /** Probes an unsaved account (settings "test connection"). */
+  webdavTest: (account: WebdavAccountProbe) => Promise<{ success: boolean; error?: string }>;
+  runStartupCleanup?: Bridge['runStartupCleanup'];
   // Auto-updater APIs
-  checkForUpdates?: () => Promise<{ ok: boolean; reason?: string }>;
-  quitAndInstall?: () => Promise<{ ok: boolean }>;
-  getUpdaterState?: () => Promise<UpdaterState>;
-  getAppVersion?: () => Promise<string>;
+  checkForUpdates?: Bridge['checkForUpdates'];
+  quitAndInstall?: Bridge['quitAndInstall'];
+  getUpdaterState?: Bridge['getUpdaterState'];
+  getAppVersion?: Bridge['getAppVersion'];
   onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
-  showNotification?: (title: string, body: string, options?: AppNotificationOptions) => Promise<{ ok: boolean; reason?: string }>;
+  showNotification?: Bridge['showNotification'];
   // Online music: push a provider cookie to the main-process stream:// proxy.
-  setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
+  setOnlineCookie?: Bridge['setOnlineCookie'];
   // Settings store (SQLite-backed main-process facade)
   settingsGet?: (key: string) => Promise<string | undefined>;
   settingsGetAll?: () => Promise<Record<string, string>>;
@@ -157,17 +121,14 @@ export interface DesktopAPI {
   settingsSetMany?: (entries: Record<string, string>) => Promise<void>;
   settingsDelete?: (key: string) => Promise<void>;
   settingsReplaceAll?: (entries: Record<string, string>) => Promise<void>;
-  // Aggregate persistence bootstrap (new typed IPC; optional for stale preload compatibility)
+  // Aggregate persistence bootstrap and close commit (typed IPC)
   persistenceLoadBootstrap?: () => Promise<PersistenceBootstrap>;
   persistenceCommitClose?: (
     request: PersistenceCloseCommitRequest,
   ) => Promise<PersistenceCloseCommitResult>;
   // User data store (~/.la/state.sqlite3)
   userDataLoad?: () => Promise<UserDataSnapshot>;
-  userDataSave?: (data: UserDataSnapshot) => Promise<void>;
-  userDataSaveTracks?: (tracks: unknown[]) => Promise<void>;
   userDataSaveLibraryState?: (tracks: unknown[], playback: Record<string, string>) => Promise<void>;
-  userDataGetFilePath?: () => Promise<string>;
 }
 
 class ElectronAdapter implements FullDesktopAPI {
@@ -191,7 +152,7 @@ class ElectronAdapter implements FullDesktopAPI {
     return this.api.ipc!;
   }
 
-  constructor(private api: FullDesktopAPI) {
+  constructor(private api: ElectronBridge) {
     // Initialize with empty cache, will be loaded from IndexedDB if needed
     this.metadataCache = {};
   }
@@ -218,44 +179,12 @@ class ElectronAdapter implements FullDesktopAPI {
     return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
-  async saveLocalLibraryBackup(library: any): Promise<{ success: boolean; error?: string }> {
-    if (typeof this.api.saveLocalLibraryBackup === 'function') {
-      return this.api.saveLocalLibraryBackup(library);
-    }
-    logger.warn('[DesktopAPI] saveLocalLibraryBackup not available');
-    return { success: false, error: 'Not available' };
-  }
-
-  async loadLocalLibraryBackup(): Promise<{ success: boolean; library: any; error?: string }> {
-    if (typeof this.api.loadLocalLibraryBackup === 'function') {
-      return this.api.loadLocalLibraryBackup();
-    }
-    logger.warn('[DesktopAPI] loadLocalLibraryBackup not available');
-    return { success: false, library: null, error: 'Not available' };
-  }
-
   async validateFilePath(filePath: string): Promise<boolean> {
     return this.api.validateFilePath(filePath);
   }
 
-  async validateAllPaths(songs: any[]): Promise<{ success: boolean; results: any[]; error?: string }> {
+  async validateAllPaths(songs: PathValidationRequest[]): Promise<PathValidationResult> {
     return this.api.validateAllPaths(songs);
-  }
-
-  async saveAudioFile(sourcePath: string, fileName: string): Promise<{ success: boolean; filePath?: string; method?: string; error?: string }> {
-    return this.api.saveAudioFile(sourcePath, fileName);
-  }
-
-  async saveAudioFileFromBuffer(fileName: string, fileData: ArrayBuffer): Promise<{ success: boolean; filePath?: string; method?: string; error?: string }> {
-    return this.api.saveAudioFileFromBuffer(fileName, fileData);
-  }
-
-  async deleteAudioFile(filePath: string): Promise<{ success: boolean; deleted?: boolean; error?: string }> {
-    return this.api.deleteAudioFile(filePath);
-  }
-
-  async cleanupOrphanAudio(keepPaths: string[]): Promise<{ success: boolean; removed?: number; error?: string }> {
-    return this.api.cleanupOrphanAudio(keepPaths);
   }
 
   async saveCoverThumbnail(payload: { id: string; data: string; mime: string }): Promise<{ success: boolean; coverUrl?: string; filePath?: string; error?: string }> {
@@ -285,11 +214,6 @@ class ElectronAdapter implements FullDesktopAPI {
     // Update local cache only (persistence is handled by metadataCacheService via IndexedDB)
     this.metadataCache = validateMetadataMap(cache.entries);
     return { success: true };
-  }
-
-  async getMetadataForSong(songId: string): Promise<unknown> {
-    // Return from in-memory cache
-    return this.metadataCache[songId] || null;
   }
 
   async parseAudioMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
@@ -358,7 +282,7 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  async selectDownloadFolder(): Promise<{ success: boolean; path?: string; error?: string }> {
+  async selectDownloadFolder(): ReturnType<Bridge['selectDownloadFolder']> {
     if (typeof this.api.selectDownloadFolder === 'function') {
       return this.api.selectDownloadFolder();
     }
@@ -372,58 +296,33 @@ class ElectronAdapter implements FullDesktopAPI {
     return { success: false, error: 'writeAudioMetadata not available' };
   }
 
-  async refreshTrackMetadata(filePath: string): Promise<{ success: boolean; metadata?: unknown; error?: string }> {
-    if (typeof this.api.refreshTrackMetadata === 'function') {
-      return this.api.refreshTrackMetadata(filePath);
-    }
-    return { success: false, error: 'refreshTrackMetadata not available' };
-  }
-
   // Window control methods
-  minimizeWindow(): void {
-    if (typeof this.api.minimizeWindow === 'function') {
-      this.api.minimizeWindow();
-    }
+  async minimizeWindow(): Promise<void> {
+    return this.api.minimizeWindow();
   }
 
-  maximizeWindow(): void {
-    if (typeof this.api.maximizeWindow === 'function') {
-      this.api.maximizeWindow();
-    }
+  async maximizeWindow(): Promise<void> {
+    return this.api.maximizeWindow();
   }
 
-  closeWindow(alreadyFlushed = false): void {
-    if (typeof this.api.closeWindow === 'function') {
-      this.api.closeWindow(alreadyFlushed);
-    }
+  async closeWindow(alreadyFlushed = false): Promise<void> {
+    return this.api.closeWindow(alreadyFlushed);
   }
 
   async isMaximized(): Promise<boolean> {
-    if (typeof this.api.isMaximized === 'function') {
-      return this.api.isMaximized();
-    }
-    return false;
+    return this.api.isMaximized();
   }
 
   async isFullScreen(): Promise<boolean> {
-    if (typeof this.api.isFullScreen === 'function') {
-      return this.api.isFullScreen();
-    }
-    return false;
+    return this.api.isFullScreen();
   }
 
   onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {
-    if (typeof this.api.onFullScreenChange === 'function') {
-      return this.api.onFullScreenChange(callback);
-    }
-    return () => {};
+    return this.api.onFullScreenChange(callback);
   }
 
   onBeforeWindowClose(callback: () => Promise<boolean> | boolean): () => void {
-    if (typeof this.api.onBeforeWindowClose === 'function') {
-      return this.api.onBeforeWindowClose(callback);
-    }
-    return () => {};
+    return this.api.onBeforeWindowClose(callback);
   }
 
   getPathForFile(file: File): string {
@@ -433,37 +332,42 @@ class ElectronAdapter implements FullDesktopAPI {
     throw new Error('getPathForFile not available');
   }
 
-  async webdavPropfind(url: string, authHeader: string, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
-    const result = await this.api.ipc!.webdav.propfind({ url, authHeader, depth });
+  async webdavPropfind(url: string, credentials: WebdavCredentialMode, depth: string): Promise<{ success: boolean; xml?: string; error?: string }> {
+    const result = await this.api.ipc!.webdav.propfind({ url, credentials, depth });
     return result.ok ? { success: true, xml: result.data.xml } : { success: false, error: result.error };
   }
 
-  async webdavGetRedirect(url: string, authHeader: string): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
-    const result = await this.api.ipc!.webdav.getRedirect({ url, authHeader });
+  async webdavGetRedirect(url: string, credentials: WebdavCredentialMode): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
+    const result = await this.api.ipc!.webdav.getRedirect({ url, credentials });
     if (!result.ok) return { success: false, error: result.error };
     const data: { success: boolean; redirectUrl?: string } = { success: true };
     if (result.data.redirectUrl) data.redirectUrl = result.data.redirectUrl;
     return data;
   }
 
-  async webdavGetRange(url: string, authHeader: string, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
-    const result = await this.api.ipc!.webdav.getRange({ url, authHeader, start, end });
+  async webdavGetRange(url: string, credentials: WebdavCredentialMode, start: number, end: number): Promise<{ success: boolean; data?: ArrayBuffer; error?: string }> {
+    const result = await this.api.ipc!.webdav.getRange({ url, credentials, start, end });
     return result.ok ? { success: true, data: result.data.data } : { success: false, error: result.error };
   }
 
-  async webdavPut(url: string, authHeader: string, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
-    const result = await this.api.ipc!.webdav.put({ url, authHeader, data, contentType });
+  async webdavPut(url: string, credentials: WebdavCredentialMode, data: ArrayBuffer, contentType: string): Promise<{ success: boolean; error?: string }> {
+    const result = await this.api.ipc!.webdav.put({ url, credentials, data, contentType });
     return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
-  async webdavDelete(url: string, authHeader: string): Promise<{ success: boolean; error?: string }> {
-    const result = await this.api.ipc!.webdav.delete({ url, authHeader });
+  async webdavDelete(url: string, credentials: WebdavCredentialMode): Promise<{ success: boolean; error?: string }> {
+    const result = await this.api.ipc!.webdav.delete({ url, credentials });
     return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
-  async webdavMkcol(url: string, authHeader: string): Promise<{ success: boolean; status?: number; error?: string }> {
-    const result = await this.api.ipc!.webdav.mkcol({ url, authHeader });
+  async webdavMkcol(url: string, credentials: WebdavCredentialMode): Promise<{ success: boolean; status?: number; error?: string }> {
+    const result = await this.api.ipc!.webdav.mkcol({ url, credentials });
     return result.ok ? { success: true, status: result.data.status } : { success: false, error: result.error };
+  }
+
+  async webdavTest(account: WebdavAccountProbe): Promise<{ success: boolean; error?: string }> {
+    const result = await this.api.ipc.webdav.test(account);
+    return result.ok ? { success: true } : { success: false, error: result.error };
   }
 
   async runStartupCleanup(activeTrackIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> {
@@ -472,14 +376,6 @@ class ElectronAdapter implements FullDesktopAPI {
     }
     logger.warn('[DesktopAPI] runStartupCleanup not available');
     return { success: false, error: 'Not available' };
-  }
-
-  async cleanupOrphanCovers(activeTrackIds: string[]): Promise<{ success: boolean; removed?: number; errors?: number; existingCoverIds?: string[]; error?: string }> {
-    if (typeof this.api.cleanupOrphanCovers === 'function') {
-      return this.api.cleanupOrphanCovers(activeTrackIds);
-    }
-    logger.warn('[DesktopAPI] cleanupOrphanCovers not available');
-    return { success: false, error: 'Not available', removed: 0, errors: 0, existingCoverIds: [] };
   }
 
   async checkForUpdates(): Promise<{ ok: boolean; reason?: string }> {
@@ -539,179 +435,64 @@ class ElectronAdapter implements FullDesktopAPI {
     }
   }
 
-  // ---- Settings store (passthrough to main-process SQLite facade) ----
+  // ---- Settings store (typed IPC to the main-process SQLite facade) ----
+  private typed<K extends keyof TypedElectronIPC>(namespace: K, operation: string): NonNullable<TypedElectronIPC[K]> {
+    const surface = this.api.ipc?.[namespace];
+    if (!surface) throw new Error(`Desktop ${String(namespace)}.${operation} API is unavailable`);
+    return surface as NonNullable<TypedElectronIPC[K]>;
+  }
+
   async settingsGet(key: string): Promise<string | undefined> {
-    // Prefer typed IPC path, fall back to legacy top-level method
-    if (this.api.ipc?.settings?.get) {
-      const value = unwrapIpcRead<string | undefined>(await this.api.ipc.settings.get(key));
-      return typeof value === 'string' ? value : undefined;
-    }
-    if (typeof this.api.settingsGet === 'function') {
-      return this.api.settingsGet(key);
-    }
-    throw new Error('Desktop settings.get API is unavailable');
+    const value = unwrapIpcResult(await this.typed('settings', 'get').get(key), 'settings.get failed');
+    return typeof value === 'string' ? value : undefined;
   }
 
   async settingsGetAll(): Promise<Record<string, string>> {
-    if (this.api.ipc?.settings?.getAll) {
-      const value = unwrapIpcRead<unknown>(await this.api.ipc.settings.getAll());
-      if (!isStringRecord(value)) throw new Error('Invalid settings.getAll response');
-      return value;
-    }
-    if (typeof this.api.settingsGetAll === 'function') {
-      return this.api.settingsGetAll();
-    }
-    throw new Error('Desktop settings.getAll API is unavailable');
+    const value: unknown = unwrapIpcResult(await this.typed('settings', 'getAll').getAll(), 'settings.getAll failed');
+    if (!isStringRecord(value)) throw new Error('Invalid settings.getAll response');
+    return value;
   }
 
   async settingsSet(key: string, value: string): Promise<void> {
-    if (this.api.ipc?.settings?.set) {
-      assertIpcWrite(await this.api.ipc.settings.set(key, value), 'settings.set failed');
-      return;
-    }
-    if (typeof this.api.settingsSet === 'function') {
-      return this.api.settingsSet(key, value);
-    }
-    throw new Error('Desktop settings.set API is unavailable');
+    unwrapIpcResult(await this.typed('settings', 'set').set(key, value), 'settings.set failed');
   }
 
   async settingsDelete(key: string): Promise<void> {
-    if (this.api.ipc?.settings?.delete) {
-      assertIpcWrite(await this.api.ipc.settings.delete(key), 'settings.delete failed');
-      return;
-    }
-    if (typeof this.api.settingsDelete === 'function') {
-      return this.api.settingsDelete(key);
-    }
-    throw new Error('Desktop settings.delete API is unavailable');
+    unwrapIpcResult(await this.typed('settings', 'delete').delete(key), 'settings.delete failed');
   }
 
   async settingsSetMany(entries: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.settings?.setMany) {
-      assertIpcWrite(await this.api.ipc.settings.setMany(entries), 'settings.setMany failed');
-      return;
-    }
-    if (typeof this.api.settingsSetMany === 'function') {
-      return this.api.settingsSetMany(entries);
-    }
-    // Fallback: set individually
-    for (const [key, value] of Object.entries(entries)) {
-      await this.settingsSet(key, value);
-    }
+    unwrapIpcResult(await this.typed('settings', 'setMany').setMany(entries), 'settings.setMany failed');
   }
 
   async settingsReplaceAll(entries: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.settings?.replaceAll) {
-      assertIpcWrite(await this.api.ipc.settings.replaceAll(entries), 'settings.replaceAll failed');
-      return;
-    }
-    if (typeof this.api.settingsReplaceAll === 'function') {
-      return this.api.settingsReplaceAll(entries);
-    }
-    throw new Error('Desktop settings.replaceAll API is unavailable');
+    unwrapIpcResult(await this.typed('settings', 'replaceAll').replaceAll(entries), 'settings.replaceAll failed');
   }
 
   async persistenceLoadBootstrap(): Promise<PersistenceBootstrap> {
-    if (this.api.ipc?.persistence?.loadBootstrap) {
-      return unwrapIpcRead<PersistenceBootstrap>(await this.api.ipc.persistence.loadBootstrap());
-    }
-    if (typeof this.api.persistenceLoadBootstrap === 'function') {
-      return this.api.persistenceLoadBootstrap();
-    }
-    throw new Error('Desktop persistence.loadBootstrap API is unavailable');
+    return unwrapIpcResult(await this.typed('persistence', 'loadBootstrap').loadBootstrap(), 'persistence.loadBootstrap failed');
   }
 
   async persistenceCommitClose(
     request: PersistenceCloseCommitRequest,
   ): Promise<PersistenceCloseCommitResult> {
-    if (this.api.ipc?.persistence?.commitClose) {
-      return unwrapIpcRead<PersistenceCloseCommitResult>(
-        await this.api.ipc.persistence.commitClose(request),
-      );
-    }
-    if (typeof this.api.persistenceCommitClose === 'function') {
-      return this.api.persistenceCommitClose(request);
-    }
-    throw new Error('Desktop persistence.commitClose API is unavailable');
+    return unwrapIpcResult(await this.typed('persistence', 'commitClose').commitClose(request), 'persistence.commitClose failed');
   }
 
   // ---- User Data Store (~/.la/state.sqlite3) ----
 
   async userDataLoad(): Promise<UserDataSnapshot> {
-    if (this.api.ipc?.userData?.load) {
-      const value = unwrapIpcRead<unknown>(await this.api.ipc.userData.load());
-      const normalized = normalizeUserDataSnapshot(value);
-      if (!normalized) throw new Error('Invalid userData.load response');
-      return normalized;
-    }
-    if (typeof this.api.userDataLoad === 'function') {
-      const normalized = normalizeUserDataSnapshot(await this.api.userDataLoad());
-      if (!normalized) throw new Error('Invalid legacy userData.load response');
-      return normalized;
-    }
-    throw new Error('Desktop userData.load API is unavailable');
-  }
-
-  async userDataSave(data: UserDataSnapshot): Promise<void> {
-    if (this.api.ipc?.userData?.save) {
-      assertIpcWrite(await this.api.ipc.userData.save(data), 'userData.save failed');
-      return;
-    }
-    if (typeof this.api.userDataSave === 'function') {
-      return this.api.userDataSave(data);
-    }
-    throw new Error('Desktop userData.save API is unavailable');
-  }
-
-  async userDataSaveTracks(tracks: unknown[]): Promise<void> {
-    if (this.api.ipc?.userData?.saveTracks) {
-      assertIpcWrite(await this.api.ipc.userData.saveTracks(tracks), 'userData.saveTracks failed');
-      return;
-    }
-    if (typeof this.api.userDataSaveTracks === 'function') {
-      return this.api.userDataSaveTracks(tracks);
-    }
-    throw new Error('Desktop userData.saveTracks API is unavailable');
+    const value: unknown = unwrapIpcResult(await this.typed('userData', 'load').load(), 'userData.load failed');
+    const normalized = normalizeStoredUserDataSnapshot(value);
+    if (!normalized) throw new Error('Invalid userData.load response');
+    return normalized;
   }
 
   async userDataSaveLibraryState(tracks: unknown[], playback: Record<string, string>): Promise<void> {
-    if (this.api.ipc?.userData?.saveLibraryState) {
-      assertIpcWrite(
-        await this.api.ipc.userData.saveLibraryState(tracks, playback),
-        'userData.saveLibraryState failed',
-      );
-      return;
-    }
-    if (typeof this.api.userDataSaveLibraryState === 'function') {
-      return this.api.userDataSaveLibraryState(tracks, playback);
-    }
-    // One-release compatibility with stale preloads: preserve settings by
-    // loading the existing snapshot before using the legacy full-save API.
-    if (typeof this.api.userDataLoad === 'function' && typeof this.api.userDataSave === 'function') {
-      const existing = normalizeUserDataSnapshot(await this.api.userDataLoad());
-      if (!existing) throw new Error('Invalid legacy userData.load response');
-      await this.api.userDataSave({
-        ...existing,
-        schemaVersion: USER_DATA_SCHEMA_VERSION,
-        libraryInitialized: true,
-        tracks,
-        playback,
-      });
-      return;
-    }
-    throw new Error('Desktop userData.saveLibraryState API is unavailable');
-  }
-
-  async userDataGetFilePath(): Promise<string> {
-    if (this.api.ipc?.userData?.getFilePath) {
-      const value = unwrapIpcRead<unknown>(await this.api.ipc.userData.getFilePath());
-      if (typeof value !== 'string') throw new Error('Invalid userData.getFilePath response');
-      return value;
-    }
-    if (typeof this.api.userDataGetFilePath === 'function') {
-      return this.api.userDataGetFilePath();
-    }
-    throw new Error('Desktop userData.getFilePath API is unavailable');
+    unwrapIpcResult(
+      await this.typed('userData', 'saveLibraryState').saveLibraryState(tracks, playback),
+      'userData.saveLibraryState failed',
+    );
   }
 
   async musicPluginCall(id: string, method: string, args: unknown[]): Promise<unknown> {
@@ -775,25 +556,8 @@ class ElectronAdapter implements FullDesktopAPI {
   // assertions. Moving these through the adapter lets renderer code stop
   // touching window.electron directly (RF-008).
 
-  async getQQMusicUrl(reqData: Record<string, unknown>, cookie: string) {
-    return this.api.getQQMusicUrl!(reqData, cookie);
-  }
-  async qqMusicRequest(options: {
-    url: string; method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; cookie?: string;
-  }) {
-    return this.api.qqMusicRequest!(options);
-  }
-  async getQQMusicLyrics(songmid: string, cookie: string) {
-    return this.api.getQQMusicLyrics!(songmid, cookie);
-  }
-  async neteaseRequest(channel: string, params: Record<string, unknown>, cookie?: string) {
-    return this.api.neteaseRequest!(channel, params, cookie);
-  }
   async downloadAndSave(url: string, cookie: string, filePath: string, requestId?: string) {
     return this.api.downloadAndSave!(url, cookie, filePath, requestId);
-  }
-  async downloadAudioFile(url: string, cookie: string) {
-    return this.api.downloadAudioFile!(url, cookie);
   }
   async fetchCoverBase64(coverUrl: string) {
     return this.api.fetchCoverBase64!(coverUrl);

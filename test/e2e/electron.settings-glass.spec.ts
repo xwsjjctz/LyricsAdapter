@@ -78,8 +78,8 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     const slider = settings.getByRole('slider', { name: 'Focus Mode 滚动歌词字号' });
     await slider.fill('36');
     await expect.poll(() => page.evaluate(async () => {
-      const settings = await (window as unknown as { electron: { settingsGetAll: () => Promise<Record<string, string>> } }).electron.settingsGetAll();
-      return settings['la_focus_lyrics_font_size'];
+      const result = await (window as unknown as { electron: { ipc: { settings: { getAll: () => Promise<{ ok: boolean; data?: Record<string, string> }> } } } }).electron.ipc.settings.getAll();
+      return result.data?.['la_focus_lyrics_font_size'];
     })).toBe('36');
     const bounds = () => app!.evaluate(({ BrowserWindow }) => {
       const child = BrowserWindow.getAllWindows().find(win => win.getParentWindow())!;

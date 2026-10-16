@@ -12,7 +12,7 @@ vi.mock('../../electron/services/settingsStore', () => ({
 vi.mock('../../electron/services/userDataStore', () => ({
   userDataStore: { load: vi.fn() },
 }));
-vi.mock('../../electron/ipc/core/libraryCore', () => ({
+vi.mock('../../electron/services/libraryIndexFiles', () => ({
   doLoadLibraryIndex: vi.fn(async () => ({ ok: true, data: { songs: [], settings: {} } })),
 }));
 

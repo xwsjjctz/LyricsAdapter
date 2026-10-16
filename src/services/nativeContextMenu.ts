@@ -1,6 +1,6 @@
 import type { TypedElectronIPC } from '../types/typedIpc';
 import type { NativeContextMenuItem } from '../types/nativeContextMenu';
-import type { TrackMenuItem } from '../components/trackMenuItems';
+import type { TrackMenuItem } from '../domain/trackMenuItems';
 import { getDesktopAPI } from './desktopAdapter';
 
 /** Darwin 25 is macOS 26, where NSMenu adopts Liquid Glass. */

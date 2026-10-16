@@ -21,7 +21,6 @@ interface PersistenceIpcFixture {
   };
   userData?: {
     load?: ReturnType<typeof vi.fn>;
-    save?: ReturnType<typeof vi.fn>;
     saveLibraryState?: ReturnType<typeof vi.fn>;
   };
 }
@@ -39,7 +38,7 @@ async function createAdapter(ipc: PersistenceIpcFixture) {
   return adapter!;
 }
 
-describe('desktopAdapter persistence IPC compatibility', () => {
+describe('desktopAdapter persistence IPC', () => {
   beforeEach(() => {
     Reflect.deleteProperty(window, 'electron');
   });
@@ -49,35 +48,26 @@ describe('desktopAdapter persistence IPC compatibility', () => {
     vi.resetModules();
   });
 
-  it('temporarily accepts raw values from a stale preload during migration', async () => {
-    const userData = {
-      tracks: [{ id: 'track-1' }],
-      settings: { 'app-language': 'zh' },
-      playback: { _json: '{"volume":0.5}' },
-    };
+  it('rejects raw replies instead of guessing at a stale preload shape', async () => {
     const adapter = await createAdapter({
       settings: {
         get: vi.fn().mockResolvedValue('default-dark'),
-        getAll: vi.fn().mockResolvedValue({ 'app-theme': 'default-dark' }),
+        set: vi.fn().mockResolvedValue(undefined),
       },
-      userData: {
-        load: vi.fn().mockResolvedValue(userData),
-      },
-    });
-
-    await expect(adapter.settingsGet?.('app-theme')).resolves.toBe('default-dark');
-    await expect(adapter.settingsGetAll?.()).resolves.toEqual({ 'app-theme': 'default-dark' });
-    await expect(adapter.userDataLoad?.()).resolves.toEqual({
-      schemaVersion: 1,
-      libraryInitialized: true,
-      ...userData,
-    });
-  });
-
-  it('uses the shared migration-pending rule for an empty pre-v1 raw snapshot', async () => {
-    const adapter = await createAdapter({
       userData: {
         load: vi.fn().mockResolvedValue({ tracks: [], settings: {}, playback: {} }),
+      },
+    });
+
+    await expect(adapter.settingsGet?.('app-theme')).rejects.toThrow('malformed IPC response');
+    await expect(adapter.settingsSet?.('app-theme', 'default-dark')).rejects.toThrow('malformed IPC response');
+    await expect(adapter.userDataLoad?.()).rejects.toThrow('malformed IPC response');
+  });
+
+  it('uses the shared migration-pending rule for an empty pre-v1 snapshot', async () => {
+    const adapter = await createAdapter({
+      userData: {
+        load: vi.fn().mockResolvedValue({ ok: true, data: { tracks: [], settings: {}, playback: {} } }),
       },
     });
 
@@ -199,39 +189,12 @@ describe('desktopAdapter persistence IPC compatibility', () => {
         set: vi.fn().mockResolvedValue({ ok: false, error: 'disk full' }),
       },
       userData: {
-        save: vi.fn().mockResolvedValue({ ok: false, error: 'permission denied' }),
+        saveLibraryState: vi.fn().mockResolvedValue({ ok: false, error: 'permission denied' }),
       },
     });
 
     await expect(adapter.settingsSet?.('app-theme', 'default-dark')).rejects.toThrow('disk full');
-    await expect(adapter.userDataSave?.({
-      schemaVersion: 1,
-      libraryInitialized: true,
-      tracks: [],
-      settings: {},
-      playback: {},
-    })).rejects.toThrow('permission denied');
-  });
-
-  it('keeps raw void writes compatible with a stale preload for one migration window', async () => {
-    const settingsSet = vi.fn().mockResolvedValue(undefined);
-    const userDataSave = vi.fn().mockResolvedValue(undefined);
-    const adapter = await createAdapter({
-      settings: { set: settingsSet },
-      userData: { save: userDataSave },
-    });
-    const snapshot = {
-      schemaVersion: 1 as const,
-      libraryInitialized: true,
-      tracks: [],
-      settings: {},
-      playback: {},
-    };
-
-    await expect(adapter.settingsSet?.('app-theme', 'default-dark')).resolves.toBeUndefined();
-    await expect(adapter.userDataSave?.(snapshot)).resolves.toBeUndefined();
-    expect(settingsSet).toHaveBeenCalledWith('app-theme', 'default-dark');
-    expect(userDataSave).toHaveBeenCalledWith(snapshot);
+    await expect(adapter.userDataSaveLibraryState?.([], {})).rejects.toThrow('permission denied');
   });
 
   it('fails closed when a persistence capability is absent', async () => {

@@ -42,7 +42,7 @@ function setup() {
       restoreFromPersistence: (_settings, loaded) => setTracks(loaded),
       getPersistenceData: () => ({}), slots, setLocalTracks: setTracks,
       loadCloudTracks: vi.fn(), loadOnlineTracks: vi.fn(), loadPlaylistTracks: vi.fn(),
-      setIsPlaying: vi.fn(), setVolume: vi.fn(), setPlaybackMode: vi.fn(),
+      setIsPlaying: vi.fn(), setVolume: vi.fn(), setPlaybackMode: vi.fn(), volume: 0.5, playbackMode: 'order',
       currentPlaybackTime: 0, updateSlot: vi.fn(), onLibrarySettingsRestored: onSettingsRestored,
     });
     return { ready, tracks };

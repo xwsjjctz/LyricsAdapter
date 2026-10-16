@@ -1,10 +1,11 @@
-import { ipcMain } from "electron";
 import { logger } from "../logger";
 import { readAudioMetadata, writeAudioMetadata } from "../services/audioMetadataService";
+import type { AudioMetadataWrite } from "../../src/shared/ipcContract";
+import { handleIpc } from './ipcMainTyped';
 
 export function registerMetadataHandlers(): void {
   // ── Read metadata (music-tag-native) ────────────────────────────────
-  ipcMain.handle('read-audio-metadata', async (_event, filePath: string) => {
+  handleIpc('read-audio-metadata', async (_event, filePath: string) => {
     try {
       const metadata = await readAudioMetadata(filePath);
       return { success: true, metadata };
@@ -15,15 +16,7 @@ export function registerMetadataHandlers(): void {
   });
 
   // ── Write metadata (music-tag-native + custom QRC/YRC) ─────────────
-  ipcMain.handle('write-audio-metadata', async (_event, filePath: string, metadata: {
-    title?: string;
-    artist?: string;
-    album?: string;
-    lyrics?: string;
-    coverUrl?: string;
-    wordLyrics?: string;
-    wordLyricsFormat?: 'qrc' | 'yrc';
-  }) => {
+  handleIpc('write-audio-metadata', async (_event, filePath: string, metadata: AudioMetadataWrite) => {
     try {
       await writeAudioMetadata(filePath, {
         title: metadata.title,
@@ -37,17 +30,6 @@ export function registerMetadataHandlers(): void {
       return { success: true };
     } catch (error) {
       logger.error('[Main] Write metadata failed:', error);
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
-  // ── Refresh metadata (now uses music-tag-native, same as read-audio-metadata) ──
-  ipcMain.handle('refresh-track-metadata', async (_event, filePath: string) => {
-    try {
-      const metadata = await readAudioMetadata(filePath);
-      return { success: true, metadata };
-    } catch (error) {
-      logger.error('[Main] Refresh metadata failed:', error);
       return { success: false, error: (error as Error).message };
     }
   });

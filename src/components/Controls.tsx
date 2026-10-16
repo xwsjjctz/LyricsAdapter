@@ -9,7 +9,7 @@ import { useVolumeDisclosure } from '../hooks/useVolumeDisclosure';
 import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
 import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { FLOATING_PLAYER_BOTTOM, FLOATING_PLAYER_HEIGHT } from './playerLayout';
+import { FLOATING_PLAYER_BOTTOM, FLOATING_PLAYER_HEIGHT } from '../constants/playerLayout';
 import { useLiquidGlass } from './LiquidGlass';
 
 interface ControlsProps {

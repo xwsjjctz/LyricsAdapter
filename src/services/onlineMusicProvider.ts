@@ -1,16 +1,14 @@
 /**
- * Shared abstraction over online music sources (QQ Music, NetEase Cloud Music).
+ * Shared abstraction over online music sources (any enabled music plugin).
  *
- * The renderer talks to whichever provider the user selected in settings; both
- * implementations normalize their results into the same `OnlineSong` shape so
- * the UI, download/upload flow, and progress tracking stay source-agnostic.
+ * The renderer talks to whichever provider the user selected in settings; every
+ * plugin normalizes its results into the same `OnlineSong` shape so the UI,
+ * download/upload flow, and progress tracking stay source-agnostic.
  */
 import type { MusicPluginElectronAPI } from '../shared/musicPlugin';
-import type { DesktopAPI } from './desktopAdapter';
 import { settingsManager } from './settingsManager';
-import { qqMusicApi } from './qqMusicApi';
-import { neteaseMusicApi } from './neteaseMusicApi';
-import { cookieManager, neteaseCookieManager, type CookieStore } from './cookieManager';
+import type { CookieStore } from './cookieManager';
+import { cookieStoreFor, providerFor } from './musicSources';
 import type { QQCredential } from '../shared/qqCredential';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 
@@ -26,30 +24,6 @@ import type { OnlineSource, OnlineMusicProvider } from '../shared/onlineMusic';
  * and NetEase renderer clients share one declaration.
  */
 export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
-  getQQMusicUrl?: (reqData: Record<string, unknown>, cookie: string) => Promise<unknown>;
-  qqMusicRequest?: (options: {
-    url: string;
-    method?: 'GET' | 'POST';
-    headers?: Record<string, string>;
-    body?: string;
-    cookie?: string;
-  }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-  getQQMusicLyrics?: (
-    songmid: string,
-    cookie: string
-  ) => Promise<{
-    success: boolean;
-    lyrics?: string;
-    wordLyrics?: string;
-    wordLyricsFormat?: 'qrc';
-    error?: string;
-  }>;
-  /** Generic NetEase weapi request (encryption handled in main process). */
-  neteaseRequest?: (
-    channel: string,
-    params: Record<string, unknown>,
-    cookie?: string
-  ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
   /** QQ Music QR login — start a session, returns a PNG data URL + session token. */
   qqLoginQrStart?: () => Promise<{
     success: boolean;
@@ -95,21 +69,12 @@ export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
   }>;
   /** Push a QQ / NetEase cookie to main-process memory for the streaming proxy. */
   setOnlineCookie?: (source: string, cookie: string) => Promise<void>;
-  downloadAudioFile?: (
-    url: string,
-    cookie: string
-  ) => Promise<{ success: boolean; data?: number[] | ArrayBuffer; error?: string }>;
   downloadAndSave?: (
     url: string,
     cookie: string,
     filePath: string,
     requestId?: string
   ) => Promise<{ success: boolean; filePath?: string; size?: number; error?: string }>;
-  saveFileToPath?: (
-    dirPath: string,
-    fileName: string,
-    fileData: ArrayBuffer
-  ) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   writeAudioMetadata?: (
     filePath: string,
     metadata: {
@@ -131,33 +96,15 @@ export interface OnlineMusicElectronAPI extends MusicPluginElectronAPI {
   ) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
 }
 
-declare global {
-  interface Window {
-    electron?: DesktopAPI & OnlineMusicElectronAPI;
-  }
-}
 
 // ---- Provider selector ----------------------------------------------------
 
-/**
- * Returns the active provider based on the user's online-source setting.
- * Static value imports here are safe because each implementation only has a
- * *type-only* dependency back on this module (erased at runtime), so there is
- * no runtime import cycle.
- */
+/** The provider for a source, or for the source selected in settings. */
 export function getOnlineProvider(source?: OnlineSource): OnlineMusicProvider {
-  const active: OnlineSource = source ?? settingsManager.getOnlineSource();
-  if (active === 'netease') return neteaseMusicApi;
-  return qqMusicApi;
+  return providerFor(source ?? settingsManager.getOnlineSource());
 }
 
-/**
- * Cookie store for the active source. Used by the settings UI to read/write the
- * source-specific cookie. (NetEase search works without a cookie; this is only
- * needed for the optional login that unlocks VIP/high-quality playback.)
- */
+/** Cookie store for a source, or for the source selected in settings. */
 export function getActiveCookieManager(source?: OnlineSource): CookieStore {
-  const active: OnlineSource = source ?? settingsManager.getOnlineSource();
-  if (active === 'netease') return neteaseCookieManager;
-  return cookieManager;
+  return cookieStoreFor(source ?? settingsManager.getOnlineSource());
 }

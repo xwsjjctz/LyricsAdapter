@@ -68,15 +68,15 @@ describe('persistence IPC handlers', () => {
     mocks.userDataStore.saveLibraryState.mockReturnValue(true);
   });
 
-  it('returns typed settings envelopes while preserving legacy raw channels', () => {
+  it('returns typed settings envelopes and exposes no raw settings channels', () => {
     mocks.settingsStore.get.mockReturnValue('default-dark');
     mocks.settingsStore.getAll.mockReturnValue({ 'app-theme': 'default-dark' });
     registerSettingsHandlers();
 
     expect(invoke('ipc:settings:get', { key: 'app-theme' })).toEqual({ ok: true, data: 'default-dark' });
     expect(invoke('ipc:settings:getAll')).toEqual({ ok: true, data: { 'app-theme': 'default-dark' } });
-    expect(invoke('settings:get', 'app-theme')).toBe('default-dark');
-    expect(invoke('settings:getAll')).toEqual({ 'app-theme': 'default-dark' });
+    expect(mocks.handlers.has('settings:get')).toBe(false);
+    expect(mocks.handlers.has('settings:set')).toBe(false);
   });
 
   it('validates typed settings writes and reports durable write failures', () => {
@@ -98,7 +98,7 @@ describe('persistence IPC handlers', () => {
     });
   });
 
-  it('returns typed user-data envelopes while preserving legacy raw channels', () => {
+  it('returns typed user-data envelopes and exposes no raw user-data channels', () => {
     const snapshot = {
       schemaVersion: 1,
       libraryInitialized: true,
@@ -110,18 +110,17 @@ describe('persistence IPC handlers', () => {
     registerUserDataHandlers();
 
     expect(invoke('ipc:userData:load')).toEqual({ ok: true, data: snapshot });
-    expect(invoke('userData:load')).toEqual(snapshot);
+    expect(mocks.handlers.has('userData:load')).toBe(false);
+    expect(mocks.handlers.has('ipc:userData:save')).toBe(false);
   });
 
-  it('notifies native menus only after successful settings writes, including legacy and bulk changes', () => {
+  it('notifies native menus only after successful settings writes, including bulk changes', () => {
     const changed = vi.fn();
     registerSettingsHandlers(changed);
     invoke('ipc:settings:set', { key: 'app-language', value: 'en' });
     expect(changed).toHaveBeenLastCalledWith(['app-language'], 42);
     invoke('ipc:settings:setMany', { entries: { 'app-language': 'ja', 'app-shortcuts': '{}' } });
     expect(changed).toHaveBeenLastCalledWith(['app-language', 'app-shortcuts'], 42);
-    invoke('settings:set', 'app-shortcuts');
-    expect(changed).toHaveBeenLastCalledWith(['app-shortcuts'], 42);
     invoke('ipc:settings:delete', { key: 'app-language' });
     expect(changed).toHaveBeenLastCalledWith(['app-language'], 42);
     invoke('ipc:settings:replaceAll', { entries: {} });
@@ -129,30 +128,8 @@ describe('persistence IPC handlers', () => {
     changed.mockClear();
     mocks.settingsStore.set.mockReturnValue(false);
     invoke('ipc:settings:set', { key: 'app-language', value: 'fr' });
-    invoke('settings:set', 'app-language');
     invoke('ipc:settings:set', { key: '', value: 'invalid' });
     expect(changed).not.toHaveBeenCalled();
-  });
-
-  it('validates user-data writes and reports durable write failures', () => {
-    registerUserDataHandlers();
-    const snapshot = {
-      schemaVersion: 1,
-      libraryInitialized: true,
-      tracks: [{ id: 'track-1' }],
-      settings: {},
-      playback: {},
-    };
-
-    expect(invoke('ipc:userData:save', { data: snapshot })).toEqual({ ok: true, data: undefined });
-    expect(mocks.userDataStore.save).toHaveBeenCalledWith(snapshot);
-
-    mocks.userDataStore.save.mockReturnValue(false);
-    expect(invoke('ipc:userData:save', { data: snapshot })).toEqual({
-      ok: false,
-      error: 'Failed to persist user data',
-    });
-    expect(invoke('ipc:userData:save', { data: { tracks: [{}], settings: {}, playback: {} } })).toMatchObject({ ok: false });
   });
 
   it('atomically persists tracks and playback without replacing user settings', () => {

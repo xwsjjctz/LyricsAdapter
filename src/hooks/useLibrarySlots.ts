@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
-import { LibrarySlot, Track, SlotId, createEmptySlot, PlaybackContext } from '../types';
+import { useCallback } from 'react';
+import { LibrarySlot, Track, SlotId, PlaybackContext } from '../types';
 import { logger } from '../services/logger';
+import { useStoreSelector } from '../stores/createStore';
+import type { LibraryStateStore } from '../stores/libraryState';
 
 /** LRU cap for the online-playback list (most-recent at the head). */
 const ONLINE_MAX_TRACKS = 50;
@@ -56,14 +58,24 @@ function reindexCurrent(cloud: LibrarySlot, newTracks: Track[]): number {
   return idx >= 0 ? idx : -1;
 }
 
-export function useLibrarySlots() {
-  const [slots, setSlots] = useState<Record<SlotId, LibrarySlot>>({
-    local: createEmptySlot('local'),
-    cloud: createEmptySlot('cloud'),
-    online: createEmptySlot('online'),
-    playlist: createEmptySlot('playlist'),
-  });
-  const [activeSlotId, setActiveSlotId] = useState<SlotId>('local');
+/**
+ * The single writer of slot state in the library store. Controllers receive
+ * these operations; components only read the store through selectors.
+ */
+export function useLibrarySlots(store: LibraryStateStore) {
+  const slots = useStoreSelector(store, state => state.slots);
+  const activeSlotId = useStoreSelector(store, state => state.activeSlotId);
+
+  const setSlots = useCallback((update: (previous: Record<SlotId, LibrarySlot>) => Record<SlotId, LibrarySlot>) => {
+    store.setState(state => {
+      const next = update(state.slots);
+      return next === state.slots ? state : { ...state, slots: next };
+    });
+  }, [store]);
+
+  const setActiveSlotId = useCallback((slotId: SlotId) => {
+    store.setState(state => state.activeSlotId === slotId ? state : { ...state, activeSlotId: slotId });
+  }, [store]);
 
   const activeSlot = slots[activeSlotId];
   const activeTracks = activeSlot.tracks;
@@ -71,14 +83,15 @@ export function useLibrarySlots() {
 
   const switchTo = useCallback((slotId: SlotId) => {
     setActiveSlotId(slotId);
-  }, []);
+  }, [setActiveSlotId]);
 
+  // An updater that returns the same slot leaves the store (and subscribers) untouched.
   const updateSlot = useCallback((slotId: SlotId, updater: (slot: LibrarySlot) => LibrarySlot) => {
-    setSlots(prev => ({
-      ...prev,
-      [slotId]: updater(prev[slotId]),
-    }));
-  }, []);
+    setSlots(prev => {
+      const next = updater(prev[slotId]);
+      return next === prev[slotId] ? prev : { ...prev, [slotId]: next };
+    });
+  }, [setSlots]);
 
   const setActiveTrackIndex = useCallback((index: number | ((prev: number) => number)) => {
     setSlots(prev => {
@@ -90,7 +103,7 @@ export function useLibrarySlots() {
         [activeSlotId]: { ...slot, currentTrackIndex: newIndex },
       };
     });
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const setActiveTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
     setSlots(prev => {
@@ -101,14 +114,14 @@ export function useLibrarySlots() {
         [activeSlotId]: { ...slot, tracks: newTracks },
       };
     });
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const setActiveVolume = useCallback((volume: number) => {
     setSlots(prev => ({
       ...prev,
       [activeSlotId]: { ...prev[activeSlotId], volume },
     }));
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const setActivePlaybackMode = useCallback((mode: 'order' | 'shuffle' | 'repeat-one' | ((prev: 'order' | 'shuffle' | 'repeat-one') => 'order' | 'shuffle' | 'repeat-one')) => {
     setSlots(prev => {
@@ -119,28 +132,28 @@ export function useLibrarySlots() {
         [activeSlotId]: { ...slot, playbackMode: newMode },
       };
     });
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const setActiveScrollPosition = useCallback((position: number) => {
     setSlots(prev => ({
       ...prev,
       [activeSlotId]: { ...prev[activeSlotId], scrollPosition: position },
     }));
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const setActiveFilterType = useCallback((filterType: 'default' | 'album' | 'artist') => {
     setSlots(prev => ({
       ...prev,
       [activeSlotId]: { ...prev[activeSlotId], filterType },
     }));
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const setActiveCategorySelection = useCallback((categorySelection: string | null) => {
     setSlots(prev => ({
       ...prev,
       [activeSlotId]: { ...prev[activeSlotId], categorySelection },
     }));
-  }, [activeSlotId]);
+  }, [activeSlotId, setSlots]);
 
   const loadCloudTracks = useCallback((tracks: Track[]) => {
     setSlots(prev => {
@@ -167,7 +180,7 @@ export function useLibrarySlots() {
         cloud: { ...cloud, tracks: sorted, currentTrackIndex: reindexCurrent(cloud, sorted) },
       };
     });
-  }, []);
+  }, [setSlots]);
 
   const mergeCloudTracks = useCallback((added: Track[], removedIds: string[], updated: Track[]) => {
     setSlots(prev => {
@@ -227,7 +240,7 @@ export function useLibrarySlots() {
         cloud: { ...cloud, tracks: sorted, currentTrackIndex: reindexCurrent(cloud, sorted) },
       };
     });
-  }, []);
+  }, [setSlots]);
 
   const updateLocalTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
     setSlots(prev => {
@@ -237,7 +250,7 @@ export function useLibrarySlots() {
         local: { ...prev.local, tracks: newTracks },
       };
     });
-  }, []);
+  }, [setSlots]);
 
   /**
    * Push a streamed third-party track into the online slot — most-recent first,
@@ -252,7 +265,7 @@ export function useLibrarySlots() {
       const next = [track, ...filtered].slice(0, ONLINE_MAX_TRACKS);
       return { ...prev, online: { ...online, tracks: next } };
     });
-  }, []);
+  }, [setSlots]);
 
   /** In-place update of online tracks (e.g. metadata enrichment) — preserves order + index. */
   const updateOnlineTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
@@ -263,7 +276,7 @@ export function useLibrarySlots() {
         online: { ...prev.online, tracks: newTracks },
       };
     });
-  }, []);
+  }, [setSlots]);
 
   /** Replace the entire online track list (used on library restore from disk). */
   const loadOnlineTracks = useCallback((tracks: Track[]) => {
@@ -271,7 +284,7 @@ export function useLibrarySlots() {
       ...prev,
       online: { ...prev.online, tracks },
     }));
-  }, []);
+  }, [setSlots]);
 
   /**
    * Playlist play-context slot — isolated from the online (search) LRU queue.
@@ -284,7 +297,7 @@ export function useLibrarySlots() {
       ...prev,
       playlist: { ...prev.playlist, tracks },
     }));
-  }, []);
+  }, [setSlots]);
 
   /** In-place update of playlist-slot tracks (e.g. lyrics enrichment). */
   const updatePlaylistTracks = useCallback((updater: Track[] | ((prev: Track[]) => Track[])) => {
@@ -292,7 +305,7 @@ export function useLibrarySlots() {
       const newTracks = typeof updater === 'function' ? updater(prev.playlist.tracks) : updater;
       return { ...prev, playlist: { ...prev.playlist, tracks: newTracks } };
     });
-  }, []);
+  }, [setSlots]);
 
   // 原地更新 cloud tracks（不做扫描合并/重排/去重），用于不改变列表顺序的细粒度更新
   // （如 clear cache 后清空失效 coverUrl）。顺序与 currentTrackIndex 均保持不变。
@@ -304,26 +317,7 @@ export function useLibrarySlots() {
         cloud: { ...prev.cloud, tracks: newTracks },
       };
     });
-  }, []);
-
-  const getPersistenceData = useCallback(() => {
-    const extractSlotData = (slot: LibrarySlot): SlotPersistenceData => ({
-      currentTrackIndex: slot.currentTrackIndex,
-      currentTime: slot.currentTime,
-      volume: slot.volume,
-      playbackMode: slot.playbackMode,
-      scrollPosition: slot.scrollPosition,
-      filterType: slot.filterType,
-      categorySelection: slot.categorySelection,
-    });
-    return {
-      localSlot: extractSlotData(slots.local),
-      cloudSlot: extractSlotData(slots.cloud),
-      onlineSlot: extractSlotData(slots.online),
-      playlistSlot: extractSlotData(slots.playlist),
-      activeSlotId,
-    };
-  }, [slots, activeSlotId]);
+  }, [setSlots]);
 
   const restoreFromPersistence = useCallback((data: PersistedSlotState, tracksFromDisk: Track[], onlineTracks?: Track[]) => {
     const slotState = data.localSlot || data.cloudSlot || data.onlineSlot || data.playlistSlot
@@ -386,7 +380,7 @@ export function useLibrarySlots() {
         },
       };
     });
-  }, []);
+  }, [setActiveSlotId, setSlots]);
 
   return {
     slots,
@@ -412,7 +406,6 @@ export function useLibrarySlots() {
     loadOnlineTracks,
     loadPlaylistTracks,
     updatePlaylistTracks,
-    getPersistenceData,
     restoreFromPersistence,
   };
 }

@@ -1,10 +1,12 @@
-import { BrowserWindow, ipcMain, shell, type WebContents } from 'electron';
+import { BrowserWindow, shell, type WebContents } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { loadMacosSettingsGlassBridge } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { fail, ok } from './typedResult';
+import { handleIpc, sendIpc } from './ipcMainTyped';
+import { sandboxedPreloadPreferences } from '../services/preloadOptions';
 
 const sectionSchema = z.enum(['general', 'plugins', 'online', 'cloud', 'focus', 'shortcuts']);
 const heightSchema = z.number().finite().min(1).max(10000);
@@ -55,7 +57,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     wanted = false;
     if (!panel || panel.isDestroyed() || !panel.isVisible()) return;
     panel.hide();
-    if (owner && !owner.isDestroyed()) owner.send('settings-panel-closed');
+    if (owner && !owner.isDestroyed()) sendIpc(owner, 'settings-panel-closed');
     if (parent && !parent.isDestroyed() && !parent.webContents.isDestroyed()) parent.webContents.focus();
   };
 
@@ -74,9 +76,9 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
         resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
         skipTaskbar: true, hasShadow: true, title: 'LyricsAdapter Settings',
         webPreferences: {
-          preload: path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs'),
-          nodeIntegration: false, contextIsolation: true, webSecurity: true,
-          spellcheck: false, sandbox: false,
+          ...sandboxedPreloadPreferences(path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs')),
+          webSecurity: true,
+          spellcheck: false,
         },
       });
       const opened = child;
@@ -88,7 +90,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
         sender.removeListener('destroyed', destroy);
         panel = null; parent = null; owner = null; ready = null; mounted = false; wanted = false; glassBridge = null;
         settle(false);
-        if (!sender.isDestroyed()) sender.send('settings-panel-closed');
+        if (!sender.isDestroyed()) sendIpc(sender, 'settings-panel-closed');
         if (wasVisible && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.focus();
       });
       win.on('move', layout); win.on('resize', layout);
@@ -122,7 +124,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
   const nativeDisabled = () => platform !== 'darwin' || process.env['LYRICS_ADAPTER_DISABLE_NATIVE_GLASS'] === '1';
 
   // Builds the hidden panel ahead of the first open, so that open only shows it.
-  ipcMain.handle('ipc:settingsPanel:prewarm', event => {
+  handleIpc('ipc:settingsPanel:prewarm', event => {
     if (nativeDisabled()) return ok(false);
     const win = playerWindow(event);
     if (!win) return fail('Invalid settings request');
@@ -130,7 +132,7 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     ready = create(win, event.sender, 'general');
     return ok(true);
   });
-  ipcMain.handle('ipc:settingsPanel:open', async (event, payload: unknown) => {
+  handleIpc('ipc:settingsPanel:open', async (event, payload: unknown) => {
     if (nativeDisabled()) return ok(false);
     const section = sectionSchema.safeParse(payload);
     const win = playerWindow(event);
@@ -145,14 +147,14 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     if (reused) {
       // A reused panel still shows wherever it was left; reset it to the
       // requested tab and let that render before a hidden panel appears.
-      panel.webContents.send('settings-panel-section', section.data);
+      sendIpc(panel.webContents, 'settings-panel-section', section.data);
       if (!panel.isVisible()) await new Promise(resolve => setTimeout(resolve, SECTION_RENDER_MS));
       if (!panel || panel.isDestroyed() || !wanted) return ok(true);
     }
     reveal();
     return ok(true);
   });
-  ipcMain.handle('ipc:settingsPanel:ready', (event, payload: unknown) => {
+  handleIpc('ipc:settingsPanel:ready', (event, payload: unknown) => {
     const surface = surfaceSchema.safeParse(payload);
     if (!surface.success || !panel || event.sender !== panel.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings surface');
     if (typeof surface.data !== 'number') {
@@ -168,20 +170,20 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     settle(true);
     return ok(undefined);
   });
-  ipcMain.handle('ipc:settingsPanel:close', event => {
+  handleIpc('ipc:settingsPanel:close', event => {
     if (event.senderFrame === event.sender.mainFrame && (event.sender === owner || event.sender === panel?.webContents)) conceal();
     return ok(undefined);
   });
-  ipcMain.handle('ipc:settingsPanel:previewOpacity', (event, payload: unknown) => {
+  handleIpc('ipc:settingsPanel:previewOpacity', (event, payload: unknown) => {
     if (event.sender !== panel?.webContents || event.senderFrame !== event.sender.mainFrame
       || typeof payload !== 'number' || !Number.isFinite(payload) || payload < 0 || payload > 1) return fail('Invalid settings preview');
-    owner?.send('settings-panel-preview-opacity', payload);
+    if (owner) sendIpc(owner, 'settings-panel-preview-opacity', payload);
     return ok(undefined);
   });
-  ipcMain.handle('ipc:settingsPanel:shortcut', (event, payload: unknown) => {
+  handleIpc('ipc:settingsPanel:shortcut', (event, payload: unknown) => {
     const shortcut = shortcutSchema.safeParse(payload);
     if (!shortcut.success || event.sender !== panel?.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings shortcut');
-    owner?.send('settings-panel-shortcut', shortcut.data.key, shortcut.data.modifiers);
+    if (owner) sendIpc(owner, 'settings-panel-shortcut', shortcut.data.key, shortcut.data.modifiers);
     return ok(undefined);
   });
 }

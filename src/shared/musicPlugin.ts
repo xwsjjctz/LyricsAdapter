@@ -1,6 +1,6 @@
 import type { OnlineMusicProvider } from './onlineMusic.js';
 import type { PluginManifest, PluginElectronAPI } from './plugin.js';
-import type { PluginUpdateSource } from './pluginUpdate.js';
+import type { OfficialMusicSource, PluginUpdateSource } from './pluginUpdate.js';
 
 export const MUSIC_PLUGIN_API_VERSION = 1;
 export interface MusicPluginManifest {
@@ -25,7 +25,8 @@ export interface MusicPluginInfo extends MusicPluginManifest {
   revision?: number;
 }
 export interface MusicPluginCatalogEntry {
-  id: 'qq' | 'netease';
+  /** The official catalog lists only the official sources. */
+  id: OfficialMusicSource;
   name: string;
   version?: string;
 }

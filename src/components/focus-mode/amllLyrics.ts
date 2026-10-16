@@ -1,4 +1,5 @@
 import type { LyricLine as AmlLyricLine } from '@applemusic-like-lyrics/core';
+import { sourcePrependsLyricsTitle } from '../../services/musicSources';
 import type { SyncedLyricLine, Track } from '../../types';
 
 const PLAIN_LYRIC_TIMESTAMP = /^\[\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?\]/;
@@ -41,7 +42,7 @@ function focusLyricSource(track: Track): (SyncedLyricLine & { lineId: string })[
   if (!track.syncedLyrics?.length) return plainLyricsToSynced(track).map((line, index) => ({ ...line, lineId: `line-${index}` }));
 
   const lines = track.syncedLyrics.map((line, index) => ({ ...line, lineId: `line-${index}` }));
-  if (track.source === 'netease' && (track.title || track.artist)) {
+  if (sourcePrependsLyricsTitle(track.source) && (track.title || track.artist)) {
     const title = [track.title, track.artist].filter(Boolean).join(' - ');
     if (title) lines.unshift({ time: 0, text: title, lineId: '' });
   }

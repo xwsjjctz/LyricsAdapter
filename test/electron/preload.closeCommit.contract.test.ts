@@ -4,6 +4,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import { bundledPreloadModule, SANDBOXED_PRELOAD_ARGV } from './preloadSharedModules';
 import type { PersistenceCloseCommitRequest } from '../../src/types/typedIpc';
 
 interface ExposedApi {
@@ -51,10 +52,11 @@ function executePreload(): {
     exports: {},
     require: (specifier: string) => {
       if (specifier === 'electron') return electron;
-      if (specifier === 'node:os') return { release: () => '25.0.0' };
+      const bundled = bundledPreloadModule(specifier);
+      if (bundled) return bundled;
       throw new Error(`Unexpected preload dependency: ${specifier}`);
     },
-    process: { platform: 'test' },
+    process: { platform: 'test', argv: SANDBOXED_PRELOAD_ARGV },
     console,
     Buffer,
     ArrayBuffer,

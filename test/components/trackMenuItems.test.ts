@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTrackMenuItems, downloadQualityOf, type TrackMenuItem } from '@/components/trackMenuItems';
+import { buildTrackMenuItems, downloadQualityOf, type TrackMenuItem } from '@/domain/trackMenuItems';
 
 const actionIds = (items: TrackMenuItem[]) =>
   items.flatMap(item => (item.kind === 'action' ? [item.id] : []));

@@ -9,7 +9,7 @@ import type { PluginElectronAPI, PluginProviderInfo } from '../../src/shared/plu
 import type { MusicPluginElectronAPI } from '../../src/shared/musicPlugin';
 
 const repo=path.resolve(fileURLToPath(new URL('../../',import.meta.url)));
-type Bridge = Required<PluginElectronAPI & MusicPluginElectronAPI> & { settingsGet(key:string):Promise<string|undefined>; settingsSet(key:string,value:string):Promise<void> };
+type Bridge = Required<PluginElectronAPI & MusicPluginElectronAPI> & { ipc: { settings: { get(key:string):Promise<{ ok: boolean; data?: string }>; set(key:string,value:string):Promise<unknown> } } };
 test('platform packages install, configure and translate in both Focus renderers; cancellation and disablement cross real IPC',async({},testInfo)=>{
  const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'la-platform-e2e-')));
  const home=path.join(root,'home'),userData=path.join(root,'user-data');
@@ -48,7 +48,7 @@ test('platform packages install, configure and translate in both Focus renderers
   await page.screenshot({path:testInfo.outputPath('focus-parallel-translation.png')});
   await page.keyboard.press('ControlOrMeta+Enter');
   // Switch through persisted settings then reload, exercising independent AMLL conversion.
-  await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).settingsSet('la_focus_amll_lyrics_enabled','true'));
+  await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).ipc.settings.set('la_focus_amll_lyrics_enabled','true'));
   await page.reload();await expect(page.locator('.poster-wall')).toBeVisible();await page.getByRole('button',{name:/Enter Focus Mode/}).click();
   await expect(page.locator('.amll-lyric-player')).toBeVisible();await expect(page.locator('.amll-lyric-player')).toContainText('Test translation (zh) · Original one');
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.focus-mode-content')!).opacity) >= 0.99);
@@ -71,7 +71,7 @@ test('platform packages install, configure and translate in both Focus renderers
    await new Promise(resolve=>setTimeout(resolve,100));api.pluginCancel('cancel-probe');return result;
   });
   expect(cancelled).toContain('cancelled');
-  expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).settingsGet('plugin:slow-translation:storage:aborted'))).toBe('true');
+  expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).ipc.settings.get('plugin:slow-translation:storage:aborted').then(result => result.data))).toBe('true');
   await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).musicPluginUninstall('slow-translation'));
   expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginProviders('lyrics.translation'))).toEqual([]);
  } finally {await app?.close();await rm(root,{recursive:true,force:true});}

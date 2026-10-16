@@ -92,11 +92,12 @@ flowchart TB
 | `electron/protocols/coverProtocol.ts` | 注册 `cover://`，从 `userData/covers` 读取封面并按 `?size=N` 降采样 |
 | `electron/protocols/streamProtocol.ts` | 注册 `stream://`，调用已启用的音乐源插件解析 CDN URL、取得请求头并转发 Range 请求 |
 | `electron/protocols/appProtocol.ts` | 注册应用资源协议 |
-| `electron/ipc/typedHandlers.ts` | typed IPC: 文件选择/读取、library index、WebDAV、下载等，带 payload 校验 |
-| `electron/ipc/fileHandlers.ts`、`libraryHandlers.ts`、`coverHandlers.ts` 等 | 文件、曲库、封面、窗口、下载等兼容 IPC，按领域分别注册 |
-| `electron/ipc/webdavHandlers.ts` | legacy WebDAV HTTP 代理 |
+| `src/shared/ipcContract.ts`、`electron/ipc/ipcMainTyped.ts` | 全部 IPC 通道的唯一契约（通道名、参数、结果、事件）；主进程只通过 `handleIpc` / `onIpc` / `sendIpc` 注册和发送 |
+| `electron/ipc/typedHandlers.ts` | typed IPC: 文件选择/读取、library index、WebDAV，带 payload 校验 |
+| `electron/ipc/fileHandlers.ts`、`coverHandlers.ts`、`windowHandlers.ts` 等 | 文件校验、封面、窗口、下载等位置参数通道，按领域分别注册 |
 | `electron/ipc/musicPluginHandlers.ts` | 音乐源与翻译调用、安装/启停/更新、凭据变更事件，以及 QQ/网易登录的兼容通道 |
 | `electron/services/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
+| `electron/services/pluginProcess.ts`、`electron/plugin-host/`、`electron/pluginHost.ts` | 每个插件一个 utilityProcess：主进程侧 RPC 与监管（超时、卡死检测、崩溃重启），子进程侧以快照提供同步 host 接口 |
 | `electron/services/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
 | `electron/services/persistenceRepository.ts`、`persistenceCommitService.ts` | 聚合启动读取与关闭最终提交；区分用户状态和缓存结果 |
 | `electron/ipc/metadataHandlers.ts`、`services/audioMetadataService.ts` | 通过 `music-tag-native` 读取、刷新和写入音频标签 |
@@ -108,10 +109,12 @@ flowchart TB
 
 `electron/preload.ts` 通过 `contextBridge.exposeInMainWorld('electron', ...)` 暴露受控 API。它同时包含：
 
-- typed IPC 命名空间：文件、曲库、WebDAV、下载、设置、用户状态及聚合持久化接口。
-- 旧的扁平 API：`readFile`、`selectFiles`、`loadLibraryIndex`、`webdavGetRange`、`downloadAndSave` 等。
+- typed IPC 命名空间（`ipc.*`）：文件、曲库、WebDAV、设置、用户状态、聚合持久化及原生窗口组件。
+- 扁平 API：窗口控制、封面、下载、元数据读写、更新器等，每个能力只有一条通道。
 - 插件能力：音乐源调用、翻译请求与取消、插件配置和安装更新管理。
 - 事件订阅：下载进度、窗口关闭前 flush、快捷键、更新器及插件状态/凭据变更。
+
+暴露对象的类型是 `src/shared/electronBridge.ts` 的 `ElectronBridge`，preload 以 `satisfies` 声明，`desktopAdapter` 也基于该类型实现；preload 的 `invoke` / `listen` / `send` 与主进程的注册都从 `ipcContract.ts` 取类型，任何一侧与契约不一致都无法通过编译。`test/electron/ipc/ipcContract.test.ts` 另外检查没有绕过类型化 helper 的原始调用，且每个契约通道都有主进程实现。
 
 renderer 业务代码通过 `services/desktopAdapter.ts` 使用这些能力，避免直接读写 `window.electron`。在线音乐凭据由主进程 `settingsStore` 提供；`syncOnlineCookiesToMain()` 保留兼容通知，`stream://` 对应通道只清除已解析的 CDN URL 缓存，不再维护另一份 cookie store。
 
@@ -156,7 +159,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 插件启用状态、配置、私有存储和更新设置通过宿主写入 SQLite。凭据统一经 `settingsStore` 读取；QQ/网易沿用兼容键，新插件使用 `music-plugin:<id>:secret:<name>`。这些 secret 键与 WebDAV 配置、QQ credential 等均受敏感设置策略保护，持久化时使用 `safeStorage` 加密。
 
-插件运行在主进程的 Node 环境，当前宿主没有进程隔离或不可信代码沙箱。SDK 网络和凭据权限约束适用于 SDK 调用，不能阻止可信 Node 插件直接使用 Node API。
+每个插件运行在独立的 Electron utilityProcess 中：插件阻塞事件循环或崩溃不会卡住主进程，请求会超时，无响应的进程会被结束并在下次调用时重启，连续崩溃的插件会被标记为失败。这不是不可信代码沙箱：SDK 网络和凭据权限约束适用于 SDK 调用，不能阻止插件直接使用 Node API。
 
 清单、SDK、版本兼容与分发细节见[插件 API 文档](../plugins/README.md)。
 
@@ -211,21 +214,28 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 | 概念 | 所属 | 含义 |
 | --- | --- | --- |
-| `activeSlotId` | `useLibrarySlots` | 当前真正的播放上下文，`usePlayback` 使用 `slots[activeSlotId]` |
-| `viewSlot` | `useLibraryStore` | 当前曲库面板正在浏览的 slot |
+| `activeSlotId` | `stores/libraryState.ts`（由 `useLibrarySlots` 写入） | 当前真正的播放上下文，`usePlayback` 使用 `slots[activeSlotId]` |
+| `viewSlot` | `stores/libraryState.ts`（由 `useLibraryStore` 写入） | 当前曲库面板正在浏览的 slot |
 
 这两个值可以不同。例如用户正在播放 `playlist` slot 中的在线歌单，同时曲库面板仍显示 `local` 或 Playlists 视图。删除、重排、导入这类库操作应面向 `viewSlot`，播放控制应面向 `activeSlotId`。
 
-### Hook 聚合层
+### 状态存储与组合 hook
 
-`stores/` 目录里的文件不是 Redux/Zustand 式全局 store，而是 React hook 聚合层。
+`src/stores/` 只放外部状态容器（`createStore` + `useSyncExternalStore`），不依赖 hooks、controllers 或组件（依赖检查规则 `stores-hold-state-only`）。
 
 | 文件 | 作用 |
 | --- | --- |
-| `stores/libraryStore.ts` | 包装 `useLibrarySlots`，增加 `viewSlot`、slot 切换动画、云端可写性检测、滚动位置和分类选择 |
-| `stores/playerStore.ts` | 包装 `usePlayback` 与 `useBlobUrls`，把音量、播放模式同步回 active slot；持久化快照通过实时播放时钟取得当前进度 |
-| `stores/importStore.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
-| `stores/uiStore.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
+| `stores/libraryState.ts` | 曲库领域状态：四个 slot、`activeSlotId`、`viewSlot`。实例由 `AppContent` 创建并经 `LibraryStateProvider` 提供；组件用 `useLibraryState(selector)` 读取所需切片，写入只经 `useLibrarySlots` 与 controllers。更新立即生效，`getSlots()` 能读到尚未渲染的最新值 |
+| `stores/musicPluginStore.ts`、`stores/pluginTranslationStore.ts` | 插件列表与歌词翻译偏好的订阅 |
+
+组合 hook 位于 `src/hooks/`：
+
+| 文件 | 作用 |
+| --- | --- |
+| `hooks/useLibraryStore.ts` | 包装 `useLibrarySlots`，增加 slot 切换动画、云端可写性检测、滚动位置和分类选择 |
+| `hooks/usePlayerStore.ts` | 包装 `usePlayback` 与 `useBlobUrls`。音量和播放模式是全局状态，不再镜像进 slot；持久化快照把实时值写到 active slot |
+| `hooks/useImportStore.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
+| `hooks/useUIStore.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
 
 ## 数据持久化
 
@@ -301,7 +311,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ### 本地导入
 
-本地导入入口在 `useImport`，通过 `importStore` 由 `viewSlot` 路由。
+本地导入入口在 `useImport`，通过 `useImportStore` 由 `viewSlot` 路由。
 
 桌面模式流程：
 
@@ -395,6 +405,17 @@ WebDAV 客户端在 `services/webdavClient.ts`，配置通过 `AppStorage` 的 `
 5. 首次或缓存不完整时进入 full mode。
 6. 可写且 provider 支持时，把 metadata 写回 WebDAV `/Metadata/`。
 
+hook 只负责 React 状态和上述加载顺序，具体实现位于 `services/webdav/`：
+
+| 文件 | 作用 |
+| --- | --- |
+| `trackMapping.ts` | 纯函数：列表 diff、占位曲目、元数据合并、listing 快照 |
+| `metadataReader.ts` | 按 provider 策略读取 meta.json 或文件头（带重试），解析标签、歌词和封面 |
+| `coverStore.ts` | 封面在 blob: / data: / 本地 cover:// 之间转换与保存 |
+| `metadataCache.ts` | IndexedDB 中的逐文件元数据缓存 |
+| `manifestSync.ts` | 串行合并并上传 `/Metadata/` manifest 与 chunks |
+| `chunkDetails.ts` | 后台从 chunks 补全封面和歌词，并回写 manifest 修正 |
+
 WebDAV `/Metadata/` 当前是 v3 manifest + chunks：
 
 - `_manifest.json` 保存轻量字段、文件指纹、chunkId 和是否有封面/歌词。
@@ -425,7 +446,6 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 - `AppContent` 仍直接编排持久化快照和孤儿缓存清理；若继续增长，应按领域边界下沉，而不是按行数机械拆文件。
 - `useLibraryActions` 目前仍保留文件重载入口，曲库 mutation 则由 `useLibraryController` 统一持有。
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
-- `useWebDAV` 很复杂，且 `useLibraryCloudSync` 当前从 `LibraryView` 内触发云同步，UI 组件仍承载业务副作用入口。
+- `useLibraryCloudSync` 由 `AppShell` 触发云同步，UI 组件仍承载这一业务副作用入口。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
-- typed IPC 与 legacy IPC 并存，短期利于兼容，长期会带来重复维护成本。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。

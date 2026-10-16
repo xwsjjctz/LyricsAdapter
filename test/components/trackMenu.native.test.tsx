@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TrackMenu from '@/components/TrackMenu';
-import { buildTrackMenuItems } from '@/components/trackMenuItems';
+import { buildTrackMenuItems } from '@/domain/trackMenuItems';
 import type { ThemeColors } from '@/types/theme';
 
 const mocks = vi.hoisted(() => ({ popup: vi.fn() }));

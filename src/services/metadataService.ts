@@ -823,9 +823,6 @@ function parseFLACPicture(buffer: ArrayBuffer): string {
   }
 }
 
-// Export libraryStorage for persistence
-export { libraryStorage } from './libraryStorage';
-
 /**
  * Helper function to get audio duration without blocking
  * Uses a hidden audio element and waits for loadedmetadata event

@@ -23,6 +23,34 @@ export async function withDeadline<T>(work: (signal: AbortSignal) => Promise<T>,
   } finally { clearTimeout(timer); signal.removeEventListener('abort', abort); }
 }
 
+type ConfigurationValue = string | boolean | number;
+
+/** Settings key for a plugin's private data area. */
+export function pluginDataKey(pluginId: string, key: string, area: string): string {
+  if (!PLUGIN_ID.test(key)) throw new Error('Invalid plugin data key');
+  return `plugin:${pluginId}:${area}:${key}`;
+}
+
+/** Declared configuration with stored values; corrupt or invalid values fall back to defaults. */
+export function readPluginConfiguration(manifest: PluginManifest, read: (key: string) => string | undefined): Record<string, ConfigurationValue> {
+  return Object.fromEntries(Object.entries(manifest.contributes.configuration ?? {}).map(([key, field]) => {
+    try {
+      const value: unknown = JSON.parse(read(pluginDataKey(manifest.id, key, 'configuration')) ?? 'null');
+      if (typeof value === field.type && (!field.enum || field.enum.includes(value as never))) return [key, value as ConfigurationValue];
+    } catch { /* corrupt values fall back to the declared default */ }
+    return [key, field.default];
+  }));
+}
+
+/** Validates a configuration write and returns the settings key and stored JSON. */
+export function pluginConfigurationWrite(manifest: PluginManifest, key: string, value: ConfigurationValue): { settingKey: string; json: string } {
+  const field = manifest.contributes.configuration?.[key];
+  if (!Object.hasOwn(manifest.contributes.configuration ?? {}, key) || !field || typeof value !== field.type
+    || (typeof value === 'number' && !Number.isFinite(value)) || (typeof value === 'string' && value.length > 16_384)
+    || (field.enum && !field.enum.includes(value as never))) throw new Error('Invalid plugin configuration value');
+  return { settingKey: pluginDataKey(manifest.id, key, 'configuration'), json: JSON.stringify(value) };
+}
+
 export class PluginRuntime {
   failure: string | undefined;
   private lifetime = new AbortController();
@@ -39,8 +67,7 @@ export class PluginRuntime {
   }
   private ensureLive(): void { if (this.lifetime.signal.aborted) throw new Error('Plugin is inactive'); }
   private key(key: string, area: string): string {
-    if (!PLUGIN_ID.test(key)) throw new Error('Invalid plugin data key');
-    return `plugin:${this.manifest.id}:${area}:${key}`;
+    return pluginDataKey(this.manifest.id, key, area);
   }
   private read(key: string): string | undefined { return this.host.readSetting ? this.host.readSetting(key) : this.localSettings.get(key); }
   private write(key: string, value: string | undefined): void {
@@ -48,21 +75,16 @@ export class PluginRuntime {
     if (this.host.writeSetting) this.host.writeSetting(key, value);
     else if (value === undefined) this.localSettings.delete(key); else this.localSettings.set(key, value);
   }
-  configuration(): Record<string, string | boolean | number> {
-    return Object.fromEntries(Object.entries(this.manifest.contributes.configuration ?? {}).map(([key, field]) => {
-      try {
-        const value: unknown = JSON.parse(this.read(this.key(key, 'configuration')) ?? 'null');
-        if (typeof value === field.type && (!field.enum || field.enum.includes(value as never))) return [key, value as string | boolean | number];
-      } catch { /* corrupt values fall back to the declared default */ }
-      return [key, field.default];
-    }));
+  configuration(): Record<string, ConfigurationValue> {
+    return readPluginConfiguration(this.manifest, key => this.read(key));
   }
-  setConfiguration(key: string, value: string | boolean | number): void {
-    const field = this.manifest.contributes.configuration?.[key];
-    if (!Object.hasOwn(this.manifest.contributes.configuration ?? {}, key) || !field || typeof value !== field.type
-      || (typeof value === 'number' && !Number.isFinite(value)) || (typeof value === 'string' && value.length > 16_384)
-      || (field.enum && !field.enum.includes(value as never))) throw new Error('Invalid plugin configuration value');
-    this.write(this.key(key, 'configuration'), JSON.stringify(value));
+  setConfiguration(key: string, value: ConfigurationValue): void {
+    const { settingKey, json } = pluginConfigurationWrite(this.manifest, key, value);
+    this.write(settingKey, json);
+    this.notifyConfigurationChanged();
+  }
+  /** Runs the plugin's onDidChange listeners after a configuration write made elsewhere. */
+  notifyConfigurationChanged(): void {
     for (const listener of this.configurationListeners) { try { listener(); } catch (error) { this.host.logger.warn('[Plugins] Configuration listener failed', error); } }
   }
   private disposable(callback: () => void): Disposable {

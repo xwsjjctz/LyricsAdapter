@@ -66,7 +66,8 @@ test('the poster wall reopens where it was left instead of locating the playing 
     await page.waitForTimeout(800);
     expect(await wallScroll(page)).toBe(1000);
 
-    // Resizing keeps the same songs in view: tiles scale with the width, so the
+    // Resizing within one column count keeps the same songs in view: tiles scale
+    // with the width, so the
     // offset scales with them (around the viewport centre) instead of staying
     // a fixed number of pixels.
     const centreSong = () => page.evaluate(() => {
@@ -80,7 +81,7 @@ test('the poster wall reopens where it was left instead of locating the playing 
     expect(before).not.toBeNull();
     const widthOf = () => page.locator('.poster-wall').evaluate(node => node.clientWidth);
     const oldWidth = await widthOf();
-    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(900, 800));
+    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.setSize(1120, 800));
     await expect.poll(widthOf).toBeLessThan(oldWidth);
     await page.waitForTimeout(400);
     expect(await centreSong()).toBe(before);

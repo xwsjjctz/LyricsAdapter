@@ -28,6 +28,9 @@
   position: relative;
   flex: 1;
   min-height: 0;
+  /* Only vertical scrolling: the playing tile's glow spills past the side
+     edges, which would otherwise let a trackpad swipe pan the wall sideways. */
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -38,6 +41,8 @@
 
 .poster-wall__canvas {
   position: relative;
+  /* Cut the glow at the wall's side edges instead of growing its scroll width. */
+  overflow-x: clip;
 }
 
 .wall-tile {
@@ -195,6 +200,27 @@
   font-size: 12px;
 }
 
+/* Small covers carry only the title over a lighter scrim; the artist returns
+   on hover, keyboard focus, while playing, or to explain an unavailable track. */
+.wall-tile--sm .wall-tile__scrim {
+  opacity: 0.6;
+  transition: opacity 200ms ease;
+}
+.wall-tile--sm .wall-tile__artist {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  transition: max-height 200ms ease, margin-top 200ms ease, opacity 200ms ease;
+}
+.wall-tile--sm:is(:hover, :focus-visible, .wall-tile--current, .wall-tile--unavailable) .wall-tile__scrim {
+  opacity: 1;
+}
+.wall-tile--sm:is(:hover, :focus-visible, .wall-tile--current, .wall-tile--unavailable) .wall-tile__artist {
+  max-height: 1.5em;
+  margin-top: 1px;
+  opacity: 0.75;
+}
+
 .wall-tile:focus-visible .wall-tile__inner {
   outline: 2px solid var(--theme-primary);
   outline-offset: -2px;
@@ -211,6 +237,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .wall-tile--sm .wall-tile__scrim,
+  .wall-tile--sm .wall-tile__artist,
   .wall-tile__cover {
     transition: none;
   }

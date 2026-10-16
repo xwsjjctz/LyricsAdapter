@@ -1,7 +1,9 @@
-import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, ipcMain } from 'electron';
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow } from 'electron';
 import { autoUpdater, type UpdateInfo, type ProgressInfo } from 'electron-updater';
 import { logger } from './logger';
-import { getUpdaterUnavailableReason, type UpdaterUnavailableReason } from './services/updaterAvailability';
+import { getUpdaterUnavailableReason } from './services/updaterAvailability';
+import type { UpdaterState, UpdaterUnavailableReason } from '../src/shared/updater';
+import { handleIpc, sendIpc } from './ipc/ipcMainTyped';
 
 /**
  * 主进程自动更新模块（electron-updater + GitHub Releases）。
@@ -11,19 +13,8 @@ import { getUpdaterUnavailableReason, type UpdaterUnavailableReason } from './se
  * 注意：electron-updater 仅在真打包构建里工作（npm run electron:dev 下会被跳过）。
  */
 
-// 镜像渲染侧 services/desktopAdapter.ts 的 UpdaterState。
-// 主进程发送、渲染进程接收，两边结构需手动保持一致。
-export type UpdaterState =
-  | { status: 'unavailable'; reason: UpdaterUnavailableReason }
-  | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'not-available' }
-  | { status: 'available'; info: UpdateInfo }
-  | { status: 'downloading'; info: UpdateInfo; progress: ProgressInfo | null }
-  | { status: 'downloaded'; info: UpdateInfo }
-  | { status: 'error'; message: string };
-
-const UPDATER_CHANNEL = 'updater-event';
+// 主进程发送、渲染进程接收，共享 src/shared/updater.ts 中的同一个类型。
+const UPDATER_CHANNEL = 'updater-event' as const;
 let unavailableReason: UpdaterUnavailableReason | null = 'dev';
 
 let startupCheckDone = false;
@@ -39,16 +30,16 @@ function send(state: UpdaterState): void {
   // macOS settings live in a separate renderer, which needs the same live progress.
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-      win.webContents.send(UPDATER_CHANNEL, state);
+      sendIpc(win.webContents, UPDATER_CHANNEL, state);
     }
   }
   logger.info(`[Updater] status=${state.status}`);
 }
 
 function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInstall: () => void): void {
-  ipcMain.handle('updater:state', (): UpdaterState => currentState);
+  handleIpc('updater:state', (): UpdaterState => currentState);
 
-  ipcMain.handle('updater:check', async (): Promise<{ ok: boolean; reason?: string }> => {
+  handleIpc('updater:check', async (): Promise<{ ok: boolean; reason?: string }> => {
     if (unavailableReason || installInProgress) {
       return { ok: false, reason: unavailableReason ?? 'installing' };
     }
@@ -63,7 +54,7 @@ function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInst
     }
   });
 
-  ipcMain.handle('updater:quit-and-install', async (): Promise<{ ok: boolean }> => {
+  handleIpc('updater:quit-and-install', async (): Promise<{ ok: boolean }> => {
     if (unavailableReason || currentState.status !== 'downloaded' || installInProgress) {
       return { ok: false };
     }
@@ -93,7 +84,7 @@ function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInst
 
 /** 暴露当前应用版本号给渲染层（用于设置页显示）。 */
 export function registerVersionIpc(): void {
-  ipcMain.handle('app:get-version', (): string => app.getVersion());
+  handleIpc('app:get-version', (): string => app.getVersion());
 }
 
 /** 初始化 autoUpdater 并注册事件转发 / IPC。不可用时只注册 IPC。 */

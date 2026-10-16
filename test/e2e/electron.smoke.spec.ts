@@ -90,7 +90,7 @@ interface SmokeElectronAPI {
   platform?: unknown;
   getAppVersion?: () => Promise<unknown>;
   isMaximized?: () => Promise<unknown>;
-  settingsGetAll?: () => Promise<unknown>;
+  ipc?: { settings?: { getAll?: () => Promise<{ ok: boolean; data?: unknown }> } };
 }
 
 interface FocusEntranceProbe {
@@ -265,14 +265,16 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
 
     await expect.poll(() => page!.evaluate(async () => {
       const api = (window as typeof window & { electron?: SmokeElectronAPI }).electron;
-      if (!api?.getAppVersion || !api.isMaximized || !api.settingsGetAll) return false;
+      const getAllSettings = api?.ipc?.settings?.getAll;
+      if (!api?.getAppVersion || !api.isMaximized || !getAllSettings) return false;
 
       try {
-        const [version, maximized, settings] = await Promise.all([
+        const [version, maximized, result] = await Promise.all([
           api.getAppVersion(),
           api.isMaximized(),
-          api.settingsGetAll(),
+          getAllSettings(),
         ]);
+        const settings = result.ok ? result.data : null;
         return typeof version === 'string'
           && version.length > 0
           && typeof maximized === 'boolean'
@@ -545,11 +547,13 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     // A loaded renderer can shift this timer-to-RAF sample by several frames.
     // Keep a broad intermediate band that still catches skipped or already
     // completed reveals without treating CI scheduling as animation behavior.
-    expect(pageSettleBackdropPixel[3]).toBeGreaterThanOrEqual(100);
-    expect(pageSettleBackdropPixel[3]).toBeLessThanOrEqual(190);
+    // The 700ms reveal from 50% is at about 94% (≈239/255) when the page
+    // settles and completes a few frames later, so a late sample may already
+    // be opaque; only check that the reveal is well under way.
+    expect(pageSettleBackdropPixel[3]).toBeGreaterThanOrEqual(190);
 
     // The page itself settles at 600ms while the delayed Canvas reveal continues
-    // to 1000ms. Poll the actual backing pixel instead of coupling to wall-clock
+    // to 700ms. Poll the actual backing pixel instead of coupling to wall-clock
     // scheduling margin.
     await expect.poll(() => backdropCanvas.evaluate((element) => {
       const canvas = element as HTMLCanvasElement;
@@ -739,7 +743,8 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
       throw new Error('Focus track-change transition never changed a readable Canvas pixel');
     }
     expect(breathingProbe.timedOut).toBe(false);
-    expect(breathingProbe.underlyingBlurObserved).toBe(true);
+    // The layer alpha no longer dips, so the Library View never needs a blur.
+    expect(breathingProbe.underlyingBlurObserved).toBe(false);
     await expect(page.locator('[data-focus-library-backdrop-blur]')).toHaveCount(0);
 
     const rgbDistance = (left: number[], right: number[]) => Math.hypot(
@@ -752,26 +757,16 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
     const transitionSamples = breathingProbe.samples.filter(
       sample => sample.elapsed >= breathingProbe.transitionStartedAt!,
     );
-    const minimumAlphaSample = transitionSamples.reduce((minimum, sample) =>
-      (sample.rgba[3] ?? 255) < (minimum.rgba[3] ?? 255) ? sample : minimum);
     const midpointSample = nearestSample(breathingProbe.transitionStartedAt + 500);
     const endingSample = nearestSample(breathingProbe.transitionStartedAt + 1_100);
 
+    // A track change keeps the backdrop fully opaque from start to finish.
     expect(breathingProbe.initialRgba[3]).toBeGreaterThanOrEqual(250);
-    // The track-change dip was halved so the cover colour cross-fade stays
-    // readable: the minimum is now ~0.875 of the resting alpha (≈223/255)
-    // instead of the legacy ~0.75 (≈191/255).
-    expect(midpointSample.rgba[3]).toBeGreaterThanOrEqual(210);
-    expect(midpointSample.rgba[3]).toBeLessThanOrEqual(240);
-    expect(midpointSample.rgba[3]).toBeLessThan((breathingProbe.initialRgba[3] ?? 0) - 20);
-    expect(endingSample.rgba[3]).toBeGreaterThanOrEqual(250);
-    expect(Math.abs(
-      minimumAlphaSample.elapsed - (breathingProbe.transitionStartedAt + 500),
-    )).toBeLessThan(120);
+    for (const sample of transitionSamples) expect(sample.rgba[3]).toBeGreaterThanOrEqual(250);
 
     // The two deliberately different solid covers make the cross-fade readable:
     // blue is dominant before the switch, red after it, and the midpoint is a
-    // distinct dimmed blend rather than either endpoint copied unchanged.
+    // distinct blend rather than either endpoint copied unchanged.
     expect(breathingProbe.initialRgba[2]).toBeGreaterThan(breathingProbe.initialRgba[0] ?? 0);
     expect(endingSample.rgba[0]).toBeGreaterThan(endingSample.rgba[2] ?? 0);
     expect(rgbDistance(breathingProbe.initialRgba, endingSample.rgba)).toBeGreaterThan(40);
@@ -819,7 +814,6 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
         transitionStartedAt: breathingProbe.transitionStartedAt,
         initial: breathingProbe.initialRgba,
         midpoint: midpointSample,
-        minimum: minimumAlphaSample,
         ending: endingSample,
         finalCanvas: finalBreathingCanvasMetrics,
         sampleCount: breathingProbe.samples.length,
