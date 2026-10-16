@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
 import type { QQCredential } from '../../src/shared/qqCredential';
 import type { TypedElectronIPC } from '../../src/types/typedIpc';
@@ -18,9 +18,35 @@ interface TestBridge {
   ipc: Pick<TypedElectronIPC, 'settings'>;
 }
 
-interface RefreshProbe {
-  calls: { payload: { req: { param: Record<string, unknown> }; comm: Record<string, unknown> }; cookie: string }[];
+type RefreshCall = { payload: { req: { param: Record<string, unknown> }; comm: Record<string, unknown> }; cookie: string };
+
+// Plugins run in their own utility process, so the test points
+// utilityProcess.fork at an entry that loads this stub before the real plugin
+// host (Playwright drops NODE_OPTIONS, and the utility process ignores
+// --require in execArgv). It replaces only QQ's login CGI: the real preload, IPC
+// handler, plugin process, refresh service and settings repository all remain
+// in the path. Each call is appended to a JSON-lines probe file.
+const fetchStub = `
+{
+  const { appendFileSync, readFileSync } = require('node:fs');
+  const probePath = process.env.LYRICS_ADAPTER_QQ_PROBE;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    if (String(input) !== 'https://u.y.qq.com/cgi-bin/musicu.fcg') return originalFetch(input, init);
+    appendFileSync(probePath, JSON.stringify({ payload: JSON.parse(String(init && init.body)),
+      cookie: new Headers(init && init.headers).get('Cookie') || '' }) + '\\n');
+    const count = readFileSync(probePath, 'utf8').trim().split('\\n').length;
+    const now = Math.floor(Date.now() / 1000);
+    const data = count === 1 ? {
+      musicid: 12345, musickey: 'test-new-key', refresh_key: 'test-new-refresh-key',
+      refresh_token: 'test-new-refresh-token', openid: 'test-new-openid', access_token: 'test-new-access',
+      expired_at: now + 86400, musickeyCreateTime: now, keyExpiresIn: 259200,
+    } : { musickey: 'test-newer-key', refresh_token: '' };
+    return new Response(JSON.stringify({ code: 0, req: count === 3 ? { code: 1000 } : { code: 0, data } }),
+      { headers: { 'Content-Type': 'application/json' } });
+  };
 }
+`;
 
 test('QQ refresh rotates OAuth fields through IPC and respects encrypted persistence availability across restart', async () => {
   test.skip(!existsSync(path.join(repo, 'dist-music-plugins/qq')), 'Build optional official plugins to run QQ protocol integration');
@@ -31,11 +57,19 @@ test('QQ refresh rotates OAuth fields through IPC and respects encrypted persist
   await mkdir(userData, { recursive: true });
   await cp(path.join(repo, 'dist-music-plugins/qq'), path.join(isolatedHome, '.la/plugin/qq'), { recursive: true });
   await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
+  const stubPath = path.join(root, 'qq-fetch-stub.cjs');
+  const probePath = path.join(root, 'qq-probe.jsonl');
+  const hostEntry = path.join(root, 'plugin-host-with-stub.mjs');
+  await writeFile(stubPath, fetchStub);
+  await writeFile(hostEntry, [stubPath, path.join(repo, 'dist-electron/pluginHost.js')]
+    .map(file => `import '${pathToFileURL(file).href}';\n`).join(''));
+  await writeFile(probePath, '');
   const env = Object.fromEntries(Object.entries({ ...process.env,
     HOME: isolatedHome, USERPROFILE: isolatedHome, APPDATA: path.join(root, 'app-data'),
     LOCALAPPDATA: path.join(root, 'local-app-data'), XDG_CONFIG_HOME: path.join(root, 'config'),
     XDG_DATA_HOME: path.join(root, 'data'), XDG_CACHE_HOME: path.join(root, 'cache'),
     NODE_ENV: 'test', LYRICS_ADAPTER_E2E_STATIC: '1', LYRICS_ADAPTER_DISABLE_NATIVE_GLASS: '1',
+    LYRICS_ADAPTER_QQ_PROBE: probePath,
   }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   delete env['ELECTRON_RUN_AS_NODE'];
   const launch = () => electron.launch({ cwd: root, args: [
@@ -46,26 +80,11 @@ test('QQ refresh rotates OAuth fields through IPC and respects encrypted persist
     app = await launch();
     let page = await app.firstWindow();
     await page.waitForFunction(() => Boolean((window as unknown as { electron?: TestBridge }).electron?.qqLoginRefresh));
-    // Stub only QQ's login CGI in the main process: the real preload, IPC handler,
-    // refresh service, and settings repository all remain in the path.
-    await app.evaluate(() => {
-      const host = globalThis as typeof globalThis & { qqRefreshProbe?: RefreshProbe };
-      const probe: RefreshProbe = { calls: [] };
-      host.qqRefreshProbe = probe;
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = async (input, init) => {
-        if (String(input) !== 'https://u.y.qq.com/cgi-bin/musicu.fcg') return originalFetch(input, init);
-        probe.calls.push({ payload: JSON.parse(String(init?.body)), cookie: new Headers(init?.headers).get('Cookie') || '' });
-        const now = Math.floor(Date.now() / 1000);
-        const data = probe.calls.length === 1 ? {
-          musicid: 12345, musickey: 'test-new-key', refresh_key: 'test-new-refresh-key',
-          refresh_token: 'test-new-refresh-token', openid: 'test-new-openid', access_token: 'test-new-access',
-          expired_at: now + 86400, musickeyCreateTime: now, keyExpiresIn: 259200,
-        } : { musickey: 'test-newer-key', refresh_token: '' };
-        return new Response(JSON.stringify({ code: 0, req: probe.calls.length === 3
-          ? { code: 1000 } : { code: 0, data } }), { headers: { 'Content-Type': 'application/json' } });
-      };
-    });
+    await app.evaluate(({ utilityProcess }, hostEntry) => {
+      const fork = utilityProcess.fork.bind(utilityProcess);
+      utilityProcess.fork = (modulePath, args, options) =>
+        fork(modulePath.endsWith('pluginHost.js') ? hostEntry : modulePath, args, options);
+    }, hostEntry);
     const legacy: QQCredential = {
       musicid: 12345, musickey: 'test-old-key', refreshKey: 'test-old-refresh-key', refreshToken: 'test-old-refresh-token',
       loginType: 2, musickeyCreateTime: 1_700_000_000, keyExpiresIn: 259200,
@@ -93,12 +112,12 @@ test('QQ refresh rotates OAuth fields through IPC and respects encrypted persist
       (window as unknown as { electron: TestBridge }).electron.qqLoginRefresh(credential, ''), legacy);
     expect(incomplete.success).toBe(false);
     expect(incomplete.error).toContain('凭据不完整');
-    const probe = await app.evaluate(() => (globalThis as typeof globalThis & { qqRefreshProbe?: RefreshProbe }).qqRefreshProbe!);
-    expect(probe.calls).toHaveLength(3);
-    expect(probe.calls[0]?.payload.req.param).toMatchObject({ openid: 'test-old-openid', access_token: 'test-old-access', expired_in: 0, loginMode: 2 });
-    expect(probe.calls[0]?.payload.comm['tmeLoginType']).toBe(2);
-    expect(probe.calls[0]?.cookie).toBe(oldCookie);
-    expect(probe.calls[1]?.payload.req.param).toMatchObject({ openid: 'test-new-openid', access_token: 'test-new-access', refresh_token: 'test-new-refresh-token' });
+    const calls = (await readFile(probePath, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as RefreshCall);
+    expect(calls).toHaveLength(3);
+    expect(calls[0]?.payload.req.param).toMatchObject({ openid: 'test-old-openid', access_token: 'test-old-access', expired_in: 0, loginMode: 2 });
+    expect(calls[0]?.payload.comm['tmeLoginType']).toBe(2);
+    expect(calls[0]?.cookie).toBe(oldCookie);
+    expect(calls[1]?.payload.req.param).toMatchObject({ openid: 'test-new-openid', access_token: 'test-new-access', refresh_token: 'test-new-refresh-token' });
 
     // Keep the real encrypted store in the path. Headless Linux may only have
     // basic_text: verify refusal to save credentials there, not plaintext storage.

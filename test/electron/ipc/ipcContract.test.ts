@@ -11,7 +11,7 @@ const read = (file: string) => readFileSync(path.join(root, file), 'utf8');
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(path.join(root, dir)).flatMap(name => {
-    const relative = path.join(dir, name);
+    const relative = path.posix.join(dir, name);
     if (statSync(path.join(root, relative)).isDirectory()) return sourceFiles(relative);
     return relative.endsWith('.ts') ? [relative] : [];
   });
