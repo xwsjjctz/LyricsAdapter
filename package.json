@@ -110,7 +110,7 @@
       "output": "release"
     },
     "icon": "app-icon.png",
-    "compression": "maximum",
+    "compression": "normal",
     "files": [
       "dist-electron/**/*"
     ],
