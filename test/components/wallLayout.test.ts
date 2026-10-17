@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { heroesForBand } from '@/components/wall/wallPacker';
 import {
   COMPACT_COLS,
   WALL_TARGET_UNIT,
@@ -52,81 +53,58 @@ describe('computeWallLayout', () => {
       }
       const cells = coverage(layout, columns, cell);
       expect(cells.flat().every(value => value <= 1)).toBe(true);
-      // Every row is full except the last, which fills from the left.
-      for (const row of cells.slice(0, -2)) expect(row.every(value => value === 1)).toBe(true);
-      for (const row of cells.slice(-2)) {
+      // Full rows come first; after them every row fills from the left without gaps.
+      const firstPartial = cells.findIndex(row => !row.every(value => value === 1));
+      const partialRows = firstPartial < 0 ? [] : cells.slice(firstPartial);
+      for (const row of partialRows) {
         const filled = row.filter(value => value === 1).length;
         expect(row.slice(0, filled).every(value => value === 1)).toBe(true);
       }
     }
   });
 
-  it('never moves settled tiles while tracks are appended', () => {
+  it('never moves tiles of a completed band while tracks are appended', () => {
     const width = 1440;
     const units = wallColumnsFor(width) / 2;
     for (let count = 1; count <= 200; count++) {
       const before = computeWallLayout({ count, width, gap: 0 });
       const after = computeWallLayout({ count: count + 1, width, gap: 0 });
-      const settled = Math.max(0, count - 2 * units);
-      expect(after.tiles.slice(0, settled)).toEqual(before.tiles.slice(0, settled));
+      const unchanged = before.tiles.findIndex((tile, i) => JSON.stringify(tile) !== JSON.stringify(after.tiles[i]));
+      const settled = unchanged < 0 ? count : unchanged;
+      // Only the tail, which is shorter than one band, may reshape.
+      expect(count - settled).toBeLessThan(3 * units);
     }
   });
 
-  it('mixes all shapes, with small covers the most common', () => {
-    const layout = computeWallLayout({ count: 600, width: 1440, gap: 0 });
-    const counts = new Map<string, number>();
-    for (const tile of layout.tiles) {
-      const kind = `${tile.cols}x${tile.rows}`;
-      counts.set(kind, (counts.get(kind) ?? 0) + 1);
-    }
-    expect(new Set(counts.keys())).toEqual(new Set(['2x2', '4x2', '2x4', '4x4']));
-    expect(Math.max(...counts.values())).toBe(counts.get('2x2'));
+  it.each([720, 1200, 1440, 1920, 2560])('keeps covers square apart from a few 4:3 pairs at %i px', width => {
+    const layout = computeWallLayout({ count: 600, width, gap: 0 });
+    const kinds = new Map<string, number>();
+    for (const tile of layout.tiles) kinds.set(`${tile.cols}x${tile.rows}`, (kinds.get(`${tile.cols}x${tile.rows}`) ?? 0) + 1);
+    for (const kind of kinds.keys()) expect(['2x2', '3x3', '4x4', '4x3']).toContain(kind);
+    expect(kinds.has('2x2') && kinds.has('3x3') && kinds.has('4x4')).toBe(true);
+    expect((kinds.get('4x3') ?? 0) / layout.tiles.length).toBeLessThan(0.1);
   });
 
-  it.each([720, 1200, 1440, 1920, 2560])('rarely lets small covers cluster at %i px', width => {
-    const count = 400;
-    const units = wallColumnsFor(width) / 2;
-    const cell = width / (units * 2);
-    const layout = computeWallLayout({ count, width, gap: 0 });
-    const smallAt = new Set(layout.tiles
-      .filter(tile => tile.cols === 2 && tile.rows === 2)
-      .map(tile => `${Math.round(tile.x / cell / 2)},${Math.round(tile.y / cell / 2)}`));
-    const small = (x: number, y: number) => smallAt.has(`${x},${y}`);
-    let clusters = 0;
-    for (const key of smallAt) {
-      const [x, y] = key.split(',').map(Number) as [number, number];
-      if (small(x - 1, y) && small(x - 2, y)) clusters++;
-      if (small(x - 1, y) && small(x - 1, y - 1) && small(x, y - 1)) clusters++;
-    }
-    expect(clusters / count).toBeLessThan(0.03);
+  it('alternates hero bands on the narrowest wide wall so medium covers still appear', () => {
+    expect([0, 1, 2, 3].map(band => heroesForBand(band, 8))).toEqual([1, 0, 1, 0]);
+    expect([0, 1].map(band => heroesForBand(band, 14))).toEqual([1, 1]);
+    expect(heroesForBand(0, 26)).toBe(2);
   });
 
-  it.each([720, 1200, 1440, 1920, 2560])('gives every two-row band one large cover at %i px, never touching', width => {
-    const count = 400;
-    const units = wallColumnsFor(width) / 2;
-    const cell = width / (units * 2);
-    const layout = computeWallLayout({ count, width, gap: 0 });
-    const large = layout.tiles.filter(tile => tile.cols === 4 && tile.rows === 4);
-    // Bands whose tracks are all settled, away from the end of the list.
-    const settledTop = layout.tiles[count - 2 * units]!.y;
-    const bandHeight = cell * 4;
-    const bands = Math.floor(settledTop / bandHeight) - 1;
+  it.each([720, 1200, 1440, 1920, 2560])('gives every full band its heroes at %i px', width => {
+    const columns = wallColumnsFor(width);
+    const cell = width / columns;
+    const layout = computeWallLayout({ count: 600, width, gap: 0 });
+    const bandHeight = cell * 6;
+    const bands = Math.floor(layout.height / bandHeight) - 2;
+    let withWidePair = 0;
     for (let band = 0; band < bands; band++) {
-      const inBand = large.filter(tile => Math.round(tile.y / bandHeight) === band);
-      expect(inBand).toHaveLength(1);
-      expect(Math.round(inBand[0]!.y / cell) % 4).toBe(0);
+      const inBand = layout.tiles.filter(tile => Math.floor(tile.y / bandHeight + 1e-6) === band);
+      expect(inBand.filter(tile => tile.cols === 4 && tile.rows === 4)).toHaveLength(heroesForBand(band, columns));
+      if (inBand.some(tile => tile.cols === 4 && tile.rows === 3)) withWidePair++;
     }
-    // Edges must overlap by more than rounding; corner contact between bands is allowed.
-    const overlaps = (start: number, end: number, otherStart: number, otherEnd: number) =>
-      start < otherEnd - 0.001 && otherStart < end - 0.001;
-    for (const a of large) {
-      for (const b of large) {
-        if (a === b) continue;
-        const touchX = Math.abs(a.x + a.width - b.x) < 0.001 && overlaps(a.y, a.y + a.height, b.y, b.y + b.height);
-        const touchY = Math.abs(a.y + a.height - b.y) < 0.001 && overlaps(a.x, a.x + a.width, b.x, b.x + b.width);
-        expect(touchX || touchY).toBe(false);
-      }
-    }
+    expect(withWidePair).toBeGreaterThan(0);
+    expect(withWidePair / bands).toBeLessThan(0.5);
   });
 
   it('scales the same packing with the window width inside one column count', () => {

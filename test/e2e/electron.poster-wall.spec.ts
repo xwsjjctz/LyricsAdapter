@@ -80,13 +80,16 @@ test('poster wall is the home page, plays in place and switches sources from the
     });
     expect(edges.left).toBeCloseTo(0, 0);
     expect(edges.right).toBeLessThanOrEqual(edges.width + 0.5);
-    // A short library is the wall's last row: it fills from the left in one
-    // row, since tall and large covers need later songs to complete their rows.
-    const rows = await tiles.evaluateAll(nodes => nodes.map(node => {
+    // A library shorter than one band is the wall's tail: a large cover first,
+    // then small covers to its right, all aligned to the top.
+    const rects = await tiles.evaluateAll(nodes => nodes.map(node => {
       const rect = node.getBoundingClientRect();
-      return `${Math.round(rect.top)}:${Math.round(rect.height)}`;
+      return { left: Math.round(rect.left), top: Math.round(rect.top), size: Math.round(rect.height) };
     }));
-    expect(new Set(rows).size).toBe(1);
+    expect(new Set(rects.map(rect => rect.top)).size).toBe(1);
+    expect(rects[0]!.left).toBe(0);
+    expect(rects[0]!.size).toBe(2 * rects[1]!.size);
+    expect(rects.slice(1).every(rect => rect.size === rects[1]!.size && rect.left >= rects[0]!.size)).toBe(true);
 
     // The wall is a song list: playing a tile marks it where it is.
     const coral = page.getByRole('button', { name: 'Coral, Test Artist' });

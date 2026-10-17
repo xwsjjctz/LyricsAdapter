@@ -3,7 +3,7 @@
  *
  * Narrow windows use 6 columns filled from 8-row templates whose slots tile the
  * block exactly; an incomplete block uses a compact tail sized to its track
- * count. Wider windows pack covers automatically (see wallPacker.ts) on a grid
+ * count. Wider windows compose covers from designed bands (see wallPacker.ts) on a grid
  * whose column count follows the width, so covers stay near WALL_TARGET_UNIT
  * pixels instead of growing with the window. Tiles follow list order, so
  * playing a track never moves it, and appending tracks only reshapes the end.
