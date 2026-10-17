@@ -36,6 +36,33 @@ function send(state: UpdaterState): void {
   logger.info(`[Updater] status=${state.status}`);
 }
 
+const MAX_ERROR_MESSAGE_LENGTH = 200;
+
+// GitHub's release feed lists a pushed tag before the release workflow has
+// published its assets, so for a few minutes the newest tag has no
+// latest*.yml (404). Nothing is installable yet; updating itself is fine.
+function isUnpublishedRelease(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND';
+}
+
+/** One readable line for the settings page; the full error stays in the log. */
+function summarizeUpdaterError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const firstLine = message.split('\n', 1)[0]!.trim();
+  return firstLine.length > MAX_ERROR_MESSAGE_LENGTH
+    ? `${firstLine.slice(0, MAX_ERROR_MESSAGE_LENGTH - 1)}…`
+    : firstLine;
+}
+
+function reportUpdaterError(error: unknown): void {
+  if (isUnpublishedRelease(error)) {
+    logger.warn('[Updater] Newest tag has no published update metadata yet; treating it as no update:', error);
+    send({ status: 'not-available' });
+    return;
+  }
+  send({ status: 'error', message: summarizeUpdaterError(error) });
+}
+
 function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInstall: () => void): void {
   handleIpc('updater:state', (): UpdaterState => currentState);
 
@@ -47,10 +74,10 @@ function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInst
       await autoUpdater.checkForUpdates();
       return { ok: true };
     } catch (e) {
+      reportUpdaterError(e);
+      if (isUnpublishedRelease(e)) return { ok: true };
       logger.error('[Updater] check failed:', e);
-      const message = e instanceof Error ? e.message : String(e);
-      send({ status: 'error', message });
-      return { ok: false, reason: message };
+      return { ok: false, reason: summarizeUpdaterError(e) };
     }
   });
 
@@ -76,7 +103,7 @@ function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInst
       installInProgress = false;
       cancelInstall();
       logger.error('[Updater] quitAndInstall failed:', e);
-      send({ status: 'error', message: e instanceof Error ? e.message : String(e) });
+      send({ status: 'error', message: summarizeUpdaterError(e) });
       return { ok: false };
     }
   });
@@ -126,7 +153,7 @@ export function initUpdater(prepareToInstall: () => Promise<boolean>, cancelInst
       installInProgress = false;
       cancelInstall();
     }
-    send({ status: 'error', message: err.message });
+    reportUpdaterError(err);
   });
   autoUpdater.on('download-progress', (progress: ProgressInfo) => {
     if (lastInfo) {
