@@ -96,22 +96,30 @@ describe('PosterWall', () => {
   });
 
   it('keeps settled tiles in place as tracks are added', () => {
-    // 1200px holds six small covers per row; only the last two rows' worth may reshape.
-    const settled = 12;
-    const songs = Array.from({ length: settled + 14 }, (_, index) => track(`added-${index}`));
-    const { rerenderWall, onTrackSelect } = renderWall({ tracks: songs.slice(0, settled + 12) });
-    const geometry = () => screen.getAllByRole('button').slice(0, settled)
-      .map(tile => [tile.style.transform, tile.style.width, tile.style.height]);
-    const before = geometry();
-    expect(screen.getAllByRole('button').some(tile => tile.style.width !== tile.style.height)).toBe(true);
+    // 1200px is 12 cells wide; its first three six-cell bands hold 30 covers. Full bands
+    // never change, so appending tracks may only reshape the tail below them.
+    const settled = 30;
+    // Tall enough that the wall renders every band instead of only the visible window.
+    size.height = 3000;
+    try {
+      const songs = Array.from({ length: settled + 4 }, (_, index) => track(`added-${index}`));
+      const { rerenderWall, onTrackSelect } = renderWall({ tracks: songs.slice(0, settled + 2) });
+      const geometry = () => screen.getAllByRole('button').slice(0, settled)
+        .map(tile => [tile.style.transform, tile.style.width, tile.style.height]);
+      const before = geometry();
+      // Covers come in several sizes, so an unchanged geometry is not a uniform grid.
+      expect(new Set(before.map(([, width]) => width)).size).toBeGreaterThan(1);
 
-    for (const count of [settled + 13, settled + 14]) {
-      rerenderWall({ tracks: songs.slice(0, count) });
-      expect(geometry()).toEqual(before);
-      expect(screen.getAllByRole('button')).toHaveLength(count);
+      for (const count of [settled + 3, settled + 4]) {
+        rerenderWall({ tracks: songs.slice(0, count) });
+        expect(geometry()).toEqual(before);
+        expect(screen.getAllByRole('button')).toHaveLength(count);
+      }
+      fireEvent.click(screen.getByRole('button', { name: `Song added-${settled + 3} / Artist` }));
+      expect(onTrackSelect).toHaveBeenCalledWith(settled + 3);
+    } finally {
+      size.height = 800;
     }
-    fireEvent.click(screen.getByRole('button', { name: `Song added-${settled + 13} / Artist` }));
-    expect(onTrackSelect).toHaveBeenCalledWith(settled + 13);
   });
 
   it('plays on plain Enter only, leaving Cmd+Enter and Space to global shortcuts', () => {
