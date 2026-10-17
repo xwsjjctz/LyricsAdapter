@@ -1072,26 +1072,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {((showLocateButton && currentTrackInFilteredIndex >= 0) || (dataSource !== activeSlotId && currentTrackId)) && (
         <button
           onClick={handleLocateToCurrentTrack}
-          className="absolute right-28 w-9 h-9 shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn"
-          style={{
-            backgroundColor: inlineFab ? colors.primary : colors.backgroundCard,
-            color: inlineFab ? 'var(--theme-control-action-fg)' : colors.textSecondary,
-            border: inlineFab ? 'var(--theme-control-border-width) solid var(--theme-list-item-border)' : undefined,
-            borderRadius: 'var(--theme-button-radius)',
-            boxShadow: inlineFab ? 'var(--theme-elevated-shadow)' : undefined,
-            bottom: bottomInset + 24,
-          }}
+          // 粗粝风（inline）按钮 hover 不变阴影/底色，保持稳定外观；样式见 ui.css 的 .library-locate-fab
+          className={`library-locate-fab${inlineFab ? ' library-locate-fab--inline' : ''} absolute right-28 w-9 h-9 shadow-md flex items-center justify-center transition-all z-30 animate-fadeIn`}
+          style={{ bottom: bottomInset + 24 }}
           aria-label={t('library.locateToCurrent')}
-          onMouseEnter={e => {
-            if (inlineFab) return; // 粗粝风按钮 hover 不变阴影/底色，保持稳定外观
-            e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-            e.currentTarget.style.color = colors.textPrimary;
-          }}
-          onMouseLeave={e => {
-            if (inlineFab) return;
-            e.currentTarget.style.backgroundColor = colors.backgroundCard;
-            e.currentTarget.style.color = colors.textSecondary;
-          }}
         >
           <span className="material-symbols-rounded text-lg">my_location</span>
         </button>

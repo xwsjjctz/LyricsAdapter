@@ -12,7 +12,6 @@ import Button from '../../ui/Button';
 // sheet's glass shows through instead of an opaque slab.
 const PANEL_FILL = (text: string) => `color-mix(in srgb, ${text} 6%, transparent)`;
 const PANEL_BORDER = (text: string) => `color-mix(in srgb, ${text} 10%, transparent)`;
-const PANEL_SELECTED = (text: string) => `color-mix(in srgb, ${text} 14%, transparent)`;
 
 // Presentational provider settings section used by the application settings panel.
 
@@ -113,24 +112,8 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                   key={option.value}
                   type="button"
                   onClick={() => setOnlineSource(option.value)}
-                  className="w-full px-3 py-2 text-left transition-colors text-xs flex items-center justify-between gap-2"
-                  style={{
-                    backgroundColor: active ? PANEL_SELECTED(colors.textPrimary) : 'transparent',
-                    borderRadius: 'var(--theme-control-radius)',
-                    color: active ? colors.textPrimary : colors.textSecondary,
-                  }}
-                  onMouseEnter={e => {
-                    if (!active) {
-                      e.currentTarget.style.backgroundColor = PANEL_FILL(colors.textPrimary);
-                      e.currentTarget.style.color = colors.textPrimary;
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!active) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = colors.textSecondary;
-                    }
-                  }}
+                  className="settings-source-option w-full px-3 py-2 text-left transition-colors text-xs flex items-center justify-between gap-2"
+                  aria-pressed={active}
                 >
                   <span className="truncate">{option.label}</span>
                   {active && <span className="material-symbols-rounded text-sm flex-shrink-0" style={{ color: colors.primary }}>check</span>}

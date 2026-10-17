@@ -180,3 +180,22 @@
   .focus-portrait-controls, .focus-mode-content .focus-lyrics-viewport,
   .focus-portrait-controls .player-slider-track { transition: none; }
 }
+
+/* Web Focus controls: colours follow the analysed backdrop (set on the panel). */
+.focus-control-icon {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--focus-control-fg-secondary);
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.focus-control-icon--muted {
+  color: var(--focus-control-fg-muted);
+}
+
+.focus-control-icon:is(:hover, :focus-visible) {
+  color: var(--focus-control-fg-primary);
+}

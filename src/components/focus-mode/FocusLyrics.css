@@ -22,3 +22,12 @@
     --focus-lyrics-edge-fade: 24px;
   }
 }
+
+/* Inactive lines brighten under the pointer; colours come from Focus Mode's palette. */
+.focus-lyric-row {
+  color: var(--focus-lyric-color);
+}
+
+.focus-lyric-row:not([aria-current]):hover {
+  color: var(--focus-lyric-hover-color);
+}

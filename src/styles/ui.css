@@ -503,3 +503,77 @@ html[data-settings-panel='native'] .settings-sheet {
   padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
 }
+
+/* ------------------------------------------------------------------ */
+/* Component hover states moved out of inline onMouseEnter handlers    */
+/* ------------------------------------------------------------------ */
+
+.titlebar-focus-dot__glyph {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.titlebar-focus-dot:is(:hover, :focus-visible) .titlebar-focus-dot__glyph {
+  opacity: 1;
+}
+
+.shortcut-key {
+  background-color: var(--theme-background-card);
+  color: var(--theme-text-secondary);
+}
+
+.shortcut-key[data-state='unset'] {
+  color: var(--theme-text-muted);
+}
+
+.shortcut-key[data-state='custom'] {
+  background-color: color-mix(in srgb, var(--theme-primary) 6%, transparent);
+  color: var(--theme-primary);
+}
+
+.shortcut-key:hover {
+  background-color: var(--theme-background-card-hover);
+}
+
+.shortcut-key[data-state='unset']:hover {
+  color: var(--theme-text-secondary);
+}
+
+.shortcut-key[data-state='custom']:hover {
+  background-color: color-mix(in srgb, var(--theme-primary) 12.5%, transparent);
+}
+
+.library-locate-fab {
+  border-radius: var(--theme-button-radius);
+  background-color: var(--theme-background-card);
+  color: var(--theme-text-secondary);
+}
+
+.library-locate-fab:not(.library-locate-fab--inline):hover {
+  background-color: var(--theme-background-card-hover);
+  color: var(--theme-text-primary);
+}
+
+/* The inline (neo-brutalist) variant keeps a stable look on hover. */
+.library-locate-fab--inline {
+  border: var(--theme-control-border-width) solid var(--theme-list-item-border);
+  background-color: var(--theme-primary);
+  color: var(--theme-control-action-fg);
+  box-shadow: var(--theme-elevated-shadow);
+}
+
+.settings-source-option {
+  border-radius: var(--theme-control-radius);
+  background-color: transparent;
+  color: var(--theme-text-secondary);
+}
+
+.settings-source-option[aria-pressed='true'] {
+  background-color: color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+  color: var(--theme-text-primary);
+}
+
+.settings-source-option:not([aria-pressed='true']):hover {
+  background-color: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
+  color: var(--theme-text-primary);
+}
