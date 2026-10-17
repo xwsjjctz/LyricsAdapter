@@ -122,7 +122,7 @@ describe('plugin distribution and updates', () => {
     f.registry.installPackage(legacy('1.0.0')); f.service.installed();
     await f.registry.call('qq', 'searchMusic', []);
     const bytes = legacy('2.0.0');
-    f.fetcher.mockImplementation(async url => url.endsWith('catalog.json') ? new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'qq', version: '2.0.0', file: 'qq.laplugin', sha256: createHash('sha256').update(bytes).digest('hex') }] })) : new Response(bytes));
+    f.fetcher.mockImplementation(async url => url.endsWith('catalog.v2.json') ? new Response('', { status: 404 }) : url.endsWith('catalog.json') ? new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'qq', version: '2.0.0', file: 'qq.laplugin', sha256: createHash('sha256').update(bytes).digest('hex') }] })) : new Response(bytes));
     expect((await f.service.check())[0]?.status).toBe('available');
     expect(await f.service.update('qq')).toMatchObject([{ version: '2.0.0', restartRequired: true }]);
     await expect(f.registry.call('qq', 'searchMusic', [])).resolves.toEqual(['1.0.0']);
@@ -227,7 +227,7 @@ describe('semantic plugin versions', () => {
     const pack = (version: string) => Buffer.from(JSON.stringify({ manifest: { ...manifest, version }, code, sha256: createHash('sha256').update(code).digest('hex') }));
     f.registry.installPackage(pack('1.0.0')); f.service.installed();
     const bytes = pack('2.0.0');
-    f.fetcher.mockImplementation(async url => url.endsWith('catalog.json') ? new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'qq', version: '2.0.0', file: 'qq.laplugin', sha256: createHash('sha256').update(bytes).digest('hex') }] })) : new Response(bytes));
+    f.fetcher.mockImplementation(async url => url.endsWith('catalog.v2.json') ? new Response('', { status: 404 }) : url.endsWith('catalog.json') ? new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'qq', version: '2.0.0', file: 'qq.laplugin', sha256: createHash('sha256').update(bytes).digest('hex') }] })) : new Response(bytes));
     await f.service.update('qq');
     expect(f.confirm).not.toHaveBeenCalled();
   });

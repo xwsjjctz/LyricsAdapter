@@ -224,7 +224,7 @@ node scripts/package.mjs
 
 首次安装在启用时可立即加载；更新已有插件后需要重启。禁用会阻止后续调用，卸载会移除安装文件；两者保留凭据和用户音乐数据。当前没有 `activate` / `deactivate` / `dispose` 生命周期回调，已开始的请求或插件自行创建的定时器不会因此自动清理。不要在 `createPlugin` 中启动常驻任务；网络方法应自行设置超时、限制响应大小并处理失败。
 
-第三方作者可以在自己的仓库中公开源码、构建说明、许可证与 `.laplugin` 文件，供用户下载后本地安装。仅发布自己的 `catalog.json` 或 GitHub Release，不会被当前应用自动发现。官方在线目录固定为 `LyricsAdapter-Music-Plugins/main/packages/catalog.json`，并只接受 `qq` 与 `netease`。
+第三方作者可以在自己的仓库中公开源码、构建说明、许可证与 `.laplugin` 文件，供用户下载后本地安装。仅发布自己的 `catalog.json` 或 GitHub Release，不会被当前应用自动发现。官方在线目录固定为 `LyricsAdapter-Music-Plugins/main/packages/` 下的 `catalog.v2.json`（可收录任意类型的官方插件）与兼容旧版本应用的 `catalog.json`（只接受 `qq` 与 `netease`），见[音乐源插件](../music-source-plugins.md#官方目录-v2)。
 
 官方构建脚本还把这两个 ID 写在循环中，新增来源需要调整脚本。借用官方实现时保留项目及依赖的许可证和第三方声明；不要把示例的空数组、无音频 stub 当成可发布的完整音乐源。
 

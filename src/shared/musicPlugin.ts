@@ -1,6 +1,6 @@
 import type { OnlineMusicProvider } from './onlineMusic.js';
 import type { PluginManifest, PluginElectronAPI } from './plugin.js';
-import type { OfficialMusicSource, PluginUpdateSource } from './pluginUpdate.js';
+import type { PluginUpdateSource } from './pluginUpdate.js';
 
 export const MUSIC_PLUGIN_API_VERSION = 1;
 export interface MusicPluginManifest {
@@ -24,11 +24,15 @@ export interface MusicPluginInfo extends MusicPluginManifest {
   /** Changes when configuration, credentials or installed platform code change. */
   revision?: number;
 }
+/** Plugin types the official catalog can list. */
+export type OfficialPluginKind = 'music.source' | 'lyrics.translation';
 export interface MusicPluginCatalogEntry {
-  /** The official catalog lists only the official sources. */
-  id: OfficialMusicSource;
+  /** QQ and NetEase are always listed; catalog v2 can add other official plugins. */
+  id: string;
   name: string;
+  kind: OfficialPluginKind;
   version?: string;
+  description?: string;
 }
 export interface MusicPluginPackage {
   manifest: MusicPluginManifest;

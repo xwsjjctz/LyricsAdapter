@@ -74,6 +74,7 @@ test('music plugins work through real IPC, stream and download; local updates an
       const original = net.fetch.bind(net);
       net.fetch = async (input, init) => {
         if (String(input).startsWith('file:')) return original(input, init);
+        if (String(input) === `${directory}catalog.v2.json`) return new Response('', { status: 404 });
         if (String(input) === `${directory}catalog.json`) return new Response(JSON.stringify({ apiVersion: 1, plugins: [{ id: 'netease', version: '0.1.0', file: 'netease.laplugin', sha256: data.digest }] }));
         if (String(input) === `${directory}netease.laplugin`) return new Response(data.package);
         throw new Error(`Unexpected plugin download: ${input}`);

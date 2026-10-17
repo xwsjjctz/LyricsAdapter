@@ -6,7 +6,7 @@ QQ 和网易云音乐协议实现维护在独立公开仓库 [LyricsAdapter-Musi
 
 主应用不附带音乐源插件，也不会在启动、检查、构建或打包时拉取或编译插件源码。无插件时本地音乐和 WebDAV 仍可使用，在线音乐设置不显示。
 
-设置 → 插件是独立的管理页面，提供官方插件的下载安装、本地 `.laplugin` 安装包安装、启用/禁用、卸载和打开插件目录。官方列表优先读取插件仓库 `main/packages/catalog.json`，安装包直接从同一仓库的 `packages/` 下载，无需先创建 GitHub Release。目录不存在时兼容读取最新 Release；两者均无安装包时显示“暂无可下载版本”，网络失败不影响本地插件管理。
+设置 → 插件是独立的管理页面，提供官方插件的下载安装、本地 `.laplugin` 安装包安装、启用/禁用、卸载和打开插件目录。官方列表优先读取插件仓库 `main/packages/catalog.v2.json`（见下文“官方目录 v2”），不存在时读取 `main/packages/catalog.json`，安装包直接从同一仓库的 `packages/` 下载，无需先创建 GitHub Release。两个目录都不存在时兼容读取最新 Release；两者均无安装包时显示“暂无可下载版本”，网络失败不影响本地插件管理。
 
 安装目录为持久化数据目录下的 `plugin/<id>/`，默认是 `~/.la/plugin/qq/` 与 `~/.la/plugin/netease/`。页面显示应用实际使用的目录；目录内只保存 `manifest.json` 和自包含的 `index.cjs`，无需用户安装 npm 依赖。原 `.la/music-plugins` 中的插件会自动迁移，目标已存在时保留现有安装和旧副本，避免覆盖。
 
@@ -66,3 +66,30 @@ LYRICS_ADAPTER_E2E_EXECUTABLE="$PWD/release/mac-arm64/LyricsAdapter.app/Contents
 ```
 
 该测试仍使用临时 HOME/userData，与真实用户数据隔离。
+
+## 官方目录 v2
+
+`catalog.json`（`apiVersion: 1`）只能列出 `qq` 与 `netease`，旧版本应用遇到其他 ID 会把整个目录判为无效。为了让官方目录收录翻译等其他插件，同时不影响已安装的旧版本，新增独立文件 `packages/catalog.v2.json`：
+
+```json
+{
+  "apiVersion": 2,
+  "plugins": [
+    { "id": "qq", "name": "QQ 音乐", "kind": "music.source", "version": "0.1.1", "file": "qq.laplugin", "sha256": "…" },
+    {
+      "id": "llm-translation", "name": "大语言模型歌词翻译", "kind": "lyrics.translation", "version": "1.0.0",
+      "url": "https://github.com/xwsjjctz/LyricsAdapter-LLM-Translation/releases/download/v1.0.0/llm-translation.laplugin",
+      "sha256": "…", "description": "…"
+    }
+  ]
+}
+```
+
+- 支持 v2 的应用先读 `catalog.v2.json`；只有它不存在（404）时才回退到 `catalog.json`。v2 文件格式错误时报错，不会静默回退。旧版本应用只读 `catalog.json`，因此该文件保持只含 QQ/网易云。
+- `id` 为任意合法插件 ID，`name` 必填（最多 100 字符），`kind` 为 `music.source` 或 `lyrics.translation`，`description` 可选（最多 500 字符），最多 100 项。
+- 安装包二选一：`file`（必须是 `<id>.laplugin`，位于本目录）或 `url`（必须是 `https://github.com/xwsjjctz/<仓库>/releases/download/<tag>/<id>.laplugin`）。`sha256` 是安装包完整字节的 SHA-256，必填；安装时还会校验包内代码哈希、ID 和版本。
+- 插件页列出 QQ、网易云（未发布时显示“暂无可下载版本”），随后按目录顺序列出其他插件，并显示类型与说明。
+- 从官方目录安装的非 QQ/网易云插件仍按自身清单的 `update` 来源检查更新（例如翻译插件绑定其 GitHub 仓库）。
+
+插件仓库的 `npm run package` 同时生成两个目录文件；外部仓库发布的插件写在插件仓库的 `external-plugins.json` 中，打包时合并进 `catalog.v2.json`。
+

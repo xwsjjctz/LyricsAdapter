@@ -67,9 +67,13 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
           const installed = plugins.find(plugin => plugin.id === item.id);
           return (
             <div key={item.id} data-testid={`official-plugin-${item.id}`} className="r-card border p-4 flex items-center justify-between gap-4" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-              <div className="text-xs space-y-1">
+              <div className="min-w-0 text-xs space-y-1">
                 <p className="font-medium" style={{ color: colors.textPrimary }}>{item.name}</p>
-                <p style={{ color: colors.textMuted }}>{item.version ? t('musicPlugins.officialVersion', { version: item.version }) : t('musicPlugins.unreleased')}</p>
+                <p style={{ color: colors.textMuted }}>
+                  {t(item.kind === 'lyrics.translation' ? 'musicPlugins.kindTranslation' : 'musicPlugins.kindMusicSource')}
+                  {' · '}{item.version ? t('musicPlugins.officialVersion', { version: item.version }) : t('musicPlugins.unreleased')}
+                </p>
+                {item.description && <p style={{ color: colors.textSecondary }}>{item.description}</p>}
               </div>
               <Button size="sm" disabled={busy || !!installed || !item.version || !api} onClick={() => void change(() => api!.musicPluginDownload!(item.id))}>
                 {busy ? t('musicPlugins.working') : t(installed ? 'musicPlugins.installed' : 'musicPlugins.download')}
