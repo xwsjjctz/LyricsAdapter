@@ -48,6 +48,8 @@ class FakeHost implements WindowsTaskbarHostBridge {
 interface TestSubscriptions {
   lock?: () => void;
   unlock?: () => void;
+  suspend?: () => void;
+  resume?: () => void;
   disposeSession: ReturnType<typeof vi.fn>;
 }
 
@@ -76,9 +78,11 @@ function createHarness(
     resolveArtworkSource,
     loadPlacement,
     savePlacement,
-    subscribeSessionChanges: (onLock, onUnlock) => {
-      subscriptions.lock = onLock;
-      subscriptions.unlock = onUnlock;
+    subscribeSessionChanges: listener => {
+      subscriptions.lock = listener.onLock;
+      subscriptions.unlock = listener.onUnlock;
+      subscriptions.suspend = listener.onSuspend;
+      subscriptions.resume = listener.onResume;
       return subscriptions.disposeSession;
     },
     ...overrides,
@@ -220,6 +224,7 @@ describe('WindowsTaskbarLyricsService', () => {
   });
 
   it('hides while locked or empty and refreshes with the latest state after unlock', () => {
+    vi.useFakeTimers();
     const harness = createHarness();
     const host = harness.hosts[0]!;
     harness.service.start(vi.fn());
@@ -232,6 +237,8 @@ describe('WindowsTaskbarLyricsService', () => {
     expect(host.update).toHaveBeenCalledTimes(1);
 
     harness.subscriptions.unlock?.();
+    expect(host.refresh).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(5_000);
     expect(host.refresh).toHaveBeenCalledOnce();
     expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
       line: '锁屏期间的新歌词',
@@ -239,6 +246,56 @@ describe('WindowsTaskbarLyricsService', () => {
 
     harness.service.update({ ...PLAYING_STATE, trackId: null });
     expect(host.setVisible).toHaveBeenLastCalledWith(false);
+  });
+
+  it('keeps the widget hidden through a resume while the lock screen is still up', () => {
+    vi.useFakeTimers();
+    const harness = createHarness();
+    const host = harness.hosts[0]!;
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+    host.update.mockClear();
+    host.setVisible.mockClear();
+
+    harness.subscriptions.lock?.();
+    harness.subscriptions.suspend?.();
+    harness.subscriptions.resume?.();
+    harness.service.update({ ...PLAYING_STATE, line: '锁屏中的歌词' });
+    vi.advanceTimersByTime(60_000);
+
+    expect(host.update).not.toHaveBeenCalled();
+    expect(host.refresh).not.toHaveBeenCalled();
+    expect(host.setVisible).toHaveBeenLastCalledWith(false);
+
+    harness.subscriptions.unlock?.();
+    vi.advanceTimersByTime(5_000);
+    expect(host.refresh).toHaveBeenCalledOnce();
+    expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      line: '锁屏中的歌词',
+    }));
+  });
+
+  it('waits for the taskbar to settle after resume before re-attaching', () => {
+    vi.useFakeTimers();
+    const harness = createHarness();
+    const host = harness.hosts[0]!;
+    harness.service.start(vi.fn());
+    harness.service.update(PLAYING_STATE);
+    host.update.mockClear();
+    host.setVisible.mockClear();
+
+    harness.subscriptions.suspend?.();
+    harness.subscriptions.resume?.();
+    harness.service.update({ ...PLAYING_STATE, line: '唤醒后的新歌词' });
+    expect(host.update).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(4_999);
+    expect(host.refresh).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(host.refresh).toHaveBeenCalledOnce();
+    expect(host.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      line: '唤醒后的新歌词',
+    }));
   });
 
   it('restarts the host with backoff after an unexpected exit', () => {
@@ -270,6 +327,8 @@ describe('WindowsTaskbarLyricsService', () => {
     expect(harness.launchHost).toHaveBeenCalledOnce();
 
     harness.subscriptions.unlock?.();
+    expect(harness.launchHost).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(5_000);
     expect(harness.launchHost).toHaveBeenCalledTimes(2);
     expect(harness.hosts[1]!.refresh).toHaveBeenCalledOnce();
     expect(harness.hosts[1]!.update).toHaveBeenCalledWith(expect.objectContaining({

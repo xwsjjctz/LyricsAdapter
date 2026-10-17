@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   handle: vi.fn(), on: vi.fn(), nativeOn: vi.fn(), unavailable: vi.fn(), version: vi.fn(),
   windows: vi.fn(), check: vi.fn(), install: vi.fn(),
-  updater: { autoDownload: false, autoInstallOnAppQuit: false, allowPrerelease: false, disableDifferentialDownload: false },
+  updater: { autoDownload: false, autoInstallOnAppQuit: false, allowPrerelease: false, disableDifferentialDownload: true },
 }));
 vi.mock('electron', () => ({
   app: { isPackaged: true, getVersion: mocks.version },
@@ -97,6 +97,43 @@ describe('app updates', () => {
     emit('error', new Error('Signature validation failed'));
     expect(cancel).toHaveBeenCalledOnce();
     expect(handler('updater:state')()).toMatchObject({ status: 'error', message: 'Signature validation failed' });
+  });
+
+  it('treats a tag whose release is not published yet as no update', async () => {
+    const unpublished = Object.assign(
+      new Error('Cannot find latest-mac.yml in the latest release artifacts (https://example.test/latest-mac.yml): HttpError: 404\nHeaders: {}'),
+      { code: 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND' },
+    );
+    mocks.check.mockRejectedValue(unpublished);
+    const { initUpdater } = await import('../../electron/updater');
+    initUpdater(vi.fn(), vi.fn());
+
+    await expect(handler('updater:check')()).resolves.toEqual({ ok: true });
+    expect(handler('updater:state')()).toEqual({ status: 'not-available' });
+
+    emit('error', unpublished);
+    expect(handler('updater:state')()).toEqual({ status: 'not-available' });
+  });
+
+  it('shows only the first line of other update errors', async () => {
+    mocks.check.mockRejectedValue(new Error(`HttpError: 500 "server error"\nHeaders: ${'x'.repeat(400)}\n    at stack`));
+    const { initUpdater } = await import('../../electron/updater');
+    initUpdater(vi.fn(), vi.fn());
+
+    await expect(handler('updater:check')()).resolves.toEqual({ ok: false, reason: 'HttpError: 500 "server error"' });
+    expect(handler('updater:state')()).toEqual({ status: 'error', message: 'HttpError: 500 "server error"' });
+
+    emit('error', new Error('y'.repeat(300)));
+    const state = handler('updater:state')() as { message: string };
+    expect(state.message).toHaveLength(200);
+    expect(state.message.endsWith('…')).toBe(true);
+  });
+
+  it('downloads updates differentially on every platform', async () => {
+    const { initUpdater } = await import('../../electron/updater');
+    const { autoUpdater } = await import('electron-updater');
+    initUpdater(vi.fn(), vi.fn());
+    expect(autoUpdater.disableDifferentialDownload).toBe(false);
   });
 
   it('keeps stable 1.x releases off the prerelease feed', async () => {

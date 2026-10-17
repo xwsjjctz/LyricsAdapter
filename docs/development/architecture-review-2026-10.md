@@ -34,7 +34,7 @@
 
 ### 1. 依赖边界检查（已完成）
 
-- [x] 引入 `dependency-cruiser`，规则在 `.dependency-cruiser.cjs`：
+- [x] 引入 `dependency-cruiser`，规则在 `config/dependency-cruiser.cjs`：
   - 禁止运行时循环依赖（类型引用形成的环不算）；
   - `electron/` 只能引用 `src/` 中的 types、shared、domain、constants 和 locale JSON；
   - `src/` 不得引用 `electron/`；
@@ -43,7 +43,7 @@
   - hooks、stores、controllers、viewmodels 不得依赖 components 和 commands；
   - `electron/services` 不得依赖 `electron/ipc`。
 - [x] `npm run deps:check` 加入 `npm run check` 首位。CI 的 `pr-check.yml` 通过 `npm run check` 自动覆盖。
-- [x] 现存违规用基线 `.dependency-cruiser-known-violations.json` 记录。新增违规会让检查失败。修掉一条已知违规后，运行 `npm run deps:baseline` 缩小基线；**不得为放行新违规而重新生成基线**。
+- [x] 现存违规用基线 `config/dependency-cruiser-known-violations.json` 记录。新增违规会让检查失败。修掉一条已知违规后，运行 `npm run deps:baseline` 缩小基线；**不得为放行新违规而重新生成基线**。
 - [x] 修复 7 条违规：
   - 删除 `metadataService` 对 `libraryStorage` 的转导出，拆掉运行时环；`useImport` 改为直接引用 `libraryStorage`。
   - `electron/ipc/core/libraryCore.ts` 移到 `electron/services/libraryIndexFiles.ts`。它是纯文件 I/O，被 handler 和 persistence service 共用。

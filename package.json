@@ -1,7 +1,7 @@
 {
   "name": "lyrics-adapter",
   "private": true,
-  "version": "0.5.7-beta.1",
+  "version": "0.5.7-beta.4",
   "type": "module",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -47,8 +47,8 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --project test/tsconfig.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
-    "deps:check": "depcruise src electron --config .dependency-cruiser.cjs --ignore-known --output-type err",
-    "deps:baseline": "depcruise src electron --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json",
+    "deps:check": "depcruise src electron --config config/dependency-cruiser.cjs --ignore-known config/dependency-cruiser-known-violations.json --output-type err",
+    "deps:baseline": "depcruise src electron --config config/dependency-cruiser.cjs --output-type baseline --output-to config/dependency-cruiser-known-violations.json",
     "check": "npm run deps:check && npm run typecheck && npm run typecheck:test && npm run typecheck:e2e && npm test && npm run build",
     "music-plugins:build": "node scripts/buildMusicPlugins.mjs",
     "music-plugins:check": "npm run plugins:check",
@@ -90,7 +90,7 @@
     "cross-env": "^7.0.3",
     "dependency-cruiser": "^17.4.3",
     "electron": "^42.10.0",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.17.0",
     "i18next": "^26.3.5",
     "jsdom": "^25.0.1",
     "node-gyp": "^12.4.0",
@@ -110,7 +110,7 @@
       "output": "release"
     },
     "icon": "app-icon.png",
-    "compression": "maximum",
+    "compression": "normal",
     "files": [
       "dist-electron/**/*"
     ],

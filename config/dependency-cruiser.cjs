@@ -1,6 +1,7 @@
-// Dependency boundary rules. `npm run deps:check` runs them with
+// Dependency boundary rules. `npm run deps:check` runs them from the repo root
+// (rule paths and tsconfig resolve against it) with
 // `--ignore-known`, so existing violations recorded in
-// .dependency-cruiser-known-violations.json do not fail the check; any new one
+// config/dependency-cruiser-known-violations.json do not fail the check; any new one
 // does. After removing a known violation, run `npm run deps:baseline` to shrink
 // the baseline. Never regenerate it to admit a new violation.
 

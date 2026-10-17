@@ -91,6 +91,25 @@ const compactSlots = (count: number): WallSlot[] => {
   return slots;
 };
 
+// Slot arrangement depends only on (count, columns); a window drag changes the
+// pixel width every frame but the column count rarely, so keep the last few.
+const SLOT_CACHE_LIMIT = 4;
+const slotCache = new Map<string, readonly WallSlot[]>();
+
+function slotsFor(count: number, columns: number): readonly WallSlot[] {
+  const key = `${count}:${columns}`;
+  const cached = slotCache.get(key);
+  if (cached) {
+    slotCache.delete(key);
+    slotCache.set(key, cached);
+    return cached;
+  }
+  const slots = columns === COMPACT_COLS ? compactSlots(count) : packWall(count, columns / CELLS_PER_UNIT);
+  slotCache.set(key, slots);
+  if (slotCache.size > SLOT_CACHE_LIMIT) slotCache.delete(slotCache.keys().next().value!);
+  return slots;
+}
+
 export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallLayout {
   if (count <= 0 || width <= 0) return { tiles: [], height: 0 };
 
@@ -99,7 +118,7 @@ export function computeWallLayout({ count, width, gap }: WallLayoutInput): WallL
   const pitch = cell + gap;
   const span = (cells: number) => cells * cell + (cells - 1) * gap;
 
-  const slots = columns === COMPACT_COLS ? compactSlots(count) : packWall(count, columns / CELLS_PER_UNIT);
+  const slots = slotsFor(count, columns);
   const tiles = slots.map(({ x, y, cols, rows }, index): WallTile => ({
     index,
     x: x * pitch,

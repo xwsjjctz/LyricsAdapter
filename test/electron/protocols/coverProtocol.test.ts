@@ -103,23 +103,64 @@ describe('cover thumbnail disk cache', () => {
     expect(fs.existsSync(orphanThumbnail)).toBe(false);
   });
 
-  it('serves only flat in-directory paths and versions immutable responses', async () => {
+  async function registeredHandler(): Promise<(request: { url: string }) => Promise<Response>> {
     registerCoverProtocol();
     await Promise.resolve();
-    const handler = electronMocks.handle.mock.calls.find(([scheme]) => scheme === 'cover')?.[1] as
-      ((request: { url: string }) => Response) | undefined;
+    const handler = [...electronMocks.handle.mock.calls].reverse().find(([scheme]) => scheme === 'cover')?.[1] as
+      ((request: { url: string }) => Promise<Response>) | undefined;
     expect(handler).toBeTypeOf('function');
+    return handler!;
+  }
 
-    const escaped = handler!({ url: 'cover://../covers-backup/escape.jpg?size=128' });
+  it('serves only flat in-directory paths and versions immutable responses', async () => {
+    const handler = await registeredHandler();
+
+    const escaped = await handler({ url: 'cover://../covers-backup/escape.jpg?size=128' });
     expect(escaped.status).toBe(403);
 
-    const versioned = handler!({ url: 'cover://track.jpg/?v=0123456789abcdef&size=129' });
+    const missing = await handler({ url: 'cover://absent.jpg?size=128' });
+    expect(missing.status).toBe(404);
+
+    const versioned = await handler({ url: 'cover://track.jpg/?v=0123456789abcdef&size=129' });
     expect(versioned.status).toBe(200);
     expect(versioned.headers.get('content-type')).toBe('image/jpeg');
     expect(versioned.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
 
-    const legacy = handler!({ url: 'cover://track.jpg?size=128' });
+    const legacy = await handler({ url: 'cover://track.jpg?size=128' });
     expect(legacy.status).toBe(200);
     expect(legacy.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('shares one decode between concurrent requests and then serves the disk cache', async () => {
+    const handler = await registeredHandler();
+
+    const responses = await Promise.all([
+      handler({ url: 'cover://track.jpg?size=128' }),
+      handler({ url: 'cover://track.jpg?size=128' }),
+    ]);
+    const cached = await handler({ url: 'cover://track.jpg?size=128' });
+
+    expect(electronMocks.createFromPath).toHaveBeenCalledTimes(1);
+    for (const response of [...responses, cached]) {
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe('128x96');
+    }
+  });
+
+  it('remembers sources that already fit instead of decoding them on every request', async () => {
+    electronMocks.createFromPath.mockReturnValue({
+      isEmpty: () => false,
+      getSize: () => ({ width: 100, height: 100 }),
+      resize: electronMocks.resize,
+    });
+    const handler = await registeredHandler();
+
+    const first = await handler({ url: 'cover://track.jpg?size=128' });
+    const second = await handler({ url: 'cover://track.jpg?size=128' });
+
+    expect(electronMocks.createFromPath).toHaveBeenCalledTimes(1);
+    expect(electronMocks.resize).not.toHaveBeenCalled();
+    expect(await first.text()).toBe('source image placeholder');
+    expect(await second.text()).toBe('source image placeholder');
   });
 });

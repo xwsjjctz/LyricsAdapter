@@ -25,8 +25,10 @@ function verifyReleaseArtifacts(directory, platform) {
     if (sha512 !== file.sha512 || (file.size !== undefined && file.size !== artifact.length)) {
       throw new Error(`${metadataFile}: checksum or size mismatch for ${name}.`);
     }
-    // Differential Windows updates fetch this next to the installer in both releases.
-    if (platform === 'win' && !fs.existsSync(path.join(directory, `${name}.blockmap`))) {
+    // Differential updates fetch this next to the update file (Windows installer,
+    // macOS ZIP) in both the old and the new release.
+    const updateFileExtension = platform === 'mac' ? '.zip' : '.exe';
+    if (path.extname(name) === updateFileExtension && !fs.existsSync(path.join(directory, `${name}.blockmap`))) {
       throw new Error(`${metadataFile}: missing ${name}.blockmap.`);
     }
     extensions.add(path.extname(name));
