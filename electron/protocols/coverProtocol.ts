@@ -40,8 +40,20 @@ function isPathInsideDirectory(rootDir: string, filePath: string): boolean {
     && !path.isAbsolute(relativePath);
 }
 
+async function canonicalPathAsync(filePath: string): Promise<string> {
+  try {
+    return await fs.promises.realpath(filePath);
+  } catch {
+    return path.resolve(filePath);
+  }
+}
+
+function cacheKeyForCanonicalPath(canonicalCoverPath: string): string {
+  return createHash('sha256').update(canonicalCoverPath).digest('hex').slice(0, 24);
+}
+
 function thumbnailCacheKey(coverPath: string): string {
-  return createHash('sha256').update(canonicalPath(coverPath)).digest('hex').slice(0, 24);
+  return cacheKeyForCanonicalPath(canonicalPath(coverPath));
 }
 
 function getThumbnailCacheDir(coverPath: string): string {
@@ -220,10 +232,74 @@ export function ensureCoverThumbnailCache(coverPath: string, requestedSize: numb
   return fs.existsSync(requestedPath) ? requestedPath : null;
 }
 
+/** Disk lookup only: the cached thumbnail when it is current, without decoding anything. */
+async function findFreshThumbnail(
+  canonicalCoverPath: string,
+  size: number,
+  sourceMtimeMs: number,
+): Promise<string | null> {
+  const thumbnailPath = path.join(
+    getThumbnailCacheDir(canonicalCoverPath),
+    `${cacheKeyForCanonicalPath(canonicalCoverPath)}-${size}.jpg`,
+  );
+  try {
+    const thumbnailStat = await fs.promises.stat(thumbnailPath);
+    return thumbnailStat.size > 0 && thumbnailStat.mtimeMs >= sourceMtimeMs ? thumbnailPath : null;
+  } catch (error) {
+    if (isNotFoundError(error)) return null;
+    throw error;
+  }
+}
+
+// nativeImage decodes and resizes synchronously on the main thread, tens of ms
+// for a large cover. A first scroll through a fresh library requests dozens at
+// once, so run one job at a time and yield between jobs: audio://, IPC and the
+// status-item lyrics get a turn in between. Identical requests share one job.
+const pendingThumbnailJobs = new Map<string, Promise<string | null>>();
+let thumbnailJobChain: Promise<unknown> = Promise.resolve();
+const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
+
+function generateThumbnailInTurn(coverPath: string, size: number): Promise<string | null> {
+  const key = `${size}:${coverPath}`;
+  const pending = pendingThumbnailJobs.get(key);
+  if (pending) return pending;
+  const job = thumbnailJobChain
+    .then(yieldToEventLoop)
+    .then(() => ensureCoverThumbnailCache(coverPath, size))
+    .finally(() => pendingThumbnailJobs.delete(key));
+  pendingThumbnailJobs.set(key, job);
+  thumbnailJobChain = job.catch(() => undefined);
+  return job;
+}
+
+// Sources already within the requested size are served as-is. Remember that per
+// source version so later requests do not decode the original just to find out.
+const ORIGINAL_SIZE_MEMO_LIMIT = 4096;
+const servesOriginalAt = new Map<string, number>();
+
+async function resolveThumbnail(
+  canonicalCoverPath: string,
+  size: number,
+  sourceMtimeMs: number,
+): Promise<string | null> {
+  const fresh = await findFreshThumbnail(canonicalCoverPath, size, sourceMtimeMs);
+  if (fresh) return fresh;
+
+  const memoKey = `${size}:${canonicalCoverPath}`;
+  if (servesOriginalAt.get(memoKey) === sourceMtimeMs) return null;
+
+  const generated = await generateThumbnailInTurn(canonicalCoverPath, size);
+  if (!generated) {
+    if (servesOriginalAt.size >= ORIGINAL_SIZE_MEMO_LIMIT) servesOriginalAt.clear();
+    servesOriginalAt.set(memoKey, sourceMtimeMs);
+  }
+  return generated;
+}
+
 export function registerCoverProtocol(): void {
   app.whenReady().then(() => {
     const coverDir = path.join(app.getPath('userData'), 'covers');
-    protocol.handle('cover', (request) => {
+    protocol.handle('cover', async (request) => {
       const fullPath = request.url.slice('cover://'.length);
       const queryStart = fullPath.indexOf('?');
       const rawResource = (queryStart >= 0 ? fullPath.slice(0, queryStart) : fullPath)!;
@@ -252,19 +328,33 @@ export function registerCoverProtocol(): void {
         return new Response('Forbidden', { status: 403 });
       }
 
-      if (!fs.existsSync(resolvedPath)) {
+      let sourceStat: fs.Stats;
+      try {
+        sourceStat = await fs.promises.lstat(resolvedPath);
+      } catch (error) {
+        if (!isNotFoundError(error)) throw error;
         logger.warn('[cover://] File not found:', resolvedPath);
         return new Response('Not Found', { status: 404 });
       }
-
-      const sourceStat = fs.lstatSync(resolvedPath);
       if (!sourceStat.isFile() && !sourceStat.isSymbolicLink()) {
         return new Response('Not Found', { status: 404 });
       }
 
-      const realCoverDir = canonicalPath(coverDir);
-      const realCoverPath = canonicalPath(resolvedPath);
-      if (!isPathInsideDirectory(realCoverDir, realCoverPath) || !fs.statSync(realCoverPath).isFile()) {
+      const [realCoverDir, realCoverPath] = await Promise.all([
+        canonicalPathAsync(coverDir),
+        canonicalPathAsync(resolvedPath),
+      ]);
+      if (!isPathInsideDirectory(realCoverDir, realCoverPath)) {
+        return new Response('Forbidden', { status: 403 });
+      }
+      let realStat: fs.Stats;
+      try {
+        realStat = await fs.promises.stat(realCoverPath);
+      } catch (error) {
+        if (!isNotFoundError(error)) throw error;
+        return new Response('Not Found', { status: 404 });
+      }
+      if (!realStat.isFile()) {
         return new Response('Forbidden', { status: 403 });
       }
 
@@ -302,9 +392,9 @@ export function registerCoverProtocol(): void {
 
       if (requestedSize > 0) {
         try {
-          const thumbnailPath = ensureCoverThumbnailCache(realCoverPath, requestedSize);
+          const thumbnailPath = await resolveThumbnail(realCoverPath, requestedSize, realStat.mtimeMs);
           if (thumbnailPath) {
-            return new Response(fs.readFileSync(thumbnailPath), {
+            return new Response(await fs.promises.readFile(thumbnailPath), {
               headers: {
                 ...RENDERER_CORS_HEADERS,
                 'Content-Type': 'image/jpeg',
@@ -317,7 +407,7 @@ export function registerCoverProtocol(): void {
         }
       }
 
-      const fileData = fs.readFileSync(realCoverPath);
+      const fileData = await fs.promises.readFile(realCoverPath);
       return new Response(fileData, {
         headers: {
           // Lets the now-playing glow sample cover colours on a canvas.

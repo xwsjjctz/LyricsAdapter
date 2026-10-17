@@ -93,13 +93,14 @@ export function registerTypedIpcHandlers(): void {
     if (!isAudioPath(filePath)) {
       return fail('Only audio files can be read through ipc.file.readAudio');
     }
-    if (!fs.existsSync(filePath)) {
-      return fail('Audio file not found');
-    }
-
     try {
-      return ok({ data: toArrayBuffer(fs.readFileSync(filePath)) });
+      // Whole tracks can be tens of MB; read off the main thread so playback,
+      // other IPC and the status-item lyrics keep running meanwhile.
+      return ok({ data: toArrayBuffer(await fs.promises.readFile(filePath)) });
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return fail('Audio file not found');
+      }
       logger.error('[TypedIPC] readAudio failed:', error);
       return fail((error as Error).message);
     }
