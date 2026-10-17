@@ -26,6 +26,16 @@ describe('Chromium plugin update transport', () => {
     expect(requestMock).toHaveBeenCalledWith({ url, method: 'GET', redirect: 'manual' });
   });
 
+  it('allows the request Writable to close before headers while the response continues', async () => {
+    const pending = fetchPluginUpdate(url, init);
+    request.emit('close');
+    const incoming = Object.assign(new EventEmitter(), { statusCode: 200, headers: {} });
+    request.emit('response', incoming);
+    incoming.emit('data', Buffer.from('complete response'));
+    incoming.emit('end');
+    expect(await (await pending).text()).toBe('complete response');
+  });
+
   it('streams bytes and headers, leaving HTTP errors to the updater', async () => {
     const pending = fetchPluginUpdate(url, { ...init, headers: { Accept: 'application/json' } });
     const incoming = Object.assign(new EventEmitter(), { statusCode: 404, headers: { 'content-type': 'text/plain' } });
@@ -65,9 +75,10 @@ describe('Chromium plugin update transport', () => {
 
   it('fails an incomplete response instead of hanging until the deadline', async () => {
     const pending = fetchPluginUpdate(url, init);
-    request.emit('response', Object.assign(new EventEmitter(), { statusCode: 200, headers: {} }));
+    const incoming = Object.assign(new EventEmitter(), { statusCode: 200, headers: {} });
+    request.emit('response', incoming);
     const reading = (await pending).text();
-    request.emit('close');
-    await expect(reading).rejects.toThrow('closed before completion');
+    incoming.emit('close');
+    await expect(reading).rejects.toThrow('response closed before completion');
   });
 });

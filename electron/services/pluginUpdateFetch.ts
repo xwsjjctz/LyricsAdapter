@@ -33,7 +33,9 @@ export function fetchPluginUpdate(url: string, init: RequestInit = {}): Promise<
       request.abort();
     };
     request.on('error', fail);
-    request.on('close', () => fail(new Error('Plugin update request closed before completion')));
+    // ClientRequest is a Writable: its close may fire immediately after end(),
+    // before response headers arrive. Only response completion/errors (or the
+    // caller's deadline) determine whether the download finished.
     request.on('redirect', (status, _method, location, values) => {
       if (finished) return;
       try {
@@ -73,6 +75,7 @@ export function fetchPluginUpdate(url: string, init: RequestInit = {}): Promise<
               controller.close();
             });
             response.on('error', fail);
+            response.on('close', () => fail(new Error('Plugin update response closed before completion')));
             response.on('aborted', () => fail(new Error('Plugin update response aborted')));
             response.on('data', chunk => { if (!finished) controller.enqueue(chunk); });
           },
