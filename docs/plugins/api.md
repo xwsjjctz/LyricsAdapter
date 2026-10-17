@@ -1,4 +1,4 @@
-# API 参考：核心 1.0.0
+# API 参考：核心 1.1.0
 
 公共类型以 [plugin.ts](../../src/shared/plugin.ts) 为准；音乐数据类型见 [onlineMusic.ts](../../src/shared/onlineMusic.ts)。此文档只列出已经实现的接口。
 
@@ -11,18 +11,22 @@
   "name": "Example translation",
   "version": "1.0.0",
   "main": "index.cjs",
-  "coreApi": "^1.0.0",
-  "extensionApis": { "lyrics.translation": "^1.0.0" },
+  "coreApi": "^1.1.0",
+  "extensionApis": { "lyrics.translation": "^1.1.0" },
   "optionalExtensionApis": { "future.annotation": "^1.0.0" },
-  "permissions": { "network": ["https://translator.example"], "secrets": "own" },
+  "permissions": { "network": ["https://translator.example", "http://localhost:11434"], "secrets": "own" },
   "contributes": {
     "providers": [{ "type": "lyrics.translation", "id": "default", "name": "Example" }],
     "configuration": {
-      "style": { "title": "Style", "type": "string", "default": "plain", "enum": ["plain", "literary"] }
+      "style": { "title": "Style", "type": "string", "default": "plain", "enum": ["plain", "literary"] },
+      "endpoint": { "title": "Base URL", "type": "string", "default": "", "format": "endpoint", "description": "Empty uses the official service" },
+      "api-key": { "title": "API Key", "type": "string", "default": "", "format": "secret" }
     }
   }
 }
 ```
+
+只使用核心 1.0.0 能力的插件可以继续声明 `^1.0.0`；用到下文标注“核心 1.1”的能力时，声明 `"coreApi": "^1.1.0"`，旧宿主会明确拒绝而不是在运行时缺少接口。
 
 `manifestVersion` 是清单格式版本；`version` 是插件自身版本；`coreApi` 和各 `extensionApis` 是兼容范围，互不等价。
 
@@ -40,7 +44,7 @@ ID、提供者本地 ID、存储/凭据/配置键均匹配 `^[a-z][a-z0-9-]{0,63
 
 停用、卸载、替换代码、激活失败或退出应用时，宿主中止 `context.signal`，倒序清理所有追踪项，移除提供者并调用 `deactivate`。清理异常记入日志，不妨碍其他项。`deactivate` 异步等待上限为 5 秒，退出时不保证其完成；需要同步释放的资源放在 Disposable 中。普通 SDK 写入在停用后会拒绝，因此不要依赖停用后才保存数据。
 
-单个异步激活/提供者请求上限为 20 秒，翻译每插件最多 4 个并发请求。超时/取消后的迟到结果不会展示，但无法强制终止插件自己创建且未清理的任务，插件必须监听 signal。一个请求失败不自动停用插件；激活失败使其能力不可用。
+单个异步激活/提供者请求上限为 20 秒；翻译请求上限为 180 秒（lyrics.translation 1.1 起，给大语言模型留出时间，期间专注模式先显示原文）。翻译每插件最多 4 个并发请求。超时/取消后的迟到结果不会展示，但无法强制终止插件自己创建且未清理的任务，插件必须监听 signal。一个请求失败不自动停用插件；激活失败使其能力不可用。
 
 ## 核心服务
 
@@ -57,15 +61,46 @@ ID、提供者本地 ID、存储/凭据/配置键均匹配 `^[a-z][a-z0-9-]{0,63
 | `secrets.get(key)` / `set(key, value)` | 需声明 `permissions.secrets: "own"`，只能通过 SDK 操作自身键；缺失返回空字符串，值最多 64 KiB |
 | `configuration.get(key)` | 读取已声明的 string/boolean/number 值；缺失/损坏值回到清单默认值；未知键抛错 |
 | `configuration.onDidChange(listener)` | 配置保存后的通知，返回自动追踪的 Disposable |
-| `network.fetchText(url, options?)` | 有界 HTTPS 文本请求，详见下文 |
+| `cache.get/set/delete/clear` | **核心 1.1**。异步的插件私有文件缓存，详见下文 |
+| `network.fetchText(url, options?)` | 有界文本请求，详见下文 |
 
 普通数据和配置分别使用数据库键 `plugin:<id>:storage:<key>` 与 `plugin:<id>:configuration:<key>`。凭据使用已有加密设置机制（`music-plugin:<id>:secret:<key>`）；QQ/网易云历史键保持映射。系统安全存储不可用时，凭据仅保留在当前会话，不写入明文或不可恢复的数据库值。插件代码不要读取或依赖这些内部键，使用 SDK 即可。
 
-配置声明最多 64 项，类型为 `string`、`boolean` 或 `number`，必须有同类型默认值，可用字符串/数值 `enum` 限定可选项。插件页自动生成控件并保存；不支持 React 控件、任意配置 schema 或密钥输入控件。普通字符串最多 16,384 字符，数值必须有限。密码和 token 不应作为普通配置。
+配置声明最多 64 项，类型为 `string`、`boolean` 或 `number`，必须有同类型默认值，可用字符串/数值 `enum` 限定可选项。插件页自动生成控件并保存；不支持 React 控件或任意配置 schema。普通字符串最多 16,384 字符，数值必须有限。
 
-`network.fetchText` 的 options 是 `{ method?: 'GET' | 'POST', headers?: Record<string,string>, body?: string, signal?: AbortSignal }`。默认 GET；URL 必须属于清单声明的**精确 HTTPS origin**（可含显式非默认端口），禁止 URL 凭据，不接受通配域名或子域继承。自动重定向被拒绝，避免凭据随重定向发往未声明域名。非 2xx 抛错；请求 body 和响应 UTF-8 字节各最多 1,000,000；单次超时 20 秒，生命周期和调用 signal 都可取消。返回字符串，JSON 由插件解析，不暴露 Response/流对象。
+核心 1.1 为配置项增加两个可选字段：
 
-## `lyrics.translation@1.0.0`
+| 字段 | 行为 |
+| --- | --- |
+| `description` | 显示在控件下方的说明文字，最多 1,024 字符（宿主不使用悬停提示） |
+| `format: "secret"` | 仅限 `string`，默认值必须为空字符串，不能带 `enum`，且清单需声明 `permissions.secrets: "own"`。值存入该插件的同名凭据（与 `secrets.set(key)` 同一存储），插件页显示为密码框；宿主读取配置给界面时永远返回空字符串，只告知“已保存”状态。插件用 `configuration.get(key)` 或 `secrets.get(key)` 读取，最长 65,536 字符；保存空字符串即清除 |
+| `format: "endpoint"` | 仅限 `string`，不能带 `enum`；值为空或允许的网络 URL（见下文 `fetchText` 的协议规则）。配置的 URL 的 origin 在其保存期间加入该插件的网络白名单，用户填写即视为授权，例如自定义的 OpenAI 兼容服务或本机模型服务 |
+
+API key、token 等凭据使用 `secret` 字段或 `context.secrets`，不要作为普通配置或普通存储。
+
+`network.fetchText` 的 options 是 `{ method?: 'GET' | 'POST', headers?: Record<string,string>, body?: string, signal?: AbortSignal, timeoutMs?: number }`。默认 GET；URL 的 origin 必须属于清单 `permissions.network` 声明的**精确 origin**（可含显式非默认端口），或当前 `endpoint` 配置值的 origin。协议为 HTTPS；核心 1.1 起也允许本机回环地址的 HTTP（`http://localhost`、`http://127.0.0.1`、`http://[::1]`，可带端口），供 Ollama、LM Studio 等本地服务使用。禁止 URL 凭据，不接受通配域名或子域继承。自动重定向被拒绝，避免凭据随重定向发往未声明域名。非 2xx 抛错，错误信息形如 `Plugin network HTTP 401: <响应前 500 字符>`，便于插件记录服务端的错误原因；请求 body 和响应 UTF-8 字节各最多 1,000,000。单次超时默认 20 秒，核心 1.1 可用 `timeoutMs` 设为 1–120,000 毫秒；生命周期和调用 signal 都可取消。返回字符串，JSON 由插件解析，不暴露 Response/流对象。
+
+### 缓存（核心 1.1）
+
+```ts
+interface PluginCache {
+  get(key: string): Promise<JsonValue | undefined>;
+  set(key: string, value: JsonValue): Promise<void>;
+  delete(key: string): Promise<void>;
+  clear(): Promise<void>;
+}
+```
+
+`storage` 适合少量设置类数据：它在 SQLite 中，每次请求都会随快照发给插件进程，单值上限 64 KiB。翻译结果、接口响应这类按歌曲累积的数据使用 `context.cache`：
+
+- 每个键一个 JSON 文件，位于 `<应用数据目录>/plugin-data/<plugin-id>/`（默认 `~/.la/plugin-data/<plugin-id>/`），在插件进程内直接读写，不进入请求快照。
+- 键匹配 `^[a-z0-9][a-z0-9._-]{0,127}$` 且不含 `..`，可以容纳 `track-` 加 64 位十六进制 Track ID；值序列化后最多 1 MiB。写入先写临时文件再原子替换，读到损坏文件时删除并返回 `undefined`。
+- 生命周期：跨重启、更新、停用保留；**卸载插件时删除**（配置、普通存储和凭据仍保留以便重装）。插件页显示缓存条目数和大小，并提供“清除缓存”按钮。
+- 停用后调用会拒绝。宿主没有总量配额，插件应自行控制条目大小。
+
+宿主内存中的 32 项译文缓存仍然存在，重启后清空；需要跨重启保留的结果由插件写入 `context.cache`。
+
+## `lyrics.translation@1.1.0`
 
 提供者方法：`translate(request, callContext): Promise<TranslationResult>`。callContext 含 `requestId` 和 `signal: AbortSignal`，每次调用独立；信号由宿主在插件进程内创建，不通过 IPC 传递 AbortSignal 对象。
 
@@ -76,6 +111,7 @@ interface TranslationRequest {
     revision: string;
     trackId: string;
     sourceLanguage?: string;
+    metadata?: { title?: string; artist?: string; album?: string }; // 1.1
     lines: readonly {
       id: string;
       text: string;
@@ -94,7 +130,7 @@ interface TranslationResult {
 }
 ```
 
-时间单位均为毫秒；没有真实时间信息的歌词省略时间字段。文档的 Track ID 是原 ID 的 SHA-256，不传本地路径、媒体 URL、Cookie、封面或播放状态。revision 是规范化歌词内容与解析器版本的 SHA-256；行 ID 保留原行位置，重复文本和相同时间戳也不同。网易云视图添加的标题行不发给插件。未来可增加真实源语言、结束时间等可选字段，不应靠字段总数判断对象是否合法。
+时间单位均为毫秒；没有真实时间信息的歌词省略时间字段。文档的 Track ID 是原 ID 的 SHA-256（64 位小写十六进制），同一首歌稳定不变，可作为插件缓存的键；不传本地路径、媒体 URL、Cookie、封面或播放状态。1.1 起 `metadata` 附带非空的歌名、歌手、专辑（各最多 1,024 字符），帮助翻译理解上下文；它不参与 revision 计算，没有时省略。revision 是规范化歌词内容与解析器版本的 SHA-256；行 ID 保留原行位置，重复文本和相同时间戳也不同。网易云视图添加的标题行不发给插件。未来可增加真实源语言、结束时间等可选字段，不应靠字段总数判断对象是否合法。
 
 输出必须回显文档 ID、revision、目标语言，只允许输入中出现的 lineId，每个 ID 最多一次。可以返回部分行和空行列表；未返回的行只显示原文。每行文本上限 16,384 字符，最多 5,000 行，解析后的请求/响应 JSON 最多 1,000,000 字符；不接受 NaN/Infinity、重复输入行 ID。结果按 ID 对齐，不能按文本、时间戳或返回数组顺序匹配。宿主显示译文为文本，不执行 HTML。词级时间可保留用于服务理解，但翻译结果当前没有逐词时间。
 
@@ -121,7 +157,7 @@ context.extensions.register('music.source', 'default', {
 
 `pluginHostInfo()` 返回全宿主版本表；`pluginProviders(type)` 返回启用且无加载错误的清单声明。`pluginTranslate({ requestId, providerKey, request })` 调用翻译；`pluginCancel(requestId)` 取消同一窗口拥有的请求。requestId 匹配 `^[\w-]{1,128}$`，同窗口不能重复；主进程总计最多 64 个等待请求，窗口关闭自动取消。
 
-`pluginConfiguration(id)` 和 `pluginSetConfiguration(id, key, value)` 供宿主设置页面使用，第三方插件使用 context.configuration。管理插件的旧 `musicPlugin*` 桥接名称暂时保留，同一列表/安装器同时支持两种格式。它们不属于可供第三方任意调用的公开 SDK。
+`pluginConfiguration(id)` 和 `pluginSetConfiguration(id, key, value)` 供宿主设置页面使用，第三方插件使用 context.configuration。`pluginConfiguration` 对 `secret` 字段只返回空字符串；`pluginSetConfiguration` 写入 `secret` 字段时转存为该插件凭据。`pluginDataInfo(id)` 返回 `{ configuredSecrets, cacheEntries, cacheBytes }`，`pluginClearCache(id)` 清空该插件的缓存目录。管理插件的旧 `musicPlugin*` 桥接名称暂时保留，同一列表/安装器同时支持两种格式。它们不属于可供第三方任意调用的公开 SDK。
 
 ## 更新管理
 

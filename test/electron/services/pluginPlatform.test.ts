@@ -54,7 +54,7 @@ describe('public plugin API negotiation and compatibility', () => {
   const {registry,logger} = fixture(code,selected);
   expect(registry.providers('lyrics.translation')).toHaveLength(1);
   await translate(registry);
-  expect(logger.info).toHaveBeenCalledWith('activate',expect.objectContaining({coreApi:'1.0.0',extensionApis:{'lyrics.translation':'1.0.0'}}));
+  expect(logger.info).toHaveBeenCalledWith('activate',expect.objectContaining({coreApi:'1.1.0',extensionApis:{'lyrics.translation':'1.1.0'}}));
  });
  it('lazily activates once, cleans up on disable, reactivates with preserved private data and respects config validation', async () => {
   const {registry,logger,data,options} = fixture();
@@ -140,5 +140,65 @@ describe('public plugin API negotiation and compatibility', () => {
   await expect(registry.call('netease','searchMusic',['q'])).resolves.toMatchObject([{songmid:'1'}]);
   await expect(registry.call('netease','validateCookie',['x'])).resolves.toEqual({valid:true});
   expect(registry.providers('music.source')[0]?.name).toBe('New music');
+ });
+});
+
+describe('core 1.1 data, secret configuration and endpoint services', () => {
+ const llm: PluginManifest = {...manifest,coreApi:'^1.1.0',extensionApis:{'lyrics.translation':'^1.1.0'},
+  permissions:{network:['https://translate.example','http://localhost:11434'],secrets:'own'},
+  contributes:{...manifest.contributes,configuration:{
+   prefix:{title:'Prefix',type:'string',default:'one'},
+   'api-key':{title:'Key',type:'string',default:'',format:'secret',description:'Stored encrypted'},
+   endpoint:{title:'Endpoint',type:'string',default:'',format:'endpoint'},
+  }}};
+ const cacheCode = `exports.activate = c => c.extensions.register('lyrics.translation','default',{translate:async({document,targetLanguage}) => {
+  const key = 'track-' + document.trackId;
+  const hit = await c.cache.get(key);
+  if (!hit) await c.cache.set(key, {text: c.configuration.get('api-key') + ':' + document.lines[0].text});
+  const value = hit || await c.cache.get(key);
+  return {documentId:document.id,documentRevision:document.revision,targetLanguage,lines:[{lineId:'line-0',text:(hit ? 'cached ' : '') + value.text}]};
+ }});`;
+ it('rejects invalid secret and endpoint declarations', () => {
+  const {registry} = fixture(cacheCode,{...llm,permissions:{network:['https://translate.example']}});
+  expect(registry.list()[0]?.error).toContain('configuration field');
+  const insecure = fixture(cacheCode,{...llm,permissions:{network:['http://remote.example'],secrets:'own'}});
+  expect(insecure.registry.list()[0]?.error).toContain('permissions');
+ });
+ it('stores secret fields as secrets, hides them from the renderer and persists the cache until uninstall', async () => {
+  const {options,root,data} = fixture(cacheCode,llm);
+  const dataDirectory = path.join(root,'data');
+  const withData = new MusicPluginRegistry({...options,dataDirectory});
+  withData.setConfiguration('translator','api-key','sk-test');
+  expect(data.get('secret:api-key')).toBe('sk-test');
+  expect(withData.configuration('translator')).toMatchObject({'api-key':''});
+  expect((await withData.dataInfo('translator')).configuredSecrets).toEqual(['api-key']);
+  const run = (target: MusicPluginRegistry) => target.translate('translator:default', request, new AbortController().signal, 'request-1');
+  expect((await run(withData)).lines[0]?.text).toBe('sk-test:Same');
+  expect(fs.readdirSync(path.join(dataDirectory,'translator'))).toEqual(['track-opaque.json']);
+  const restarted = new MusicPluginRegistry({...options,dataDirectory});
+  expect((await run(restarted)).lines[0]?.text).toBe('cached sk-test:Same');
+  expect(await restarted.dataInfo('translator')).toMatchObject({cacheEntries:1});
+  await restarted.clearCache('translator'); expect((await restarted.dataInfo('translator')).cacheEntries).toBe(0);
+  await run(restarted); restarted.uninstall('translator');
+  expect(fs.existsSync(path.join(dataDirectory,'translator'))).toBe(false);
+ });
+ it('grants configured endpoint origins, loopback HTTP and bounded fetch timeouts', async () => {
+  const {host,directory} = fixture(cacheCode,llm);
+  fs.writeFileSync(path.join(directory,'index.cjs'),`exports.activate = async c => {
+    for (const url of ['https://custom.example/v1','http://localhost:11434/api','http://remote.example/']) {
+      try { await c.network.fetchText(url,{timeoutMs:60000}); c.logger.info('allowed',url); } catch (e) { c.logger.info('denied',url); }
+    }
+    try { await c.network.fetchText('https://translate.example/',{timeoutMs:500000}); } catch (e) { c.logger.info('timeout rejected'); }
+    c.extensions.register('lyrics.translation','default',{translate:async()=>null});
+  };`);
+  host.writeSetting('plugin:translator:configuration:endpoint',JSON.stringify('https://custom.example/v1'));
+  vi.stubGlobal('fetch',vi.fn().mockImplementation(async () => new Response('ok')));
+  const runtime = new PluginRuntime(llm,path.join(directory,'index.cjs'),host); await runtime.activate();
+  expect(host.logger.info).toHaveBeenCalledWith('allowed','https://custom.example/v1');
+  expect(host.logger.info).toHaveBeenCalledWith('allowed','http://localhost:11434/api');
+  expect(host.logger.info).toHaveBeenCalledWith('denied','http://remote.example/');
+  expect(host.logger.info).toHaveBeenCalledWith('timeout rejected');
+  expect(() => runtime.setConfiguration('endpoint','ftp://custom.example')).toThrow('Invalid');
+  runtime.dispose();
  });
 });

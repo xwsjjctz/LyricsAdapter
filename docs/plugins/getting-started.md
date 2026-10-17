@@ -15,7 +15,11 @@ npm run electron:dev
 
 进入「设置 → 插件 → 安装本地插件」，选择这个文件。出现「歌词对照翻译」后选择「对照译文示例」。可修改示例的译文前缀并保存，进入有歌词的歌曲的专注模式，在两种歌词渲染器中都能看到对照文本。安装只添加能力，翻译默认关闭；选择翻译插件后，宿主才会把歌词交给它。
 
-示例是契约演示，没有真实翻译效果。接入翻译服务时，将服务的 HTTPS origin 写入 `permissions.network`，在 `translate` 中通过 `context.network.fetchText` 调用服务，并将请求的 `signal` 传入。密钥使用 `context.secrets`，不要放在配置字段或普通存储中。
+示例是契约演示，没有真实翻译效果。接入翻译服务时，将服务的 HTTPS origin 写入 `permissions.network`（或提供 `format: "endpoint"` 配置让用户填写地址），在 `translate` 中通过 `context.network.fetchText` 调用服务，并将请求的 `signal` 传入。密钥使用 `format: "secret"` 配置或 `context.secrets`，不要放在普通配置字段或普通存储中。需要跨重启保存的译文写入 `context.cache`。完整的真实服务示例见 [大语言模型歌词翻译插件](../../examples/plugins/llm-translation/README.md)，打包命令：
+
+```bash
+npm run plugins:package -- examples/plugins/llm-translation
+```
 
 ## 在独立仓库使用
 
@@ -26,7 +30,7 @@ npm run plugin-sdk:build
 npm pack ./packages/plugin-sdk --pack-destination /tmp
 ```
 
-在插件仓库安装 `/tmp/lyrics-adapter-plugin-sdk-1.0.0.tgz` 作为开发依赖，然后导入公共类型：
+在插件仓库安装 `/tmp/lyrics-adapter-plugin-sdk-1.2.0.tgz` 作为开发依赖，然后导入公共类型：
 
 ```ts
 import type { PluginContext, LyricsTranslationProvider } from '@lyrics-adapter/plugin-sdk';
@@ -71,8 +75,8 @@ node /absolute/path/LyricsAdapter/scripts/packagePlugin.mjs /absolute/path/my-pl
 
 整个包最多 24 MiB，入口最多 20 MiB，清单文件最多 64 KiB；只安装清单和单个入口。入口必须是本地 `.cjs` 文件名，不支持子路径、归档解压、符号链接或安装脚本。
 
-新格式更新会取消旧请求、清理旧注册，并在下次使用时加载新代码。旧格式音乐插件更新仍要求重启。启用状态跨重启保存。卸载删除代码，保留该插件的配置、普通数据和凭据，方便重新安装；这些状态在应用的 SQLite 数据库中，不写进插件代码目录。QQ/网易云已有凭据键和旧数据目录迁移保持兼容。
+新格式更新会取消旧请求、清理旧注册，并在下次使用时加载新代码。旧格式音乐插件更新仍要求重启。启用状态跨重启保存。卸载删除代码和该插件的缓存目录（`plugin-data/<id>/`），保留配置、普通数据和凭据，方便重新安装；这些状态在应用的 SQLite 数据库中，不写进插件代码目录。缓存目录与代码目录分开，因此更新插件不会清空缓存。QQ/网易云已有凭据键和旧数据目录迁移保持兼容。
 
-第三方插件目前通过本地 `.laplugin` 安装；在线目录只提供官方 QQ/网易云插件。通用第三方市场、签名和 npm 发布尚未实现。
+第三方插件目前通过本地 `.laplugin` 安装。官方在线目录（`catalog.v2.json`）收录 QQ、网易云和官方维护的其他插件，例如大语言模型歌词翻译；收录方式见[音乐源插件](../music-source-plugins.md#官方目录-v2)。通用第三方市场、签名和 npm 发布尚未实现。
 
 发布在线更新请阅读[插件更新与分发](updates.md)。本地包可声明初始更新来源，旧插件也可在管理页手动绑定。

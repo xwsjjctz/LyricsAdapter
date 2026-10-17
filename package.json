@@ -1,7 +1,7 @@
 {
   "name": "lyrics-adapter",
   "private": true,
-  "version": "0.5.7-beta.4",
+  "version": "0.6.0",
   "type": "module",
   "engines": {
     "node": ">=24.19.0 <25"

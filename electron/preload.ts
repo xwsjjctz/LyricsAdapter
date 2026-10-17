@@ -202,6 +202,8 @@ const bridge = {
   pluginCancel: (requestId: string) => send('plugin-cancel', requestId),
   pluginConfiguration: invoker('plugin-configuration'),
   pluginSetConfiguration: invoker('plugin-set-configuration'),
+  pluginDataInfo: invoker('plugin-data-info'),
+  pluginClearCache: invoker('plugin-clear-cache'),
   musicPluginList: invoker('music-plugin-list'),
   musicPluginCatalog: invoker('music-plugin-catalog'),
   musicPluginDownload: invoker('music-plugin-download'),

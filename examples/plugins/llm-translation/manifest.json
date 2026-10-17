@@ -1,0 +1,78 @@
+{
+  "manifestVersion": 1,
+  "id": "llm-translation",
+  "name": "大语言模型歌词翻译",
+  "version": "1.0.0",
+  "main": "index.cjs",
+  "homepage": "https://github.com/xwsjjctz/LyricsAdapter-LLM-Translation",
+  "update": { "kind": "github", "repository": "xwsjjctz/LyricsAdapter-LLM-Translation", "channel": "stable" },
+  "coreApi": "^1.1.0",
+  "extensionApis": { "lyrics.translation": "^1.1.0" },
+  "permissions": {
+    "network": ["https://api.openai.com", "https://api.anthropic.com"],
+    "secrets": "own"
+  },
+  "contributes": {
+    "providers": [{ "type": "lyrics.translation", "id": "default", "name": "大语言模型翻译" }],
+    "configuration": {
+      "api-format": {
+        "title": "接口格式 / API format",
+        "type": "string",
+        "default": "openai",
+        "enum": ["openai", "anthropic"],
+        "description": "openai：OpenAI 及兼容接口（DeepSeek、通义千问、Moonshot、Ollama、LM Studio 等）；anthropic：Claude Messages API。"
+      },
+      "endpoint": {
+        "title": "接口地址 / Base URL",
+        "type": "string",
+        "default": "",
+        "format": "endpoint",
+        "description": "留空使用官方地址（https://api.openai.com/v1 或 https://api.anthropic.com/v1）。兼容接口填写到版本路径，例如 https://api.deepseek.com/v1、http://localhost:11434/v1。"
+      },
+      "api-key": {
+        "title": "API Key",
+        "type": "string",
+        "default": "",
+        "format": "secret",
+        "description": "加密保存在本机，不会显示在界面中。本地模型可以留空。"
+      },
+      "model": {
+        "title": "模型 / Model",
+        "type": "string",
+        "default": "",
+        "description": "anthropic 留空时使用 claude-opus-5-5；openai 格式需要填写，例如 gpt-4o-mini、deepseek-chat、qwen-plus。"
+      },
+      "style": {
+        "title": "译文风格 / Style",
+        "type": "string",
+        "default": "natural",
+        "enum": ["natural", "faithful", "poetic"],
+        "description": "natural 自然流畅；faithful 贴近原文；poetic 保留诗意与韵律。更换风格后会重新翻译。"
+      },
+      "instructions": {
+        "title": "额外要求 / Extra instructions",
+        "type": "string",
+        "default": "",
+        "description": "追加给模型的翻译要求，例如“人名保留原文”。修改后会重新翻译。"
+      },
+      "json-mode": {
+        "title": "JSON 输出模式 / JSON mode",
+        "type": "boolean",
+        "default": true,
+        "description": "仅 openai 格式：请求 response_format=json_object。如果接口不支持该参数而报错，请关闭。"
+      },
+      "timeout-seconds": {
+        "title": "单次请求超时（秒）/ Timeout",
+        "type": "number",
+        "default": 90,
+        "description": "范围 10–120 秒。"
+      },
+      "use-cache": {
+        "title": "使用本地翻译缓存 / Use cache",
+        "type": "boolean",
+        "default": true,
+        "description": "已翻译的歌曲直接读取本地缓存，不再请求模型。缓存随插件卸载删除，也可在下方清除。"
+      }
+    }
+  }
+}

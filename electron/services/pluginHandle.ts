@@ -37,6 +37,8 @@ export interface PluginHandleSpec {
   manifest: PluginManifest | MusicPluginManifest;
   /** Absolute path of the plugin's entry module. */
   entry: string;
+  /** Absolute path of the plugin's private data directory (its cache), outside the package directory. */
+  dataDirectory?: string;
 }
 
 async function callProvider(plugin: MusicPlugin, method: string, args: unknown[]): Promise<unknown> {
@@ -87,7 +89,7 @@ class InlineLegacyHandle implements PluginHandle {
 class InlinePlatformHandle implements PluginHandle {
   private readonly runtime: PluginRuntime;
   constructor(spec: PluginHandleSpec, host: MusicPluginHost) {
-    this.runtime = new PluginRuntime(spec.manifest as PluginManifest, spec.entry, host);
+    this.runtime = new PluginRuntime(spec.manifest as PluginManifest, spec.entry, host, spec.dataDirectory);
   }
   get failure(): string | undefined { return this.runtime.failure; }
   load(): Promise<void> { return this.runtime.activate(); }

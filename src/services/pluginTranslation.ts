@@ -1,5 +1,5 @@
 import type { Track } from '../types';
-import type { LyricDocument, LyricLine, TranslationResult, PluginProviderInfo } from '../shared/plugin';
+import type { LyricDocument, LyricLine, LyricTrackMetadata, TranslationResult, PluginProviderInfo } from '../shared/plugin';
 import { validateTranslationResult } from '../shared/pluginValidation';
 import { getDesktopAPI } from './desktopAdapter';
 
@@ -15,7 +15,10 @@ export async function lyricDocumentForTrack(track: Track): Promise<LyricDocument
   const hash = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
     .map(byte => byte.toString(16).padStart(2, '0')).join('');
   const trackId = await hash(track.id);
-  return { id: `lyrics-${trackId}`, trackId, revision: await hash(JSON.stringify({ parser: 1, lines })), lines };
+  const metadata = Object.fromEntries(([['title', track.title], ['artist', track.artist], ['album', track.album]] as const)
+    .flatMap(([key, value]) => value?.trim() ? [[key, value.trim().slice(0, 1024)]] : [])) as LyricTrackMetadata;
+  return { id: `lyrics-${trackId}`, trackId, revision: await hash(JSON.stringify({ parser: 1, lines })),
+    ...(Object.keys(metadata).length ? { metadata } : {}), lines };
 }
 
 const cache = new Map<string, TranslationResult>();

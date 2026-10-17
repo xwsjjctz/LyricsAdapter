@@ -54,6 +54,8 @@ export interface ElectronBridge {
   pluginCancel(requestId: string): void;
   pluginConfiguration: IpcInvoker<'plugin-configuration'>;
   pluginSetConfiguration: IpcInvoker<'plugin-set-configuration'>;
+  pluginDataInfo: IpcInvoker<'plugin-data-info'>;
+  pluginClearCache: IpcInvoker<'plugin-clear-cache'>;
   musicPluginList: IpcInvoker<'music-plugin-list'>;
   musicPluginCatalog: IpcInvoker<'music-plugin-catalog'>;
   musicPluginDownload: IpcInvoker<'music-plugin-download'>;

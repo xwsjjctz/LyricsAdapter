@@ -7,7 +7,8 @@ import { pluginConfigurationWrite, readPluginConfiguration } from './pluginRunti
 import { createInlineHandle, PROVIDER_METHODS, type PluginHandle } from './pluginHandle';
 import { ProcessPluginHandle, type SpawnPluginProcess } from './pluginProcess';
 import type { PluginDataSnapshot } from '../plugin-host/protocol';
-import type { ExtensionType, PluginProviderInfo, TranslationRequest, TranslationResult } from '../../src/shared/plugin';
+import { clearPluginCacheDirectory, pluginCacheStats } from './pluginCache';
+import type { ExtensionType, PluginDataInfo, PluginProviderInfo, TranslationRequest, TranslationResult } from '../../src/shared/plugin';
 import { isPluginVersion, comparePluginVersions, validatePluginUpdateSource } from '../../src/shared/pluginUpdate';
 import { Script } from 'node:vm';
 
@@ -45,6 +46,11 @@ interface PluginRecord { info: MusicPluginInfo; directory: string; handle?: Plug
 interface RegistryOptions {
   bundledDirectory?: string;
   installedDirectory: string;
+  /**
+   * Parent of each plugin's private data directory (`<dataDirectory>/<id>`). It is kept apart
+   * from package directories, which installs and updates replace. Without it caches stay in memory.
+   */
+  dataDirectory?: string;
   host(id: string): MusicPluginHost;
   isEnabled(id: string): boolean;
   setEnabled(id: string, enabled: boolean): void;
@@ -107,7 +113,9 @@ export class MusicPluginRegistry {
   private createHandle(id: string, record: PluginRecord): PluginHandle {
     // Recheck the entry at load time; no renderer-provided path reaches the loader.
     const entry = path.join(record.directory, inspectDirectory(record.directory).main);
-    const spec = { id, kind: record.info.platform ? 'platform' as const : 'legacy' as const, manifest: record.info.platform ?? record.info, entry };
+    const dataDirectory = this.dataDirectory(id);
+    const spec = { id, kind: record.info.platform ? 'platform' as const : 'legacy' as const, manifest: record.info.platform ?? record.info, entry,
+      ...(dataDirectory ? { dataDirectory } : {}) };
     const host = this.options.host(id);
     if (!this.options.spawn) return createInlineHandle(spec, host);
     const snapshot = this.options.snapshot ?? (() => ({ secrets: {}, settings: {} }));
@@ -168,13 +176,36 @@ export class MusicPluginRegistry {
     return readPluginConfiguration(this.platformManifest(id), key => host.readSetting?.(key));
   }
   markChanged(id: string): void { const record = this.records.get(id); if (record) record.info.revision = (record.info.revision ?? 0) + 1; }
-  /** Validated and stored by the host; a running plugin is then notified. */
+  /** Validated and stored by the host; a running plugin is then notified. Secret fields go to the plugin's secrets. */
   setConfiguration(id: string, key: string, value: string | boolean | number): void {
-    const { settingKey, json } = pluginConfigurationWrite(this.platformManifest(id), key, value);
+    const write = pluginConfigurationWrite(this.platformManifest(id), key, value);
     const host = this.options.host(id);
-    if (!host.writeSetting) throw new Error('Plugin settings storage is unavailable');
-    host.writeSetting(settingKey, json);
+    if (write.kind === 'secret') host.writeSecrets({ [write.key]: write.value });
+    else {
+      if (!host.writeSetting) throw new Error('Plugin settings storage is unavailable');
+      host.writeSetting(write.settingKey, write.json);
+    }
     this.records.get(id)?.handle?.configurationChanged();
+    this.markChanged(id);
+  }
+  private dataDirectory(id: string): string | undefined {
+    if (!this.options.dataDirectory || !PLUGIN_ID.test(id)) return undefined;
+    return path.join(this.options.dataDirectory, id);
+  }
+  /** Which secret fields are set and how large the cache is; secret values stay in the main process. */
+  async dataInfo(id: string): Promise<PluginDataInfo> {
+    const manifest = this.platformManifest(id);
+    const host = this.options.host(id);
+    const configuredSecrets = Object.entries(manifest.contributes.configuration ?? {})
+      .filter(([key, field]) => field.format === 'secret' && host.readSecret(key) !== '').map(([key]) => key);
+    const directory = this.dataDirectory(id);
+    const { entries, bytes } = directory ? await pluginCacheStats(directory) : { entries: 0, bytes: 0 };
+    return { configuredSecrets, cacheEntries: entries, cacheBytes: bytes };
+  }
+  async clearCache(id: string): Promise<void> {
+    this.platformManifest(id);
+    const directory = this.dataDirectory(id);
+    if (directory) await clearPluginCacheDirectory(directory);
     this.markChanged(id);
   }
   dispose(): void { for (const record of this.records.values()) record.handle?.dispose(); }
@@ -319,6 +350,9 @@ export class MusicPluginRegistry {
     const keep = !record.info.platform && record.handle;
     if (!keep) record.handle?.dispose();
     fs.rmSync(path.join(this.options.installedDirectory, id), { recursive: true, force: true });
+    // The cache belongs to the installation; configuration, storage and secrets stay for a reinstall.
+    const dataDirectory = this.dataDirectory(id);
+    if (dataDirectory) fs.rmSync(dataDirectory, { recursive: true, force: true });
     const bundled = this.inspectBundled(id);
     if (!bundled) { record.handle?.dispose(); this.records.delete(id); }
     else {

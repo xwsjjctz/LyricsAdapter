@@ -32,7 +32,7 @@ export function activate(context: PluginContext) {
   await writeFile(path.join(temporary, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true, noEmit: true, module: 'NodeNext', moduleResolution: 'NodeNext', target: 'ES2022', lib: ['ES2022', 'DOM'], types: [] }, include: ['index.ts'] }));
   const result = spawnSync(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '-p', path.join(temporary, 'tsconfig.json')], { stdio: 'inherit' });
   if (result.status !== 0) throw new Error('Installed plugin SDK type check failed');
-  await writeFile(path.join(temporary, 'runtime.mjs'), `import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS } from '@lyrics-adapter/plugin-sdk'; if (PLUGIN_CORE_API !== '1.0.0' || !PLUGIN_EXTENSION_APIS['lyrics.translation']) throw new Error('Invalid SDK runtime exports');`);
+  await writeFile(path.join(temporary, 'runtime.mjs'), `import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS } from '@lyrics-adapter/plugin-sdk'; if (PLUGIN_CORE_API !== '1.1.0' || !PLUGIN_EXTENSION_APIS['lyrics.translation']) throw new Error('Invalid SDK runtime exports');`);
   const runtime = spawnSync(process.execPath, [path.join(temporary, 'runtime.mjs')], { stdio: 'inherit' });
   if (runtime.status !== 0) throw new Error('Installed plugin SDK runtime import failed');
   console.log('Plugin SDK: isolated NodeNext consumer and runtime imports passed');

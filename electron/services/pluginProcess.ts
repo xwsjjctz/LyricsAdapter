@@ -2,6 +2,7 @@ import type { MusicPluginHost } from '../../src/shared/musicPlugin';
 import type { TranslationRequest, TranslationResult } from '../../src/shared/plugin';
 import type { GuestToHost, HostToGuest, MessageChannelEnd, PluginDataSnapshot, PluginOperation } from '../plugin-host/protocol';
 import type { PluginHandle, PluginHandleSpec } from './pluginHandle';
+import { TRANSLATION_TIMEOUT_MS } from './pluginRuntime';
 
 /** One plugin host process as seen from the main process. */
 export interface PluginProcessChannel extends MessageChannelEnd<HostToGuest, GuestToHost> {
@@ -18,6 +19,8 @@ interface ProcessHandleOptions {
   snapshot(): PluginDataSnapshot;
   spawn: SpawnPluginProcess;
   requestTimeoutMs?: number;
+  /** Translation calls get the runtime's longer deadline plus a margin to report it. */
+  translationTimeoutMs?: number;
   pingTimeoutMs?: number;
   now?: () => number;
 }
@@ -46,11 +49,13 @@ export class ProcessPluginHandle implements PluginHandle {
   private crashes: number[] = [];
   private disposed: Error | undefined;
   private readonly requestTimeoutMs: number;
+  private readonly translationTimeoutMs: number;
   private readonly pingTimeoutMs: number;
   private readonly now: () => number;
 
   constructor(private readonly options: ProcessHandleOptions) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
+    this.translationTimeoutMs = options.translationTimeoutMs ?? TRANSLATION_TIMEOUT_MS + 5_000;
     this.pingTimeoutMs = options.pingTimeoutMs ?? 3_000;
     this.now = options.now ?? Date.now;
   }
@@ -127,7 +132,7 @@ export class ProcessPluginHandle implements PluginHandle {
     channel.post({ type: 'ping', nonce });
   }
 
-  private request(op: PluginOperation, args: unknown[], signal?: AbortSignal): Promise<unknown> {
+  private request(op: PluginOperation, args: unknown[], signal?: AbortSignal, timeoutMs = this.requestTimeoutMs): Promise<unknown> {
     if (this.disposed) return Promise.reject(this.disposed);
     if (this.failure === 'Plugin process crashed repeatedly') return Promise.reject(new Error(this.failure));
     if (signal?.aborted) return Promise.reject(signal.reason ?? new Error('Plugin request cancelled'));
@@ -139,7 +144,7 @@ export class ProcessPluginHandle implements PluginHandle {
         cleanup();
         reject(new Error('Plugin request timed out'));
         this.checkHealth(channel);
-      }, this.requestTimeoutMs);
+      }, timeoutMs);
       timer.unref?.();
       const onAbort = () => {
         this.pending.delete(requestId);
@@ -164,7 +169,7 @@ export class ProcessPluginHandle implements PluginHandle {
     return Object.fromEntries(Object.entries(headers).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   }
   async translate(providerId: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult> {
-    return await this.request('translate', [providerId, request, requestId], signal) as TranslationResult;
+    return await this.request('translate', [providerId, request, requestId], signal, this.translationTimeoutMs) as TranslationResult;
   }
   configurationChanged(): void {
     this.channel?.post({ type: 'configurationChanged', snapshot: this.options.snapshot() });

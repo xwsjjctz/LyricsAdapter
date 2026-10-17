@@ -4,7 +4,7 @@ import { userStateRepository } from '../services/userStateRepository';
 import { settingsStore } from '../services/settingsStore';
 import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
-import { prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
+import { prepareMusicPluginDataDirectory, prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import { PluginUpdateService } from '../services/pluginUpdates';
 import { spawnPluginProcess } from '../services/pluginProcessSpawn';
 import type { PluginDataSnapshot } from '../plugin-host/protocol';
@@ -69,6 +69,7 @@ export function registerMusicPluginHandlers(): void {
   const catalog = new MusicPluginCatalog((url, init) => net.fetch(url, init));
   registry = new MusicPluginRegistry({
     installedDirectory: directory,
+    dataDirectory: prepareMusicPluginDataDirectory(userStateRepository.directoryPath),
     // Each plugin runs in its own utility process.
     spawn: spawnPluginProcess,
     snapshot: pluginDataSnapshot,
@@ -119,6 +120,8 @@ export function registerMusicPluginHandlers(): void {
   });
   handleIpc('plugin-configuration', (_event, id: string) => registry.configuration(id));
   handleIpc('plugin-set-configuration', (_event, id: string, key: string, value: string | boolean | number) => { registry.setConfiguration(id, key, value); changed(); });
+  handleIpc('plugin-data-info', (_event, id: string) => registry.dataInfo(id));
+  handleIpc('plugin-clear-cache', async (_event, id: string) => { await registry.clearCache(id); changed(); });
   const requests = new Map<string, AbortController>();
   const watched = new Set<number>();
   handleIpc('plugin-translate', async (event, call: PluginTranslationCall) => {

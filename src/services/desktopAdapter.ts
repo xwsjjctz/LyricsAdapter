@@ -16,7 +16,7 @@ import type {
   UserDataSnapshot,
 } from '../types/typedIpc';
 import type { MusicPluginInfo, MusicPluginCatalogEntry } from '../shared/musicPlugin';
-import type { ExtensionType, PluginHostInfo, PluginProviderInfo, PluginTranslationCall, TranslationResult } from '../shared/plugin';
+import type { ExtensionType, PluginDataInfo, PluginHostInfo, PluginProviderInfo, PluginTranslationCall, TranslationResult } from '../shared/plugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '../shared/pluginUpdate';
 import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
@@ -529,6 +529,13 @@ class ElectronAdapter implements FullDesktopAPI {
   async pluginSetConfiguration(id: string, key: string, value: string | boolean | number): Promise<void> {
     if (!this.api.pluginSetConfiguration) throw new Error('Plugin platform is unavailable');
     return this.api.pluginSetConfiguration(id, key, value);
+  }
+  async pluginDataInfo(id: string): Promise<PluginDataInfo> {
+    return this.api.pluginDataInfo?.(id) ?? { configuredSecrets: [], cacheEntries: 0, cacheBytes: 0 };
+  }
+  async pluginClearCache(id: string): Promise<void> {
+    if (!this.api.pluginClearCache) throw new Error('Plugin platform is unavailable');
+    return this.api.pluginClearCache(id);
   }
   async musicPluginList(): Promise<MusicPluginInfo[]> { return this.api.musicPluginList?.() ?? []; }
   async musicPluginCatalog(): Promise<MusicPluginCatalogEntry[]> { return this.api.musicPluginCatalog?.() ?? []; }

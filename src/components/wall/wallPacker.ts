@@ -1,61 +1,71 @@
 /**
- * Automatic packing for the wide poster wall.
+ * Band composition for the wide poster wall.
  *
- * The wall is a grid of square units, as many as fit the width at about
- * WALL_TARGET_UNIT pixels each, read in bands of two unit rows. Each track, in
- * list order, takes the first free unit in reading order. Every band gets one
- * large cover at a planned column that moves between bands, so each screen has
- * a focal point and large covers never stack; the other covers are small, wide
- * or tall by a hash of their index, falling back to smaller shapes when the
- * wanted one does not fit. Every unit before the newest tile is therefore
- * filled, and earlier tiles never move as tracks are appended.
+ * The wall is a grid of cells half a small cover wide, as many as fit the
+ * width at about WALL_TARGET_UNIT pixels per small cover. It is read in bands
+ * six cells tall. Each band lines up hand-designed blocks side by side: one or
+ * more hero blocks (a large 4x4 cover with medium 3x3 or small 2x2 covers
+ * around it) and filler blocks of medium or small covers, occasionally a pair
+ * of 4:3 covers. Covers stay square except for those 4:3 pairs, so artwork is
+ * never cut in half. Blocks are mirrored and flipped by a hash of the band, and
+ * heroes move between bands, so the rhythm varies without random gaps.
  *
- * Small covers never gather: a third one in a row, or one that would close a
- * 2x2 square of them or start the bottom row under two of them, becomes wide
- * or tall instead whenever that fits.
- *
- * Only tall covers cross into the next band, and never under its planned large
- * slot. Tall shapes are only used while at least two rows' worth of tracks
- * follow, so the rows they reach into are always completed and the wall ends
- * in one left-aligned partial row.
+ * A band's blocks depend only on its index and the column count, so a full band
+ * never changes as tracks are appended. Tracks that do not fill the next band
+ * form the tail: a large cover first, small covers to its right and below,
+ * left-aligned, reshaped into a full band once enough tracks arrive.
  */
 import type { WallSlot } from './wallLayout';
 
-interface Shape {
-  w: number;
-  h: number;
-}
-
-const UNIT: Shape = { w: 1, h: 1 };
-const WIDE: Shape = { w: 2, h: 1 };
-const TALL: Shape = { w: 1, h: 2 };
-const LARGE: Shape = { w: 2, h: 2 };
-
-/** Unit rows per band; each band holds one large cover. */
-const BAND_ROWS = 2;
-
-/** Wanted shape by hash bucket for covers outside the planned large slot. */
-const SHAPE_BUCKETS: readonly { upTo: number; options: readonly Shape[] }[] = [
-  { upTo: 0.2, options: [WIDE, UNIT] },
-  { upTo: 0.4, options: [TALL, UNIT] },
-  { upTo: 1, options: [UNIT] },
-];
-
-/** Shapes that break up a cluster of small covers, in either preference. */
-const BREAKERS: readonly (readonly Shape[])[] = [[WIDE, TALL], [TALL, WIDE]];
-
-/**
- * Where each band's large cover sits, as a fraction of the free range;
- * neighbouring bands are nudged apart so their large covers never touch.
- */
-const LARGE_POSITIONS = [0.15, 0.85, 0.5, 0, 0.7, 0.3, 1];
-
-/** Grid cells per unit; the layout's cells stay half a small cover wide. */
+/** Grid cells per small cover; the layout's cells stay half a small cover wide. */
 export const CELLS_PER_UNIT = 2;
 
-/** Stable pseudo-random value in [0, 1) for a track index (murmur3 finaliser). */
-const hashIndex = (index: number): number => {
-  let x = Math.imul(index + 1, 0x9e3779b1);
+const BAND_ROWS = 6;
+const SMALL = 2;
+const LARGE = 4;
+
+interface Block {
+  width: number;
+  slots: readonly WallSlot[];
+}
+
+const slot = (x: number, y: number, cols: number, rows: number): WallSlot => ({ x, y, cols, rows });
+
+/** Large cover with two medium and two small covers; 7 cells wide. */
+const HERO_MEDIUM: Block = {
+  width: 7,
+  slots: [slot(0, 0, 4, 4), slot(4, 0, 3, 3), slot(4, 3, 3, 3), slot(0, 4, 2, 2), slot(2, 4, 2, 2)],
+};
+/** Large cover framed by five small covers; 6 cells wide. */
+const HERO_SMALL: Block = {
+  width: 6,
+  slots: [
+    slot(0, 0, 4, 4), slot(4, 0, 2, 2), slot(4, 2, 2, 2),
+    slot(0, 4, 2, 2), slot(2, 4, 2, 2), slot(4, 4, 2, 2),
+  ],
+};
+const FILLERS: Readonly<Record<number, Block>> = {
+  6: { width: 6, slots: [slot(0, 0, 3, 3), slot(3, 0, 3, 3), slot(0, 3, 3, 3), slot(3, 3, 3, 3)] },
+  4: { width: 4, slots: [slot(0, 0, 4, 3), slot(0, 3, 4, 3)] },
+  3: { width: 3, slots: [slot(0, 0, 3, 3), slot(0, 3, 3, 3)] },
+  2: { width: 2, slots: [slot(0, 0, 2, 2), slot(0, 2, 2, 2), slot(0, 4, 2, 2)] },
+};
+/** Square fillers cover any width except 1; the 4:3 pair is opt-in per band. */
+const SQUARE_FILLER_WIDTHS = [6, 3, 2] as const;
+/** Share of bands that include one 4:3 pair. */
+const WIDE_PAIR_SHARE = 0.3;
+/** Roughly one hero per this many cells of width. */
+const CELLS_PER_HERO = 11;
+/** Below this width a hero leaves no room for medium covers, so every other band has none. */
+const NARROW_COLUMNS = 12;
+
+/** Hero blocks wanted in a band. */
+export const heroesForBand = (band: number, columns: number): number =>
+  columns < NARROW_COLUMNS && band % 2 === 1 ? 0 : Math.max(1, Math.round(columns / CELLS_PER_HERO));
+
+/** Stable pseudo-random value in [0, 1) (murmur3 finaliser). */
+const hash = (value: number): number => {
+  let x = Math.imul(value + 1, 0x9e3779b1);
   x ^= x >>> 16;
   x = Math.imul(x, 0x85ebca6b);
   x ^= x >>> 13;
@@ -64,110 +74,104 @@ const hashIndex = (index: number): number => {
   return (x >>> 0) / 0x1_0000_0000;
 };
 
-const optionsFor = (index: number): readonly Shape[] => {
-  const value = hashIndex(index);
-  return SHAPE_BUCKETS.find(bucket => value < bucket.upTo)!.options;
+const mirrored = (block: Block): Block => ({
+  ...block,
+  slots: block.slots.map(s => ({ ...s, x: block.width - s.x - s.cols })),
+});
+const flipped = (block: Block): Block => ({
+  ...block,
+  slots: block.slots.map(s => ({ ...s, y: BAND_ROWS - s.y - s.rows })),
+});
+
+/** Filler widths summing to `rest`, largest first; null when impossible. */
+const fillerWidths = (rest: number, withWidePair: boolean): number[] | null => {
+  if (rest < 0 || rest === 1) return null;
+  if (withWidePair && rest >= 4) {
+    const others = fillerWidths(rest - 4, false);
+    if (others) return [4, ...others];
+  }
+  const widths: number[] = [];
+  let left = rest;
+  for (const width of SQUARE_FILLER_WIDTHS) {
+    // Keep a remainder the smaller fillers can still cover (never exactly 1).
+    while (left >= width && left - width !== 1) {
+      widths.push(width);
+      left -= width;
+    }
+  }
+  return left === 0 ? widths : null;
 };
 
-const breakersFor = (index: number): readonly Shape[] => BREAKERS[hashIndex(~index) < 0.5 ? 0 : 1]!;
-
-const FREE = 0;
-const TAKEN = 1;
-const TAKEN_SMALL = 2;
-
-/** Planned large-cover column for each band, at least two columns from the previous one. */
-const largeColumns = (units: number) => {
-  const range = Math.max(0, units - LARGE.w);
-  const columns: number[] = [];
-  return (band: number): number => {
-    for (let b = columns.length; b <= band; b++) {
-      const wanted = Math.round(LARGE_POSITIONS[b % LARGE_POSITIONS.length]! * range);
-      const previous = columns[b - 1];
-      if (previous === undefined || Math.abs(wanted - previous) >= LARGE.w || range < LARGE.w) {
-        columns.push(wanted);
-        continue;
-      }
-      // Nearest column that clears the previous band's large cover.
-      const left = previous - LARGE.w;
-      const right = previous + LARGE.w;
-      const candidates = [left, right].filter(c => c >= 0 && c <= range);
-      const nearest = candidates.reduce<number | undefined>(
-        (best, c) => best === undefined || Math.abs(c - wanted) < Math.abs(best - wanted) ? c : best,
-        undefined,
-      );
-      columns.push(nearest ?? wanted);
+/** Blocks of one band, left to right; depends only on the band and column count. */
+const bandBlocks = (band: number, columns: number): Block[] => {
+  const withWidePair = hash(band * 17 + 3) < WIDE_PAIR_SHARE;
+  const wanted = heroesForBand(band, columns);
+  for (let heroes = wanted; heroes >= Math.min(wanted, 1); heroes--) {
+    const picks = Array.from({ length: heroes }, (_, i) => hash(band * 31 + i) < 0.5 ? HERO_MEDIUM : HERO_SMALL);
+    // Swapping one hero's width shifts the remainder by one, so some choice always fits.
+    for (let swap = -1; swap < heroes; swap++) {
+      const chosen = picks.map((hero, i) => i !== swap ? hero : hero === HERO_MEDIUM ? HERO_SMALL : HERO_MEDIUM);
+      const used = chosen.reduce((sum, hero) => sum + hero.width, 0);
+      const widths = fillerWidths(columns - used, withWidePair);
+      if (!widths) continue;
+      const rotate = Math.floor(hash(band * 7) * widths.length);
+      const blocks = [...widths.slice(rotate), ...widths.slice(0, rotate)].map(width => FILLERS[width]!);
+      // Spread heroes across the band, shifting between neighbouring bands.
+      const offset = band % 2 === 0 ? 0.2 : 0.7;
+      chosen.forEach((hero, i) => {
+        const at = Math.round(((i + offset) / Math.max(heroes, 1)) * blocks.length);
+        blocks.splice(Math.min(at + i, blocks.length), 0, hero);
+      });
+      return blocks.map((block, i) => {
+        let shaped = hash(band * 101 + i) < 0.5 ? mirrored(block) : block;
+        if (hash(band * 211 + i) < 0.35) shaped = flipped(shaped);
+        return shaped;
+      });
     }
-    return columns[band]!;
-  };
+  }
+  throw new Error(`Poster wall cannot fill ${columns} columns`);
 };
 
-/** Packs `count` tiles into `units` columns; slots are in layout cells, in list order. */
-export function packWall(count: number, units: number): WallSlot[] {
-  const grid: Uint8Array[] = [];
-  const row = (y: number): Uint8Array => {
-    while (grid.length <= y) grid.push(new Uint8Array(units));
-    return grid[y]!;
-  };
-  const cellAt = (x: number, y: number): number =>
-    x < 0 || y < 0 || x >= units ? TAKEN : row(y)[x]!;
-  const fits = (x: number, y: number, shape: Shape): boolean => {
-    for (let dy = 0; dy < shape.h; dy++) {
-      for (let dx = 0; dx < shape.w; dx++) if (cellAt(x + dx, y + dy) !== FREE) return false;
-    }
-    return true;
-  };
-  const small = (x: number, y: number): boolean => cellAt(x, y) === TAKEN_SMALL;
-  /**
-   * A small cover here would be the third in a row or close a 2x2 of them, or
-   * would sit under two small covers and leave closing that square to the next
-   * cell, which may have no room to break it.
-   */
-  const crowded = (x: number, y: number): boolean =>
-    (small(x - 1, y) && (small(x - 2, y) || (small(x - 1, y - 1) && small(x, y - 1))))
-    || (small(x, y - 1) && small(x + 1, y - 1));
-  const largeColumnFor = largeColumns(units);
-  const bandsWithLarge = new Set<number>();
-
+const bandSlots = (band: number, columns: number): WallSlot[] => {
   const slots: WallSlot[] = [];
-  let cx = 0;
-  let cy = 0;
-  for (let index = 0; index < count; index++) {
-    while (cellAt(cx, cy) !== FREE) {
-      cx++;
-      if (cx === units) { cx = 0; cy++; }
-    }
-    const canGrowDown = count - 1 - index >= 2 * units;
-    const band = Math.floor(cy / BAND_ROWS);
-    const bandTop = cy % BAND_ROWS === 0;
-    const plannedX = largeColumnFor(band);
-    const largePending = canGrowDown && bandTop && !bandsWithLarge.has(band);
-    // From a band's last row, a tall cover reaches into the next band; it
-    // must stay clear of that band's planned large slot.
-    const nextPlannedX = largeColumnFor(band + 1);
-    const tallAllowed = canGrowDown
-      && (bandTop || cx < nextPlannedX || cx >= nextPlannedX + LARGE.w);
-    const allowed = (option: Shape): boolean =>
-      (option.h === 1 || tallAllowed)
-      // Keep the planned large slot clear for this band's large cover.
-      && !(largePending && cx < plannedX && cx + option.w > plannedX)
-      && fits(cx, cy, option);
+  let x = 0;
+  for (const block of bandBlocks(band, columns)) {
+    for (const s of block.slots) slots.push({ ...s, x: s.x + x, y: s.y + band * BAND_ROWS });
+    x += block.width;
+  }
+  return slots.sort((a, b) => a.y - b.y || a.x - b.x);
+};
 
-    let shape: Shape;
-    if (largePending && cx >= plannedX && fits(cx, cy, LARGE)) {
-      shape = LARGE;
-      bandsWithLarge.add(band);
-    } else {
-      shape = optionsFor(index).find(allowed) ?? UNIT;
-      if (shape === UNIT && crowded(cx, cy)) shape = breakersFor(index).find(allowed) ?? UNIT;
+/** Tail tracks: a large cover, then small covers to its right and on rows below. */
+const tailSlots = (count: number, top: number, columns: number): WallSlot[] => {
+  const slots: WallSlot[] = [];
+  const withLarge = count >= 3 && columns >= LARGE + SMALL;
+  if (withLarge) slots.push(slot(0, top, LARGE, LARGE));
+  let x = withLarge ? LARGE : 0;
+  let y = top;
+  while (slots.length < count) {
+    if (x + SMALL > columns) {
+      y += SMALL;
+      x = withLarge && y < top + LARGE ? LARGE : 0;
     }
-    const mark = shape === UNIT ? TAKEN_SMALL : TAKEN;
-    for (let dy = 0; dy < shape.h; dy++) row(cy + dy).fill(mark, cx, cx + shape.w);
-    slots.push({
-      x: cx * CELLS_PER_UNIT,
-      y: cy * CELLS_PER_UNIT,
-      cols: shape.w * CELLS_PER_UNIT,
-      rows: shape.h * CELLS_PER_UNIT,
-    });
+    slots.push(slot(x, y, SMALL, SMALL));
+    x += SMALL;
+  }
+  return slots;
+};
+
+/** Packs `count` tiles into `units` small-cover columns; slots are in layout cells, in list order. */
+export function packWall(count: number, units: number): WallSlot[] {
+  const columns = units * CELLS_PER_UNIT;
+  const slots: WallSlot[] = [];
+  for (let band = 0; slots.length < count; band++) {
+    const next = bandSlots(band, columns);
+    const remaining = count - slots.length;
+    if (remaining < next.length) {
+      slots.push(...tailSlots(remaining, band * BAND_ROWS, columns));
+      break;
+    }
+    slots.push(...next);
   }
   return slots;
 }

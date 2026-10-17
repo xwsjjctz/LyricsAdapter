@@ -1,9 +1,22 @@
 import type { MusicPluginManifest } from '../../src/shared/musicPlugin';
-import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type PluginManifest, type ExtensionType } from '../../src/shared/plugin';
+import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type ConfigurationField, type PluginManifest, type ExtensionType } from '../../src/shared/plugin';
 
 export const PLUGIN_ID = /^[a-z][a-z0-9-]{0,63}$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+/**
+ * The origin a plugin may reach for this URL: HTTPS anywhere, plain HTTP only on loopback
+ * (local model servers). Credentials in URLs are never allowed.
+ */
+export function networkOrigin(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return undefined;
+    if (url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname))) return url.origin;
+  } catch { /* not a URL */ }
+  return undefined;
+}
 export function supportsApi(version: string, range: string): boolean {
   if (!/^[~^]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(range) || !VERSION.test(version)) return false;
   const prefix = range[0];
@@ -31,6 +44,14 @@ export function negotiateExtensions(manifest: PluginManifest): Partial<Record<Ex
   }
   return versions;
 }
+/** Secret fields need the secrets permission and start empty; endpoints default to empty or an allowed URL. */
+function validFormat(field: ConfigurationField, manifest: PluginManifest): boolean {
+  if (field.format === undefined) return true;
+  if (field.type !== 'string' || field.enum !== undefined || typeof field.default !== 'string') return false;
+  if (field.format === 'secret') return field.default === '' && manifest.permissions?.secrets === 'own';
+  if (field.format === 'endpoint') return field.default === '' || networkOrigin(field.default) !== undefined;
+  return false;
+}
 /** Normalize the new manifest into the old management DTO without changing legacy packages. */
 export function validatePlatformManifest(value: Record<string, unknown>): MusicPluginManifest & { platform: PluginManifest } {
   if (value['manifestVersion'] !== 1) throw new Error(`Unsupported plugin manifest version: ${String(value['manifestVersion'])}`);
@@ -55,9 +76,7 @@ export function validatePlatformManifest(value: Record<string, unknown>): MusicP
   if (manifest.permissions !== undefined) {
     if (!record(manifest.permissions) || (manifest.permissions.secrets !== undefined && manifest.permissions.secrets !== 'own')
       || (manifest.permissions.network !== undefined && (!Array.isArray(manifest.permissions.network)
-        || !manifest.permissions.network.every(origin => {
-          try { const url = new URL(origin); return url.protocol === 'https:' && url.origin === origin && !url.username && !url.password; } catch { return false; }
-        })))) throw new Error('Invalid plugin permissions');
+        || !manifest.permissions.network.every(origin => typeof origin === 'string' && networkOrigin(origin) === origin)))) throw new Error('Invalid plugin permissions');
   }
   const configuration = manifest.contributes.configuration;
   if (configuration !== undefined) {
@@ -68,7 +87,9 @@ export function validatePlatformManifest(value: Record<string, unknown>): MusicP
         || (typeof field.default === 'number' && !Number.isFinite(field.default)) || (typeof field.default === 'string' && field.default.length > 16_384)
         || (field.enum !== undefined && (!Array.isArray(field.enum) || !field.enum.length || !field.enum.every(v => typeof v === field.type)
           || !field.enum.every(v => typeof v === 'number' ? Number.isFinite(v) : typeof v === 'string' && v.length <= 16_384)
-          || !field.enum.includes(field.default as never)))) throw new Error('Invalid plugin configuration field');
+          || !field.enum.includes(field.default as never)))
+        || (field.description !== undefined && (typeof field.description !== 'string' || field.description.length > 1024))
+        || !validFormat(field, manifest)) throw new Error('Invalid plugin configuration field');
     }
   }
   const music = manifest.contributes.providers.some(p => p.type === 'music.source' && versions['music.source']);
